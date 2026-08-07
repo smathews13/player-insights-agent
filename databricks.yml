@@ -1,0 +1,432 @@
+# Player Insights Agent (PIA): Declarative Automation Bundle
+#
+# Every environment-specific value is a variable with no default, so nothing
+# from another deployment can leak in silently.
+#
+# Two things the deployment needs are NOT created here: the serving endpoint
+# (bundle/agent-release.sh) and the app's source tree (bundle/app-release.sh).
+
+bundle:
+  name: player-insights-agent
+
+include:
+  - resources/*.yml
+
+# ---------------------------------------------------------------------------
+# Variables
+#
+# A variable with no `default` is REQUIRED: `bundle validate` fails until the
+# target sets it or the caller passes --var.
+# ---------------------------------------------------------------------------
+variables:
+  # --- Deployment ----------------------------------------------------------
+  bundle_root_path:
+    description: >-
+      Workspace folder holding the bundle's deployment state and synced files.
+      Defaults to the deploying identity's home, which is restricted. Point it at
+      a shared or service-principal folder for CI/CD and grant that folder
+      explicitly. /Workspace/Shared is writable by every workspace user.
+
+      KEEP THE `-dab` SUFFIX. The superseded bundle in player-insights-agent/
+      carries the same `bundle.name`, and without it both bundles' state lands
+      under one parent directory.
+    default: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}-dab/${bundle.target}
+
+  # --- Unity Catalog -------------------------------------------------------
+  catalog:
+    description: >-
+      Unity Catalog catalog holding the player-insights tables and the agent
+      model. REQUIRED: no default, so the demo catalog cannot leak.
+  schema:
+    description: >-
+      Unity Catalog schema inside ${var.catalog}. REQUIRED.
+  volume:
+    description: Managed volume for raw snapshots.
+    default: player_insights_assets
+  catalog_allowlist:
+    description: >-
+      Comma-separated scopes the agent may read. `log_model.py` enumerates each
+      scope in Unity Catalog and emits one DatabricksTable resource per table,
+      which is exactly what automatic authentication passthrough grants the
+      serving principal, and bakes the same list into the artifact as the
+      manifest the SQL guard checks.
+
+      An entry is `catalog.schema`, or a bare catalog for the agent's OWN catalog
+      only, where it resolves to ${var.schema}. A bare foreign catalog is refused
+      rather than expanded.
+
+      Read at MODEL-LOG time on the deploying machine and carried inside the
+      artifact; the serving container inherits nothing from that shell. Widening
+      this takes a re-log and a redeploy (bundle/agent-release.sh), not a config
+      edit.
+    default: ${var.catalog}
+  catalog_denylist:
+    description: >-
+      Comma-separated glob patterns naming tables that must NEVER be declared,
+      even though they sit inside an allowlisted scope. Matched against both the
+      fully-qualified name and the bare table name, so `raw_*` and
+      `cat.sch.raw_purchases` both work. Applied after the scope listing and
+      before the data-contract union, so an excluded table cannot come back; a
+      pattern that would drop a contract table stops the log instead.
+
+      Empty by default. The exclusion that matters most, the endpoint's own
+      inference payload table holding every question asked of the agent and who
+      asked it, is recognised structurally by its column signature rather than
+      named here. This variable is for the ones only the deployer knows about.
+
+      SET IT HERE, not in the shell that runs the release. As an environment
+      variable it is silently dropped by a re-log from a clean shell, which
+      re-grants the serving principal SELECT on everything it excluded and
+      re-opens the SQL guard to match, with nothing in the output to say so.
+      Read at model-log time like the allowlist, so changing it takes a re-log.
+
+      Override it in variable-overrides.json or as BUNDLE_VAR_catalog_denylist.
+      NOT with `--var`: the CLI splits that flag's value on commas. Applies to
+      catalog_allowlist too.
+    default: ""
+
+  # --- Compute -------------------------------------------------------------
+  warehouse_id:
+    description: >-
+      SQL warehouse id used by the Genie spaces and the agent's SQL fallback.
+      REQUIRED. Must be PRO or SERVERLESS (Genie requirement).
+      This bundle references the warehouse; it never creates or modifies it.
+
+  # --- Agent / model serving ----------------------------------------------
+  serving_endpoint_name:
+    description: >-
+      Agent serving endpoint name. Created by `databricks.agents.deploy()`, not
+      by this bundle. Referenced here so the app resource can attach it.
+    default: player-insights-agent
+  llm_endpoint:
+    description: >-
+      Foundation-model endpoint the agent reasons with. When llm_gateway names a
+      route, this may instead be the three-level name of a Unity Catalog model
+      service. The gateway accepts either, so the same variable serves both.
+    default: databricks-claude-sonnet-4-6
+  llm_gateway:
+    description: >-
+      Route the agent reaches llm_endpoint by. Empty (the default) is a direct
+      call to the workspace's serving endpoints.
+
+      Set to `mlflow` to send the same call through the customer's AI Gateway
+      instead, so their usage tracking, cost attribution, rate limits and
+      guardrails apply to it. `openai` selects the gateway's OpenAI-native path.
+
+      A gateway refusal is NOT retried against the direct endpoint, so a
+      customer's governance is never silently routed around.
+    default: ""
+  manifest_source:
+    description: >-
+      How the agent's table manifest is generated at model-log time. The manifest
+      becomes the model's DatabricksTable resources, which is exactly what
+      automatic authentication passthrough grants the serving principal, so this
+      decides what the agent can read.
+
+      Empty (the default) means `schema`: enumerate every table in each
+      catalog_allowlist scope and union the six-table data contract in.
+
+      Set to `genie` to declare only the tables your Genie spaces curate. Do this
+      if your warehouse does not project onto PIA's contract table names, or if a
+      release is refused for declaring too many tables: Unity Catalog caps the
+      dependencies of one model version, and a Genie space is capped at 30
+      tables, so this mode cannot exceed 60 however wide the schema is.
+
+      THE SQL GUARD IS UNAFFECTED EITHER WAY. It refuses crm_customer_ref anywhere
+      in a statement, refuses NATURAL joins, and refuses returning email,
+      display_name, player_id, platformid_accountid or partner_player_ref, all matched on
+      column name with no reference to the manifest. What `genie` mode costs is
+      reach: a contract table the spaces do not curate is undeclared, and a
+      question needing it is answered as out of scope.
+
+      Those column lists are OUR names, in both modes, so a schema calling the
+      same identifiers something else is not refused. If yours does, add them to
+      BLOCKED_COLUMNS and UNRETURNABLE_COLUMNS in agent/tools.py. The enforced
+      boundary is the Unity Catalog grants this manifest generates, so withhold
+      SELECT on anything the agent must not read.
+
+      `agent/manifest_dryrun.py` prints the resulting manifest without logging.
+    default: ""
+  synthetic_data:
+    description: >-
+      Whether the player data this deployment reads is synthetic. Set it to
+      "true" ONLY where the figures are invented, as they are in the Databricks
+      demo workspace.
+
+      Empty (the default) and "false" both mean the agent makes NO CLAIM about
+      the nature of the data, in either direction. Nothing in the deployment can
+      look at a warehouse and tell, so silence is the only honest answer a
+      deployment that has not said gets to give.
+
+      THE DEFAULT MATTERS MORE THAN THE SETTING. With "true" compiled in
+      unconditionally, every answer ended with a sentence saying the player data
+      was synthetic and representative. In the demo that is a disclosure it owes
+      its audience. On a customer's estate it is false, and it told their
+      analysts, immediately below a figure computed from their own production
+      rows, that those rows were fabricated. A near-identical defect had already
+      reached a customer once, badging a real production table as demo data.
+
+      Only "true" (trimmed, any case) turns the disclosure on. Anything that is
+      neither "true", "false" nor empty FAILS THE MODEL LOAD rather than picking
+      a side, because a typo resolving quietly to false would delete a
+      disclosure and look exactly like a correct customer deployment.
+
+      Read at model-log time and baked into the artifact beside the prompts it
+      gates, so changing it takes a re-log (bundle/agent-release.sh), not a
+      config edit or an app redeploy.
+    default: ""
+  model_name:
+    description: Three-level UC name of the registered agent model.
+    default: ${var.catalog}.${var.schema}.player_insights_agent
+  experiment_path:
+    description: Workspace path of the MLflow experiment for agent runs and traces.
+    default: /Shared/player-insights-agent
+  max_output_tokens:
+    description: Agent max output tokens (PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS).
+    default: "2500"
+  judge_endpoint:
+    description: >-
+      Foundation-model endpoint that scores benchmark answers. NEVER on the answer
+      path: it grades runs in the Benchmark Lab and nothing else.
+
+      bundle/app-release.sh reads this and passes it to the deploy-tree generator,
+      so it reaches the running app through app.yaml. Empty means the compiled
+      default. A value saved on the app's Connections page overrides this at
+      request time, which is the one setting in this bundle a deployer can change
+      without a release.
+    default: ""
+
+  # --- Genie ---------------------------------------------------------------
+  genie_parent_path:
+    description: Workspace folder that holds the two Genie spaces.
+    default: /Workspace/Shared
+  genie_data_space_id:
+    description: >-
+      ADOPT an existing data Genie space instead of the one this bundle creates.
+      Empty (the default) means use the bundle's own
+      `resources.genie_spaces.data_genie_space`, whose id is an OUTPUT and only
+      exists after a deploy.
+
+      Setting it does NOT stop the bundle creating its own space; it changes
+      which id the agent is logged against, which is what decides what the agent
+      can ask. `bundle/agent-release.sh` prefers this over the bundle output, and
+      `PLAYER_INSIGHTS_DATA_GENIE_ID` in the environment wins over both. Put it
+      in variable-overrides.json beside catalog and warehouse_id, so there is one
+      place the deployment is written down.
+
+      IF YOU ADOPT A SPACE, its curated tables must be a subset of what the model
+      declares, or every Genie call fails with a passthrough credential error and
+      the SQL fallback answers anyway. Nothing checks an adopted space for you.
+    default: ""
+  genie_dictionary_space_id:
+    description: >-
+      ADOPT an existing dictionary Genie space. Same rules as
+      genie_data_space_id, and the environment override is
+      PLAYER_INSIGHTS_DICTIONARY_GENIE_ID. Adopting one and not the other is
+      legitimate, which is why they are separate variables.
+    default: ""
+
+  # --- App -----------------------------------------------------------------
+  app_name:
+    description: >-
+      Databricks App name. <=26 chars, lowercase/digits/hyphens only.
+    default: player-insights-agent
+  app_description:
+    description: App description shown in the workspace.
+    default: Player insights, multi-agent traces, and repeatable benchmarking
+  shared_conversation_rail:
+    description: >-
+      Whether the app's conversation rail lists everyone's conversations
+      ("true") or only the signed-in user's ("false"). DEFAULTS TO false, which
+      is what keeps one person's conversations out of another's rail. "true"
+      reverses that deliberately, for a shared evaluation workspace where
+      stakeholders benchmark together. It is not a convenience setting.
+
+      Only the exact string "true" enables it. Anything else (unset, empty, "1",
+      a typo) fails closed, and the app logs at boot which it resolved.
+
+      It widens READS only, and only two: the rail listing and the messages of a
+      conversation opened from it. Deleting, asking and uploading stay scoped to
+      the owner whatever this says.
+
+      bundle/app-release.sh reads this and passes it to the deploy-tree
+      generator, so it reaches the running app through app.yaml.
+    default: "false"
+  app_user_api_scopes:
+    description: >-
+      OAuth scopes the app requests of the SIGNED-IN USER, forwarded as
+      `x-forwarded-access-token`. A list, per target, because one workspace's
+      accepted scope is another's locked door.
+
+      CONSENT IS ALL OR NOTHING. The sign-in prompt asks for every scope at
+      once, so a single scope the workspace will not issue fails the whole
+      consent and the user loops on an authentication error before the app is
+      reached. Nothing in our logs records it. An unnecessary scope is
+      therefore not free: it is an undiagnosable lockout.
+
+      The default is the four that every workspace has accepted, and is what a
+      customer deployment gets. Add to it in a TARGET, never here, and only
+      once that workspace has been observed to issue it.
+
+      `serving.serving-endpoints-data-plane` is the reason this is a variable.
+      It is live on example and works there; on a fresh workspace the OAuth server
+      rejected it as an invalid scope and nobody could sign in. It was removed
+      outright in cf2199c, which left the repo describing four scopes while
+      example ran five, so the next `bundle deploy` would have stripped it from
+      example silently, and the breakage would have surfaced at the following
+      restart rather than at the command that caused it.
+
+      ADDING OR REMOVING A SCOPE NEEDS A FULL APP STOP AND START. A redeploy
+      leaves the change inert, which looks exactly like a bug in the app.
+    type: complex
+    default:
+      - serving.serving-endpoints
+      - model-serving
+      - sql
+      - dashboards.genie
+  app_source_code_path:
+    description: >-
+      ABSOLUTE workspace path holding the app's deployed source tree. REQUIRED.
+      This directory MUST NOT contain a package.json, or the app container runs
+      `npm install` on deploy and hangs indefinitely, having no reliable registry
+      egress. Populated by bundle/app-release.sh (workspace import-dir of
+      player-insights-agent/build/deploy), never by bundle file sync. That script
+      reads this variable, so this is the only place the path is written down.
+
+  # --- Lakebase ------------------------------------------------------------
+  lakebase_project_id:
+    description: >-
+      Lakebase (Postgres) project id. REQUIRED: no default. Its branch and
+      database carry `replace_existing: true`, so a value inherited from another
+      target does not fail closed, it UPDATES that project and takes over
+      whatever conversation and benchmark state is already there. Lowercase
+      letters, digits and hyphens.
+      Existing projects in a workspace:
+        databricks postgres list-projects --profile <profile>
+  lakebase_project_display_name:
+    description: >-
+      Human-readable Lakebase project name, shown in the workspace UI. Defaults
+      to the project id.
+    default: ${var.lakebase_project_id}
+  lakebase_branch_id:
+    description: Lakebase branch id the app connects to.
+    default: production
+  lakebase_database_id:
+    description: Lakebase database id inside the branch.
+    default: databricks-postgres
+  lakebase_app_schema:
+    description: >-
+      Postgres schema the app creates and owns. The app service principal needs
+      USAGE+CREATE here or every route silently falls back to representative data.
+
+      NOTHING READS THIS VARIABLE, and it cannot: Postgres privileges live inside
+      the database, out of the control plane's reach, so no bundle resource can
+      act on it. Changing it alone does nothing at all.
+
+      The real value is the DDL in
+      player-insights-agent/server/routes/insights-routes.ts, where it is a bare
+      SQL identifier repeated across every statement; scripts/grant-app-db-access.mjs
+      parses it back out of there. This variable only documents it. So the pair
+      must move together, and nothing enforces it:
+        1. server/routes/insights-routes.ts   the DDL          <- the real value
+        2. this variable                      documentation
+      Until the DDL is configurable, a customer wanting a different schema name
+      must edit the app source.
+    default: player_insights
+  lakebase_min_cu:
+    description: Lakebase autoscaling minimum compute units.
+    default: 1
+  lakebase_max_cu:
+    description: Lakebase autoscaling maximum compute units.
+    default: 1
+  lakebase_owner_role_id:
+    description: >-
+      Lakebase role id that OWNS the database. REQUIRED: no default, and NOT
+      derivable from the login. Lakebase forms role ids with HYPHENS while
+      ${workspace.current_user.short_name} uses UNDERSCORES, so a derived value
+      names a role that does not exist and the database create fails part-way
+      through a deploy rather than at validate time.
+      Read the real value out of the workspace. It is the `role_id` whose
+      `status.postgres_role` is your login:
+        databricks postgres list-roles \
+          projects/<project>/branches/<branch> --profile <profile> -o json
+      That needs a branch to exist, because the role is created alongside it. On
+      a workspace with no Lakebase project yet, use the login local part with
+      hyphens (`first.last@example.com` -> `first-last`) and confirm it once the
+      first deploy has created the branch.
+  # Derived full resource names. Do not override directly.
+  postgres_branch_name:
+    description: Full Lakebase branch resource name (derived).
+    default: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}
+  postgres_database_name:
+    description: Full Lakebase database resource name (derived).
+    default: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}/databases/${var.lakebase_database_id}
+  postgres_owner_role_name:
+    description: Full Lakebase owner role resource name (derived).
+    default: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}/roles/${var.lakebase_owner_role_id}
+
+  # Variables that configure ONE resource are declared in that resource's own
+  # file under resources/, not here. Only values more than one resource reads,
+  # or that a target overrides, belong above.
+
+# ---------------------------------------------------------------------------
+# File sync
+#
+# The app's source tree is uploaded by bundle/app-release.sh, NOT by bundle sync,
+# so nothing here needs to reach the app compute. The exclusions keep the heavy
+# local artefacts out of the workspace.
+# ---------------------------------------------------------------------------
+sync:
+  exclude:
+    - "**/node_modules/**"
+    - "**/.venv/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/.smoke-test/**"
+    - "**/.ui-test-artifacts/**"
+    - "**/playwright-report/**"
+    - "**/test-results/**"
+    - agent/mlruns/**
+    - agent/mlflow.db
+
+targets:
+
+
+  # -------------------------------------------------------------------------
+  # customer: customer workspace
+  #
+  # Sets NO variable that NAMES A WORKSPACE, so a missing value stops
+  # `bundle validate` instead of resolving to a demo value or a wrong derived
+  # one. The two variables it does set name no resource: manifest_source selects
+  # how the manifest is generated from whatever resources the deployer supplies,
+  # and synthetic_data describes the nature of their data rather than its
+  # location. Supply the rest at invocation time:
+  #
+  #   databricks bundle validate -t customer --profile <their-profile> \
+  #     --var catalog=<catalog> \
+  #     --var schema=<schema> \
+  #     --var warehouse_id=<id> \
+  #     --var app_source_code_path=/Workspace/Shared/player-insights-agent-src \
+  #     --var lakebase_project_id=<their-project-id> \
+  #     --var lakebase_owner_role_id=<role_id from `databricks postgres list-roles`>
+  #
+  # or, better, in the git-ignored
+  # .databricks/bundle/customer/variable-overrides.json.
+  # -------------------------------------------------------------------------
+  customer:
+    default: true
+    mode: production
+    workspace:
+      root_path: ${var.bundle_root_path}
+    variables:
+      # customer only. `schema` mode enumerates every table in each
+      # catalog_allowlist scope, and this workspace has already had a model
+      # version refused at 181 dependencies; genie mode declares what the two
+      # Genie spaces curate, which cannot exceed 60. Deliberately not set on
+      # example, where the schema yields ten tables and fits either way.
+      manifest_source: genie
+      # STATED rather than left to the default, which resolves the same way. The
+      # default protects a deployment nobody configured; this line says out loud
+      # that somebody looked at this estate and decided its data is real, so
+      # nothing here claims otherwise about the customer's own production rows.
+      synthetic_data: "false"

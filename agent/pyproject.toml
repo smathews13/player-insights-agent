@@ -1,0 +1,38 @@
+[project]
+name = "player-insights-agent-runtime"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "databricks-agents",
+  "databricks-sdk>=0.81.0",
+  "mlflow>=3.14.0",
+  "openai>=1.66.0",
+  "pydantic>=2.10.0",
+  "sqlglot>=30.14.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.11.0",
+]
+
+# Pin the public index so a clone resolves anywhere. Without this, a machine
+# with a private index in ~/.config/uv/uv.toml writes that host into uv.lock's
+# artefact URLs on the next `uv lock`, and the lockfile stops working for
+# anyone outside that network.
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+default = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

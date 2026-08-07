@@ -1,0 +1,17 @@
+# Unity Catalog home for the player-insights tables, the agent model, and the
+# inference tables the serving endpoint writes.
+#
+# THE CATALOG ITSELF IS NEVER DECLARED. Every deployment supplies an existing one,
+# and a bundle-owned catalog resource would put whatever else lives in it inside
+# this bundle's destroy blast radius.
+
+resources:
+  schemas:
+    player_insights_schema:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: "Player Insights Agent: curated tables, agent model, and inference tables."
+      lifecycle:
+        # The demo's tables, the registered model, and the serving endpoint's
+        # inference tables all live here. Never let `bundle destroy` take them.
+        prevent_destroy: true

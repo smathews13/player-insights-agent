@@ -1,0 +1,413 @@
+{
+  "single series": {
+    "id": "chart-1",
+    "title": "Top 5 Titles by Active Players",
+    "kind": "bar",
+    "data": [
+      {
+        "type": "bar",
+        "x": [
+          52642,
+          32928,
+          14174,
+          10233,
+          9244
+        ],
+        "y": [
+          "VLH Online",
+          "Hoops 26",
+          "Dynasty VII",
+          "Velocity Heights V",
+          "Iron Frontier Reckoning"
+        ],
+        "orientation": "h",
+        "marker": {
+          "color": "#e4002b"
+        }
+      }
+    ],
+    "layout": {
+      "paper_bgcolor": "rgba(0,0,0,0)",
+      "plot_bgcolor": "rgba(0,0,0,0)",
+      "font": {
+        "color": "#111111",
+        "size": 12
+      },
+      "margin": {
+        "l": 8,
+        "r": 8,
+        "t": 8,
+        "b": 8
+      },
+      "showlegend": false,
+      "legend": {
+        "orientation": "h",
+        "yanchor": "bottom",
+        "y": -0.28,
+        "x": 0,
+        "font": {
+          "color": "#111111",
+          "size": 11
+        }
+      },
+      "hoverlabel": {
+        "bgcolor": "#ffffff",
+        "bordercolor": "#e5e5e5",
+        "font": {
+          "color": "#111111",
+          "size": 12
+        }
+      },
+      "colorway": [
+        "#e4002b",
+        "#111111",
+        "#fcaf17",
+        "#6c707b",
+        "#b20022",
+        "#f38ca0",
+        "#fdd78b",
+        "#aeb0b6"
+      ],
+      "hovermode": "closest",
+      "yaxis": {
+        "gridcolor": "#e5e5e5",
+        "zerolinecolor": "#e5e5e5",
+        "linecolor": "#e5e5e5",
+        "tickfont": {
+          "color": "#6c707b",
+          "size": 11
+        },
+        "automargin": true,
+        "showgrid": false,
+        "title": "Title",
+        "autorange": "reversed"
+      },
+      "xaxis": {
+        "gridcolor": "#e5e5e5",
+        "zerolinecolor": "#e5e5e5",
+        "linecolor": "#e5e5e5",
+        "tickfont": {
+          "color": "#6c707b",
+          "size": 11
+        },
+        "automargin": true,
+        "showgrid": true,
+        "tickformat": ",",
+        "title": "Active Players"
+      },
+      "bargap": 0.28
+    }
+  },
+  "multiple series": {
+    "id": "chart-1",
+    "title": "Active vs. Paying Players — Top 5 Titles by Active Players",
+    "kind": "bar",
+    "data": [
+      {
+        "type": "bar",
+        "name": "Active Players",
+        "x": [
+          "VLH Online",
+          "Hoops 26",
+          "Dynasty VII",
+          "Velocity Heights V",
+          "Iron Frontier Reckoning"
+        ],
+        "y": [
+          52642,
+          32928,
+          14174,
+          10233,
+          9244
+        ],
+        "marker": {
+          "color": "#e4002b"
+        }
+      },
+      {
+        "type": "bar",
+        "name": "Paying Players",
+        "x": [
+          "VLH Online",
+          "Hoops 26",
+          "Dynasty VII",
+          "Velocity Heights V",
+          "Iron Frontier Reckoning"
+        ],
+        "y": [
+          8346,
+          6543,
+          1011,
+          125,
+          188
+        ],
+        "marker": {
+          "color": "#111111"
+        }
+      }
+    ],
+    "layout": {
+      "paper_bgcolor": "rgba(0,0,0,0)",
+      "plot_bgcolor": "rgba(0,0,0,0)",
+      "font": {
+        "color": "#111111",
+        "size": 12
+      },
+      "margin": {
+        "l": 8,
+        "r": 8,
+        "t": 8,
+        "b": 8
+      },
+      "showlegend": true,
+      "legend": {
+        "orientation": "h",
+        "yanchor": "bottom",
+        "y": -0.28,
+        "x": 0,
+        "font": {
+          "color": "#111111",
+          "size": 11
+        }
+      },
+      "hoverlabel": {
+        "bgcolor": "#ffffff",
+        "bordercolor": "#e5e5e5",
+        "font": {
+          "color": "#111111",
+          "size": 12
+        }
+      },
+      "colorway": [
+        "#e4002b",
+        "#111111",
+        "#fcaf17",
+        "#6c707b",
+        "#b20022",
+        "#f38ca0",
+        "#fdd78b",
+        "#aeb0b6"
+      ],
+      "hovermode": "x unified",
+      "xaxis": {
+        "gridcolor": "#e5e5e5",
+        "zerolinecolor": "#e5e5e5",
+        "linecolor": "#e5e5e5",
+        "tickfont": {
+          "color": "#6c707b",
+          "size": 11
+        },
+        "automargin": true,
+        "showgrid": false,
+        "title": "Title"
+      },
+      "yaxis": {
+        "gridcolor": "#e5e5e5",
+        "zerolinecolor": "#e5e5e5",
+        "linecolor": "#e5e5e5",
+        "tickfont": {
+          "color": "#6c707b",
+          "size": 11
+        },
+        "automargin": true,
+        "showgrid": true,
+        "tickformat": ",",
+        "title": "Number of Players"
+      },
+      "bargap": 0.28,
+      "barmode": "group"
+    }
+  },
+  "time series": {
+    "id": "chart-1",
+    "title": "Daily Active Players – Last 28 Days (2026-07-07 to 2026-08-03)",
+    "kind": "line",
+    "data": [
+      {
+        "x": [
+          "2026-07-07",
+          "2026-07-22",
+          "2026-07-30",
+          "2026-08-02",
+          "2026-08-03"
+        ],
+        "name": "Daily Active Players",
+        "y": [
+          1069,
+          1444,
+          1977,
+          2838,
+          4972
+        ],
+        "mode": "lines",
+        "type": "scatter",
+        "line": {
+          "color": "#e4002b",
+          "width": 2
+        },
+        "marker": {
+          "color": "#e4002b",
+          "size": 6
+        }
+      }
+    ],
+    "layout": {
+      "paper_bgcolor": "rgba(0,0,0,0)",
+      "plot_bgcolor": "rgba(0,0,0,0)",
+      "font": {
+        "color": "#111111",
+        "size": 12
+      },
+      "margin": {
+        "l": 8,
+        "r": 8,
+        "t": 8,
+        "b": 8
+      },
+      "showlegend": false,
+      "legend": {
+        "orientation": "h",
+        "yanchor": "bottom",
+        "y": -0.28,
+        "x": 0,
+        "font": {
+          "color": "#111111",
+          "size": 11
+        }
+      },
+      "hoverlabel": {
+        "bgcolor": "#ffffff",
+        "bordercolor": "#e5e5e5",
+        "font": {
+          "color": "#111111",
+          "size": 12
+        }
+      },
+      "colorway": [
+        "#e4002b",
+        "#111111",
+        "#fcaf17",
+        "#6c707b",
+        "#b20022",
+        "#f38ca0",
+        "#fdd78b",
+        "#aeb0b6"
+      ],
+      "hovermode": "closest",
+      "xaxis": {
+        "gridcolor": "#e5e5e5",
+        "zerolinecolor": "#e5e5e5",
+        "linecolor": "#e5e5e5",
+        "tickfont": {
+          "color": "#6c707b",
+          "size": 11
+        },
+        "automargin": true,
+        "showgrid": false,
+        "title": "Event Date"
+      },
+      "yaxis": {
+        "gridcolor": "#e5e5e5",
+        "zerolinecolor": "#e5e5e5",
+        "linecolor": "#e5e5e5",
+        "tickfont": {
+          "color": "#6c707b",
+          "size": 11
+        },
+        "automargin": true,
+        "showgrid": true,
+        "tickformat": ",",
+        "title": "Daily Active Players"
+      }
+    }
+  },
+  "categorical breakdown": {
+    "id": "chart-1",
+    "title": "Active Players by Platform — Share of Total",
+    "kind": "pie",
+    "data": [
+      {
+        "labels": [
+          "PlayStation 5",
+          "PC",
+          "Xbox Series X|S",
+          "PlayStation 4",
+          "Xbox One",
+          "Nintendo Switch 2",
+          "Nintendo Switch"
+        ],
+        "values": [
+          28.2,
+          20.2,
+          17.8,
+          15.2,
+          8.9,
+          6.6,
+          3.2
+        ],
+        "textinfo": "label+percent",
+        "sort": false,
+        "type": "pie",
+        "marker": {
+          "colors": [
+            "#e4002b",
+            "#111111",
+            "#fcaf17",
+            "#6c707b",
+            "#b20022",
+            "#f38ca0",
+            "#fdd78b"
+          ],
+          "line": {
+            "color": "#ffffff",
+            "width": 1
+          }
+        },
+        "hovertemplate": "%{label}<br>%{value:,}<extra></extra>"
+      }
+    ],
+    "layout": {
+      "paper_bgcolor": "rgba(0,0,0,0)",
+      "plot_bgcolor": "rgba(0,0,0,0)",
+      "font": {
+        "color": "#111111",
+        "size": 12
+      },
+      "margin": {
+        "l": 8,
+        "r": 8,
+        "t": 8,
+        "b": 8
+      },
+      "showlegend": true,
+      "legend": {
+        "orientation": "h",
+        "yanchor": "bottom",
+        "y": -0.28,
+        "x": 0,
+        "font": {
+          "color": "#111111",
+          "size": 11
+        }
+      },
+      "hoverlabel": {
+        "bgcolor": "#ffffff",
+        "bordercolor": "#e5e5e5",
+        "font": {
+          "color": "#111111",
+          "size": 12
+        }
+      },
+      "colorway": [
+        "#e4002b",
+        "#111111",
+        "#fcaf17",
+        "#6c707b",
+        "#b20022",
+        "#f38ca0",
+        "#fdd78b",
+        "#aeb0b6"
+      ]
+    }
+  }
+}

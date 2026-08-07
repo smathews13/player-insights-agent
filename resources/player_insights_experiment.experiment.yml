@@ -1,0 +1,18 @@
+# MLflow experiment for agent runs and traces.
+#
+# agent/log_model.py calls mlflow.set_experiment(PLAYER_INSIGHTS_EXPERIMENT) and
+# the serving endpoint writes traces here via MLFLOW_EXPERIMENT_ID. Declaring it
+# means it exists (with the right permissions) before the first log_model run,
+# instead of being created implicitly by whoever runs the script first.
+
+resources:
+  experiments:
+    player_insights_experiment:
+      name: ${var.experiment_path}
+      lifecycle:
+        # Destroying the experiment destroys every logged run and trace, which
+        # is the evaluation history the Benchmark Lab reads.
+        prevent_destroy: true
+      permissions:
+        - level: CAN_EDIT
+          group_name: users

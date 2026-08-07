@@ -1,0 +1,489 @@
+/**
+ * The arithmetic behind the inline trace panel, kept out of the component.
+ *
+ * What the agent actually records, which is what makes the geometry possible:
+ * `TraceStage.start` is milliseconds from the run's own origin
+ * (`(started - self.started) * 1000` off a `perf_counter`) and
+ * `TraceStage.duration` is the measured elapsed of that step. Both come from
+ * one monotonic clock shared with `TraceSummary.totalMs`, so offsets, widths
+ * and the envelope are all on the same axis and can be compared directly.
+ */
+import type { TraceStage, TraceSummary } from './answer-shape';
+
+/**
+ * What a row was, in the vocabulary a reader thinks in.
+ *
+ * The agent records only two kinds, `agent` and `tool`, which collapses a model
+ * call, a catalog lookup and a SQL query into one bucket and makes the roll-up
+ * say almost nothing. The finer type here is derived from the recorded tool
+ * name, which the stage id carries verbatim. It is a re-reading of something
+ * measured, not a new measurement, and the panel says so on screen.
+ */
+export type ToolType = 'llm' | 'sql' | 'discovery' | 'plot' | 'clarify' | 'agent' | 'run';
+
+/** Display order for the roll-up when two types tie on time. */
+const TYPE_ORDER: ToolType[] = ['llm', 'sql', 'discovery', 'plot', 'clarify', 'agent', 'run'];
+
+/**
+ * Tool names the agent can call, mapped to the type a reader recognises.
+ *
+ * Keyed on the tool's real name as it appears in `_TOOL_STAGE_NAMES` in
+ * agent.py. A name that is not here falls back to the stage's recorded `kind`,
+ * so a tool added to the agent shows up as a plain tool row rather than being
+ * silently filed under the wrong heading.
+ */
+const TOOL_TYPES: Record<string, ToolType> = {
+  data_genie: 'sql',
+  run_sql: 'sql',
+  query_named_table: 'sql',
+  dictionary_genie: 'discovery',
+  describe_table: 'discovery',
+  list_data_assets: 'discovery',
+};
+
+/**
+ * Kinds whose time is the sum of others' and so cannot be added to them.
+ */
+const CONTAINER_TYPES = new Set<ToolType>(['run']);
+
+export interface TimelineRow {
+  id: string;
+  /** Position in the table, 1-based, matching the `step` column. */
+  step: number;
+  name: string;
+  type: ToolType;
+  status: TraceStage['status'];
+  /** The tool's real arguments, or the run's question on the envelope row. */
+  input: string;
+  output: string;
+  durationMs: number;
+  /** Offset from the run origin, or null when the stage did not record one. */
+  startMs: number | null;
+  /** Left edge as a fraction of wall clock, or null when it cannot be known. */
+  leftPct: number | null;
+  /** Width as a fraction of wall clock, or null when it cannot be known. */
+  widthPct: number | null;
+  /** True for the run envelope, whose time is the sum of everything below it. */
+  container: boolean;
+  /**
+   * One of several tool calls the model requested in a single turn.
+   *
+   * A flag on a missed opportunity, not a claim about what happened. These ran
+   * one after another like everything else; the mark says they need not have.
+   */
+  fanout: boolean;
+}
+
+export interface RollUpRow {
+  type: ToolType;
+  /** Time in steps that produced something. Excludes failed steps. */
+  totalMs: number;
+  /** Share of wall clock, or null when there is no measured wall clock. */
+  sharePct: number | null;
+  calls: number;
+  /** Steps of this type that ended `partial`, counted in `totalMs` but flagged. */
+  partialCalls: number;
+  /** Time in steps of this type that failed. Reported apart, never added in. */
+  failedMs: number;
+  failedCalls: number;
+}
+
+/**
+ * A group of tool calls the model asked for in one turn.
+ *
+ * `savingMs` is what running them together would have saved: the sum of their
+ * durations less the longest one, since a concurrent group takes as long as its
+ * slowest member. It is a statement about a hypothetical, and the panel labels
+ * it as one.
+ */
+export interface ConcurrencyGroup {
+  parentId: string;
+  rows: number;
+  savingMs: number;
+}
+
+export interface TimelineModel {
+  rows: TimelineRow[];
+  rollUp: RollUpRow[];
+  /** The run envelope, or null when `totalMs` was not recorded. */
+  wallClockMs: number | null;
+  /**
+   * Sum of every recorded stage, parents included, not just leaves.
+   */
+  recordedMs: number;
+  /**
+   * Wall clock less recorded activity, or null when either side is unknown.
+   *
+   * Negative when rows overlap, which real runs from this agent cannot do, see
+   * `overlappingRows`. Reported rather than clamped, because a negative figure
+   * is evidence about the data and a zero would be a claim about the run.
+   */
+  unaccountedMs: number | null;
+  /** Time in steps that failed, across all types. Never inside `rollUp.totalMs`. */
+  failedMs: number;
+  failedRows: number;
+  /** Steps that ended `partial` or were still running when the answer was built. */
+  unsettledRows: number;
+  measuredRows: number;
+  totalRows: number;
+  /** Whether every row carries a recorded start, and so whether bars are drawn. */
+  everyRowMeasured: boolean;
+  /**
+   * Whether positions were rebased onto the first stage rather than the run's
+   * own origin. See `runOrigin`; when true the panel says so.
+   */
+  originIsRebased: boolean;
+  /** Whether the panel can position bars at all. */
+  hasGeometry: boolean;
+  /** Axis ticks, evenly spread across the true wall clock. */
+  ticks: { label: string; pct: number }[];
+  /** How many rows overlap another in time. Zero for a serial run. */
+  overlappingRows: number;
+  concurrency: ConcurrencyGroup[];
+  /** Total the concurrency groups would have saved, or 0 when there are none. */
+  concurrencySavingMs: number;
+}
+
+/**
+ * The reconciliation line, in one place because it is said in two.
+ *
+ * It is the collapsed summary under every answer and the header of the expanded
+ * panel, and those must agree: a summary claiming a different wall clock from
+ * the table it opens onto is the kind of small contradiction that costs a
+ * reader their trust in both.
+ */
+export function reconciliationParts(model: TimelineModel): string[] {
+  const parts: string[] = [];
+  if (model.wallClockMs !== null) parts.push(`wall clock ${formatMs(model.wallClockMs)}`);
+  if (model.totalRows > 0) {
+    parts.push(`${model.totalRows} row${model.totalRows === 1 ? '' : 's'}`);
+    parts.push(`recorded activity ${formatMs(model.recordedMs)}`);
+  }
+  if (model.unaccountedMs !== null) {
+    // A negative remainder means the rows overlap, which this agent's serial
+    // loop cannot do. Said in words rather than printed as a minus sign, and
+    // never clamped to zero, because it is evidence that something is wrong
+    // with the recording rather than a quantity to display.
+    parts.push(model.unaccountedMs < 0
+        ? `${formatMs(Math.abs(model.unaccountedMs))} more activity than wall clock`
+        : `unaccounted ${formatMs(model.unaccountedMs)}`
+    );
+  }
+  if (model.totalRows > 0) {
+    parts.push(model.everyRowMeasured ? 'every row is measured' : `${model.measuredRows} of ${model.totalRows} rows measured`
+    );
+  }
+  return parts;
+}
+
+/** The reconciliation line as one string, for the collapsed summary. */
+export function traceHeadline(trace: TraceSummary | null | undefined): string {
+  return reconciliationParts(buildTimeline(trace)).join(' · ');
+}
+
+/** Treats a non-finite or non-positive total as absent rather than as zero. */
+function measuredTotal(value: number | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * Above this, a `start` is an absolute clock rather than an offset into the run.
+ *
+ * 1e9 milliseconds is eleven and a half days, which no run reaches (`agent.py`
+ * caps a run at `MAX_RUN_SECONDS`), while epoch milliseconds have been above it
+ * since 2001 and epoch seconds since 2001 as well. So the two cases cannot be
+ * confused in either direction by any value either could actually take.
+ */
+const ABSOLUTE_CLOCK_FLOOR = 1e9;
+
+/**
+ * The instant every position on the axis is measured from.
+ *
+ * The one place that decides what `start` means, so that a change in the
+ * agent's convention is a change here and nowhere else. Today `agent.py` writes
+ * `start=(started - self.started) * 1000` (milliseconds since the run's own
+ * origin), so the origin is zero and this returns zero.
+ */
+export function runOrigin(stages: TraceStage[]): { origin: number; rebased: boolean } {
+  const starts = stages.filter((stage) => stage.startMeasured !== false).map((stage) => stage.start);
+  if (starts.length === 0) return { origin: 0, rebased: false };
+  const earliest = Math.min(...starts);
+  return earliest >= ABSOLUTE_CLOCK_FLOOR ? { origin: earliest, rebased: true } : { origin: 0, rebased: false };
+}
+
+/**
+ * Statuses whose time was spent but produced nothing to attribute.
+ *
+ * A failed step still consumed wall clock, so it belongs in the reconciliation
+ * at the top of the panel. It does not belong in a roll-up read as "where the
+ * time went", which a reader takes as a breakdown of work that happened: an
+ * endpoint that timed out for eight seconds is not eight seconds of inference.
+ * Counted separately and named, rather than folded in or dropped.
+ */
+const UNPRODUCTIVE: ReadonlySet<TraceStage['status']> = new Set(['failed']);
+
+/** Statuses that must not be drawn as a finished bar. */
+export function isSettled(status: TraceStage['status']): boolean {
+  return status === 'complete';
+}
+
+/**
+ * The tool name inside a stage id.
+ *
+ * Tool stages are keyed `step-{n}-{index}-{name}` in agent.py, so the name is
+ * everything after the second numeric segment. Anything that does not match
+ * that shape returns empty and the caller falls back to the recorded kind.
+ */
+export function toolNameFromId(id: string): string {
+  const match = /^step-\d+-\d+-(.+)$/.exec(id);
+  return match ? match[1] : '';
+}
+
+/**
+ * What a stage was, from what the agent recorded about it.
+ *
+ * Reads identity, never timing. Nothing here can change a duration or a
+ * position; the worst a wrong answer does is file a row under the wrong heading
+ * in the roll-up, where the time itself is still the measured one.
+ */
+export function stageType(stage: Pick<TraceStage, 'id' | 'kind'>): ToolType {
+  if (stage.id === 'plot') return 'plot';
+  // The synthesis call and each loop turn are model calls: `_synthesize` and the
+  // loop both time a `chat.completions.create` and nothing else.
+  if (stage.id === 'synthesis' || /^step-\d+$/.test(stage.id)) return 'llm';
+  if (stage.id.endsWith('-clarify')) return 'clarify';
+  const tool = toolNameFromId(stage.id);
+  if (tool && TOOL_TYPES[tool]) return TOOL_TYPES[tool];
+  return 'agent';
+}
+
+/**
+ * Milliseconds as the notebook prints them: whole milliseconds below a second,
+ * two decimals and an `s` above it. `78ms`, `1.18s`, `24.01s`.
+ *
+ * Sub-millisecond values keep two decimals instead of rounding. The recorded
+ * traces reconcile to within about a millisecond (0.942ms on one run, 0.513ms
+ * on another), and that remainder is the panel's own evidence that the figures
+ * add up. Rounded to `0ms` it would read as a suspiciously perfect zero; at
+ * `0.94ms` it reads as what it is, a real measurement of a real gap.
+ */
+export function formatMs(value: number): string {
+  const magnitude = Math.abs(value);
+  if (magnitude < 1) return `${value.toFixed(2)}ms`;
+  if (magnitude < 1000) return `${Math.round(value)}ms`;
+  return `${(value / 1000).toFixed(2)}s`;
+}
+
+/**
+ * Six ticks across the true wall clock, at the fifths the notebook uses.
+ *
+ * Derived from the measured envelope rather than rounded to a friendly
+ * interval, so the last tick is the run's real duration and the axis cannot
+ * imply a longer or shorter run than the one that happened.
+ */
+function buildTicks(wallClockMs: number | null): { label: string; pct: number }[] {
+  if (wallClockMs === null) return [];
+  return [0, 1, 2, 3, 4, 5].map((slot) => ({
+    label: slot === 0 ? '+0ms' : `+${formatMs((wallClockMs * slot) / 5)}`,
+    pct: slot * 20,
+  }));
+}
+
+/**
+ * Counts rows that overlap another in time.
+ *
+ * The agent loop is a plain `for` loop of blocking calls, so a real run cannot
+ * produce an overlap and this should be zero. It is computed rather than
+ * assumed for two reasons: it is what lets the panel state serial execution as
+ * a measurement instead of a promise, and a step row that had turned into a
+ * true container (spanning the children it is charged separately for), would
+ * appear here as an overlap rather than quietly double-counting in the roll-up.
+ */
+function countOverlaps(rows: TimelineRow[]): number {
+  const spans = rows
+    .filter((row) => !row.container && row.startMs !== null)
+    .map((row) => ({ from: row.startMs as number, to: (row.startMs as number) + row.durationMs }))
+    .sort((left, right) => left.from - right.from);
+  let overlapping = 0;
+  // Against the furthest end reached so far, not against the previous row.
+  // A container is the case this exists to catch and the one the predecessor
+  // comparison misses: [0,100] over [10,20], [30,40] and [50,60] caught only
+  // the first child, because the two after it begin later than that child
+  // ended and so read as serial.
+  let furthestEnd = -Infinity;
+  for (const span of spans) {
+    // Touching edges are not an overlap: one call returning at the microsecond
+    // the next begins is exactly what a serial loop looks like.
+    if (span.from < furthestEnd) overlapping += 1;
+    if (span.to > furthestEnd) furthestEnd = span.to;
+  }
+  return overlapping;
+}
+
+/**
+ * Groups of tool calls the model requested in one turn, and what running them
+ * together would have saved.
+ *
+ * A group is the set of rows sharing a `parent_id`. Fewer than two members is
+ * not a group. The saving assumes a concurrent group costs its slowest member,
+ * which is the most favourable reading and therefore an upper bound.
+ */
+function findConcurrency(stages: TraceStage[]): ConcurrencyGroup[] {
+  const groups = new Map<string, number[]>();
+  for (const stage of stages) {
+    if (!stage.parent_id) continue;
+    const existing = groups.get(stage.parent_id) ?? [];
+    existing.push(stage.duration);
+    groups.set(stage.parent_id, existing);
+  }
+  const found: ConcurrencyGroup[] = [];
+  for (const [parentId, durations] of groups) {
+    if (durations.length < 2) continue;
+    const sum = durations.reduce((total, value) => total + value, 0);
+    found.push({ parentId, rows: durations.length, savingMs: sum - Math.max(...durations) });
+  }
+  return found;
+}
+
+/**
+ * Turns a recorded trace into everything the panel draws.
+ *
+ * `question` is the run's own prompt, shown on the envelope row. It is the only
+ * argument that is not read from the trace, and it is display text rather than
+ * a measurement.
+ */
+export function buildTimeline(trace: TraceSummary | null | undefined, question = ''): TimelineModel {
+  const stages = trace?.stages ?? [];
+  const wallClockMs = measuredTotal(trace?.totalMs);
+  const { origin, rebased } = runOrigin(stages);
+
+  const rows: TimelineRow[] = [];
+
+  // The envelope row, and only when the run actually reported a total. It is the
+  // one row not taken from a stage, and it is still a measurement: `totalMs` is
+  // read off the same clock as every `start` below it, at the point the answer
+  // was assembled. Without a total there is nothing to draw it against, and a
+  // synthesised envelope spanning the last stage's end would be a guess at the
+  // one number the whole axis is scaled by.
+  if (wallClockMs !== null) {
+    rows.push({
+      id: '__run__',
+      step: 1,
+      name: 'run, [orchestrator]',
+      type: 'run',
+      status: 'complete',
+      input: question,
+      output: '',
+      durationMs: wallClockMs,
+      startMs: 0,
+      leftPct: 0,
+      widthPct: 100,
+      container: true,
+      fanout: false,
+    });
+  }
+
+  // Which parents fanned out, so their children can be marked. Counted from the
+  // recorded parentage rather than from `calls`, which on a step row means the
+  // number of calls the model asked for and can differ from the number that
+  // produced a stage: a call with unparseable arguments never runs.
+  const siblings = new Map<string, number>();
+  for (const stage of stages) {
+    if (stage.parent_id) siblings.set(stage.parent_id, (siblings.get(stage.parent_id) ?? 0) + 1);
+  }
+
+  for (const stage of stages) {
+    const measured = stage.startMeasured !== false;
+    const startMs = measured ? stage.start - origin : null;
+    rows.push({
+      id: stage.id,
+      step: rows.length + 1,
+      name: stage.name,
+      type: stageType(stage),
+      status: stage.status,
+      input: stage.input,
+      output: stage.output,
+      durationMs: stage.duration,
+      startMs,
+      // Positions exist only when there is both a measured start and an
+      // envelope to scale it against. Either missing means no bar for this row;
+      // the duration column still carries the true value.
+      leftPct: startMs !== null && wallClockMs !== null ? (startMs / wallClockMs) * 100 : null,
+      widthPct: startMs !== null && wallClockMs !== null ? (stage.duration / wallClockMs) * 100 : null,
+      container: false,
+      fanout: (siblings.get(stage.parent_id ?? '') ?? 0) > 1,
+    });
+  }
+
+  const counted = rows.filter((row) => !CONTAINER_TYPES.has(row.type));
+  const recordedMs = counted.reduce((total, row) => total + row.durationMs, 0);
+
+  type Tally = { totalMs: number; calls: number; partialCalls: number; failedMs: number; failedCalls: number };
+  const totals = new Map<ToolType, Tally>();
+  for (const row of counted) {
+    const existing: Tally = totals.get(row.type) ?? {
+      totalMs: 0,
+      calls: 0,
+      partialCalls: 0,
+      failedMs: 0,
+      failedCalls: 0,
+    };
+    if (UNPRODUCTIVE.has(row.status)) {
+      // Kept out of the attributed time and counted where it can be seen. Time
+      // spent failing is real, and it is reconciled at the top of the panel; it
+      // is just not an answer to "where did the time go" in the sense a reader
+      // means when they read a column headed with a tool type.
+      existing.failedMs += row.durationMs;
+      existing.failedCalls += 1;
+    } else {
+      existing.totalMs += row.durationMs;
+      // One row is one call. Deliberately not `stage.calls`, which on a step row
+      // counts the tool calls that turn requested: a different quantity, and
+      // adding it here would report five model calls where four were made.
+      existing.calls += 1;
+      if (row.status !== 'complete') existing.partialCalls += 1;
+    }
+    totals.set(row.type, existing);
+  }
+
+  const rollUp: RollUpRow[] = [...totals.entries()]
+    .map(([type, value]) => ({
+      type,
+      totalMs: value.totalMs,
+      sharePct: wallClockMs === null ? null : (value.totalMs / wallClockMs) * 100,
+      calls: value.calls,
+      partialCalls: value.partialCalls,
+      failedMs: value.failedMs,
+      failedCalls: value.failedCalls,
+    }))
+    .sort((left, right) => right.totalMs - left.totalMs || TYPE_ORDER.indexOf(left.type) - TYPE_ORDER.indexOf(right.type));
+
+  const failed = counted.filter((row) => UNPRODUCTIVE.has(row.status));
+
+  const measuredRows = rows.filter((row) => row.startMs !== null).length;
+  const concurrency = findConcurrency(stages);
+
+  return {
+    rows,
+    rollUp,
+    wallClockMs,
+    recordedMs,
+    // Null rather than zero when there is no envelope to subtract from. A zero
+    // here reads as a run with nothing unaccounted for, which is a measurement
+    // nobody took.
+    unaccountedMs: wallClockMs === null ? null : wallClockMs - recordedMs,
+    failedMs: failed.reduce((total, row) => total + row.durationMs, 0),
+    failedRows: failed.length,
+    unsettledRows: counted.filter((row) => !isSettled(row.status) && !UNPRODUCTIVE.has(row.status)).length,
+    measuredRows,
+    totalRows: rows.length,
+    everyRowMeasured: rows.length > 0 && measuredRows === rows.length,
+    originIsRebased: rebased,
+    // Bars need an envelope to scale against and at least one measured start.
+    hasGeometry: wallClockMs !== null && measuredRows > 0,
+    ticks: buildTicks(wallClockMs),
+    overlappingRows: countOverlaps(rows),
+    concurrency,
+    concurrencySavingMs: concurrency.reduce((total, group) => total + group.savingMs, 0),
+  };
+}

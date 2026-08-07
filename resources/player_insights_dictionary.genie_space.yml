@@ -1,0 +1,49 @@
+# Dictionary Genie space: business definitions and usage guardrails. The agent
+# consults it for semantic checks, never for metrics.
+#
+# Same contract as the data space: `data_dictionary` must also appear in
+# DICTIONARY_GENIE_TABLES in agent/preflight.py, or every dictionary lookup
+# fails with a passthrough credential error that the SQL fallback hides.
+
+resources:
+  genie_spaces:
+    dictionary_genie_space:
+      title: Player Insights Data Dictionary
+      description: >-
+        Business definitions, sensitivity, and usage guardrails for
+        representative Player Insights fields
+      warehouse_id: ${var.warehouse_id}
+      parent_path: ${var.genie_parent_path}
+      lifecycle:
+        prevent_destroy: true
+      serialized_space:
+        version: 2
+        data_sources:
+          tables:
+            - identifier: ${var.catalog}.${var.schema}.data_dictionary
+        instructions:
+          text_instructions:
+            - id: "20000000000000000000000000000005"
+              content:
+                - >-
+                  Answer only from data_dictionary business_definition and
+                  usage_guardrail. This space contains metadata, not player
+                  metrics. Clearly distinguish documented definitions from
+                  inference. Never infer permission to combine the Northwind and
+                  Contoso labels; when a request would bridge identity across labels,
+                  cite identity_use_scope as the field that governs it. If a
+                  field is absent, say it is not documented rather than guessing.
+        config:
+          sample_questions:
+            - id: "20000000000000000000000000000001"
+              question:
+                - What does recurrent consumer spending cover?
+            - id: "20000000000000000000000000000002"
+              question:
+                - What governs cross-label identity use?
+            - id: "20000000000000000000000000000003"
+              question:
+                - How is net bookings defined?
+            - id: "20000000000000000000000000000004"
+              question:
+                - Which fields are restricted?

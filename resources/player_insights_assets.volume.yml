@@ -1,0 +1,17 @@
+# Managed volume for raw snapshots. Created empty; nothing in a deploy writes
+# to it, and it is not on the agent's request path.
+#
+# It also used to hold knowledge documents describing the demo data, published
+# by bundle/knowledge-sync.sh. Both are gone: the documents describe a dataset a
+# customer does not have, and the script existed only to publish them.
+
+resources:
+  volumes:
+    player_insights_volume:
+      catalog_name: ${var.catalog}
+      schema_name: ${var.schema}
+      name: ${var.volume}
+      volume_type: MANAGED
+      comment: Raw snapshots.
+      lifecycle:
+        prevent_destroy: true

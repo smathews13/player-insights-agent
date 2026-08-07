@@ -1,0 +1,60 @@
+# Lakebase (Postgres) is the app's own state store: conversations, messages,
+# attachments, benchmark suites/runs, and feedback.
+#
+# The app creates its schema and tables at boot (the DDL block at the top of
+# player-insights-agent/server/routes/insights-routes.ts), so nothing here
+# declares tables. The bundle owns the project, branch and database the app
+# resource attaches to.
+#
+# `replace_existing: true` on the branch and database takes over an object of the
+# same name instead of failing ALREADY_EXISTS, which is what makes a redeploy over
+# existing state idempotent. postgres_projects HAS NO SUCH FIELD, so a deploy
+# naming a project that already exists fails.
+#
+# GRANTS ARE NOT DECLARED HERE AND CANNOT BE. Postgres object privileges live
+# inside the database rather than in the Databricks control plane, so no DAB
+# resource reaches them. The app service principal needs USAGE + CREATE on the app
+# schema or every route silently degrades to representative data, and objects a
+# developer created locally are owned by that developer and break the app. Run
+# player-insights-agent/scripts/grant-app-db-access.mjs once the app's service
+# principal exists.
+
+resources:
+  postgres_projects:
+    player_insights_lakebase:
+      project_id: ${var.lakebase_project_id}
+      display_name: ${var.lakebase_project_display_name}
+      pg_version: 17
+      default_branch: ${var.postgres_branch_name}
+      default_endpoint_settings:
+        autoscaling_limit_min_cu: ${var.lakebase_min_cu}
+        autoscaling_limit_max_cu: ${var.lakebase_max_cu}
+      lifecycle:
+        # Destroying the project destroys every conversation, attachment, and
+        # benchmark run the app has recorded.
+        prevent_destroy: true
+
+  postgres_branches:
+    player_insights_branch:
+      branch_id: ${var.lakebase_branch_id}
+      parent: projects/${var.lakebase_project_id}
+      no_expiry: true
+      replace_existing: true
+      lifecycle:
+        prevent_destroy: true
+
+  postgres_databases:
+    player_insights_database:
+      database_id: ${var.lakebase_database_id}
+      parent: ${var.postgres_branch_name}
+      # The owning Postgres role, normally the deploying identity's. NOT DERIVABLE
+      # FROM THE USERNAME: Lakebase spells it with hyphens where
+      # ${workspace.current_user.short_name} uses underscores, so
+      # lakebase_owner_role_id is a required variable read out of
+      # `databricks postgres list-roles`. A wrong value fails HERE, after the
+      # project and branch exist, leaving the deploy half-applied. The app service
+      # principal is granted separately (see above).
+      role: ${var.postgres_owner_role_name}
+      replace_existing: true
+      lifecycle:
+        prevent_destroy: true

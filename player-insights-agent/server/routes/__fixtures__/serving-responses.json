@@ -1,0 +1,120 @@
+{
+  "liveAnswerResponse": {
+    "custom_outputs": {
+      "type": "answer",
+      "answer": {
+        "narrative": "The governed SQL fallback counted distinct active players over the most recent 30-day window (29-day lookback from the latest event date) across the Northwind and Contoso labels, scoped to IN_SCOPE records only. Northwind dominates with approximately 26,464 total active player-title combinations across its five titles, followed by Contoso (~21,038). VLH Online is the ",
+        "sql": "WITH latest AS (\n  SELECT MAX(event_date) AS as_of_date\n  FROM <your_catalog>.<your_schema>.silver_gameplay_activity\n)\nSELECT profile_label AS label, title_name,\n  COUNT(DISTINCT player_id) AS active_players_30d\nFROM <your_catalog>.<your_schema>.silver_gameplay_activity\nCROSS JOIN latest\nWHERE brand_scope_status = 'IN_SCOPE'\n  AND event_date >= DATE_SUB(latest.as_of_date, 29)\nGROUP BY profile_label, title_name\nORDER BY active_players_30d DESC",
+        "trace": {
+          "id": "tr-00000000000000000000000000000000",
+          "totalMs": 15677.850381000098,
+          "toolCalls": 2,
+          "stages": [
+            {
+              "duration": 0.010307000593456905,
+              "name": "Interpreted the question",
+              "calls": 1,
+              "id": "plan",
+              "status": "complete",
+              "kind": "agent",
+              "output": "Planned governed source discovery, definition checks, and synthesis.",
+              "start": 0.0019259996406617574,
+              "input": "How many active players are there?"
+            },
+            {
+              "duration": 2029.24512699974,
+              "name": "Found and analyzed governed data",
+              "calls": 1,
+              "id": "discover",
+              "status": "partial",
+              "kind": "agent",
+              "output": "Data Genie was unavailable. A governed read-only SQL fallback returned:\nlabel | title_name | active_players_30d\nNorthwind | VLH Online | 18942\nContoso | Hoops 26 | 11208\nContoso | Dynasty VII | 5684\nNorthwind | Gra",
+              "start": 0.034919000427180436,
+              "input": "Question and available context"
+            },
+            {
+              "duration": 13648.485187000006,
+              "name": "Prepared the answer",
+              "calls": 1,
+              "id": "synthesis",
+              "status": "complete",
+              "kind": "agent",
+              "output": "Across both labels, VLH Online is the top-performing title by active player count in the last 30 days, and Northwind leads overall label volume with roughly 54% of total active players.",
+              "start": 2029.3011020003178,
+              "input": "Assessed data package"
+            }
+          ]
+        },
+        "figures": [
+          {
+            "label": "Northwind \u2013 VLH Online",
+            "value": 100.0,
+            "display": "18,942 active players",
+            "comparison": "Highest single title-label count in the dataset"
+          },
+          {
+            "label": "Contoso \u2013 Hoops 26",
+            "value": 59.0,
+            "display": "11,208 active players",
+            "comparison": "2nd overall; 41% below Northwind VLH Online"
+          }
+        ],
+        "caveats": [
+          "All Acme player, activity, purchase, and net bookings records in this demo are synthetic; figures do not represent real players.",
+          "Active player counts are per label-title pair \u2014 a player active on three titles is counted three times across the table, not once in a deduplicated total."
+        ],
+        "takeaway": "Across both labels, VLH Online is the top-performing title by active player count in the last 30 days, and Northwind leads overall label volume with roughly 54% of total active players.",
+        "id": "msg-abcdefabcdefabcdefabcdefabcdefab",
+        "sources": [
+          {
+            "name": "<your_catalog>.<your_schema>.silver_gameplay_activity",
+            "freshness": "As of 2026-08-03"
+          }
+        ]
+      }
+    },
+    "object": "response",
+    "id": "abcdefab-0000-4000-8000-000000000000",
+    "output": [
+      {
+        "type": "message",
+        "id": "response-abcdefabcdefabcdefabcdefabcdefab",
+        "content": [
+          {
+            "text": "Across both labels, VLH Online is the top-performing title by active player count in the last 30 days, and Northwind leads overall label volume with roughly 54% of total active players.\n\nThe governe",
+            "type": "output_text",
+            "annotations": []
+          }
+        ],
+        "role": "assistant"
+      }
+    ]
+  },
+  "livePlanResponse": {
+    "custom_outputs": {
+      "type": "plan",
+      "plan": {
+        "question": "Compare active players by label and title over the last 30 days.",
+        "uses_attachment_context": false,
+        "requires_approval": true,
+        "id": "plan-0000000000000000",
+        "uses_conversation_context": false,
+        "steps": [
+          {
+            "id": "data",
+            "title": "Analyze governed data",
+            "description": "Query only approved aggregate sources, preserving read-only SQL and catalog controls.",
+            "kind": "data"
+          },
+          {
+            "id": "synthesis",
+            "title": "Synthesize findings",
+            "description": "Answer the question with evidence, provenance, and explicit caveats.",
+            "kind": "synthesis"
+          }
+        ],
+        "summary": "I\u2019ll confirm the relevant context and definitions, analyze governed aggregate data, then synthesize a decision-ready answer."
+      }
+    }
+  }
+}

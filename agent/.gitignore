@@ -1,0 +1,9 @@
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+
+# Local MLflow tracking state. Both are developer scratch, and the bundle
+# already excludes them from workspace sync (see ../databricks.yml).
+mlruns/
+mlflow.db

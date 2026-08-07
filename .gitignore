@@ -1,0 +1,36 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Local MLflow state. mlflow.db holds traced prompts and answers.
+mlruns/
+mlflow.db
+
+# Rendered documents. The leak check cannot review a PDF, so it cannot clear one.
+docs/*.pdf
+
+# Test and audit artifacts
+.ui-test-artifacts/
+.approval-repro/
+playwright-report/
+test-results/
+coverage/
+
+# Local tooling
+.DS_Store
+*.log

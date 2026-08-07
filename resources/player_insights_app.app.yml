@@ -1,0 +1,128 @@
+# The Databricks App.
+#
+# This resource owns the app's CONFIGURATION (name, attached resources, OAuth
+# scopes, and which workspace directory its source lives in). It does NOT own
+# the code push; see the source_code_path note below.
+#
+# TWO OF THE THREE ATTACHMENTS DECIDE WHETHER THE APP IS REAL. Without the
+# `postgres` resource it never resolves LAKEBASE_ENDPOINT; without
+# `serving-endpoint` plus the `serving.serving-endpoints` user API scope it never
+# resolves DATABRICKS_SERVING_ENDPOINT_NAME. In both cases the app still starts,
+# still returns HTTP 200, and silently answers from canned representative data.
+# app.yaml maps all three to env vars via `valueFrom`.
+#
+# DEPLOY IN TWO PASSES ON A FRESH WORKSPACE. Attachments are validated at create
+# time: one that does not resolve fails apps.player_insights_app outright and
+# creates nothing. The serving endpoint is created by bundle/agent-release.sh
+# rather than by this bundle, because agents.deploy() also provisions the auth
+# policy carrying automatic authentication passthrough. The Lakebase branch and
+# database are in this bundle but carry no dependency edge: every reference goes
+# through ${var.*}, and DABs have no `depends_on` outside job tasks.
+#
+#   pass 1  bundle deploy -t <target> --select postgres_projects.player_insights_lakebase \
+#                                     --select postgres_branches.player_insights_branch  \
+#                                     --select postgres_databases.player_insights_database \
+#                                     --select schemas.player_insights_schema \
+#                                     --select volumes.player_insights_volume \
+#                                     --select genie_spaces.data_genie_space \
+#                                     --select genie_spaces.dictionary_genie_space \
+#                                     --select experiments.player_insights_experiment
+#           everything EXCEPT this app
+#   ...    data into the contract, then bundle/agent-release.sh, which creates
+#          the endpoint
+#   pass 2  bundle deploy -t <target>
+#           the app, with every attachment now resolvable
+#
+# A redeploy into a workspace that already holds them is unaffected.
+#
+# source_code_path IS AN ABSOLUTE WORKSPACE PATH, NEVER A LOCAL BUNDLE PATH.
+# Databricks Apps runs `npm install` whenever the uploaded source contains a
+# package.json, and the app compute has no reliable registry egress, so the
+# install hangs indefinitely. The deployed tree is the esbuild output in
+# player-insights-agent/build/deploy, which has no package.json;
+# bundle/app-release.sh uploads it with `workspace import-dir`, reading this
+# variable for the destination. A local bundle path would sync the repo,
+# package.json included, and re-arm the hang.
+
+resources:
+  apps:
+    player_insights_app:
+      name: ${var.app_name}
+      description: ${var.app_description}
+      source_code_path: ${var.app_source_code_path}
+
+      # What the app may do WITH THE SIGNED-IN USER'S OWN TOKEN, which Databricks
+      # forwards as `x-forwarded-access-token`. Distinct from the app service
+      # principal's permissions, and narrower on purpose.
+      #
+      # KEEP THIS LIST MINIMAL, and do not add a scope on the reasoning that an
+      # unused one is harmless. Consent is all-or-nothing: the sign-in prompt asks
+      # for every scope at once, and a user who cannot be granted any one of them
+      # fails the whole consent, seeing a bare "there was an error while trying to
+      # authenticate" raised by the platform before the request reaches the app.
+      # Nothing in our logs records it, so an unnecessary scope is an undiagnosable
+      # way to lock people out of a working app. bundle/app-spec.sh states the same
+      # constraint and validates this list; keep the two consistent.
+      #
+      # ADDING A SCOPE NEEDS A FULL APP STOP AND START. A redeploy alone leaves the
+      # new scope inert and the token arrives without it, which looks exactly like
+      # a bug in this app.
+      #
+      # `serving.serving-endpoints` resolves the attached endpoint. `sql` and
+      # `dashboards.genie` are used only by the access gate, which re-runs the
+      # dependency checks as the signed-in user rather than as the service
+      # principal. Both require workspace entitlements the user may not hold.
+      #
+      # `unity-catalog` IS NOT AN ACCEPTED VALUE: an app declaring it deploys
+      # cleanly and then fails at runtime with "Provided OAuth token does not have
+      # required scopes". Table access is checked with a SELECT through the SQL
+      # Statement Execution API, which `sql` covers.
+      #
+      # Model serving currently runs as the SERVICE PRINCIPAL. The app forwards the
+      # user's token, the endpoint refuses it, and the app retries as its own
+      # principal and discloses the fallback on the answer.
+      #
+      # This was long recorded here as a platform gap, on the grounds that the
+      # endpoint demands `model-serving-inference` and Apps will not issue it. That
+      # explanation was wrong. The endpoint demanded it because the logged model
+      # carried no user authorization policy; with one baked in, the endpoint
+      # accepts a user token and runs Genie and SQL as the invoker, which warehouse
+      # query history attributes to the user. What is still untested is the other
+      # half: whether the token Apps forwards, limited to the scopes below, is
+      # accepted by the endpoint at all. Until that is tried, the fallback stands.
+      #
+      # The list is a per-target variable rather than literal here, because a scope
+      # one workspace issues another rejects outright, and a rejected scope fails
+      # the whole consent rather than just itself. See `app_user_api_scopes` in
+      # databricks.yml for what belongs in the default and what belongs in a target.
+      user_api_scopes: ${var.app_user_api_scopes}
+
+      resources:
+        - name: postgres
+          postgres:
+            branch: ${var.postgres_branch_name}
+            database: ${var.postgres_database_name}
+            permission: CAN_CONNECT_AND_CREATE
+        - name: serving-endpoint
+          serving_endpoint:
+            name: ${var.serving_endpoint_name}
+            permission: CAN_QUERY
+        # Two jobs. The attachment grants the app's service principal access to
+        # the warehouse; undeclared, neither it nor the deployer is added. The KEY
+        # is what app.yaml maps to DATABRICKS_SQL_WAREHOUSE_ID via `valueFrom`,
+        # which is the only way the app learns which warehouse it points at.
+        #
+        # The agent takes its own warehouse from the model artifact, baked at log
+        # time from this same var.warehouse_id. They are the same value here and
+        # need not be in a deployment that re-logs the model against another
+        # warehouse, so the access gate reports which one it used.
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_MANAGE
+
+      lifecycle:
+        # A failed app deploy takes the URL down with a 502 and there is no
+        # automatic rollback; a destroyed app also drops its service principal,
+        # which is the identity holding the Postgres grants.
+        prevent_destroy: true

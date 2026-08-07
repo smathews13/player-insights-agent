@@ -1,0 +1,329 @@
+#!/usr/bin/env node
+// Produces build/deploy/: a dependency-free source tree for `databricks apps deploy`.
+// The Databricks Apps build step only runs `npm install` when the uploaded source
+// contains a package.json, so the deploy tree deliberately has none.
+import { build } from 'esbuild';
+import { execFileSync } from 'node:child_process';
+import { cp, mkdir, readdir, rm, writeFile, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { writeDeployAppYaml } from './deploy-app-yaml.mjs';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const outDir = path.join(root, 'build', 'deploy');
+
+// The per-file ceiling `databricks apps deploy` enforces (troubleshooting fact 3).
+export const MAX_DEPLOY_FILE_BYTES = 10 * 1024 * 1024;
+
+// Dev-only module graphs reached through dynamic import()/try-catch requires.
+// They never execute under NODE_ENV=production but esbuild would still try to
+// pull their native bindings into the bundle.
+const external = [
+  'vite',
+  'rolldown-vite',
+  '@vitejs/plugin-react',
+  '@tailwindcss/vite',
+  'esbuild',
+  'rolldown',
+  'pg-native',
+  'fsevents',
+  'lightningcss',
+];
+
+// @databricks/appkit's runtime entrypoint statically imports the native
+// @ast-grep/napi parser for its build-time serving type generator. A static
+// ESM import cannot stay external in a dependency-free deploy tree, so it is
+// aliased to a stub that only fails if the codegen path is ever reached.
+const astGrepStub = path.join(root, 'build', 'stubs', 'ast-grep-napi.mjs');
+const astGrepStubSource = `const unavailable = () => {
+  throw new Error('@ast-grep/napi is not bundled into the deployed server; it is only used by AppKit build-time codegen.'
+  );
+};
+export const Lang = new Proxy({}, { get: () => 'TypeScript' });
+export const parse = unavailable;
+export default { Lang, parse };
+`;
+
+// CJS globals are shimmed under distinct names because some bundled modules
+// declare their own module-scoped `__filename` / `__dirname`, which would
+// collide with top-level banner declarations.
+const banner = `import { createRequire as __createRequire } from 'node:module';
+import { fileURLToPath as __fileURLToPath } from 'node:url';
+import { dirname as __pathDirname } from 'node:path';
+const require = __createRequire(import.meta.url);
+const __appkitFilename = __fileURLToPath(import.meta.url);
+const __appkitDirname = __pathDirname(__appkitFilename);
+`;
+
+// Databricks Apps refuses to export any single source file larger than 10 MB
+// during deployment. The heaviest packages are emitted as sibling vendor
+// modules so no single file approaches that ceiling, which also leaves room
+// for the server bundle to grow.
+const vendorPackages = ['unpdf', '@databricks/sdk-experimental'];
+
+// Appended when the tree this build came from held uncommitted tracked changes.
+// The same suffix and the same rule as agent/preflight.py's DIRTY_SUFFIX: the two
+// stamps are compared against each other, so a difference in how they are formed
+// would read as skew that is not there. Untracked files are ignored, because a
+// local mlflow.db and mlruns/ appear in every tree either side has ever built in.
+const DIRTY_SUFFIX = '+dirty';
+
+/**
+ * The commit this build came from, or '' when it cannot be known.
+ */
+function resolveBuildStamp(env = process.env) {
+  const git = (args) => {
+    try {
+      return execFileSync('git', args, { cwd: root, encoding: 'utf8', timeout: 10_000 }).trim();
+    } catch {
+      return null;
+    }
+  };
+  const head = git(['rev-parse', 'HEAD']);
+  if (head) {
+    const dirt = git(['status', '--porcelain', '--untracked-files=no']);
+    return dirt ? `${head}${DIRTY_SUFFIX}` : head;
+  }
+  return (env.PLAYER_INSIGHTS_BUILD_SHA ?? '').trim();
+}
+
+function vendorFileName(pkg) {
+  return `vendor-${pkg.replace(/^@/, '').replace(/\//g, '-')}.mjs`;
+}
+
+function vendorExternalsPlugin() {
+  const pattern = new RegExp(`^(${vendorPackages.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`
+  );
+  return {
+    name: 'vendor-externals',
+    setup(builder) {
+      builder.onResolve({ filter: pattern }, (args) => ({
+        path: `./${vendorFileName(args.path)}`,
+        external: true,
+      }));
+    },
+  };
+}
+
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+const RESERVED = new Set([
+  'default', 'delete', 'class', 'function', 'return', 'import', 'export', 'const', 'let', 'var',
+  'new', 'typeof', 'void', 'null', 'true', 'false', 'this', 'super', 'switch', 'case', 'catch',
+]);
+
+// `export * from` cannot re-export a CommonJS package, because the names are
+// not statically analysable. Resolving the package here and emitting explicit
+// bindings works for both CJS and ESM vendors.
+async function vendorEntrySource(pkg) {
+  const namespace = await import(pkg);
+  const source =
+    namespace.default && typeof namespace.default === 'object' ? namespace.default : namespace;
+  const names = Object.keys(source).filter((n) => IDENTIFIER.test(n) && !RESERVED.has(n));
+  return `import * as namespace from '${pkg}';
+const source = namespace.default && typeof namespace.default === 'object' ? namespace.default : namespace;
+export const { ${names.join(', ')} } = source;
+export default source;
+`;
+}
+
+async function bundleVendors() {
+  const entryDir = path.join(root, 'build', 'vendor-entries');
+  await mkdir(entryDir, { recursive: true });
+  for (const pkg of vendorPackages) {
+    const entry = path.join(entryDir, vendorFileName(pkg));
+    await writeFile(entry, await vendorEntrySource(pkg));
+    await build({
+      entryPoints: [entry],
+      outfile: path.join(outDir, vendorFileName(pkg)),
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      target: 'node20',
+      external,
+      alias: { '@ast-grep/napi': astGrepStub },
+      banner: { js: banner },
+      define: {
+        'process.env.NODE_ENV': '"production"',
+        __filename: '__appkitFilename',
+        __dirname: '__appkitDirname',
+      },
+      logLevel: 'warning',
+      // ESM-only packages have no default export; the `?? namespace` fallback
+      // in the generated entry is exactly the intended behaviour.
+      logOverride: { 'import-is-undefined': 'silent' },
+    });
+  }
+}
+
+async function bundleServer() {
+  await build({
+    entryPoints: [path.join(root, 'server', 'server.ts')],
+    outfile: path.join(outDir, 'server.mjs'),
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    external,
+    alias: { '@ast-grep/napi': astGrepStub },
+    plugins: [vendorExternalsPlugin()],
+    banner: { js: banner },
+    logLevel: 'info',
+    logOverride: { 'require-resolve-not-external': 'silent' },
+    // Minifying breaks the Databricks SDK request path behind the serving
+    // transport, which silently downgrades /api/insights/ask to representative
+    // answers instead of failing loudly. Vendor splitting above, not
+    // minification, is what keeps files under the per-file size limit.
+    minify: false,
+    sourcemap: false,
+    define: {
+      'process.env.NODE_ENV': '"production"',
+      __filename: '__appkitFilename',
+      __dirname: '__appkitDirname',
+    },
+  });
+}
+
+async function main() {
+  if (!existsSync(path.join(root, 'client', 'dist', 'index.html'))) {
+    throw new Error('client/dist/index.html missing, run `npm run build:client` first.');
+  }
+  if (!existsSync(path.join(root, 'app.yaml'))) {
+    throw new Error('app.yaml missing: the deployed app.yaml is derived from it, not written from scratch.');
+  }
+
+  await rm(outDir, { recursive: true, force: true });
+  await mkdir(outDir, { recursive: true });
+  await mkdir(path.dirname(astGrepStub), { recursive: true });
+  await writeFile(astGrepStub, astGrepStubSource);
+
+  await bundleVendors();
+  await bundleServer();
+
+  // AppKit's ServerPlugin.findStaticPath() probes cwd for dist|client/dist|build|public|out.
+  //
+  // client/public used to hold an app.yaml and a standalone server.mjs left over from an
+  // earlier static demo. Vite copies public/ verbatim, so client/dist ended up looking
+  // like a deployable Databricks App root that would run a 107-line fake server, and
+  // this filter was the only thing standing between it and a deploy. Both files are now
+  // deleted at source. The filter stays as a guard: a file named like a platform
+  // entrypoint must never reach the deploy tree just because someone put it in public/.
+  const skipFromStatic = new Set(['app.yaml', 'server.mjs']);
+  await cp(path.join(root, 'client', 'dist'), path.join(outDir, 'client', 'dist'), {
+    recursive: true,
+    filter: (src) => !skipFromStatic.has(path.basename(src)),
+  });
+
+  // Passed through rather than interpreted. The server decides what counts as
+  // "on". This only has to make sure the value the release resolved actually
+  // reaches the container, which is the step that has silently dropped a
+  // variable before.
+  const sharedRail = (process.env.PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL ?? '').trim();
+  if (sharedRail && sharedRail.toLowerCase() === 'true') {
+    console.log('\n  note  PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL=true: the deployed app.yaml will let every\n' +
+        '        signed-in user see and open every other user\'s conversations. Deliberate for a shared\n' +
+        '        evaluation workspace; not the default.'
+    );
+  }
+
+  const buildSha = resolveBuildStamp();
+  if (!buildSha) {
+    console.log('\n  note  no build stamp could be resolved (no git repository and no\n' +
+        '        PLAYER_INSIGHTS_BUILD_SHA). This app build will report its commit as\n' +
+        '        unknown, and app-versus-orchestrator skew will not be detectable on\n' +
+        '        the Connections page.'
+    );
+  } else if (buildSha.endsWith(DIRTY_SUFFIX)) {
+    console.log(`\n  note  building from a tree with uncommitted tracked changes (${buildSha}).\n` +
+        '        The stamp records it. The release sequence asks for a clean worktree\n' +
+        '        because the artifact cannot be reproduced from any commit.'
+    );
+  }
+
+  // The judge model is per deployment and only exists in the bundle, so app.yaml
+  // authors it empty and the release supplies it, same mechanism as the
+  // experiment id. Absent here leaves the authored empty value standing, which
+  // means the server falls through to its compiled default: the documented
+  // degradation, and what every deployment did before the variable was declared.
+  const judgeEndpoint = (process.env.PLAYER_INSIGHTS_JUDGE_ENDPOINT ?? '').trim();
+
+  const experimentId = (process.env.PLAYER_INSIGHTS_EXPERIMENT_ID ?? '').trim();
+  if (!experimentId) {
+    console.log('\n  note  PLAYER_INSIGHTS_EXPERIMENT_ID not set: the deployed app.yaml will carry an\n' +
+        '        empty value and Run Explorer will show trace ids without a deep link.\n' +
+        '        bundle/app-release.sh sets it from the bundle; a bare `npm run build:deploy`\n' +
+        '        has no target to read it from.'
+    );
+  }
+
+  // Derived from the authored app.yaml, never rewritten from scratch: a literal
+  // here is a second source of truth, and it already swallowed one variable
+  // silently. Only the genuine deploy-target differences are stated.
+  await writeDeployAppYaml({
+    from: path.join(root, 'app.yaml'),
+    to: path.join(outDir, 'app.yaml'),
+    banner: '# Generated by scripts/bundle-server.mjs from app.yaml. Edit that file, not this one.',
+    // No package.json in the deploy tree, so there is no `npm run start` to call...
+    command: "['node', 'server.mjs']",
+    env: [
+      // ...and losing it also loses the NODE_ENV that script was setting.
+      { name: 'NODE_ENV', value: 'production' },
+      // The MLflow experiment is per-workspace, so app.yaml declares the variable
+      // without a value and the release supplies it. bundle/app-release.sh reads
+      // it out of the bundle target being deployed. Absent here means the authored
+      // empty value stands and Run Explorer simply omits the deep link, which is
+      // the documented degradation, far better than shipping our experiment id.
+      ...(experimentId ? [{ name: 'PLAYER_INSIGHTS_EXPERIMENT_ID', value: `'${experimentId}'` }] : []),
+      // Resolved from git here rather than passed in by the release, because this
+      // is the step that turns source into the artifact being stamped. Nothing
+      // else knows what went into it.
+      ...(buildSha ? [{ name: 'PLAYER_INSIGHTS_BUILD_SHA', value: `'${buildSha}'` }] : []),
+      ...(judgeEndpoint ? [{ name: 'PLAYER_INSIGHTS_JUDGE_ENDPOINT', value: `'${judgeEndpoint}'` }] : []),
+      // Whether the rail is shared is per-deployment, so app.yaml authors the
+      // safe default and the release states the target's answer. Absent here
+      // leaves the authored 'false' standing, which is the correct degradation:
+      // a release that could not resolve the variable must not be the thing
+      // that opens one stakeholder's conversations to another.
+      ...(sharedRail ? [{ name: 'PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL', value: `'${sharedRail}'` }] : []),
+    ],
+  });
+
+  // Every file in the tree, not just the ones this script bundles. The platform applies
+  // its per-file ceiling to whatever is uploaded, and client/dist is uploaded too: a
+  // lazily-loaded chart library or a large font would be caught by the platform and not
+  // by a check that only looked at server.mjs.
+  async function treeFiles(dir, prefix = '') {
+    const found = [];
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) found.push(...(await treeFiles(path.join(dir, entry.name), relative)));
+      else found.push({ name: relative, size: (await stat(path.join(dir, entry.name))).size });
+    }
+    return found;
+  }
+
+  const files = (await treeFiles(outDir)).sort((a, b) => b.size - a.size);
+  const oversized = files.filter((file) => file.size > MAX_DEPLOY_FILE_BYTES);
+  console.log('');
+  // Only the ones worth reading. A tree listing every icon buries the number that matters.
+  for (const file of files.filter((f) => f.size > 64 * 1024 || oversized.includes(f))) {
+    console.log(`  ${file.name.padEnd(46)} ${(file.size / 1024 / 1024).toFixed(2).padStart(6)} MB` +
+        (file.size > MAX_DEPLOY_FILE_BYTES ? '   EXCEEDS 10 MB DEPLOY LIMIT' : '')
+    );
+  }
+  console.log(`  ${String(`(${files.length} files total)`).padEnd(46)} ` +
+      `${(files.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2).padStart(6)} MB`
+  );
+  if (oversized.length > 0) {
+    throw new Error(`${oversized.map((f) => f.name).join(', ')} exceeds the 10 MB Databricks Apps limit. ` +
+        'For a server file, add the heaviest package to vendorPackages in this script; for a ' +
+        'client asset, split it with a dynamic import().'
+    );
+  }
+  console.log('\nbuild/deploy ready: no package.json, so the platform skips npm install entirely.');
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

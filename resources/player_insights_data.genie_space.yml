@@ -1,0 +1,89 @@
+# Data Genie space: the agent's governed data-source finder.
+#
+# `genie_space` is a DAB resource as of CLI v1.3.0 and needs the direct
+# deployment engine. `databricks bundle generate genie-space --existing-id`
+# round-trips a live space into this format.
+#
+# THE BODY IS INLINE, NOT `file_path`: inline YAML goes through bundle variable
+# substitution, so ${var.catalog}.${var.schema} makes one definition portable
+# across targets. A `file_path: *.geniespace.json` is uploaded verbatim and would
+# hard-code one catalog.
+#
+# THE TABLE LIST BELOW IS A CONTRACT. Every table named here must ALSO appear in
+# DATA_GENIE_TABLES in agent/preflight.py. Automatic authentication passthrough
+# grants the serving principal only the tables declared in the model's resources,
+# so a space curating one the model does not declare fails EVERY Genie call with
+# a passthrough credential error, which the agent's SQL fallback then masks as a
+# plausible-looking answer.
+
+resources:
+  genie_spaces:
+    data_genie_space:
+      title: Player Insights Data
+      description: >-
+        Representative brand-safe player engagement, title, purchase, and
+        addressability analytics
+      warehouse_id: ${var.warehouse_id}
+      parent_path: ${var.genie_parent_path}
+      lifecycle:
+        prevent_destroy: true
+      serialized_space:
+        version: 2
+        data_sources:
+          tables:
+            - identifier: ${var.catalog}.${var.schema}.gold_player_180d_summary
+            - identifier: ${var.catalog}.${var.schema}.gold_title_daily_summary
+            - identifier: ${var.catalog}.${var.schema}.silver_gameplay_activity
+            - identifier: ${var.catalog}.${var.schema}.silver_player_profiles
+            - identifier: ${var.catalog}.${var.schema}.silver_purchases
+        instructions:
+          text_instructions:
+            - id: "10000000000000000000000000000005"
+              content:
+                - >-
+                  Player Insights representative console gaming data for the
+                  Northwind and Contoso publishing labels. Prefer gold tables for
+                  business questions. Use gold_title_daily_summary for label,
+                  title, daily engagement, net bookings, and addressability
+                  trends at date, label, title, and country grain. Use
+                  gold_player_180d_summary for player-level cohort aggregates
+                  but never return player identifiers. Count distinct players
+                  with platformid_accountid. partner_player_ref is many-to-one over
+                  platform accounts and is null for Contoso players, so counts differ
+                  by identity key and the key behind a count must be stated.
+                  Never bridge identity across labels: crm_customer_ref is
+                  restricted and identity_use_scope governs permitted use. Keep
+                  Northwind and Contoso separate unless explicitly comparing aggregate
+                  label metrics. Exclude CROSS_LABEL_BLOCK activity from
+                  standard analytics, and exclude silver rows whose
+                  integrity_status is not VALID; the gold tables already
+                  exclude both, which is why a gold total is lower than a naive
+                  sum over the silver or raw tables. net_bookings_usd already
+                  nets refunds, so
+                  never filter to completed purchases and sum it as well;
+                  recurrent_consumer_spending_usd is the portion of net bookings
+                  that is not a full-game sale. Platform generations are Gen9,
+                  Gen8, and PC. Marketing region NA is US, CA, and MX; state
+                  region membership rather than assuming it. Email-addressable
+                  means consent is true, email is present, and status is
+                  ADDRESSABLE. State the time window for active-player
+                  questions; the reporting window is the 180 dates ending at the
+                  latest snapshot_date. All players, sessions, purchases, and
+                  amounts are synthetic. Return aggregates only and name source
+                  tables and grain.
+        config:
+          sample_questions:
+            - id: "10000000000000000000000000000001"
+              question:
+                - Compare active players by label and title over the last 30 days
+            - id: "10000000000000000000000000000002"
+              question:
+                - How many email-addressable players does each label have?
+            - id: "10000000000000000000000000000003"
+              question:
+                - Show the VLH Online live event spike in daily sessions
+            - id: "10000000000000000000000000000004"
+              question:
+                - >-
+                  How does recurrent consumer spending compare with total net
+                  bookings by title?

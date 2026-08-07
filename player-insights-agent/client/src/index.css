@@ -1,0 +1,2895 @@
+@import '@databricks/appkit-ui/styles.css';
+
+/*
+ * `dark:` applies only under a `.dark` ancestor, never from the OS setting.
+ *
+ * So every `dark:` utility in the build has been compiling against v4's default
+ * `prefers-color-scheme: dark` media query, in an application that hard-forces
+ * light mode. AppKit's own components carry a good number of them,
+ * `dark:bg-destructive/60`, `dark:bg-input/30`, `dark:text-muted-foreground`,
+ * and today they are harmless only because the rules below happen to outrank
+ * them. That is the same mechanism as the regression that made body text vanish
+ * on a machine set to Dark Mode: it needs only one future utility that wins on
+ * specificity. Binding the variant to a class the app never sets makes the whole
+ * category inert instead of merely outranked.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * AppKit ships `@media (prefers-color-scheme: dark) { :root:not(.light) { … } }`. That
+ * selector scores (0,2,0), so it outranks a plain `:root` no matter what order the rules
+ * land in. On a machine set to Dark Mode it repainted every foreground token near-white
+ * while the surfaces below stayed hardcoded white, which is what made body text vanish.
+ *
+ * `.light` on <html> (set in App.tsx) switches that block off wholesale, including the
+ * chart and sidebar tokens this file never redeclares. Matching `:root:not(.light)` here
+ * as well keeps the core palette correct on the first paint, before that class is applied.
+ */
+:root,
+:root:not(.light),
+.dark {
+  color-scheme: light;
+  /*
+   * Brand palette. Black on white is the app; everything else is rationed, and one
+   * of the three rules below has to justify any colour on screen:
+   *
+   *   INK    = action and identity. Anything you press to make the agent work,
+   *            whatever is currently active or selected, links, focus, the primary
+   *            data series, and the marks that say this app is PIA. If it is not one
+   *            of those, it stays neutral.
+   *   GOLD   = evaluation. Score, rating, benchmark quality. Nowhere else. Gold is
+   *            the answer to "how good was it", so it appears on the Benchmark Lab
+   *            score card, the star ratings, the Rating column, and the route that
+   *            leads to them, and never on an action, a status, or a chart series.
+   *   DANGER = something failed, or is one click from destroying something. Never
+   *            decoration, never identity.
+   *
+   * Gold measures 1.86:1 against white, so it can only ever be a filled mass or a
+   * thick rule, never text or a thin icon stroke. Against ink it is 10.15:1, which is
+   * why every gold tile carries a black glyph.
+   *
+   * The surfaces are literals rather than color-mix(), because they were measured as
+   * literals: --pia-wash is pitched so that --muted-foreground clears AA on it at
+   * 4.62:1, which is the same figure the red wash it replaced was chosen for, so
+   * every foreground already checked against that wash still holds. The stronger
+   * --pia-tint only ever hosts ink or graphite.
+   */
+  --pia-ink: #111111;
+  --pia-graphite: #3f434b;
+  --pia-wash: #f7f7f8;
+  --pia-tint: #eaebed;
+  --pia-danger: #b20022;
+  --pia-danger-deep: #8f001b;
+  --pia-danger-wash: #fef5f7;
+  --pia-danger-tint: #fdebee;
+  --pia-gold: #fcaf17;
+  --pia-gold-wash: #fff5e3;
+  --pia-slate: #6c707b;
+  --pia-line: #e5e5e5;
+
+  /*
+   * The header mark drives the header's height, which the sticky rail and trace
+   * inspector have to subtract. Those offsets used to be a hardcoded 58px that had
+   * already drifted from the real 61px, so they are derived now: 28px is the header's
+   * own chrome (3px brand rule + 12px padding twice + 1px bottom border). Resizing the
+   * mark keeps everything aligned on its own.
+   */
+  --logo-mark-size: 36px;
+  --logo-mark-zoom: 1.26;
+  --app-header-h: calc(var(--logo-mark-size) + 28px);
+
+  --background: #ffffff;
+  --foreground: var(--pia-ink);
+  --card: rgba(255, 255, 255, 0.9);
+  --card-foreground: var(--pia-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--pia-ink);
+  /*
+   * --primary is the app's action colour, and it is now the same black as its type.
+   * One line here repaints every affordance that already routed through the token,
+   * the Ask PIA and New conversation buttons, the active nav pill, the user's own
+   * bubble, plan step numerals, the in-flight attachment border, the agent glyphs in
+   * the trace panel, which is why so few call sites below need to name a colour
+   * themselves.
+   */
+  --primary: var(--pia-ink);
+  --primary-foreground: #ffffff;
+  --secondary: #eceef0;
+  --secondary-foreground: var(--pia-ink);
+  --muted: #f1f2f4;
+  --muted-foreground: var(--pia-slate);
+  --accent: var(--pia-wash);
+  --accent-foreground: var(--pia-ink);
+  --border: var(--pia-line);
+  --input: #d8dade;
+  --ring: var(--pia-ink);
+  /*
+   * Two chart weights rather than two hues. Bars are the largest coloured mass in the
+   * app, and with the brand red gone they separate by value: --chart-1 is ink for
+   * fills that carry no text, --chart-2 is the graphite rung, dark enough that the
+   * 9.5px bold white durations printed on the waterfall bars clear 9.9:1. The bars
+   * that mark an outlier go to full ink, so "slow" is still the darkest thing in the
+   * chart.
+   */
+  --chart-1: var(--pia-ink);
+  --chart-2: var(--pia-graphite);
+  /*
+   * Status colors are pinned too: AppKit's dark variants are lighter and wash out on
+   * white. --warning stays defined at 5.07:1 against its white foreground for any
+   * AppKit component that reaches for it, but the app itself no longer paints with it:
+   * a dark amber sitting near the gold score card blurred the "gold means evaluation"
+   * rule, so slow and partial states moved onto ink and the danger rung instead.
+   */
+  --warning: #8a6a00;
+  --warning-foreground: #ffffff;
+  --success: #0a7350;
+  --success-foreground: #ffffff;
+  /* The app's one red. Nothing else routes through this family. */
+  --destructive: var(--pia-danger);
+  --destructive-foreground: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  /* The page wash is two soft neutral pools rather than a flat white, so a screen
+     with no controls on it still has some depth. Both top out at 6% alpha, well
+     under anything that could move a foreground's contrast. */
+  background:
+    radial-gradient(circle at 78% 10%, rgba(17, 17, 17, 0.055), transparent 38%),
+    radial-gradient(circle at 12% 88%, rgba(0, 0, 0, 0.035), transparent 40%),
+    linear-gradient(145deg, #ffffff 0%, #f7f6f6 55%, #eeecec 100%);
+  background-attachment: fixed;
+  color: var(--foreground);
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+svg {
+  flex: none;
+}
+/*
+ * Keyboard focus is an action, so it is ink, and it is the same ink everywhere. AppKit
+ * draws its own ring from --ring at partial alpha, which on a white shell was faint
+ * enough to lose; this states the ring outright at full strength. A black outline on a
+ * white shell is the highest-contrast focus indicator the page can draw.
+ */
+:focus-visible {
+  outline: 2px solid var(--pia-ink);
+  outline-offset: 2px;
+}
+/* Icon chips are a neutral tile with an ink glyph, which clears 15.8:1 on the tint,
+   far past the 3:1 that non-text needs, and dark enough that the chips read as marks
+   rather than as disabled controls. */
+.logo-mark,
+.agent-avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--pia-tint);
+  color: var(--pia-ink);
+  width: 32px;
+  height: 32px;
+}
+.app-header {
+  /* The brand rule across the top: black, and thick enough to register. */
+  border-top: 3px solid var(--pia-ink);
+  border-bottom-color: var(--pia-line);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.045);
+}
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* The partner mark sits left of the app's own. Height drives it and width follows
+   the artwork, so a mark of a different shape does not need this rule changed. It
+   carries no plate: the glyph is ink on transparency and the header is light, so a
+   frame around it would read as a second logo rather than as the same one. */
+.partner-mark {
+  /* Shorter than the app's own mark on purpose. That one is a glyph on a padded
+     plate, so its drawn height is already inset; this one is ink to the edge of
+     the file. Matched heights make the partner read as the larger of the two. */
+  height: calc(var(--logo-mark-size) * 0.82);
+  align-self: center;
+  width: auto;
+  /* Preflight sets max-width:100% on images, which would squeeze this one in a
+     narrow header rather than letting the lockup shrink elsewhere. */
+  max-width: none;
+  flex: none;
+  display: block;
+}
+/* The two marks together crowd a phone header, where the wordmark is the part that
+   identifies the app. */
+@media (max-width: 480px) {
+  .partner-mark {
+    display: none;
+  }
+}
+/*
+ * The header mark. Two knobs, both here:
+ *
+ *   --logo-mark-size  how big the mark is.
+ *   --logo-mark-zoom  how far into the artwork the frame crops.
+ */
+.logo-mark {
+  width: var(--logo-mark-size);
+  height: var(--logo-mark-size);
+  /* Free to be a design choice now that it is not hiding anything: 26% reads as the
+     squircle the artwork was drawn as, without the old 19%'s clipped-square look. */
+  border-radius: 26%;
+  /* The plate is white, so the mark needs its own edge against a white header. The
+     hairline is ink at low alpha: a mid grey read as a broken-image frame, so this
+     is stated dark enough to be read as a keyline, and the shadow lifts it off the
+     glass. */
+  background: #ffffff;
+  overflow: hidden;
+  border: 0;
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.14),
+    inset 0 0 0 1px rgba(17, 17, 17, 0.28);
+}
+.logo-mark img {
+  display: block;
+  /* Preflight's max-width:100% clamps this one; see the note above. */
+  width: calc(var(--logo-mark-zoom) * 100%);
+  height: calc(var(--logo-mark-zoom) * 100%);
+  /* Pulls the oversized box back by half its overflow. Percentage margins resolve
+     against the container's inline size on all four sides, so this is one value. */
+  margin: calc((1 - var(--logo-mark-zoom)) * 50%);
+  /* Load-bearing, not a safety net: this is what performs the crop. */
+  object-fit: cover;
+}
+/* Wordmark over kicker as a single block, so the lockup's align-items centres the
+   pair against the mark rather than centring the wordmark alone. */
+.brand-name {
+  display: flex;
+  flex-direction: column;
+}
+.brand-name h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  /* Preflight's 1.5 left the two lines reading as separate rows; this closes them
+     into one lockup without crowding the descenders. */
+  line-height: 1.3;
+}
+/* The kicker under the wordmark. Graphite rather than ink, so it reads as a second
+   level under the wordmark instead of as more of the same line, and at 9px/700 it
+   still clears 9.92:1 on the header's white, which is what the contrast check in
+   tests/smoke.spec.ts pins. */
+.brand-full {
+  display: block;
+  color: var(--pia-graphite);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.agent-avatar {
+  width: 40px;
+  height: 40px;
+}
+.agent-avatar svg {
+  width: 18px;
+}
+/* Flex children default to min-width:auto, so nothing in the header could shrink
+   and a long signed-in name pushed the gear past the right edge. The chips are
+   the part that gives: the brand and the nav are navigation, while these are
+   informational and carry the full value in a title attribute. */
+.app-header > .brand-lockup,
+.app-header > nav {
+  flex: none;
+}
+.identity-chips {
+  min-width: 0;
+}
+.identity-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--pia-line);
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  min-width: 0;
+}
+/* The icon keeps its size; only the text truncates. */
+.identity-chip > svg {
+  flex: none;
+}
+.identity-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* In the mobile sheet the chip has a column to itself with room to spare, so the
+   header's truncation would be a clip with nothing gained. */
+.mobile-identity .identity-chip > span {
+  overflow: visible;
+  white-space: normal;
+}
+/* While the desktop nav is up but the viewport is not yet wide enough to seat it
+   beside a full chip, the chip sheds its label rather than the name: the icon
+   already says what the label says, and truncation would otherwise spend the
+   chip on the word "Signed" and an ellipsis. Upper bound measured against a long
+   address, not a short one, below 1366px a 27-character local part clips. */
+@media (min-width: 1280px) and (max-width: 1365px) {
+  .app-header .identity-chip-label {
+    display: none;
+  }
+}
+nav a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* AppKit renders alert copy as a grid, which puts every inline <strong> on its
+   own row. Blocks keep sentences reading as sentences. */
+[data-slot='alert-description'] {
+  display: block;
+  color: #3f4247;
+  line-height: 1.55;
+}
+[data-slot='alert-description'] strong {
+  color: var(--foreground);
+}
+[data-slot='alert'] {
+  border-color: #d5d8dc;
+  background: rgba(255, 255, 255, 0.92);
+}
+.mobile-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+/* Every eyebrow in the app is graphite. They are small, bold, and everywhere, page
+   headings, the conversation rail, the trace panel, and they are labels rather than
+   content, so they sit one rung below the ink they introduce. 11px/700 on graphite is
+   9.92:1; gold could never do this job. */
+.section-label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--pia-graphite);
+  font-weight: 700;
+}
+.ask-layout {
+  --conversation-width: clamp(220px, 15vw, 260px);
+  --trace-width: clamp(320px, 23vw, 410px);
+  display: grid;
+  grid-template-columns: var(--conversation-width) minmax(0, 1fr) var(--trace-width);
+  min-height: calc(100vh - var(--app-header-h));
+  width: 100%;
+}
+.conversation-rail,
+.trace-inspector {
+  position: sticky;
+  top: var(--app-header-h);
+  height: calc(100vh - var(--app-header-h));
+  padding: 22px 16px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(14px);
+}
+.conversation-rail {
+  border-right: 1px solid var(--pia-line);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.trace-inspector {
+  border-left: 1px solid var(--pia-line);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+/* The box treatment lives on the row, which wraps the two buttons, selecting the
+   conversation and deleting it, so hover and selection still light the whole entry
+   rather than only the part under the pointer. */
+.conversation-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  /* Reserved so hover and active can fill this in without the row shifting sideways. */
+  border-left: 3px solid transparent;
+  padding-right: 4px;
+}
+.conversation-item {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  text-align: left;
+  padding: 10px 4px 10px 7px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.35;
+}
+/* Long titles are clamped so the rail stays scannable. The clamp counts lines and
+   cannot break a long unbroken token, so a title naming a fully qualified table
+   ran out of the rail sideways until `overflow-wrap` let it break anywhere. */
+.conversation-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* Date and watermark share one line, so naming the owner costs the rail no height. */
+.conversation-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.conversation-age {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.conversation-row:hover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: var(--pia-line);
+  border-left-color: var(--pia-tint);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.045);
+}
+/* Selected is the one row with an edge marker: a black rule down its left plus a
+   wash, so the rail reads at a glance without colouring the titles themselves. The
+   wash is pitched so muted text still clears 4.62:1 on it. */
+.conversation-row.active {
+  background: var(--pia-wash);
+  border-color: var(--pia-tint);
+  border-left-color: var(--pia-ink);
+  box-shadow: 0 4px 14px rgba(17, 17, 17, 0.07);
+}
+.conversation-row.active .conversation-title {
+  font-weight: 600;
+}
+.conversation-item:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+/* The watermark: who asked, as initials.
+   Deliberately the quietest thing in the row. It carries no colour of its own,
+   because the black edge marker already means "this row is selected" here and gold
+   means evaluation: a third mark competing with those would make the rail harder to
+   scan, not easier.
+   Quiet comes from size and weight rather than from low contrast: #5a5e68 on #eef0f3
+   is 5.2:1, so the initials stay legible for anyone who needs to read them. */
+.conversation-owner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #eef0f3;
+  border: 1px solid rgba(17, 17, 17, 0.07);
+  color: #5a5e68;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  /* The address is on `title`, so the cursor should say there is something to read. */
+  cursor: help;
+}
+.conversation-row.active .conversation-owner {
+  /* On the selected row's wash a grey circle looks like a rendering fault, so it
+     lightens to white and picks up the row's border. 5.0:1 on this background. */
+  background: rgba(255, 255, 255, 0.75);
+  border-color: var(--pia-tint);
+}
+
+/* The scope note beside "RECENT", when the rail is carrying more than the signed-in
+   user. Neutral and not uppercase, so it reads as a qualifier on the eyebrow rather
+   than as a second eyebrow competing with it. 5.4:1 on the rail. */
+.section-label-scope {
+  color: #5a5e68;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+/* Only ever rendered when the rail holds more than one person, which today means a
+   deployment that has deliberately turned sharing on. It sits between the eyebrow and
+   the first row, so it has to be quieter than both: no border, no fill, and the same
+   neutral as the watermark it filters by. */
+/* The rail's people filter.
+ *
+ * Wraps rather than scrolling sideways, and is capped at roughly three rows so
+ * a deployment with twenty askers cannot push the conversations this control
+ * exists to filter below the fold. Past the cap it scrolls within itself, which
+ * costs the rail a fixed amount of height whatever the number of people. */
+.conversation-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 8px;
+  max-height: 84px;
+  overflow-y: auto;
+  color: #5a5e68;
+}
+
+.conversation-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--pia-line);
+  border-radius: 999px;
+  background: transparent;
+  color: #3f434b;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+  /* Only the colours move on toggle. Nothing that changes the chip's size, so
+     pressing one cannot reflow the row under the pointer and put a different
+     chip where the last click landed. */
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.conversation-filter-chip:hover {
+  background: rgba(17, 17, 17, 0.04);
+}
+
+/* The selected state, carried by fill and border and weight together rather
+   than by colour alone. This is the one thing about the control that has to be
+   unmistakable, and a rail is read at a glance from across a room during a
+   demo. Inverted rather than tinted: on a monochrome palette a pale fill under
+   dark text is a step nobody sees from the back of a room, whereas white on
+   black is unmissable at any distance and clears 18.88:1 besides. */
+.conversation-filter-chip[aria-pressed='true'] {
+  border-color: var(--pia-ink);
+  background: var(--pia-ink);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.conversation-filter-chip:focus-visible {
+  outline: 2px solid var(--pia-ink);
+  outline-offset: 1px;
+}
+
+/* Tabular so a chip does not change width between 9 and 10, which would
+   reflow the whole wrapped block on a refetch. */
+.conversation-filter-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.conversation-filter-chip[aria-pressed='true'] .conversation-filter-count {
+  color: inherit;
+}
+
+.conversation-filter-initials {
+  letter-spacing: 0.02em;
+}
+
+/* Destructive, so it stays out of the way until the row is under the pointer or the
+   keyboard. It is never removed from the layout or the tab order (only faded), so it
+   can still be reached by keyboard, and it is always visible where hover does not
+   exist. */
+.conversation-delete {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 7px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.conversation-delete svg {
+  width: 14px;
+  height: 14px;
+}
+.conversation-row:hover .conversation-delete,
+.conversation-delete:focus-visible {
+  opacity: 1;
+}
+.conversation-delete:hover {
+  background: var(--pia-danger-tint);
+  /* 5.9:1 on the tint. The rail has no standing red at all now, so this is the only
+     red in it until a confirmation opens, which is what makes it register. */
+  color: var(--pia-danger);
+}
+.conversation-delete:disabled {
+  cursor: wait;
+  opacity: 0;
+}
+@media (hover: none) {
+  /* No hover to reveal it, so it is simply always there. */
+  .conversation-delete {
+    opacity: 1;
+  }
+}
+
+/* The confirmation replaces the row it belongs to, rather than floating over the
+   page. The entry being deleted is the thing the question is about, so putting the
+   question where the entry was keeps them from being read separately, and a rail
+   this dense has no room for a popover that would cover its neighbours. */
+.conversation-row.confirming {
+  display: block;
+  background: var(--pia-danger-wash);
+  border-color: var(--pia-danger-tint);
+  border-left-color: var(--pia-danger);
+  padding: 10px 10px 10px 7px;
+}
+.conversation-confirm-question {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.conversation-confirm-detail {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+  margin-top: 3px;
+}
+.conversation-confirm-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+}
+.conversation-confirm-actions button {
+  flex: 1;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--pia-line);
+}
+.conversation-confirm-cancel {
+  background: #ffffff;
+  color: var(--foreground);
+}
+.conversation-confirm-cancel:hover {
+  border-color: var(--pia-slate);
+}
+/* The only red button in the app, and it is the one that destroys something. White
+   on #b20022 is 8.1:1. Every other filled button in the rail is black, so this one
+   is the single thing that does not look like the rest of the interface. */
+.conversation-confirm-delete {
+  background: var(--pia-danger);
+  border-color: var(--pia-danger);
+  color: #ffffff;
+}
+.conversation-confirm-delete:hover {
+  background: var(--pia-danger-deep);
+  border-color: var(--pia-danger-deep);
+}
+.conversation-confirm-actions button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+.conversation-empty {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 10px;
+}
+.benchmark-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--foreground);
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 16px 6px 0;
+  font-size: 13px;
+  text-decoration: none;
+}
+/* The Benchmark Lab entry point wears the icon-chip treatment from the logo, gold
+   tile, ink glyph at 10.15:1, so the one gold thing in the rail is the one that leads
+   to the scores. It is the only exception to "icon chips are neutral": this link's
+   destination is evaluation, so gold outranks the neutral rule here. */
+.benchmark-shortcut svg {
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  border-radius: 7px;
+  background: var(--pia-gold);
+  color: var(--pia-ink);
+}
+.benchmark-shortcut:hover {
+  color: var(--pia-ink);
+}
+.benchmark-shortcut:hover svg {
+  box-shadow: 0 0 0 3px var(--pia-gold-wash);
+}
+.conversation-main {
+  padding: 34px clamp(28px, 3.5vw, 64px) 180px;
+  min-width: 0;
+  position: relative;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.72), rgba(245, 246, 247, 0.78)),
+    radial-gradient(circle at 50% 15%, rgba(0, 0, 0, 0.045), transparent 42%);
+}
+.ask-hero {
+  max-width: 900px;
+  margin: 4vh auto 0;
+  text-align: center;
+}
+/* The empty state is the screen a new user meets first and it has no controls on it
+   yet, so the identity badge above the headline carries the brand instead. */
+.ask-hero [data-slot='badge'] {
+  background: var(--pia-tint);
+  border: 1px solid var(--pia-ink);
+  color: var(--pia-ink);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.ask-hero h2 {
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  margin: 18px 0 12px;
+  color: var(--pia-ink);
+  font-weight: 720;
+}
+.ask-hero > p {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  max-width: 590px;
+  margin: auto;
+  color: #5f6369;
+}
+.prompt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 36px;
+  text-align: left;
+}
+.prompt-grid button {
+  min-height: 108px;
+  padding: 20px;
+  border: 1.5px solid #c7cacf;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #171717;
+  cursor: pointer;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.055);
+}
+/* Hovering a suggestion is the first action the app offers, so the whole card firms
+   up on hover: a black border and a wash, and the Ask affordance already inherits
+   --primary. */
+.prompt-grid button:hover {
+  border-color: var(--pia-ink);
+  background: var(--pia-wash);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(17, 17, 17, 0.1);
+}
+.prompt-grid button span {
+  display: block;
+  color: var(--pia-ink);
+  font-size: 12px;
+  margin-top: 12px;
+  font-weight: 700;
+}
+/* The bubble and the avatar that signs it, kept on one line and pushed right.
+   The 22px that used to be the bubble's own bottom margin lives here now, so the
+   avatar cannot sit outside the gap it creates. */
+.user-message {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.user-bubble {
+  width: fit-content;
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 14px 14px 3px 14px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  /* The customer could select this text but saw no I-beam over it, so nothing
+     said it was selectable. */
+  cursor: text;
+}
+/* The user's counterpart to .agent-avatar. Round rather than the agent's
+   rounded square, and carrying initials rather than a glyph, so which of the two
+   wrote a message survives a greyscale screenshot and a colour-blind reader. */
+.user-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--pia-tint);
+  border: 1px solid rgba(17, 17, 17, 0.07);
+  color: var(--pia-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  /* The whole identity is on `title`, as it is on the rail's owner circle. */
+  cursor: help;
+}
+/*
+ * Selection, per surface.
+ *
+ * There was no ::selection rule anywhere in this app or in AppKit's stylesheet,
+ * so both surfaces got the browser default: a pale wash that leaves the
+ * foreground colour alone. On the near-black bubble that is white text on pale
+ * blue, which is the report we had -- the selection works, copies and pastes,
+ * and cannot be seen.
+ *
+ * One global rule cannot serve both, because the two surfaces are inverses of
+ * each other. Each gets the inverse of its own background, which is the highest
+ * contrast available on it and, on the light side, the ink the palette already
+ * reserves for "whatever is currently active or selected".
+ *
+ * Both the element and its descendants are named: ::selection matches the
+ * element whose text is selected, and a bubble holding a nested span would
+ * otherwise fall through to the default.
+ */
+.user-bubble::selection,
+.user-bubble ::selection {
+  background: var(--primary-foreground);
+  color: var(--pia-ink);
+}
+.answer-card::selection,
+.answer-card ::selection,
+.plan-card::selection,
+.plan-card ::selection {
+  background: var(--pia-ink);
+  color: #ffffff;
+}
+/* Prose in an answer is as selectable as a question is, and the I-beam is the
+   only thing that says so before the drag starts. Scoped to the text elements
+   rather than the card, so the buttons and links inside keep their pointer. */
+.answer-card p,
+.answer-prose li,
+.answer-heading,
+.answer-takeaway {
+  cursor: text;
+}
+/* The agent's own output is signed with a brand rule across the top, matching the one
+   in the header. */
+.answer-card {
+  border: 1px solid var(--pia-line);
+  border-top: 3px solid var(--pia-ink);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.065);
+  margin-bottom: 26px;
+}
+/* A plan is the one card that is waiting on the user, so it is the most emphatic
+   thing in the transcript until it resolves (a heavier black edge and a wash), at
+   which point it drops back to an ordinary hairline. */
+.plan-card {
+  border: 1.5px solid var(--pia-ink);
+  background: var(--pia-wash);
+  box-shadow: 0 14px 36px rgba(17, 17, 17, 0.09);
+  margin-bottom: 26px;
+}
+.plan-card.resolved {
+  border: 1px solid var(--pia-line);
+  background: var(--card);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.045);
+}
+.plan-steps {
+  display: grid;
+  gap: 10px;
+}
+.plan-step {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 13px;
+  background: color-mix(in oklab, var(--muted) 35%, var(--card));
+}
+.plan-step > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+.plan-step strong {
+  font-size: 14px;
+}
+.plan-step p {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 3px 0 0;
+}
+.plan-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.answer-takeaway {
+  font-size: clamp(20px, 2.5vw, 28px);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin-top: 8px;
+}
+/* ── The agent's Markdown ───────────────────────────────────────────────────
+ *
+ * The orchestrator writes headings, bullets, bold and code spans, and until
+ * this block existed the app printed the characters. See answer-markdown.ts for
+ * the parser; these are the rules that make its output read as one answer
+ * rather than as a document that wandered into a chat card.
+ *
+ * Tailwind's preflight strips list markers and every default margin, so the
+ * spacing and the bullets here are stated rather than restored.
+ */
+.answer-prose > * {
+  margin: 0;
+}
+.answer-prose > * + * {
+  margin-top: 12px;
+}
+/* Air above a section, none below it: a heading belongs to the thing under it,
+   and equal gaps either side would leave it floating between two paragraphs. */
+.answer-prose > * + .answer-heading {
+  margin-top: 20px;
+}
+.answer-prose > .answer-heading + * {
+  margin-top: 6px;
+}
+/*
+ * Sized as the label on a section, not as a title.
+ *
+ * The card already has a heading -- the takeaway, at up to 28px -- and the
+ * agent's `## DATA PACKAGE` sits underneath it. At heading sizes the two
+ * compete and the answer looks like a report; at body size with the weight up,
+ * it reads as what it is.
+ */
+.answer-heading {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--pia-ink);
+}
+.answer-subheading {
+  font-size: 0.94em;
+  color: var(--muted-foreground);
+}
+.answer-list {
+  padding-left: 22px;
+  display: grid;
+  gap: 6px;
+}
+ul.answer-list {
+  list-style: disc outside;
+}
+ol.answer-list {
+  list-style: decimal outside;
+}
+/* An identifier, and usually a long one. `anywhere` rather than a scrollbar:
+   the chip sits inside a sentence, and a sentence does not scroll. */
+.answer-code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.88em;
+  background: var(--muted);
+  border-radius: 4px;
+  padding: 1px 4px;
+  overflow-wrap: anywhere;
+}
+/* The same treatment the entity links use, so a link the agent wrote and a link
+   the app added do not read as two different kinds of thing. */
+.answer-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.composer {
+  position: fixed;
+  bottom: 20px;
+  left: calc(var(--conversation-width) + clamp(28px, 3.5vw, 64px));
+  right: calc(var(--trace-width) + clamp(28px, 3.5vw, 64px));
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid #aeb2b8;
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.11),
+    0 0 0 4px rgba(255, 255, 255, 0.72);
+}
+/* Typing a question is the app's main action, so the composer wears the brand while it
+   has focus. The ring sits on the container rather than the textarea so it reads as one
+   surface. The halo is stated as ink at 9% rather than as --pia-wash: the wash is only
+   two steps off white now, and a halo nobody can see is not a focus indicator. */
+.composer:focus-within {
+  border-color: var(--pia-ink);
+  box-shadow:
+    0 16px 40px rgba(17, 17, 17, 0.14),
+    0 0 0 4px rgba(17, 17, 17, 0.09);
+}
+.composer textarea {
+  border: 1px solid #dfe1e5;
+  resize: none;
+  box-shadow: none;
+  min-height: 54px;
+  background: #fbfbfc;
+  color: #171717;
+}
+/* The container already draws the focus ring; a second one inside it is noise. */
+.composer textarea:focus-visible {
+  outline: none;
+  border-color: var(--pia-ink);
+}
+.composer textarea::placeholder {
+  color: #6b6f76;
+}
+.attachment-list {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 2px 8px;
+}
+.attachment-chip {
+  display: grid;
+  grid-template-columns: 18px minmax(120px, 1fr) 20px;
+  align-items: start;
+  gap: 8px;
+  min-width: 210px;
+  max-width: 320px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 9px;
+  background: var(--muted);
+}
+.attachment-chip > svg {
+  margin-top: 1px;
+}
+.attachment-chip > span {
+  min-width: 0;
+}
+.attachment-chip strong,
+.attachment-chip small {
+  display: block;
+}
+.attachment-chip strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-chip small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Stated rather than inherited from --primary, which is the same ink: this border
+   means "still parsing", and it must not drift onto the danger family if --primary
+   ever moves, because the chip beside it uses that family to mean "this failed". */
+.attachment-chip.parsing {
+  border-color: var(--pia-ink);
+}
+.attachment-chip.parsing small {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+.attachment-chip.error {
+  /* Extraction failures are full sentences, so this chip grows and wraps instead of
+     clipping the message down to a generic-looking stub. */
+  max-width: 420px;
+  border-color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 6%, var(--card));
+}
+.attachment-chip.error > svg {
+  color: var(--destructive);
+}
+.attachment-chip.error small {
+  color: var(--pia-danger);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+.attachment-chip button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.attachment-chip button:hover {
+  color: var(--foreground);
+}
+.attachment-chip button svg {
+  width: 14px;
+}
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.composer-actions > span {
+  flex: 1;
+}
+/*
+ * An honestly indeterminate progress bar.
+ *
+ * AppKit's Progress has no indeterminate mode: it positions the indicator with
+ * `translateX(-(100 - value)%)`, so a bar with no value renders empty and reads
+ * as stopped at zero. Passing `value={null}` makes Radix mark the root
+ * `data-state="indeterminate"`, which is the correct thing for assistive tech to
+ * hear, and this rule gives that state a visual. A sweep that says "working,
+ * for an unknown length of time" without claiming a fraction.
+ */
+[data-slot='progress'][data-state='indeterminate'] > [data-slot='progress-indicator'] {
+  width: 40%;
+  flex: none;
+  transform: none;
+  animation: pia-progress-sweep 1.4s ease-in-out infinite;
+}
+@keyframes pia-progress-sweep {
+  0% {
+    margin-inline-start: -40%;
+  }
+  100% {
+    margin-inline-start: 100%;
+  }
+}
+/* Respect a reduced-motion preference: hold a steady partial bar instead of
+   sweeping. Still not a progress claim, just a "something is happening". */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot='progress'][data-state='indeterminate'] > [data-slot='progress-indicator'] {
+    animation: none;
+    width: 100%;
+    opacity: 0.45;
+  }
+}
+.chart-card {
+  border: 1px solid #d3d5d8;
+  box-shadow: none;
+  background: color-mix(in oklab, var(--muted) 40%, var(--card));
+}
+.bar-chart {
+  display: grid;
+  gap: 15px;
+}
+/*
+ * Break agent-supplied text wherever it has to break.
+ */
+.answer-card p,
+.answer-card strong,
+.answer-card b,
+/* `overflow-wrap` inherits, so naming the wrapper covers the headings, list
+   items and code spans the Markdown renderer puts inside it. */
+.answer-prose,
+/* AppKit's own slots, reached by data attribute: the takeaway lives in a card
+   title and the caveats in an alert description, both Tailwind-classed. */
+.answer-card [data-slot='card-header'],
+.answer-card [data-slot='card-title'],
+.answer-card [data-slot='card-content'],
+.answer-card [data-slot='card-description'],
+[data-slot='alert-description'],
+.user-bubble,
+.source-strip div,
+.source-strip strong,
+.source-line span,
+.source-line strong,
+.bar-row > span,
+.dag-node,
+.dag-node strong,
+.metric-row span,
+.metric-row strong {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(104px, 168px) minmax(0, 1fr) 62px minmax(58px, 122px);
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+}
+.bar-row > span {
+  line-height: 1.35;
+}
+.bar-row > div {
+  height: 28px;
+  background: #e7e9ec;
+  border: 1px solid #d6d9dd;
+  border-radius: 6px;
+  overflow: hidden;
+}
+/* Nothing is printed on this fill (the value has its own column), so it takes the
+   full-strength series colour. */
+.bar-row i {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  background: var(--chart-1);
+  border-radius: 5px 0 0 5px;
+}
+/* The value gets its own column so it is never printed on top of the dark fill. */
+.bar-row b {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.bar-row em {
+  font-style: normal;
+  color: #3f4247;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.bar-row em.negative {
+  color: var(--destructive);
+}
+.source-strip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 12px;
+  background: var(--muted);
+  font-size: 12px;
+}
+.source-strip > div {
+  min-width: 0;
+  flex: 1;
+}
+.source-strip strong,
+.source-strip span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.source-strip span {
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+.advanced-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 2px;
+}
+.code-panel {
+  border: 1px solid var(--pia-line);
+  border-radius: 10px;
+  background: #fafbfc;
+  color: #1c1e21;
+  overflow: hidden;
+}
+.code-panel > div {
+  padding: 9px 12px;
+  border-bottom: 1px solid #dfe1e5;
+  background: #f1f2f4;
+  color: var(--muted-foreground);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+}
+.code-panel pre {
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 11px;
+  line-height: 1.6;
+  max-height: 350px;
+}
+.source-line {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.source-line svg {
+  width: 15px;
+}
+.source-line span,
+.source-line small {
+  display: block;
+}
+.source-line small {
+  color: var(--muted-foreground);
+}
+.feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.feedback-comment {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 260px;
+}
+.saved {
+  display: flex;
+  align-items: center;
+  color: var(--success);
+  gap: 4px;
+}
+.saved svg {
+  width: 14px;
+}
+.ai-note {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.ai-note svg {
+  width: 13px;
+}
+.trace-dag {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+.trace-dag.compact {
+  flex-direction: column;
+  overflow: visible;
+}
+.dag-step {
+  display: flex;
+  align-items: center;
+  min-width: 160px;
+  flex: 1;
+}
+.trace-dag.compact .dag-step {
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+.dag-node {
+  border: 1px solid var(--pia-line);
+  border-radius: 12px;
+  padding: 12px;
+  min-width: 150px;
+  background: rgba(255, 255, 255, 0.94);
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 7px;
+  align-items: center;
+}
+.dag-node > svg {
+  width: 18px;
+  color: var(--primary);
+}
+.dag-node strong,
+.dag-node span {
+  display: block;
+  font-size: 11px;
+}
+.dag-node span {
+  color: var(--muted-foreground);
+  margin-top: 3px;
+}
+.dag-node [data-slot='badge'] {
+  grid-column: 1/-1;
+  justify-self: start;
+  font-size: 9px;
+}
+/* A partial stage is the one thing in the trace panel worth interrupting for: the
+   answer above it was assembled from an incomplete run. That is a claim about
+   correctness rather than decoration, so it keeps the danger family while the live
+   stage below it (which is merely busy), takes the ink outline. */
+.dag-node.partial {
+  border-color: var(--pia-danger);
+  background: var(--pia-danger-wash);
+}
+.dag-node.active {
+  outline: 2px solid var(--pia-ink);
+  animation: pulse 1.4s infinite;
+}
+.dag-edge {
+  height: 1px;
+  width: 26px;
+  background: var(--border);
+  position: relative;
+  flex: none;
+}
+.dag-edge span {
+  display: none;
+}
+.trace-dag.compact .dag-edge {
+  width: 1px;
+  height: 22px;
+  margin-left: 22px;
+  border-left: 1px dotted var(--muted-foreground);
+  background: none;
+}
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+}
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+.metric-row span,
+.metric-row strong {
+  display: block;
+  font-size: 10px;
+}
+.metric-row strong {
+  font-size: 12px;
+  margin-top: 3px;
+}
+.page-shell {
+  max-width: 1440px;
+  padding: 40px clamp(20px, 4vw, 56px) 70px;
+  margin: auto;
+  display: grid;
+  gap: 24px;
+}
+.page-shell [data-slot='card'] {
+  border-color: #d3d5d8;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.045);
+}
+.page-shell > * {
+  min-width: 0;
+}
+.page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.page-heading h2 {
+  font-size: clamp(28px, 4vw, 38px);
+  letter-spacing: -0.03em;
+  margin: 0 0 5px;
+}
+.page-heading > div > p:last-child {
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.summary-grid [data-slot='card-content'] {
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+}
+.summary-grid span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.summary-grid strong {
+  font-size: 27px;
+  letter-spacing: -0.03em;
+  margin: 5px 0;
+}
+.summary-grid small {
+  color: var(--success);
+}
+.summary-grid.compact strong {
+  font-size: 21px;
+}
+/*
+ * Gold's anchor: the human-rating card among the benchmark summary tiles, tied to the
+ * gold stars in the results table below it. The rule is 4px and the surface carries a
+ * 12% gold wash, which is as much gold as a 1.86:1 colour can hold while every
+ * foreground on it still clears AA, ink at 17.46:1, muted at 4.58:1, the green delta
+ * at 5.42:1. The number itself stays ink; gold is never the type.
+ */
+.summary-grid [data-slot='card'].benchmark-score {
+  border-top: 4px solid var(--pia-gold);
+  background: var(--pia-gold-wash);
+}
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.table-scroll [data-slot='table'] {
+  min-width: 860px;
+}
+/* The Rating column is the table's evaluation column, so its header wears a thick gold
+   underline: a rule, never a tint on the caps above it. Rating is the last column on
+   every table in the app that has one. */
+.table-scroll [data-slot='table'] thead th:last-child {
+  border-bottom: 3px solid var(--pia-gold);
+}
+.stars {
+  /* The gold fill belongs to the star glyph; the rating itself is body text on a white
+     card, so it must not borrow the fill. Lucide draws its stroke from currentColor,
+     so an ink `color` here outlines the gold the way the icon's own gold chip outlines
+     its glyph, which is also what keeps a 1.86:1 fill legible. */
+  color: var(--foreground);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.stars svg {
+  width: 14px;
+  fill: var(--pia-gold);
+}
+.comparison-flow {
+  display: flex;
+  align-items: center;
+}
+.comparison-flow span {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px;
+  font-size: 11px;
+}
+.comparison-flow i {
+  flex: 1;
+  height: 2px;
+  background: var(--chart-1);
+}
+/* Slow used to be amber, which read as a dimmer gold right under the gold score card
+   and muddied what gold means. The outlier separates by going darker and heavier than
+   the series instead of by hue, which is the only move a monochrome chart has. */
+.comparison-flow i.slow {
+  background: var(--pia-ink);
+  height: 5px;
+}
+.explorer-layout {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.run-list {
+  position: sticky;
+  top: calc(var(--app-header-h) + 24px);
+  max-height: calc(100vh - var(--app-header-h) - 46px);
+  overflow: auto;
+}
+.run-detail {
+  min-width: 0;
+  overflow: hidden;
+}
+.run-detail-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-item {
+  width: 100%;
+  display: grid;
+  gap: 7px;
+  text-align: left;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--foreground);
+}
+.run-item {
+  border-left: 3px solid transparent;
+}
+.run-item:hover {
+  background: var(--muted);
+}
+/* Same selected-row language as the conversation rail, so "this is the one I picked"
+   looks identical in both lists. */
+.run-item.active {
+  background: var(--pia-wash);
+  border-left-color: var(--pia-ink);
+}
+.run-item > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.run-item small {
+  color: var(--muted-foreground);
+}
+.advanced-toggle {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  background: var(--background);
+}
+.waterfall {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+.waterfall-content {
+  min-width: 680px;
+}
+.waterfall-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 190px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 5px;
+}
+.waterfall-row {
+  display: grid;
+  grid-template-columns: 185px 1fr;
+  gap: 5px;
+  align-items: center;
+  padding: 8px 0;
+}
+.waterfall-row > span {
+  font-size: 12px;
+}
+.waterfall-row small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+.waterfall-row > div {
+  height: 26px;
+  background: repeating-linear-gradient(90deg, transparent 0, transparent 24.7%, var(--border) 25%);
+  position: relative;
+}
+/* Duration labels print on top of this bar, so it takes the graphite rung rather than
+   ink: white on graphite is 9.92:1, which 9.5px bold clears comfortably, and it leaves
+   full ink free to mark the slow rows below. */
+.waterfall-row i {
+  display: block;
+  height: 22px;
+  background: var(--chart-2);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 600;
+  font-style: normal;
+  line-height: 12px;
+  padding: 5px 6px;
+  min-width: 38px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+/* Same move as .comparison-flow i.slow: ink, not amber, so gold stays evaluation-only.
+   White on ink is 18.88:1, the most legible bar in the chart. */
+.waterfall-row i.slow {
+  background: var(--pia-ink);
+}
+/* ── The inline trace timeline ──────────────────────────────────────────────
+ *
+ * The customer's notebook renders this on a dark ground with saturated chips.
+ * The structure is his and the palette is ours, so the kinds are separated by
+ * what this app already owns (gold, ink, graphite and slate), rather than by a
+ * new hue per kind. That is four values on one axis rather than four hues, so
+ * SQL and plot are now a step apart in weight rather than a step apart in
+ * colour; the label on every chip is what actually names the kind, and each
+ * chip also carries a dot, so neither reading depends on telling them apart.
+ */
+.trace-timeline {
+  --kind-llm: var(--pia-gold);
+  --kind-sql: var(--pia-graphite);
+  --kind-discovery: var(--pia-slate);
+  --kind-plot: var(--pia-ink);
+  --kind-clarify: #b87c00;
+  --kind-agent: #9aa0ab;
+  --kind-run: var(--pia-slate);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+/* The reconciliation line. Tabular figures so the numbers do not shuffle
+   sideways between one run and the next. */
+.trace-reconciliation {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+.trace-panel-heading h4 {
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0;
+  color: var(--pia-ink);
+}
+.trace-panel-heading p {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin: 2px 0 0;
+}
+.trace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--pia-ink);
+  white-space: nowrap;
+}
+.trace-chip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.trace-chip-llm i {
+  background: var(--kind-llm);
+}
+.trace-chip-sql i {
+  background: var(--kind-sql);
+}
+.trace-chip-discovery i {
+  background: var(--kind-discovery);
+}
+.trace-chip-plot i {
+  background: var(--kind-plot);
+}
+.trace-chip-clarify i {
+  background: var(--kind-clarify);
+}
+.trace-chip-agent i {
+  background: var(--kind-agent);
+}
+.trace-chip-run i {
+  background: transparent;
+  border: 1.5px solid var(--kind-run);
+}
+.trace-chip-llm {
+  background: var(--pia-gold-wash);
+  border-color: #f3d9a4;
+}
+.trace-chip-sql {
+  background: var(--pia-wash);
+  border-color: var(--pia-tint);
+}
+.trace-rollup table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.trace-rollup th {
+  text-align: left;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  font-weight: 700;
+  padding: 0 8px 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.trace-rollup td {
+  padding: 7px 8px 7px 0;
+  border-bottom: 1px solid var(--pia-line);
+  vertical-align: middle;
+}
+.trace-rollup tr:last-child td {
+  border-bottom: none;
+}
+/* Right-aligned and tabular: these columns are read down, not across. */
+.trace-rollup th:not(:first-child),
+.trace-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.trace-num em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.trace-num em.trace-failed {
+  color: var(--pia-danger);
+}
+.trace-muted {
+  color: var(--muted-foreground);
+}
+/* The honesty notes. Small, but not so small they read as boilerplate to be
+   skipped. They are the part of this panel the customer cares most about. */
+.trace-note {
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+  margin: 10px 0 0;
+}
+.trace-note code {
+  font-size: 10px;
+  background: var(--muted);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+/* ── The Gantt ─────────────────────────────────────────────────────────────
+ *
+ * A table, because every row is a labelled record with a duration and the bar
+ * is one of its columns. That keeps it selectable, readable by a screen reader,
+ * and free of any charting dependency. The deploy budget is unchanged by this
+ * whole panel.
+ */
+.trace-gantt-scroll {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 10px;
+}
+.trace-gantt table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.trace-gantt thead th {
+  text-align: left;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  font-weight: 700;
+  padding: 0 8px 6px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: bottom;
+}
+.trace-gantt .trace-step {
+  width: 40px;
+  text-align: right;
+  padding-right: 10px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  /* The header word is four letters at 0.08em tracking and wrapped to "ste/p"
+     at the width the numbers need. */
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/*
+ * The event label competes with the axis for width, and it should win.
+ *
+ * At a 900px viewport the panel is 567px, and with the axis holding a 200px
+ * minimum the label was left about 160px and wrapped "Read a table's columns"
+ * onto three lines. A name that takes three lines makes the row it labels hard
+ * to scan, whereas a slightly shorter bar track costs nothing. The geometry is
+ * fractional, so it stays exact at any width.
+ */
+.trace-gantt .trace-event {
+  min-width: 168px;
+  max-width: 240px;
+}
+/*
+ * The duration needs a floor as well as a width.
+ *
+ * `width` on a table cell is only a hint, so once the event and axis columns
+ * had minimums the browser took the space out of this one instead and rendered
+ * "763ms" as five stacked characters. It is the column the whole panel is
+ * about; it does not wrap.
+ */
+.trace-gantt .trace-duration {
+  width: 74px;
+  min-width: 66px;
+  padding-left: 10px;
+  white-space: nowrap;
+}
+/* The axis sits in the header cell above the track column, so its ticks and the
+   bars below share one coordinate space by construction rather than by two
+   matching magic numbers. */
+.trace-axis-head {
+  width: 45%;
+  min-width: 150px;
+}
+/* The tick labels are units, not headings: "+4.80s" must not become "+4.80S". */
+.trace-axis {
+  display: block;
+  position: relative;
+  height: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.trace-axis b {
+  position: absolute;
+  top: 0;
+  font-weight: 500;
+  font-size: 9px;
+  color: var(--muted-foreground);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+/* First and last ticks pull inside the track rather than overhanging it. */
+.trace-axis b:first-child {
+  transform: none;
+}
+.trace-axis b:last-child {
+  transform: translateX(-100%);
+}
+.trace-gantt tbody td {
+  padding: 5px 8px 5px 0;
+  border-bottom: 1px solid var(--pia-line);
+  vertical-align: middle;
+}
+.trace-gantt-row {
+  cursor: pointer;
+}
+.trace-gantt-row:hover td {
+  background: var(--pia-wash);
+}
+.trace-gantt-row.expanded td {
+  background: var(--pia-wash);
+}
+/* The envelope row reads as the frame the others sit in, not as another step. */
+.trace-gantt-row.container td {
+  background: var(--muted);
+  font-weight: 600;
+}
+.trace-gantt-row.container:hover td {
+  background: var(--secondary);
+}
+.trace-event button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+/* Underlined rather than recoloured. The label is already ink, so the only colour
+   move left is a lighter one, and text that fades under the pointer reads as
+   disabling itself. */
+.trace-event button:hover {
+  text-decoration: underline;
+}
+.trace-fanout {
+  color: var(--pia-gold);
+  font-size: 13px;
+  line-height: 1;
+}
+.trace-status {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--pia-gold-wash);
+  color: #6b4600;
+  border: 1px solid #f3d9a4;
+}
+.trace-status.failed {
+  background: var(--pia-danger-tint);
+  color: var(--pia-danger);
+  border-color: var(--pia-danger-tint);
+}
+.trace-track {
+  position: relative;
+  height: 22px;
+}
+/*
+ * The bar. `left` and `width` are the measured position and are written inline
+ * from the recorded numbers; nothing here adjusts them.
+ */
+.trace-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 11px;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--kind-agent);
+  display: block;
+}
+.trace-bar-llm {
+  background: var(--kind-llm);
+}
+.trace-bar-sql {
+  background: var(--kind-sql);
+}
+.trace-bar-discovery {
+  background: var(--kind-discovery);
+}
+.trace-bar-plot {
+  background: var(--kind-plot);
+}
+.trace-bar-clarify {
+  background: var(--kind-clarify);
+}
+/* The envelope is a frame, not a mass: an outline, so it cannot be mistaken for
+   another measured step lying under the others. */
+.trace-bar-run {
+  background: transparent;
+  border: 1px solid var(--pia-slate);
+  height: 15px;
+  border-radius: 3px;
+}
+/*
+ * A step that did not finish cleanly must not read as one that did. Hatched
+ * rather than merely recoloured, so it is distinguishable without relying on
+ * colour, and the hatch runs the full measured width. The time is real even
+ * though the outcome was not.
+ */
+.trace-bar.partial,
+.trace-bar.running,
+.trace-bar.failed {
+  background-image: repeating-linear-gradient(135deg,
+    rgba(255, 255, 255, 0.85) 0,
+    rgba(255, 255, 255, 0.85) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+}
+.trace-bar.failed {
+  background-color: var(--pia-danger);
+}
+.trace-unmeasured {
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+/* The expanded row. Arguments and results are whole now that the contract no
+   longer truncates them, so this scrolls rather than stretching the page. */
+.trace-detail td {
+  background: var(--pia-wash);
+  padding: 4px 10px 12px !important;
+}
+.trace-detail dl {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 11px;
+}
+.trace-detail dt {
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+.trace-detail dd {
+  margin: 0;
+  min-width: 0;
+}
+/*
+ * The recorded value.
+ */
+.trace-detail pre {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 10.5px;
+  line-height: 1.5;
+  background: #ffffff;
+  border: 1px solid var(--pia-line);
+  border-radius: 6px;
+  padding: 7px 9px;
+}
+.trace-empty {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.trace-payload {
+  min-width: 0;
+}
+.trace-payload-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+/* The agent's own ceiling, surfaced. A cap the reader does not notice is worse
+   than no cap, because they would take the box for the whole value. */
+.trace-payload-clipped {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 8.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--pia-gold-wash);
+  color: #6b4600;
+  border: 1px solid #f3d9a4;
+}
+/* A JSON payload unwrapped into its keys, so a query reads as a query. */
+.trace-payload-fields {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trace-payload-fields li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+.trace-payload-fields li.block {
+  display: block;
+}
+.trace-payload-key {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pia-graphite);
+}
+.trace-payload-fields li.block .trace-payload-key {
+  display: block;
+  margin-bottom: 2px;
+}
+.trace-payload-value {
+  min-width: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
+}
+
+/* ── Connections ───────────────────────────────────────────────────────────
+   The merged page's spine. Eighteen connections and a handful of blocks, each
+   a line at rest, so the whole deployment fits on one screen and opening one
+   is a deliberate act rather than the default state of everything.
+
+   The capability grid, the guardrail check-list and the two-column footer that
+   used to live here went with the Sources page: seven cards carrying one
+   status line each, and four static ticks with no live check behind any of
+   them. */
+.connections-status {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.connections-status-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.connections-status-counts {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.connections-status-meta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.connections-status [data-slot='alert'] {
+  margin-top: 8px;
+}
+
+.connection-group {
+  display: grid;
+  gap: 8px;
+}
+.connection-rows {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.connection-row + .connection-row {
+  border-top: 1px solid var(--border);
+}
+.connection-row-summary,
+.connection-block-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 13px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.connection-row-summary:hover,
+.connection-block-summary:hover {
+  background: var(--muted);
+}
+.connection-row-summary:focus-visible,
+.connection-block-summary:focus-visible {
+  outline: 2px solid var(--pia-ink);
+  outline-offset: -2px;
+}
+.connection-row-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* The value takes whatever is left and truncates, because a long Genie space id
+   must not push the badge off the row it is the status of. The whole value is
+   inside, in a field that wraps. */
+.connection-row-value {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+/* Deliberately not a Badge. Reachability is what a reader scans for, and a
+   second filled pill beside the first would compete with it for the glance. */
+.connection-row-drift {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.connection-row-drift[data-drift='drift'] {
+  color: var(--pia-danger);
+}
+.connection-row-detail {
+  display: grid;
+  gap: 12px;
+  padding: 4px 14px 16px 30px;
+  font-size: 13px;
+}
+.connection-row-tier {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.connection-row-examples {
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+  font-size: 12px;
+}
+.connection-row-examples span {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.connection-row-examples ul {
+  margin: 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+
+.connection-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.connection-block-body {
+  display: grid;
+  gap: 12px;
+  padding: 4px 14px 16px;
+}
+.health-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+  font-size: 13px;
+}
+@media (max-width: 1180px) {
+  .ask-layout {
+    --conversation-width: 220px;
+    grid-template-columns: var(--conversation-width) 1fr;
+  }
+  .trace-inspector {
+    display: none;
+  }
+  .composer {
+    right: 28px;
+    left: 250px;
+  }
+}
+@media (max-width: 800px) {
+  .ask-layout {
+    display: block;
+  }
+  .conversation-rail {
+    display: none;
+  }
+  .conversation-main {
+    padding: 24px 16px 140px;
+  }
+  .composer {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+  .composer-actions > span {
+    display: none;
+  }
+  .composer-actions {
+    justify-content: space-between;
+  }
+  .prompt-grid,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+  /* The label and the value stop competing for one line: the value drops under
+     the label rather than truncating to nothing on a phone. */
+  .connection-row-summary {
+    flex-wrap: wrap;
+  }
+  .connection-row-value {
+    flex-basis: 100%;
+    text-align: left;
+  }
+  .explorer-layout {
+    grid-template-columns: 1fr;
+  }
+  .run-list {
+    position: static;
+    max-height: 300px;
+  }
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .bar-row {
+    grid-template-columns: 1fr auto;
+    gap: 4px 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .bar-row > span {
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .bar-row b {
+    text-align: right;
+  }
+  .bar-row > div {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+  .bar-row em {
+    grid-column: 1 / -1;
+    order: 4;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The access gate, and the badge it leaves behind.
+
+   Appended rather than filed next to related rules: two other workers are in
+   this stylesheet, and the end of the file is the one place an edit cannot
+   collide with theirs.
+   --------------------------------------------------------------------------- */
+
+.access-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 17, 17, 0.55);
+  overflow-y: auto;
+}
+
+.access-gate-panel {
+  background: var(--background);
+  border: 1px solid var(--pia-line);
+  border-top: 4px solid var(--pia-ink);
+  border-radius: 10px;
+  padding: 28px 30px 24px;
+  max-width: 640px;
+  box-shadow: 0 18px 48px rgba(17, 17, 17, 0.22);
+}
+
+.access-gate-panel h1 {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+  color: var(--pia-ink);
+}
+
+.access-gate-panel > p {
+  margin: 0 0 18px;
+  color: var(--pia-slate);
+  line-height: 1.55;
+}
+
+.access-gate-actions {
+  display: grid;
+  gap: 10px;
+}
+
+/* Each option carries its own consequence, because the difference between them
+   is the sentence underneath rather than the label on top. */
+.access-gate-actions button {
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  padding: 13px 16px;
+  border: 1px solid var(--pia-line);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--pia-ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.access-gate-actions button span {
+  font-weight: 400;
+  font-size: 0.83rem;
+  color: var(--pia-slate);
+  line-height: 1.45;
+}
+
+.access-gate-actions button:hover:not(:disabled) {
+  border-color: var(--pia-ink);
+  background: var(--pia-wash);
+}
+
+.access-gate-actions button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.access-gate-primary {
+  border-color: var(--pia-ink) !important;
+  background: var(--pia-ink) !important;
+  color: #ffffff !important;
+}
+
+.access-gate-primary span {
+  color: rgba(255, 255, 255, 0.86) !important;
+}
+
+/* Visibly the lesser door. Still a real one. An option nobody can find is not
+   a choice, it is a maze. */
+.access-gate-skip {
+  border-style: dashed !important;
+}
+
+.access-gate-result {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* The refusal, and one of the few places left that is allowed to be red. The gate
+   itself is ordinary chrome (a question the app asks everyone), so only the answer
+   that says "no" is coloured. */
+.access-gate-result-bad {
+  background: var(--pia-danger-wash);
+  border: 1px solid var(--pia-danger-tint);
+  color: var(--pia-ink);
+}
+
+.access-gate-result p {
+  margin: 0 0 8px;
+}
+
+.access-gate-result ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  /* Restated because the app's reset clears it, and with three refusals on
+     screen the boundary between one object's fix and the next matters. */
+  list-style: disc outside;
+}
+
+.access-gate-result code {
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+.access-gate-detail {
+  display: block;
+  color: var(--pia-slate);
+  font-size: 0.82rem;
+}
+
+.access-gate-layer {
+  margin: 0;
+  font-weight: 600;
+  color: var(--pia-danger);
+}
+
+/* The way out, inside the failure rather than below it. Checking is the default
+   now, so a reader without the grant meets a refusal first, and the working
+   alternative has to be part of what they are reading, not something they have
+   to go looking for underneath it. */
+.access-gate-fallback {
+  margin: 12px 0 0 !important;
+  padding-top: 10px;
+  /* Not --pia-danger-tint: this sits on --pia-danger-wash, and #fdebee over #fef5f7
+     is about one step per channel. A rule nobody can see does not separate the way
+     out from the refusal above it. The danger rung at 45% keeps the divider in the
+     same family as the panel while actually reading as a division, and it is darker
+     than the full-chroma red it used to mix from, so it has not got fainter. */
+  border-top: 1px solid color-mix(in oklab, var(--pia-danger) 45%, transparent);
+}
+
+/* The limits of the check sit beside the result rather than inside it: they are
+   not a failure, and colouring them like one would teach the reader to skip the
+   two things here that cannot fail loudly. */
+.access-gate-result-neutral {
+  background: var(--pia-gold-wash);
+  border: 1px solid var(--pia-line);
+  color: var(--pia-ink);
+}
+
+.access-gate-impact {
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+
+/* The statement is meant to be selected and pasted, so it keeps its line breaks
+   and does not wrap mid-identifier. */
+.access-gate-remedy {
+  margin: 8px 0 0;
+}
+
+.access-gate-remedy-label {
+  margin: 0 0 4px !important;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--pia-slate);
+}
+
+.access-gate-remedy pre,
+.access-gate-raw pre {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--pia-line);
+  border-radius: 6px;
+  background: var(--background);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.access-gate-raw {
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
+.access-gate-raw summary {
+  cursor: pointer;
+  color: var(--pia-slate);
+}
+
+.access-gate-raw pre {
+  margin-top: 6px;
+  user-select: text;
+  color: var(--pia-slate);
+}
+
+/* Stays up for the whole session. A mode chosen once and then invisible is a
+   mode nobody can hold the answers against. */
+.access-badge {
+  margin: 0;
+  padding: 6px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  background: var(--pia-gold-wash);
+  border-bottom: 1px solid var(--pia-line);
+  font-size: 0.78rem;
+  color: var(--pia-slate);
+}
+
+.access-badge strong {
+  color: var(--pia-ink);
+  font-weight: 600;
+}
+
+/* The status dot.
+ *
+ * `align-self` because the row is baseline-aligned for its text and a circle
+ * has no baseline worth aligning to, left to itself it hangs below the cap
+ * height. `flex: none` so it cannot be squeezed into an ellipse when the row
+ * wraps on a narrow window, which is the shape this badge is usually in on a
+ * projector. */
+.access-badge-dot {
+  flex: none;
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  /* The colour is a second channel, never the only one: the label beside it
+     says the mode in words, and the dot carries an aria-label. */
+  background: var(--muted-foreground);
+}
+
+.access-badge-dot-ok {
+  background: var(--success);
+}
+
+.access-badge-dot-attention {
+  background: var(--pia-gold);
+}
+
+/* The principal. Same size as the row, dimmer than the label. It is the
+   answer to "which one", not the thing being reported. Tabular figures so a
+   truncated id does not shimmer between renders. */
+.access-badge-principal {
+  color: var(--pia-slate);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.72rem;
+}
+
+/* What was established about the reader, set apart from the mode by a rule
+   rather than by punctuation inside a sentence. The register here is a status
+   row, and a status row separates its fields. */
+.access-badge-note {
+  color: var(--muted-foreground);
+  padding-left: 10px;
+  border-left: 1px solid var(--pia-line);
+}
+
+/* ── Identity and permissions, on the Connections page ──────────────────────
+ *
+ * The record the banner abbreviates towards. Two principals side by side where
+ * there is room and stacked where there is not, because the whole point of the
+ * pair is that they are different and a reader has to be able to compare them.
+ */
+.identity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.identity-row-label {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.identity-row-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+}
+
+/* The identifier is printed whole here on purpose, so it has to be able to
+   break: a uuid in a 260px column with nothing to wrap on would otherwise
+   widen the grid track and push the second principal onto its own row. */
+.identity-row-value code {
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.identity-row-kind {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--pia-line);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+/* An absence with a reason, which is not the same as a blank and must not look
+   like one. Italic rather than coloured so it survives a repaint. */
+.identity-row-missing {
+  margin: 0;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+
+.identity-row-what {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* The verification account, which used to be a paragraph in the banner over
+   every page. Given a rule down its side so it reads as a quoted record rather
+   than as prose the page is asserting in its own voice. */
+.identity-permissions {
+  padding-left: 12px;
+  border-left: 2px solid var(--pia-line);
+}
+
+.identity-permissions p {
+  margin: 0;
+}
+
+/* --- The run while it is still going ------------------------------------- */
+/* Rows rather than the compact rail: the rail subsampled to four stages, which
+   on a twenty-one step run silently dropped seventeen of them. Every reported
+   step is drawn here, with the arguments it was actually given. */
+
+.live-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.live-progress-detail {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.live-progress-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.live-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Bounded and scrolled rather than truncated. A long run pushes the composer
+     off the screen otherwise, and dropping rows is what this replaced. */
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.live-step {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--pia-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.live-step.partial,
+.live-step.failed {
+  border-color: var(--pia-danger);
+  background: var(--pia-danger-wash);
+}
+
+.live-step-icon > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
+  margin-top: 2px;
+}
+
+.live-step-body {
+  min-width: 0;
+}
+
+.live-step-head {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.live-step-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.live-step-timing {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* The recorded arguments: the Genie question as asked, the SQL as run. Wrapped
+   rather than ellipsised, because the point of the row is to be readable. */
+.live-step-detail {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.live-step-result {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+.live-step-result > span {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 9px;
+  margin-right: 4px;
+}
+
+/* --- Destructive alerts, on a page that is otherwise black and white --------
+ * The `[data-slot='alert']` rule near the top pins every alert to the neutral
+ * hairline and a white card, and the `[data-slot='alert-description']` rule
+ * paints the sentence #3f4247. Between them they outrank AppKit's destructive
+ * variant on everything except the icon, so a failed run, an unreachable
+ * endpoint and a link to a run that is not in the store all arrived as ordinary
+ * cards with one red glyph in the corner.
+ */
+[data-slot='alert'].text-destructive:not(.bg-transparent) {
+  /* Stated as a mix rather than --pia-danger-tint: the tint is lighter than the
+     #d5d8dc hairline it replaces, so using it would have made this alert's edge
+     fainter than an ordinary one while claiming to be louder. */
+  border-color: color-mix(in oklab, var(--pia-danger) 40%, transparent);
+  background: var(--pia-danger-wash);
+}

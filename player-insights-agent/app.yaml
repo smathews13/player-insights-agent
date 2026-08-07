@@ -1,0 +1,45 @@
+command: ['npm', 'run', 'start']
+env:
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+  - name: DATABRICKS_SERVING_ENDPOINT_NAME
+    valueFrom: serving-endpoint
+  # The warehouse the access gate probes as the signed-in user. This is the app's
+  # own warehouse, not the orchestrator's, which takes its warehouse from the
+  # model artifact. The two can differ, so a gate verdict covers the warehouse
+  # named here and says nothing about the one an answer ran on. Unset, the gate
+  # reports that it could not check rather than that access was refused.
+  - name: DATABRICKS_SQL_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  # The experiment the serving endpoint traces into, which lets Run Explorer
+  # deep-link a stored MLflow trace id. Leave it empty. It is a per-workspace
+  # numeric id, so a literal here ships one workspace's experiment into every
+  # build and a customer following the link lands on an experiment that does not
+  # exist in their account. bundle/app-release.sh resolves it for the target
+  # being released. Empty drops the link and still shows the id.
+  - name: PLAYER_INSIGHTS_EXPERIMENT_ID
+    value: ''
+  # The commit this build came from, so skew between the app and the
+  # orchestrator is readable rather than inferred. Empty on purpose: the value
+  # exists only at build time and scripts/bundle-server.mjs resolves it from git.
+  # Empty means this build does not know its own commit, which a reader must
+  # present as unknown rather than as agreement.
+  - name: PLAYER_INSIGHTS_BUILD_SHA
+    value: ''
+  # The model that scores benchmark answers. Never on the answer path.
+  # bundle/app-release.sh resolves it from var.judge_endpoint. Safe to leave
+  # empty, because a value saved on the settings page overrides it per request.
+  - name: PLAYER_INSIGHTS_JUDGE_ENDPOINT
+    value: ''
+  # Whether the conversation rail lists everyone's conversations or only the
+  # signed-in user's. Per-user scoping is the default and the safe setting.
+  # Turning this on is for a shared evaluation workspace where stakeholders
+  # benchmark together and attribution is the point.
+  #
+  # The app fails closed: only the exact value "true" enables sharing, so unset,
+  # empty, "1", "yes" and a typo all leave the rail scoped per user, and the app
+  # logs which it saw at boot. Writes are never widened; delete, ask and upload
+  # stay owner-only whatever this says. bundle/app-release.sh resolves it from
+  # var.shared_conversation_rail, so set it in the bundle rather than here.
+  - name: PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL
+    value: 'false'

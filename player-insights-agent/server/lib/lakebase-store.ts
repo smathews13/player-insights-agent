@@ -1,0 +1,747 @@
+import type { PreflightCheck } from '../routes/insights-routes';
+import {
+  GRANT_SCRIPT_COMMAND,
+  GRANT_SCRIPT_ENV_VARS,
+  GRANT_SCRIPT_PATH,
+  GRANT_SCRIPT_WHY,
+} from '../../shared/setup-remedies';
+
+/**
+ * Lakebase reads, and the honest reporting of what happened to them.
+ *
+ *   - the read succeeded and returned rows            -> stored data
+ *   - the read succeeded and returned nothing         -> the store is genuinely empty
+ *   - the read failed                                 -> the store is unavailable
+ */
+
+export interface LakebaseReader {
+  lakebase: {
+    query(text: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
+  };
+}
+
+export type StoredRead =
+  | { available: true; rows: Record<string, unknown>[] }
+  | { available: false; error: string; code: string };
+
+/** Whether the store answers. Says nothing about whether it holds anything. */
+export type LakebaseState = 'unknown' | 'ok' | 'unavailable';
+
+/**
+ * Whether the store holds anything. Orthogonal to {@link LakebaseState}: a
+ * perfectly healthy database that has been emptied is `ok` and `empty`, and
+ * conflating that with `unavailable` is what sent this investigation chasing a
+ * connection failure that never happened.
+ */
+export type LakebaseContent = 'unknown' | 'populated' | 'empty';
+
+/**
+ * How much of the store a read actually exercised.
+ */
+export type ReadDepth = 'connection' | 'schema';
+
+/**
+ * Whether the store refused the app rather than failed to answer it.
+ *
+ * A third axis, orthogonal to both {@link LakebaseState} and
+ * {@link LakebaseContent}. A missing GRANT and a stopped Lakebase endpoint both
+ * end in `state: 'unavailable'` and both put seeded figures on screen, but
+ * their prognoses are opposite: an endpoint that is down comes back on its own,
+ * a grant that was never made does not.
+ *
+ * `denied` is the state a first deploy is in before
+ * `scripts/grant-app-db-access.mjs` has been run. That script cannot run before
+ * the app exists, so it cannot be part of the bundle.
+ */
+export type LakebaseAccess = 'unknown' | 'ok' | 'denied';
+
+export interface LakebaseHealth {
+  state: LakebaseState;
+  /** When the current state began. */
+  since: string;
+  /**
+   * Last time a read of any kind succeeded, or null if none ever has. Includes
+   * reads too shallow to end an outage, see `connection_ok_since_failure`,
+   * which is what tells the two apart.
+   */
+  last_ok_at: string | null;
+  last_checked_at: string | null;
+  consecutive_failures: number;
+  last_error: { message: string; code: string; route: string; at: string; depth: ReadDepth } | null;
+  /** Responses that carried representative rows during the current outage. */
+  substitutions_while_unavailable: number;
+  /**
+   * Every such response since boot. Never reset, because the per-outage count
+   * is cleared on recovery and a store that flaps would otherwise keep
+   * reporting a small number while fabricating a large one.
+   */
+  substitutions_total: number;
+  /**
+   * Set when the endpoint answered a bare connection check while schema reads
+   * are still failing. Names the difference between "Lakebase is down" and
+   * "the app cannot read the schema it owns", which have different remedies.
+   */
+  connection_ok_since_failure: boolean;
+  /** Whether reads that succeeded found any stored records. */
+  content: LakebaseContent;
+  /** Routes whose last successful read matched nothing, for `content: 'empty'`. */
+  empty_routes: string[];
+  /**
+   * Whether the store is refusing the app's credential on the schema it owns.
+   *
+   * Never inferred from `state`. Set only when Postgres says so in the one way
+   * that cannot be mistaken for anything else, see {@link GRANT_DENIED_CODES}.
+   */
+  access: LakebaseAccess;
+}
+
+const health = {
+  state: 'unknown' as LakebaseState,
+  since: Date.now(),
+  lastOkAt: null as number | null,
+  lastCheckedAt: null as number | null,
+  consecutiveFailures: 0,
+  lastError: null as { message: string; code: string; route: string; at: number; depth: ReadDepth } | null,
+  substitutions: 0,
+  substitutionsTotal: 0,
+  connectionOkSinceFailure: false,
+  access: 'unknown' as LakebaseAccess,
+  /**
+   * Per route rather than one global flag, because routes read different
+   * tables: an empty `conversations` and a populated `benchmark_runs` is a
+   * real state, and a single flag would flap between them request by request.
+   */
+  contentByRoute: new Map<string, 'populated' | 'empty'>(),
+};
+
+/**
+ * Exported for tests, which need each case to start from a clean slate.
+ *
+ * Stops the watchdog too. A timer left running from a previous case would go
+ * on writing to the state this just cleared, which is the kind of thing that
+ * makes one test fail because of another.
+ */
+export function resetLakebaseHealth() {
+  stopLakebaseWatchdog();
+  health.state = 'unknown';
+  health.since = Date.now();
+  health.lastOkAt = null;
+  health.lastCheckedAt = null;
+  health.consecutiveFailures = 0;
+  health.lastError = null;
+  health.substitutions = 0;
+  health.substitutionsTotal = 0;
+  health.connectionOkSinceFailure = false;
+  health.access = 'unknown';
+  health.contentByRoute.clear();
+}
+
+/** Empty only when every route that has read successfully found nothing. */
+function contentState(): LakebaseContent {
+  const seen = [...health.contentByRoute.values()];
+  if (seen.length === 0) return 'unknown';
+  return seen.some((value) => value === 'populated') ? 'populated' : 'empty';
+}
+
+function emptyRoutes(): string[] {
+  return [...health.contentByRoute.entries()].filter(([, value]) => value === 'empty').map(([route]) => route);
+}
+
+export function lakebaseHealth(): LakebaseHealth {
+  return {
+    state: health.state,
+    since: new Date(health.since).toISOString(),
+    last_ok_at: health.lastOkAt === null ? null : new Date(health.lastOkAt).toISOString(),
+    last_checked_at: health.lastCheckedAt === null ? null : new Date(health.lastCheckedAt).toISOString(),
+    consecutive_failures: health.consecutiveFailures,
+    last_error:
+      health.lastError === null ? null : { ...health.lastError, at: new Date(health.lastError.at).toISOString() },
+    substitutions_while_unavailable: health.substitutions,
+    substitutions_total: health.substitutionsTotal,
+    connection_ok_since_failure: health.connectionOkSinceFailure,
+    content: contentState(),
+    empty_routes: emptyRoutes(),
+    access: health.access,
+  };
+}
+
+export function isLakebaseUnavailable() {
+  return health.state === 'unavailable';
+}
+
+function seconds(from: number) {
+  return Math.round((Date.now() - from) / 1000);
+}
+
+function errorCode(error: unknown): string {
+  const code = (error as { code?: unknown })?.code;
+  return typeof code === 'string' || typeof code === 'number' ? String(code) : 'none';
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Failures worth one immediate retry.
+ *
+ * A pooled connection whose credential has expired, or that the server closed
+ * underneath us, fails the moment it is used again. Retrying takes a different
+ * connection from the pool, and when the pool has none idle it opens a new one,
+ * which runs the token callback and mints a fresh credential. So the retry both
+ * routes around a dead connection and is the path that recovers from an expired
+ * one, rather than leaving the app to serve fabricated rows until it restarts.
+ */
+const RETRYABLE_CODES = new Set([
+  '08000', // connection_exception
+  '08003', // connection_does_not_exist
+  '08006', // connection_failure
+  '08001', // sqlclient_unable_to_establish_sqlconnection
+  '08004', // sqlserver_rejected_establishment_of_sqlconnection
+  '57P01', // admin_shutdown
+  '57P02', // crash_shutdown
+  '57P03', // cannot_connect_now
+  '53300', // too_many_connections
+  '28000', // invalid_authorization_specification
+  '28P01', // invalid_password: an expired Lakebase OAuth credential lands here
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+]);
+
+const RETRYABLE_TEXT = [
+  'connection terminated',
+  'connection ended',
+  'timeout exceeded when trying to connect',
+  'server closed the connection',
+  'terminating connection',
+  'password authentication failed',
+  'token',
+  'expired',
+];
+
+function isRetryable(error: unknown): boolean {
+  if (RETRYABLE_CODES.has(errorCode(error))) return true;
+  const message = errorMessage(error).toLowerCase();
+  return RETRYABLE_TEXT.some((fragment) => message.includes(fragment));
+}
+
+/**
+ * The three ways Postgres says "you were never granted this".
+ *
+ * Only three, and by SQLSTATE rather than message text: a connection failure and
+ * a dropped table are both easy to describe in words containing "denied" or
+ * "does not exist", so matching on prose fires this on an outage and points the
+ * deployer at privileges while their endpoint is stopped.
+ *
+ *   42501  insufficient_privilege (the grant on the schema or table is missing.
+ *   3F000  invalid_schema_name   ), `player_insights` is not visible to this
+ *                                   role, which is what a missing USAGE looks
+ *                                   like from the outside as well as a schema
+ *                                   that genuinely was never created.
+ *   42P01  undefined_table       , likewise for a table inside it.
+ *
+ * The last two are included because the grant script creates the schema and its
+ * objects as well as granting on them: a deployment that never ran it fails on
+ * whichever of the three Postgres checks first, and which one that is depends on
+ * the role's search_path. Reporting only one of the three would make the message
+ * naming the remedy appear intermittently.
+ */
+export const GRANT_DENIED_CODES = new Set(['42501', '3F000', '42P01']);
+
+/**
+ * The one 42501 that is not this condition.
+ *
+ * `ALTER TABLE player_insights.messages ADD COLUMN IF NOT EXISTS ...` is
+ * refused at every boot of a database whose tables are owned by the developer
+ * who first created them, because Postgres checks ownership before it decides
+ * the statement is a no-op, and it reports that refusal as `must be owner of
+ * table messages`, SQLSTATE 42501, the very same code a missing grant produces.
+ * Nothing is wrong when it happens and nothing the grant script does would stop
+ * it.
+ */
+const OWNERSHIP_REFUSAL = /must be owner of/i;
+
+/**
+ * Whether this failure is the app being refused rather than the store being down.
+ *
+ * Depth matters as much as the code. A privilege error on a read that never
+ * touched `player_insights` is not this condition (it is a database the app
+ * cannot use at all, which the grant script does not fix), so only a schema
+ * read can raise it.
+ */
+export function isGrantDenied(error: unknown, depth: ReadDepth): boolean {
+  return (depth === 'schema' &&
+    GRANT_DENIED_CODES.has(errorCode(error)) &&
+    !OWNERSHIP_REFUSAL.test(errorMessage(error))
+  );
+}
+
+/**
+ * The same question asked of a schema statement rather than of a read.
+ *
+ * `applySchema` holds failures it has already caught rather than live errors,
+ * and it is the earliest place this condition can be seen, so it needs the
+ * classification too, through this function rather than through its own copy
+ * of the rule, because the ownership carve-out above is exactly the sort of
+ * detail that gets applied in one of two places and not the other.
+ */
+export function isGrantDenialFailure(failure: { code: string; message: string }): boolean {
+  return GRANT_DENIED_CODES.has(failure.code) && !OWNERSHIP_REFUSAL.test(failure.message);
+}
+
+/**
+ * What the logs, the Sources page, and the banner all say to fix it.
+ *
+ * One sentence, built from `shared/setup-remedies.ts`, so the five variables
+ * cannot be listed as four in one of the three places that list them.
+ */
+export const GRANT_DENIED_LOG_REMEDY =
+  `Run ${GRANT_SCRIPT_PATH} once, from the repository, with all ` +
+  `${GRANT_SCRIPT_ENV_VARS.length} of ${GRANT_SCRIPT_ENV_VARS.join(', ')} set ` +
+  `(none has a default):\n${GRANT_SCRIPT_COMMAND}\n${GRANT_SCRIPT_WHY}`;
+
+/**
+ * Anything qualified with the app's schema needs privileges a bare connection
+ * does not. Matching the SQL is deliberate: it classifies whatever a caller
+ * actually sent rather than trusting a caller to describe itself honestly, so
+ * a future probe cannot claim to be a real read by passing an argument.
+ */
+const SCHEMA_QUALIFIED = /\bplayer_insights\s*\./i;
+
+function readDepth(sql: string): ReadDepth {
+  return SCHEMA_QUALIFIED.test(sql) ? 'schema' : 'connection';
+}
+
+/**
+ * Whether a success is strong enough to end the current outage.
+ *
+ * A read can only clear an outage it would itself have caught. When the store
+ * went down on a schema read (a lost grant on `player_insights` raises 42501
+ * there), a bare connection check succeeding says nothing about whether that
+ * read works now, because it never needed the privilege in the first place.
+ *
+ * Accepting the weaker evidence is what turned a permanent permissions failure
+ * into what looked like an intermittent network one: the state flipped back on
+ * every probe and out again on the next request, the log filled with RECOVERED
+ * lines a minute apart, and the substitution counter was zeroed each time, so
+ * the record of how many responses had been fabricated never exceeded one
+ * minute's worth.
+ */
+function clearsOutage(depth: ReadDepth): boolean {
+  if (health.lastError === null) return true;
+  return health.lastError.depth !== 'schema' || depth === 'schema';
+}
+
+function markOk(route: string, depth: ReadDepth) {
+  health.lastCheckedAt = Date.now();
+  health.lastOkAt = health.lastCheckedAt;
+
+  if (health.state === 'ok') {
+    health.consecutiveFailures = 0;
+    return;
+  }
+
+  if (health.state === 'unavailable' && !clearsOutage(depth)) {
+    // Not a recovery, so nothing describing the outage is reset: not the state,
+    // not the failure count, and above all not the substitution counter, which
+    // is the only record of how many responses carried fabricated rows.
+    if (!health.connectionOkSinceFailure) {
+      health.connectionOkSinceFailure = true;
+      console.error(`[lakebase] STILL UNAVAILABLE, but the endpoint answers: ${route} succeeded without reading through ` +
+          `the player_insights schema, while the failing read (${health.lastError?.route}, code ` +
+          `${health.lastError?.code}) does. The connection and the credential are fine, so this is a ` +
+          `privilege or schema problem and waiting will not fix it, run scripts/grant-app-db-access.mjs.`
+      );
+    }
+    return;
+  }
+
+  const previous = health.state;
+  const outageSeconds = seconds(health.since);
+  health.state = 'ok';
+  health.since = Date.now();
+  health.consecutiveFailures = 0;
+  health.connectionOkSinceFailure = false;
+  // Only a schema read can clear a denial, and `clearsOutage` above has already
+  // established that this one is strong enough to end whatever the outage was.
+  // A bare connection check must not retract a grant diagnosis it never tested.
+  if (depth === 'schema') health.access = 'ok';
+  if (previous === 'unavailable') {
+    console.warn(`[lakebase] RECOVERED: reads are succeeding again on ${route} after ${outageSeconds}s unavailable. ` +
+        `${health.substitutions} response(s) served representative data during the outage ` +
+        `(${health.substitutionsTotal} since boot).`
+    );
+    health.substitutions = 0;
+  }
+}
+
+function markUnavailable(route: string, error: unknown, depth: ReadDepth) {
+  const message = errorMessage(error);
+  const code = errorCode(error);
+  const denied = isGrantDenied(error, depth);
+  health.lastCheckedAt = Date.now();
+  health.consecutiveFailures += 1;
+  health.lastError = { message, code, route, at: Date.now(), depth };
+  // Set before the transition check, so a denial discovered on the second or
+  // hundredth consecutive failure is still recorded. A store that first went
+  // down for an unrelated reason and is now refusing the grant would otherwise
+  // keep the earlier, wrong diagnosis for as long as it stayed down.
+  if (denied) health.access = 'denied';
+  if (health.state !== 'unavailable') {
+    const healthyFor =
+      health.lastOkAt === null ? 'never succeeded since boot' : `healthy for ${seconds(health.lastOkAt)}s`;
+    health.state = 'unavailable';
+    health.since = Date.now();
+    health.connectionOkSinceFailure = false;
+    if (denied) {
+      // Its own sentence, not a suffix on the one below. "STORAGE UNAVAILABLE"
+      // alone is read as an outage and an outage is read as something that will
+      // pass, so a deployer who has simply not run the grant script waits,
+      // retries, and eventually restarts the app, none of which can work.
+      // Postgres has said which of the two this is; the log has to say it too,
+      // early, because the front of the line is as far as anyone reads. The
+      // STORAGE UNAVAILABLE token is kept on the front of it because it is
+      // still true and because it is what existing log searches and alerts
+      // match on. A diagnosis that arrives by making the old line disappear
+      // is one nobody is watching for.
+      console.error(`[lakebase] STORAGE UNAVAILABLE, SCHEMA GRANTS MISSING: ${route} was REFUSED by Postgres (code ${code}): ${message}. ` +
+          `Previously ${healthyFor}. This is not an outage and waiting will not fix it: the endpoint ` +
+          `answered and then declined the read, so the app's Postgres role has no privilege on the ` +
+          `player_insights schema. Conversation storage is therefore unavailable and routes that can ` +
+          `degrade will serve representative data and say so. ${GRANT_DENIED_LOG_REMEDY}`
+      );
+      return;
+    }
+    console.error(`[lakebase] STORAGE UNAVAILABLE: ${route} failed (code ${code}): ${message}. ` +
+        `Previously ${healthyFor}. Stored conversations, runs and benchmarks cannot be read; ` +
+        `routes that can degrade will now serve representative data and say so.`
+    );
+    return;
+  }
+  console.error(`[lakebase] still ${denied ? 'refused' : 'unavailable'} (failure ${health.consecutiveFailures}, ` +
+      `${seconds(health.since)}s): ${route} failed (code ${code}): ${message}`
+  );
+}
+
+/**
+ * Read stored rows, reporting whether the store answered at all.
+ *
+ * Never returns zero rows to mean "unavailable". That conflation is what let a
+ * database outage reach the browser dressed up as a demo dataset.
+ */
+export async function readStored(client: LakebaseReader,
+  route: string,
+  sql: string,
+  params: unknown[] = []
+): Promise<StoredRead> {
+  const depth = readDepth(sql);
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const result = await client.lakebase.query(sql, params);
+      if (attempt > 1) {
+        console.warn(`[lakebase] ${route} succeeded on retry after a transient connection failure.`);
+      }
+      markOk(route, depth);
+      return { available: true, rows: result.rows };
+    } catch (error) {
+      lastError = error;
+      if (attempt === 1 && isRetryable(error)) {
+        console.warn(`[lakebase] ${route} failed with a retryable error (code ${errorCode(error)}): ` +
+            `${errorMessage(error)}. Retrying once on a fresh connection.`
+        );
+        continue;
+      }
+      break;
+    }
+  }
+  markUnavailable(route, lastError, depth);
+  return { available: false, error: errorMessage(lastError), code: errorCode(lastError) };
+}
+
+/**
+ * Why a response is carrying rows the agent and the database never produced.
+ */
+export type SubstitutionReason = 'storage_unavailable' | 'storage_grants_missing' | 'storage_empty';
+
+export interface Substitution {
+  substituted: boolean;
+  reason: SubstitutionReason | null;
+}
+
+/**
+ * Decide between stored rows and representative rows, and make the choice
+ * audible. The fallback itself is intended behaviour; substituting it for
+ * stored data without a word is not.
+ */
+export function chooseRows<T>(route: string,
+  read: StoredRead,
+  representative: T[]
+): {
+  rows: T[] | Record<string, unknown>[];
+  substitution: Substitution;
+} {
+  if (!read.available) {
+    health.substitutions += 1;
+    health.substitutionsTotal += 1;
+    // Read from the health state rather than from `read.code`, because a
+    // `StoredRead` carries the code but not the depth, and the depth is half of
+    // what makes a privilege error this condition rather than a database the app
+    // cannot use at all. `markUnavailable` has already made that judgement with
+    // both facts in hand; second-guessing it here from one of them is how the
+    // two would come to disagree.
+    const denied = health.access === 'denied';
+    console.error(`[lakebase] SERVING REPRESENTATIVE DATA on ${route}: the store ${denied ? 'refused the read' : 'is unavailable'}, ` +
+        `so the ${representative.length} row(s) in this response are seeded demo values, not stored records. ` +
+        `Last error (code ${read.code}): ${read.error}` +
+        (denied ? ` ${GRANT_DENIED_LOG_REMEDY}` : '')
+    );
+    return {
+      rows: representative,
+      substitution: { substituted: true, reason: denied ? 'storage_grants_missing' : 'storage_unavailable' },
+    };
+  }
+  if (read.rows.length === 0) {
+    // Logged on the transition, not on every request. An outage deserves a line
+    // per response because it is urgent and usually brief; an empty store is a
+    // steady state that would otherwise emit a warning for every page load and
+    // bury the events worth reading.
+    if (health.contentByRoute.get(route) !== 'empty') {
+      console.warn(`[lakebase] STORE EMPTY on ${route}: the read succeeded, so Lakebase is reachable and the ` +
+          `connection is fine. It simply holds no matching records. This response carries ` +
+          `${representative.length} seeded demo row(s) instead. Normal on a fresh deployment, where ` +
+          `asking a question populates it. If records were written earlier, they have since been ` +
+          `deleted, or the app is reading a different database, branch or schema than it wrote to.`
+      );
+    }
+    health.contentByRoute.set(route, 'empty');
+    return { rows: representative, substitution: { substituted: true, reason: 'storage_empty' } };
+  }
+  if (health.contentByRoute.get(route) === 'empty') {
+    console.warn(`[lakebase] ${route} is returning stored records again; the store is no longer empty.`);
+  }
+  health.contentByRoute.set(route, 'populated');
+  return { rows: read.rows, substitution: { substituted: false, reason: null } };
+}
+
+/**
+ * Response headers so the browser can be as honest as the logs are.
+ *
+ * A header rather than a body field because these routes return bare arrays,
+ * and wrapping them in an envelope would change the shape every caller reads.
+ */
+export function markResponse(res: { setHeader(name: string, value: string): void }, substitution: Substitution) {
+  res.setHeader('X-PIA-Storage', health.state);
+  res.setHeader('X-PIA-Data-Origin', substitution.substituted ? 'representative' : 'lakebase');
+  if (substitution.reason) res.setHeader('X-PIA-Degraded-Reason', substitution.reason);
+}
+
+/**
+ * A dependency the app owns and can therefore check itself.
+ */
+export function lakebaseStorageCheck(): PreflightCheck {
+  const snapshot = lakebaseHealth();
+  const database = process.env.PGDATABASE ?? '(unset)';
+  const endpoint = process.env.LAKEBASE_ENDPOINT ?? '';
+  const name = endpoint || database;
+  if (snapshot.state === 'unavailable') {
+    const error = snapshot.last_error;
+    if (snapshot.access === 'denied') {
+      // Its own branch rather than a sentence appended to the one below,
+      // because almost every word of that one is wrong here. The store is not
+      // unreachable, nothing is going to recover, and the remedy is not "check
+      // the endpoint is running". It is a script the deployer has to run once
+      // by hand and, on a first deploy, has never run. The generic wording sent
+      // people to the Lakebase console to look at an endpoint that was healthy.
+      return {
+        id: 'lakebase-storage',
+        kind: 'postgres',
+        name,
+        label: `Lakebase storage · ${database}`,
+        status: 'failed',
+        detail:
+          `Postgres is answering and REFUSING the app's reads of the player_insights schema, so ` +
+          `conversation storage is unavailable and the conversations, runs and benchmarks shown in the ` +
+          `app are seeded demo values rather than stored records. This is a privilege or schema ` +
+          `problem, not an outage that will pass: the app's Postgres role has no grant on the schema, ` +
+          `which is the state a deployment is in until ${GRANT_SCRIPT_PATH} has been run once. ` +
+          `Refused since ${snapshot.since}` +
+          (snapshot.last_ok_at
+            ? `; last successful read ${snapshot.last_ok_at}, so the grant existed and was lost.`
+            : '; no read has ever succeeded, so the grant has most likely never been made.'),
+        checked_with: error ? `${error.route} (code ${error.code})` : 'app Lakebase pool',
+        duration_ms: 0,
+        error: error ? error.message : 'Postgres refused a read of the player_insights schema.',
+        remedy: {
+          kind: 'cli',
+          statement: GRANT_SCRIPT_COMMAND,
+          note:
+            `All ${GRANT_SCRIPT_ENV_VARS.length} variables are required and none has a default: ` +
+            `${GRANT_SCRIPT_ENV_VARS.join(', ')}. ${GRANT_SCRIPT_WHY} A redeploy does not perform it, ` +
+            `and the app will keep serving representative data with a banner until it is done.`,
+        },
+      };
+    }
+    return {
+      id: 'lakebase-storage',
+      kind: 'postgres',
+      name,
+      label: `Lakebase storage · ${database}`,
+      status: 'failed',
+      detail:
+        `The app cannot read its own Postgres store, so conversations, runs and benchmarks ` +
+        `shown in the app are seeded demo values rather than stored records. ` +
+        `Unavailable since ${snapshot.since}` +
+        (snapshot.last_ok_at ? `; last successful read ${snapshot.last_ok_at}.` : '; no read has ever succeeded.') +
+        (snapshot.connection_ok_since_failure
+          ? ' The endpoint has answered a bare connection check since then, so the network and the credential ' +
+            'are fine and this is a privilege or schema problem rather than an outage that will pass.'
+          : ''),
+      checked_with: error ? `${error.route} (code ${error.code})` : 'app Lakebase pool',
+      duration_ms: 0,
+      error: error ? error.message : 'The Lakebase pool is not answering reads.',
+      remedy: {
+        kind: 'cli',
+        statement: 'cd player-insights-agent\nnode scripts/grant-app-db-access.mjs',
+        note:
+          'Most often the app service principal has lost, or never had, privileges on the ' +
+          'player_insights schema. If the error mentions authentication or an expired token, ' +
+          'the app could not mint a Postgres credential, check that the postgres resource is ' +
+          'still attached to the app and that the endpoint is running.',
+      },
+    };
+  }
+  if (snapshot.state === 'ok') {
+    // Reachable stays `ok` whatever it turns out to hold, because nothing is
+    // broken and reporting a failure here would train people to ignore this
+    // row. What it holds is carried in the detail and the remedy, which are
+    // what someone reads when they are working out why the figures look
+    // invented.
+    const base = {
+      id: 'lakebase-storage',
+      kind: 'postgres',
+      name,
+      label: `Lakebase storage · ${database}`,
+      status: 'ok' as const,
+      checked_with: 'app Lakebase pool',
+      duration_ms: 0,
+      error: '',
+    };
+    const counts =
+      'SELECT (SELECT count(*) FROM player_insights.conversations) AS conversations,\n' +
+      '       (SELECT count(*) FROM player_insights.messages) AS messages,\n' +
+      '       (SELECT count(*) FROM player_insights.benchmark_runs) AS benchmark_runs;';
+
+    if (snapshot.content === 'populated') {
+      return {
+        ...base,
+        detail:
+          `The app read its Postgres store successfully at ${snapshot.last_ok_at}, and it returned stored records.`,
+        remedy: null,
+      };
+    }
+    if (snapshot.content === 'empty') {
+      return {
+        ...base,
+        detail:
+          `The app read its Postgres store successfully at ${snapshot.last_ok_at}, and it holds no stored ` +
+          `records (${snapshot.empty_routes.join(', ')} matched nothing). The connection is healthy; the ` +
+          `conversations, runs and benchmarks on screen are seeded demo values until the store is populated.`,
+        remedy: {
+          kind: 'sql',
+          statement: counts,
+          note:
+            'Nothing to repair. This is an empty database, not a broken one. Ask the agent a question ' +
+            'and the conversation, its messages and any benchmark run are written here, replacing the ' +
+            'seeded values. Run the counts against the Lakebase branch to confirm emptiness rather than ' +
+            'a connection problem; if you expected existing history, it was deleted, or the app is ' +
+            'pointed at a different branch than the one it was written to.',
+        },
+      };
+    }
+    return {
+      ...base,
+      detail:
+        `The app reached its Postgres store successfully at ${snapshot.last_ok_at}, so the connection, the ` +
+        `credential and its privileges on the player_insights schema are all good. Nothing has read content ` +
+        `out of it yet (the watchdog probe deliberately does not count), so whether it holds any stored ` +
+        `records is not known. Open Conversations or Run Explorer and this row will say which.`,
+      remedy: {
+        kind: 'sql',
+        statement: counts,
+        note:
+          'Nothing to repair. This says only that the store answers, which is the part the app can check ' +
+          'on its own without inventing traffic. Run the counts if you want the answer now rather than ' +
+          'after the next page load.',
+      },
+    };
+  }
+  return {
+    id: 'lakebase-storage',
+    kind: 'postgres',
+    name,
+    label: `Lakebase storage · ${database}`,
+    status: 'unverified',
+    detail: 'The app has not read its Postgres store since it started, so its state is unknown.',
+    checked_with: 'app Lakebase pool',
+    duration_ms: 0,
+    error: '',
+    remedy: null,
+  };
+}
+
+/** The route label the watchdog reads under, so its lines are attributable. */
+export const WATCHDOG_ROUTE = 'watchdog probe';
+
+/**
+ * What the watchdog reads.
+ *
+ * It deliberately says nothing about content. Exactly one row comes back,
+ * empty tables included, and it never reaches {@link chooseRows}: a probe that
+ * guessed at content is what put "it returned stored records" on the Sources
+ * page before a single record had been read.
+ */
+export const WATCHDOG_PROBE_SQL =
+  'SELECT (SELECT 1 FROM player_insights.conversations LIMIT 1) AS conversations,' +
+  ' (SELECT 1 FROM player_insights.messages LIMIT 1) AS messages,' +
+  ' (SELECT 1 FROM player_insights.benchmark_runs LIMIT 1) AS benchmark_runs';
+
+/**
+ * At most one watchdog runs at a time.
+ */
+let stopActiveWatchdog: (() => void) | null = null;
+
+/** Stop the running watchdog, if there is one. Safe to call when there is not. */
+export function stopLakebaseWatchdog() {
+  stopActiveWatchdog?.();
+}
+
+/**
+ * Probe the store on a timer.
+ *
+ * Without this, an outage is only discovered by whoever happens to load a page
+ * next, and a recovery is never noticed at all. Dating the transition is most
+ * of the value: the incident that prompted this module could not be placed in
+ * time from the app's own logs, and the window had to be recovered afterwards
+ * from Postgres autovacuum timestamps. It doubles as the thing that keeps a
+ * fresh credential minted: an idle pool closes its connections, so the probe's
+ * next read opens a new one and exercises the token callback rather than
+ * letting the first real user request discover that the credential went stale.
+ */
+export function startLakebaseWatchdog(client: LakebaseReader, intervalMs = 60_000) {
+  stopLakebaseWatchdog();
+  const timer = setInterval(() => {
+    void readStored(client, WATCHDOG_ROUTE, WATCHDOG_PROBE_SQL);
+  }, intervalMs);
+  timer.unref?.();
+  const stop = () => {
+    clearInterval(timer);
+    if (stopActiveWatchdog === stop) stopActiveWatchdog = null;
+  };
+  stopActiveWatchdog = stop;
+  return stop;
+}
