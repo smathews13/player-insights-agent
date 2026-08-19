@@ -1,20 +1,9 @@
 #!/usr/bin/env bash
-# Log and deploy the agent model. THIS STEP IS IMPERATIVE BY NECESSITY.
+# Log, register, and deploy the agent model.
 #
-# `databricks.agents.deploy()` does far more than create a serving endpoint: it
-# provisions the review app, the feedback model, the auth policy that carries
-# automatic authentication passthrough for the model's declared resources, and
-# the inference tables. A `model_serving_endpoints` bundle resource declares only
-# the core endpoint config, so declaring one here would fight agents.deploy on
-# every deploy and would drop the passthrough policy the Genie calls depend on.
-# The bundle therefore REFERENCES the endpoint by name (var.serving_endpoint_name)
-# so the app can attach it, and this script owns its lifecycle.
-#
-# The same applies to the registered model: mlflow.pyfunc.log_model(
-# registered_model_name=...) creates and versions it. A registered_models bundle
-# resource would put every logged version inside `bundle destroy`'s blast radius.
-#
-# All configuration is read out of the bundle. There is no second copy.
+# MLflow creates the registered model and each version. Databricks Agents creates
+# or updates the serving endpoint and its authentication policy. The bundle
+# references that endpoint so the app can attach it.
 #
 # Usage:
 #   TARGET=<your-target> bundle/agent-release.sh            # dry run
@@ -29,20 +18,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/decisions-gate.sh"
 
 APPLY=false; SKIP_LOG=false; MODEL_VERSION=""; ALLOW_WIDENING=false; IGNORE_APP_INTENTIONS=false
-# Remove superseded served entities once the traffic switch has settled. On by
-# default: leaving them is what took the demo endpoint to ten entities and
-# 40 DBU/h with nine of them answering nothing. How many rollbacks survive is
-# var.serving_rollbacks_kept, not a flag, so it is written down per target. That
-# variable now defaults to 0, so the normal release leaves NO rollback entity:
-# the version a rollback would reach is the one released before the current fix.
-# Retreating is still available and does not need capacity held open for it --
-# the registry is never pruned, so any version can be re-served on demand.
+# Remove superseded served entities after the traffic switch. Registered model
+# versions remain available for rollback.
 PRUNE=true
-# Every version is logged so Genie and SQL run as the identity that invoked the
-# endpoint. This was a flag, and defaulting it to off cost a release: the app
-# refuses every question when it is paired with a version logged without the
-# policy, so the only value that ever worked here was true, and the flag existed
-# only to be forgotten.
+# Genie and SQL run as the identity that invokes the endpoint.
 USER_AUTHORIZATION=true
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -113,24 +92,8 @@ MANIFEST_SOURCE="$(bundle_var_or_empty manifest_source)"
 # a diff is a control that comes back off by accident. See databricks.yml.
 ALLOW_UNATTRIBUTED_FIGURES="$(bundle_var_or_empty allow_unattributed_figures)"
 
-# DERIVED FROM THE BUNDLE, because leaving it to the releaser's shell meant it was
-# never set at all.
-#
-# The AI Search endpoint, the index over the semantic layer and the daily rebuild
-# job went live on example on 2026-08-10, and every model version logged since has
-# been logged WITHOUT this flag: `log_model.py` reads it from the environment, no
-# target set it, this script never exported it, and nothing failed. So the tool was
-# not offered, the served agent never queried the index, and the endpoint went on
-# billing by the hour to answer nothing. Nothing surfaced it either, because a
-# release with no semantic layer and one whose semantic layer was dropped look
-# identical from every direction, which is what `semantic_retrieval.configuration_entry`
-# was later added to fix.
-#
-# Tying it to `semantic_index_endpoint` puts the model's tool set and the resources
-# the same bundle creates behind ONE decision. A target that declares an endpoint
-# gets a model that searches the index that endpoint serves; a target that declares
-# none, which is every customer target, gets no tool and no charge. The environment
-# still wins when it is set, for adopting an index built elsewhere.
+# Enable semantic retrieval only when this target names an index endpoint. An
+# explicit environment value can adopt an index managed outside this bundle.
 SEMANTIC_INDEX_ENDPOINT="$(bundle_var_or_empty semantic_index_endpoint)"
 SEMANTIC_INDEX="${PLAYER_INSIGHTS_SEMANTIC_INDEX:-}"
 SEMANTIC_INDEX_ORIGIN='set in the environment'
@@ -146,31 +109,25 @@ if [[ -z "$SEMANTIC_INDEX" ]]; then
   fi
 fi
 
-# Genie space ids reach the model by one of three routes, in this order.
-#
-#   1. The environment, for the pre-deploy case: nothing has been created yet
-#      and there is no bundle state to read an output out of.
-#   2. `genie_*_space_id` in the bundle, for a deployment that ADOPTS a space it
-#      did not create. A customer arriving with their own Genie estate has an id
-#      already, and it is the value their analysts trust; the bundle creating a
-#      second space over tables it invented does not replace that.
-#   3. The bundle's own resource output, which is the ordinary case and is not a
-#      variable at all: the space does not exist until `bundle deploy` makes it.
-#
-# Route 2 is why these are bundle variables rather than environment overrides
-# only: a value that lives only in the shell that ran the release drops silently
-# out of the next run from a clean one. See databricks.yml.
-DATA_GENIE_ADOPTED="$(bundle_var_or_empty genie_data_space_id)"
-DICT_GENIE_ADOPTED="$(bundle_var_or_empty genie_dictionary_space_id)"
-DATA_GENIE_ID="${PLAYER_INSIGHTS_DATA_GENIE_ID:-${DATA_GENIE_ADOPTED:-$(bundle_resource_id genie_spaces data_genie_space)}}"
-DICT_GENIE_ID="${PLAYER_INSIGHTS_DICTIONARY_GENIE_ID:-${DICT_GENIE_ADOPTED:-$(bundle_resource_id genie_spaces dictionary_genie_space)}}"
+# Genie spaces must already exist. Environment values may override the required
+# bundle variables for a one-off release.
+DATA_GENIE_ADOPTED=""
+DICT_GENIE_ADOPTED=""
+if [[ -n "${PLAYER_INSIGHTS_DATA_GENIE_ID:-}" ]]; then
+  DATA_GENIE_ID="$PLAYER_INSIGHTS_DATA_GENIE_ID"
+else
+  DATA_GENIE_ADOPTED="$(bundle_var genie_data_space_id)"
+  DATA_GENIE_ID="$DATA_GENIE_ADOPTED"
+fi
+if [[ -n "${PLAYER_INSIGHTS_DICTIONARY_GENIE_ID:-}" ]]; then
+  DICT_GENIE_ID="$PLAYER_INSIGHTS_DICTIONARY_GENIE_ID"
+else
+  DICT_GENIE_ADOPTED="$(bundle_var genie_dictionary_space_id)"
+  DICT_GENIE_ID="$DICT_GENIE_ADOPTED"
+fi
 genie_origin() {
-  # Which of the three routes a value came by. Printed, because "the id the
-  # bundle made" and "the id the customer gave us" are the same shape of string
-  # and produce very different deployments.
   if [[ -n "${1:-}" ]]; then printf 'from the environment'
-  elif [[ -n "${2:-}" ]]; then printf 'ADOPTED, from the bundle variable'
-  else printf 'created by this bundle'; fi
+  else printf 'existing space from the bundle variable'; fi
 }
 
 step "Agent release configuration (target: $TARGET)"
@@ -275,12 +232,8 @@ export PLAYER_INSIGHTS_USER_AUTHORIZATION="$USER_AUTHORIZATION"
 # screen, and a stale "true" in an operator's shell must not be what decides it.
 # Empty resolves to strict in `unattributed_figures`.
 export PLAYER_INSIGHTS_ALLOW_UNATTRIBUTED_FIGURES="$ALLOW_UNATTRIBUTED_FIGURES"
-# Exported unconditionally, empty included, and the empty half matters as much
-# here as anywhere: a stale `true` in the shell of somebody who last released example
-# would give a CUSTOMER target a search tool pointed at an index that workspace has
-# no endpoint for, and every discovery step would fail inside a run. Empty means the
-# tool is not offered at all, which is what a deployment with no semantic layer
-# should look like.
+# Export an explicit empty value when semantic retrieval is disabled so stale
+# shell configuration cannot enable a missing index.
 export PLAYER_INSIGHTS_SEMANTIC_INDEX="$SEMANTIC_INDEX"
 
 # The denylist is exported unconditionally, EMPTY INCLUDED. Assigning "" is the
@@ -503,13 +456,8 @@ for entry in resources:
     if same(intended, about[key]):
         agreements.append((name, intended))
         continue
-    # Who saved it and when, rather than whether it was ever proved to work. The
-    # wizard used to record a per-value reachability check, which let a value it
-    # had watched FAIL be reported instead of refused over; /api/settings keeps
-    # no such record, so there is no honest way to reproduce that exemption and
-    # it is not faked. The effect is that this gate is slightly stricter than it
-    # was: every saved disagreement is a refusal, and --ignore-app-intentions is
-    # the way past one.
+    # Every saved disagreement is a refusal unless the operator explicitly uses
+    # --ignore-app-intentions.
     disagreements.append((name, key, intended, about[key], entry.get("intendedBy") or "", entry.get("intendedAt") or ""))
 
 for name, value in agreements:
@@ -662,8 +610,7 @@ if [[ ! -f "$BUNDLE_ROOT/bundle/drift-check.py" \
    || ! -f "$BUNDLE_ROOT/bundle/scope-contract.py" \
    || ! -f "$BUNDLE_ROOT/bundle/scope-contract.json" ]]; then
   note "This tree carries no scope contract, so the model's scopes were NOT"
-  note "compared against documentation. Those files are internal-only and absent"
-  note "from a published checkout on purpose. The version will still be deployed."
+  note "compared against documentation. The version will still be deployed."
   note "Confirm the endpoint auth policy after the traffic switch."
 else
 MODEL_SCOPE_ARGS=(--target "$TARGET")
@@ -805,20 +752,7 @@ else
     (cd agent && uv run --python 3.13 python ../bundle/model-user-auth-check.py --help)"
 fi
 
-# --- Take the superseded entities away ---------------------------------------
-#
-# The deploy above ADDED a served entity. Nothing here ever took one away, so
-# the endpoint grew an idle replica per release, each holding provisioned
-# capacity with scale_to_zero off. On the <your profile> endpoint that reached ten
-# entities, nine at 0% traffic, 40 DBU/h against the 8 the live pair cost:
-# about $54/day buying nothing. Deploying without pruning is what made that
-# recur, so the prune belongs here rather than in somebody's calendar.
-#
-# IT REMOVES, IT DOES NOT ONLY REPORT. A release that ends by printing what it
-# declined to do is the failure mode this repo already paid for once, a few
-# dozen lines up: the traffic check used to warn and exit 0, the warning became
-# the normal outcome, and nobody read it. A prune that only warns recurs on
-# exactly the schedule an unpruned release does.
+# --- Remove superseded serving entities -------------------------------------
 #
 # It runs AFTER the traffic confirmation above, never before. The confirmation
 # is what establishes that the new version is settled and taking 100%, which is

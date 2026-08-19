@@ -43,42 +43,40 @@ Have these inputs before you start:
   was an input to creating a database;
 - **two existing Genie spaces**, one for data and one for the data dictionary,
   with their tables already curated. You supply their ids, not their contents.
-  `genie/*.reference.yml` holds the instruction bodies ours carry, to copy from;
-- an existing SQL warehouse.
+  `genie/*.reference.yml` contains optional reference instructions;
+- an existing SQL warehouse;
+- a workspace source path for the committed deploy tree;
+- one or more initial app administrator email addresses.
 
 ## Deploy
 
-Every value below is yours; nothing is guessed for you, and a missing one stops
-`validate` rather than resolving to something wrong.
-
-```bash
-databricks bundle validate -t customer --profile <your-profile> \
-  --var app_catalog=<app-catalog> \
-  --var app_schema=<app-schema> \
-  --var warehouse_id=<id> \
-  --var app_source_code_path=/Workspace/Shared/player-insights-agent-src \
-  --var lakebase_project_id=<existing-project-id> \
-  --var genie_data_space_id=<existing-space-id> \
-  --var genie_dictionary_space_id=<existing-space-id>
-```
-
-Put those values, plus the complex `data_catalogs` list, in
-`.databricks/bundle/customer/variable-overrides.json` instead of repeating
-them. For example:
+Set the required values in
+`.databricks/bundle/customer/variable-overrides.json`:
 
 ```json
 {
-  "app_catalog": "analytics_apps",
-  "app_schema": "player_insights",
-  "data_catalogs": ["production", "shared.reference_data"],
-  "lakebase_project_id": "player-insights-db",
-  "genie_data_space_id": "01f0a1b2c3d4e5f60718293a4b5c6d7e",
-  "genie_dictionary_space_id": "01f0a1b2c3d4e5f60718293a4b5c6d7f"
+  "app_catalog": "<their_catalog>",
+  "app_schema": "<their_app_schema>",
+  "data_catalogs": ["<their_data_catalog>", "<their_catalog>.<their_schema>"],
+  "warehouse_id": "<their_warehouse_id>",
+  "app_source_code_path": "/Workspace/Shared/player-insights-agent-src",
+  "lakebase_project_id": "<their_existing_lakebase_project_id>",
+  "genie_data_space_id": "<their_data_genie_space_id>",
+  "genie_dictionary_space_id": "<their_dictionary_genie_space_id>",
+  "admin_emails": "<their_admin@example.com>"
 }
 ```
 
 `lakebase_branch_id` and `lakebase_database_id` default to `production` and
 `databricks-postgres`; set them if your instance uses other names.
+`app_name` defaults to `player-insights-agent`, and `experiment_path` defaults
+to `/Shared/player-insights-agent`; override either when needed.
+
+Validate after saving the file:
+
+```bash
+databricks bundle validate -t customer --profile <their-profile>
+```
 
 `data_catalogs` is the complete read boundary. A catalog name includes all of
 its non-system schemas; `catalog.schema` limits the boundary to one schema.
@@ -105,10 +103,10 @@ endpoint which does not exist yet, and it creates nothing when it refuses:
 
 ## How the app gets onto the workspace, and how it is updated
 
-**Initial deploy is the bundle, once.** The four CLI steps above create the
-catalog, schema, warehouse bindings, Lakebase, Genie spaces, serving endpoint,
-OAuth scopes, and the app itself, with those resources already attached. That
-is the greenfield path. When it finishes you have a working app.
+**Initial deploy is the bundle, once.** The four CLI steps above create the app
+schema, volume, experiment, registered model, serving endpoint, OAuth scopes,
+resource bindings, and app. They attach the existing SQL warehouse, Lakebase
+database, and Genie spaces; they do not create those three resources.
 
 **Going forward, app-code updates are manual Deploy from Git onto that existing
 app.** UI, server, and other TypeScript in `player-insights-agent/build/deploy`

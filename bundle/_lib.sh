@@ -35,14 +35,7 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "$1 is not on PATH"
 }
 
-# ONE `trap ... EXIT` FOR EVERYTHING, registered through here.
-#
-# A second `trap ... EXIT` REPLACES the first rather than adding to it, so the
-# next script that needs cleanup silently disables whatever was already
-# registered. seed_bundle_cache below used to own the only trap in a release; a
-# release that also has to put a generated file back would have taken it over and
-# leaked the cache instead, and nothing would have said so. Register a hook.
-#
+# Register all cleanup through one EXIT trap.
 # Hooks run in registration order and their failures are swallowed: cleanup runs
 # on the failure paths too, where a hook that exits non-zero would replace the
 # real error with its own.

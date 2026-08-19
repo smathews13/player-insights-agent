@@ -61,6 +61,26 @@ import json,sys
 branch=json.load(sys.stdin)
 print(((branch.get("status") or {}).get("hosts") or {}).get("host") or "")
 ')"
+# Live get-branch currently omits status.hosts; the direct (non-pooled) host
+# lives on the branch endpoint. Prefer the branch field when present so a
+# future API that restores it keeps working; never use read_write_pooled_host.
+if [[ -z "$PGHOST" ]]; then
+  ENDPOINTS_JSON="$(databricks postgres list-endpoints "$POSTGRES_BRANCH" \
+    --profile "$PROFILE" -o json)" \
+    || die "Could not list compute endpoints for '$POSTGRES_BRANCH' with profile '$PROFILE'."
+  PGHOST="$(printf '%s' "$ENDPOINTS_JSON" | python3 -c '
+import json,sys
+body=json.load(sys.stdin)
+rows=body if isinstance(body,list) else (body.get("endpoints") or [])
+host=""
+for row in rows:
+    hosts=(row.get("status") or {}).get("hosts") or {}
+    host=hosts.get("host") or ""
+    if host:
+        break
+print(host)
+')"
+fi
 
 DATABASE_ID="${POSTGRES_DATABASE_RESOURCE##*/}"
 PGDATABASE="$(printf '%s' "$DATABASES_JSON" | python3 -c '
@@ -75,10 +95,11 @@ print((row.get("status") or {}).get("postgres_database") or "")
 
 [[ -n "$PGHOST" && -n "$PGDATABASE" && -n "$PGUSER" ]] \
   || die "Could not derive PGHOST, PGDATABASE, and PGUSER from the attached Lakebase
-resource and profile '$PROFILE'. PGHOST is read only from 'postgres get-branch':
-the pooled AppKit hostname is not accepted because it rejects the operator OAuth
-login. Confirm the branch exposes status.hosts.host, the database '$DATABASE_ID'
-exists, and the profile maps to a Lakebase role."
+resource and profile '$PROFILE'. PGHOST is read from 'postgres get-branch'
+status.hosts.host when present, otherwise from the branch endpoint's
+status.hosts.host (never the pooled AppKit hostname). Confirm the branch or
+its endpoint exposes that field, the database '$DATABASE_ID' exists, and the
+profile maps to a Lakebase role."
 
 note "profile       $PROFILE"
 note "branch        $POSTGRES_BRANCH"

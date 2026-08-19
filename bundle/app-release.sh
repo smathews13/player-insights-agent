@@ -1,26 +1,10 @@
 #!/usr/bin/env bash
-# Push app CODE. THIS STEP IS IMPERATIVE BY NECESSITY.
+# Build and deploy app code to the app created by the bundle.
 #
-# The bundle owns the app's CONFIGURATION (name, attached postgres and
-# serving-endpoint resources, OAuth scopes, and which workspace directory holds
-# its source). It does not own the code push, because the code that must reach
-# the platform is not the repo: it is the esbuild output in build/deploy, a
-# dependency-free tree with NO package.json. Databricks Apps runs `npm install`
-# whenever the uploaded source contains one, and this app's tree is 508 packages
-# / 714 MB with native binaries and a network-calling postinstall hook, on
-# compute with no reliable npm registry egress. It hangs indefinitely. Without a
-# package.json the platform logs "No dependencies file found. Skipping
-# installation." and the deploy takes ~13 seconds.
-#
-# THIS IS THE ONLY WAY TO PUSH APP CODE. `npm run deploy` is a one-line alias
-# for it (see player-insights-agent/package.json) rather than a second
-# implementation, and everything environment-specific is read out of the bundle,
-# so there is one place it is written down and one command that does it.
-#
-# A FAILED APP DEPLOY TAKES THE URL DOWN. It returns 502, with no automatic
-# rollback. Keep the previous known-good source directory in the workspace and
-# redeploy from it with --rollback-to (no rebuild, no upload; it only re-points
-# the app).
+# The bundle owns app configuration and resource attachments. This script builds
+# and uploads the dependency-free build/deploy tree, applies Lakebase grants,
+# and deploys that source to the existing app. Use --rollback-to to point the app
+# at a known-good workspace source directory.
 #
 # Usage:
 #   TARGET=<your-target>                             bundle/app-release.sh          # dry run
@@ -29,9 +13,8 @@
 #   TARGET=<your-target> bundle/app-release.sh --apply --certify   # also issue a certificate
 #   TARGET=<your-target> bundle/app-release.sh --apply --rollback-to /Workspace/.../previous-src
 #
-# THERE IS NOTHING TO DO AFTERWARDS. The generated build/deploy/app.yaml carries
-# this deployment's administrators and experiment id and must not be committed;
-# this script puts it back itself, on every exit path including a failed deploy.
+# The generated build/deploy/app.yaml contains deployment-specific values. This
+# script restores the tracked file on every exit path.
 #
 # TARGET has no default. PROFILE is optional for a target that names its profile in
 # databricks.yml; every other target must state one.
@@ -61,9 +44,7 @@ require_cmd npm
 
 require_target
 resolve_profile
-# One resolution of this target for the whole release, including the advisory
-# suite and the certification runner below, which are separate processes and
-# used to pay for their own.
+# Resolve the target once and share it with child checks.
 seed_bundle_cache
 
 APP_NAME="$(bundle_var app_name)"

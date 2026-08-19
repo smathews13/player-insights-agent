@@ -1,100 +1,36 @@
-# Governed semantic retrieval: the AI Search endpoint and the Delta Sync index
-# over the semantic layer. Optional, and off unless you opt in.
-#
-# WHAT THIS INDEXES IS METADATA, NOT DATA. The source table holds table and
-# column descriptions, metric and term definitions, approved joins and example
-# questions. No row of it is a measurement, and the agent may not answer from
-# one: see agent/semantic_retrieval.py, which refuses to present a retrieved
-# entry as evidence. Calculation stays with Genie and the guarded SQL path,
-# which run under the caller's grants and attribute what they read. The
-# semantic layer only helps the agent find the right table faster.
-#
-# OFF BY DEFAULT. The two resources below are complex variables that default to
-# empty, so `bundle deploy -t <target>` with no overrides creates no vector
-# search endpoint and no index. A resource map that resolves to empty declares
-# nothing; fill the variables before deploy if you want these resources.
-#
-# THE ENDPOINT COSTS MONEY FOR AS LONG AS IT EXISTS. An AI Search endpoint is
-# charged by the hour whether or not anything queries it, roughly $200 a month
-# for one left running. The app works fully without it. Turn it on only when you
-# want better schema discovery and are willing to pay for the endpoint.
-#
-# HOW TO TURN IT ON. Put the endpoint name and the two resource maps in your
-# git-ignored .databricks/bundle/<target>/variable-overrides.json (the README has
-# the exact block to copy), then re-log the model with bundle/agent-release.sh.
-# Vector Search scopes are baked into the model artifact at log time, so a
-# running model does not gain the retrieval tool until it is logged again.
-#
-# The catalog and schema in the index name come from var.app_catalog and
-# var.app_schema.
+# Optional semantic metadata index. Empty resource maps create no Vector Search
+# endpoint or index. See README.md for opt-in variables and deployment order.
 
 variables:
   semantic_index_endpoint:
     description: >-
       Name of the AI Search endpoint that serves the semantic-layer index.
-
-      EMPTY IS THE DEFAULT AND MEANS NO SEMANTIC LAYER. bundle/agent-release.sh
-      and bundle/model-scope-check.py read this: empty means the retrieval tool
-      is not offered and no Vector Search scope is baked into the model. Setting
-      it does not by itself create the endpoint (semantic_index_endpoints does
-      that), but an endpoint with no tool pointed at it is a bill for nothing, so
-      set both together.
-
-      An AI Search endpoint is charged hourly for as long as it exists, roughly
-      $200 a month for one left running, and the app works without it.
-
-      It is not a name anything falls back to: a target that leaves it empty
-      declares no resource that could use it. It exists so that `bundle validate`
-      on a target with no semantic layer does not fail on a variable that target
-      never reads.
+      Leave empty to disable semantic retrieval. When enabling it, also set
+      semantic_index_endpoints and semantic_index_indexes.
     default: ""
   semantic_index_endpoint_type:
     description: >-
-      STANDARD or STORAGE_OPTIMIZED. STANDARD, because the corpus is a few
-      hundred entries and this index sits on the answer path inside a 90-second
-      run budget: storage-optimized is roughly seven times cheaper per vector and
-      several hundred milliseconds slower per query, which is the wrong trade
-      when the vector count is three orders of magnitude below one unit's
-      capacity and the query is blocking a stakeholder.
+      STANDARD or STORAGE_OPTIMIZED endpoint type.
     default: STANDARD
   semantic_embedding_endpoint:
     description: >-
-      Foundation-model endpoint that embeds the semantic layer, for both
-      ingestion and query. Managed embeddings, so this is the only place the
-      model is named and the two ends cannot disagree: an index ingested with one
-      model and queried with another returns confident nonsense with no error.
+      Foundation-model endpoint used to embed semantic metadata.
     default: databricks-gte-large-en
   semantic_index_pipeline_type:
     description: >-
-      TRIGGERED or CONTINUOUS. TRIGGERED, because the source table changes when
-      the rebuild runs, not continuously, and a continuous pipeline would keep
-      compute running to watch a table that is idle for a day at a time.
-      agent/semantic_layer_build.py requests a sync after it writes.
+      TRIGGERED or CONTINUOUS Delta Sync pipeline type.
     default: TRIGGERED
   semantic_index_endpoints:
     type: complex
     description: >-
-      The vector_search_endpoints resource map. EMPTY BY DEFAULT, so a deploy
-      with no overrides creates no endpoint. An AI Search endpoint is charged
-      hourly for as long as it exists, roughly $200 a month for one left
-      running, and the app works without it.
-
-      To create one, set this in variable-overrides.json to the block in the
-      README. The endpoint name comes from var.semantic_index_endpoint, so keep
-      the two in step.
+      Optional vector_search_endpoints resource map. Empty creates no endpoint.
     default: {}
   semantic_index_indexes:
     type: complex
     description: >-
-      The vector_search_indexes resource map. EMPTY BY DEFAULT, so a deploy with
-      no overrides creates no index. Set it alongside semantic_index_endpoints to
-      create the Delta Sync index; its name and source table come from
-      var.app_catalog and var.app_schema, never a data catalog.
-
-      A DELTA_SYNC index needs its source table to exist first, so run
-      agent/semantic_layer_build.py once to build
-      ${var.app_catalog}.${var.app_schema}.semantic_layer_entries before you
-      deploy the index.
+      Optional vector_search_indexes resource map. Build
+      ${var.app_catalog}.${var.app_schema}.semantic_layer_entries before
+      creating a DELTA_SYNC index.
     default: {}
   semantic_rebuild_schedule:
     description: >-

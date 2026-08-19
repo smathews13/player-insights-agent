@@ -1,23 +1,8 @@
 #!/usr/bin/env bash
-# Emit the COMPLETE Databricks App spec for a target, and optionally apply it.
+# Emit the complete Databricks App spec for a target and optionally apply it.
 #
-# This exists because `databricks apps update` has REPLACE semantics on the whole
-# app spec. A partial body drops the attached resources, and a dropped `postgres`
-# attachment does not merely disconnect: Lakebase DROPS the app's Postgres role,
-# and a reattach creates a new role of the same name that inherits none of the
-# grants, because privileges hang off the role's OID. One careless `apps update`
-# costs an attachment, a role, and every grant on it.
-#
-# So the recovery from that needs a body that is always complete, and DERIVED
-# rather than stored: generated from `bundle validate` for a named target, so the
-# only values it can contain are that target's own and the scopes are the bundle's
-# scopes because there is nowhere else for them to come from.
-#
-# DO NOT REINTRODUCE A CHECKED-IN SPEC FILE. Nothing forces a second copy of this
-# configuration to agree with the first, and the two things a stale copy gets
-# wrong while still looking correct are the Lakebase identifiers, which would
-# attach a customer app to another workspace database, and the user_api_scopes
-# list, which would drop scopes and break the access gate.
+# Apps updates replace the full spec. This script derives the complete body from
+# the resolved bundle so resource attachments and OAuth scopes stay intact.
 #
 # Usage:
 #   TARGET=<your-target>                            bundle/app-spec.sh            # print
@@ -105,12 +90,6 @@ REQUIRED_SCOPES = {
     # refused, the app retries as its own service principal, and the answer
     # discloses the fallback.
     #
-    # This used to read that nothing could ever achieve it, because the endpoint
-    # demands `model-serving-inference` and Apps will not issue it. That was the
-    # wrong diagnosis. The endpoint demanded that scope because the logged model
-    # carried no user authorization policy; with one, it accepts a user token.
-    # Whether the token Apps forwards is accepted is the part still untested.
-    #
     # KEEP THIS SET MINIMAL, and do not add a scope on the reasoning that an
     # unused one is harmless. Consent is all-or-nothing, so every scope here is a
     # way for a user who cannot be granted it to fail sign-in outright, with a
@@ -123,11 +102,9 @@ REQUIRED_SCOPES = {
     # DELIBERATELY NOT THE `catalog.*`, `workspace.*` AND `vectorsearch.*`
     # SCOPES. This set is the hard floor for EVERY target -- a recovery aborts
     # without one -- so it holds only scopes whose absence is unrecoverable. The
-    # catalog, workspace and Vector Search browse scopes are in the SHARED
-    # DEFAULT (Sam 2026-08-18: VS joined catalog/workspace so they are not
-    # example-only) and every target requests them, but they are OPTIONAL for the
-    # login gate: a workspace that cannot issue one must not abort a recovery,
-    # so they stay out of this floor. All of them are still SENT: the spec below
+    # catalog, workspace and Vector Search browse scopes are optional for the
+    # login gate, so they stay out of this floor. All declared scopes are still
+    # sent: the spec below
     # is generated from the resolved bundle, so whatever the target declares is
     # what goes. The tests that hold them are server/lib/user-api-scopes.test.ts,
     # which pins the shared default against the APIs the probes call, rather
@@ -227,10 +204,7 @@ note "endpoint        $ENDPOINT_NAME"
 printf '\n%s\n' "$SPEC"
 
 if [[ "$APPLY" != true ]]; then
-  # Built here rather than inline in the heredoc. A `\"` inside a ${x:+...}
-  # expansion is not the heredoc's escape any more. The backslash survives into
-  # the output, and the hint read `PROFILE=\"<your profile>\"`, which is not a command
-  # anyone can paste. A double-quoted assignment escapes it the usual way.
+  # Keep profile names with spaces quoted in the copy-paste command.
   PROFILE_HINT=""
   [[ -n "$CALLER_PROFILE" ]] && PROFILE_HINT=" PROFILE=\"$CALLER_PROFILE\""
   cat <<EOF
