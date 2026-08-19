@@ -87,6 +87,31 @@ Validate after saving the file:
 databricks bundle validate -t customer --profile <their-profile>
 ```
 
+### If plan or deploy crashes after a manual deletion
+
+CLI v1.11.0 can exit with a segmentation fault in
+`ResourceApp.OverrideChangeDesc` when the App or its app-owned schema was
+deleted in the workspace but the direct-engine state still points at it.
+Validation still succeeds because the YAML is valid; both `bundle plan` and
+`bundle deploy` then fail while calculating the same desired-versus-state diff,
+before changing any resources.
+
+Do not delete the whole
+`.bundle/player-insights-agent-dab/customer/state` directory. It also tracks
+resources that may still be live. Confirm which bundle-owned resources are
+already absent, then forget only those stale associations:
+
+```bash
+databricks bundle deployment unbind player_insights_app -t customer --profile <their-profile>
+databricks bundle deployment unbind player_insights_schema -t customer --profile <their-profile>
+```
+
+Run only the applicable line or lines. `unbind` updates bundle state and makes
+no delete call against the workspace resource. The serving endpoint is created
+outside the bundle by the agent release; its stale reference is nested in the
+App state and is removed when the deleted App is unbound. Re-run
+`TARGET=customer PROFILE=<their-profile> bundle/plan-gate.sh` before deploying.
+
 `data_catalogs` is the complete read boundary. A catalog name includes all of
 its non-system schemas; `catalog.schema` limits the boundary to one schema.
 The app schema is separate and holds only app-owned objects.
