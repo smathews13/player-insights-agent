@@ -175658,29 +175658,57 @@ function seedAdminEmails() {
 function seedRoles() {
   return { superAdmins: seedSuperAdmins, admins: seedAdmins };
 }
-function announceSeedAdmins(raw2 = process.env[SEED_ADMIN_EMAILS_ENV]) {
-  const { emails, superEmails, rejected } = parseSeedAdmins(raw2);
-  seedAdmins = emails;
-  seedSuperAdmins = superEmails;
-  if (rejected.length > 0) {
+async function bootstrapSeedRoles(store, raw2 = process.env[SEED_ADMIN_EMAILS_ENV]) {
+  const parsed = parseSeedAdmins(raw2);
+  seedAdmins = [];
+  seedSuperAdmins = [];
+  if (parsed.rejected.length > 0) {
     console.error(
-      `[admin] ${SEED_ADMIN_EMAILS_ENV} contains ${rejected.length} entr${rejected.length === 1 ? "y" : "ies"} with no "@" in ${JSON.stringify(rejected)}, so they are NOT addresses and have been ignored. Nothing is exposed by this. If one of them was meant to be an administrator, they are not one.`
+      `[admin] ${SEED_ADMIN_EMAILS_ENV} contains ${parsed.rejected.length} invalid entr${parsed.rejected.length === 1 ? "y" : "ies"} and they were ignored.`
     );
   }
-  if (emails.length === 0) {
-    console.warn(
-      `[admin] NO SEED ADMINISTRATORS. ${SEED_ADMIN_EMAILS_ENV} is unset or empty, so nobody is an administrator except whoever an existing admin has added in Lakebase, and on a fresh deployment that is nobody. Monitoring, Ops, Benchmark Lab and the Settings gear will refuse every caller with 403. An empty list means nobody rather than everybody, deliberately. Set the bundle variable to give this deployment an administrator.`
+  const current = await readRoster(store);
+  if (current.rows.length > 0) {
+    console.log(
+      `[admin] Lakebase already contains ${current.rows.length} role row${current.rows.length === 1 ? "" : "s"}; ${SEED_ADMIN_EMAILS_ENV} is ignored. A code deploy cannot add, remove, promote, or demote anybody.`
     );
-    return;
+    return "existing-roster";
+  }
+  const roles = parsed.emails.map((email3) => ({
+    email: email3,
+    role: parsed.superEmails.includes(email3) ? "super_admin" : "admin"
+  }));
+  if (roles.length === 0) {
+    console.warn(
+      `[admin] The Lakebase roster is empty and ${SEED_ADMIN_EMAILS_ENV} names nobody. No role was bootstrapped; every caller remains a consumer until an operator explicitly creates a role row.`
+    );
+    return "empty";
+  }
+  const params = [];
+  const values = roles.map(({ email: email3, role }, index) => {
+    params.push(email3, role, email3);
+    const offset = index * 3;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3})`;
+  }).join(", ");
+  const inserted = await store.query(
+    `INSERT INTO ${ADDED_ADMINS_TABLE} (email, ${ROLE_COLUMN}, added_by)
+     SELECT seed.email, seed.role, seed.added_by
+       FROM (VALUES ${values}) AS seed(email, role, added_by)
+      WHERE NOT EXISTS (SELECT 1 FROM ${ADDED_ADMINS_TABLE})
+     ON CONFLICT (email) DO NOTHING
+     RETURNING email, ${ROLE_COLUMN}`,
+    params
+  );
+  if (inserted.rows.length === 0) {
+    console.log(
+      `[admin] The roster stopped being empty before bootstrap committed; ${SEED_ADMIN_EMAILS_ENV} was ignored.`
+    );
+    return "existing-roster";
   }
   console.log(
-    `[admin] ${emails.length} seed administrator${emails.length === 1 ? "" : "s"} from ${SEED_ADMIN_EMAILS_ENV}, ${superEmails.length} of them super administrator${superEmails.length === 1 ? "" : "s"}. They are read from the environment rather than from storage, so they stay administrators through a Lakebase outage, and the environment is a FLOOR: a stored role in ${ADDED_ADMINS_TABLE} can raise one of them and cannot lower one.`
+    `[admin] Bootstrapped ${inserted.rows.length} role row${inserted.rows.length === 1 ? "" : "s"} into Lakebase. Future boots ignore deployed role config because the database is now authoritative.`
   );
-  if (superEmails.length === 0) {
-    console.log(
-      `[admin] NO SEED SUPER ADMINISTRATOR. Nobody can appoint or remove administrators from inside the app unless the stored roster already names a super admin. This deployment therefore has the two roles it always had. To name one, prefix an entry in ${SEED_ADMIN_EMAILS_ENV} with "${SEED_SUPER_ADMIN_PREFIX}".`
-    );
-  }
+  return "bootstrapped";
 }
 async function readAddedAdmins(store) {
   const result = await store.query(`SELECT email, added_by, added_at FROM ${ADDED_ADMINS_TABLE} ORDER BY added_at ASC`);
@@ -186655,8 +186683,9 @@ function setupRuntimeSettingsRoutes(appkit) {
 createApp({
   plugins: [lakebase({ pool: lakebasePoolSettings() }), server()],
   async onPluginsReady(appkit) {
-    announceSeedAdmins();
-    await setupInsightsRoutes(appkit);
+    const { storeReady } = await setupInsightsRoutes(appkit);
+    await storeReady;
+    await bootstrapSeedRoles(appkit.lakebase);
     setupSettingsRoutes(appkit);
     setupRuntimeSettingsRoutes(appkit);
     setupBrowseRoutes(appkit);
