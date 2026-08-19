@@ -642,6 +642,13 @@ fi
 # Exit 2 blocks as well as exit 1, for the same reason the service-principal gate a
 # few hundred lines up says: "the question was never answered" is not "the answer
 # was yes", and this repository has shipped four checks that could not fail.
+#
+# ABSENCE OF THE CONTRACT SIBLINGS IS TOLERATED, AND SAID OUT LOUD. The checker
+# loads drift-check.py, scope-contract.py and scope-contract.json. Those are
+# excluded from the published tree (they name internal targets), the same
+# treatment release-gate.sh gets in app-release.sh. Dying here would stop every
+# customer model release on files we deliberately did not give them. In this
+# repository the siblings are present, so the check still runs and still blocks.
 step "The model's scopes: configured vs documented${LOG_SUMMARY:+ vs logged}"
 MODEL_SCOPE_CHECK="$BUNDLE_ROOT/bundle/model-scope-check.py"
 if [[ ! -f "$MODEL_SCOPE_CHECK" ]]; then
@@ -651,6 +658,14 @@ baked was never compared against what this target documents.
 A missing checker is not a pass and there is no flag past this. Restore it:
   git restore bundle/model-scope-check.py"
 fi
+if [[ ! -f "$BUNDLE_ROOT/bundle/drift-check.py" \
+   || ! -f "$BUNDLE_ROOT/bundle/scope-contract.py" \
+   || ! -f "$BUNDLE_ROOT/bundle/scope-contract.json" ]]; then
+  note "This tree carries no scope contract, so the model's scopes were NOT"
+  note "compared against documentation. Those files are internal-only and absent"
+  note "from a published checkout on purpose. The version will still be deployed."
+  note "Confirm the endpoint auth policy after the traffic switch."
+else
 MODEL_SCOPE_ARGS=(--target "$TARGET")
 [[ -n "$LOG_SUMMARY" ]] && MODEL_SCOPE_ARGS+=(--logged "$LOG_SUMMARY")
 MODEL_SCOPE_STATUS=0
@@ -686,6 +701,7 @@ meaning for. Treat version $MODEL_VERSION's scopes as unknown and read the outpu
 above before deploying it to $ENDPOINT."
     ;;
 esac
+fi
 
 step "Deploying version $MODEL_VERSION to $ENDPOINT"
 (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION")

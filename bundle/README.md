@@ -36,8 +36,8 @@ re-export) step, not a `bundle deploy`.
 
 What it cannot tell you is whether an instruction that landed is being **followed**.
 Those look identical from outside; ask the space a question that depends on the
-change. Whether the curated tables are inside the model's declared scopes is
-`genie-live-check.py`, kept separate because it is a different question.
+change. Whether the curated tables fall inside `data_catalogs` is enforced when
+the model is logged (`agent/preflight.py`), not by a separate live-check script.
 
 `TARGET` is required and has no default: guessing one aims a release at a
 workspace. `PROFILE` is optional for a target that names its CLI profile in
