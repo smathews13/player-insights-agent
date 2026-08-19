@@ -221,6 +221,42 @@ check_says "asking for no source at all is refused rather than defaulted" 2 \
   "one of the arguments" \
   python3 "$GATE" --logged "$GOOD" --user-authorization true
 
+printf '\n==> Unity Catalog registry routing\n'
+python3 - "$GATE" <<'PY'
+import importlib.util
+import sys
+import types
+
+spec = importlib.util.spec_from_file_location("model_user_auth_check", sys.argv[1])
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
+
+calls = []
+mlflow = types.ModuleType("mlflow")
+mlflow.set_registry_uri = calls.append
+models = types.ModuleType("mlflow.models")
+model_module = types.ModuleType("mlflow.models.model")
+
+class FakeModel:
+    auth_policy = {"system_auth_policy": {}, "user_auth_policy": {"api_scopes": ["sql"]}}
+
+    @staticmethod
+    def load(source):
+        calls.append(source)
+        return FakeModel()
+
+model_module.Model = FakeModel
+sys.modules.update({
+    "mlflow": mlflow,
+    "mlflow.models": models,
+    "mlflow.models.model": model_module,
+})
+
+gate.read_auth_policy_mlflow("models:/catalog.schema.model/1")
+assert calls == ["databricks-uc", "models:/catalog.schema.model/1"], calls
+print("  ok    registered models use the Unity Catalog registry")
+PY
+
 # THE DIRECTORY THE GATE IS INVOKED FROM MUST NOT DECIDE WHETHER IT RUNS. It
 # reaches agent/user_authorization.py through its own parent to read the release's
 # flag rule; resolved against the current working directory instead, it would die

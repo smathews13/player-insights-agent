@@ -321,18 +321,17 @@ async function main() {
   // to grant. bundle/app-release.sh builds it from the target's own variables.
   const telemetrySchema = (process.env.PLAYER_INSIGHTS_TELEMETRY_SCHEMA ?? '').trim();
 
-  // The deployment's seed administrators. Absent here means a deployed app with
-  // NO administrator, which refuses every admin surface and cannot appoint
-  // anybody from inside itself. Loud rather than silent, because the symptom
-  // later is a 403 on every admin tab and nothing on screen naming the cause.
+  // Greenfield bootstrap only. App boot writes these roles to Lakebase when the
+  // roster is empty; once any row exists, the database is authoritative and
+  // this value is ignored. A stale or absent value can never change an existing
+  // role.
   const adminEmails = (process.env.PLAYER_INSIGHTS_ADMIN_EMAILS ?? '').trim();
   if (!adminEmails) {
     console.log(
-      '\n  note  PLAYER_INSIGHTS_ADMIN_EMAILS not set: the deployed app will have NO\n' +
-        '        administrators. Monitoring, Ops, Benchmark Lab and the settings gear will\n' +
-        '        refuse every caller with 403, and nobody can appoint anybody from inside\n' +
-        '        the app, because the editor that would do it is behind the same refusal.\n' +
-        '        Empty means nobody rather than everybody, on purpose. Set admin_emails in\n' +
+      '\n  note  PLAYER_INSIGHTS_ADMIN_EMAILS not set: a genuinely empty Lakebase roster\n' +
+        '        will bootstrap nobody, so every administrative surface will refuse callers.\n' +
+        '        An existing roster is unchanged because deployment config is ignored after\n' +
+        '        bootstrap. To seed a greenfield deployment, set admin_emails in\n' +
         '        .databricks/bundle/<target>/variable-overrides.json, which is git-ignored,\n' +
         '        or PLAYER_INSIGHTS_ADMIN_EMAILS in the environment you release from.'
     );
@@ -410,10 +409,10 @@ async function main() {
       // a release that could not resolve the variable must not be the thing
       // that opens one stakeholder's conversations to another.
       ...(sharedRail ? [{ name: 'PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL', value: `'${sharedRail}'` }] : []),
-      // Both per-deployment and both correctly empty when unresolved: no
-      // telemetry destination means telemetry is off, and no administrators means
-      // the admin surfaces refuse everybody. Neither default is a guess, and
-      // neither ships one workspace's values into another's build.
+      // Both per-deployment and correctly empty when unresolved. No telemetry
+      // destination means telemetry is off. No admin bootstrap means only that a
+      // genuinely empty roster gets no first row; an existing Lakebase roster is
+      // untouched. Neither default ships one workspace's values into another.
       ...(telemetrySchema ? [{ name: 'PLAYER_INSIGHTS_TELEMETRY_SCHEMA', value: `'${telemetrySchema}'` }] : []),
       // Per-target, and correctly empty when unresolved: a build that cannot say
       // which permissions it asks for must not claim any, because the claim is

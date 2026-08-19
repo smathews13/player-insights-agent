@@ -10,7 +10,7 @@ import { setupMonitoringRoutes } from './routes/monitoring-routes';
 import { setupOpsRoutes } from './routes/ops-routes';
 import { setupEgressRoutes } from './routes/egress-routes';
 import { setupRuntimeSettingsRoutes } from './routes/runtime-settings-routes';
-import { announceSeedAdmins, isAdminRoute } from './lib/admin-roles';
+import { bootstrapSeedRoles, isAdminRoute } from './lib/admin-roles';
 import { respondToHandlerFailures } from './lib/handler-failures';
 
 // The serving() plugin is deliberately NOT registered. Its invoke path runs the
@@ -30,13 +30,13 @@ import { respondToHandlerFailures } from './lib/handler-failures';
 createApp({
   plugins: [lakebase({ pool: lakebasePoolSettings() }), server()],
   async onPluginsReady(appkit) {
-    // Before any route, because the admin guard the insights routes register reads
-    // this list and a request arriving before it was parsed would resolve every
-    // caller as a consumer. Reads the environment once, on purpose: a per-request
-    // read would let the administrator set change under a running app, which makes
-    // "who could do what at the time" unanswerable afterwards.
-    announceSeedAdmins();
-    await setupInsightsRoutes(appkit);
+    const { storeReady } = await setupInsightsRoutes(appkit);
+    // Role bootstrap is the one boot task that must wait for Lakebase migrations.
+    // The database is authoritative at runtime; deployment config may insert the
+    // first rows only when the migrated roster is genuinely empty. Waiting keeps a
+    // greenfield app from accepting requests before that one-time insert finishes.
+    await storeReady;
+    await bootstrapSeedRoles(appkit.lakebase);
     // After the insights routes, deliberately: they register the identity gate,
     // and Express applies middleware to whatever is added afterwards. Registering
     // the settings routes first would leave the write route unguarded.

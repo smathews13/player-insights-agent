@@ -82,18 +82,15 @@ env:
   # var.shared_conversation_rail, so set it in the bundle rather than here.
   - name: PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL
     value: 'false'
-  # Who administers this deployment: a comma-separated list of email addresses.
-  # These are the seed administrators, read from the environment rather than
-  # from storage so they stay administrators through a Lakebase outage. Admins
-  # added from the Settings gear are stored and are additional to these.
+  # Greenfield role bootstrap: a comma-separated list of email addresses.
+  # The app writes these roles to Lakebase only when the roster is genuinely
+  # empty. Once any role row exists, this value is ignored forever: absence or a
+  # stale value on a later code deploy cannot add, remove, promote or demote
+  # anybody. Lakebase is the runtime source of truth.
   #
-  # EMPTY MEANS NOBODY, NOT EVERYBODY, and that is the whole difference from the
-  # cost-obs app this mechanism is copied from. A deployment with no seed
-  # administrator refuses every caller on Monitoring, Ops, Benchmark Lab and the
-  # Settings gear, and cannot appoint anybody from inside the app. That is the
-  # safe first state for something published for customers to deploy, and it is
-  # also almost certainly not what a deployer intended, so the app warns about it
-  # at boot.
+  # EMPTY ON A GENUINELY EMPTY ROSTER MEANS NOBODY, NOT EVERYBODY. The app
+  # refuses every administrative surface until an operator explicitly creates a
+  # role row. Empty after bootstrap is harmless because the stored roster wins.
   #
   # NO VALUE HERE, EVER. An address in this file is one workspace's employee
   # shipped into every build, and this tree is published. bundle/app-release.sh

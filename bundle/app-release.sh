@@ -444,7 +444,9 @@ fi
 # teaches people to skip the step.
 step "Postgres ownership"
 OWNERSHIP_STATUS=0
-OWNERSHIP_OUT="$(cd "$APP_DIR" && node scripts/check-db-ownership.mjs --app "$APP_NAME" --profile "$PROFILE" 2>&1)" \
+OWNERSHIP_OUT="$(cd "$APP_DIR" \
+  && PLAYER_INSIGHTS_APP_SCHEMA="$LAKEBASE_APP_SCHEMA" \
+     node scripts/check-db-ownership.mjs --app "$APP_NAME" --profile "$PROFILE" 2>&1)" \
   || OWNERSHIP_STATUS=$?
 printf '%s\n' "$OWNERSHIP_OUT" | sed 's/^/  /'
 if [[ "$OWNERSHIP_STATUS" -eq 1 ]]; then
@@ -462,6 +464,17 @@ run_app_db_grant
 
 step "Uploading to $SRC_PATH"
 databricks workspace import-dir "$DEPLOY_TREE" "$SRC_PATH" --overwrite --profile "$PROFILE"
+
+# A bundle-created app has no active deployment yet. Its compute commonly
+# settles at STOPPED, and `apps deploy` then refuses with "start the app first".
+# Existing apps are already ACTIVE, so this is a greenfield-only transition.
+APP_COMPUTE_STATE="$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json \
+  | python3 -c 'import json,sys; print((json.load(sys.stdin).get("compute_status") or {}).get("state") or "")')"
+if [[ "$APP_COMPUTE_STATE" != "ACTIVE" ]]; then
+  step "Starting app compute for the first deployment"
+  note "compute state is ${APP_COMPUTE_STATE:-unknown}; apps deploy requires ACTIVE compute"
+  databricks apps start "$APP_NAME" --profile "$PROFILE" --timeout 20m
+fi
 
 step "Deploying app $APP_NAME"
 databricks apps deploy "$APP_NAME" --source-code-path "$SRC_PATH" --profile "$PROFILE"

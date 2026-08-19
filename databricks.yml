@@ -200,11 +200,11 @@ variables:
       BUNDLE_VAR_app_source_code_path. Do not put personal home paths in this
       tracked file or in a target block. After the app and bindings exist,
       app-code-only updates can use Deploy from Git and do not require another
-      bundle deploy, but first follow the README's Git-compatibility check:
-      public main intentionally omits deployment-specific app.yaml values.
-      Deploy from Git is source-only: do not run bundle deploy, agent-release,
-      or app-release as part of that update. It must not reconcile bindings,
-      jobs, models, or the serving endpoint.
+      bundle deploy. Deploy from Git is source-only: do not run bundle deploy,
+      agent-release, or app-release as part of that update. It must not
+      reconcile bindings, jobs, models, the serving endpoint, or user roles.
+      Lakebase is authoritative for roles after the one-time empty-roster
+      bootstrap, so stale or absent role config in app.yaml is harmless.
 
   # Lakebase
   #

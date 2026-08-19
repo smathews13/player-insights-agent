@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- a one-off operator script, deliberately outside the tsconfig projects.
 import {
   APPKIT_CACHE_SCHEMA,
+  appSchemaGrantStatements,
   quoteIdent,
   shouldDropAppkitCacheSchema,
 } from './grant-app-db-access.mjs';
@@ -40,5 +41,20 @@ describe('quoteIdent', () => {
   it('quotes Postgres identifiers and doubles embedded quotes', () => {
     expect(quoteIdent('appkit')).toBe('"appkit"');
     expect(quoteIdent('weird"name')).toBe('"weird""name"');
+  });
+});
+
+describe('appSchemaGrantStatements', () => {
+  const role = '"app-service-principal-client-id"';
+
+  it('leaves an absent schema for the app role to create and own', () => {
+    expect(appSchemaGrantStatements(false, 'fresh_schema', role)).toEqual([]);
+  });
+
+  it('grants access to an existing schema without creating it as the operator', () => {
+    const statements = appSchemaGrantStatements(true, 'existing_schema', role);
+    expect(statements).not.toHaveLength(0);
+    expect(statements.join('\n')).toContain('GRANT USAGE, CREATE ON SCHEMA "existing_schema"');
+    expect(statements.join('\n')).not.toContain('CREATE SCHEMA');
   });
 });

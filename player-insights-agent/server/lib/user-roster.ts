@@ -2,31 +2,20 @@
  * The roster: who this deployment knows, what role each holds, and what may be
  * done to a row.
  *
- * WHY THIS EXISTS. The admin list arrived as an environment variable fixed at
- * deploy time, so the only person who could change who administers a deployment
- * was whoever deployed it. In a customer's own deployment that is us, for a
- * decision that is theirs. A named person in their deployment now holds the roster
- * and appoints people from inside the app, and every change takes effect on the
- * next request without a redeploy.
+ * WHY THIS EXISTS. Roles originally arrived as an environment variable fixed at
+ * deploy time. That made a code deployment an authorization change. Production
+ * now persists config only when this table is genuinely empty, clears the
+ * in-memory seed, and reads every role from Lakebase thereafter. A named person
+ * holds the roster and every explicit UI/API change takes effect on the next
+ * request without a redeploy.
  *
  * THE PRECEDENCE RULE, ONCE, BECAUSE EVERY EDGE CASE HERE IS A READING OF IT:
  *
- *   The seed is a FLOOR and the store decides everything above it.
+ *   The store is authoritative. Absence from deployed config means nothing.
  *
- * An address named in the environment holds at least the role the environment
- * gives it, on every request, read from the process environment and never from
- * storage -- so a Lakebase outage cannot lock a deployment's administration out of
- * the Ops tab that would tell them Lakebase is out. A stored row can RAISE that
- * person and can never lower them. Everybody the environment does not name holds
- * exactly what the store says, and consumer when it says nothing.
- *
- * That is deliberately not "the store is authoritative once it exists", which was
- * the shape first asked for. Full authority means a stored row can demote a seed
- * super admin, and then a store that is wrong -- or unreachable, or edited by hand
- * -- takes away the one role that can put it right. A floor cannot do that. What is
- * lost is the ability to demote a seed address from inside the app, and the screen
- * says so on the row rather than offering a control that the environment would undo
- * on the next request.
+ * SeedRoles remains an input to pure helpers and focused route tests, but
+ * production passes an empty seed after bootstrap. A Lakebase outage therefore
+ * fails closed; it never revives a stale role from app.yaml.
  *
  * WHAT HAPPENS WITH NO SUPER ADMIN LEFT, in the three ways it can arise:
  *
@@ -34,9 +23,8 @@
  *                          with no super admin is refused, which is the same
  *                          refusal the admin list already makes for its last
  *                          admin.
- *   By an edit to the store The seed floor still stands, so the seed super admins
- *                          are unaffected and the roster is administerable again
- *                          on the next request.
+ *   By an edit to the store The store is authoritative. Recovery is an explicit
+ *                          database/UI action, never a deployment side effect.
  *   With no seed either     Nobody can appoint anybody, and the app says so and
  *                          prints the statement that inserts a super admin row.
  *                          It does NOT promote the first caller to fill the gap:

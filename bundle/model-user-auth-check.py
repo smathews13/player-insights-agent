@@ -186,6 +186,7 @@ def read_auth_policy_mlflow(source: str) -> dict[str, Any] | None:
     import stays lazy so the rest of this file needs nothing.
     """
     try:
+        import mlflow
         from mlflow.models.model import Model
     except ImportError as exc:
         raise Unreadable(
@@ -194,6 +195,12 @@ def read_auth_policy_mlflow(source: str) -> dict[str, Any] | None:
             f"(cd agent && uv run --python 3.13 python ../bundle/model-user-auth-check.py ...)"
         ) from exc
     try:
+        # A models:/ URI for a three-level Unity Catalog model must use the UC
+        # registry. Tracking still points at the workspace, and MLflow otherwise
+        # inherits that as the registry and reports the just-created UC model as
+        # "not found". Local MLmodel paths need no registry configuration.
+        if source.startswith("models:/"):
+            mlflow.set_registry_uri("databricks-uc")
         model = Model.load(source)
     except Exception as exc:  # noqa: BLE001 - every failure here is 'could not run'
         raise Unreadable(f"the MLmodel at {source} could not be read: {exc}") from exc

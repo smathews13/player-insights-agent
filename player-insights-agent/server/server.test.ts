@@ -47,6 +47,16 @@ describe('the serving plugin is not registered', () => {
   });
 });
 
+describe('deployment config is not runtime role authority', () => {
+  it('persists the greenfield bootstrap before the app begins serving', () => {
+    const source = serverSourceWithoutComments();
+
+    expect(source).toContain('await bootstrapSeedRoles(appkit.lakebase)');
+    expect(source).not.toContain('announceSeedAdmins(');
+    expect(source.indexOf('await storeReady')).toBeLessThan(source.indexOf('await bootstrapSeedRoles'));
+  });
+});
+
 describe('the allowlist that made the plugin unsafe', () => {
   /**
    * Runs AppKit's own filter to show the hazard is real rather than theoretical,

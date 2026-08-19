@@ -56,6 +56,25 @@ export function quoteIdent(name) {
   return `"${String(name).replace(/"/g, '""')}"`;
 }
 
+/**
+ * Grants for an app data schema that already exists.
+ *
+ * An absent schema deliberately returns no statements. The app role already
+ * receives CREATE on the database and must create the schema itself so it owns
+ * the boot-time DDL. Creating it here would make the human operator its owner
+ * and cause the next release's ownership gate to refuse the deployment.
+ */
+export function appSchemaGrantStatements(schemaExists, schema, role) {
+  if (!schemaExists) return [];
+  return [
+    `GRANT USAGE, CREATE ON SCHEMA ${quoteIdent(schema)} TO ${role}`,
+    `GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${quoteIdent(schema)} TO ${role}`,
+    `GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA ${quoteIdent(schema)} TO ${role}`,
+    `ALTER DEFAULT PRIVILEGES IN SCHEMA ${quoteIdent(schema)} GRANT ALL PRIVILEGES ON TABLES TO ${role}`,
+    `ALTER DEFAULT PRIVILEGES IN SCHEMA ${quoteIdent(schema)} GRANT ALL PRIVILEGES ON SEQUENCES TO ${role}`,
+  ];
+}
+
 function required(name, how) {
   const value = process.env[name];
   if (value !== undefined && value !== '') return value;
@@ -171,14 +190,16 @@ async function main() {
   const role = quoteIdent(APP_ROLE);
   const statements = [`GRANT CREATE, CONNECT ON DATABASE ${quoteIdent(PGDATABASE)} TO ${role}`];
   for (const schema of SCHEMAS) {
-    statements.push(
-      `CREATE SCHEMA IF NOT EXISTS ${quoteIdent(schema)}`,
-      `GRANT USAGE, CREATE ON SCHEMA ${quoteIdent(schema)} TO ${role}`,
-      `GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${quoteIdent(schema)} TO ${role}`,
-      `GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA ${quoteIdent(schema)} TO ${role}`,
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${quoteIdent(schema)} GRANT ALL PRIVILEGES ON TABLES TO ${role}`,
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${quoteIdent(schema)} GRANT ALL PRIVILEGES ON SEQUENCES TO ${role}`
+    const { rowCount } = await client.query(
+      `SELECT 1 FROM pg_namespace WHERE nspname = $1`,
+      [schema]
     );
+    statements.push(...appSchemaGrantStatements(rowCount > 0, schema, role));
+    if (rowCount === 0) {
+      console.log(
+        `ok: ${schema} does not exist; database CREATE is granted and the app will create and own it`
+      );
+    }
   }
 
   for (const statement of statements) {

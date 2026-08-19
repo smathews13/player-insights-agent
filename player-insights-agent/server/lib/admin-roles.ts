@@ -1,26 +1,21 @@
 /**
  * Who administers this deployment, and the refusal that makes it mean something.
  *
- * An admin is a signed-in user whose email address is on the deployment's admin
- * list. Everyone else is a consumer. There is no third role and no per-feature
- * privilege. The list has two halves and the union of them is the list:
- *
- *   Seed admins   a comma-separated environment variable, delivered from bundle
- *                 configuration. Survives a Lakebase outage, because it is read
- *                 from the process environment and never from storage.
- *   Added admins  rows in Lakebase, edited from the Settings gear by an
- *                 existing admin.
+ * Every runtime role is a row in Lakebase. Deployment config is only a
+ * greenfield bootstrap input: when the roster is empty it is inserted once, and
+ * when any row exists it is ignored. A later code deploy therefore cannot alter
+ * admins, super admins, or explicit consumer rows.
  *
  * THREE RULES DECIDE EVERY EDGE CASE HERE, and each is a correction of the
  * cost-obs app this mechanism is copied from:
  *
- *   1. An empty list means NOBODY is an admin, not everybody. cost-obs treats a
+ *   1. An empty roster means NOBODY is an admin, not everybody. cost-obs treats a
  *      fresh deployment with no configured admins as one where every caller is
  *      an admin, so whoever set it up can configure it. This app is published
  *      for customers to deploy into their own workspaces, and a deployment
  *      whose first state is "everyone administers" is a deployment that ships
- *      that way. The seed list solves the same bootstrap problem without the
- *      open state.
+ *      that way. The one-time config bootstrap solves the same problem without
+ *      making config authoritative after the first row exists.
  *   2. A failed read of the stored half DENIES rather than admits. cost-obs
  *      falls through to an empty list on a storage error, and an empty list
  *      admits everyone there.
@@ -41,7 +36,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE } from './admin-roles-schema';
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-identity';
 import { opensAdminSurfaces, opensUserRoster, type Role } from '../../shared/user-roster-contract';
-import { effectiveRole, readRoster, seedFloorFor, type SeedRoles } from './user-roster';
+import { effectiveRole, readRoster, ROLE_COLUMN, seedFloorFor, type SeedRoles } from './user-roster';
 // The wire shape lives in shared/ so the editor and these routes cannot disagree
 // about what a row is. Re-exported because most callers here want it, and a second
 // import line at every call site is noise.
@@ -171,12 +166,11 @@ export function seedRoles(): SeedRoles {
 }
 
 /**
- * Resolve the seed list and say what was found, in the app's own startup output.
+ * Resolve an in-memory seed floor for isolated route tests.
  *
- * Loud on the empty case, because it is the state in which the app has no
- * administrator at all and every admin surface refuses everybody. That is
- * correct and it is also almost certainly not what the deployer intended, so it
- * is a warning rather than a silence.
+ * Production boot uses {@link bootstrapSeedRoles}; it never calls this function,
+ * because retaining deployment config in memory would make a code deploy part
+ * of runtime authorization again.
  */
 export function announceSeedAdmins(raw: string | undefined = process.env[SEED_ADMIN_EMAILS_ENV]) {
   const { emails, superEmails, rejected } = parseSeedAdmins(raw);
@@ -200,11 +194,9 @@ export function announceSeedAdmins(raw: string | undefined = process.env[SEED_AD
     return;
   }
   console.log(
-    `[admin] ${emails.length} seed administrator${emails.length === 1 ? '' : 's'} from ` +
-      `${SEED_ADMIN_EMAILS_ENV}, ${superEmails.length} of them super administrator` +
-      `${superEmails.length === 1 ? '' : 's'}. They are read from the environment rather than from ` +
-      'storage, so they stay administrators through a Lakebase outage, and the environment is a FLOOR: ' +
-      `a stored role in ${ADDED_ADMINS_TABLE} can raise one of them and cannot lower one.`
+    `[admin:test] installed ${emails.length} in-memory administrator${emails.length === 1 ? '' : 's'}, ` +
+      `${superEmails.length} of them super administrator${superEmails.length === 1 ? '' : 's'}. ` +
+      'Production does not use this path; it bootstraps an empty Lakebase roster once.'
   );
   if (superEmails.length === 0) {
     console.log(
@@ -214,6 +206,88 @@ export function announceSeedAdmins(raw: string | undefined = process.env[SEED_AD
         `"${SEED_SUPER_ADMIN_PREFIX}".`
     );
   }
+}
+
+export type RoleBootstrapState = 'existing-roster' | 'bootstrapped' | 'empty';
+
+/**
+ * Persist deployment config exactly once, then remove it from runtime authority.
+ *
+ * Lakebase is the source of truth for every request. The environment is consulted
+ * only when the roster is genuinely empty, and even then the INSERT repeats the
+ * emptiness check so a concurrent boot cannot overwrite or supplement rows that
+ * another instance just created. There is deliberately no UPDATE or DELETE in
+ * this path: stale deployed config is absence, not an instruction to change a
+ * role.
+ */
+export async function bootstrapSeedRoles(
+  store: AdminStore,
+  raw: string | undefined = process.env[SEED_ADMIN_EMAILS_ENV]
+): Promise<RoleBootstrapState> {
+  const parsed = parseSeedAdmins(raw);
+
+  // Production role checks must never retain an environment floor. These globals
+  // remain only for focused route tests that call announceSeedAdmins directly.
+  seedAdmins = [];
+  seedSuperAdmins = [];
+
+  if (parsed.rejected.length > 0) {
+    console.error(
+      `[admin] ${SEED_ADMIN_EMAILS_ENV} contains ${parsed.rejected.length} invalid ` +
+        `entr${parsed.rejected.length === 1 ? 'y' : 'ies'} and they were ignored.`
+    );
+  }
+
+  const current = await readRoster(store);
+  if (current.rows.length > 0) {
+    console.log(
+      `[admin] Lakebase already contains ${current.rows.length} role row${current.rows.length === 1 ? '' : 's'}; ` +
+        `${SEED_ADMIN_EMAILS_ENV} is ignored. A code deploy cannot add, remove, promote, or demote anybody.`
+    );
+    return 'existing-roster';
+  }
+
+  const roles = parsed.emails.map((email) => ({
+    email,
+    role: parsed.superEmails.includes(email) ? ('super_admin' as const) : ('admin' as const),
+  }));
+  if (roles.length === 0) {
+    console.warn(
+      `[admin] The Lakebase roster is empty and ${SEED_ADMIN_EMAILS_ENV} names nobody. ` +
+        'No role was bootstrapped; every caller remains a consumer until an operator explicitly creates a role row.'
+    );
+    return 'empty';
+  }
+
+  const params: string[] = [];
+  const values = roles
+    .map(({ email, role }, index) => {
+      params.push(email, role, email);
+      const offset = index * 3;
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3})`;
+    })
+    .join(', ');
+  const inserted = await store.query(
+    `INSERT INTO ${ADDED_ADMINS_TABLE} (email, ${ROLE_COLUMN}, added_by)
+     SELECT seed.email, seed.role, seed.added_by
+       FROM (VALUES ${values}) AS seed(email, role, added_by)
+      WHERE NOT EXISTS (SELECT 1 FROM ${ADDED_ADMINS_TABLE})
+     ON CONFLICT (email) DO NOTHING
+     RETURNING email, ${ROLE_COLUMN}`,
+    params
+  );
+
+  if (inserted.rows.length === 0) {
+    console.log(
+      `[admin] The roster stopped being empty before bootstrap committed; ${SEED_ADMIN_EMAILS_ENV} was ignored.`
+    );
+    return 'existing-roster';
+  }
+  console.log(
+    `[admin] Bootstrapped ${inserted.rows.length} role row${inserted.rows.length === 1 ? '' : 's'} into Lakebase. ` +
+      'Future boots ignore deployed role config because the database is now authoritative.'
+  );
+  return 'bootstrapped';
 }
 
 /**
@@ -235,14 +309,12 @@ export async function readAddedAdmins(store: AdminStore): Promise<AddedAdmin[]> 
 }
 
 /**
- * The caller's role: the higher of what the environment guarantees them and what
- * the store says.
+ * The caller's role from Lakebase.
  *
- * Never throws and never rejects. A store failure is caught here and reported as an
- * unreadable stored half, which resolves to the SEED FLOOR -- so an address the
- * environment named keeps its role through a Lakebase outage, which is what rule two
- * is for, and an address it did not name is a consumer, because an unreadable list
- * denies rather than admits.
+ * Production clears the in-memory seed after the one-time bootstrap, so the
+ * stored row is the entire answer. A store failure is caught and denies rather
+ * than falling back to deployed config. Focused route tests may install an
+ * in-memory seed with announceSeedAdmins.
  *
  * A SEED SUPER ADMIN SHORT-CIRCUITS THE READ. Not an optimisation: super admin is
  * the top of the order, so the store has nothing to add, and skipping the read means
