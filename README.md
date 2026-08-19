@@ -87,31 +87,6 @@ Validate after saving the file:
 databricks bundle validate -t customer --profile <their-profile>
 ```
 
-### If plan or deploy crashes after a manual deletion
-
-CLI v1.11.0 can exit with a segmentation fault in
-`ResourceApp.OverrideChangeDesc` when the App or its app-owned schema was
-deleted in the workspace but the direct-engine state still points at it.
-Validation still succeeds because the YAML is valid; both `bundle plan` and
-`bundle deploy` then fail while calculating the same desired-versus-state diff,
-before changing any resources.
-
-Do not delete the whole
-`.bundle/player-insights-agent-dab/customer/state` directory. It also tracks
-resources that may still be live. Confirm which bundle-owned resources are
-already absent, then forget only those stale associations:
-
-```bash
-databricks bundle deployment unbind player_insights_app -t customer --profile <their-profile>
-databricks bundle deployment unbind player_insights_schema -t customer --profile <their-profile>
-```
-
-Run only the applicable line or lines. `unbind` updates bundle state and makes
-no delete call against the workspace resource. The serving endpoint is created
-outside the bundle by the agent release; its stale reference is nested in the
-App state and is removed when the deleted App is unbound. Re-run
-`TARGET=customer PROFILE=<their-profile> bundle/plan-gate.sh` before deploying.
-
 `data_catalogs` is the complete read boundary. A catalog name includes all of
 its non-system schemas; `catalog.schema` limits the boundary to one schema.
 The app schema is separate and holds only app-owned objects.
@@ -124,20 +99,20 @@ discovering the tables instead of typing them does not widen the read boundary.
 Adding a table to a Genie space therefore changes the agent's grants, and takes
 effect at the next model re-log.
 
-The order matters, because `Apps.Create` refuses an app that names a serving
-endpoint which does not exist yet, and it creates nothing when it refuses:
+Run the repository deployment command. It creates and binds the App shell,
+deploys bundle prerequisites, releases the model endpoint, reconciles the full
+bundle including the App, applies Lakebase grants, and deploys app source:
 
-1. `databricks bundle deploy -t customer` with `--select` for every resource
-   except the app.
-2. `TARGET=customer bundle/agent-release.sh --apply`, which logs the model and
-   creates the serving endpoint.
-3. `databricks bundle deploy -t customer` again, with no `--select`, which
-   creates the app.
-4. `TARGET=customer bundle/app-release.sh --apply`, which pushes the app's code.
+```bash
+TARGET=customer PROFILE='<your-profile>' bundle/deploy.sh --apply
+```
+
+Use this same command for greenfield internal and customer targets. Do not
+create the App by hand or split the bundle with your own `--select` list.
 
 ## How the app gets onto the workspace, and how it is updated
 
-**Run the four-step CLI bootstrap once before using Deploy from Git.** It creates
+**Run the CLI bootstrap once before using Deploy from Git.** It creates
 the app schema, volume, experiment, registered model, serving endpoint, OAuth
 scopes, resource bindings, and the app itself. It attaches the existing SQL
 warehouse, Lakebase database, and Genie spaces; it does not create those three
@@ -245,21 +220,6 @@ update`), **fully stop and start the app** (a redeploy alone leaves the new scop
 inert), and have each user **sign in again in a fresh private window** to grant
 the updated consent. Until a user re-consents, their session carries the old
 scope set and the new capability stays dark for them.
-
-### Creating the app from Git (only if the bundle already created the backend)
-
-The four CLI steps above remain the supported greenfield path. If the **backend
-already exists** — catalog, schema, SQL warehouse, Lakebase, and the **serving
-endpoint** (steps 1–2 of the CLI path, which have no browser equivalent) — and
-you still need to **create** the app object itself from the UI rather than from
-`bundle deploy`, you can: **Apps → Create app → Deploy from Git**, use the same
-repository / branch / Source code path table above, **attach** the Lakebase,
-serving endpoint and SQL warehouse resources and set the OAuth scopes the app
-declares, then Deploy. That is still not "Deploy from Git instead of the
-bundle": the resources and scopes must be attached at create time, and later
-updates remain the "onto the existing app" flow above.
-
-Then do the two steps below — they apply however the app was first created.
 
 ## Release-time grants and one manual share
 

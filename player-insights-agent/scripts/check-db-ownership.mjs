@@ -40,10 +40,6 @@ function arg(name) {
 
 const APP = arg('app');
 const PROFILE = arg('profile');
-if (!APP || !PROFILE) {
-  console.error('usage: node scripts/check-db-ownership.mjs --app <app-name> --profile <profile>');
-  process.exit(2);
-}
 
 function cli(args) {
   return JSON.parse(execFileSync('databricks', [...args, '--profile', PROFILE, '-o', 'json'], {
@@ -64,7 +60,17 @@ function appSchema() {
   return m[1];
 }
 
+/** A recreated app cannot take ownership of the prior app principal's schema. */
+export function schemaNeedsNewName(schemaOwner, appRole) {
+  return schemaOwner !== appRole;
+}
+
 async function main() {
+  if (!APP || !PROFILE) {
+    console.error('usage: node scripts/check-db-ownership.mjs --app <app-name> --profile <profile>');
+    process.exit(2);
+  }
+
   const app = cli(['apps', 'get', APP]);
   const appRole = app.service_principal_client_id;
   const postgres = (app.resources ?? []).map((r) => r.postgres).find(Boolean);
@@ -112,12 +118,24 @@ async function main() {
     `SELECT tablename, tableowner FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`, [schema]);
   await client.end();
 
-  const owners = [{ tablename: `(schema ${schema})`, tableowner: schemas[0].owner }, ...tables];
-  const foreign = owners.filter((row) => row.tableowner !== appRole);
-
   console.log(`app role   ${appRole}`);
   console.log(`database   ${database} on ${host}`);
   console.log(`schema     ${schema}`);
+
+  const schemaOwner = schemas[0].owner;
+  if (schemaNeedsNewName(schemaOwner, appRole)) {
+    console.error(`\nOWNERSHIP: schema ${schema} is owned by ${schemaOwner}, not this app's Postgres role.`);
+    console.error(`A recreated Databricks App has a new service principal and cannot reuse the dead app's`);
+    console.error(`schema. Grants and scripts/grant-app-db-access.mjs cannot transfer that ownership.`);
+    console.error(`\nKEEP ${schema} intact so its data can be migrated deliberately. Before the next bundle`);
+    console.error(`deploy, set lakebase_app_schema to a NEW, UNUSED schema name in:`);
+    console.error(`\n  .databricks/bundle/<target>/variable-overrides.json`);
+    console.error(`\nThen run bundle deploy and bundle/app-release.sh again. The new app will create and own`);
+    console.error(`the new schema on first boot; do not drop or rename the old schema to unblock release.`);
+    process.exit(1);
+  }
+
+  const foreign = tables.filter((row) => row.tableowner !== appRole);
   if (foreign.length === 0) {
     console.log(`ok: the app owns its schema and all ${tables.length} table(s) in it.`);
     return;
@@ -146,7 +164,12 @@ async function main() {
   process.exit(1);
 }
 
-main().catch((error) => {
-  console.error(error.message ?? error);
-  process.exit(2);
-});
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error.message ?? error);
+    process.exit(2);
+  });
+}

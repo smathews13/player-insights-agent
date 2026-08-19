@@ -89,13 +89,11 @@ PLAN_JSON=""
 PLAN_ERR="$(mktemp "${TMPDIR:-/tmp}/pia-plan-err.XXXXXX")"
 trap 'rm -f "$PLAN_ERR"' EXIT
 
-# Keep the CLI's status. A direct-engine planner panic exits 139 and produces no
-# JSON; losing that status under `|| true` made the one actionable stale-state
-# failure look like every other empty-output failure.
-set +e
-PLAN_JSON="$(cd "$BUNDLE_ROOT" && databricks "${PLAN_ARGS[@]}" 2>"$PLAN_ERR")"
-PLAN_STATUS=$?
-set -e
+# `|| true` so a CLI failure becomes exit 2 below with the CLI's own message,
+# rather than `set -e` killing this script with no output at all -- the failure
+# mode bundle/preflight.sh Fact 8 records, where a die inside a substitution
+# produced exit 1 and not one line explaining it.
+PLAN_JSON="$(cd "$BUNDLE_ROOT" && databricks "${PLAN_ARGS[@]}" 2>"$PLAN_ERR")" || true
 
 if [[ -z "$PLAN_JSON" ]]; then
   note "COULD NOT RUN. 'databricks bundle plan' produced no output:"
@@ -107,23 +105,6 @@ if [[ -z "$PLAN_JSON" ]]; then
   note ""
   note "  (cd $BUNDLE_ROOT && databricks bundle plan -t $TARGET${PROFILE:+ --profile \"$PROFILE\"})"
   note ""
-  if [[ "$PLAN_STATUS" -eq 139 ]] \
-     || grep -Eq 'ResourceApp\.OverrideChangeDesc|SIGSEGV|segmentation violation' "$PLAN_ERR"; then
-    note "The direct planner crashed while comparing the App with bundle state. If"
-    note "the app or its app-owned schema was deleted manually, forget ONLY those"
-    note "missing associations, then re-run this gate:"
-    note ""
-    note "  databricks bundle deployment unbind player_insights_app -t $TARGET${PROFILE:+ --profile \"$PROFILE\"}"
-    note "  databricks bundle deployment unbind player_insights_schema -t $TARGET${PROFILE:+ --profile \"$PROFILE\"}"
-    note ""
-    note "Run only the line for each resource you confirmed is already absent."
-    note "Unbind edits bundle state; it does not delete the workspace resource."
-    note "Do NOT remove the whole state directory: it also tracks surviving jobs,"
-    note "volumes and experiments, which a later deploy could duplicate or collide with."
-    note "The serving endpoint is not a standalone bundle resource; forgetting the"
-    note "deleted app also removes the stale endpoint binding nested in its state."
-    note ""
-  fi
   note "A target carrying no host of its own also needs PROFILE set, and a target"
   note "whose required variables are unset needs them passed or written into"
   note ".databricks/bundle/$TARGET/variable-overrides.json."

@@ -252,9 +252,12 @@ def declared_tables(settings: Settings) -> list[str]:
 # `list_data_assets` reads it back rather than querying Unity Catalog live, so
 # the agent cannot advertise a table it cannot read.
 #
-# A bare catalog entry expands to all of its non-system schemas. A two-part
-# catalog.schema entry stays limited to that schema. data_catalogs is required,
-# so there is no implicit app-catalog default that can widen silently.
+# A bare catalog entry expands to all of its non-system schemas, and a schema
+# among them that exposes no tables is skipped rather than refused: an empty
+# schema is an ordinary thing for a catalog to hold and says nothing about
+# whether the entry was right. A two-part catalog.schema entry stays limited to
+# that schema. data_catalogs is required, so there is no implicit app-catalog
+# default that can widen silently.
 #
 # A scope is not automatically safe to declare in full: the endpoint writes its
 # own inference payload table into the agent's schema. That one is excluded by
@@ -322,13 +325,21 @@ def scope_allows(settings: Settings, full_name: str) -> bool:
     )
 
 
-def expanded_discovery_scopes(settings: Settings, workspace: Any) -> list[str]:
-    """Expand whole-catalog entries into concrete non-system schemas."""
+def discovery_scope_groups(settings: Settings, workspace: Any) -> list[tuple[str, list[str]]]:
+    """Each `data_catalogs` entry beside the concrete schemas it covers.
 
-    expanded: list[str] = []
+    GROUPED RATHER THAN FLATTENED, because the ENTRY is the unit a scope failure
+    is about. A bare catalog entry names a catalog, so one schema inside it that
+    exposes nothing is not evidence of anything: an empty schema is ordinary, and
+    an app catalog acquires them the moment a deployment declares a telemetry or
+    assets schema it has not written to yet. What IS evidence is the whole entry
+    exposing nothing, which is what `_manifest_from_schema` refuses on.
+    """
+
+    groups: list[tuple[str, list[str]]] = []
     for scope in discovery_scopes(settings):
         if "." in scope:
-            expanded.append(scope)
+            groups.append((scope, [scope]))
             continue
         try:
             schemas = workspace.schemas.list(catalog_name=scope)
@@ -337,14 +348,26 @@ def expanded_discovery_scopes(settings: Settings, workspace: Any) -> list[str]:
                 f"Listing schemas in data catalog {scope!r} failed ({_clean(error)}). "
                 "A whole-catalog scope must be expanded completely before model logging."
             ) from error
-        for schema in sorted(
-            str(getattr(item, "name", "") or "")
-            for item in schemas
-            if str(getattr(item, "name", "") or "") not in UNDECLARABLE_SCHEMAS
-        ):
-            concrete = f"{scope}.{schema}"
-            if concrete not in expanded:
-                expanded.append(concrete)
+        covered = sorted(
+            {
+                f"{scope}.{name}"
+                for item in schemas
+                if (name := str(getattr(item, "name", "") or ""))
+                and name not in UNDECLARABLE_SCHEMAS
+            }
+        )
+        groups.append((scope, covered))
+    return groups
+
+
+def expanded_discovery_scopes(settings: Settings, workspace: Any) -> list[str]:
+    """Expand whole-catalog entries into concrete non-system schemas."""
+
+    expanded: list[str] = []
+    for _, covered in discovery_scope_groups(settings, workspace):
+        for scope in covered:
+            if scope not in expanded:
+                expanded.append(scope)
     return expanded
 
 
@@ -643,6 +666,43 @@ def resolve_declared_manifest(
     return _manifest_from_schema(settings, workspace)
 
 
+#: How many schema names the refusal below prints before summarising the rest.
+#: The message is read in a terminal, and a catalog with four hundred schemas
+#: would otherwise bury the sentence that says what to do about it.
+MAX_NAMED_EMPTY_SCHEMAS = 12
+
+
+def _nothing_visible_refusal(entry: str, covered: Sequence[str]) -> str:
+    """The message for a `data_catalogs` entry that exposes no table anywhere.
+
+    Names the ENTRY and what the identity could actually see, because the two
+    situations this covers need telling apart: a catalog whose schemas are all
+    empty or unreadable, and an entry naming something that is not there.
+    """
+
+    if not covered:
+        seen = (
+            "It exposed no schemas at all, so either the catalog does not exist under "
+            "that name or the identity cannot see into it."
+        )
+    else:
+        named = ", ".join(covered[:MAX_NAMED_EMPTY_SCHEMAS])
+        rest = len(covered) - MAX_NAMED_EMPTY_SCHEMAS
+        seen = (
+            f"All {len(covered)} schema(s) it covers listed zero tables: {named}"
+            + (f", and {rest} more" if rest > 0 else "")
+            + "."
+        )
+    return (
+        f"data_catalogs entry {entry!r} exposed no tables to the identity logging this "
+        f"model. {seen} Either the entry names the wrong scope or that identity lacks "
+        "USE SCHEMA on it; both produce an endpoint that can read nothing from it.\n\n"
+        "This is the WHOLE entry, not one schema. A single empty schema inside a "
+        "catalog that exposes others is ordinary and is skipped with a note, so there "
+        "is no need to hand-list the non-empty schemas to get past this."
+    )
+
+
 def _manifest_from_schema(
     settings: Settings, workspace: Any
 ) -> tuple[tuple[str, ...], list[str]]:
@@ -654,10 +714,17 @@ def _manifest_from_schema(
 
     The contract is unioned in only where the listing returned the table. An
     absent one is reported instead (see `_absent_contract_advice`).
+
+    AN EMPTY SCHEMA IS SKIPPED, NOT FATAL. This refused any scope that listed no
+    tables, which made a bare catalog entry unusable: `cdp_share_prod` holds four
+    schemas of production data and an empty `default`, and the empty one stopped
+    the release while claiming the scope was wrong. It was not. The refusal now
+    fires per `data_catalogs` ENTRY, where zero visible tables really does mean
+    the entry names the wrong thing or the identity lacks USE SCHEMA.
     """
 
-    scopes = expanded_discovery_scopes(settings, workspace)
-    if not scopes:
+    groups = discovery_scope_groups(settings, workspace)
+    if not groups:
         raise ScopeError(
             "data_catalogs resolved to no scopes, so no table would be declared "
             "and the endpoint could read nothing."
@@ -668,34 +735,55 @@ def _manifest_from_schema(
     excluded: list[tuple[str, str]] = []
     unscreened: list[str] = []
     listed_tables: dict[str, Any] = {}
-    for scope in scopes:
-        try:
-            found = scope_tables(workspace, scope)
-        except Exception as error:  # noqa: BLE001
-            raise ScopeError(
-                f"Listing tables in {scope} failed ({_clean(error)}). Declaring the "
-                "manifest from a partial listing would log a model that silently "
-                "cannot read half of what it advertises, so this stops here."
-            ) from error
-        if not found:
-            raise ScopeError(
-                f"{scope} exposed no tables to the identity logging this model. Either "
-                "the scope is wrong or that identity lacks USE SCHEMA on it; both "
-                "produce an endpoint that can read nothing from it."
+    # Two entries can cover one schema (a catalog and a catalog.schema inside it).
+    # Listing it once keeps the notes from double-counting, and keeps a schema
+    # that is empty for one entry from reading as empty for the other.
+    listings: dict[str, list[Any]] = {}
+    for entry, covered in groups:
+        visible = 0
+        empty: list[str] = []
+        for scope in covered:
+            if scope in listings:
+                found = listings[scope]
+            else:
+                try:
+                    found = scope_tables(workspace, scope)
+                except Exception as error:  # noqa: BLE001
+                    raise ScopeError(
+                        f"Listing tables in {scope} failed ({_clean(error)}). Declaring "
+                        "the manifest from a partial listing would log a model that "
+                        "silently cannot read half of what it advertises, so this stops "
+                        "here."
+                    ) from error
+                listings[scope] = found
+                if found:
+                    notes.append(f"{scope}: {len(found)} table(s)")
+            if not found:
+                empty.append(scope)
+                continue
+            visible += len(found)
+            for table in found:
+                full_name = f"{scope}.{table.name}"
+                if full_name in listed_tables:
+                    continue
+                listed_tables[full_name] = table
+                reason = exclusion_reason(settings, full_name, table)
+                if reason:
+                    excluded.append((full_name, reason))
+                    continue
+                if is_inference_payload_table(table) is None:
+                    unscreened.append(full_name)
+                manifest.append(full_name)
+        if not visible:
+            raise ScopeError(_nothing_visible_refusal(entry, covered))
+        if empty:
+            # A NOTE, NOT A REFUSAL: reported so an operator can see a schema they
+            # expected tables in came back empty, without it stopping a release
+            # over the ordinary case of a schema nothing has been written to.
+            notes.append(
+                f"{entry}: {len(empty)} schema(s) exposed no tables and were skipped: "
+                + ", ".join(empty)
             )
-        notes.append(f"{scope}: {len(found)} table(s)")
-        for table in found:
-            full_name = f"{scope}.{table.name}"
-            if full_name in listed_tables:
-                continue
-            listed_tables[full_name] = table
-            reason = exclusion_reason(settings, full_name, table)
-            if reason:
-                excluded.append((full_name, reason))
-                continue
-            if is_inference_payload_table(table) is None:
-                unscreened.append(full_name)
-            manifest.append(full_name)
 
     # Before the union, so that a contract table an exclusion would remove is a
     # refusal rather than a silent re-add. Either half of the misconfiguration is

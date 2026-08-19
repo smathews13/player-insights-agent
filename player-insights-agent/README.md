@@ -142,10 +142,11 @@ installed Chrome or Edge instead with `PLAYWRIGHT_CHANNEL=chrome`.
 ## Deployment
 
 The CLI path below builds and directly releases the app from a maintainer's
-working copy. Customer deployments use it for the initial four-step bootstrap
-described in the root README. After that bootstrap has created the app and its
-bindings, normal app-code updates use the existing app's **Deploy → From Git**
-flow, pointed at the committed `player-insights-agent/build/deploy` directory.
+working copy. Customer deployments use the root `bundle/deploy.sh` command for
+the initial bootstrap described in the root README. After that command has
+created the app and its bindings, normal app-code updates use the existing
+app's **Deploy → From Git** flow, pointed at the committed
+`player-insights-agent/build/deploy` directory.
 That Git flow does not rebuild, reconcile resources, or change roles; Lakebase
 is the runtime source of truth for every role. Maintainers refresh and commit
 the deploy snapshot with `npm run build:deploy`; customers select the newer

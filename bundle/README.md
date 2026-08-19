@@ -47,8 +47,9 @@ quoted wherever you pass it.
 
 ## Deployment order on a fresh workspace
 
-Nothing enforces this order, so following it is on you. The order below is the
-one that works without an existing app and without temporary endpoint swaps.
+`bundle/deploy.sh` enforces the one supported order. Run it for internal and
+customer targets rather than creating an App by hand or maintaining a
+target-specific `--select` list.
 
 0. Provision Lakebase (project / branch / database) and curate the two Genie
    spaces **outside** this bundle. Name them in
@@ -60,20 +61,27 @@ one that works without an existing app and without temporary endpoint swaps.
    new service principal and cannot own the prior App's schema. The app release
    ownership gate refuses that old schema; keep it for deliberate migration
    rather than deleting it to unblock the release.
-1. `bundle deploy -t <target>` with `--select` for every resource **except** the
-   app (schemas, volume, experiment, optional semantic job). The bundle
-   attaches to existing Lakebase and Genie; it does not create them.
-2. `bundle/agent-release.sh --apply`, which logs the model and creates the
-   serving endpoint. This does **not** need the app to exist: governed reads
-   run as the signed-in user, and there is no Unity Catalog gate on the app
-   service principal before the re-log.
-3. `bundle deploy -t <target>` again with no `--select`, which creates the app
-   attached to the endpoint from step 2. `Apps.Create` refuses an attachment
-   naming a serving endpoint that does not exist yet.
-4. Run `bundle/app-release.sh --apply`. Before it pushes code, it resolves the
-   app role and the attached Lakebase connection from the live bundle resources,
-   applies the Postgres grants, and remediates AppKit cache ownership. The code
-   deploy does not begin if that step fails.
+1. Run the deployment:
+
+   ```bash
+   TARGET=<target> PROFILE='<profile>' bundle/deploy.sh --apply
+   ```
+
+   The command creates and binds a no-compute App shell when needed, deploys
+   bundle prerequisites, releases the model endpoint, reconciles the complete
+   bundle including the App and its attachments, applies Postgres grants, and
+   deploys app source.
+
+If `bundle deploy` says its deployment lock is held after an earlier deploy
+crashed or was interrupted, first confirm no deploy is still running, then retry
+that same deploy with the CLI's stale-lock override:
+
+```bash
+databricks bundle deploy -t <target> --profile <profile> --force-lock
+```
+
+Do not make `--force-lock` the normal deploy command: it disables the protection
+against two deploys changing the same bundle state concurrently.
 
 Do **not** create an app shell against a temporary old endpoint, rewrite
 `variable-overrides.json` mid-deploy, or use `--allow-missing-endpoint`. Those
@@ -172,6 +180,7 @@ input fails validation when skipped; Genie sharing still requires review.
 
 | Script | What it does |
 | --- | --- |
+| `deploy.sh` | The only greenfield operator path. Works around the CLI 1.11/1.12 greenfield App planner crash by creating and binding a no-compute shell, then executes the prerequisite bundle, agent release, complete bundle, and app release in dependency order. |
 | `agent-release.sh` | Log the model, deploy it to the serving endpoint, wait for the traffic switch, read back the served versions, then prune the entities the release superseded. `--no-prune` leaves them and reports what it would have removed. |
 | `prune-served-entities.py` | Remove idle served entities from the endpoint, keeping whatever holds traffic plus `var.serving_rollbacks_kept` rollbacks — which defaults to **none**, because the version a kept rollback reaches is the one released *before* the current fix. Run by `agent-release.sh`; also runnable alone. Reports by default, acts on `--apply`, exits 3 when there is something to prune and it was not asked to. Endpoint only: it has no code path that reaches the registry, so every version stays registered and can be served again with `deploy_agent.py --model-version N` — that is the rollback path, and it needs no idle entity held open for it. |
 | `app-release.sh` | Resolve the MLflow experiment id, build the dependency-free tree, gate on `app-db-grant.sh`, upload, and deploy. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` applies the same grant gate and re-points the app at a known-good source directory without rebuilding. |
@@ -184,10 +193,11 @@ Identity split (do not re-introduce an app-SP Unity Catalog data gate on release
 - **Signed-in user** — governed UC / Genie / SQL reads (`execution_identity: user-authorization`).
 - **App service principal** — app-owned Lakebase operational storage and non-data control-plane work only. Lakebase grants are checked after app creation (`scripts/grant-app-db-access.mjs`, `/api/storage`, app-release ownership), not by asking UC what the SP can `SELECT` on customer catalogs.
 
-## Before `bundle deploy`
+## Before a later direct `bundle deploy`
 
-Nothing in this repository runs `bundle deploy`; it is always a person at a
-terminal, and it is the one command here that can remove a resource. Two of them
+The greenfield wrapper runs `bundle deploy` in dependency order. For later
+resource-only reconciliation, `bundle deploy` is the one command here that can
+remove a resource. Two of them
 hold things that do not come back — `schemas.player_insights_schema` has the
 registered model and app-owned semantic assets, and
 `schemas.player_insights_telemetry_schema` has app history that does not backfill.

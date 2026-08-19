@@ -31,6 +31,7 @@ from preflight import (
     declared_tables,
     discovery_scopes,
     exclusion_reason,
+    expanded_discovery_scopes,
     newly_granted_tables,
     resolve_declared_manifest,
     scope_tables,
@@ -164,9 +165,12 @@ def main() -> int:
         excluded = []
     else:
         print("\nEXCLUDED. In an allowlisted scope, deliberately not declared:\n")
+        # EXPANDED, because `scope_tables` takes a catalog.schema and a bare
+        # catalog entry is one part. Iterating `scopes` here crashed the dry run
+        # on exactly the configuration it exists to explain.
         excluded = [
             (f"{scope}.{table.name}", reason)
-            for scope in scopes
+            for scope in expanded_discovery_scopes(settings, workspace)
             for table in scope_tables(workspace, scope)
             if (reason := exclusion_reason(settings, f"{scope}.{table.name}", table))
         ]

@@ -806,6 +806,193 @@ def test_a_scope_that_lists_nothing_stops_the_log():
     assert "USE SCHEMA" in str(raised.value)
 
 
+# ---------------------------------------------------------------------------
+# An empty schema is not a bad scope
+#
+# The gate refused ANY scope that listed no tables, and a bare catalog entry
+# expands to every schema in the catalog, so one empty schema anywhere in it
+# stopped the release. `cdp_share_prod` holds four schemas of production data
+# and an empty `default`, and the release died on `default` while telling the
+# operator the scope was wrong. The only way past was to hand-list the non-empty
+# schemas, which is a list that goes stale the moment a schema is added.
+# ---------------------------------------------------------------------------
+
+
+#: A whole catalog as one is actually shaped: several schemas with data in them
+#: and one the platform created that nothing has written to.
+MIXED_CATALOG = {
+    "share_catalog.default": [],
+    "share_catalog.brand_a_production": ["fact_session", "dim_title"],
+    "share_catalog.brand_b_production": ["fact_purchase"],
+}
+
+
+def test_one_empty_schema_does_not_refuse_a_catalog_full_of_tables():
+    workspace = FakeCatalog(MIXED_CATALOG)
+
+    manifest, notes = resolve_declared_manifest(
+        settings(catalog_allowlist=("share_catalog",)), workspace
+    )
+
+    assert manifest == (
+        "share_catalog.brand_a_production.dim_title",
+        "share_catalog.brand_a_production.fact_session",
+        "share_catalog.brand_b_production.fact_purchase",
+    )
+    # Skipped, and said so. Silence would hide a schema an operator expected
+    # tables in, which is the half of the old refusal worth keeping.
+    skipped = [note for note in notes if "exposed no tables and were skipped" in note]
+    assert skipped, "an empty schema is ordinary, but it is not nothing"
+    assert "share_catalog.default" in skipped[0]
+
+
+def test_the_empty_schema_needs_no_hand_listing_to_get_past():
+    """The bare catalog entry and the hand-listed one declare the same tables.
+
+    Hand-listing the non-empty schemas was the workaround, and it is worse than
+    the bug: the list is a snapshot of one day's catalog, and a schema added
+    afterwards is silently outside the agent's reach.
+    """
+
+    bare, _ = resolve_declared_manifest(
+        settings(catalog_allowlist=("share_catalog",)), FakeCatalog(MIXED_CATALOG)
+    )
+    hand_listed, _ = resolve_declared_manifest(
+        settings(
+            catalog_allowlist=(
+                "share_catalog.brand_a_production",
+                "share_catalog.brand_b_production",
+            )
+        ),
+        FakeCatalog(MIXED_CATALOG),
+    )
+
+    assert bare == hand_listed
+
+
+def test_an_app_catalogs_unwritten_schemas_do_not_stop_a_release():
+    """The same defect from the other side, and the one that would recur.
+
+    A deployment declares a telemetry schema and an assets schema before
+    anything writes to either, so its own app catalog holds two empty schemas on
+    the first release by construction.
+    """
+
+    workspace = FakeCatalog(
+        {
+            "app_catalog.player_insights": ["gold_player_180d_summary"],
+            "app_catalog.player_insights_telemetry": [],
+            "app_catalog.astrolabe_app_assets": [],
+        }
+    )
+
+    manifest, _ = resolve_declared_manifest(
+        settings(catalog_allowlist=("app_catalog",)), workspace
+    )
+
+    assert manifest == ("app_catalog.player_insights.gold_player_180d_summary",)
+
+
+def test_a_catalog_whose_every_schema_is_empty_is_still_a_refusal():
+    """The failure the message describes, and the only one it can distinguish.
+
+    Nothing visible anywhere in the entry genuinely means the entry names the
+    wrong scope or the identity lacks USE SCHEMA on it.
+    """
+
+    workspace = FakeCatalog({"share_catalog.default": [], "share_catalog.staging": []})
+
+    with pytest.raises(ScopeError) as raised:
+        resolve_declared_manifest(settings(catalog_allowlist=("share_catalog",)), workspace)
+
+    message = str(raised.value)
+    assert "'share_catalog'" in message, "the refusal names the entry, not one schema"
+    assert "share_catalog.default" in message, "and what the identity could see"
+    assert "USE SCHEMA" in message
+
+
+def test_a_catalog_that_exposes_no_schemas_at_all_names_that_as_the_finding():
+    with pytest.raises(ScopeError) as raised:
+        resolve_declared_manifest(
+            settings(catalog_allowlist=("share_catalog",)), FakeCatalog({})
+        )
+
+    assert "no schemas at all" in str(raised.value)
+
+
+def test_an_entry_with_tables_is_unaffected_by_another_entry_being_empty():
+    """Per-entry, not per-release: an empty entry is still that entry's refusal."""
+
+    workspace = FakeCatalog(
+        {"share_catalog.brand_a_production": ["fact_session"], "other_catalog.default": []}
+    )
+
+    with pytest.raises(ScopeError) as raised:
+        resolve_declared_manifest(
+            settings(catalog_allowlist=("share_catalog", "other_catalog")), workspace
+        )
+
+    assert "'other_catalog'" in str(raised.value)
+
+
+def test_explicit_production_schemas_build_the_whole_69_table_manifest():
+    """The production trim is schema-level and does not truncate table listings.
+
+    `2k_production` cannot be represented whole under the 90-table ceiling: its
+    121 tables exceed the budget before any other schema is added. The other
+    three production schemas fit together at 69, and every table in each must
+    survive the explicit-schema path.
+    """
+
+    scopes = {
+        "cdp_share_prod.northwind_production": [f"northwind_{index}" for index in range(41)],
+        "cdp_share_prod.global_production": [f"global_{index}" for index in range(25)],
+        "cdp_share_prod.acme_production": [f"acme_{index}" for index in range(3)],
+    }
+
+    manifest, _ = resolve_declared_manifest(
+        settings(catalog_allowlist=tuple(scopes)),
+        FakeCatalog(scopes),
+    )
+
+    assert len(manifest) == 69
+    assert {
+        name.rsplit(".", 1)[0]
+        for name in manifest
+    } == set(scopes)
+
+
+def test_an_empty_explicit_schema_is_an_empty_entry_and_still_refuses():
+    """Skipping applies inside a catalog, not to an explicitly empty entry.
+
+    When `catalog.schema` is listed directly, that schema is the whole
+    `data_catalogs` entry. Zero visible tables there is still the real scope
+    failure, even when another explicit entry exposes tables.
+    """
+
+    workspace = FakeCatalog(
+        {
+            "cdp_share_prod.northwind_production": ["fact_session"],
+            "cdp_share_prod.empty_production": [],
+        }
+    )
+
+    with pytest.raises(ScopeError) as raised:
+        resolve_declared_manifest(
+            settings(
+                catalog_allowlist=(
+                    "cdp_share_prod.northwind_production",
+                    "cdp_share_prod.empty_production",
+                )
+            ),
+            workspace,
+        )
+
+    message = str(raised.value)
+    assert "'cdp_share_prod.empty_production'" in message
+    assert "whole entry" in message.lower()
+
+
 def test_a_failed_listing_stops_the_log_rather_than_shrinking_the_manifest():
     workspace = FakeCatalog({}, error=RuntimeError("PERMISSION_DENIED: cannot list schema"))
 
@@ -1549,6 +1736,23 @@ def test_the_empty_denylist_on_the_demo_target_reads_as_a_decision():
         "the empty value reads as a decision, not an omission"
     )
     assert "payload" in demo, "the one real exclusion, and how it is recognised, is named"
+
+
+def test_the_production_target_declares_its_69_table_schema_scope():
+    """The deployed scope is the reviewed whole-schema trim, not a bare catalog."""
+
+    bundle = yaml.safe_load((Path(__file__).resolve().parents[2] / "databricks.yml").read_text())
+    targets = bundle.get("targets") or {}
+    if "customer" not in targets:
+        pytest.skip("the production target is not declared in this databricks.yml")
+
+    variables = targets["customer"]["variables"]
+    assert variables["manifest_source"] == "", "the schemas must generate the manifest"
+    assert variables["data_catalogs"] == [
+        "cdp_share_prod.northwind_production",
+        "cdp_share_prod.global_production",
+        "cdp_share_prod.acme_production",
+    ]
 
 
 def test_no_target_can_declare_that_its_figures_are_not_real():
