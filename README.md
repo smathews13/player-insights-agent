@@ -69,6 +69,13 @@ Set the required values in
 
 `lakebase_branch_id` and `lakebase_database_id` default to `production` and
 `databricks-postgres`; set them if your instance uses other names.
+`lakebase_app_schema` defaults to `player_insights`. If you deleted and recreate
+the Databricks App while keeping its Lakebase database, the new app gets a new
+service principal and cannot own the old app schema. Preserve the old data and
+set `lakebase_app_schema` to a new, unused schema name before deploying; the new
+app creates and owns it on first start. Reusing the old schema makes
+`bundle/app-release.sh` stop at its ownership gate. Move data deliberately after
+the greenfield deploy rather than dropping the old schema to get past the gate.
 `app_name` defaults to `player-insights-agent`, and `experiment_path` defaults
 to `/Shared/player-insights-agent`; override either when needed.
 The `super:` prefix gives the initial administrator permission to persist a
@@ -112,13 +119,13 @@ warehouse, Lakebase database, and Genie spaces; it does not create those three
 resources. Do not start the Git flow before step 3 has created the app and step 4
 has applied its database grants and initial code release.
 
-**After the compatibility check below, app-code updates are manual Deploy from
-Git onto that existing app.** UI, server, and other TypeScript in
+**After that bootstrap, app-code updates are manual Deploy from Git onto the
+existing app.** UI, server, and other TypeScript in
 `player-insights-agent/build/deploy` are pulled from this public repository onto
 the live app. Deploy from Git does **not** replace or redo the bundle. It does
-**not** re-attach resources, recreate Lakebase, re-log the model, or change
-OAuth scopes by itself. Most of the time you are deploying onto an already-live
-app, not starting greenfield.
+**not** re-attach resources, recreate Lakebase, re-log the model, change OAuth
+scopes, or change anybody's role. Most of the time you are deploying onto an
+already-live app, not starting greenfield.
 
 **Code-only boundary for every Git update:** do not run `databricks bundle
 deploy`, `bundle/agent-release.sh`, or `bundle/app-release.sh`. None is part of
@@ -137,36 +144,18 @@ the platform logs "No dependencies file found. Skipping installation" and the
 deploy takes ~15s. Maintainers rebuild and commit that tree when source changes;
 deployers do not.
 
-**A successful bundle bootstrap is necessary but not sufficient for the first
-Git update.** The initial CLI app release writes deployment-specific values into
-the uploaded `app.yaml`; the public Git snapshot has customer-safe defaults
-instead. Deploy from Git reads that committed file and therefore resets those
-values:
-
-- `PLAYER_INSIGHTS_ADMIN_EMAILS` becomes empty. Before the first Git update, a
-  seed **super administrator** must add and verify at least one other **super
-  administrator** in Settings → People and roles, where that role is stored in
-  Lakebase. Otherwise the Git update removes the only seed super-admin role and
-  leaves nobody able to manage roles.
-- A non-default `lakebase_app_schema` or `experiment_path` is not compatible
-  with deploying public `main`: the committed snapshot uses
-  `player_insights` and `/Shared/player-insights-agent`.
-- Target name, shared-conversation mode, telemetry destination, judge endpoint,
-  notebook declaration, and the app's copy of its declared OAuth scopes also
-  return to the customer-safe values shown in the committed
-  `build/deploy/app.yaml`.
-
-If any reset is unacceptable, stop: do not substitute a bundle deploy, agent
-release, or app-release wrapper for this code-only procedure. Prepare a
-Git-compatible branch whose committed deploy `app.yaml` contains the intended
-non-secret values, then review it again. Never commit personal administrator
-addresses to a public branch.
+**Roles survive every code deploy.** Lakebase is the runtime source of truth for
+super-admin, admin, and consumer roles. Deployment config can bootstrap the
+first role rows only when the roster is genuinely empty. Once any row exists,
+the app ignores `PLAYER_INSIGHTS_ADMIN_EMAILS`: a stale, different, or empty
+committed `app.yaml` cannot add, remove, promote, or demote anybody. Only an
+explicit action in Settings → People and roles (or its API) changes a role.
 
 ### Updating an already-deployed app from `main` (the usual path)
 
-Once the app exists, its resources are attached, and the first-Git-update checks
-above pass, later **app-code** updates come from this public repository — you do
-not rebuild anything and you do not touch the rest of the stack.
+Once the app exists and its resources are attached, later **app-code** updates
+come from this public repository — you do not rebuild anything and you do not
+touch the rest of the stack.
 
 1. Open the **existing** app's detail page (not Create app).
 2. Choose **Deploy → From Git**.
@@ -312,8 +301,7 @@ prints the command that grants them.
 Administrators see Monitoring, Ops and the settings gear. Every admin route
 still refuses consumers with a 403.
 
-The first administrators are named at release time and cannot be appointed from
-inside the app. Put the list in the git-ignored
+The first administrators are named at release time. Put the list in the git-ignored
 `.databricks/bundle/<target>/variable-overrides.json`, beside `app_catalog` and
 `warehouse_id`:
 
@@ -323,8 +311,9 @@ inside the app. Put the list in the git-ignored
 
 `bundle/app-release.sh` reads it and passes it to the build, which writes it into
 the app's `app.yaml`. `PLAYER_INSIGHTS_ADMIN_EMAILS` in the environment you
-release from wins over the file. Administrators added later from the settings
-gear are stored in Lakebase and are additional to these.
+release from wins over the file. On a genuinely empty roster, app boot inserts
+those first roles into Lakebase once. After that insert, Lakebase is the only
+runtime authority.
 
 **`admin_emails` is required.** Bundle validation fails when it is unset, and
 the release script also refuses an explicitly empty value. Without those
@@ -333,12 +322,11 @@ that appoints someone. There is no way in from the running app; the only fix
 would be another release with a value set. The bundle and release script refuse
 that self-locking configuration before deployment.
 
-The public Git snapshot deliberately contains no employee addresses. Before the
-first Deploy-from-Git update, the seed super administrator must use Settings to
-add and verify another super administrator in People and roles; that role is
-stored in Lakebase and survives when the Git snapshot clears the seed list. Do
-not run a bundle deploy, agent release, or app-release wrapper as part of that
-Git update, and do not send employee addresses back upstream.
+The public Git snapshot deliberately contains no employee addresses. That is
+harmless after bootstrap: absence from `app.yaml` is not a role change, and app
+boot ignores deployment role config whenever Lakebase already has any roster
+row. Do not run a bundle deploy, agent release, or app-release wrapper as part of
+a Git update, and do not send employee addresses back upstream.
 
 ## The semantic layer (optional, off by default)
 

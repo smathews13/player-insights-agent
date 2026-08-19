@@ -55,6 +55,11 @@ one that works without an existing app and without temporary endpoint swaps.
    `.databricks/bundle/<target>/variable-overrides.json`
    (`lakebase_project_id`, `genie_data_space_id`, `genie_dictionary_space_id`,
    plus `warehouse_id`, `admin_emails`, and the other required inputs).
+   If this deploy recreates a deleted App against a retained Lakebase database,
+   also set `lakebase_app_schema` to a new, unused schema. A recreated App has a
+   new service principal and cannot own the prior App's schema. The app release
+   ownership gate refuses that old schema; keep it for deliberate migration
+   rather than deleting it to unblock the release.
 1. `bundle deploy -t <target>` with `--select` for every resource **except** the
    app (schemas, volume, experiment, optional semantic job). The bundle
    attaches to existing Lakebase and Genie; it does not create them.
@@ -82,7 +87,7 @@ input fails validation when skipped; Genie sharing still requires review.
 
   ```bash
   # .databricks/bundle/<target>/variable-overrides.json, which is git-ignored
-  { "admin_emails": "someone@example.com,someone.else@example.com" }
+  { "admin_emails": "super:someone@example.com" }
   ```
 
   `admin_emails` is a required bundle variable, and the app release also rejects
@@ -98,6 +103,12 @@ input fails validation when skipped; Genie sharing still requires review.
   validation requires a private override. `PLAYER_INSIGHTS_ADMIN_EMAILS` in the
   environment wins over the file for a one-off that should not change what the
   target records.
+
+  App boot writes this config into Lakebase only when the role roster is
+  genuinely empty. Once any role row exists, Lakebase is the only runtime source
+  of truth and deployment config is ignored. A later app-code deploy with stale,
+  different, or empty admin config cannot change any super-admin, admin, or
+  consumer role.
 
   **`build/deploy/app.yaml` is where the addresses actually land, and it is
   tracked.** The release uploads the local build tree directly, so the container
