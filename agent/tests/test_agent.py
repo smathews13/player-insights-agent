@@ -1540,6 +1540,22 @@ def test_the_tool_call_budget_bounds_one_turn_that_asks_for_everything_at_once()
     )
 
 
+def test_request_loop_settings_bound_the_next_finder_run():
+    tools = FakeTools()
+    llm = LoopingLlm()
+
+    response = ask(
+        build(llm, tools),
+        runtime_settings={
+            "loop": {"maxSteps": 1, "maxToolCalls": 1, "maxRunSeconds": 30}
+        },
+    )
+
+    assert len(llm.loop_calls) == 1
+    assert len(tools.named("data_genie")) == 1
+    assert "stopped early" in response.custom_outputs["answer"]["caveats"][0]
+
+
 def test_the_wall_clock_budget_stops_a_turn_of_slow_calls():
     """Eighteen seconds per Genie call means the step cap alone permits minutes.
 
@@ -1549,19 +1565,110 @@ def test_the_wall_clock_budget_stops_a_turn_of_slow_calls():
 
     tools = FakeTools()
     runtime = build(LoopingLlm(), tools)
-    # The run believes it started ninety seconds ago, so no new call may start.
+    # The run believes it started past this request's 30-second budget, so no new
+    # call may start.
     original = runtime._orchestrate
 
     def orchestrate(question, history, attachment, log, **kwargs):
-        log.started -= 120.0
+        log.started -= 31.0
         return original(question, history, attachment, log, **kwargs)
 
     runtime.data_source_finder._run = orchestrate
-    response = ask(runtime)
+    response = ask(
+        runtime,
+        runtime_settings={
+            "loop": {"maxSteps": 8, "maxToolCalls": 12, "maxRunSeconds": 30}
+        },
+    )
 
     assert tools.named("data_genie") == []
     assert response.custom_outputs["type"] == "answer"
     assert "budget" in response.custom_outputs["answer"]["caveats"][0]
+
+
+def test_request_answer_settings_change_the_next_answer():
+    synthesis = json.dumps(
+        {
+            "takeaway": "A takeaway that should be hidden.",
+            "narrative": "1234567890abcdefghij",
+            "figures": [
+                {"label": "one", "value": 1, "display": "1"},
+                {"label": "two", "value": 2, "display": "2"},
+                {"label": "three", "value": 3, "display": "3"},
+            ],
+            "caveats": ["analyst-one", "analyst-two"],
+        }
+    )
+    llm = ScriptedLlm(
+        [Call("data_genie", {"question": "figures"})],
+        "Done.",
+        synthesis=synthesis,
+    )
+
+    answer = ask(
+        build(llm),
+        runtime_settings={
+            "answer": {
+                "takeaway": False,
+                "narrative": True,
+                "charts": False,
+                "figures": True,
+                "caveats": True,
+                "maxCharts": 0,
+                "maxFigures": 2,
+                "maxCaveats": 1,
+                "narrativeMaxCharacters": 10,
+                "sources": "standard",
+            }
+        },
+    ).custom_outputs["answer"]
+
+    assert answer["takeaway"] == ""
+    assert answer["narrative"] == "1234567890"
+    assert [figure["label"] for figure in answer["figures"]] == ["one", "two"]
+    assert answer["charts"] == []
+    assert "analyst-one" in answer["caveats"]
+    assert "analyst-two" not in answer["caveats"]
+
+
+def test_disabled_narrative_figures_and_analyst_caveats_stay_out():
+    synthesis = json.dumps(
+        {
+            "takeaway": "Grounded takeaway.",
+            "narrative": "Hidden narrative.",
+            "figures": [{"label": "hidden", "value": 1, "display": "1"}],
+            "caveats": ["hidden analyst caveat"],
+        }
+    )
+    llm = ScriptedLlm(
+        [Call("data_genie", {"question": "figures"})],
+        "Done.",
+        synthesis=synthesis,
+        charts=False,
+    )
+
+    answer = ask(
+        build(llm),
+        runtime_settings={
+            "answer": {
+                "takeaway": True,
+                "narrative": False,
+                "charts": False,
+                "figures": False,
+                "caveats": False,
+                "maxCharts": 2,
+                "maxFigures": 6,
+                "maxCaveats": 0,
+                "narrativeMaxCharacters": 0,
+                "sources": "standard",
+            }
+        },
+    ).custom_outputs["answer"]
+
+    assert answer["takeaway"] == "Grounded takeaway."
+    assert answer["narrative"] == ""
+    assert answer["figures"] == []
+    assert "hidden analyst caveat" not in answer["caveats"]
 
 
 def test_a_reasoning_endpoint_failure_degrades_instead_of_raising():
@@ -2600,6 +2707,69 @@ def test_more_charts_than_the_ceiling_are_dropped_and_the_trace_says_so():
     assert len(response.custom_outputs["answer"]["charts"]) == MAX_CHARTS
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert f"only the first {MAX_CHARTS}" in plot_stage["output"]
+
+
+def test_request_chart_cap_is_enforced_on_the_next_answer():
+    class Overplotter(ScriptedLlm):
+        def _create(self, **kwargs):
+            offered = [tool["function"]["name"] for tool in kwargs.get("tools") or []]
+            if offered == ["new_plot"]:
+                self.calls.append(kwargs)
+                return self._message(
+                    tool_calls=[
+                        Call("new_plot", CHART_ARGUMENTS, "plot-1"),
+                        Call("new_plot", CHART_ARGUMENTS, "plot-2"),
+                    ]
+                )
+            return super()._create(**kwargs)
+
+    llm = Overplotter([Call("data_genie", {"question": "figures"})], "Done.")
+    answer = ask(
+        build(llm),
+        runtime_settings={"answer": {"maxCharts": 1}},
+    ).custom_outputs["answer"]
+
+    assert len(answer["charts"]) == 1
+
+
+def test_request_chart_type_reaches_the_plotter_and_is_enforced():
+    line_arguments = json.dumps(
+        {
+            "data": [
+                {
+                    "type": "scatter",
+                    "mode": "lines",
+                    "x": ["2026-08-18", "2026-08-19"],
+                    "y": [10, 12],
+                }
+            ],
+            "title": "Players over time",
+        }
+    )
+
+    class LinePlotter(ScriptedLlm):
+        def _create(self, **kwargs):
+            offered = [tool["function"]["name"] for tool in kwargs.get("tools") or []]
+            if offered == ["new_plot"]:
+                self.calls.append(kwargs)
+                return self._message(tool_calls=[Call("new_plot", line_arguments)])
+            return super()._create(**kwargs)
+
+    llm = LinePlotter([Call("data_genie", {"question": "figures"})], "Done.")
+    response = ask(
+        build(llm),
+        runtime_settings={"answer": {"chartsTypes": "bar"}},
+    )
+
+    assert response.custom_outputs["answer"]["charts"] == []
+    plot_call = next(
+        call
+        for call in llm.calls
+        if [tool["function"]["name"] for tool in call.get("tools") or []] == ["new_plot"]
+    )
+    assert "produce bar charts only" in plot_call["messages"][0]["content"]
+    plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
+    assert "outside the runtime chart type setting" in plot_stage["output"]
 
 
 def test_an_unrenderable_spec_costs_the_chart_and_not_the_answer():

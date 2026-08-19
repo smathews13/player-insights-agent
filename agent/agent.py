@@ -389,6 +389,10 @@ DATA_SOURCE_FINDER_TOOLS = [
     REQUEST_CLARIFICATION_TOOL,
 ]
 
+# The orchestrator plans, delegates, and synthesizes. It has no governed-data
+# tools of its own; those belong exclusively to the in-process finder above.
+ORCHESTRATOR_TOOLS: tuple[dict[str, Any], ...] = ()
+
 # Compatibility address for older tests and extensions. Ownership is expressed
 # by the canonical name above and by the isolated invocation in `_turn`.
 LOOP_TOOLS = DATA_SOURCE_FINDER_TOOLS
@@ -3632,9 +3636,16 @@ Statements run, for column names and grain:
         charts: list[Chart] = []
         rejected: list[str] = []
         max_charts = runtime_settings.current().answer.max_charts
+        chart_types = runtime_settings.current().answer.charts_types
         plot_instructions = PLOT_INSTRUCTIONS.replace(
             f"at most {MAX_CHARTS}", f"at most {max_charts}"
         )
+        if chart_types == "bar":
+            plot_instructions += "\n\nRuntime chart contract: produce bar charts only."
+        elif chart_types == "bar-line":
+            plot_instructions += (
+                "\n\nRuntime chart contract: produce bar charts and line charts only."
+            )
         # Specs that held no series, kept apart from `rejected`: nothing to draw is
         # an outcome of the data, and a malformed spec is an outcome of the call.
         empty: list[str] = []
@@ -3680,14 +3691,24 @@ Statements run, for column names and grain:
                     rejected.append(f"the spec was not valid JSON ({error})")
                     continue
                 try:
-                    charts.append(
-                        new_plot(
-                            arguments.get("data"),
-                            arguments.get("layout"),
-                            title=str(arguments.get("title") or ""),
-                            chart_id=f"chart-{len(charts) + 1}",
-                        )
+                    chart = new_plot(
+                        arguments.get("data"),
+                        arguments.get("layout"),
+                        title=str(arguments.get("title") or ""),
+                        chart_id=f"chart-{len(charts) + 1}",
                     )
+                    if chart_types == "bar" and chart.kind != "bar":
+                        rejected.append(
+                            f"{chart.kind} is outside the runtime chart type setting (bar only)"
+                        )
+                        continue
+                    if chart_types == "bar-line" and chart.kind not in {"bar", "line"}:
+                        rejected.append(
+                            f"{chart.kind} is outside the runtime chart type setting "
+                            "(bar and line only)"
+                        )
+                        continue
+                    charts.append(chart)
                 except EmptyChartError as error:
                     # Caught BEFORE `ChartError`, whose subclass it is. A spec with
                     # nothing on the axes is the model saying there was nothing to
@@ -4380,7 +4401,11 @@ Tables available to this analysis, with their columns:
         # decides the package the step is handed when it does run.
         charts: list[Chart] = []
         plottable_evidence = log.plot_evidence()
-        if plottable_evidence and runtime_settings.current().answer.charts:
+        if (
+            plottable_evidence
+            and runtime_settings.current().answer.charts
+            and runtime_settings.current().answer.max_charts > 0
+        ):
             plot_started = time.perf_counter()
             yield log.starting("plot", "Building the charts", "tool", plot_started)
             charts, plot_note, plot_status = self._plot(question, synthesis.takeaway, log)
@@ -4451,6 +4476,10 @@ Tables available to this analysis, with their columns:
 
         presentation = runtime_settings.current().answer
         caveats = list(synthesis.caveats) if presentation.caveats else []
+        # This setting governs analyst-authored caveats. Governance, access, and
+        # outage warnings are added below and remain mandatory, as the UI says.
+        if presentation.max_caveats:
+            caveats = caveats[: presentation.max_caveats]
         if self.user_authorization:
             # Unconditional, and first, because it changes what every figure
             # below is a figure ABOUT. A row filter returns a successful query
@@ -4573,8 +4602,6 @@ Tables available to this analysis, with their columns:
                 narrative = ""
             elif presentation.narrative_max_characters:
                 narrative = narrative[: presentation.narrative_max_characters]
-        if presentation.max_caveats:
-            caveats = caveats[: presentation.max_caveats]
         source_limit = 3 if presentation.sources == "compact" else None
         answer_sources = log.sources[:source_limit]
         return AnswerContract(

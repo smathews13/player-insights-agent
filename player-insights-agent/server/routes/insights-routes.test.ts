@@ -38,6 +38,7 @@ import { FakeStore } from '../lib/__fixtures__/fake-run-store';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { PROSE_ONLY_ANSWER_CAVEAT } from '../../shared/prose-only-answer';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
+import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
 import { runVerdict, VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
 import { unavailableHttpStatus } from '../../shared/terminal-response';
 import type { FailureEvidence } from '../../shared/failure-evidence';
@@ -533,7 +534,8 @@ interface RunTraceResponse {
  */
 function memoryLakebase(attachments: StoredAttachment[] = [],
   /** Rows of `deployment_settings`, for the values the app resolves per request. */
-  settings: Record<string, unknown>[] = []
+  settings: Record<string, unknown>[] = [],
+  runtimeSettings?: RuntimeSettings
 ) {
   const messages: StoredMessage[] = [];
   const benchmarkRuns: StoredBenchmarkRun[] = [];
@@ -594,6 +596,12 @@ function memoryLakebase(attachments: StoredAttachment[] = [],
 
       if (sql.startsWith('SELECT resource_id')) {
         return Promise.resolve({ rows: settings });
+      }
+
+      if (sql.includes('.runtime_settings') && sql.startsWith('SELECT settings FROM')) {
+        return Promise.resolve({
+          rows: runtimeSettings === undefined ? [] : [{ settings: runtimeSettings }],
+        });
       }
 
       if (sql.startsWith('INSERT INTO player_insights.benchmark_runs')) {
@@ -1225,6 +1233,44 @@ describe('what the route actually puts on the wire', () => {
   afterEach(() => {
     if (savedEndpoint === undefined) delete process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
     else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
+  });
+
+  it('puts the saved runtime settings on the next ask payload', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const captured: CapturedInvocation[] = [];
+    const stored: RuntimeSettings = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      loop: { maxSteps: 3, maxToolCalls: 5, maxRunSeconds: 45 },
+      answer: {
+        ...DEFAULT_RUNTIME_SETTINGS.answer,
+        takeaway: false,
+        maxCharts: 1,
+        maxFigures: 2,
+        maxCaveats: 1,
+      },
+      behavior: {
+        ...DEFAULT_RUNTIME_SETTINGS.behavior,
+        timezone: 'America/Los_Angeles',
+      },
+    };
+    const app = await startInsightsApp(
+      agentContractTransport(captured),
+      memoryLakebase([], [], stored)
+    );
+
+    try {
+      await app.ask({
+        conversationId: 'conv-runtime-settings',
+        prompt: 'How many active players are there?',
+        executePlan: true,
+      });
+    } finally {
+      await app.close();
+    }
+
+    expect(captured[0]?.payload.custom_inputs).toMatchObject({
+      runtime_settings: stored,
+    });
   });
 
   it('sends stored attachment text, which no route test could previously observe', async () => {

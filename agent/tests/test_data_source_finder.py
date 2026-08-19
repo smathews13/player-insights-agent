@@ -6,11 +6,16 @@ from data_source_finder import FINDER_SYSTEM_PROMPT, DiscoveryRequest
 from tests.test_agent import Call, FakeTools, ScriptedLlm, app_request, build
 
 
-def execute(runtime, question: str, history: list[dict] | None = None):
+def execute(
+    runtime,
+    question: str,
+    history: list[dict] | None = None,
+    custom_inputs: dict | None = None,
+):
     return runtime.predict(
         app_request(
             input=[*(history or []), {"role": "user", "content": question}],
-            custom_inputs={"execute_plan": True},
+            custom_inputs={"execute_plan": True, **(custom_inputs or {})},
         )
     )
 
@@ -103,11 +108,42 @@ def test_finder_system_prompt_receives_todays_date():
     assert "last 30 days" in system
 
 
+def test_finder_system_prompt_uses_the_request_timezone():
+    llm = ScriptedLlm("## DATA PACKAGE\n- **Findings / data:** none.", charts=False)
+    execute(
+        build(llm, FakeTools()),
+        "Active players yesterday.",
+        custom_inputs={
+            "runtime_settings": {"behavior": {"timezone": "America/Los_Angeles"}}
+        },
+    )
+
+    system = llm.loop_calls[0]["messages"][0]["content"]
+    assert "America/Los_Angeles" in system
+
+
+def test_a_simple_data_question_still_invokes_the_finder():
+    llm = ScriptedLlm(
+        [Call("data_genie", {"question": "active players"})],
+        "## DATA PACKAGE\n- **Findings / data:** 10 active players.",
+        charts=False,
+    )
+
+    response = execute(build(llm, FakeTools()), "How many active players are there?")
+
+    trace = response.custom_outputs["answer"]["trace"]["stages"]
+    assert trace[0]["id"] == "data_source_finder"
+    assert llm.loop_calls[0]["messages"][0]["content"].startswith(
+        "# Role\nYou are the Data Source Finder"
+    )
+
+
 def test_orchestrator_delegates_discovery_tools_only_through_finder():
-    from agent import DATA_SOURCE_FINDER_TOOLS, LOOP_TOOLS
+    from agent import DATA_SOURCE_FINDER_TOOLS, LOOP_TOOLS, ORCHESTRATOR_TOOLS
 
     names = [tool["function"]["name"] for tool in DATA_SOURCE_FINDER_TOOLS]
     assert names == [tool["function"]["name"] for tool in LOOP_TOOLS]
+    assert ORCHESTRATOR_TOOLS == ()
     assert "data_genie" in names
     assert "dictionary_genie" in names
     assert "run_sql" in names
