@@ -43,6 +43,10 @@ def test_request_settings_control_loop_and_answer_contract():
                     "maxCaveats": 3,
                     "narrativeMaxCharacters": 1000,
                     "sources": "compact",
+                    "takeawayGuidance": "Lead with the decision.",
+                    "narrativeGuidance": "Name the source beside each finding.",
+                    "figuresOrder": "totals-first",
+                    "chartsTypes": "bar",
                 },
                 "behavior": {
                     "clarification": "strict",
@@ -55,8 +59,13 @@ def test_request_settings_control_loop_and_answer_contract():
     assert settings.loop.max_steps == 10
     assert settings.answer.max_figures == 4
     assert settings.answer.charts is False
-    assert "clarification policy=strict" in prompt_fragment()
-    assert "Today's date is " in prompt_fragment()
+    fragment = prompt_fragment()
+    assert "clarification policy=strict" in fragment
+    assert "Today's date is " in fragment
+    assert "takeaway guidance: Lead with the decision." in fragment
+    assert "narrative guidance: Name the source beside each finding." in fragment
+    assert "figure order=totals-first" in fragment
+    assert "chart types=bar; produce bar charts only" in fragment
 
 
 def test_invalid_direct_caller_values_fall_back_safely():
@@ -72,3 +81,6 @@ def test_invalid_direct_caller_values_fall_back_safely():
     assert settings.loop.max_steps == 8
     assert settings.loop.max_tool_calls == 12
     assert settings.behavior.timezone == ""
+    assert settings.answer.takeaway_guidance == ""
+    assert settings.answer.figures_order == "as-ranked"
+    assert settings.answer.charts_types == "auto"

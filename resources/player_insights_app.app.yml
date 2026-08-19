@@ -1,7 +1,15 @@
-# Creates the Databricks App and attaches its existing Lakebase database, model
-# serving endpoint, and SQL warehouse. Create the serving endpoint with
-# bundle/agent-release.sh before deploying this resource. Deploy app code with
-# bundle/app-release.sh after the app exists.
+# Initial bootstrap only: creates the Databricks App and attaches its existing
+# Lakebase database, model serving endpoint, and SQL warehouse. Create the
+# serving endpoint with bundle/agent-release.sh before deploying this resource,
+# then run bundle/app-release.sh once for grants and the initial code release.
+# After that, customer app-code updates can use Deploy from Git on the existing
+# app after the README's Git-compatibility check; public main intentionally
+# omits deployment-specific app.yaml values. Do not rerun the bundle merely to
+# update UI or server code, and do not run agent-release or app-release as part
+# of Deploy from Git. That path updates source only; it must not reconcile these
+# bindings, jobs, models, or the serving endpoint. The source path below is an
+# absolute workspace path for the bootstrap, not the repo-relative Git Source
+# code path (`player-insights-agent/build/deploy`).
 
 variables:
   app_telemetry_schema:

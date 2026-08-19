@@ -190,12 +190,21 @@ variables:
       # - postgres
   app_source_code_path:
     description: >-
-      REQUIRED. Absolute workspace path containing the deployed app source.
-      The directory must not contain package.json because the app would run
-      `npm install` during deployment. Prefer a shared folder. Set this in the
-      git-ignored `.databricks/bundle/<target>/variable-overrides.json` or as
+      REQUIRED FOR THE INITIAL BUNDLE BOOTSTRAP AND CLI APP RELEASE. Absolute
+      workspace path containing the uploaded build/deploy tree. This is not the
+      repo-relative Source code path used by Deploy from Git; that UI value is
+      `player-insights-agent/build/deploy`. The workspace directory must not
+      contain package.json because the app would run `npm install` during
+      deployment. Prefer a shared folder. Set this in the git-ignored
+      `.databricks/bundle/<target>/variable-overrides.json` or as
       BUNDLE_VAR_app_source_code_path. Do not put personal home paths in this
-      tracked file or in a target block.
+      tracked file or in a target block. After the app and bindings exist,
+      app-code-only updates can use Deploy from Git and do not require another
+      bundle deploy, but first follow the README's Git-compatibility check:
+      public main intentionally omits deployment-specific app.yaml values.
+      Deploy from Git is source-only: do not run bundle deploy, agent-release,
+      or app-release as part of that update. It must not reconcile bindings,
+      jobs, models, or the serving endpoint.
 
   # Lakebase
   #

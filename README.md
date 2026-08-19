@@ -63,7 +63,7 @@ Set the required values in
   "lakebase_project_id": "<their_existing_lakebase_project_id>",
   "genie_data_space_id": "<their_data_genie_space_id>",
   "genie_dictionary_space_id": "<their_dictionary_genie_space_id>",
-  "admin_emails": "<their_admin@example.com>"
+  "admin_emails": "super:<their_admin@example.com>"
 }
 ```
 
@@ -71,6 +71,8 @@ Set the required values in
 `databricks-postgres`; set them if your instance uses other names.
 `app_name` defaults to `player-insights-agent`, and `experiment_path` defaults
 to `/Shared/player-insights-agent`; override either when needed.
+The `super:` prefix gives the initial administrator permission to persist a
+second super administrator before the first Deploy-from-Git update.
 
 Validate after saving the file:
 
@@ -103,17 +105,27 @@ endpoint which does not exist yet, and it creates nothing when it refuses:
 
 ## How the app gets onto the workspace, and how it is updated
 
-**Initial deploy is the bundle, once.** The four CLI steps above create the app
-schema, volume, experiment, registered model, serving endpoint, OAuth scopes,
-resource bindings, and app. They attach the existing SQL warehouse, Lakebase
-database, and Genie spaces; they do not create those three resources.
+**Run the four-step CLI bootstrap once before using Deploy from Git.** It creates
+the app schema, volume, experiment, registered model, serving endpoint, OAuth
+scopes, resource bindings, and the app itself. It attaches the existing SQL
+warehouse, Lakebase database, and Genie spaces; it does not create those three
+resources. Do not start the Git flow before step 3 has created the app and step 4
+has applied its database grants and initial code release.
 
-**Going forward, app-code updates are manual Deploy from Git onto that existing
-app.** UI, server, and other TypeScript in `player-insights-agent/build/deploy`
-are pulled from this public repository onto the live app. Deploy from Git does
-**not** replace or redo the bundle. It does **not** re-attach resources,
-recreate Lakebase, re-log the model, or change OAuth scopes by itself. Most of
-the time you are deploying onto an already-live app, not starting greenfield.
+**After the compatibility check below, app-code updates are manual Deploy from
+Git onto that existing app.** UI, server, and other TypeScript in
+`player-insights-agent/build/deploy` are pulled from this public repository onto
+the live app. Deploy from Git does **not** replace or redo the bundle. It does
+**not** re-attach resources, recreate Lakebase, re-log the model, or change
+OAuth scopes by itself. Most of the time you are deploying onto an already-live
+app, not starting greenfield.
+
+**Code-only boundary for every Git update:** do not run `databricks bundle
+deploy`, `bundle/agent-release.sh`, or `bundle/app-release.sh`. None is part of
+Deploy from Git. A Git update starts from the existing app's detail page and
+ends when that app has loaded the selected `build/deploy` snapshot. It does not
+create, update, detach, or reconnect warehouse, Genie, Lakebase, job, model, or
+serving-endpoint resources, and it does not log a model version.
 
 **No build first for the customer.** `player-insights-agent/build/deploy/` is
 committed and is what you point the platform at: a dependency-free tree holding
@@ -125,10 +137,35 @@ the platform logs "No dependencies file found. Skipping installation" and the
 deploy takes ~15s. Maintainers rebuild and commit that tree when source changes;
 deployers do not.
 
+**A successful bundle bootstrap is necessary but not sufficient for the first
+Git update.** The initial CLI app release writes deployment-specific values into
+the uploaded `app.yaml`; the public Git snapshot has customer-safe defaults
+instead. Deploy from Git reads that committed file and therefore resets those
+values:
+
+- `PLAYER_INSIGHTS_ADMIN_EMAILS` becomes empty. Before the first Git update, a
+  seed **super administrator** must add and verify at least one other **super
+  administrator** in Settings → People and roles, where that role is stored in
+  Lakebase. Otherwise the Git update removes the only seed super-admin role and
+  leaves nobody able to manage roles.
+- A non-default `lakebase_app_schema` or `experiment_path` is not compatible
+  with deploying public `main`: the committed snapshot uses
+  `player_insights` and `/Shared/player-insights-agent`.
+- Target name, shared-conversation mode, telemetry destination, judge endpoint,
+  notebook declaration, and the app's copy of its declared OAuth scopes also
+  return to the customer-safe values shown in the committed
+  `build/deploy/app.yaml`.
+
+If any reset is unacceptable, stop: do not substitute a bundle deploy, agent
+release, or app-release wrapper for this code-only procedure. Prepare a
+Git-compatible branch whose committed deploy `app.yaml` contains the intended
+non-secret values, then review it again. Never commit personal administrator
+addresses to a public branch.
+
 ### Updating an already-deployed app from `main` (the usual path)
 
-Once the app exists from the initial bundle deploy and its resources are
-attached, later **app-code** updates come from this public repository — you do
+Once the app exists, its resources are attached, and the first-Git-update checks
+above pass, later **app-code** updates come from this public repository — you do
 not rebuild anything and you do not touch the rest of the stack.
 
 1. Open the **existing** app's detail page (not Create app).
@@ -152,9 +189,10 @@ not rebuild anything and you do not touch the rest of the stack.
    **not** enable `Auto deploy on push events`; updates are a deliberate step,
    not something that follows every push to the public repository.
 
-**What Deploy from Git does.** It replaces the app's source tree
-(`player-insights-agent/build/deploy`) and the runtime `app.yaml` that tree
-ships with, on top of the existing, working app.
+**What Deploy from Git does.** It updates the existing app's deployed code
+snapshot from `player-insights-agent/build/deploy`, including the runtime
+`app.yaml` in that folder. It does not replace the app object or its resource
+bindings.
 
 **What Deploy from Git does not do.** It is not a full substitute for the
 initial bundle. It does not:
@@ -169,15 +207,19 @@ Those stay as the initial bundle (and any later deliberate bundle/app
 configuration change) left them. If you detach a resource or drop a scope, no
 amount of redeploying from `main` restores it.
 
-**When you still need a bundle redeploy.** Resource bindings, OAuth scopes, and
-other app.yaml / bundle-owned settings. A Git deploy alone will not pick those
-up.
+**When you still need a deliberate bundle redeploy.** Only for resource
+bindings, OAuth scopes, and other bundle-owned app configuration. Do not rerun
+the bundle merely to ship UI or server code: that is the Deploy-from-Git path,
+and reconciling the app resource can also remove bindings that exist only as
+manual workspace changes. A Git deploy alone will not pick up bundle-owned
+configuration changes.
 
 **When you still need a model / agent release.** Changes to the **agent** (its
 Python, its tools, or the model itself) are not app-code and are not picked up
 by Deploy from Git. They go through
 `TARGET=<target> bundle/agent-release.sh --apply`, which re-logs the model and
-updates the serving endpoint. That is a different release on a different cadence.
+updates the serving endpoint. That is a separate, explicitly requested model
+release on a different cadence; never run it for a UI/server Git update.
 
 **Changing the OAuth scopes is not a Git deploy.** The scopes a user consents to
 (`user_api_scopes`) are part of the app's bundle/app configuration, not its
@@ -210,14 +252,16 @@ Then do the two steps below — they apply however the app was first created.
 Neither fails loudly. Skipped, the app returns HTTP 200 and answers are wrong in
 a way no error reports.
 
-**The canonical app release grants the app's Postgres role.** The service
-principal does not exist until the bundle creates the app, so
-`bundle/app-release.sh --apply` runs `bundle/app-db-grant.sh` immediately before
-each code deploy. It derives the app role and attached branch/database from the
-live app, the schema from the resolved target, `PGUSER` from the profile
-identity, and `PGHOST` only from the branch's direct connection. It deliberately
-does not try the pooled AppKit hostname, which rejects the operator OAuth login.
-A missing direct host, unreachable Postgres, or failed grant stops the release.
+**The CLI app-release path grants the app's Postgres role.** This is the initial
+bootstrap / direct-CLI path, not Deploy from Git. The service principal does not
+exist until the bundle creates the app, so `bundle/app-release.sh --apply` runs
+`bundle/app-db-grant.sh` before its own code deploy. It derives the app role and
+attached branch/database from the live app, the schema from the resolved target,
+`PGUSER` from the profile identity, and `PGHOST` only from the branch's direct
+connection. It deliberately does not try the pooled AppKit hostname, which
+rejects the operator OAuth login. A missing direct host, unreachable Postgres,
+or failed grant stops that CLI release. Deploy from Git does not rerun this
+grant and must not alter the existing Lakebase connection.
 
 The profile identity must hold `DATABRICKS_SUPERUSER` on the Lakebase branch.
 After a Lakebase detach/reattach when a full release is unnecessary, use the
@@ -274,7 +318,7 @@ inside the app. Put the list in the git-ignored
 `warehouse_id`:
 
 ```json
-{ "admin_emails": "someone@example.com,someone.else@example.com" }
+{ "admin_emails": "super:someone@example.com" }
 ```
 
 `bundle/app-release.sh` reads it and passes it to the build, which writes it into
@@ -289,11 +333,12 @@ that appoints someone. There is no way in from the running app; the only fix
 would be another release with a value set. The bundle and release script refuse
 that self-locking configuration before deployment.
 
-Deploying from Git in the browser bypasses the release, so it produces a
-deployment with no administrators. Supply the list yourself in that flow, either
-by running `bundle/app-release.sh` once against the same workspace, or by setting
-`PLAYER_INSIGHTS_ADMIN_EMAILS` before the build so it lands in the app.yaml the
-build writes — your repo, your employees. Do not send it back upstream.
+The public Git snapshot deliberately contains no employee addresses. Before the
+first Deploy-from-Git update, the seed super administrator must use Settings to
+add and verify another super administrator in People and roles; that role is
+stored in Lakebase and survives when the Git snapshot clears the seed list. Do
+not run a bundle deploy, agent release, or app-release wrapper as part of that
+Git update, and do not send employee addresses back upstream.
 
 ## The semantic layer (optional, off by default)
 

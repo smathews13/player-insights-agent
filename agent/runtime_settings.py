@@ -33,6 +33,10 @@ class AnswerSettings:
     max_caveats: int = 0
     narrative_max_characters: int = 0
     sources: str = "standard"
+    takeaway_guidance: str = ""
+    narrative_guidance: str = ""
+    figures_order: str = "as-ranked"
+    charts_types: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,13 @@ def _integer(value: Any, default: int, low: int, high: int) -> int:
 
 def _boolean(value: Any, default: bool) -> bool:
     return value if isinstance(value, bool) else default
+
+
+def _string(value: Any, default: str, limit: int) -> str:
+    if not isinstance(value, str):
+        return default
+    trimmed = value.strip()
+    return trimmed if len(trimmed) <= limit else default
 
 
 def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
@@ -103,6 +114,18 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
                 answer.get("narrativeMaxCharacters"), 0, 0, 12_000
             ),
             sources=sources if sources in {"compact", "standard", "detailed"} else "standard",
+            takeaway_guidance=_string(answer.get("takeawayGuidance"), "", 2_000),
+            narrative_guidance=_string(answer.get("narrativeGuidance"), "", 2_000),
+            figures_order=(
+                answer.get("figuresOrder")
+                if answer.get("figuresOrder") in {"as-ranked", "totals-first", "averages-first"}
+                else "as-ranked"
+            ),
+            charts_types=(
+                answer.get("chartsTypes")
+                if answer.get("chartsTypes") in {"auto", "bar", "bar-line"}
+                else "auto"
+            ),
         ),
         behavior=BehaviorSettings(
             clarification=(
@@ -167,6 +190,15 @@ def prompt_fragment(*, now: datetime | None = None) -> str:
         f"- clarification policy={settings.behavior.clarification}",
         "Safety and governance refusals remain mandatory regardless of presentation settings.",
     ]
+    if settings.answer.takeaway_guidance:
+        lines.append(f"- takeaway guidance: {settings.answer.takeaway_guidance}")
+    if settings.answer.narrative_guidance:
+        lines.append(f"- narrative guidance: {settings.answer.narrative_guidance}")
+    if settings.answer.figures_order != "as-ranked":
+        lines.append(f"- figure order={settings.answer.figures_order}")
+    if settings.answer.charts_types != "auto":
+        chart_rule = "bar charts only" if settings.answer.charts_types == "bar" else "bar or line charts only"
+        lines.append(f"- chart types={settings.answer.charts_types}; produce {chart_rule}")
     if settings.behavior.inject_current_date:
         # Explicit UI/request opt-in keeps a second labeled reminder for operators
         # who turned the switch on; the always-on line above already supplies the day.

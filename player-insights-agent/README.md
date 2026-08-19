@@ -141,15 +141,21 @@ installed Chrome or Edge instead with `PLAYWRIGHT_CHANNEL=chrome`.
 
 ## Deployment
 
-The CLI path below is the way to deploy the app *from source*. There is also a
-browser-only path — the Databricks Apps "From Git" UI, pointed at the committed
-`build/deploy` tree — described in the root README under "Deploy the app from the
-browser." It deploys a committed snapshot, so it does not rebuild; refreshing the
-snapshot still uses the CLI path here.
+The CLI path below builds and directly releases the app from a maintainer's
+working copy. Customer deployments use it for the initial four-step bootstrap
+described in the root README. After that bootstrap has created the app and its
+bindings, and after the root README's first-Git-update compatibility check,
+normal app-code updates use the existing app's **Deploy → From Git** flow,
+pointed at the committed `player-insights-agent/build/deploy` directory. That
+Git flow does not rebuild. Maintainers refresh and commit the deploy snapshot
+with `npm run build:deploy`; customers select the newer commit in Deploy from
+Git and do not rerun this CLI release merely to update app code.
 
 `npm run deploy` is an alias for
 `../bundle/app-release.sh --apply`. App name, destination workspace path and CLI
 profile are read from the root bundle's target. `TARGET` has no default.
+This command is not part of Deploy from Git. A Git update runs no bundle deploy,
+agent release, app-release wrapper, resource reconciliation, or model log.
 
 ```bash
 cd player-insights-agent
@@ -183,10 +189,11 @@ still holds the build you want.
 
 ### The rest of the stack
 
-This app is one step of a longer deployment. Unity Catalog, both Genie spaces,
-Lakebase, the setup job and the agent serving endpoint come first, and the asset
-bundle at the repository root deploys them in that order. Run
-`databricks bundle deploy -t <target>` from there before deploying this app.
+For the initial bootstrap only, this app is one step of a longer deployment.
+Unity Catalog, both Genie spaces, Lakebase, the setup job and the agent serving
+endpoint come first, and the asset bundle at the repository root deploys them in
+that order. Run `databricks bundle deploy -t <target>` before the app exists,
+not before a later Deploy-from-Git code update.
 
 ## Project structure
 
