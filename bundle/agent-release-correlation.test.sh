@@ -53,13 +53,10 @@ FAIL=0
 
 cat >"$STUBS/databricks" <<'STUB'
 #!/usr/bin/env bash
-# A LEADING `--profile <value>` is shifted off before dispatch. Every typed
-# subcommand this stub answers takes the flag at the END (`apps get NAME
-# --profile P`), but assert-sp-no-data-select.py builds `databricks --profile P
-# api get PATH` with the flag FIRST, so `$1 $2` was "--profile test-profile" and
-# fell through to the `*)` arm. That arm exits 1, which the SP gate correctly
-# reads as "could not run", which stops the release -- 25 of this suite's cases
-# failed on it and not one of them said the word profile.
+# A LEADING `--profile <value>` is shifted off before dispatch. Typed
+# subcommands this stub answers take the flag at the END (`apps get NAME
+# --profile P`); keep shifting so a future call that puts the flag first still
+# reaches the case arms below.
 if [ "$1" = "--profile" ]; then shift 2; fi
 case "$1 $2" in
   "bundle validate")
@@ -85,8 +82,8 @@ case "$1 $2" in
 {
   "workspace": { "host": "https://fake-workspace.cloud.databricks.com" },
   "variables": {
-    "catalog":                  { "value": "test_catalog" },
-    "schema":                   { "value": "test_schema" },
+    "app_catalog":              { "value": "test_catalog" },
+    "app_schema":               { "value": "test_schema" },
     "warehouse_id":             { "value": "wh-test" },
     "model_name":               { "value": "test_catalog.test_schema.model" },
     "serving_endpoint_name":    { "value": "test-endpoint" },
@@ -94,7 +91,7 @@ case "$1 $2" in
     "experiment_path":          { "value": "/Shared/test" },
     "llm_endpoint":             { "value": "test-llm" },
     "llm_gateway":              { "value": "" },
-    "catalog_allowlist":        { "value": "test_catalog" },
+    "data_catalogs":            { "value": ["test_catalog"] },
     "catalog_denylist":         { "value": "" },
     "max_output_tokens":        { "value": "4096" },
     "genie_data_space_id":      { "value": "" },
@@ -111,49 +108,6 @@ JSON
     ;;
   "apps get")
     printf '{"url": "%s"}\n' "${FAKE_APP_URL-https://fake.databricksapps.com}"
-    ;;
-  # The SP data-access gate, which reaches the workspace through `databricks api
-  # get` rather than a typed subcommand. Its default answers are the CLEAN estate:
-  # an app with a service principal, no tables, no privileges. A case that wants
-  # the gate to fire sets FAKE_SP_SCHEMA_PRIVS.
-  #
-  # SAME WARNING AS THE VARIABLE LIST ABOVE, and it is how this suite went 25-red
-  # the first time the gate was wired: a NEW CLI CALL IN THE SCRIPT THAT IS NOT
-  # ANSWERED HERE kills every case downstream of it, and none of the failures
-  # mentions the call that caused them. The `*)` arm exits 1, the gate reads that
-  # as "could not run", and the release stops before the gate each case is about.
-  "api get")
-    # One knob for the whole call family, so a case can reproduce the estate this
-    # gate cannot see: no credentials, no network, a revoked token. It has to be
-    # separate from an empty privilege list, because those two must not end the
-    # release the same way.
-    if [ -n "${FAKE_SP_UNREACHABLE-}" ]; then
-      echo "stub databricks: $FAKE_SP_UNREACHABLE" >&2
-      exit 1
-    fi
-    case "$3" in
-      "")
-        echo "stub databricks api get: no path argument" >&2
-        exit 1
-        ;;
-      */api/2.0/apps/*)
-        echo '{"service_principal_client_id":"sp-client-id","service_principal_name":"stub app sp"}'
-        ;;
-      */unity-catalog/tables*)
-        echo '{"tables":[]}'
-        ;;
-      */effective-permissions/schema/*)
-        printf '{"privilege_assignments":%s}\n' \
-          "${FAKE_SP_SCHEMA_PRIVS-[]}"
-        ;;
-      */effective-permissions/*)
-        echo '{"privilege_assignments":[]}'
-        ;;
-      *)
-        echo "stub databricks api get: unexpected path: $3" >&2
-        exit 1
-        ;;
-    esac
     ;;
   "auth token")
     echo '{"access_token": "fake-token"}'
@@ -340,42 +294,6 @@ expect_absent "nothing was refused"                          "REFUSED"
 expect_absent "did not misreport a healthy app as a stale build"  "predates the correlation contract"
 
 echo
-echo "=== 10. the SP data-access gate STOPS the re-log, and is not a no-op ==="
-# Every case above leaves this gate clean, which proves it does not block a
-# healthy release and proves nothing about whether it blocks anything at all.
-# A gate is only a gate if something makes it say no, so this case makes it.
-#
-# The estate here is the one this deployment actually has: SELECT held by
-# `account users` on the data schema, which the app service principal is in.
-# Against example on 2026-08-17 the real gate refused on exactly this.
-FAKE_SP_SCHEMA_PRIVS='[{"principal":"account users","privileges":[{"privilege":"SELECT"}]}]' \
-  run_release sp-finding; status=$?
-expect_status nonzero "$status" "a reachable governed schema stops the release"
-expect_text  "names the group the privilege arrives through"  "account users"
-expect_text  "refuses in as many words"                       "can reach the governed data schema"
-expect_text  "says a group grant is not closed by revoking the SP's own"  "is not closed by revoking"
-expect_text  "points at the exceptions file rather than a flag"  "sp-data-access-exceptions.json"
-# The release must stop AT the gate. Reaching the dry-run summary would mean the
-# gate printed a refusal and let the run carry on regardless, which is the exact
-# shape of every check this repository has had to go back and fix.
-expect_absent "stopped at the gate, did not reach the dry-run summary"  "Re-run with --apply to:"
-
-echo
-echo "=== 11. a gate that could not run must not read like a gate that passed ==="
-# The other half, and the one this repository keeps getting wrong. No
-# credentials, no network, a renamed app: the question was never answered, and
-# an unanswered question is not a clean bill of health.
-FAKE_SP_UNREACHABLE='Error: cannot configure default credentials' \
-  run_release sp-unreachable; status=$?
-expect_status nonzero "$status" "an unreachable workspace stops the release"
-expect_text  "says the access could not be established"  "COULD NOT BE ESTABLISHED"
-expect_text  "says plainly that this is not a pass"      "not a finding and it is not a pass"
-# Distinguishable from case 10. Reporting a credential failure as a governance
-# finding sends somebody to revoke a grant that was never there.
-expect_absent "did not report it as a grant to go and revoke"  "can reach the governed data schema"
-expect_absent "stopped at the gate, did not reach the dry-run summary"  "Re-run with --apply to:"
-
-echo
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 )) || exit 1
 # A FLOOR, NOT A TOTAL. `FAIL == 0` is also true of a run that asserted nothing:
@@ -384,7 +302,7 @@ printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 # passed while matching nothing, so the count is held to a floor here rather than
 # left implied. Raise it when cases are added; it is deliberately below the
 # current count so adding one case is not a two-file change.
-readonly MIN_ASSERTIONS=40
+readonly MIN_ASSERTIONS=35
 (( PASS >= MIN_ASSERTIONS )) || {
     printf '\nFAIL  only %s assertions ran; at least %s are expected.\n' "$PASS" "$MIN_ASSERTIONS" >&2
     printf '      Nothing failed, but this run did not check what it claims to.\n' >&2

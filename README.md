@@ -24,17 +24,27 @@ bundled server, and is the one Apps reads.
 
 ## What the workspace needs first
 
-The bundle declares the app, its Unity Catalog schema and volume, its MLflow
-experiment, two Genie spaces, and its Lakebase project, branch, and database.
-The release script logs the model and creates the serving endpoint. Have these
-inputs before you start:
+The bundle declares the app, its Unity Catalog schema and volume, and its MLflow
+experiment. The release script logs the model and creates the serving endpoint.
+
+**Lakebase and the Genie spaces are attached, not created.** The bundle binds the
+app to a Lakebase database that already exists and names Genie spaces that
+already exist; it creates, modifies and destroys none of them. Provision those
+first, then name them. That is deliberate: they hold state and curation that a
+deploy has no business overwriting.
+
+Have these inputs before you start:
 
 - an existing Unity Catalog catalog for the app's own objects;
 - the production catalogs or schemas the agent may read;
-- the fully qualified tables each Genie space should curate;
-- an existing SQL warehouse;
-- a Lakebase project id to create and an existing owner role id from
-  `databricks postgres list-roles`.
+- **an existing Lakebase project, branch, and database** — create one in the
+  Lakebase UI or with `databricks postgres create-project`, then read the ids
+  back with `databricks postgres list-projects`. No owner role is needed: that
+  was an input to creating a database;
+- **two existing Genie spaces**, one for data and one for the data dictionary,
+  with their tables already curated. You supply their ids, not their contents.
+  `genie/*.reference.yml` holds the instruction bodies ours carry, to copy from;
+- an existing SQL warehouse.
 
 ## Deploy
 
@@ -47,12 +57,12 @@ databricks bundle validate -t customer --profile <your-profile> \
   --var app_schema=<app-schema> \
   --var warehouse_id=<id> \
   --var app_source_code_path=/Workspace/Shared/player-insights-agent-src \
-  --var lakebase_project_id=<project-id> \
-  --var lakebase_owner_role_id=<role-id>
+  --var lakebase_project_id=<existing-project-id> \
+  --var genie_data_space_id=<existing-space-id> \
+  --var genie_dictionary_space_id=<existing-space-id>
 ```
 
-Put those values, plus the complex `data_catalogs`, `data_genie_tables`, and
-`dictionary_genie_tables` lists, in
+Put those values, plus the complex `data_catalogs` list, in
 `.databricks/bundle/customer/variable-overrides.json` instead of repeating
 them. For example:
 
@@ -61,18 +71,26 @@ them. For example:
   "app_catalog": "analytics_apps",
   "app_schema": "player_insights",
   "data_catalogs": ["production", "shared.reference_data"],
-  "data_genie_tables": [
-    {"identifier": "production.player_metrics.daily_summary"}
-  ],
-  "dictionary_genie_tables": [
-    {"identifier": "shared.reference_data.data_dictionary"}
-  ]
+  "lakebase_project_id": "player-insights-db",
+  "genie_data_space_id": "01f0a1b2c3d4e5f60718293a4b5c6d7e",
+  "genie_dictionary_space_id": "01f0a1b2c3d4e5f60718293a4b5c6d7f"
 }
 ```
+
+`lakebase_branch_id` and `lakebase_database_id` default to `production` and
+`databricks-postgres`; set them if your instance uses other names.
 
 `data_catalogs` is the complete read boundary. A catalog name includes all of
 its non-system schemas; `catalog.schema` limits the boundary to one schema.
 The app schema is separate and holds only app-owned objects.
+
+**You do not list the Genie spaces' tables.** With `manifest_source=genie` the
+model's table manifest — which is what grants the serving principal SELECT — is
+read from what the live spaces curate when the model is logged. That same step
+refuses to log a model if any curated table falls outside `data_catalogs`, so
+discovering the tables instead of typing them does not widen the read boundary.
+Adding a table to a Genie space therefore changes the agent's grants, and takes
+effect at the next model re-log.
 
 The order matters, because `Apps.Create` refuses an app that names a serving
 endpoint which does not exist yet, and it creates nothing when it refuses:
@@ -85,87 +103,160 @@ endpoint which does not exist yet, and it creates nothing when it refuses:
    creates the app.
 4. `TARGET=customer bundle/app-release.sh --apply`, which pushes the app's code.
 
-## Deploy the app from the browser (Databricks Apps "From Git")
+## How the app gets onto the workspace, and how it is updated
 
-The four steps above deploy the whole stack from the CLI. If the backend already
-exists — catalog, schema, SQL warehouse, Lakebase, and the **serving endpoint**
-(steps 1–2, which have no browser equivalent) — the app tier can be created and
-deployed entirely from the Databricks UI, no terminal required.
+**Initial deploy is the bundle, once.** The four CLI steps above create the
+catalog, schema, warehouse bindings, Lakebase, Genie spaces, serving endpoint,
+OAuth scopes, and the app itself, with those resources already attached. That
+is the greenfield path. When it finishes you have a working app.
 
-**No build first.** `player-insights-agent/build/deploy/` is committed and is what you
-point the platform at: a dependency-free tree holding an `app.yaml`, the bundled server
-and the built client, with **no package.json**.
+**Going forward, app-code updates are manual Deploy from Git onto that existing
+app.** UI, server, and other TypeScript in `player-insights-agent/build/deploy`
+are pulled from this public repository onto the live app. Deploy from Git does
+**not** replace or redo the bundle. It does **not** re-attach resources,
+recreate Lakebase, re-log the model, or change OAuth scopes by itself. Most of
+the time you are deploying onto an already-live app, not starting greenfield.
 
-The missing package.json is the point. The platform runs `npm install` whenever the
-source it downloads contains one, and a full install of this app's 508-package tree has
-no registry egress on app compute and hangs. Without one, the platform logs "No
-dependencies file found. Skipping installation" and the deploy takes ~15s.
+**No build first for the customer.** `player-insights-agent/build/deploy/` is
+committed and is what you point the platform at: a dependency-free tree holding
+an `app.yaml`, the bundled server and the built client, with **no package.json**.
+The missing package.json is the point. The platform runs `npm install` whenever
+the source it downloads contains one, and a full install of this app's
+508-package tree has no registry egress on app compute and hangs. Without one,
+the platform logs "No dependencies file found. Skipping installation" and the
+deploy takes ~15s. Maintainers rebuild and commit that tree when source changes;
+deployers do not.
 
-Rebuild it only when you change the code, and commit the result — a built tree is a
-snapshot that goes stale the moment anyone edits the source:
+### Updating an already-deployed app from `main` (the usual path)
 
-```bash
-cd player-insights-agent && npm install && npm run build:deploy
-git add build/deploy && git commit -m "Rebuild the deployable tree" && git push
-```
+Once the app exists from the initial bundle deploy and its resources are
+attached, later **app-code** updates come from this public repository — you do
+not rebuild anything and you do not touch the rest of the stack.
 
-Nothing workspace-specific is baked into what that build writes. Every such value
-is read from the environment at run time: host, app name and workspace id are
-injected by the platform; the Lakebase endpoint, serving endpoint and SQL
-warehouse come from the resources you attach in step 4 (`valueFrom`); and the
-optional flags default to the customer-safe settings (the conversation rail
-scoped per user, experiment id and judge endpoint empty, and no administrators).
-So a new workspace supplies its own options by attaching its own resources — it
-inherits none from the build.
+1. Open the **existing** app's detail page (not Create app).
+2. Choose **Deploy → From Git**.
+3. Confirm the Git settings (set once; re-check if the UI clears them):
 
-1. **Apps → Create app → Deploy from Git.**
-2. Give the repo URL and branch. For a private repo the app's service principal
-   needs a Git credential first, or Apps refuses the deploy.
-3. **Set Source code path. Do not leave Source code path blank.** The exact
-   value is:
+   | Setting | Value |
+   |---|---|
+   | Repository | `https://github.com/smathews13/player-insights-agent` |
+   | Provider | **GitHub** |
+   | Branch / reference | **`main`** (Reference type **Branch**) |
+   | Source code path | **`player-insights-agent/build/deploy`** |
 
-   ```
-   player-insights-agent/build/deploy
-   ```
+   Public repository, so no Git credential is required. **Do not leave Source
+   code path blank.** Left blank, the platform deploys from the repository root,
+   which does not contain `app.yaml`, and the deploy fails ("No command to run
+   and no Python file found / Failed to load app spec"). Confirm the path before
+   every deploy; the field may not persist when you start a new Deploy from Git
+   flow.
+4. Click **Deploy**. The app updates when you click Deploy, and only then. Do
+   **not** enable `Auto deploy on push events`; updates are a deliberate step,
+   not something that follows every push to the public repository.
 
-   Left blank, the platform deploys from the repository root, which does not
-   contain `app.yaml`, and the deploy fails with the missing-app.yaml error
-   ("No command to run and no Python file found / Failed to load app spec").
-   If that happens, edit or recreate the deployment, set Source code path to the
-   exact value above, and redeploy. The field may not persist when you start a
-   new Deploy from Git flow, so confirm it is set before every deploy.
-4. Attach the resources the `app.yaml` reads by `valueFrom`: the **Lakebase
-   (postgres)** instance, the **serving endpoint**, and the **SQL warehouse**;
-   set the OAuth scopes the app declares.
-5. Deploy.
+**What Deploy from Git does.** It replaces the app's source tree
+(`player-insights-agent/build/deploy`) and the runtime `app.yaml` that tree
+ships with, on top of the existing, working app.
 
-This path cannot be preset from the repository. It is deployment configuration,
-chosen when you deploy, not something `app.yaml` can supply: the platform needs
-the path before it can find and read `app.yaml`. The Deploy from Git flow has no
-CLI or config-file shortcut for it, so set it in the browser every time.
+**What Deploy from Git does not do.** It is not a full substitute for the
+initial bundle. It does not:
 
-Then do the two steps below — they apply however the app was deployed.
+- rerun the asset bundle or recreate catalog / schema / Lakebase / Genie /
+  warehouse / serving-endpoint resources
+- re-attach resource bindings already configured on the app
+- re-log the model or update the serving endpoint's model version
+- change OAuth scopes (`user_api_scopes`)
 
-**Updating the code is not browser-only.** Every later code change needs the rebuild and
-commit above before the next Git deploy serves it. The platform cannot build it for you.
+Those stay as the initial bundle (and any later deliberate bundle/app
+configuration change) left them. If you detach a resource or drop a scope, no
+amount of redeploying from `main` restores it.
 
-## Two steps nothing does for you
+**When you still need a bundle redeploy.** Resource bindings, OAuth scopes, and
+other app.yaml / bundle-owned settings. A Git deploy alone will not pick those
+up.
+
+**When you still need a model / agent release.** Changes to the **agent** (its
+Python, its tools, or the model itself) are not app-code and are not picked up
+by Deploy from Git. They go through
+`TARGET=<target> bundle/agent-release.sh --apply`, which re-logs the model and
+updates the serving endpoint. That is a different release on a different cadence.
+
+**Changing the OAuth scopes is not a Git deploy.** The scopes a user consents to
+(`user_api_scopes`) are part of the app's bundle/app configuration, not its
+source. When the requested scopes change — for example the catalog, workspace
+and Vector Search browse scopes are now requested by default so the Connections
+page can list and browse — picking them up takes three steps a Deploy-from-Git
+does not do: update the app's scope configuration (bundle deploy or `apps
+update`), **fully stop and start the app** (a redeploy alone leaves the new scope
+inert), and have each user **sign in again in a fresh private window** to grant
+the updated consent. Until a user re-consents, their session carries the old
+scope set and the new capability stays dark for them.
+
+### Creating the app from Git (only if the bundle already created the backend)
+
+The four CLI steps above remain the supported greenfield path. If the **backend
+already exists** — catalog, schema, SQL warehouse, Lakebase, and the **serving
+endpoint** (steps 1–2 of the CLI path, which have no browser equivalent) — and
+you still need to **create** the app object itself from the UI rather than from
+`bundle deploy`, you can: **Apps → Create app → Deploy from Git**, use the same
+repository / branch / Source code path table above, **attach** the Lakebase,
+serving endpoint and SQL warehouse resources and set the OAuth scopes the app
+declares, then Deploy. That is still not "Deploy from Git instead of the
+bundle": the resources and scopes must be attached at create time, and later
+updates remain the "onto the existing app" flow above.
+
+Then do the two steps below — they apply however the app was first created.
+
+## Release-time grants and one manual share
 
 Neither fails loudly. Skipped, the app returns HTTP 200 and answers are wrong in
 a way no error reports.
 
-**Grant the app's Postgres role**, after step 3, since the app's service
-principal does not exist until the app does:
+**The canonical app release grants the app's Postgres role.** The service
+principal does not exist until the bundle creates the app, so
+`bundle/app-release.sh --apply` runs `bundle/app-db-grant.sh` immediately before
+each code deploy. It derives the app role and attached branch/database from the
+live app, the schema from the resolved target, `PGUSER` from the profile
+identity, and `PGHOST` only from the branch's direct connection. It deliberately
+does not try the pooled AppKit hostname, which rejects the operator OAuth login.
+A missing direct host, unreachable Postgres, or failed grant stops the release.
+
+The profile identity must hold `DATABRICKS_SUPERUSER` on the Lakebase branch.
+After a Lakebase detach/reattach when a full release is unnecessary, use the
+same hook manually, then restart the app so it can recreate a dropped AppKit
+cache schema as owner:
 
 ```bash
-cd player-insights-agent && node scripts/grant-app-db-access.mjs
+TARGET=<target> PROFILE='<profile>' bundle/app-db-grant.sh
+databricks apps stop <app-name> --profile '<profile>'
+databricks apps start <app-name> --profile '<profile>'
 ```
 
-Skipped, every route answers from representative data rather than yours.
+That grants the app role on the app data schema, and drops a misowned AppKit
+cache schema (`appkit`) so the app recreates and owns it. A bare
+`GRANT USAGE, CREATE ON SCHEMA appkit` is not enough: later `CREATE INDEX`
+needs table ownership, which Lakebase will not let a developer hand over.
+`appkit` holds only framework cache; conversations and settings live elsewhere
+and are not dropped. Skipped, storage routes fall back to representative data
+and AppKit's persistent cache resets on every restart.
 
-**Share each Genie space with the serving endpoint's principal as `CAN RUN`.**
-There is no CLI or bundle resource for this, so it is a UI step. Skipped, every
+**Share each Genie space with the people or groups who will use the app, at
+`CAN RUN`.** With `execution_identity: user-authorization`, Genie runs as the
+person who asked, not as the app or serving-endpoint service principal. Those
+same callers also need `CAN USE` on the SQL warehouse and `SELECT` on the
+curated tables, because Genie's query runs under their grants. Skipped, every
 Genie call fails `PermissionDenied` and the agent answers from SQL anyway.
+
+This does not have to be a UI step:
+
+```bash
+databricks permissions update genie <space_id> \
+  --json '{"access_control_list":[{"user_name":"someone@example.com","permission_level":"CAN_RUN"}]}'
+```
+
+Do **not** grant the *serving-endpoint* principal `CAN RUN`: that was the old
+passthrough remedy, and under user authorization it grants nothing the caller
+needs.
 
 ## Who can sign in
 

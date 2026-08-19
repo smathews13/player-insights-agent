@@ -11,12 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 // The word a reader sees, and the three ways `unverified` happens, decided in one
 // module so a row and the strip that counts the rows cannot disagree about one
 // check. See `shared/check-verdict.ts` for why the status itself is not widened.
-import {
-  CHECK_VERDICT_LABEL,
-  checkVerdict,
-  type CheckStop,
-  type CheckVerdict,
-} from '../../shared/check-verdict';
+import { CHECK_VERDICT_LABEL, checkVerdict, type CheckStop, type CheckVerdict } from '../../shared/check-verdict';
 
 export type PreflightStatus = 'ok' | 'failed' | 'unverified';
 
@@ -53,6 +48,8 @@ export interface PreflightCheck {
   id: string;
   kind: string;
   name: string;
+  /** Human-readable workspace name when the API returned one; raw id stays in `name`. */
+  display_name?: string;
   label: string;
   status: PreflightStatus;
   detail: string;
@@ -140,7 +137,8 @@ export function usePreflight() {
         setReport(payload);
       } else {
         setReport(null);
-        setError(`The preflight route answered ${response.status} but not with a dependency report. The app may be mid-deploy.`
+        setError(
+          `The preflight route answered ${response.status} but not with a dependency report. The app may be mid-deploy.`
         );
       }
     } catch {

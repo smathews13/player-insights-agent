@@ -9,7 +9,7 @@
  * Every identifier is invented.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ADDABLE_KINDS,
   CONNECTION_LIST_TITLE,
@@ -24,7 +24,7 @@ import {
   notebookSummary,
   orderConnections,
 } from './declared-connection-view';
-import { NotebookCard } from './NotebookCard';
+import { NotebookCard, notebookPathView, persistNotebookPath } from './NotebookCard';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { DECLARABLE_KEYS, DECLARABLE_KINDS } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
@@ -134,19 +134,13 @@ describe('the notebook row', () => {
    */
   it('does not treat an empty table or an unconfigured one as blocked', () => {
     for (const failure of ['empty', 'not-configured', 'no-token', 'unavailable']) {
-      expect.soft(
-        notebookIsBlocked(panel({ read: { declaration: null, failure, detail: 'x' } })),
-        failure
-      ).toBe(false);
+      expect.soft(notebookIsBlocked(panel({ read: { declaration: null, failure, detail: 'x' } })), failure).toBe(false);
     }
   });
 
   it('treats a refused read and a bad location as blocked', () => {
     for (const failure of ['refused', 'bad-location', 'unreadable']) {
-      expect.soft(
-        notebookIsBlocked(panel({ read: { declaration: null, failure, detail: 'x' } })),
-        failure
-      ).toBe(true);
+      expect.soft(notebookIsBlocked(panel({ read: { declaration: null, failure, detail: 'x' } })), failure).toBe(true);
     }
   });
 
@@ -157,8 +151,57 @@ describe('the notebook row', () => {
   it('shows the notebook, the revision and the published value', () => {
     const markup = renderToStaticMarkup(<NotebookCard panel={panel()} />);
     expect(markup).toContain('rev-41');
+    expect(markup).toMatch(/Published to[\s\S]*\/Workspace\/Users\/analyst@example.invalid\/insights-agent/);
+    expect(markup).toMatch(/Path source[\s\S]*Latest published run/);
+    expect(markup).not.toContain('not set');
+    expect(markup).toContain('Declarations table');
     expect(markup).toContain('customer_catalog.agent_config.declarations');
     expect(markup).toContain('SQL warehouse');
+  });
+
+  it('shows configured and observed notebook paths distinctly, preferring configured', () => {
+    const configured = panel({
+      configuredPath: '/Shared/configured-notebook',
+      observedPath: '/Shared/last-run-notebook',
+    });
+    expect(notebookPathView(configured)).toEqual({
+      configured: '/Shared/configured-notebook',
+      observed: '/Shared/last-run-notebook',
+      shown: '/Shared/configured-notebook',
+    });
+    const markup = renderToStaticMarkup(<NotebookCard panel={configured} allowMutations onSaved={() => {}} />);
+    expect(markup).toMatch(/Published to[\s\S]*\/Shared\/configured-notebook/);
+    expect(markup).toMatch(/Path source[\s\S]*Saved configuration/);
+    expect(markup).toMatch(/Last published by[\s\S]*\/Shared\/last-run-notebook/);
+    expect(markup).toContain('Browse workspace notebooks');
+  });
+
+  it('persists a reviewed notebook path and surfaces validation failures', async () => {
+    const accepted = vi.fn(async () =>
+      new Response(JSON.stringify({ path: '/Shared/accepted' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ) as unknown as typeof fetch;
+    await expect(persistNotebookPath('/Shared/accepted', accepted)).resolves.toEqual({
+      ok: true,
+      path: '/Shared/accepted',
+    });
+    expect(accepted).toHaveBeenCalledWith(
+      '/api/settings/notebook-path',
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ path: '/Shared/accepted' }) }),
+    );
+
+    const denied = vi.fn(async () =>
+      new Response(JSON.stringify({ detail: 'Choose a notebook, not a workspace folder.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ) as unknown as typeof fetch;
+    await expect(persistNotebookPath('/Shared/folder', denied)).resolves.toEqual({
+      ok: false,
+      detail: 'Choose a notebook, not a workspace folder.',
+    });
   });
 });
 
@@ -278,11 +321,14 @@ describe('the list of assets the agent may consider', () => {
     }
   });
 
+  it('starts its extensible picker registry with tables, Genie spaces and catalogs', () => {
+    expect(ADDABLE_KINDS.slice(0, 3).map((option) => option.label)).toEqual(['Tables', 'Genie spaces', 'Catalogs']);
+    const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[]} allowMutations onChanged={() => {}} />);
+    expect(markup).toContain('+ Add a new connection');
+  });
+
   it('puts removed assets after listed ones', () => {
-    const ordered = orderConnections([
-      entry({ id: 'gone', state: 'withdrawn' }),
-      entry({ id: 'here' }),
-    ]);
+    const ordered = orderConnections([entry({ id: 'gone', state: 'withdrawn' }), entry({ id: 'here' })]);
     expect(ordered.map((item) => item.connection.id)).toEqual(['here', 'gone']);
   });
 
@@ -293,13 +339,19 @@ describe('the list of assets the agent may consider', () => {
   });
 
   it('offers to put a removed asset back rather than only reporting it gone', () => {
-    const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry({ id: 'gone', state: 'withdrawn' })]} onChanged={() => {}} />
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard
+        entries={[entry({ id: 'gone', state: 'withdrawn' })]}
+        allowMutations
+        onChanged={() => {}}
+      />
     );
     expect(markup).toContain('Put back');
   });
 
   it('says nothing can be changed when the store is not answering', () => {
-    const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} storeAvailable={false} onChanged={() => {}} />
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard entries={[entry()]} storeAvailable={false} onChanged={() => {}} />
     );
     expect(markup).toMatch(/not answering/);
   });
@@ -313,9 +365,15 @@ describe('the list of assets the agent may consider', () => {
 describe('what this surface may not say', () => {
   const surfaces = [
     renderToStaticMarkup(<NotebookCard panel={panel()} />),
-    renderToStaticMarkup(<NotebookCard panel={panel({ comparison: [comparison({ verdict: 'refused', flow: 'refused' }), comparison({ verdict: 'pending' })] })} />
+    renderToStaticMarkup(
+      <NotebookCard
+        panel={panel({
+          comparison: [comparison({ verdict: 'refused', flow: 'refused' }), comparison({ verdict: 'pending' })],
+        })}
+      />
     ),
-    renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry(), entry({ id: 'gone', state: 'withdrawn' })]} onChanged={() => {}} />
+    renderToStaticMarkup(
+      <DeclaredConnectionsCard entries={[entry(), entry({ id: 'gone', state: 'withdrawn' })]} onChanged={() => {}} />
     ),
   ];
 

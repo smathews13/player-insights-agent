@@ -204,6 +204,56 @@ def api_scopes(settings: Any) -> tuple[str, ...]:
     return tuple(scopes)
 
 
+class UserCredentialsUnavailable(RuntimeError):
+    """Model Serving had no invoker credential to hand this container.
+
+    ONE CONDITION ONLY, and it is a fact about the DEPLOYMENT rather than about
+    the person asking: the endpoint is running a user-authorization version and
+    the serving environment carries no downscoped user token to authenticate
+    with, so ``ModelServingUserCredentials`` refuses at construction (or the
+    client's first call refuses) instead of returning a caller.
+
+    It exists so that `agent.py` can turn exactly this into the refusal envelope
+    the app already understands, and so that every OTHER authentication failure
+    keeps travelling as itself. A broad ``except`` here would fold an expired
+    token, a network failure and a revoked grant into one sentence telling the
+    reader to redeploy, which is wrong advice for all three.
+    """
+
+
+#: How the SDK spells the condition above. Two spellings because the failure
+#: arrives from two places: ``Config.__init__`` prefixes the strategy's own
+#: ``ValueError`` with ``<auth_type> auth: ``, and the bare ``ValueError`` shows
+#: up when the strategy is called outside that wrapper.
+#:
+#: SUBSTRINGS, LOWERCASED, ALL-OF. A regex on the exact sentence breaks the day
+#: the SDK rewords it and the failure silently becomes a raw 400 again; a match
+#: on "unable to authenticate" alone would swallow every other auth error in the
+#: process. Each tuple is a conjunction: every part must appear.
+_UNAVAILABLE_MARKERS: tuple[tuple[str, ...], ...] = (
+    ("unable to authenticate using", "model serving environment"),
+    ("model_serving_user_credentials auth:",),
+)
+
+
+def is_user_credentials_unavailable(error: BaseException) -> bool:
+    """Whether ``error`` is the serving environment having no invoker credential.
+
+    Reads the whole ``raise ... from ...`` chain, because the SDK wraps its own
+    ``ValueError`` and a caller several frames up may wrap it again.
+    """
+
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        text = str(current).lower()
+        if any(all(part in text for part in marker) for marker in _UNAVAILABLE_MARKERS):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 def user_authorized_client(factory: Any = None) -> Any:
     """A ``WorkspaceClient`` bound to the invoker's downscoped token.
 
@@ -216,13 +266,23 @@ def user_authorized_client(factory: Any = None) -> Any:
     THE KWARG IS ``credentials_strategy``. The SDK's own docstring says
     ``credential_strategy``, singular, which ``Config.__init__`` swallows into
     ``**kwargs``: the client then authenticates as the system principal, silently.
+
+    A serving environment with no user credential at all raises here, and it
+    raises the SDK's own sentence, which reached one customer as an unexplained
+    HTTP 400 on their first question. Recognised and renamed rather than
+    reworded, so the caller can answer it with something a reader can act on.
     """
 
     from databricks.sdk import WorkspaceClient
     from databricks.sdk.credentials_provider import ModelServingUserCredentials
 
     build = factory or WorkspaceClient
-    return build(credentials_strategy=ModelServingUserCredentials())
+    try:
+        return build(credentials_strategy=ModelServingUserCredentials())
+    except Exception as error:  # noqa: BLE001 - narrowed on the next line
+        if is_user_credentials_unavailable(error):
+            raise UserCredentialsUnavailable(str(error)) from error
+        raise
 
 
 def executing_identity(client: Any) -> str:
@@ -232,11 +292,20 @@ def executing_identity(client: Any) -> str:
     falling back. ``current_user.me()`` needs no declared scope. Best effort: this
     runs on the answer path, so an unreadable identity is disclosed rather than
     failing a question that would otherwise have been answered.
+
+    THE ONE EXCEPTION IS THE MISSING CREDENTIAL ITSELF. The SDK resolves lazily,
+    so a container with no invoker token can build the client and refuse on this
+    first call instead. Swallowed, that becomes an empty identity and a refusal
+    telling the reader their session could not be verified -- which sends them
+    to sign in again for a fault in the deployment. It is raised so the caller
+    can say what actually happened. Everything else is still reported as "".
     """
 
     try:
         me = client.current_user.me()
-    except Exception:  # noqa: BLE001 - an unreadable identity is reported, not raised
+    except Exception as error:  # noqa: BLE001 - an unreadable identity is reported, not raised
+        if is_user_credentials_unavailable(error):
+            raise UserCredentialsUnavailable(str(error)) from error
         return ""
     return str(getattr(me, "user_name", "") or getattr(me, "id", "") or "")
 

@@ -619,17 +619,35 @@ describe('a value somebody saved but nobody applied', () => {
 });
 
 describe('app against orchestrator', () => {
-  it('reports skew between the two builds', () => {
+  it('reports divergent histories between the two builds', () => {
     const findings = computeDrift({
       report: report({ build_sha: 'bbbb2222', configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
       appBuildSha: 'aaaa1111',
+      appBuildAncestors: ['aaaa1111', 'cccc3333'],
     });
 
     const skew = findings.find((finding) => finding.id === 'build-skew');
     expect(skew?.severity).toBe('warning');
     expect(skew?.detail).toContain('aaaa1111');
     expect(skew?.detail).toContain('bbbb2222');
+    expect(skew?.detail).toMatch(/divergent/i);
+  });
+
+  it('reports an older orchestrator on the app lineage as normal freshness', () => {
+    const findings = computeDrift({
+      report: report({ build_sha: '11be12b', configuration: [configured({ key: 'catalog', value: 'c' })] }),
+      states: [],
+      appBuildSha: '59ff353',
+      appBuildAncestors: ['59ff353', '11be12b'],
+    });
+
+    const freshness = findings.find((finding) => finding.id === 'build-freshness');
+    expect(freshness?.severity).toBe('note');
+    expect(freshness?.detail).toContain('59ff353');
+    expect(freshness?.detail).toContain('11be12b');
+    expect(freshness?.detail).toMatch(/ordinary freshness/i);
+    expect(findings.map((finding) => finding.id)).not.toContain('build-skew');
   });
 
   it('says the comparison is impossible rather than passing it', () => {
@@ -698,13 +716,20 @@ describe('refusing a write the app cannot honour', () => {
     });
   });
 
-  it('refuses an intention for something no command here can apply', () => {
-    // The Lakebase schema is a literal in app source. Recording an intended value
-    // would suggest this app could act on it.
+  it('accepts an intention for every connection row an admin can open', () => {
+    // Option B: padlocks unlock for admins; recording is not applying. Lakebase
+    // schema stays app-redeploy (not live), but an intended value is allowed.
     const decision = classifyWrite('lakebase-schema', 'intended');
+    expect(decision).toEqual({
+      ok: true,
+      intent: 'intended',
+      changedBy: 'app-redeploy',
+    });
+  });
 
+  it('still refuses an active write for something that cannot apply live', () => {
+    const decision = classifyWrite('lakebase-schema', 'active');
     expect(decision.ok).toBe(false);
-    if (!decision.ok) expect(decision.reason).toContain('editing the source');
   });
 
   it('refuses a resource this deployment does not have', () => {

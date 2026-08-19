@@ -7,6 +7,7 @@
  * `shared/browse-contract.ts`.
  */
 import {
+  browseAppsHasNoScopeDetail,
   browseScopeUnavailableDetail,
   type BrowseFailed,
   type BrowseItem,
@@ -47,15 +48,27 @@ const BROWSE_SCOPE_BY_PATH: Readonly<Record<string, string>> = {
   '/api/2.1/unity-catalog/catalogs': 'catalog.catalogs:read',
   '/api/2.1/unity-catalog/schemas': 'catalog.schemas:read',
   '/api/2.1/unity-catalog/tables': 'catalog.tables:read',
+  // Volumes list has no Apps-API scope of its own (`catalog.volumes` is
+  // rejected). Browsing still goes through the same UC token family the three
+  // catalog reads open: the call is made when those are held, and a bare 403 is
+  // reported as a grant problem rather than as a missing browse scope. See
+  // listVolumes.
   '/api/2.0/sql/warehouses': 'sql',
   '/api/2.0/genie/spaces': 'dashboards.genie',
   '/api/2.0/workspace/list': 'workspace.workspace:read',
+  '/api/2.0/workspace/get-status': 'workspace.workspace:read',
+  '/api/2.0/workspace/export': 'workspace.workspace:read',
   '/api/2.0/serving-endpoints': 'serving.serving-endpoints',
+  '/api/2.0/vector-search/endpoints': 'vectorsearch.vector-search-endpoints:read',
+  '/api/2.0/vector-search/indexes': 'vectorsearch.vector-search-indexes:read',
+  '/api/2.0/postgres/projects': 'postgres',
 };
 
 function scopeForBrowsePath(path: string): string {
   const exact = BROWSE_SCOPE_BY_PATH[path];
   if (exact) return exact;
+  // Lakebase branch/database lists sit under /api/2.0/postgres/{parent}/...
+  if (path.startsWith('/api/2.0/postgres/')) return 'postgres';
   return scopeForPath(path.endsWith('/') ? path : `${path}/`);
 }
 
@@ -70,6 +83,16 @@ function unavailable(kind: BrowseKind, scope: string): BrowseUnavailable {
     reason: 'scope_not_carried',
     scope,
     detail: browseScopeUnavailableDetail(scope),
+  };
+}
+
+function unavailableNoAppsScope(kind: BrowseKind, family: string): BrowseUnavailable {
+  return {
+    status: 'unavailable',
+    kind,
+    reason: 'apps_has_no_scope',
+    scope: '',
+    detail: browseAppsHasNoScopeDetail(family),
   };
 }
 
@@ -547,6 +570,394 @@ export async function listNotebooks(
     notebookItems,
     path,
   );
+}
+
+export type NotebookPathValidation =
+  | { ok: true; path: string }
+  | { ok: false; status: 400 | 403 | 404 | 503; detail: string };
+
+/**
+ * Confirm a selected workspace path is a notebook the signed-in user can read.
+ *
+ * `get-status` distinguishes notebooks from directories. `export` is the
+ * permission check: metadata visibility alone does not establish that the
+ * caller may read the notebook itself. The source is discarded.
+ */
+export async function validateNotebookPath(
+  pathInput: string,
+  options: BrowseCallOptions,
+): Promise<NotebookPathValidation> {
+  const path = pathInput.trim();
+  if (!path.startsWith('/') || path.length > 1024) {
+    return { ok: false, status: 400, detail: 'Choose an absolute workspace notebook path.' };
+  }
+  const apiPaths = ['/api/2.0/workspace/get-status', '/api/2.0/workspace/export'] as const;
+  for (const apiPath of apiPaths) {
+    const missingScope = browseBlockedByScope({
+      apiPath,
+      token: options.token,
+      declaredScopes: options.declaredScopes,
+    });
+    if (missingScope) {
+      return {
+        ok: false,
+        status: 403,
+        detail: `Your sign-in does not carry ${missingScope}, so this notebook cannot be validated.`,
+      };
+    }
+    const suffix =
+      apiPath.endsWith('/export')
+        ? `path=${encodeURIComponent(path)}&format=SOURCE`
+        : `path=${encodeURIComponent(path)}`;
+    const answer = await workspaceGet(`${apiPath}?${suffix}`, options);
+    if (answer.kind !== 'http') {
+      return {
+        ok: false,
+        status: 503,
+        detail:
+          answer.kind === 'timeout'
+            ? 'The workspace did not answer before notebook validation timed out.'
+            : 'The workspace could not be reached to validate this notebook.',
+      };
+    }
+    if (answer.status === 404 || text(answer.body.error_code) === 'RESOURCE_DOES_NOT_EXIST') {
+      return { ok: false, status: 404, detail: 'No workspace notebook exists at that path.' };
+    }
+    if (answer.status === 401 || answer.status === 403) {
+      return {
+        ok: false,
+        status: 403,
+        detail: 'Your sign-in may not read that workspace notebook.',
+      };
+    }
+    if (answer.status < 200 || answer.status >= 300) {
+      return {
+        ok: false,
+        status: 503,
+        detail: `The workspace refused notebook validation with HTTP ${answer.status}.`,
+      };
+    }
+    if (apiPath.endsWith('/get-status') && text(answer.body.object_type).toUpperCase() !== 'NOTEBOOK') {
+      return { ok: false, status: 400, detail: 'Choose a notebook, not a workspace folder.' };
+    }
+  }
+  return { ok: true, path };
+}
+
+function volumeItems(body: Record<string, unknown>) {
+  const rows = Array.isArray(body.volumes) ? body.volumes : [];
+  const items: BrowseItem[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const record = row as Record<string, unknown>;
+    const fullName = text(record.full_name) || text(record.name);
+    if (!fullName) continue;
+    const short = fullName.includes('.') ? fullName.split('.').pop()! : fullName;
+    items.push({
+      id: short,
+      label: short,
+      secondary: text(record.volume_type) || fullName,
+      expandable: false,
+    });
+  }
+  return { items, next_page_token: text(body.next_page_token) };
+}
+
+/**
+ * List Unity Catalog volumes under a catalog.schema.
+ *
+ * Apps has no volumes browse scope (`catalog.volumes` is rejected). The call
+ * still goes out when the sign-in already carries catalog browse: the same
+ * unity-catalog token family opens catalogs and schemas, and a volume list that
+ * then 403s is reported as a grant problem rather than as "browsing unavailable".
+ * Pre-blocked only when catalog.schemas:read itself is missing, because that is
+ * the permission that got the reader into this schema in the first place.
+ */
+export async function listVolumes(
+  options: BrowseCallOptions & { catalog: string; schema: string; pageToken?: string },
+): Promise<BrowseResponse> {
+  const catalog = options.catalog.trim();
+  const schema = options.schema.trim();
+  if (!catalog || !schema) {
+    return failed('volumes', 'A catalog and schema are required to list volumes.');
+  }
+  const blocked = browseBlockedByScope({
+    apiPath: '/api/2.1/unity-catalog/schemas',
+    token: options.token,
+    declaredScopes: options.declaredScopes,
+  });
+  if (blocked) return unavailable('volumes', blocked);
+
+  const apiPath = '/api/2.1/unity-catalog/volumes';
+  const query =
+    `catalog_name=${encodeURIComponent(catalog)}` +
+    `&schema_name=${encodeURIComponent(schema)}` +
+    `&${pageQuery(options.pageToken)}`;
+  // No volumes Apps scope to map: skip browseBlockedByScope for the volumes
+  // path itself and interpret the answer (a scope-worded 403 still becomes
+  // unavailable via interpretBrowseAnswer).
+  if (!options.host) {
+    return failed(
+      'volumes',
+      'This app was given no workspace host, so it does not know where to browse.',
+    );
+  }
+  if (!options.token) {
+    return failed(
+      'volumes',
+      'This request carried no signed-in user token, so browsing as you is not possible.',
+    );
+  }
+  const answer = await workspaceGet(`${apiPath}?${query}`, options);
+  return interpretBrowseAnswer({
+    kind: 'volumes',
+    apiPath,
+    answer,
+    itemsFromBody: volumeItems,
+    tokenScopes: scopesFromToken(options.token),
+  });
+}
+
+function vectorSearchEndpointItems(body: Record<string, unknown>) {
+  const rows = Array.isArray(body.endpoints) ? body.endpoints : [];
+  const items: BrowseItem[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const record = row as Record<string, unknown>;
+    const name = text(record.name);
+    if (!name) continue;
+    const status = record.endpoint_status;
+    const state =
+      status && typeof status === 'object'
+        ? text((status as Record<string, unknown>).state)
+        : '';
+    const count =
+      typeof record.num_indexes === 'number' ? `${record.num_indexes} indexes` : '';
+    items.push({
+      id: name,
+      label: name,
+      secondary: [state, count].filter(Boolean).join(', '),
+      expandable: false,
+    });
+  }
+  return { items, next_page_token: text(body.next_page_token) };
+}
+
+function vectorSearchIndexItems(body: Record<string, unknown>) {
+  const rows = Array.isArray(body.vector_indexes)
+    ? body.vector_indexes
+    : Array.isArray(body.indexes)
+      ? body.indexes
+      : [];
+  const items: BrowseItem[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const record = row as Record<string, unknown>;
+    const name = text(record.name);
+    if (!name) continue;
+    const short = name.includes('.') ? name.split('.').pop()! : name;
+    items.push({
+      id: name,
+      label: short,
+      secondary: text(record.index_type) || text(record.endpoint_name),
+      expandable: false,
+    });
+  }
+  return { items, next_page_token: text(body.next_page_token) };
+}
+
+export async function listVectorSearchEndpoints(
+  options: BrowseCallOptions & { pageToken?: string },
+): Promise<BrowseResponse> {
+  const apiPath = '/api/2.0/vector-search/endpoints';
+  const parts: string[] = [];
+  if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
+  const query = parts.length ? `?${parts.join('&')}` : '';
+  return listWithGuard(
+    'vector-search-endpoints',
+    apiPath,
+    `${apiPath}${query}`,
+    options,
+    vectorSearchEndpointItems,
+  );
+}
+
+export async function listVectorSearchIndexes(
+  options: BrowseCallOptions & { endpoint: string; pageToken?: string },
+): Promise<BrowseResponse> {
+  const endpoint = options.endpoint.trim();
+  if (!endpoint) {
+    return failed(
+      'vector-search-indexes',
+      'A Vector Search endpoint name is required to list indexes.',
+    );
+  }
+  const apiPath = '/api/2.0/vector-search/indexes';
+  const parts = [`endpoint_name=${encodeURIComponent(endpoint)}`];
+  if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
+  return listWithGuard(
+    'vector-search-indexes',
+    apiPath,
+    `${apiPath}?${parts.join('&')}`,
+    options,
+    vectorSearchIndexItems,
+  );
+}
+
+function lakebaseProjectItems(body: Record<string, unknown>) {
+  const rows = Array.isArray(body.projects) ? body.projects : [];
+  const items: BrowseItem[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const record = row as Record<string, unknown>;
+    const name = text(record.name);
+    if (!name) continue;
+    const status = record.status;
+    const display =
+      status && typeof status === 'object'
+        ? text((status as Record<string, unknown>).display_name)
+        : '';
+    const short = name.startsWith('projects/') ? name.slice('projects/'.length) : name;
+    items.push({
+      id: name,
+      label: display || short,
+      secondary: display && display !== short ? short : '',
+      expandable: false,
+    });
+  }
+  return { items, next_page_token: text(body.next_page_token) };
+}
+
+function lakebaseBranchItems(body: Record<string, unknown>) {
+  const rows = Array.isArray(body.branches) ? body.branches : [];
+  const items: BrowseItem[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const record = row as Record<string, unknown>;
+    const name = text(record.name);
+    if (!name) continue;
+    const short = name.includes('/branches/')
+      ? name.slice(name.lastIndexOf('/branches/') + '/branches/'.length)
+      : name;
+    const status = record.status;
+    const state =
+      status && typeof status === 'object'
+        ? text((status as Record<string, unknown>).state)
+        : '';
+    items.push({
+      id: name,
+      label: short,
+      secondary: state,
+      expandable: false,
+    });
+  }
+  return { items, next_page_token: text(body.next_page_token) };
+}
+
+function lakebaseDatabaseItems(body: Record<string, unknown>) {
+  const rows = Array.isArray(body.databases) ? body.databases : [];
+  const items: BrowseItem[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const record = row as Record<string, unknown>;
+    const name = text(record.name);
+    if (!name) continue;
+    const short = name.includes('/databases/')
+      ? name.slice(name.lastIndexOf('/databases/') + '/databases/'.length)
+      : name;
+    items.push({
+      id: name,
+      label: short,
+      secondary: name,
+      expandable: false,
+    });
+  }
+  return { items, next_page_token: text(body.next_page_token) };
+}
+
+/** Ensure a Lakebase parent name is the full `projects/...` form. */
+export function lakebaseProjectParent(project: string): string {
+  const trimmed = project.trim();
+  if (!trimmed) return '';
+  return trimmed.startsWith('projects/') ? trimmed : `projects/${trimmed}`;
+}
+
+export async function listLakebaseProjects(
+  options: BrowseCallOptions & { pageToken?: string },
+): Promise<BrowseResponse> {
+  const apiPath = '/api/2.0/postgres/projects';
+  const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
+  if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
+  return listWithGuard(
+    'lakebase-projects',
+    apiPath,
+    `${apiPath}?${parts.join('&')}`,
+    options,
+    lakebaseProjectItems,
+  );
+}
+
+export async function listLakebaseBranches(
+  options: BrowseCallOptions & { project: string; pageToken?: string },
+): Promise<BrowseResponse> {
+  const parent = lakebaseProjectParent(options.project);
+  if (!parent) {
+    return failed('lakebase-branches', 'A Lakebase project is required to list branches.');
+  }
+  const apiPath = `/api/2.0/postgres/${parent}/branches`;
+  const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
+  if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
+  return listWithGuard(
+    'lakebase-branches',
+    // Scope map keys the family, not every parent path.
+    '/api/2.0/postgres/projects',
+    `${apiPath}?${parts.join('&')}`,
+    options,
+    lakebaseBranchItems,
+  );
+}
+
+export async function listLakebaseDatabases(
+  options: BrowseCallOptions & { branch: string; pageToken?: string },
+): Promise<BrowseResponse> {
+  const branch = options.branch.trim();
+  if (!branch) {
+    return failed('lakebase-databases', 'A Lakebase branch is required to list databases.');
+  }
+  const parent = branch.startsWith('projects/') ? branch : '';
+  if (!parent || !parent.includes('/branches/')) {
+    return failed(
+      'lakebase-databases',
+      'A full branch resource name (projects/.../branches/...) is required to list databases.',
+    );
+  }
+  const apiPath = `/api/2.0/postgres/${parent}/databases`;
+  const parts = [`page_size=${BROWSE_PAGE_SIZE}`];
+  if (options.pageToken) parts.push(`page_token=${encodeURIComponent(options.pageToken)}`);
+  return listWithGuard(
+    'lakebase-databases',
+    '/api/2.0/postgres/projects',
+    `${apiPath}?${parts.join('&')}`,
+    options,
+    lakebaseDatabaseItems,
+  );
+}
+
+/**
+ * MLflow experiment browse cannot run on a forwarded Apps token.
+ *
+ * Databricks Apps rejects every MLflow family name (`mlflow`,
+ * `mlflow.experiments:read`, `experiments`, …). See experiment-probe.ts. This
+ * returns the settled unavailable outcome without calling the workspace, so the
+ * picker falls back to typing rather than flashing a red failure.
+ */
+export async function listExperiments(
+  _options: BrowseCallOptions & { pageToken?: string } = {
+    host: '',
+    token: '',
+  },
+): Promise<BrowseResponse> {
+  return unavailableNoAppsScope('experiments', 'MLflow');
 }
 
 /** Host + token from the request environment, shared by every browse route. */

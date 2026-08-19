@@ -146,10 +146,12 @@ export function experimentVerdict(input: {
   }
 
   const observed = describes(input.read.body);
+  const displayName = textOf(experimentOf(input.read.body).name);
   const stage = textOf(experimentOf(input.read.body).lifecycle_stage);
   if (stage && stage.toLowerCase() !== ACTIVE_STAGE) {
     return {
       ...base,
+      display_name: displayName || undefined,
       // FAILED, on the same reasoning as a refusal: the identity that was
       // answered is the one that writes the traces, and it cannot write to
       // this. Reported as a fact about the deployment rather than about
@@ -162,6 +164,7 @@ export function experimentVerdict(input: {
   }
   return {
     ...base,
+    display_name: displayName || undefined,
     status: 'ok',
     detail: `Read as the application, not as you${observed ? `: ${observed}` : ''}. Traces have somewhere to land; whether you can open it is your own grant.`,
   };
@@ -247,7 +250,7 @@ export function readFailure(error: unknown): ExperimentRead {
     return { kind: 'refused', status, code: textOf(shape.errorCode), message };
   }
   return { kind: 'no-response', message };
-};
+}
 
 /**
  * The experiment check, or nothing.
@@ -257,7 +260,7 @@ export function readFailure(error: unknown): ExperimentRead {
  */
 export async function checkExperimentAsApp(
   experimentId: string,
-  read: ExperimentReader = workspaceExperimentReader,
+  read: ExperimentReader = workspaceExperimentReader
 ): Promise<PreflightCheck | null> {
   const id = experimentId.trim();
   if (!id) return null;

@@ -23,6 +23,7 @@ from config import (
     DICTIONARY_GENIE_ROLE_LABEL,
     Settings,
 )
+from host_metadata_probe import bound as bound_host_metadata_probe
 from preflight import (
     BUILD_SHA_VAR,
     DIRTY_SUFFIX,
@@ -51,6 +52,13 @@ from user_authorization import (
 )
 
 ROOT = Path(__file__).parent
+# BEFORE ANYTHING BUILDS A CLIENT, including the ones MLflow builds for itself in
+# set_experiment and in the registry call at the end. The SDK probes
+# {host}/.well-known/databricks-config while constructing every Config, gives it a
+# 300-second retry budget by default, and on a machine where that endpoint does
+# not answer spends five minutes reaching the fallback values it started with.
+# That was the majority of a release's elapsed time. See host_metadata_probe.
+bound_host_metadata_probe()
 # Deliberately a FLAG, not an environment variable: the failure this gate exists
 # for is an environment variable that went missing, so the approval cannot be one
 # more piece of shell state.
@@ -308,6 +316,9 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # agent.py imports it at module scope, so a version logged without it
             # fails to LOAD rather than serving untagged traces.
             str(ROOT / "correlation.py"),
+            # The customer's stateless Data Source Finder boundary. agent.py imports
+            # it at module scope, so a version logged without it fails to LOAD.
+            str(ROOT / "data_source_finder.py"),
             # agent.py imports this at module scope and calls it before every
             # turn, so a version logged without it refuses nothing: it fails to
             # LOAD, which at least fails loudly.
@@ -329,6 +340,7 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # called on every answer.
             str(ROOT / "provenance.py"),
             str(ROOT / "route_disclosure.py"),
+            str(ROOT / "runtime_settings.py"),
             str(ROOT / "sql_policy.py"),
             # Added by the packaging test rather than by hand, which is the point
             # of that test: the semantic search tool arrived imported at module

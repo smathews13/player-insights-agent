@@ -191,14 +191,18 @@
   font-weight: 700;
 }
 
-/* Under the rows, inside the box: a reader reaches it having just read the chips
-   that raised the question it answers. */
+/* Directly under the heading band: what this box is for, before the chips. */
 .fo-scopes-note {
   margin: 0;
   border-top: 1px solid var(--ast-hairline);
+  border-bottom: 1px solid var(--ast-hairline);
   padding: 9px 14px;
   font-size: 12px;
   color: var(--ast-text-secondary);
+}
+
+.fo-scopes-note:last-child {
+  border-bottom: none;
 }
 
 /*
@@ -288,6 +292,10 @@
    is nothing to list and the footer sentence is the whole of what the box says. */
 .fo-scopes-head + .fo-scope-footer,
 .fo-scopes-head + .fo-scopes-note {
+  border-top: none;
+}
+
+.fo-scopes-note + .fo-scope-footer {
   border-top: none;
 }
 

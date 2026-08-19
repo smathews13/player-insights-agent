@@ -96,22 +96,37 @@ describe('a session short of a permission the app declares', () => {
   });
 
   /**
-   * The whole reason nothing here is written down. The customer target declares
-   * four scopes and the example target nine, and the two spell the catalog and
-   * Vector Search reads differently, one with a `:read` suffix. A list in the
-   * source would be wrong on whichever target it was not written for.
+   * The whole reason nothing here is written down. Declared scopes are read at
+   * runtime from the deployment, and different targets have spelled the same
+   * capability differently (with or without a `:read` suffix). A list in the
+   * source would be wrong on whichever spelling it was not written for. Uses a
+   * REQUIRED ask-path scope: Vector Search browse is optional for the login
+   * gate (Sam 2026-08-18), so a VS-only shortfall returns null rather than a
+   * notice, and cannot exercise this path.
    */
   it('reports whatever the deployment declared, in the deployment\u2019s own spelling', () => {
     const suffixed = staleSignInNotice({
       ...STALE,
-      missingScopes: ['vectorsearch.vector-search-indexes:read'],
+      missingScopes: ['serving.serving-endpoints:read'],
     });
-    expect(suffixed?.missing).toEqual(['vectorsearch.vector-search-indexes:read']);
+    expect(suffixed?.missing).toEqual(['serving.serving-endpoints:read']);
     const bare = staleSignInNotice({
       ...STALE,
-      missingScopes: ['vectorsearch.vector-search-indexes'],
+      missingScopes: ['serving.serving-endpoints'],
     });
-    expect(bare?.missing).toEqual(['vectorsearch.vector-search-indexes']);
+    expect(bare?.missing).toEqual(['serving.serving-endpoints']);
+  });
+
+  it('ignores optional Vector Search shortfalls for the sign-in remedy', () => {
+    expect(
+      staleSignInNotice({
+        ...STALE,
+        missingScopes: [
+          'vectorsearch.vector-search-indexes:read',
+          'vectorsearch.vector-search-endpoints:read',
+        ],
+      })
+    ).toBeNull();
   });
 });
 

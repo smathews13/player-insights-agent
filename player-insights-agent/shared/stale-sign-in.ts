@@ -41,10 +41,12 @@
  *
  * NOTHING IS HARDCODED, and it could not be. Both lists are read at runtime --
  * the token's scope claim, and `PLAYER_INSIGHTS_USER_API_SCOPES` off the
- * deployment. The customer target declares four scopes and the example target
- * declares nine, and the two spell the catalog and Vector Search reads
- * differently, one with a `:read` suffix and one without. A literal list here
- * would be wrong on whichever target it was not written for.
+ * deployment. Declared scopes are target-layered and have been spelled
+ * differently across targets (with or without a `:read` suffix). A literal
+ * list here would be wrong on whichever spelling it was not written for.
+ * Catalog, workspace and Vector Search browse shortfalls are optional for this
+ * remedy (shared/optional-user-api-scopes.ts); only required ask-path scopes
+ * earn a private-window instruction.
  *
  * WHAT IT DOES NOT SAY, which is the same restraint `session-freshness.ts`
  * keeps and for the same reason. A declared scope absent from a token has two

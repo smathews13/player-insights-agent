@@ -1,3 +1,4 @@
+import { APP_SCHEMA } from '../../shared/app-schema';
 import { raw, type Application, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { extractPdfText, isPdfFilename } from '../lib/pdf-text';
@@ -31,6 +32,8 @@ import { DEPLOYMENT_SETTINGS_DDL, resolveExperimentId, resolveJudgeEndpoint } fr
 import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
 import { ADMIN_ROLES_DDL } from '../lib/admin-roles-schema';
+import { readRuntimeSettings } from '../lib/runtime-settings-store';
+import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { requireAdmin, requireSuperAdmin, rolePayload } from '../lib/admin-roles';
 import {
   admitRun,
@@ -166,23 +169,16 @@ export interface InsightsAppKit {
   warehouseWarmup?: WarehouseWarmup;
 }
 
-/**
- * The schema the statements below create, for the ownership guard to ask about.
- *
- * Deliberately NOT substituted into the DDL. `scripts/check-db-ownership.mjs`
- * and the preflight both learn the schema name by parsing
- * `CREATE SCHEMA IF NOT EXISTS <name>` out of this file, so interpolating a
- * constant there would leave them with nothing to find.
- */
-const APP_SCHEMA = 'player_insights';
+/** Schema name for ownership guards; resolved from PLAYER_INSIGHTS_APP_SCHEMA. */
+export { APP_SCHEMA };
 
 /** Everything the app stores into, in the order it is created. */
 export const schemaStatements = [
-  `CREATE SCHEMA IF NOT EXISTS player_insights`,
-  `CREATE TABLE IF NOT EXISTS player_insights.conversations (id TEXT PRIMARY KEY, user_email TEXT NOT NULL, title TEXT NOT NULL,
+  `CREATE SCHEMA IF NOT EXISTS ${APP_SCHEMA}`,
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.conversations (id TEXT PRIMARY KEY, user_email TEXT NOT NULL, title TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
-  `CREATE TABLE IF NOT EXISTS player_insights.messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, role TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, role TEXT NOT NULL,
     content TEXT NOT NULL, response_json JSONB, trace_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
@@ -191,7 +187,7 @@ export const schemaStatements = [
   // table, so a column added there would reach fresh deployments only. Nullable,
   // because turns recorded before these columns existed have no answer and
   // backfilling one would invent an audit trail.
-  `ALTER TABLE player_insights.messages
+  `ALTER TABLE ${APP_SCHEMA}.messages
      ADD COLUMN IF NOT EXISTS app_principal TEXT,
      ADD COLUMN IF NOT EXISTS serving_principal TEXT,
      ADD COLUMN IF NOT EXISTS serving_principal_observed_at TIMESTAMPTZ,
@@ -222,30 +218,30 @@ export const schemaStatements = [
   // finding the question is one walk to the first matching entry instead of
   // collecting every message in the conversation and sorting them.
   `CREATE INDEX IF NOT EXISTS messages_conversation_created_idx
-     ON player_insights.messages (conversation_id, created_at DESC)`,
+     ON ${APP_SCHEMA}.messages (conversation_id, created_at DESC)`,
   // The window bound itself, which every Monitoring and per-user-panel read
   // applies: the question list, the totals count, the asker list, and the
   // panel's own reads over the same rows. All of them filter `created_at` to the
   // selected range and the list then takes the newest first, which this serves in
   // one direction of the same walk.
   `CREATE INDEX IF NOT EXISTS messages_created_at_idx
-     ON player_insights.messages (created_at DESC)`,
-  `CREATE TABLE IF NOT EXISTS player_insights.attachments (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, user_email TEXT NOT NULL,
+     ON ${APP_SCHEMA}.messages (created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.attachments (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, user_email TEXT NOT NULL,
     filename TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,
     extracted_text TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
-  `CREATE TABLE IF NOT EXISTS player_insights.benchmark_suites (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.benchmark_suites (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL,
     cases_json JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
-  `CREATE TABLE IF NOT EXISTS player_insights.benchmark_runs (id TEXT PRIMARY KEY, suite_id TEXT NOT NULL, user_email TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.benchmark_runs (id TEXT PRIMARY KEY, suite_id TEXT NOT NULL, user_email TEXT NOT NULL,
     status TEXT NOT NULL, metrics_json JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
-  `CREATE TABLE IF NOT EXISTS player_insights.feedback (id TEXT PRIMARY KEY, message_id TEXT NOT NULL, user_email TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.feedback (id TEXT PRIMARY KEY, message_id TEXT NOT NULL, user_email TEXT NOT NULL,
     sentiment TEXT, usefulness INTEGER, comment TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
-  `INSERT INTO player_insights.benchmark_suites (id, name, description, cases_json)
+  `INSERT INTO ${APP_SCHEMA}.benchmark_suites (id, name, description, cases_json)
    VALUES ('poc-benchmark', 'POC benchmark suite',
    'Quality, latency, ambiguity, visualization, and access-boundary checks',
    '[{"id":"player-count"},{"id":"dictionary-lookup"},{"id":"cross-title"},{"id":"data-quality"},{"id":"visualization"},{"id":"access-boundary"}]'::jsonb)
@@ -543,18 +539,18 @@ export const SHARED_RUN_OWNER = 'Another team member';
 export const RUNS_QUERY = `
   WITH answers AS (SELECT m.id, m.conversation_id, m.created_at,
            m.response_json->'trace' AS trace, c.user_email
-    FROM player_insights.messages m
-    JOIN player_insights.conversations c ON c.id = m.conversation_id
+    FROM ${APP_SCHEMA}.messages m
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
     -- A plan proposal has no trace and is not yet a run; an answer always has one.
     WHERE m.role = 'assistant' AND jsonb_typeof(m.response_json->'trace') = 'object'
       AND c.user_email = $2
   )
   SELECT a.id, 'conversation' AS kind, a.conversation_id,
-         COALESCE((SELECT u.content FROM player_insights.messages u
+         COALESCE((SELECT u.content FROM ${APP_SCHEMA}.messages u
             WHERE u.conversation_id = a.conversation_id AND u.role = 'user'
               AND u.content <> $1 AND u.created_at <= a.created_at
             ORDER BY u.created_at DESC LIMIT 1),
-           (SELECT c2.title FROM player_insights.conversations c2 WHERE c2.id = a.conversation_id)
+           (SELECT c2.title FROM ${APP_SCHEMA}.conversations c2 WHERE c2.id = a.conversation_id)
          ) AS prompt,
          a.user_email AS stakeholder,
          -- The worst status any step ended on, EXCEPT the steps that are not
@@ -590,7 +586,7 @@ export const RUNS_QUERY = `
          -- The caller's own rating. The feedback route accepts any message id,
          -- so without the user_email predicate this would show whatever score
          -- anyone else submitted against the same answer.
-         (SELECT f.usefulness FROM player_insights.feedback f
+         (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
           WHERE f.message_id = a.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
           ORDER BY f.created_at DESC LIMIT 1) AS rating,
          a.created_at
@@ -610,11 +606,11 @@ export const RUNS_QUERY = `
          -- The caller's own rating, from the same table the conversation half
          -- reads. feedback.message_id carries no foreign key and the feedback
          -- route accepts any id, so a run id works here unchanged.
-         (SELECT f.usefulness FROM player_insights.feedback f
+         (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
           WHERE f.message_id = b.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
           ORDER BY f.created_at DESC LIMIT 1) AS rating,
          b.created_at
-  FROM player_insights.benchmark_runs b
+  FROM ${APP_SCHEMA}.benchmark_runs b
   ORDER BY created_at DESC
   LIMIT 200`;
 
@@ -699,6 +695,8 @@ export const RunTraceSchema = z.looseObject({
   takeaway: z.string(),
   narrative: z.string(),
   sql: z.string(),
+  /** Canonical Plotly specs for the chart-building stage, when this answer had any. */
+  charts: z.array(ChartSchema).optional(),
   sources: z.array(SourceSchema),
   /**
    * The answer's own caveats, so the Final answer tab can say what the answer
@@ -967,6 +965,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
   }
 
   const answer = LiveAnswerSchema.safeParse(record);
+  const charts = z.array(ChartSchema).safeParse(record.charts);
   // A stored answer that no longer satisfies the whole contract can still hold a
   // perfectly good trace. Losing it to a schema mismatch would put the panes back
   // where they started, so the trace is read on its own before giving up.
@@ -984,6 +983,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     takeaway: typeof record.takeaway === 'string' ? record.takeaway : '',
     narrative: typeof record.narrative === 'string' ? record.narrative : '',
     sql: typeof record.sql === 'string' ? record.sql : '',
+    ...(charts.success ? { charts: charts.data } : {}),
     sources: answer.success ? answer.data.sources : [],
     // Read off the record rather than off the parse, so a run whose stored answer
     // has drifted in some unrelated key still discloses what it disclosed. The
@@ -1060,14 +1060,14 @@ export function benchmarkRunTrace(row: Record<string, unknown>): RunTrace {
 export const RUN_TRACE_MESSAGE_QUERY = `
   SELECT m.id, m.conversation_id, m.created_at, m.response_json, m.trace_id,
          c.user_email AS stakeholder,
-         COALESCE((SELECT u.content FROM player_insights.messages u
+         COALESCE((SELECT u.content FROM ${APP_SCHEMA}.messages u
             WHERE u.conversation_id = m.conversation_id AND u.role = 'user'
               AND u.content <> $2 AND u.created_at <= m.created_at
             ORDER BY u.created_at DESC LIMIT 1),
            c.title
          ) AS prompt
-  FROM player_insights.messages m
-  JOIN player_insights.conversations c ON c.id = m.conversation_id
+  FROM ${APP_SCHEMA}.messages m
+  JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
   WHERE m.id = $1 AND c.user_email = $3`;
 
 /**
@@ -1079,7 +1079,7 @@ export const RUN_TRACE_MESSAGE_QUERY = `
 export const RUN_TRACE_BENCHMARK_QUERY = `
   SELECT b.id, b.suite_id, b.status, b.metrics_json, b.created_at,
          CASE WHEN b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS user_email
-  FROM player_insights.benchmark_runs b
+  FROM ${APP_SCHEMA}.benchmark_runs b
   WHERE b.id = $1`;
 
 // ---------------------------------------------------------------------------
@@ -1669,12 +1669,12 @@ function announceSharedConversationRail(resolution: SharedRailResolution) {
 function conversationListQuery(email: string) {
   return sharedRail.shared
     ? {
-        sql: 'SELECT id, title, updated_at, user_email FROM player_insights.conversations ORDER BY updated_at DESC',
+        sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ORDER BY updated_at DESC`,
         params: [] as unknown[],
       }
     : {
         sql:
-          'SELECT id, title, updated_at, user_email FROM player_insights.conversations ' +
+          `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ` +
           'WHERE user_email = $1 ORDER BY updated_at DESC',
         params: [email] as unknown[],
       };
@@ -1714,14 +1714,14 @@ function conversationMessagesQuery(conversationId: string, email: string) {
                 m.app_principal, m.serving_principal, m.serving_principal_observed_at,
                 m.access_mode, m.execution_mode, m.execution_identity_verified,
                 c.user_email AS asked_by,
-                (SELECT f.usefulness FROM player_insights.feedback f
+                (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
                  WHERE f.message_id = m.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
                  ORDER BY f.created_at DESC LIMIT 1) AS usefulness,
-                (SELECT f.comment FROM player_insights.feedback f
+                (SELECT f.comment FROM ${APP_SCHEMA}.feedback f
                  WHERE f.message_id = m.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
                  ORDER BY f.created_at DESC LIMIT 1) AS feedback_comment
-         FROM player_insights.messages m
-         JOIN player_insights.conversations c ON c.id = m.conversation_id`;
+         FROM ${APP_SCHEMA}.messages m
+         JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id`;
   return sharedRail.shared
     ? {
         // `$2` is still the caller on the shared rail, and deliberately so. The
@@ -2242,6 +2242,8 @@ interface AskServingInputs {
   expectedUser?: string;
   /** When this request stops being worth answering, ISO-8601 and absolute. */
   deadlineAt?: string;
+  /** Lakebase-backed behavior knobs, resolved for this request. */
+  runtimeSettings?: RuntimeSettings;
 }
 
 /**
@@ -2262,6 +2264,7 @@ export function buildAskServingBody({
   runId,
   expectedUser,
   deadlineAt,
+  runtimeSettings,
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -2270,6 +2273,7 @@ export function buildAskServingBody({
   if (requestId) custom_inputs.request_id = requestId;
   if (runId) custom_inputs.run_id = runId;
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
+  if (runtimeSettings) custom_inputs.runtime_settings = runtimeSettings;
   // The mode travels with the user it names, and neither travels alone. A mode
   // with nobody named is a request the endpoint's gate refuses for having
   // nothing to hold its invoker against, so sending one without the other
@@ -2597,7 +2601,7 @@ export const MIGRATIONS = buildMigrations(schemaStatements);
  * This used to BE the DDL: a flat list run on every boot, where "did the schema
  * change land" was answerable only by reading startup logs. It is now a thin call
  * into the versioned runner, which records each version in
- * `player_insights.schema_version` and refuses to apply 3 when 2 failed.
+ * `${APP_SCHEMA}.schema_version` and refuses to apply 3 when 2 failed.
  *
  * The DDL text still lives above rather than in `lib/migrations.ts`, and that is
  * not laziness: `bundle/preflight.sh`, `scripts/grant-app-db-access.mjs` and
@@ -3080,7 +3084,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
 
       const ownership = await readStored(appkit,
         'DELETE /api/conversations/:id (owner)',
-        'SELECT user_email FROM player_insights.conversations WHERE id = $1',
+        `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
         [conversationId]
       );
       if (!ownership.available) {
@@ -3121,8 +3125,8 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         // resolve. Not filtered by the caller's address: the rows are being
         // removed because their target is being removed, and one left behind
         // because somebody else wrote it is an orphan nothing can reach.
-        const feedback = await appkit.lakebase.query(`DELETE FROM player_insights.feedback
-           WHERE message_id IN (SELECT id FROM player_insights.messages WHERE conversation_id = $1
+        const feedback = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.feedback
+           WHERE message_id IN (SELECT id FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1
            )
            RETURNING id`,
           [conversationId]
@@ -3132,10 +3136,10 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         // left behind here would be unreachable (every read of it is scoped
         // through a conversation that no longer exists), while the document's
         // contents stayed in the store indefinitely.
-        const attachments = await appkit.lakebase.query(`DELETE FROM player_insights.attachments WHERE conversation_id = $1 RETURNING id`,
+        const attachments = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.attachments WHERE conversation_id = $1 RETURNING id`,
           [conversationId]
         );
-        const messages = await appkit.lakebase.query(`DELETE FROM player_insights.messages WHERE conversation_id = $1 RETURNING id`,
+        const messages = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1 RETURNING id`,
           [conversationId]
         );
         // The conversation row last, so that a failure part-way through leaves
@@ -3143,7 +3147,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         // orphaned children under an id the rail can no longer name. Every
         // statement above is keyed on the conversation id alone, so a retry
         // removes whatever the first attempt did not.
-        const conversation = await appkit.lakebase.query(`DELETE FROM player_insights.conversations WHERE id = $1 AND user_email = $2 RETURNING id`,
+        const conversation = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.conversations WHERE id = $1 AND user_email = $2 RETURNING id`,
           [conversationId, email]
         );
 
@@ -3196,7 +3200,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
       const read = await readStored(appkit,
         'GET /api/conversations/:id/attachments',
         `SELECT id, filename, mime_type, size_bytes, created_at
-         FROM player_insights.attachments
+         FROM ${APP_SCHEMA}.attachments
          WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
         [req.params.id, userEmail(req)]
       );
@@ -3232,7 +3236,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         const conversationId = req.params.id;
         const owner = await readStored(appkit,
           'POST /api/conversations/:id/attachments (owner)',
-          'SELECT user_email FROM player_insights.conversations WHERE id = $1',
+          `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
           [conversationId]
         );
         if (!owner.available) {
@@ -3279,11 +3283,11 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         const id = crypto.randomUUID();
         const email = userEmail(req);
         try {
-          await appkit.lakebase.query(`INSERT INTO player_insights.conversations (id, user_email, title)
+          await appkit.lakebase.query(`INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title)
              VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
             [conversationId, email, PLACEHOLDER_CONVERSATION_TITLE]
           );
-          await appkit.lakebase.query(`INSERT INTO player_insights.attachments
+          await appkit.lakebase.query(`INSERT INTO ${APP_SCHEMA}.attachments
              (id, conversation_id, user_email, filename, mime_type, size_bytes, extracted_text)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
             [
@@ -3325,7 +3329,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
     app.delete('/api/conversations/:conversationId/attachments/:attachmentId', async (req, res) => {
       const { conversationId, attachmentId } = req.params;
       try {
-        const result = await appkit.lakebase.query(`DELETE FROM player_insights.attachments
+        const result = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.attachments
            WHERE id = $1 AND conversation_id = $2 AND user_email = $3
            RETURNING id`,
           [attachmentId, conversationId, userEmail(req)]
@@ -3359,7 +3363,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
     app.delete('/api/conversations/:conversationId/attachments', async (req, res) => {
       const conversationId = req.params.conversationId;
       try {
-        const result = await appkit.lakebase.query(`DELETE FROM player_insights.attachments
+        const result = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.attachments
            WHERE conversation_id = $1 AND user_email = $2
            RETURNING id`,
           [conversationId, userEmail(req)]
@@ -3453,7 +3457,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
       // unscoped read this route used to do.
       const ownership = await readStored(appkit,
         'POST /api/insights/ask (conversation owner)',
-        'SELECT user_email FROM player_insights.conversations WHERE id = $1',
+        `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
         [conversationId]
       );
       const owner = ownership.available ? ownership.rows[0]?.user_email : undefined;
@@ -3486,14 +3490,14 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         // in it. Later turns must not rename a conversation after its first question,
         // hence the CASE rather than an unconditional assignment. `conversations.title`
         // is the stored row; `EXCLUDED.title` is this turn's.
-        `INSERT INTO player_insights.conversations (id, user_email, title) VALUES ($1,$2,$3)
+        `INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title) VALUES ($1,$2,$3)
          ON CONFLICT (id) DO UPDATE SET updated_at = NOW(),
            title = CASE WHEN conversations.title = $4 THEN EXCLUDED.title ELSE conversations.title END`,
         [conversationId, email, conversationTitle(prompt), PLACEHOLDER_CONVERSATION_TITLE]
       );
       const conversationAddressable = conversationExisted || conversationWrite.available;
       await safeQuery(appkit,
-        'INSERT INTO player_insights.messages (id, conversation_id, role, content) VALUES ($1,$2,$3,$4)',
+        `INSERT INTO ${APP_SCHEMA}.messages (id, conversation_id, role, content) VALUES ($1,$2,$3,$4)`,
         [
           userMessageId,
           conversationId,
@@ -3527,8 +3531,8 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
       const historyRead = await readStored(appkit,
         'POST /api/insights/ask (history)',
         `SELECT role, content, response_json FROM (SELECT m.role, m.content, m.response_json, m.created_at
-           FROM player_insights.messages m
-           JOIN player_insights.conversations c ON c.id = m.conversation_id
+           FROM ${APP_SCHEMA}.messages m
+           JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
            WHERE m.conversation_id = $1 AND c.user_email = $2
            ORDER BY m.created_at DESC LIMIT 12
          ) recent ORDER BY created_at`,
@@ -3540,7 +3544,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
       }
       const attachmentRead = await readStored(appkit,
         'POST /api/insights/ask (attachments)',
-        `SELECT filename, extracted_text FROM player_insights.attachments
+        `SELECT filename, extracted_text FROM ${APP_SCHEMA}.attachments
          WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
         [conversationId, email]
       );
@@ -3701,6 +3705,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
           runId: identity.requestId,
           expectedUser: identity.token ? email : '',
           deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
+          runtimeSettings: await readRuntimeSettings(appkit),
         });
         // Counted on the way past, so a failure can say where the run died
         // rather than only that it did. "It stopped in 'Query
@@ -3814,7 +3819,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
             ...(reissued ? { supersededApprovalId: approvedPlanId } : {}),
           };
           await safeQuery(appkit,
-            `INSERT INTO player_insights.messages
+            `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
               execution_mode, execution_identity_verified)
@@ -3848,7 +3853,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
             clarification,
           };
           await safeQuery(appkit,
-            `INSERT INTO player_insights.messages
+            `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json, trace_id,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
               execution_mode, execution_identity_verified)
@@ -4026,7 +4031,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
       // worse trade. What it must not do is claim to be addressable.
       const persisted = await readStored(appkit,
         'POST /api/insights/ask (answer)',
-        `INSERT INTO player_insights.messages
+        `INSERT INTO ${APP_SCHEMA}.messages
          (id, conversation_id, role, content, response_json, trace_id,
           app_principal, serving_principal, serving_principal_observed_at, access_mode,
           execution_mode, execution_identity_verified)
@@ -4196,7 +4201,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
       const feedback = { id: crypto.randomUUID(), ...parsed.data, userEmail: userEmail(req) };
       const written = await readStored(appkit,
         'POST /api/feedback',
-        `INSERT INTO player_insights.feedback
+        `INSERT INTO ${APP_SCHEMA}.feedback
          (id, message_id, user_email, sentiment, usefulness, comment) VALUES ($1,$2,$3,$4,$5,$6)`,
         [
           feedback.id,
@@ -4244,7 +4249,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         return;
       }
       const stored = await safeQuery(appkit,
-        'SELECT cases_json FROM player_insights.benchmark_suites WHERE id = $1',
+        `SELECT cases_json FROM ${APP_SCHEMA}.benchmark_suites WHERE id = $1`,
         [suite.id]
       );
       const resolved = resolveSuiteCases(parseStoredJson(stored.rows[0]?.cases_json) ?? []);
@@ -4372,6 +4377,7 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
             // real turn declare the same identity contract to the agent. Empty
             // on a laptop, where there is no proxy and so no user to assert.
             expectedUser: identity.token ? email : '',
+            runtimeSettings: await readRuntimeSettings(appkit),
           });
           let raw: unknown;
           try {

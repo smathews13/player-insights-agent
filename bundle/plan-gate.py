@@ -41,14 +41,14 @@ EXIT_COULD_NOT_RUN = 2
 def acknowledged() -> list[str]:
     """Resource keys the operator has accepted the destruction of, by name.
 
-    A named acknowledgement rather than a `--force`, for the reason
-    bundle/sp-data-access-exceptions.json records: a blanket bypass is used once
-    and then always, and stops being read. Naming the resource makes the
-    acceptance specific and makes it visible in the shell history that ran it.
+    A named acknowledgement rather than a `--force`, for the reason a blanket
+    bypass is used once and then always, and stops being read. Naming the
+    resource makes the acceptance specific and makes it visible in the shell
+    history that ran it.
 
-    Deliberately an environment variable and not a file: unlike an SP grant, an
-    intended deletion is true for one deploy and false for every one after it, so
-    a committed list would outlive the fact it records.
+    Deliberately an environment variable and not a file: unlike a standing
+    grant, an intended deletion is true for one deploy and false for every one
+    after it, so a committed list would outlive the fact it records.
     """
     raw = os.environ.get("PIA_PLAN_ALLOW_DESTROY", "")
     return [key.strip() for key in raw.split(",") if key.strip()]

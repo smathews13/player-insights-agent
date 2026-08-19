@@ -381,9 +381,8 @@ export function AgentMapConstellation({ stages, selectedId }: { stages: TraceSta
  * the three that are named.
  *
  * Each product's spelling comes out of `brand-icons.ts` rather than being restated
- * here, so there is one spelling of each product in the app -- which matters for
- * one of them in particular: §4 says Mosaic AI "is called **Agents** in all UI
- * text", whatever the artwork's slug says.
+ * here, so there is one spelling of each product in the app. The visible name is
+ * `Agents`, whatever the artwork's internal slug says.
  */
 function legendProducts(stars: ConstellationStar[]): { product: BrandProduct; name: string }[] {
   const seen: BrandProduct[] = [];

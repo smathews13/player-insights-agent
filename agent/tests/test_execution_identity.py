@@ -26,13 +26,25 @@ from config import Settings
 from execution_identity import (
     IDENTITY_MISMATCH,
     IDENTITY_REQUIRED,
+    MESSAGE_MAX,
+    REFUSAL_MESSAGE,
     SERVICE_PRINCIPAL,
     SIGNED_IN_USER,
+    USER_CREDENTIALS_UNAVAILABLE_MESSAGE,
     Requirement,
+    credentials_unavailable,
     effective_mode,
     requirement,
     same_identity,
     verify,
+)
+from user_authorization import UserCredentialsUnavailable
+
+#: What the SDK raises when the serving environment holds no downscoped user
+#: token, quoted as a customer received it inside an HTTP 400.
+SDK_NO_CREDENTIAL = (
+    "model_serving_user_credentials auth: Unable to authenticate using "
+    "user_credentials in Databricks Model Serving Environment"
 )
 
 ADA = "ada@example.com"
@@ -541,3 +553,143 @@ def test_two_concurrent_callers_are_gated_against_their_own_identities(monkeypat
 
     assert first.custom_outputs["code"] == IDENTITY_MISMATCH
     assert second.custom_outputs["code"] == IDENTITY_MISMATCH
+
+
+# ---------------------------------------------------------------------------
+# The endpoint deployed without on-behalf-of-user forwarding
+#
+# A customer's first question came back as HTTP 400 with the SDK's
+# `model_serving_user_credentials auth:` sentence and nothing else. The turn is
+# still refused -- it must be -- but it is refused in the shape the app already
+# reads, carrying a sentence that names the fix.
+# ---------------------------------------------------------------------------
+
+
+def test_the_message_stays_inside_the_cap_every_refusal_channel_uses():
+    """A message truncated in one surface and whole in another reads as two
+    different faults, and this one has to survive intact to be actionable."""
+
+    assert len(USER_CREDENTIALS_UNAVAILABLE_MESSAGE) <= MESSAGE_MAX
+    assert len(credentials_unavailable("x").message) <= MESSAGE_MAX
+
+
+def test_the_message_names_the_cause_the_fix_and_the_non_fixes():
+    """Asserted on the sentence rather than trusted to review. Each clause here
+    is one of the four things an operator tried on the real incident."""
+
+    message = credentials_unavailable(SDK_NO_CREDENTIAL).message
+
+    assert "user-authorization credential forwarding" in message
+    assert "re-logging the model and redeploying" in message
+    assert "release script" in message
+    assert "restart" in message and "grant" in message
+    # It is a fault in the deployment, so it must not be described in terms of
+    # the reader's own permissions or session.
+    assert REFUSAL_MESSAGE not in message
+
+
+def test_the_sdk_sentence_goes_to_the_log_and_not_to_the_reader():
+    """The same rule every other refusal detail follows: what an operator needs
+    is in the endpoint's log, and the response says nothing about the endpoint's
+    own identity or the SDK's internals."""
+
+    refusal = credentials_unavailable(SDK_NO_CREDENTIAL)
+
+    assert SDK_NO_CREDENTIAL in refusal.detail
+    assert SDK_NO_CREDENTIAL not in refusal.message
+    assert refusal.layer == "identity"
+    assert refusal.retryable is False
+
+
+def test_a_serving_environment_with_no_credential_refuses_instead_of_raising(monkeypatch):
+    """The whole point. Before this the ValueError left `predict` unhandled and
+    the caller received a raw 400; now it is the app's `unavailable` envelope."""
+
+    import agent as agent_module
+
+    def no_credential():
+        raise ValueError(SDK_NO_CREDENTIAL)
+
+    monkeypatch.setattr(agent_module, "user_authorized_client", no_credential)
+    runtime = agent_module.PlayerInsightsResponsesAgent(
+        settings=Settings.from_env(),
+        tools=RefusingTools(),  # type: ignore[arg-type]
+        llm_client=RefusingLlm(),
+        user_authorization=True,
+    )
+
+    outputs = ask(
+        runtime, identity_mode=SIGNED_IN_USER, expected_user=ADA, request_id="req-9"
+    ).custom_outputs
+
+    assert outputs["type"] == "unavailable"
+    # The code the app already knows, so this cannot arrive at an older app build
+    # as an unrecognised failure from a mismatched release.
+    assert outputs["code"] == IDENTITY_REQUIRED
+    assert outputs["message"] == USER_CREDENTIALS_UNAVAILABLE_MESSAGE
+    assert outputs["request_id"] == "req-9"
+    for absent in ("answer", "takeaway", "figures", "sql", "sources"):
+        assert absent not in outputs
+
+
+def test_a_credential_that_fails_on_the_first_call_refuses_the_same_way(monkeypatch):
+    """Construction succeeding and `me()` refusing is the same deployment fault
+    seen one frame later, and must not become "sign in again"."""
+
+    import agent as agent_module
+
+    def lazily_broken():
+        def explode():
+            raise ValueError(SDK_NO_CREDENTIAL)
+
+        return SimpleNamespace(current_user=SimpleNamespace(me=explode))
+
+    monkeypatch.setattr(agent_module, "user_authorized_client", lazily_broken)
+    runtime = agent_module.PlayerInsightsResponsesAgent(
+        settings=Settings.from_env(),
+        tools=RefusingTools(),  # type: ignore[arg-type]
+        llm_client=RefusingLlm(),
+        user_authorization=True,
+    )
+
+    outputs = ask(runtime, identity_mode=SIGNED_IN_USER, expected_user=ADA).custom_outputs
+
+    assert outputs["message"] == USER_CREDENTIALS_UNAVAILABLE_MESSAGE
+
+
+def test_a_genuinely_different_auth_failure_is_re_raised_untouched(monkeypatch):
+    """No catch-all. An unreachable workspace must not be reported as an endpoint
+    that needs redeploying, because the reader would believe it."""
+
+    import agent as agent_module
+
+    original = TimeoutError("the workspace did not answer in time")
+
+    def unreachable():
+        raise original
+
+    monkeypatch.setattr(agent_module, "user_authorized_client", unreachable)
+    runtime = agent_module.PlayerInsightsResponsesAgent(
+        settings=Settings.from_env(),
+        tools=RefusingTools(),  # type: ignore[arg-type]
+        llm_client=RefusingLlm(),
+        user_authorization=True,
+    )
+
+    with pytest.raises(TimeoutError) as raised:
+        ask(runtime, identity_mode=SIGNED_IN_USER, expected_user=ADA)
+
+    assert raised.value is original
+
+
+def test_the_unreadable_identity_refusal_is_still_the_generic_one(monkeypatch):
+    """The narrow catch must not have widened into the neighbouring case: a
+    client that answers `me()` with nothing is a silent fallback, not a missing
+    credential, and keeps the sentence it always had."""
+
+    outputs = ask(
+        gated(monkeypatch, observed=""), identity_mode=SIGNED_IN_USER, expected_user=ADA
+    ).custom_outputs
+
+    assert outputs["message"] == REFUSAL_MESSAGE
+    assert UserCredentialsUnavailable.__name__ not in str(outputs)

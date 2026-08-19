@@ -67,6 +67,7 @@ import { useRunTrace } from './app-state';
 import { conversationAge } from './conversation-age';
 import { PageHeading } from './page-chrome';
 import { runLabel } from './run-label';
+import { UserIdentityChip } from './UserIdentityChip';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
 import {
@@ -152,7 +153,11 @@ export function BenchmarkLedger({ qualifications }: { qualifications: BenchmarkQ
         {qualifications.map((row) => (<li key={row.field} className={`bench-ledger-row tone-${row.tone}`}>
             <QualificationIcon tone={row.tone} />
             <p>
-              <strong>{row.lead}.</strong> {row.sentence}
+              <strong>
+                {row.lead}
+                {row.identity ? <> <UserIdentityChip identity={row.identity} compact /></> : null}.
+              </strong>{' '}
+              {row.sentence}
             </p>
           </li>
         ))}
@@ -395,7 +400,15 @@ export function HeldOutEvaluation({ state }: { state: ScorecardState }) {
               <li className="bench-ledger-row tone-identity">
                 <User />
                 <p>
-                  <strong>Run as {scorecard.provenance.executedAs}.</strong> {scorecard.provenance.executedAsNote}
+                  <strong>
+                    Run as{' '}
+                    {scorecard.provenance.executedAs.includes('@') ? (
+                      <UserIdentityChip identity={scorecard.provenance.executedAs} compact />
+                    ) : (
+                      scorecard.provenance.executedAs
+                    )}.
+                  </strong>{' '}
+                  {scorecard.provenance.executedAsNote}
                 </p>
               </li>
               {/* Danger tone, matching the banner above rather than sitting in

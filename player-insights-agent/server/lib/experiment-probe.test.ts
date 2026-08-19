@@ -30,6 +30,7 @@ describe('the experiment is read as the application', () => {
     });
 
     expect(check?.status).toBe('ok');
+    expect(check?.display_name).toBe('/Shared/player-insights-agent');
     expect(check?.detail).toContain('/Shared/player-insights-agent');
     expect(check?.detail).toContain('active');
   });
@@ -50,7 +51,7 @@ describe('the experiment is read as the application', () => {
       expect(check?.detail, JSON.stringify(read.kind)).toContain('as the application, not as you');
     }
     expect(experimentVerdict({ experimentId: 'e1', read: reads[0] })?.checked_with).toContain(
-      'Read as the application, not as you',
+      'Read as the application, not as you'
     );
   });
 
@@ -67,6 +68,7 @@ describe('the experiment is read as the application', () => {
     });
 
     expect(check?.status).toBe('failed');
+    expect(check?.display_name).toBeUndefined();
     expect(check?.detail).toContain('HTTP 403 PERMISSION_DENIED');
     expect(check?.detail).toContain('cannot read experiment e1');
   });
@@ -186,7 +188,14 @@ describe('no MLflow scope is declared, because none is valid', () => {
   it('keeps every rejected spelling out of the bundle', () => {
     const scopes = BUNDLE.split('\n').filter((line) => /^\s*#?\s*-\s\S+\s*$/.test(line));
     for (const rejected of ['mlflow', 'mlflow.experiments', 'experiments', 'ml', 'ml.experiments:read']) {
-      expect(scopes.map((line) => line.trim().replace(/^#\s*-\s*/, '').replace(/^-\s*/, ''))).not.toContain(rejected);
+      expect(
+        scopes.map((line) =>
+          line
+            .trim()
+            .replace(/^#\s*-\s*/, '')
+            .replace(/^-\s*/, '')
+        )
+      ).not.toContain(rejected);
     }
   });
 

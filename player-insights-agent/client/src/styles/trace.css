@@ -315,7 +315,10 @@
   display: grid;
   grid-template-columns: 20px 13px 1fr auto;
   gap: 10px;
-  align-items: center;
+  /* First line, not the whole tile: a wrapped summary used to pull a centred
+     mark down the row so it sat between the title and the summary. Start-align
+     keeps the number and the kind mark on the step name. */
+  align-items: start;
   /* The design's small hairline tile, at the control radius rather than the row
      one, which is what the small tiles take everywhere in the rail. */
   border-radius: var(--radius-sm);
@@ -374,13 +377,16 @@
 .trace-dag.compact .dag-num.tool {
   background: var(--db-wash);
 }
-/* The kind mark's cell. 13px, and centred in its track so it sits on the badge's
-   middle rather than on the first line of a name that may be taller than it. */
+/* The kind mark's cell. 13px, start-aligned with the step name. A 3px top
+   offset centres the glyph on the 20px numbered badge (and on the bold
+   title's x-height) — same complaint as `.live-step-icon`: without it both
+   lucide and astrolabe marks read high against the header. */
 .trace-dag.compact .dag-mark {
   display: grid;
   place-items: center;
   width: 13px;
   height: 13px;
+  margin-top: 3px;
 }
 .trace-dag.compact .dag-mark > svg {
   width: 13px;
@@ -689,6 +695,17 @@
 .trace-dag.map .dag-detail > dl > dd {
   margin: 0;
   min-width: 0;
+}
+.trace-dag.map .dag-result-charts,
+.trace-dag.map .dag-chart-empty {
+  margin: 0 0 10px;
+}
+/* A run step is a record of what happened, not a second chart workspace. The
+   canonical answer chart still supplies the payload, title and accessible image;
+   this seat alone declines Plotly's hover/zoom controls. */
+.trace-dag.map .dag-result-charts {
+  pointer-events: none;
+  user-select: none;
 }
 /* Measurements read as measurements; the tool's own name and the stage's
    reference are values rather than prose, so they take the same mono face every

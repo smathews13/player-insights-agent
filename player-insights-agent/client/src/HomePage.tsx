@@ -17,7 +17,7 @@ import { UnavailablePanel } from './UnavailablePanel';
 import { unavailableNotice, unavailableNoticeFor, type UnavailableNotice } from './unavailable-copy';
 import { submitsOnEnter } from './submit-on-enter';
 import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
-import { userInitials, type UserMark } from './user-initials';
+import { UserIdentityChip } from './UserIdentityChip';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import {
   claimConversationTitle,
@@ -55,7 +55,6 @@ import {
   ShieldCheck,
   Star,
   Trash2,
-  UserRound,
   Workflow,
   X,
 } from 'lucide-react';
@@ -88,7 +87,7 @@ import { EMPTY_FEEDBACK, feedbackFromStored } from './stored-feedback';
 import { useIdentity } from './app-state';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
-import { TraceDag } from './TraceDag';
+import { AgentPathConstellation } from './AgentConstellation';
 import type {
   AgentResponse,
   Answer,
@@ -196,18 +195,6 @@ function dedupeByTitle(items: Conversation[], keepId: string) {
 }
 
 /**
- * The watermark on a rail entry: who asked, short enough to sit beside a date.
- *
- * Delegates to the module the message bubbles read from, because the rail and a
- * bubble can show the same person on the same screen. It used to have its own
- * copy of the rule, which is one drift away from a reader deciding "AN" and "A"
- * are two colleagues.
- */
-function ownerInitials(email: string) {
-  return userInitials(email).initials;
-}
-
-/**
  * The id of a rail entry's title, so the delete control beside it can borrow the
  * title as its description without repeating it in its own name.
  *
@@ -279,11 +266,7 @@ const railUnreadableNotice = unavailableNotice({
 
 export function HomePage() {
   const identity = useIdentity();
-  // Who to sign this transcript's questions with. Memoized not for the cost of
-  // the string split -- there is none -- but for the object's IDENTITY: it is a
-  // prop of every memoized transcript row, and a fresh object each render would
-  // make each of those rows re-render on every tick of the clock during a run.
-  const asker = useMemo(() => userInitials(identity.signedInAs), [identity.signedInAs]);
+  const asker = identity.signedInAs;
   /**
    * The address to stamp on a conversation this session creates, or nothing
    * while `/api/identity` has not answered. Undefined is left as undefined all
@@ -1342,7 +1325,6 @@ export function HomePage() {
               // rather than as nine unexplained buttons.
               aria-label="Show conversations from"
             >
-              <UserRound className="size-3.5" aria-hidden="true" />
               {/* "Everyone" IS the empty selection rather than a fourth state
                   layered over it, so there is one thing to reason about and no
                   way to reach a rail that is filtered to nobody. It is still a
@@ -1370,12 +1352,12 @@ export function HomePage() {
                     title={`${email} \u00b7 ${count} conversation${count === 1 ? '' : 's'}`}
                     onClick={() => toggleOwnerFilter(key)}
                   >
-                    <span className="conversation-filter-initials" aria-hidden="true">
-                      {you ? 'You' : ownerInitials(email)}
-                    </span>
-                    <span className="conversation-filter-count" aria-hidden="true">
-                      {count}
-                    </span>
+                    <UserIdentityChip
+                      identity={email}
+                      label={you ? 'You' : undefined}
+                      compact
+                      suffix={<span className="identity-chip-suffix" aria-hidden="true">{count}</span>}
+                    />
                   </button>
                 );
               })}
@@ -1500,14 +1482,7 @@ export function HomePage() {
                       {conversation.title}
                     </span>
                     <span className="conversation-meta">
-                      {owner && (// Marked `aria-hidden` and paired with a text label,
-                        // because two initials read aloud are not an answer to
-                        // "whose is this". The label carries the address.
-                        <span className="conversation-owner" title={`Asked by ${owner}`}>
-                          <span aria-hidden="true">{ownerInitials(owner)}</span>
-                          <span className="sr-only">Asked by {owner}</span>
-                        </span>
-                      )}
+                      {owner && <UserIdentityChip identity={owner} label="Asked by" compact className="conversation-owner" />}
                       {/* Wall time of that latest turn, when the trace recorded one.
                           Absent rather than zero for a turn stored before it did. */}
                       {duration && <span className="conversation-duration ast-num">{duration}</span>}
@@ -1903,7 +1878,7 @@ export function HomePage() {
           <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
           <RunStatusPill status={runStatus} />
         </div>
-        <h3 className="trace-title">Agent steps</h3>
+        <h3 className="trace-title">Agent path</h3>
         {/* A clarification has a trace too, and it is the one that explains why the
             agent is asking. There is deliberately no reference-stage fallback: this
             rail used to show a completed four-stage run, including a red "partial"
@@ -1915,10 +1890,9 @@ export function HomePage() {
              reporting on the run, and it sat under a constellation that shows
              the chain arriving. There is deliberately no counter of the pause
              since the newest step either; see live-progress.ts. */
-          <TraceDag
+          <AgentPathConstellation
             stages={railStages}
             activeIndex={railActiveIndex}
-            compact
             elapsedMs={railElapsedMs}
           />
         ) : (/* Nothing to draw, which is two different states: a run is going and
@@ -2025,7 +1999,7 @@ export function HomePage() {
  *
  * WHAT MAKES THE MEMO ACTUALLY WORK is that none of these props is rebuilt per
  * render. `message` and `response` come from state and a `useMemo`; `asker` is
- * memoized on the address; `feedback` is either the entry from state or one
+ * the stable address string; `feedback` is either the entry from state or one
  * shared empty object; and the four callbacks are stable for the life of the page
  * -- see `askRow` and its neighbours, which exist for that reason alone. A single
  * inline arrow function in the list above would defeat every line of this.
@@ -2051,7 +2025,7 @@ const MessageItem = memo(function MessageItem({
   message: ConversationMessage;
   /** Undefined where the stored envelope could not be parsed. */
   response: AgentResponse | undefined;
-  asker: UserMark;
+  asker: string;
   loading: boolean;
   /** Whether a later turn has superseded this one's question or plan. */
   resolved: boolean;
@@ -2065,17 +2039,9 @@ const MessageItem = memo(function MessageItem({
   onSaveFeedback: (answerId: string, rating: number) => Promise<void>;
 }) {
   if (message.role === 'user') {
-    // Signed with an avatar the way the agent's answers are, so the
-    // two are told apart by a mark and not only by the colour of the
-    // bubble. The initials are the whole of what the circle can hold;
-    // the identity itself is on the title and read out to a screen
-    // reader, see user-initials.ts.
     return (<div className="user-message">
         <div className="user-bubble">{message.content}</div>
-        <div className="user-avatar" title={asker.label}>
-          <span aria-hidden="true">{asker.initials}</span>
-          <span className="sr-only">Asked by {asker.label}</span>
-        </div>
+        <UserIdentityChip identity={asker} label="Asked by" compact className="user-avatar" />
       </div>
     );
   }

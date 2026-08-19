@@ -101,11 +101,9 @@ export const BRAND_PRODUCT_NAMES: Record<BrandProduct, string> = {
   genie: 'Genie',
   lakebase: 'Lakebase',
   mlflow: 'MLflow',
-  // The product formerly called Mosaic AI. The slug stays `mosaic-ai` because it
-  // is the artwork's filename and the key half of this repository's tool map is
-  // written against; the STRING is what a reader sees, and a reader is shown the
-  // product's current name. Renaming the slug would be a rename of six files and
-  // four maps to change one word on screen.
+  // `Agents` is the visible name. The internal slug stays `mosaic-ai` because it
+  // names the artwork and keys the tool map; changing it would rename files and
+  // maps without changing what a reader sees.
   'mosaic-ai': 'Agents',
   'unity-catalog': 'Unity Catalog',
 };

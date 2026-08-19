@@ -72,10 +72,19 @@ describe('every resource can be acted on', () => {
   it('names either a bundle variable, an app variable, or neither on purpose', () => {
     // A resource with no configuration route at all is a resource nobody can
     // point at their own workspace, which is a finding rather than a state to
-    // pass over quietly. Both of the ones that qualify say why in `arrivesBy`.
+    // pass over quietly. Lakebase schema used to be the one that qualified
+    // (decorative var); it is now wired through PLAYER_INSIGHTS_APP_SCHEMA, so
+    // the unconfigurable set is empty.
     const unconfigurable = CONNECTED_RESOURCES.filter((resource) => !resource.bundleVariable && !resource.appEnvVar && !resource.agentKey
     );
-    expect(unconfigurable.map((resource) => resource.id)).toEqual(['lakebase-schema']);
+    expect(unconfigurable.map((resource) => resource.id)).toEqual([]);
+  });
+
+  it('wires the Lakebase schema through the bundle var and the app env', () => {
+    const resource = connectedResource('lakebase-schema');
+    expect(resource?.bundleVariable).toBe('lakebase_app_schema');
+    expect(resource?.appEnvVar).toBe('PLAYER_INSIGHTS_APP_SCHEMA');
+    expect(resource?.changedBy).toBe('app-redeploy');
   });
 });
 
@@ -110,10 +119,10 @@ describe('what may be written, and as what', () => {
     }
   });
 
-  it('does not stage the conversation rail, which is a tenancy control', () => {
-    // Deliberately not editable and deliberately not stageable, even though the
-    // app could read it per request. Widening it shows one person's
-    // conversations to another, and that belongs in a release someone reviewed.
+  it('does not put the conversation rail on the Apply plan, which is a tenancy control', () => {
+    // Admins may RECORD an intention (Option B unlocks the padlock), but the
+    // rail stays out of STAGEABLE_IDS so Apply / agent-release never promotes
+    // it. Widening tenancy still requires an app release someone reviewed.
     const rail = connectedResource('shared-conversation-rail');
     expect(rail?.changedBy).toBe('app-redeploy');
     expect(rail?.stageable).toBe(false);

@@ -1,14 +1,18 @@
 #!/usr/bin/env node
-// Whether the app's Postgres role owns the objects it maintains.
+// Whether the app's Postgres role owns the objects it maintains in the app data
+// schema (PLAYER_INSIGHTS_APP_SCHEMA / DEFAULT_APP_SCHEMA). Not AppKit's cache
+// schema (`appkit`): that one is cache-only and is remediated by dropping it in
+// grant-app-db-access.mjs so the app recreates and owns it.
 //
 // Ownership, not privileges, and the two are not interchangeable. The app's DDL
 // runs `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` at every boot, and Postgres
 // checks ownership before it decides the statement is a no-op, so a table
 // created by a developer's role is refused for as long as it exists. Grants do
-// not help, and neither does re-running grant-app-db-access.mjs: the developer
-// role cannot hand ownership over, because `ALTER ... OWNER TO` requires
-// membership in the target role and Lakebase withholds the ADMIN OPTION needed
-// to grant it. The only remedy is to let the app create the objects itself.
+// not help, and neither does re-running grant-app-db-access.mjs for these
+// tables: the developer role cannot hand ownership over, because
+// `ALTER ... OWNER TO` requires membership in the target role and Lakebase
+// withholds the ADMIN OPTION needed to grant it. The only remedy is to let the
+// app create the objects itself.
 //
 // The condition is reached by pointing local development at the branch the
 // deployed app uses, which is the one thing that makes it likely rather than
@@ -27,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ROUTES_FILE = path.join(ROOT, 'server', 'routes', 'insights-routes.ts');
+const SHARED_SCHEMA_FILE = path.join(ROOT, 'shared', 'app-schema.ts');
 
 function arg(name) {
   const at = process.argv.indexOf(`--${name}`);
@@ -47,16 +51,17 @@ function cli(args) {
   }));
 }
 
-/** The schema the app creates, read from its DDL rather than configured twice. */
+/** The schema the app creates: env, else DEFAULT_APP_SCHEMA from shared. */
 function appSchema() {
-  const source = readFileSync(ROUTES_FILE, 'utf8');
-  const found = [...source.matchAll(/CREATE SCHEMA IF NOT EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]);
-  const distinct = [...new Set(found)];
-  if (distinct.length !== 1) {
-    console.error(`expected exactly one schema in ${ROUTES_FILE}'s DDL, found ${distinct.length}`);
+  const fromEnv = (process.env.PLAYER_INSIGHTS_APP_SCHEMA ?? '').trim();
+  if (fromEnv) return fromEnv;
+  const source = readFileSync(SHARED_SCHEMA_FILE, 'utf8');
+  const m = /DEFAULT_APP_SCHEMA\s*=\s*'([A-Za-z_][A-Za-z0-9_]*)'/.exec(source);
+  if (!m) {
+    console.error(`could not parse DEFAULT_APP_SCHEMA from ${SHARED_SCHEMA_FILE}`);
     process.exit(2);
   }
-  return distinct[0];
+  return m[1];
 }
 
 async function main() {

@@ -10,7 +10,9 @@ import {
   type ConnectedResource,
 } from '../../shared/deployment-config';
 import { DEFAULT_JUDGE_ENDPOINT } from '../../shared/benchmark-contract';
+import { APP_SCHEMA, DEFAULT_APP_SCHEMA } from '../../shared/app-schema';
 import type { AppFacts } from '../../shared/app-facts';
+import { compareCommits, parseAncestorList } from '../../shared/build-stamps';
 import type { LakebaseReader } from './lakebase-store';
 import type { PreflightReport } from '../routes/insights-routes';
 import { workspaceExperimentIdResolver, type ExperimentIdResolver } from './experiment-probe';
@@ -37,7 +39,7 @@ export interface StoredSetting {
  * Added to the app's own DDL rather than created here, so there is one place the
  * app declares what it stores and one schema name to keep correct.
  */
-export const DEPLOYMENT_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS player_insights.deployment_settings (resource_id TEXT PRIMARY KEY,
+export const DEPLOYMENT_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.deployment_settings (resource_id TEXT PRIMARY KEY,
      value TEXT NOT NULL,
      intent TEXT NOT NULL,
      note TEXT NOT NULL DEFAULT '',
@@ -47,7 +49,7 @@ export const DEPLOYMENT_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS player_insigh
 
 export const STORED_SETTINGS_QUERY = `
   SELECT resource_id, value, intent, note, updated_at, updated_by
-  FROM player_insights.deployment_settings
+  FROM ${APP_SCHEMA}.deployment_settings
   ORDER BY resource_id`;
 
 /**
@@ -58,7 +60,7 @@ export const STORED_SETTINGS_QUERY = `
  * against the drift report, which is the record that actually matters.
  */
 export const UPSERT_SETTING_QUERY = `
-  INSERT INTO player_insights.deployment_settings (resource_id, value, intent, note, updated_by, updated_at)
+  INSERT INTO ${APP_SCHEMA}.deployment_settings (resource_id, value, intent, note, updated_by, updated_at)
   VALUES ($1, $2, $3, $4, $5, now())
   ON CONFLICT (resource_id) DO UPDATE
     SET value = EXCLUDED.value,
@@ -69,7 +71,7 @@ export const UPSERT_SETTING_QUERY = `
   RETURNING resource_id, value, intent, note, updated_at, updated_by`;
 
 export const DELETE_SETTING_QUERY = `
-  DELETE FROM player_insights.deployment_settings WHERE resource_id = $1 RETURNING resource_id`;
+  DELETE FROM ${APP_SCHEMA}.deployment_settings WHERE resource_id = $1 RETURNING resource_id`;
 
 /**
  * A scalar, or nothing.
@@ -305,6 +307,11 @@ export function appBuildSha(): string {
   return process.env.PLAYER_INSIGHTS_BUILD_SHA?.trim() ?? '';
 }
 
+/** Commits reachable from the stamped app build, captured while git was available. */
+export function appBuildAncestors(): string[] {
+  return parseAncestorList(process.env.PLAYER_INSIGHTS_BUILD_ANCESTORS);
+}
+
 /**
  * What the app container's environment says, for the resources the app owns.
  *
@@ -361,6 +368,10 @@ export interface ResourceState {
 const APP_DEFAULTS: Record<string, string> = {
   'judge-endpoint': DEFAULT_JUDGE_ENDPOINT,
   'shared-conversation-rail': 'false',
+  // Same string as DEFAULT_APP_SCHEMA / var.lakebase_app_schema. Authored into
+  // app.yaml so From-Git deploys usually set the env; this fallback covers an
+  // older deploy tree that pre-dates the env and must never show "not set".
+  'lakebase-schema': DEFAULT_APP_SCHEMA,
 };
 
 /**
@@ -548,6 +559,7 @@ export function computeDrift(input: {
   report: PreflightReport | null;
   states: ResourceState[];
   appBuildSha: string;
+  appBuildAncestors?: readonly string[];
   /**
    * Whether the endpoint answered at all, whatever it answered with.
    *
@@ -724,18 +736,32 @@ export function computeDrift(input: {
         'be assumed from the absence of a warning.',
       remedy: !modelSha ? 'Re-log the model to stamp it.' : 'Release the app from a stamped build.',
     });
-  } else if (appSha !== modelSha) {
-    findings.push({
-      id: 'build-skew',
-      severity: 'warning',
-      resourceId: null,
-      headline: 'App and orchestrator were built from different commits',
-      detail:
-        `The app is running ${appSha} and the served model version was logged from ${modelSha}. ` +
-        'That is normal between releases (the two deploy separately), and it is the explanation ' +
-        'to reach for first when the app expects a field the orchestrator does not send.',
-      remedy: 'Release both from the same commit when the answer contract has changed.',
-    });
+  } else {
+    const agreement = compareCommits(appSha, modelSha, input.appBuildAncestors);
+    if (agreement === 'ancestor') {
+      findings.push({
+        id: 'build-freshness',
+        severity: 'note',
+        resourceId: null,
+        headline: 'The orchestrator is from an earlier commit on this app’s lineage',
+        detail:
+          `The app is running ${appSha} and the served model version was logged from ancestor ${modelSha}. ` +
+          'The app and orchestrator deploy separately, so this is ordinary freshness drift rather than incompatible history.',
+        remedy: '',
+      });
+    } else if (agreement === 'different' || agreement === 'unidentifiable') {
+      findings.push({
+        id: 'build-skew',
+        severity: 'warning',
+        resourceId: null,
+        headline: 'App and orchestrator builds may be incompatible',
+        detail:
+          `The app is running ${appSha} and the served model version was logged from ${modelSha}. ` +
+          'The app build does not contain the orchestrator commit in its stamped lineage, so these ' +
+          'histories are divergent or cannot be identified safely.',
+        remedy: 'Release both from the same commit when the answer contract has changed.',
+      });
+    }
   }
 
   const dirty = [appSha, modelSha].filter((sha) => sha.endsWith('+dirty'));
@@ -777,6 +803,7 @@ export interface SettingsPayload {
   drift: DriftFinding[];
   status: ReturnType<typeof driftStatus>;
   appBuildSha: string;
+  appBuildAncestors: string[];
   modelBuildSha: string;
   /** Whether the orchestrator's own configuration report was available. */
   orchestratorReported: boolean;
@@ -798,6 +825,7 @@ export function settingsPayload(input: {
   environment: Record<string, string>;
   stored: Map<string, StoredSetting>;
   appBuildSha: string;
+  appBuildAncestors?: readonly string[];
   storeAvailable: boolean;
   /** Whether the endpoint replied, which is not the same as it reporting. */
   endpointAnswered?: boolean;
@@ -809,6 +837,7 @@ export function settingsPayload(input: {
     report: input.report,
     states,
     appBuildSha: input.appBuildSha,
+    appBuildAncestors: input.appBuildAncestors,
     endpointAnswered: input.endpointAnswered,
   });
   return {
@@ -820,6 +849,7 @@ export function settingsPayload(input: {
     drift,
     status: driftStatus(drift),
     appBuildSha: input.appBuildSha,
+    appBuildAncestors: [...(input.appBuildAncestors ?? [])],
     modelBuildSha: input.report?.build_sha ?? '',
     orchestratorReported: Boolean(input.report?.configuration?.length),
     storeAvailable: input.storeAvailable,
@@ -845,13 +875,14 @@ export function classifyWrite(resourceId: string,
         `Save it as an intended value instead, then apply it with: ${resource.applyWith}`,
     };
   }
-  if (requested === 'intended' && !resource.stageable && !tier.appliesImmediately) {
-    return {
-      ok: false,
-      reason:
-        `${resource.label} takes no intended value. ${tier.note} ` +
-        'Recording an intention for it would suggest this app could apply it.',
-    };
+  // Option B (Sam 2026-08-18): admins may RECORD an intention for every
+  // connection row, including ones that previously padlocked (Lakebase, VS,
+  // Shared rail, orchestrator endpoint, …). Recording is not applying: only
+  // app-runtime rows take effect live; everything else stays intended until
+  // the documented applyWith path runs. stageable remains the Apply-plan flag
+  // for model-version knobs and is independent of this gate.
+  if (requested === 'intended') {
+    return { ok: true, intent: 'intended', changedBy: resource.changedBy };
   }
   return { ok: true, intent: requested, changedBy: resource.changedBy };
 }

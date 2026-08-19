@@ -284,11 +284,79 @@ describe('the health block', () => {
         )}
       />
     );
-    expect(markup).toContain('3 error lines in this range');
+    expect(markup).toContain('3 error lines recorded in this range');
     expect(markup).not.toMatch(/out of everything the app logged/);
     // The live timestamp stays. It is the only thing on the block that says
     // whether anything has reached this deployment recently.
     expect(markup).toContain('Most recent request');
+  });
+
+  /**
+   * HISTORY IS NOT A LIVE FAILURE, and the block now says which one it is.
+   *
+   * The seed for this was two "cache fell back to in-memory" lines from two days
+   * before, over a deployment whose dependencies were all answering. Read bare,
+   * a count of error lines beside a green health table reads as a current
+   * Connection failure. When every dependency answered its last check, the note
+   * says these are recorded log lines, not a live failure.
+   */
+  it('frames recorded errors as history when every dependency answered', () => {
+    const base = health();
+    const markup = render(
+      <HealthBody
+        block={block(
+          health({
+            dependencies: base.dependencies.map((row) => ({ ...row, result: 'answered', reason: '' })),
+            app: {
+              ...base.app,
+              telemetry: 'reading',
+              errors: {
+                count: 2,
+                recent: [
+                  { at: '2026-08-17T04:00:00Z', body: 'appkit:cache:persistent fell back to in-memory' },
+                  { at: '2026-08-17T04:01:00Z', body: 'appkit:cache:persistent fell back to in-memory' },
+                ],
+              },
+            },
+          })
+        )}
+      />
+    );
+    // The count, then the distinction. Neither hides the lines themselves.
+    expect(markup).toContain('2 error lines recorded in this range');
+    expect(markup).toContain('Every dependency answered its most recent check');
+    expect(markup).toContain('not a live failure');
+    expect(markup).toContain('appkit:cache:persistent fell back to in-memory');
+    // Never dressed up as a live incident.
+    expect(markup).not.toMatch(/Connection failure/i);
+  });
+
+  /**
+   * A GENUINELY DOWN DEPENDENCY GETS THE OTHER NOTE. The lines are never hidden,
+   * and the reassurance steps aside: the reader is pointed back at the Result
+   * column rather than told everything is history.
+   */
+  it('does not reassure when a dependency is not answering', () => {
+    const base = health();
+    const markup = render(
+      <HealthBody
+        block={block(
+          health({
+            dependencies: base.dependencies.map((row, index) =>
+              index === 0 ? { ...row, result: 'did-not-answer', reason: 'the warehouse refused' } : row
+            ),
+            app: {
+              ...base.app,
+              telemetry: 'reading',
+              errors: { count: 1, recent: [{ at: '2026-08-19T09:00:00Z', body: 'query failed' }] },
+            },
+          })
+        )}
+      />
+    );
+    expect(markup).toContain('1 error line recorded in this range');
+    expect(markup).toContain('A dependency is not answering its most recent check');
+    expect(markup).not.toContain('not a live failure');
   });
 
   /**
@@ -309,7 +377,7 @@ describe('the health block', () => {
       />
     );
     expect(markup).not.toContain('0 error lines');
-    expect(markup).not.toMatch(/error lines in this range/);
+    expect(markup).not.toMatch(/error lines? recorded in this range/);
     expect(markup).toContain('Most recent request');
   });
 
@@ -981,6 +1049,23 @@ describe('the traffic block', () => {
       expect(text(markup)).toContain('No tool calls');
       expect(markup).not.toContain('ops-bar-fill');
     });
+
+    /**
+     * THE LINE THAT SAYS WHY THIS CHART IS HERE. The handoff asks the tool-call
+     * chart to carry a standing note about release drift: a change in its shape
+     * is usually the first visible sign a release moved the agent. It is body
+     * text under the chart, true of the populated chart, so it must show whether
+     * or not any tool was called.
+     */
+    it('carries the release-drift note whether or not a tool was called', () => {
+      const populated = text(render(<TrafficBody block={block(traffic())} />));
+      expect(populated).toContain('first sign a release changed the agent');
+
+      const empty = text(
+        render(<TrafficBody block={block(traffic({ toolCalls: [], failuresByCause: [], refusalsByCause: [] }))} />)
+      );
+      expect(empty).toContain('first sign a release changed the agent');
+    });
   });
 });
 
@@ -1153,12 +1238,19 @@ function latency(overrides: Partial<OpsLatencyPayload> = {}): OpsLatencyPayload 
 }
 
 describe('the latency block', () => {
-  /** The covered window is named so a reader can see what "prior half" means. */
-  it('names the covered window the baseline is taken from', () => {
-    const rendered = render(<LatencyBody block={block(latency())} />);
+  /**
+   * The covered window is named so a reader can see what "prior half" means,
+   * human-readable on the page with the exact span timestamps kept on hover.
+   */
+  it('names the covered window in words and keeps the exact times on hover', () => {
+    const markup = markupOf(<LatencyBody block={block(latency())} />);
 
-    expect(rendered).toContain('prior half');
-    expect(rendered).toContain('2026-08-16 19:30:59');
+    expect(text(markup)).toContain('prior half');
+    // Human-readable on the page.
+    expect(text(markup)).toContain('Aug 16');
+    // Exact timestamps live in a title, not on the page.
+    expect(markup).toContain('title="2026-08-16 19:30:59 to 2026-08-17 16:43:41"');
+    expect(text(markup)).not.toContain('2026-08-16 19:30:59');
   });
 
   /**
@@ -1242,23 +1334,82 @@ describe('the latency block', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
     const rendered = text(markup);
 
-    expect(rendered).toContain('Too thin to judge');
-    // Ask is thin (8 spans): high percentiles withheld, slowest still labelled.
+    // Ask is thin (8 spans): high percentiles withheld, slowest still labelled,
+    // and the trend cell is a withheld mark rather than a flag.
     expect(markup).toMatch(/Withheld: 8 spans is under the 20 needed/);
     expect(rendered).toContain('2m 00s');
     // The thin ask row is not the one wearing the slower pill; preflight is.
     expect(rendered).toContain('Slower than baseline');
+    // The thin row carries no fabricated verdict word.
+    expect(markup).toMatch(/Needs 20 spans in each half/);
   });
 
-  it('keeps errors and refusals as separate columns and never sums them', () => {
+  /**
+   * ERRORS AND REFUSALS ARE SAID ONCE ABOVE THE TABLE, NEVER SUMMED. The compact
+   * grid has no error or refusal column; a genuine 5xx count is named in the
+   * shared-facts strip so it is not hidden, and refusals stay "not reported".
+   */
+  it('states errors and refusals once above the grid and never sums them', () => {
     const rendered = render(<LatencyBody block={block(latency())} />);
 
-    expect(rendered).toContain('Errors');
-    expect(rendered).toContain('Refusals');
-    expect(rendered).toContain('2 of 26 spans');
-    expect(rendered).toContain('Not reported');
-    // The fixture has 2 errors and null refusals; 2 must not appear as a combined total.
-    expect(rendered).not.toMatch(/2 errors? and /i);
+    // The fixture carries two error spans (preflight) and null refusals.
+    expect(rendered).toContain('2 error spans recorded across these routes');
+    expect(rendered).toContain('Refusals not reported by the endpoint');
+    // Never merged into one "problems" figure.
+    expect(rendered).not.toMatch(/2 errors? and \d+ refus/i);
+    // And no per-row errors/refusals columns survive in the compact grid.
+    const markup = markupOf(<LatencyBody block={block(latency())} />);
+    expect(markup).not.toMatch(/<th[^>]*>Errors<\/th>/);
+    expect(markup).not.toMatch(/<th[^>]*>Refusals<\/th>/);
+  });
+
+  /**
+   * WHEN EVERY ROUTE IS THIN THE COLUMNS COLLAPSE INTO ONE LINE. p95, p99 and
+   * trend are withheld on all of them, so five columns of the same dash become
+   * one sentence above the table, and the columns do not render.
+   */
+  it('collapses the empty percentile columns into a shared-facts line', () => {
+    const allThin = latency({
+      routes: [
+        {
+          route: 'POST /api/insights/ask',
+          spans: 8,
+          p50Ms: 85_500,
+          p95Ms: null,
+          p99Ms: null,
+          slowestMs: 120_000,
+          errorCount: 0,
+          refusalCount: null,
+          lastSpanAt: '2026-08-17 16:40:00',
+          priorSpans: 0,
+          priorP50Ms: null,
+        },
+        {
+          route: 'GET /api/ops/cost',
+          spans: 9,
+          p50Ms: 65,
+          p95Ms: null,
+          p99Ms: null,
+          slowestMs: 400,
+          errorCount: 0,
+          refusalCount: null,
+          lastSpanAt: '2026-08-17 16:41:00',
+          priorSpans: 5,
+          priorP50Ms: 60,
+        },
+      ],
+    });
+    const markup = markupOf(<LatencyBody block={block(allThin)} />);
+    const rendered = text(markup);
+
+    expect(rendered).toContain('Every route is under 20 spans this window: no p95, p99, or trend yet.');
+    expect(rendered).toContain('Errors and refusals not reported by the endpoint.');
+    // The columns are gone, not merely blank.
+    expect(markup).not.toMatch(/<th[^>]*>p95<\/th>/);
+    expect(markup).not.toMatch(/<th[^>]*>Trend<\/th>/);
+    // The p50 log-scale column and its bar are still there.
+    expect(markup).toContain('ops-lat-bar-fill');
+    expect(rendered).toContain('P50 · log scale');
   });
 
   it('produces no slower verdict when there is no prior period', () => {
@@ -1281,7 +1432,7 @@ describe('the latency block', () => {
     });
     const rendered = render(<LatencyBody block={block(alone)} />);
 
-    expect(rendered).toContain('Too thin to judge');
+    // No prior half means no verdict: the trend cell is withheld, not a flag.
     expect(rendered).not.toContain('Slower than baseline');
     expect(rendered).not.toContain('Within range');
   });

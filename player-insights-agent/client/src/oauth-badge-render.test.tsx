@@ -234,11 +234,15 @@ describe('where it sits, which is no longer the top bar', () => {
   });
 
   it('is the order role.ts states, rather than one this file invented', () => {
+    // The gear moved in front of the attribution rather than closing the header
+    // from the far right. It used to sit past "Built on Databricks", which put a
+    // control belonging to the reader on the far side of the divider whose job
+    // (§1) is to separate the reader from who built the app.
     expect(HEADER_CLUSTER_ORDER).toEqual([
       'role-badge',
-      'identity-avatar',
-      'built-on-databricks',
+      'identity-chip',
       'settings-gear',
+      'built-on-databricks',
     ]);
   });
 

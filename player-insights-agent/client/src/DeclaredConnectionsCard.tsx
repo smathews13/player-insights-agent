@@ -33,23 +33,58 @@ import {
   orderConnections,
 } from './declared-connection-view';
 import type { ConnectionEntry } from './connection-model';
+import { AssetPicker } from './AssetPicker';
+import type { AssetPickerSpec } from './asset-picker';
+
+const ADD_CONNECTION_PICKERS: Record<'tables' | 'genie-spaces' | 'catalogs', AssetPickerSpec> = {
+  tables: {
+    field: 'add-table',
+    levels: ['catalogs', 'schemas', 'tables'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Tables your sign-in can see',
+    typeLabel: 'Or type a three-part table name',
+    typeNote: '',
+  },
+  'genie-spaces': {
+    field: 'add-genie-space',
+    levels: ['genie-spaces'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Genie spaces your sign-in can see',
+    typeLabel: 'Or type a Genie space ID',
+    typeNote: '',
+  },
+  catalogs: {
+    field: 'add-catalog',
+    levels: ['catalogs'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Catalogs your sign-in can see',
+    typeLabel: 'Or type a catalog name',
+    typeNote: '',
+  },
+};
 
 export interface DeclaredConnectionsCardProps {
   entries?: ConnectionEntry[];
   /** Whether the store that holds these is answering. */
   storeAvailable?: boolean;
+  /** Administrators only may add or withdraw. Consumers still see the list. */
+  allowMutations?: boolean;
   onChanged: () => void;
 }
 
 export function DeclaredConnectionsCard({
   entries,
   storeAvailable = true,
+  allowMutations = false,
   onChanged,
 }: DeclaredConnectionsCardProps) {
   const [adding, setAdding] = useState(false);
   const [id, setId] = useState('');
   const [label, setLabel] = useState('');
-  const [kind, setKind] = useState(ADDABLE_KINDS[0].kind);
+  const [kindChoice, setKindChoice] = useState(ADDABLE_KINDS[0].id);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -58,16 +93,27 @@ export function DeclaredConnectionsCard({
 
   const listed = orderConnections(entries ?? []);
   const counts = connectionCounts(listed);
-  const chosenKind = ADDABLE_KINDS.find((entry) => entry.kind === kind) ?? ADDABLE_KINDS[0];
+  const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
+  const picker = chosenKind.browse ? ADD_CONNECTION_PICKERS[chosenKind.browse] : null;
 
   async function add() {
+    const duplicate = listed.some(
+      (entry) =>
+        entry.connection.state === 'declared' &&
+        entry.connection.kind === chosenKind.kind &&
+        entry.connection.value === value.trim()
+    );
+    if (duplicate) {
+      setError('That connection is already in the list.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       const response = await fetch('/api/settings/connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: id.trim(), label: label.trim(), kind, value: value.trim() }),
+        body: JSON.stringify({ id: id.trim(), label: label.trim(), kind: chosenKind.kind, value: value.trim() }),
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { detail?: string };
@@ -112,9 +158,11 @@ export function DeclaredConnectionsCard({
               list with nothing in either state, and an empty span beside the
               heading reads as a count that failed to load. */}
           {counts ? <span className="plane-count ast-num">{counts}</span> : null}
-          <button type="button" className="plane-button-quiet" onClick={() => setAdding((open) => !open)}>
-            {adding ? 'Cancel' : 'Add'}
-          </button>
+          {allowMutations ? (
+            <button type="button" className="plane-button-quiet" onClick={() => setAdding((open) => !open)}>
+              {adding ? 'Cancel' : '+ Add a new connection'}
+            </button>
+          ) : null}
         </span>
       </div>
 
@@ -130,7 +178,7 @@ export function DeclaredConnectionsCard({
           </span>
         ) : null}
 
-        {adding ? (
+        {allowMutations && adding ? (
           <div className="plane-form">
             <div className="plane-form-pair">
               <input
@@ -144,19 +192,33 @@ export function DeclaredConnectionsCard({
                   combobox whose accessible name is "Kind" and whose value is the
                   chosen label, so a reader hears the same thing the native
                   control said. */}
-              <Select value={kind} onValueChange={setKind}>
+              <Select value={kindChoice} onValueChange={setKindChoice}>
                 <SelectTrigger className="plane-field plane-field-select" aria-label="Kind">
                   <span>{chosenKind.label}</span>
                 </SelectTrigger>
                 <SelectContent position="popper" align="start" sideOffset={4}>
                   {ADDABLE_KINDS.map((entry) => (
-                    <SelectItem key={entry.kind} value={entry.kind}>
+                    <SelectItem key={entry.id} value={entry.id}>
                       {entry.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            {picker ? (
+              <AssetPicker
+                spec={picker}
+                current={value}
+                onPick={(picked) => {
+                  setValue(picked);
+                  setLabel((current) => current || picked.split(/[./]/).filter(Boolean).at(-1) || picked);
+                  setId(
+                    (current) =>
+                      current || `${chosenKind.id}-${picked.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
+                  );
+                }}
+              />
+            ) : null}
             <input
               className="plane-field ast-mono"
               value={value}
@@ -198,28 +260,30 @@ export function DeclaredConnectionsCard({
                 {/* A removed asset keeps its way back. This app is usually mid
                     demonstration when somebody removes the wrong thing, so the
                     row stays and offers "Put back" rather than disappearing. */}
-                {removed ? (
-                  <button
-                    type="button"
-                    className="plane-button-quiet"
-                    disabled={busy || !storeAvailable}
-                    onClick={() => void act(entry.connection.id, 'POST', '/restore')}
-                  >
-                    {RESTORE_LABEL}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="plane-button-quiet"
-                    disabled={busy || !storeAvailable}
-                    onClick={() => setConfirming(entry.connection.id)}
-                  >
-                    {REMOVE_LABEL}
-                  </button>
-                )}
+                {allowMutations ? (
+                  removed ? (
+                    <button
+                      type="button"
+                      className="plane-button-quiet"
+                      disabled={busy || !storeAvailable}
+                      onClick={() => void act(entry.connection.id, 'POST', '/restore')}
+                    >
+                      {RESTORE_LABEL}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="plane-button-quiet"
+                      disabled={busy || !storeAvailable}
+                      onClick={() => setConfirming(entry.connection.id)}
+                    >
+                      {REMOVE_LABEL}
+                    </button>
+                  )
+                ) : null}
               </div>
 
-              {confirming === entry.connection.id ? (
+              {allowMutations && confirming === entry.connection.id ? (
                 <div className="plane-confirm">
                   <span className="plane-confirm-headline">{entry.impact.headline}</span>
                   <ul className="plane-confirm-list">

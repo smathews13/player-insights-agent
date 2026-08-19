@@ -70,6 +70,13 @@ APP_NAME="$(bundle_var app_name)"
 SRC_PATH="$(bundle_var app_source_code_path)"
 APP_DIR="$BUNDLE_ROOT/player-insights-agent"
 DEPLOY_TREE="$APP_DIR/build/deploy"
+APP_DB_GRANT="$BUNDLE_ROOT/bundle/app-db-grant.sh"
+
+run_app_db_grant() {
+  [[ -f "$APP_DB_GRANT" ]] || die "bundle/app-db-grant.sh is missing. Refusing to deploy
+without the Postgres grants and AppKit cache ownership remediation this release promises."
+  TARGET="$TARGET" PROFILE="$PROFILE" bash "$APP_DB_GRANT"
+}
 
 step "App release configuration (target: $TARGET)"
 note "app            $APP_NAME"
@@ -99,6 +106,7 @@ directory still holds the build you want.
 EOF
     exit 0
   fi
+  run_app_db_grant
   step "Re-pointing $APP_NAME at $ROLLBACK_TO"
   databricks apps deploy "$APP_NAME" --source-code-path "$ROLLBACK_TO" --profile "$PROFILE"
   step "Status"
@@ -118,9 +126,9 @@ if [[ "$APPLY" != true ]]; then
 
 Dry run. Nothing was built or deployed. Re-run with --apply to:
   0. run bundle/release-gate.sh: the permissions the app declares against the
-     ones it documents and the ones it holds, every declared resource attached
-     to the live app, and what the app's service principal can read. THIS ONE
-     STOPS THE RELEASE before anything is built. ~7s, two workspace reads.
+     ones it documents and the ones it holds, and every declared resource
+     attached to the live app. THIS ONE STOPS THE RELEASE before anything is
+     built. ~7s, two workspace reads.
      Run it now, without releasing:  TARGET=$TARGET bundle/release-gate.sh
   1. resolve the MLflow experiment id for '$TARGET' out of the bundle
   2. npm run build:deploy        (vite client build + esbuild server bundle)
@@ -128,11 +136,14 @@ Dry run. Nothing was built or deployed. Re-run with --apply to:
      They never gate this release.
   4. check the app owns its Postgres schema. THIS ONE STOPS THE RELEASE, before
      anything is uploaded: ownership cannot be repaired by a later deploy.
-  5. databricks workspace import-dir build/deploy $SRC_PATH --overwrite
-  6. databricks apps deploy $APP_NAME --source-code-path $SRC_PATH
-  7. fail if a declared OAuth scope is not in effect. The code is deployed by
+  5. resolve the app role, direct Lakebase branch host, Postgres database and
+     operator role from the live bundle resources, then run
+     scripts/grant-app-db-access.mjs. This STOPS the release on failure.
+  6. databricks workspace import-dir build/deploy $SRC_PATH --overwrite
+  7. databricks apps deploy $APP_NAME --source-code-path $SRC_PATH
+  8. fail if a declared OAuth scope is not in effect. The code is deployed by
      then; the app needs a stop/start, which this prints.
-  8. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
+  9. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
      this deployment's administrators and experiment id into. Tracked file, and
      it publishes; nothing to remember afterwards.
 
@@ -179,11 +190,11 @@ RELEASE_GATE="$BUNDLE_ROOT/bundle/release-gate.sh"
 if [[ -f "$RELEASE_GATE" ]]; then
   TARGET="$TARGET" PROFILE="$PROFILE" bash "$RELEASE_GATE" || exit $?
 else
-  note "This tree carries no release gate, so the permissions, the declared"
-  note "resources and the app service principal's data access were NOT checked."
-  note "Nothing below asks those questions before the upload. Establish them by"
-  note "hand if this deployment matters: 'databricks apps get $APP_NAME -o json'"
-  note "shows the resources and the effective scopes."
+  note "This tree carries no release gate, so the permissions and the declared"
+  note "resources were NOT checked. Nothing below asks those questions before"
+  note "the upload. Establish them by hand if this deployment matters:"
+  note "'databricks apps get $APP_NAME -o json' shows the resources and the"
+  note "effective scopes."
 fi
 
 # Run Explorer deep-links a stored trace into MLflow, which needs the experiment's
@@ -226,6 +237,10 @@ fi
 # databricks.yml still stops the release. Telling those two apart is the point
 # of putting it in the bundle at all.
 SHARED_RAIL="$(bundle_var_or_empty shared_conversation_rail)"
+# Postgres schema the app owns inside Lakebase. Default player_insights; the
+# release bakes the resolved var into PLAYER_INSIGHTS_APP_SCHEMA so Connections
+# and DDL agree with the bundle.
+LAKEBASE_APP_SCHEMA="$(bundle_var lakebase_app_schema)"
 # Same treatment, and empty is the normal case: it means the app keeps its
 # compiled default judge. bundle_var_or_empty rather than bundle_var so an empty
 # value passes while a variable DELETED from databricks.yml still stops the
@@ -378,12 +393,14 @@ fi
 
 step "Building the dependency-free deploy tree"
 (cd "$APP_DIR" \
-  && PLAYER_INSIGHTS_EXPERIMENT_ID="$EXPERIMENT_ID" \
+  && PLAYER_INSIGHTS_TARGET="$TARGET" \
+     PLAYER_INSIGHTS_EXPERIMENT_ID="$EXPERIMENT_ID" \
      PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL="$SHARED_RAIL" \
      PLAYER_INSIGHTS_JUDGE_ENDPOINT="$JUDGE_ENDPOINT" \
      PLAYER_INSIGHTS_TELEMETRY_SCHEMA="$TELEMETRY_SCHEMA" \
      PLAYER_INSIGHTS_USER_API_SCOPES="$DECLARED_SCOPES" \
      PLAYER_INSIGHTS_ADMIN_EMAILS="$ADMIN_EMAILS" \
+     PLAYER_INSIGHTS_APP_SCHEMA="$LAKEBASE_APP_SCHEMA" \
      npm run build:deploy)
 
 # --live, not the static subset: the static checks cover build properties only
@@ -459,6 +476,8 @@ elif [[ "$OWNERSHIP_STATUS" -ne 0 ]]; then
   note "Continuing with the release. If the app's schema turns out to be owned by a"
   note "developer role, its boot log will say so on the next start."
 fi
+
+run_app_db_grant
 
 step "Uploading to $SRC_PATH"
 databricks workspace import-dir "$DEPLOY_TREE" "$SRC_PATH" --overwrite --profile "$PROFILE"

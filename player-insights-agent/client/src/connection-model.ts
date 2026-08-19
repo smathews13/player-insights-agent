@@ -59,6 +59,8 @@ export interface SettingsPayload {
   drift: DriftFinding[];
   status: 'ok' | 'blocked' | 'pending' | 'unknown';
   appBuildSha: string;
+  /** App-build lineage stamped while the source checkout was available. */
+  appBuildAncestors?: string[];
   modelBuildSha: string;
   orchestratorReported: boolean;
   storeAvailable: boolean;
@@ -113,6 +115,10 @@ export interface DeclarationComparisonRow {
 
 export interface NotebookPanel {
   location: string;
+  /** Saved workspace notebook path. Absent on older servers. */
+  configuredPath?: string;
+  /** Notebook path reported by the latest declaration. Absent on older servers. */
+  observedPath?: string;
   read: {
     declaration: {
       source: string;

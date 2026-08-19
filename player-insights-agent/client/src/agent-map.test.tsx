@@ -137,6 +137,13 @@ function drawn(markup: string): string[] {
 }
 
 describe('the agent map fits the page it is drawn on', () => {
+  it('is the step map only, with no constellation stacked above it', () => {
+    const markup = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} />);
+    expect(markup.match(/class="dag-node/g)).toHaveLength(run.length);
+    expect(markup).not.toContain('ast-sky-map');
+    expect(markup).not.toContain('ast-sky-path');
+  });
+
   it('lays the steps on a grid of four rather than sharing out each row’s slack', () => {
     // The reported defect: row one held five cards, row two held five that lined
     // up under none of them, and row three held card 11 at the left with card 12
@@ -642,6 +649,53 @@ describe('a node opens what its stage recorded', () => {
     expect(asked).not.toContain('<b>question</b>');
   });
 
+  it('renders the answer chart inside the chart-building result as a static record', () => {
+    const built = stage({
+      id: 'plot',
+      name: 'Built the charts',
+      kind: 'tool',
+      input: '1 tool result(s) to plot',
+      output: 'Generated 1 chart.',
+    });
+    const markup = renderToStaticMarkup(
+      <StageDetail
+        stage={built}
+        step={8}
+        origin={0}
+        id="detail"
+        charts={[
+          {
+            id: 'chart-1',
+            title: 'Bookings by title',
+            kind: 'bar',
+            data: [{ type: 'bar', x: ['A'], y: [12] }],
+            layout: { xaxis: { title: 'Title' } },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('dag-result-charts');
+    expect(markup).toContain('chart-card');
+    expect(markup).toContain('Bookings by title');
+    expect(markup).toContain('Bar chart');
+    expect(rule('.trace-dag.map .dag-result-charts')).toMatch(/pointer-events: none/);
+    expect(rule('.trace-dag.map .dag-result-charts')).toMatch(/user-select: none/);
+  });
+
+  it('explains when a stored chart step has no chart payload', () => {
+    const built = stage({ id: 'plot', name: 'Built the charts', kind: 'tool', output: 'Generated 1 chart.' });
+    const unavailable = renderToStaticMarkup(
+      <StageDetail stage={built} step={8} origin={0} id="detail" />,
+    );
+    const empty = renderToStaticMarkup(
+      <StageDetail stage={built} step={8} origin={0} id="detail" charts={[]} />,
+    );
+
+    expect(unavailable).toContain('The chart payload is unavailable for this stored run.');
+    expect(empty).toContain('This step completed without a chart.');
+  });
+
   it('names the row for what the step was given, and keeps "Arguments" when it was not asked', () => {
     const described = stage({
       id: 'step-2-1-describe_table',
@@ -805,7 +859,7 @@ describe('a node opens what its stage recorded', () => {
     // position: without a key, opening a second step would inherit the first
     // step's choice, and a reader who had looked at one raw payload would be shown
     // raw text for everything after it.
-    expect(SOURCE).toMatch(/<StageDetail key=\{open\.id}/);
+    expect(SOURCE).toMatch(/<StageDetail\s+key=\{open\.id}/);
   });
 
   it('draws a focus ring inside the card, because the clip edge is its right edge', () => {
@@ -1570,8 +1624,11 @@ describe('the narrow rail is one column of every step', () => {
     const node = rule('.trace-dag.compact .dag-node');
     expect(node).toMatch(/display: grid/);
     expect(node).toMatch(/grid-template-columns: 20px 13px 1fr auto/);
-    expect(node).toMatch(/align-items: center/);
+    expect(node).toMatch(/align-items: start/);
     expect(node).toMatch(/border-radius: var\(--radius-sm\)/);
     expect(rule('.trace-dag.compact .dag-mark > svg')).toMatch(/width: 13px/);
+    // Optical nudge: start-aligned mark would otherwise sit high against the
+    // bold title / numbered badge (same family as `.live-step-icon`).
+    expect(rule('.trace-dag.compact .dag-mark')).toMatch(/margin-top: 3px/);
   });
 });

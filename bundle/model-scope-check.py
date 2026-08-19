@@ -66,6 +66,23 @@ def load(name: str, path: Path):
     return module
 
 
+def from_file(drift, name: str, target: str) -> str:
+    """One bundle variable as far as THE FILE can answer it, "" for cannot-tell.
+
+    An empty variable and one whose value is still an unexpanded interpolation are
+    the same answer: this repository's tracked files do not carry the value, and
+    the value arrives at release time from `variable-overrides.json`, a
+    `BUNDLE_VAR_*` environment variable, or the bundle's own output. Read either
+    as "not configured" and the check fails every release of a target that
+    supplies the value the normal way.
+
+    Both the Genie ids and the warehouse go through here, so the two cannot drift
+    apart on what "unresolvable" means.
+    """
+    value = drift.expand(drift.resolve(name, target), target).strip()
+    return "" if "${" in value else value
+
+
 def would_bake(target: str, drift, contract_source) -> tuple[set[str], set[str], list[str]]:
     """(required, undecidable-here, why) for the model scopes a release would bake.
 
@@ -96,8 +113,8 @@ def would_bake(target: str, drift, contract_source) -> tuple[set[str], set[str],
     # tell", not "no Genie space" -- and the difference matters, because reading it
     # as the latter would fail every release of a target that adopts its spaces the
     # normal way.
-    data_genie = drift.expand(drift.resolve("genie_data_space_id", target), target)
-    dict_genie = drift.expand(drift.resolve("genie_dictionary_space_id", target), target)
+    data_genie = from_file(drift, "genie_data_space_id", target)
+    dict_genie = from_file(drift, "genie_dictionary_space_id", target)
     if data_genie or dict_genie:
         wanted.add(genie_scope)
         why.append(f"{genie_scope}: a Genie space is configured")
@@ -109,10 +126,23 @@ def would_bake(target: str, drift, contract_source) -> tuple[set[str], set[str],
             f"a release can say whether one exists."
         )
 
-    warehouse = drift.expand(drift.resolve("warehouse_id", target), target)
+    # THE WAREHOUSE IS THE GENIE IDS' CASE, for the same reason and by the same
+    # code path. The id names one workspace's warehouse, so the tracked file does
+    # not carry it: it comes from variable-overrides.json or BUNDLE_VAR_warehouse_id
+    # at release time. Reading an absent value as "no warehouse" made the gate say
+    # the SQL scope was baked and unasked-for, and block a release that was correct.
+    # A warehouse the file DOES resolve is still decided here, both ways.
+    warehouse = from_file(drift, "warehouse_id", target)
     if warehouse:
         wanted.add(sql_scope)
         why.append(f"{sql_scope}: a warehouse is configured")
+    else:
+        undecidable.add(sql_scope)
+        why.append(
+            f"{sql_scope}: NOT DECIDED here. This target's tracked files carry no "
+            f"warehouse id, so it is supplied at release time and only a release "
+            f"can say whether one exists."
+        )
 
     # An index is configured when the target sets the endpoint the index lives on;
     # `semantic_index_endpoint` empty is how a target declares no semantic layer.

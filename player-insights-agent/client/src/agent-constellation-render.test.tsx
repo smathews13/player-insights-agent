@@ -368,6 +368,8 @@ describe('the mark is the agent, and there is one of it (§1)', () => {
     // crowded at a size they were not drawn for.
     expect(PATH_SOURCE).toContain('<AstrolabeMark size={18} ink="dark" />');
     expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark svg \{[^}]*width: 18px/);
+    // Optical: same first-line family as live-step / compact dag marks.
+    expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \{[^}]*margin-top: 1px/);
     // `dark` because the status line is on the navy band. The light cut's
     // #2272B4 is 1.9:1 there and the accent dots read as a texture (§2).
   });

@@ -78,6 +78,38 @@ IDENTITY_MISMATCH = "IDENTITY_MISMATCH"
 #: beside it for that reader.
 REFUSAL_MESSAGE = "The request could not be executed with your permissions."
 
+#: The longest a message returned to a reader may be, matching the cap the Genie
+#: and SQL refusals in `agent.py` are already held to. One number for every
+#: refusal channel: a message that arrives truncated in one surface and whole in
+#: another is read as two different faults.
+MESSAGE_MAX = 600
+
+#: What a reader is told when the serving environment carried no user credential
+#: at all. NOT the same sentence as `REFUSAL_MESSAGE`, and deliberately so.
+#:
+#: The other refusals are about THIS request: a mode was missing, an identity did
+#: not match. This one is about the DEPLOYMENT, and it is the difference between a
+#: reader who signs out and back in forever and one who forwards a sentence to
+#: whoever released the endpoint. The customer incident that produced it reached
+#: the user as `HTTP 400 BAD_REQUEST ... model_serving_user_credentials auth:
+#: Unable to authenticate using user_credentials`, on the first question, with
+#: nothing in it naming a cause or a fix.
+#:
+#: IT NAMES THE FIX AND THE NON-FIXES. Three of the four things an operator tries
+#: first -- restart the app, re-grant the tables, reload the data -- cannot move
+#: this, because the credential is wired at log and deploy time and nothing else
+#: writes it.
+USER_CREDENTIALS_UNAVAILABLE_MESSAGE = (
+    "This deployment cannot run your question as you. The serving endpoint was set "
+    "up without working user-authorization credential forwarding, so the model had "
+    "no credential for the signed-in user and stopped rather than reading the data "
+    "as somebody else. Nothing you can do in the app changes this. It is fixed by "
+    "re-logging the model and redeploying it with the project's release script, from "
+    "the full source repository, so the user-authorization policy and the endpoint's "
+    "on-behalf-of-user wiring are applied together. A restart, a new grant, or a data "
+    "change will not fix it."
+)
+
 
 @dataclass(frozen=True)
 class Requirement:
@@ -227,6 +259,36 @@ def verify(
             ),
         )
     return None
+
+
+def credentials_unavailable(detail: str = "") -> Refusal:
+    """The refusal for a serving environment that carried no invoker credential.
+
+    THE SAME ENVELOPE AS EVERY OTHER REFUSAL, on purpose: `IDENTITY_REQUIRED` is
+    already the app's code for "there is no usable user context", the app already
+    maps it onto the terminal `unavailable` result, and it already prefers the
+    agent's own message over its generic one. A new code would arrive at an app
+    build that does not know it and be reported as an unrecognised failure from a
+    mismatched release -- which is a true sentence about the wrong problem.
+
+    What changes is the message. `detail` is the SDK's own sentence, which goes to
+    the endpoint's log for whoever is fixing the deployment and never to the
+    reader; it carries no token, only the strategy's complaint that there was none.
+    """
+
+    return Refusal(
+        code=IDENTITY_REQUIRED,
+        message=USER_CREDENTIALS_UNAVAILABLE_MESSAGE[:MESSAGE_MAX],
+        detail=(
+            "Model Serving had no user credential to authenticate this request with, so "
+            "the model could not act as the signed-in user. This version was logged WITH "
+            "a user auth policy, so the gap is in the deployment around it: the endpoint "
+            "was not stood up with on-behalf-of-user forwarding, or the caller invoked it "
+            "as its own service principal without forwarding the user's token. Re-log and "
+            "redeploy through the release script, which writes both halves together. "
+            f"The SDK said: {detail or 'nothing further'}"
+        ),
+    )
 
 
 def effective_mode(*, user_authorization: bool, verified: bool) -> str:

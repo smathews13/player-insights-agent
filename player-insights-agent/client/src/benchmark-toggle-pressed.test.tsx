@@ -176,6 +176,26 @@ function thumb(markup: string): Element {
   return found as Element;
 }
 
+/**
+ * The egress switch specifically, by its accessible name.
+ *
+ * The page carries more than one switch now: the runtime-settings card sits
+ * above the experimental card and draws a toggle per answer section, each of
+ * which defaults to on. So "the first switch" and "any checked switch" no
+ * longer name the control this stylesheet is written for. This picks it out by
+ * the accessible name the experimental card gives it, which is stable and is
+ * the thing a reader would use to find it too.
+ */
+function egressSwitch(markup: string): Element {
+  const found = elements(markup).find(
+    (element) =>
+      element.attributes.get('data-slot') === 'switch' &&
+      element.attributes.get('aria-label') === 'Show the egress controls on this page'
+  );
+  expect(found, 'the page renders the egress switch').toBeDefined();
+  return found as Element;
+}
+
 describe('the switch this stylesheet is written for is the one on the page', () => {
   it('matches every rule settings.css writes for it, in the state it writes it for', () => {
     // THE ASSERTION THE OTHER FILE CANNOT MAKE. Each of those rules is keyed on
@@ -195,11 +215,12 @@ describe('the switch this stylesheet is written for is the one on the page', () 
 
   it('reaches the checked rule only when the control says it is checked', () => {
     // The two halves of the same claim: the offset applies when pressed, and it
-    // does not apply when it is not. A selector that matched both states would
-    // pass the loop above while leaving the knob at 16px in the resting state.
-    const checked = ".settings-page [data-slot='switch'][data-state='checked'] [data-slot='switch-thumb']";
-    expect(matched(PRESSED, checked)).toBe(true);
-    expect(matched(RESTING, checked)).toBe(false);
+    // does not apply when it is not. `data-state` is exactly what the checked
+    // selector keys on, so the egress switch carrying 'checked' when pressed and
+    // 'unchecked' when resting is the claim, scoped to this one control -- the
+    // runtime toggles above it default to on and are not what this rule is for.
+    expect(egressSwitch(PRESSED).attributes.get('data-state')).toBe('checked');
+    expect(egressSwitch(RESTING).attributes.get('data-state')).toBe('unchecked');
   });
 
   it('says it is pressed in the attribute the stylesheet reads and the one a reader is told', () => {
@@ -207,13 +228,13 @@ describe('the switch this stylesheet is written for is the one on the page', () 
     // reader is told, and they are written by different code paths. A control
     // that painted as on while announcing itself as off would be a worse fault
     // than the one reported, and nothing else in this repository looks at both.
-    const track = elements(PRESSED).find((element) => element.attributes.get('data-slot') === 'switch');
-    expect(track?.attributes.get('data-state')).toBe('checked');
-    expect(track?.attributes.get('aria-checked')).toBe('true');
-    expect(track?.attributes.get('role')).toBe('switch');
-    const resting = elements(RESTING).find((element) => element.attributes.get('data-slot') === 'switch');
-    expect(resting?.attributes.get('data-state')).toBe('unchecked');
-    expect(resting?.attributes.get('aria-checked')).toBe('false');
+    const track = egressSwitch(PRESSED);
+    expect(track.attributes.get('data-state')).toBe('checked');
+    expect(track.attributes.get('aria-checked')).toBe('true');
+    expect(track.attributes.get('role')).toBe('switch');
+    const resting = egressSwitch(RESTING);
+    expect(resting.attributes.get('data-state')).toBe('unchecked');
+    expect(resting.attributes.get('aria-checked')).toBe('false');
   });
 
   it('still has a knob to see against the blue the pressed track takes', () => {

@@ -84,11 +84,13 @@ Two things catch it, and neither is a substitute for using your own branch:
   no rights over, and says so on the first line of its log. See
   `server/lib/schema-ownership-guard.ts`.
 - `node scripts/check-db-ownership.mjs --app <app> --profile <profile>` reports
-  every object in the schema the app cannot maintain. The release runs it and
-  stops. **Its printed remedy is `DROP SCHEMA ... CASCADE`, which is written for a
-  fresh deployment: on a deployment with history that destroys every
-  conversation, message, rating and run. Drop the individual misowned tables
-  instead.**
+  every object in the **app data** schema the app cannot maintain. The release
+  runs it and stops. Its printed remedy is to drop the listed misowned tables
+  one at a time, then restart — **not** `DROP SCHEMA ... CASCADE` on the app
+  schema, which would destroy conversations, messages, ratings and runs.
+  AppKit's separate cache schema (`appkit`) is remediated by
+  `scripts/grant-app-db-access.mjs` (drop-and-recreate; cache only), not by this
+  check.
 
 ### CLI
 

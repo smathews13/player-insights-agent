@@ -206,7 +206,11 @@ export const CHECKS: CheckDefinition[] = [
     passMeans:
       'The app read THROUGH its own schema, not a bare SELECT 1, so the grants on player_insights ' +
       'are present and the app picked them up. A psql session proves neither.',
-    remedy: 'cd player-insights-agent && node scripts/grant-app-db-access.mjs',
+    remedy:
+      'Re-run bundle/app-release.sh --apply, which resolves the direct branch host and gates its ' +
+      'code deploy on bundle/app-db-grant.sh. After Lakebase detach/reattach without a full ' +
+      'release, run that hook with TARGET and PROFILE, then restart the app so a dropped appkit ' +
+      'cache schema is recreated.',
   },
 
   // --- The model and its manifest -------------------------------------------

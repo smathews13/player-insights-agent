@@ -25,10 +25,11 @@
 import { Badge } from './ui';
 import { Check, Copy } from 'lucide-react';
 import { ratingLabel } from './benchmark-summary';
-import { astPill, personName, runHeadline, shortRunId, statusFamily } from './run-header';
+import { astPill, runHeadline, shortRunId, statusFamily } from './run-header';
 import { runLabel } from './run-label';
 import { reportEgress } from './egress-policy';
 import type { Run } from './app-types';
+import { UserIdentityChip } from './UserIdentityChip';
 
 export function RunHeader({
   run,
@@ -70,7 +71,7 @@ export function RunHeader({
               <span className="run-id-short">{shortRunId(run.id)}</span>
               <Copy aria-hidden="true" />
             </button>
-            <span className="run-detail-user">{personName(run.stakeholder)}</span>
+            <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
             <Badge variant="outline" className={`run-status-pill ${astPill(run.status)}`}>
               {/* The tick only on the family that earns it. A run that failed does
                   not get a check beside the word "failed", and a status this app

@@ -313,16 +313,20 @@ describe('the Refresh button, which used to look wired to nothing', () => {
    * changed -- which is indistinguishable from a dead control, and is what it
    * was taken for.
    */
-  it('hands the control when the answers were taken, and shows that time once', () => {
+  it('hands each freshness surface the same time without restoring the old summary line', () => {
     expect(PAGE).toMatch(/checkedAt=\{lastCheckedAt\}/);
     // The settings stamp first: it is the response the workspace probes are
     // computed in, and the orchestrator's own is routinely empty on a version
     // that reports its configuration and runs no checks.
     expect(PAGE).toMatch(/payload\?\.checkedAt \|\| report\?\.checked_at/);
-    // Once. It used to be printed in the status block's meta line as well, which
-    // was right while the button had no line of its own and is a second copy now.
+    // It is not printed in the old status summary. The same value now also
+    // reaches restored-session copy and the declared-table evidence, so pin the
+    // complete set of consumers rather than treating those uses as duplicate
+    // top-level timestamps.
     expect(PAGE).not.toMatch(/Checked \$\{formatCheckedAt\(lastCheckedAt\)\}/);
-    expect([...PAGE.matchAll(/lastCheckedAt/g)].length).toBeLessThan(4);
+    expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(4);
+    expect(PAGE).toMatch(/restoredNotice\(lastCheckedAt, now\)/);
+    expect(PAGE).toMatch(/<DeclaredTablesTable[^>]*checkedAt=\{lastCheckedAt\}/);
   });
 
   /**

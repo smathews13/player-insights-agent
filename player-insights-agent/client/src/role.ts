@@ -259,13 +259,30 @@ export function showsSettingsGear(state: RoleState): boolean {
  * The order of the header's right-hand cluster, stated once so it cannot be
  * flipped back by accident.
  *
- * ROLE, THEN WHO, THEN WHO BUILT IT, THEN THE GEAR. This is
- * `astrolabe-rebuild-spec.md` §1's cluster: "role chip · avatar · divider ·
+ * ROLE, THEN WHO, THEN WHAT THEY CAN OPEN, THEN WHO BUILT IT. This is
+ * `astrolabe-rebuild-spec.md` §1's cluster, with the signed-in chip restored in
+ * place of the initials avatar: "role chip · identity chip · gear · divider ·
  * Built on Databricks". The first pair is the one that has already been
  * corrected once -- the design handoff puts the role badge to the RIGHT of the
  * identity and this app puts it to the LEFT, which was decided directly and is
  * the order the product specification records in sections 4.1 and 10.3. The
  * badge qualifies the reader it precedes. DO NOT REARRANGE THOSE TWO.
+ *
+ * THE GEAR IS NOW INSIDE THE CLUSTER RATHER THAN AFTER IT, and that is the whole
+ * of what moved: it used to close the header from the far right, past the
+ * attribution, which put a control belonging to the reader on the other side of
+ * the divider that exists to separate the reader from who built the app. It now
+ * sits directly after the identity chip, so the divider has identity on one side of it
+ * and Databricks on the other, which is what §1 says the divider is for.
+ *
+ * Gaps between Super admin, the identity chip, and the gear are the row's single
+ * 12px gap. Do not add margin on the gear or chip.
+ *
+ * It is drawn as a member of `IdentityChips` for that reason, but only in the
+ * header copy: the mobile sheet's copy of the cluster is handed no gear, so
+ * there is exactly one "App settings" control on the page at any width. Below
+ * 800px responsive.css hides the cluster's informational members and keeps the
+ * gear, which is what stops a narrow window losing the only way into the page.
  *
  * THE OAUTH BADGE USED TO LEAD THIS ROW AND HAS MOVED RATHER THAN GONE. §1 does
  * not have it in the chrome, and the two surfaces that are actually about the
@@ -278,10 +295,10 @@ export function showsSettingsGear(state: RoleState): boolean {
  */
 export const HEADER_CLUSTER_ORDER: readonly [
   'role-badge',
-  'identity-avatar',
-  'built-on-databricks',
+  'identity-chip',
   'settings-gear',
-] = ['role-badge', 'identity-avatar', 'built-on-databricks', 'settings-gear'];
+  'built-on-databricks',
+] = ['role-badge', 'identity-chip', 'settings-gear', 'built-on-databricks'];
 
 /* ── The gate ────────────────────────────────────────────────────────────── */
 

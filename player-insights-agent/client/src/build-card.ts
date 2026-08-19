@@ -52,6 +52,8 @@ export type BuildRow =
       value: string;
       /** A quieter clause after the value. */
       aside?: string;
+      /** A person associated with this fact, rendered by the shared identity chip. */
+      identity?: string;
       /**
        * The exact figures behind a rounded or shortened value.
        *
@@ -383,7 +385,7 @@ export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
       key: 'deployed',
       label: 'Last deployed',
       value: deployed,
-      aside: app.deployedBy ? ` \u00b7 by ${app.deployedBy}` : '',
+      identity: app.deployedBy || undefined,
     });
   }
   // Read off the SAME stamp as the row above, rather than from a second field,

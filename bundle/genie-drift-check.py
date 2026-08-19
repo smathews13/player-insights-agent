@@ -260,14 +260,19 @@ def check_space(profile: str, label: str, key: str, space_id: str, committed: di
               f"{live.get('update_time', '(unknown)')})")
         return "in-sync"
 
-    print(f"    DRIFTED   {len(findings)} difference(s) between "
-          f"resources/*.genie_space.yml and the live space:")
+    print(f"    DRIFTED   {len(findings)} difference(s) between the declared body "
+          f"and the live space:")
     for finding in findings:
         print(f"      - {finding}")
-    print(f"          Deploy this space to close it:")
-    print(f"            databricks bundle deploy -t <target> --select genie_spaces.{key}")
-    print( "          Then run this again. A deploy that exits 0 is not evidence the")
-    print( "          body changed; this check re-reading it is.")
+    # Deliberately NOT "deploy this space to close it". The bundle attaches to
+    # spaces it does not own, so this branch is only reachable if something
+    # declared one again -- and deploying that would overwrite a live space's
+    # instructions and curated tables, which is the failure, not the fix.
+    print( "          Close it in the Genie UI, on whichever side is wrong.")
+    print(f"          If the bundle is declaring genie_spaces.{key} again, that is the")
+    print( "          real finding: this bundle attaches to existing spaces by id and")
+    print( "          must not create or overwrite them. Reference bodies live in")
+    print( "          genie/, which is not part of `include:`.")
     return "drifted"
 
 

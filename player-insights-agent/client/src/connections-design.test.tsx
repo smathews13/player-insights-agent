@@ -199,6 +199,7 @@ describe('the Configuration list', () => {
         group={groupsFor([row('max-output-tokens', { configured: '4000', editable: true })]).find((group) => group.key === 'configuration')!}
         saving=""
         requestedResource=""
+        allowMutations
         onSave={() => Promise.resolve(true)}
         onClear={async () => {}}
       />,
@@ -403,9 +404,24 @@ describe('the Build and telemetry card', () => {
   it('turns both halves red when they name different commits, and says so once', () => {
     const facts = buildFacts({ appBuildSha: 'aaaaaaaa11', modelBuildSha: 'bbbbbbbb22' });
     expect(facts.notes).toEqual([
-      'Different commits: the app and the orchestrator were not built from the same one.',
+      'Different commits: the app and the orchestrator were not built from the same one, and ancestry could not be confirmed.',
     ]);
     expect(facts.artifacts.every((artifact) => artifact.tone === 'blocked')).toBe(true);
+  });
+
+  it('keeps same-lineage freshness neutral instead of painting both commits red', () => {
+    const facts = buildFacts({
+      appBuildSha: '59ff353aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      modelBuildSha: '11be12bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      appBuildAncestors: [
+        '59ff353aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        '11be12bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      ],
+    });
+    expect(facts.agreement).toBe('ancestor');
+    expect(facts.differ).toBe(false);
+    expect(facts.artifacts.map((artifact) => artifact.tone)).toEqual(['plain', 'plain']);
+    expect(facts.notes.join(' ')).toMatch(/same lineage.*normal/i);
   });
 
   /**

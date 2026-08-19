@@ -424,6 +424,47 @@ export function telemetryNotice(
   };
 }
 
+/**
+ * The one line above the recorded error log lines that keeps them from reading
+ * as a live outage.
+ *
+ * THE ERRORS ARE HISTORY, THE HEALTH TABLE IS NOW. The error lines come from
+ * `otel_logs`: they are error-level lines the app wrote at some point inside the
+ * range, each carrying its own timestamp. The Result column above them is a
+ * live probe of each dependency, checked on demand. Those are different
+ * questions, and a reader who reads two-day-old "cache fell back to in-memory"
+ * lines as the current state of a dependency has been handed the wrong one.
+ *
+ * So when every dependency answered its most recent check, this says so in
+ * words: the lines below are recorded history, not a live failure, and each one
+ * says when it was written. It never HIDES a line — a real, current fault still
+ * shows in the Result column and this note steps aside for it when a dependency
+ * is not answering. Returns null at zero, because a count of zero is not a
+ * count and the block draws nothing.
+ */
+export interface ErrorFraming {
+  /** Count line, never zero: e.g. "2 error lines recorded in this range". */
+  headline: string;
+  /** Body sentence distinguishing recorded history from a live failure. */
+  note: string;
+  /** True only when a dependency is not answering its check right now. */
+  live: boolean;
+}
+
+export function errorFraming(input: {
+  errorCount: number;
+  dependencies: DependencyResult[];
+}): ErrorFraming | null {
+  if (input.errorCount <= 0 || !Number.isFinite(input.errorCount)) return null;
+  const noun = input.errorCount === 1 ? 'error line' : 'error lines';
+  const headline = `${count(input.errorCount)} ${noun} recorded in this range`;
+  const live = input.dependencies.some((result) => result === 'did-not-answer');
+  const note = live
+    ? 'A dependency is not answering its most recent check. Read these lines against the Result column above.'
+    : 'Every dependency answered its most recent check, so these are recorded log lines from earlier in the range, not a live failure. Each line carries the time it was written.';
+  return { headline, note, live };
+}
+
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
 /**
@@ -582,6 +623,99 @@ export function splitRouteLabel(route: string): { head: string; tail: string } {
     return { head: parts[0], tail: parts.slice(1).join(' ') };
   }
   return { head: route, tail: '' };
+}
+
+/**
+ * The HTTP method and the path, split off the span name.
+ *
+ * The platform writes a span as `POST /api/insights/ask`. The compact grid draws
+ * the method as its own coloured chip and the path as the flexing, ellipsised
+ * cell, so they are separated here rather than in the component: a span with no
+ * leading method (some background spans have none) keeps its whole text as the
+ * path and draws no chip, which is the honest thing rather than inventing a GET.
+ */
+export function splitMethod(route: string): { method: string; path: string } {
+  const match = route.match(/^([A-Z]{3,7})\s+(.+)$/);
+  if (match) return { method: match[1], path: match[2] };
+  return { method: '', path: route };
+}
+
+/**
+ * How wide each p50 bar is, log-scaled across the rows on screen so the fastest
+ * and the slowest route are both legible.
+ *
+ * THE SCALE IS THE WHOLE POINT, AND IT IS LOG RATHER THAN LINEAR. These routes
+ * run from under a millisecond to over a minute — five orders of magnitude — and
+ * a linear bar draws 65ms as roughly nothing beside an 83.5s bar: 0.08% of the
+ * track, a bar a reader cannot see, which reads as a route that was not measured
+ * rather than as a fast one. Logarithms put the fast routes back on the chart:
+ * the smallest positive value gets {@link P50_BAR_MIN_WIDTH} and the largest gets
+ * the full track, with everything spaced by ratio between them.
+ *
+ * Zero and absent values get a zero-width bar, never the floor: a drawn bar is a
+ * claim there is a duration to draw, and the p50 figure beside it is the number
+ * that cannot be misread. When every visible p50 is equal the scale collapses,
+ * and each full bar says truthfully that they are the same.
+ */
+export const P50_BAR_MIN_WIDTH = 6;
+
+export function p50BarWidths(values: number[]): number[] {
+  const positives = values.filter((value) => Number.isFinite(value) && value > 0);
+  if (positives.length === 0) return values.map(() => 0);
+  const logLo = Math.log(Math.min(...positives));
+  const span = Math.log(Math.max(...positives)) - logLo;
+  return values.map((value) => {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    if (span <= 0) return 100;
+    const fraction = (Math.log(value) - logLo) / span;
+    return Math.round(P50_BAR_MIN_WIDTH + fraction * (100 - P50_BAR_MIN_WIDTH));
+  });
+}
+
+/**
+ * The one strip above the latency table, and whether the high-percentile
+ * columns render at all.
+ *
+ * A FACT TRUE OF EVERY ROW IS SAID ONCE, NEVER PER ROW. On a quiet window every
+ * route is under the span floor, so p95, p99 and the trend verdict are withheld
+ * on all of them, refusals are never on a span, and the error column is empty
+ * everywhere. Five columns of the same dash is five columns saying nothing, so
+ * this collapses them into one sentence above the table. When even one route
+ * crosses the floor its p95/p99/trend are worth a column again, so the columns
+ * come back and this line stops claiming there are none.
+ *
+ * Errors are summarised rather than hidden. The compact grid has no error
+ * column, so a genuine 5xx count is named here rather than dropped: honesty over
+ * tidiness, the rule the rest of this file is held to.
+ */
+export interface LatencySharedFacts {
+  /** The strip's sentence, or '' when nothing is universally empty. */
+  line: string;
+  /** Whether p95/p99/trend render as columns, because a route crossed the floor. */
+  showPercentiles: boolean;
+}
+
+export function latencySharedFacts(routes: RouteLatency[]): LatencySharedFacts {
+  // No routes means an absence is drawn instead of the table; there is nothing
+  // for this strip to state, so it says nothing rather than a fact about an
+  // empty set.
+  if (routes.length === 0) return { line: '', showPercentiles: false };
+  const showPercentiles = routes.some((route) => route.p95Ms !== null);
+  const parts: string[] = [];
+  if (routes.length > 0 && !showPercentiles) {
+    parts.push(`Every route is under ${SPAN_PERCENTILE_FLOOR} spans this window: no p95, p99, or trend yet.`);
+  }
+  const errorTotal = routes.reduce((sum, route) => sum + (route.errorCount > 0 ? route.errorCount : 0), 0);
+  const refusalsAllUnreported = routes.every((route) => route.refusalCount === null);
+  if (errorTotal === 0 && refusalsAllUnreported) {
+    parts.push('Errors and refusals not reported by the endpoint.');
+  } else if (refusalsAllUnreported) {
+    parts.push(
+      `${count(errorTotal)} error ${errorTotal === 1 ? 'span' : 'spans'} recorded across these routes. ` +
+        'Refusals not reported by the endpoint.'
+    );
+  }
+  return { line: parts.join(' '), showPercentiles };
 }
 
 export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()): LatencyRouteView {

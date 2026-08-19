@@ -1,8 +1,8 @@
+import { APP_SCHEMA } from '../../shared/app-schema';
 import type { PreflightCheck } from '../routes/insights-routes';
 import {
   GRANT_SCRIPT_COMMAND,
-  GRANT_SCRIPT_ENV_VARS,
-  GRANT_SCRIPT_PATH,
+  GRANT_HOOK_PATH,
   GRANT_SCRIPT_WHY,
 } from '../../shared/setup-remedies';
 import { POOL_ENV, STATEMENT_TIMEOUT_CODE, statementTimeoutMs, statementTimeoutSql } from './lakebase-pool';
@@ -286,7 +286,7 @@ export const GRANT_DENIED_CODES = new Set(['42501', '3F000', '42P01']);
 /**
  * The one 42501 that is not this condition.
  *
- * `ALTER TABLE player_insights.messages ADD COLUMN IF NOT EXISTS ...` is
+ * `ALTER TABLE ${APP_SCHEMA}.messages ADD COLUMN IF NOT EXISTS ...` is
  * refused at every boot of a database whose tables are owned by the developer
  * who first created them, because Postgres checks ownership before it decides
  * the statement is a no-op, and it reports that refusal as `must be owner of
@@ -327,13 +327,13 @@ export function isGrantDenialFailure(failure: { code: string; message: string })
 /**
  * What the logs, the Sources page, and the banner all say to fix it.
  *
- * One sentence, built from `shared/setup-remedies.ts`, so the five variables
- * cannot be listed as four in one of the three places that list them.
+ * Built from `shared/setup-remedies.ts`, so every surface points to the
+ * target-aware release hook rather than asking an operator to reconstruct its
+ * five derived inputs.
  */
 export const GRANT_DENIED_LOG_REMEDY =
-  `Run ${GRANT_SCRIPT_PATH} once, from the repository, with all ` +
-  `${GRANT_SCRIPT_ENV_VARS.length} of ${GRANT_SCRIPT_ENV_VARS.join(', ')} set ` +
-  `(none has a default):\n${GRANT_SCRIPT_COMMAND}\n${GRANT_SCRIPT_WHY}`;
+  `Re-run the canonical app release, or after a Lakebase reattach run:\n` +
+  `${GRANT_SCRIPT_COMMAND}\n${GRANT_SCRIPT_WHY}`;
 
 /**
  * Anything qualified with the app's schema needs privileges a bare connection
@@ -341,7 +341,7 @@ export const GRANT_DENIED_LOG_REMEDY =
  * actually sent rather than trusting a caller to describe itself honestly, so
  * a future probe cannot claim to be a real read by passing an argument.
  */
-const SCHEMA_QUALIFIED = /\bplayer_insights\s*\./i;
+const SCHEMA_QUALIFIED = new RegExp(`\\b${APP_SCHEMA}\\s*\\.`, 'i');
 
 function readDepth(sql: string): ReadDepth {
   return SCHEMA_QUALIFIED.test(sql) ? 'schema' : 'connection';
@@ -805,7 +805,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
           `conversation storage is unavailable and the conversations, runs and benchmarks in the app ` +
           `cannot be listed at all. This is a privilege or schema ` +
           `problem, not an outage that will pass: the app's Postgres role has no grant on the schema, ` +
-          `which is the state a deployment is in until ${GRANT_SCRIPT_PATH} has been run once. ` +
+          `which is the state a deployment is in until ${GRANT_HOOK_PATH} has completed. ` +
           `Refused since ${snapshot.since}` +
           (snapshot.last_ok_at
             ? `; last successful read ${snapshot.last_ok_at}, so the grant existed and was lost.`
@@ -869,9 +869,9 @@ export function lakebaseStorageCheck(): PreflightCheck {
       error: '',
     };
     const counts =
-      'SELECT (SELECT count(*) FROM player_insights.conversations) AS conversations,\n' +
-      '       (SELECT count(*) FROM player_insights.messages) AS messages,\n' +
-      '       (SELECT count(*) FROM player_insights.benchmark_runs) AS benchmark_runs;';
+      `SELECT (SELECT count(*) FROM ${APP_SCHEMA}.conversations) AS conversations,\n` +
+      `       (SELECT count(*) FROM ${APP_SCHEMA}.messages) AS messages,\n` +
+      `       (SELECT count(*) FROM ${APP_SCHEMA}.benchmark_runs) AS benchmark_runs;`;
 
     if (snapshot.content === 'populated') {
       return {
@@ -936,9 +936,9 @@ export const WATCHDOG_ROUTE = 'watchdog probe';
  * page before a single record had been read.
  */
 export const WATCHDOG_PROBE_SQL =
-  'SELECT (SELECT 1 FROM player_insights.conversations LIMIT 1) AS conversations,' +
-  ' (SELECT 1 FROM player_insights.messages LIMIT 1) AS messages,' +
-  ' (SELECT 1 FROM player_insights.benchmark_runs LIMIT 1) AS benchmark_runs';
+  `SELECT (SELECT 1 FROM ${APP_SCHEMA}.conversations LIMIT 1) AS conversations,` +
+  ` (SELECT 1 FROM ${APP_SCHEMA}.messages LIMIT 1) AS messages,` +
+  ` (SELECT 1 FROM ${APP_SCHEMA}.benchmark_runs LIMIT 1) AS benchmark_runs`;
 
 /** How often the probe runs when nothing says otherwise. */
 export const WATCHDOG_DEFAULT_INTERVAL_MS = 60_000;

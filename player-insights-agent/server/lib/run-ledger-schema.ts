@@ -32,6 +32,7 @@
  * `messages` or `conversations` would NOT have that property.
  */
 
+import { APP_SCHEMA } from '../../shared/app-schema';
 import { EXECUTING_STATES } from './run-state';
 
 /**
@@ -61,7 +62,7 @@ export const RUN_LEDGER_DDL: readonly string[] = [
    * owns this now" and the audit question is "who has owned it", which the
    * current holder cannot answer on its own.
    */
-  `CREATE TABLE IF NOT EXISTS player_insights.runs (
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.runs (
     run_id TEXT PRIMARY KEY,
     user_email TEXT NOT NULL,
     label_scope TEXT,
@@ -98,7 +99,7 @@ export const RUN_LEDGER_DDL: readonly string[] = [
    * another has taken it over fails on the way in instead of on the way out,
    * after it has already paid for the model call.
    */
-  `CREATE TABLE IF NOT EXISTS player_insights.run_attempts (
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.run_attempts (
     attempt_id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
     fencing_token BIGINT NOT NULL,
@@ -125,7 +126,7 @@ export const RUN_LEDGER_DDL: readonly string[] = [
    * table may carry a bearer token, a raw tool result, or the text of an
    * attachment.
    */
-  `CREATE TABLE IF NOT EXISTS player_insights.run_events (
+  `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.run_events (
     run_id TEXT NOT NULL,
     seq BIGINT NOT NULL,
     event_id TEXT NOT NULL,
@@ -155,21 +156,21 @@ export const RUN_LEDGER_DDL: readonly string[] = [
    * the duplicate it prevented.
    */
   `CREATE UNIQUE INDEX IF NOT EXISTS runs_live_request_unique
-     ON player_insights.runs (user_email, request_hash)
+     ON ${APP_SCHEMA}.runs (user_email, request_hash)
      WHERE state IN (${EXECUTING_STATE_LIST})`,
 
   // Run Explorer reads a conversation's runs newest first, and the ask route
   // resolves the run of a turn. Without this, both are sequential scans of a
   // table that grows with every question ever asked.
   `CREATE INDEX IF NOT EXISTS runs_conversation_idx
-     ON player_insights.runs (conversation_id, created_at DESC)`,
+     ON ${APP_SCHEMA}.runs (conversation_id, created_at DESC)`,
 
   // The operational read: which of this user's runs are unfinished. Also the
   // sweep that finds runs whose lease expired without a terminal state, which
   // the plan requires to be alertable rather than merely absent.
   `CREATE INDEX IF NOT EXISTS runs_state_idx
-     ON player_insights.runs (state, lease_expires_at)`,
+     ON ${APP_SCHEMA}.runs (state, lease_expires_at)`,
 
   `CREATE INDEX IF NOT EXISTS run_attempts_run_idx
-     ON player_insights.run_attempts (run_id, started_at DESC)`,
+     ON ${APP_SCHEMA}.run_attempts (run_id, started_at DESC)`,
 ];

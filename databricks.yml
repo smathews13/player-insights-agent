@@ -50,7 +50,11 @@ variables:
   warehouse_id:
     description: >-
       REQUIRED. ID of an existing PRO or SERVERLESS SQL warehouse used by Genie
-      and the agent. This bundle does not create or modify the warehouse.
+      and the agent. This bundle does not create or modify the warehouse. Set
+      this in the git-ignored
+      `.databricks/bundle/<target>/variable-overrides.json` or as
+      BUNDLE_VAR_warehouse_id. Do not put workspace-specific warehouse ids in
+      this tracked file or in a target block.
 
   warehouse_role_name:
     description: >-
@@ -104,31 +108,32 @@ variables:
     default: ""
 
   # Genie
-  genie_parent_path:
-    description: Workspace folder that holds the two Genie spaces.
-    default: /Workspace/Shared
-  data_genie_tables:
-    description: >-
-      REQUIRED. List of fully qualified table objects for the data Genie space,
-      for example [{identifier: catalog.schema.table}]. Every table must fall
-      inside data_catalogs.
-    type: complex
-  dictionary_genie_tables:
-    description: >-
-      REQUIRED. List of fully qualified table objects for the dictionary Genie
-      space. Every table must fall inside data_catalogs.
-    type: complex
+  #
+  # This bundle ATTACHES to Genie spaces that already exist. It does not create
+  # them, does not curate their tables, and does not overwrite their
+  # instructions. Name the two spaces by id; what they curate is read from the
+  # workspace at model-log time.
+  #
+  # There is deliberately no table list here. A deployment names spaces, not
+  # their contents: `manifest_source: genie` derives the model's table manifest
+  # from what the live spaces curate (agent/preflight.py `_manifest_from_genie`),
+  # and refuses to log a model when any curated table falls outside
+  # data_catalogs. That refusal is where read-scope containment is enforced, so
+  # discovering tables rather than typing them does not widen the boundary.
+  #
+  # Curate a space in the Genie UI, or from the reference bodies in genie/.
   genie_data_space_id:
     description: >-
-      Existing data Genie space ID to use instead of the bundle output. Defaults
-      to empty. Store overrides in variable-overrides.json. Its curated tables
-      must be a subset of the model manifest.
-    default: ""
+      REQUIRED. ID of the EXISTING data Genie space the agent asks. This bundle
+      does not create or modify the space. Set it in the git-ignored
+      `.databricks/bundle/<target>/variable-overrides.json` or as
+      BUNDLE_VAR_genie_data_space_id. Every table the space curates must fall
+      inside data_catalogs, which agent/preflight.py enforces at log time.
+      Changing this value requires a model re-log and redeploy.
   genie_dictionary_space_id:
     description: >-
-      Existing dictionary Genie space ID to use instead of the bundle output.
-      Defaults to empty and may be set independently of genie_data_space_id.
-    default: ""
+      REQUIRED. ID of the EXISTING dictionary Genie space, on the same terms as
+      genie_data_space_id and set independently of it.
 
   # App
   app_name:
@@ -164,74 +169,107 @@ variables:
     default: system-passthrough
   app_user_api_scopes:
     description: >-
-      OAuth scopes requested from the signed-in user. Keep this list minimal
-      because one unavailable required scope can block sign-in. The three
-      catalog.*:read scopes improve Connections and Ops Unity Catalog metadata
-      probes and workspace.workspace:read lets the Connections pickers browse,
-      but all four are optional for the login gate; Vector Search scopes are
-      required when a semantic index is deployed. Names here are the Apps API's
-      own, which are not the coarse families the OAuth server advertises: the
-      Apps API rejects `unity-catalog` and `workspace`. Adding or removing a
-      scope requires a full app stop and start, followed by a fresh user sign-in
-      to grant updated consent.
+      OAuth scopes requested from the signed-in user. The four base scopes are
+      load-bearing for sign-in; the browse scopes below are OPTIONAL for the
+      login gate (an unavailable one does not fail our gate --
+      shared/optional-user-api-scopes.ts). The three catalog.*:read scopes power
+      Connections and Ops Unity Catalog metadata probes, workspace.workspace:read
+      lets the Connections pickers browse folders, and the two
+      vectorsearch.*:read scopes let the pickers browse Vector Search endpoints
+      and indexes. `postgres` lets them browse Lakebase projects, branches and
+      databases. All of them are in this shared default so EVERY deployment
+      (customer/T2 included) requests them -- they are not example-only. CAVEAT,
+      recorded honestly: Apps consent is all-or-nothing, so "optional" here means
+      our gate does not fail, NOT that the platform cannot; a workspace that will
+      not issue one of these still fails the whole sign-in ahead of the app. That
+      is Sam's accepted trade for making browse work everywhere by default. Names
+      here are the Apps API's own, which are not the coarse families the OAuth
+      server advertises: the Apps API rejects `unity-catalog`, `workspace` and
+      `vector-search`. Adding or removing a scope requires a full app stop and
+      start, followed by a fresh user sign-in to grant updated consent.
     type: complex
     default:
       - serving.serving-endpoints
       - model-serving
       - sql
       - dashboards.genie
+      # Browse scopes, all in the shared default as of 2026-08-18 so a
+      # customer/T2 deploy requests them too, not just example. Optional for the
+      # login gate on the terms above. The bare `catalog`/`workspace`/
+      # `vector-search` the OAuth server advertises are rejected by the Apps API;
+      # these are the accepted read names.
+      - catalog.catalogs:read
+      - catalog.schemas:read
+      - catalog.tables:read
+      # Workspace notebook/folder browse. A deployment must be stopped and
+      # started after adding this scope, followed by a fresh sign-in.
+      - workspace.workspace:read
+      # Vector Search browse. Sam's call (2026-08-18): in the shared default
+      # alongside catalog/workspace, optional for login, NOT example-only. Lets the
+      # Connections pickers enumerate VS endpoints and indexes. The pair moves
+      # together.
+      - vectorsearch.vector-search-indexes:read
+      - vectorsearch.vector-search-endpoints:read
+      # Lakebase control-plane browse (projects / branches / databases). Optional
+      # for the login gate. Apps accepts `postgres`; without it the Connections
+      # Lakebase row stays typed. Not an MLflow substitute — Apps still has no
+      # MLflow scope. Still staged until the Lakebase browser is released.
+      # - postgres
   app_source_code_path:
     description: >-
       REQUIRED. Absolute workspace path containing the deployed app source.
       The directory must not contain package.json because the app would run
-      `npm install` during deployment.
+      `npm install` during deployment. Prefer a shared folder. Set this in the
+      git-ignored `.databricks/bundle/<target>/variable-overrides.json` or as
+      BUNDLE_VAR_app_source_code_path. Do not put personal home paths in this
+      tracked file or in a target block.
 
   # Lakebase
+  #
+  # This bundle ATTACHES to a Lakebase instance that already exists. It does not
+  # create or modify the project, the branch, the endpoint or the database, and
+  # it does not need a database owner role: creating a database is what wanted
+  # one. The three ids below identify an existing instance, and the only thing
+  # the bundle declares about it is the app's binding to it, in
+  # resources/player_insights_app.app.yml.
+  #
+  # Provision the instance first (Lakebase UI, or `databricks postgres
+  # create-project`), then name it here.
   lakebase_project_id:
     description: >-
-      REQUIRED. Lakebase project ID using lowercase letters, digits, and
-      hyphens. Confirm the ID before deploying because existing branches and
-      databases with matching names are updated.
-  lakebase_project_display_name:
-    description: >-
-      Human-readable Lakebase project name, shown in the workspace UI. Defaults
-      to the project id.
-    default: ${var.lakebase_project_id}
+      REQUIRED. ID of an EXISTING Lakebase project. Read it from
+      `databricks postgres list-projects --profile <profile> -o json`. This
+      bundle does not create the project.
   lakebase_branch_id:
-    description: Lakebase branch id the app connects to.
+    description: >-
+      ID of an existing branch in that project, which the app connects to.
+      Read it from `databricks postgres list-branches projects/<project>`.
     default: production
   lakebase_database_id:
-    description: Lakebase database id inside the branch.
+    description: >-
+      ID of an existing database in that branch. Read it from
+      `databricks postgres list-databases projects/<project>/branches/<branch>`.
     default: databricks-postgres
   lakebase_app_schema:
     description: >-
-      Postgres schema the app creates and owns. Defaults to player_insights.
-      This variable documents the app's fixed DDL value; changing it alone does
-      not reconfigure the app. The app service principal requires USAGE and
+      Postgres schema the app creates and owns inside Lakebase. Defaults to
+      player_insights so existing installs do not silently move. Wired into the
+      app as PLAYER_INSIGHTS_APP_SCHEMA (DDL, migrations, grants, Connections).
+      Changing it on a live deployment requires an app release (so the env
+      updates), a grant on the new schema, and a data migration; the variable
+      alone does not move tables. The app service principal requires USAGE and
       CREATE on this schema.
     default: player_insights
-  lakebase_min_cu:
-    description: Lakebase autoscaling minimum compute units.
-    default: 1
-  lakebase_max_cu:
-    description: Lakebase autoscaling maximum compute units.
-    default: 1
-  lakebase_owner_role_id:
-    description: >-
-      REQUIRED. Existing Lakebase role ID that owns the database. Read the
-      `role_id` for your login from:
-        databricks postgres list-roles \
-          projects/<project>/branches/<branch> --profile <profile> -o json
-  # Derived full resource names. Do not override directly.
+  # Derived full resource names of the existing objects the app binds to. These
+  # are the two values the app resource actually needs; do not override directly.
+  # Autoscaling limits and a database owner role are absent on purpose: both were
+  # inputs to creating an instance, and this bundle creates nothing here.
   postgres_branch_name:
     description: Full Lakebase branch resource name (derived).
     default: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}
   postgres_database_name:
     description: Full Lakebase database resource name (derived).
     default: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}/databases/${var.lakebase_database_id}
-  postgres_owner_role_name:
-    description: Full Lakebase owner role resource name (derived).
-    default: projects/${var.lakebase_project_id}/branches/${var.lakebase_branch_id}/roles/${var.lakebase_owner_role_id}
 
   # Resource-specific variables are declared with their resource.
 
@@ -278,10 +316,12 @@ targets:
               default: ${var.app_schema}
             - name: warehouse_id
               default: ${var.warehouse_id}
+            # The attached spaces, named by id. This bundle does not declare the
+            # spaces, so there is no resource output to read them from.
             - name: data_genie_space_id
-              default: ${resources.genie_spaces.data_genie_space.id}
+              default: ${var.genie_data_space_id}
             - name: dictionary_genie_space_id
-              default: ${resources.genie_spaces.dictionary_genie_space.id}
+              default: ${var.genie_dictionary_space_id}
           tasks:
             - task_key: rebuild_semantic_layer
               environment_key: serverless

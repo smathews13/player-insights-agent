@@ -62,12 +62,6 @@ import type { BrandProduct } from './brand-icons';
  * who had just clicked it, and the layout claim ("storage sits on the bottom
  * row") is one the diagram makes better than a sentence about the diagram can.
  */
-export const ARCHITECTURE_COPY = {
-  checks:
-    'Statuses match the Connections page. The checks run once when you open the app; ' +
-    'Refresh asks again.',
-} as const;
-
 /** Which half of the page a node belongs to. */
 export type ArchitectureLane =
   /** What happens between a question and an answer. */
@@ -149,7 +143,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: null,
     presence: 'local',
     lane: 'request',
-    role: 'React client \u2014 no credentials, reaches only this app.',
+    role: 'Sends questions to the app.',
   },
   {
     id: 'app',
@@ -157,9 +151,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: null,
     presence: 'local',
     lane: 'request',
-    role:
-      'Node server as the app service principal. Stores the conversation, invokes the ' +
-      'orchestrator; never reads a governed table itself.',
+    role: 'Stores conversations and invokes the Orchestrator.',
     product: 'apps',
   },
   {
@@ -168,7 +160,16 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'agent-endpoint',
     presence: 'connection',
     lane: 'request',
-    role: 'Model Serving runs it. Every question goes through it; it decides which tools to use.',
+    role: 'Plans each answer and delegates data discovery.',
+    product: 'mosaic-ai',
+  },
+  {
+    id: 'data-source-finder',
+    label: 'Data Source Finder',
+    resourceId: null,
+    presence: 'unregistered',
+    lane: 'request',
+    role: 'Finds and validates governed data for the Orchestrator.',
     product: 'mosaic-ai',
   },
   {
@@ -177,7 +178,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'llm-endpoint',
     presence: 'connection',
     lane: 'request',
-    role: 'The model the orchestrator plans with, reads results with, and writes the answer prose with.',
+    role: 'Reasons over prompts and writes answer prose.',
     product: 'mosaic-ai',
   },
   {
@@ -186,7 +187,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'genie-data',
     presence: 'connection',
     lane: 'data',
-    role: 'Answers metric questions from curated tables; returns the query behind each figure.',
+    role: 'Answers metric questions from curated tables.',
     product: 'genie',
   },
   {
@@ -195,7 +196,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'genie-dictionary',
     presence: 'connection',
     lane: 'data',
-    role: 'Resolves what a business term means before an ambiguous field is used to answer with.',
+    role: 'Defines business terms and fields.',
     product: 'genie',
   },
   {
@@ -204,7 +205,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'sql-warehouse',
     presence: 'connection',
     lane: 'data',
-    role: 'Runs the generated SQL. Read-only; the warehouse enforces the caller\u2019s grants.',
+    role: 'Runs read-only SQL under the reader\u2019s grants.',
     product: 'databricks-sql',
   },
   {
@@ -213,7 +214,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'catalog',
     presence: 'connection',
     lane: 'data',
-    role: 'The governed source. Row filters and column masks apply here, per person.',
+    role: 'Applies governance to every table read.',
     product: 'unity-catalog',
   },
   {
@@ -222,9 +223,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'semantic-index',
     presence: 'connection',
     lane: 'semantic',
-    role:
-      'An optional Mosaic AI Vector Search index over column and metric descriptions. It helps the ' +
-      'orchestrator choose which tables to ask about; nothing it returns may be reported as a figure.',
+    role: 'Searches field and metric descriptions for source discovery.',
     rebuilt: true,
     product: 'mosaic-ai',
   },
@@ -234,7 +233,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'semantic-index-endpoint',
     presence: 'connection',
     lane: 'semantic',
-    role: 'The compute that serves the index. It runs, and bills, whether or not anything searches it.',
+    role: 'Serves Vector Search queries.',
     product: 'mosaic-ai',
   },
   {
@@ -243,7 +242,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'lakebase',
     presence: 'connection',
     lane: 'record',
-    role: 'Holds conversations, messages, uploaded documents, feedback and benchmark runs.',
+    role: 'Stores conversations, uploads, feedback, and benchmark runs.',
     product: 'lakebase',
   },
   {
@@ -252,7 +251,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     resourceId: 'experiment-id',
     presence: 'connection',
     lane: 'record',
-    role: 'Receives the trace of each run: the tools called, the SQL, and the tokens spent.',
+    role: 'Stores run traces, tool calls, SQL, and token usage.',
     product: 'mlflow',
   },
 ];
@@ -260,7 +259,7 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
 /**
  * The edges, each with the sentence that is its meaning.
  *
- * `agent-endpoint → genie-*` and `agent-endpoint → sql-warehouse` carry the
+ * The finder’s governed data edges carry the
  * signed-in user's downscoped token where the model version declares
  * `user-authorization`, which is the hop the whole governance story rests on
  * and the one a box-and-arrow diagram normally loses.
@@ -272,16 +271,31 @@ export const ARCHITECTURE_EDGES: readonly ArchitectureEdge[] = [
     to: 'agent-endpoint',
     meaning: 'The app invokes the serving endpoint as its own service principal, forwarding the reader\u2019s token.',
   },
-  { from: 'agent-endpoint', to: 'llm-endpoint', meaning: 'The orchestrator calls the model to plan, read results and write.' },
   {
     from: 'agent-endpoint',
+    to: 'data-source-finder',
+    meaning: 'The orchestrator delegates governed source discovery as one self-contained request.',
+  },
+  { from: 'agent-endpoint', to: 'llm-endpoint', meaning: 'The orchestrator calls the model to plan and write the final answer.' },
+  {
+    from: 'data-source-finder',
+    to: 'llm-endpoint',
+    meaning: 'The finder calls the model to choose discovery and validation steps.',
+  },
+  {
+    from: 'data-source-finder',
     to: 'genie-dictionary',
     meaning: 'Ambiguous terms are resolved against the dictionary space before anything is measured.',
   },
   {
-    from: 'agent-endpoint',
+    from: 'data-source-finder',
     to: 'genie-data',
     meaning: 'Metric questions go to the data space, under the reader\u2019s own identity where the version declares it.',
+  },
+  {
+    from: 'data-source-finder',
+    to: 'sql-warehouse',
+    meaning: 'Resolved tables and validated read-only SQL run under the reader\u2019s grants.',
   },
   { from: 'genie-data', to: 'sql-warehouse', meaning: 'Genie\u2019s generated SQL is executed by the warehouse.' },
   {
@@ -290,9 +304,9 @@ export const ARCHITECTURE_EDGES: readonly ArchitectureEdge[] = [
     meaning: 'The warehouse reads Unity Catalog, which applies that reader\u2019s row filters and column masks.',
   },
   {
-    from: 'agent-endpoint',
+    from: 'data-source-finder',
     to: 'semantic-index',
-    meaning: 'Where a deployment has an index, the orchestrator searches descriptions to choose what to ask about.',
+    meaning: 'Where a deployment has an index, the finder searches descriptions to choose what to ask about.',
   },
   {
     from: 'semantic-index-endpoint',
@@ -470,6 +484,13 @@ export function nodeReport(node: ArchitectureNode,
 ): NodeReport {
   if (node.presence === 'local') {
     return { label: 'Runs here', tone: 'local', note: LOCAL_NOTE };
+  }
+  if (node.presence === 'unregistered') {
+    return {
+      label: 'Runs in-process',
+      tone: 'local',
+      note: 'This is a separately invoked agent boundary inside the Orchestrator process, not another endpoint.',
+    };
   }
   if (node.id === 'semantic-index') {
     const stated = SEMANTIC_INDEX_REPORT[semanticIndexState(reading)];

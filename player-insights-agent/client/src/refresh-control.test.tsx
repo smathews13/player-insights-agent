@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { ArchitecturePage } from './ArchitecturePage';
@@ -44,7 +44,20 @@ function text(markup: string): string {
 
 /** A page as a reader first meets it: mounted, nothing fetched, nothing checked. */
 function page(node: React.ReactElement): string {
-  return renderToStaticMarkup(<MemoryRouter>{node}</MemoryRouter>);
+  const context = {
+    role: { state: 'admin' as const, addedAdminsReadable: true },
+    features: {},
+    setFeature: () => {},
+  };
+  return renderToStaticMarkup(
+    <MemoryRouter>
+      <Routes>
+        <Route element={<Outlet context={context} />}>
+          <Route index element={node} />
+        </Route>
+      </Routes>
+    </MemoryRouter>
+  );
 }
 
 /** Every surface that offers to re-read something. */
@@ -54,7 +67,8 @@ const PAGES: Array<[string, () => string]> = [
   [
     'the unavailable panel',
     () =>
-      page(<UnavailablePanel
+      page(
+        <UnavailablePanel
           notice={unavailableNotice({ surface: 'benchmarks', code: 'DEPENDENCY_UNAVAILABLE' })}
           onRetry={() => {}}
         />
@@ -64,7 +78,8 @@ const PAGES: Array<[string, () => string]> = [
 
 /** The control on its own, in whichever state is under test. */
 function control(props: { busy?: boolean; checkedAt: string; now?: number }): string {
-  return renderToStaticMarkup(<RefreshControl busy={props.busy} checkedAt={props.checkedAt} now={props.now} onRefresh={() => {}} />
+  return renderToStaticMarkup(
+    <RefreshControl busy={props.busy} checkedAt={props.checkedAt} now={props.now} onRefresh={() => {}} />
   );
 }
 
@@ -87,15 +102,18 @@ describe('the word on the control is the same word everywhere', () => {
    * Asserted against source because it is a fact about where the string comes
    * from rather than about what the screen says.
    */
-  it.each(['ConnectionsPage.tsx', 'ArchitecturePage.tsx'])('%s draws the shared control rather than its own', (file) => {
-    const page = source(file);
+  it.each(['ConnectionsPage.tsx', 'ArchitecturePage.tsx'])(
+    '%s draws the shared control rather than its own',
+    (file) => {
+      const page = source(file);
 
-    expect(page).toMatch(/from '\.\/RefreshControl'/);
-    // No hand-rolled copy: the icon, the label and the pending state are the
-    // shared component's, which is the only thing that keeps them identical.
-    expect(page).not.toMatch(/RefreshCw/);
-    expect(page).not.toMatch(/'Refresh'/);
-  });
+      expect(page).toMatch(/from '\.\/RefreshControl'/);
+      // No hand-rolled copy: the icon, the label and the pending state are the
+      // shared component's, which is the only thing that keeps them identical.
+      expect(page).not.toMatch(/RefreshCw/);
+      expect(page).not.toMatch(/'Refresh'/);
+    }
+  );
 
   it('spells the word once, in the module both pages read it from', () => {
     expect(REFRESH_LABEL).toBe('Refresh');
@@ -225,7 +243,7 @@ describe('the treatment, once, for every seat', () => {
     expect(doorRules.length).toBeGreaterThan(0);
     for (const rest of doorRules) {
       expect(rest, `a door rule reaches the shared control: .access-gate-actions button${rest}`).toContain(
-        ':not(.refresh-button)',
+        ':not(.refresh-button)'
       );
     }
   });

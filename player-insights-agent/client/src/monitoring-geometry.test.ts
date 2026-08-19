@@ -115,9 +115,8 @@ describe('the panel head and the scope badges cannot be clipped either', () => {
     expect(rule('.monitoring-drawer-head > div')).toMatch(/min-width:\s*0/);
     expect(rule('.monitoring-drawer-close')).toMatch(/flex:\s*none/);
     // An address has no space to wrap at, and this is the one place a break
-    // inside a word beats an ellipsis: it is the name of the person whose panel
-    // this is.
-    expect(rule('.monitoring-panel-name')).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(rule('.monitoring-panel-name')).toMatch(/min-width:\s*0/);
+    expect(rule('.monitoring-panel-name .identity-chip')).toMatch(/max-width:\s*100%/);
   });
 
   /**
@@ -153,26 +152,14 @@ describe('the panel head and the scope badges cannot be clipped either', () => {
   it('lays the asker cell out inside itself rather than turning the cell into a flex box', () => {
     expect(rule('.monitoring-asker')).not.toMatch(/display:\s*(flex|inline-flex|grid)/);
     expect(rule('.monitoring-asker-who')).toMatch(/display:\s*inline-flex/);
-    // The name is what gives when the column is short, and it can only give if
-    // its automatic minimum size is lifted -- otherwise the row pushes the four
-    // numeric columns right instead of truncating.
-    const name = rule('.monitoring-asker-name');
-    expect(name).toMatch(/min-width:\s*0/);
-    expect(name).toMatch(/overflow:\s*hidden/);
-    expect(name).toMatch(/text-overflow:\s*ellipsis/);
-    // And the mark never shrinks into an oval to make room for it.
-    expect(rule('.monitoring-initials')).toMatch(/flex:\s*none/);
+    expect(rule('.monitoring-asker-who')).toMatch(/max-width:\s*100%/);
+    expect(CSS).not.toContain('.monitoring-initials');
   });
 
-  it('widens the asker column by what the mark costs it, rather than charging the name', () => {
-    // 110px was the width before the column had a mark in it. Leaving it there
-    // would have paid for the circle and its gap out of the one thing in the
-    // column anybody scans.
+  it('keeps enough width for the compact identity chip', () => {
     const px = (body: string, property: string) =>
       Number.parseFloat(body.match(new RegExp(`${property}:\\s*(-?[\\d.]+)px`))?.[1] ?? 'NaN');
-    const mark = px(rule('.monitoring-asker-initials'), 'width');
-    const gap = px(rule('.monitoring-asker-who'), 'gap');
-    expect(px(rule('.monitoring-col-asker'), 'width')).toBeGreaterThanOrEqual(110 + mark + gap);
+    expect(px(rule('.monitoring-col-asker'), 'width')).toBeGreaterThan(110);
   });
 
   it('takes a few pixels off every row without taking the click target with them', () => {
@@ -248,30 +235,18 @@ describe('the figures line up and the palette is the palette', () => {
     expect(rule('.monitoring-refused')).not.toEqual(rule('.monitoring-failed'));
   });
 
-  /**
-   * §3's eight rungs. Two strays are gone -- 12.5px on the table and 15px on the
-   * panel name -- and one stays, with a reason: `.monitoring-asker-initials` is
-   * 17px/9px because it is half of a chip whose other half is `.conversation-owner`
-   * in rail.css, and two subtly different circles for one person on one screen is
-   * worse than one off-scale circle. The exception is named here rather than
-   * allowed loosely, so a second one cannot arrive quietly.
-   */
-  it('writes every size as a rung of the scale, with the one paired exception', () => {
+  /** §3's eight rungs, with the off-scale initials size gone. */
+  it('writes every size as a rung of the scale', () => {
     const sizes = [...RULES.matchAll(/font-size:\s*([^;]+);/g)].map((value) => value[1].trim());
     // `inherit` is not a size: it is the Select trigger declining to have one of
     // its own so the chip around it decides, which is the opposite of a stray.
     const stray = sizes.filter((value) => value !== 'inherit' && !/^var\(--(ast-fs-\d+|text-[\w-]+)\)$/.test(value));
-    expect(stray).toEqual(['9px']);
-    expect(rule('.monitoring-asker-initials')).toMatch(/font-size:\s*9px/);
+    expect(stray).toEqual([]);
   });
 
-  /** And the pair it is half of still exists, or the exception is stale. */
-  it('keeps the initials chip matched to the rail’s', () => {
+  it('has no initials-circle recipe on either user list', () => {
     const rail = partial('rail.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
-    const owner = rail.match(/\.conversation-owner\s*\{([^}]*)\}/)?.[1] ?? '';
-    expect(owner, 'rail.css still has .conversation-owner').not.toEqual('');
-    for (const declaration of [/width:\s*17px/, /height:\s*17px/, /font-size:\s*9px/]) {
-      expect(owner).toMatch(declaration);
-    }
+    expect(CSS).not.toContain('.monitoring-asker-initials');
+    expect(rail).not.toMatch(/\.conversation-owner\s*\{[^}]*border-radius:\s*50%/);
   });
 });

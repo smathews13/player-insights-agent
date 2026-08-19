@@ -7,14 +7,12 @@
  * holds nothing.
  * Getting the wrong one is not a cosmetic bug: telling somebody their database
  * is unreachable when it is answering and refusing sends them to the Lakebase
- * console for an afternoon, and the correct remedy (one script, run once), is
+ * console for an afternoon, and the correct release hook is
  * never reached. That decision is worth testing, and a decision buried in a
  * component's render is not testable without a browser.
  */
 import {
   GRANT_SCRIPT_COMMAND,
-  GRANT_SCRIPT_ENV_VARS,
-  GRANT_SCRIPT_PATH,
   GRANT_SCRIPT_WHY,
 } from '../../shared/setup-remedies';
 
@@ -99,10 +97,7 @@ export function storageBannerNotice(health: StorageHealth | null): BannerNotice 
         'deployment is in until the grant script has been run ' +
         `once${health.last_ok_at ? ', or since the grant was removed' : ''}.`,
       remedy: GRANT_SCRIPT_COMMAND,
-      remedyNote:
-        `All ${GRANT_SCRIPT_ENV_VARS.length} variables are required and none has a default ` +
-        `(${GRANT_SCRIPT_ENV_VARS.join(', ')}). ${GRANT_SCRIPT_WHY} Redeploying does not perform it. ` +
-        `See ${GRANT_SCRIPT_PATH}.`,
+      remedyNote: GRANT_SCRIPT_WHY,
     };
   }
 

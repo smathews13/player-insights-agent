@@ -166,6 +166,8 @@ export interface RunTrace {
   takeaway: string;
   narrative: string;
   sql: string;
+  /** Canonical Plotly specs returned by the answer, when this run produced charts. */
+  charts?: Chart[];
   sources: { name: string; freshness: string }[];
   /**
    * What the answer said to keep in mind about its own figures. Empty for a run

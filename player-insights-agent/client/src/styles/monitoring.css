@@ -483,63 +483,9 @@
   color: var(--ast-text-long);
   white-space: nowrap;
 }
-/*
- * Whoever asked, as a mark and a name.
- *
- * THE FLEX IS ON A SPAN INSIDE THE CELL AND NOT ON THE CELL, which is the same
- * trap the question's two-line clamp fell into one column to the left: a `td`
- * given `display: flex` stops being a table cell, and the column widths the
- * header row settles stop applying to it. The comment over the question cell
- * says so and this is the second element in this table to need it.
- *
- * The name gives way rather than the mark: `min-width: 0` so the ellipsis can
- * happen at all -- a flex item's floor is its content otherwise, and the row
- * would push the four numeric columns right instead of truncating -- and the
- * whole address stays on the cell's `title`, which is where it already was.
- */
 .monitoring-asker-who {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
   max-width: 100%;
-}
-.monitoring-asker-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* The app's one initials chip, at the rail's recipe and the rail's size: the two
-   can show the same person on one screen, and a second circle would read as a
-   second convention rather than as the same person.
-
-   THE THREE DUBOIS TOKENS BELOW STAY, AND THAT IS THE POINT OF THE RULE. --db-chip
-   #E8ECF0 and --db-grey-blue #445461 are not the astrolabe neutral, and everywhere
-   else on this tab they have moved to it. Here they are half of a pair whose other
-   half is `.conversation-owner` in rail.css, which this lane does not own. Moving
-   one half onto the palette would produce two subtly different circles for one
-   person on one screen, which is worse than one off-palette circle and is exactly
-   what this comment was written to prevent. Both halves move together, in whatever
-   pass owns the rail. */
-.monitoring-initials {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  border-radius: 50%;
-  background: var(--db-chip);
-  border: 1px solid var(--ast-hairline);
-  color: var(--db-grey-blue);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-/* 9px is off §3's scale, and it stays, for the reason the base rule above gives:
-   this circle and `.conversation-owner` in rail.css are one chip drawn on two
-   surfaces, and 17px is too small to carry two initials at the 11px floor. The
-   pair moves together or not at all. */
-.monitoring-asker-initials {
-  width: 17px;
-  height: 17px;
-  font-size: 9px;
 }
 .monitoring-when {
   color: var(--ast-text-secondary);
@@ -653,26 +599,25 @@
 .monitoring-panel-who {
   display: flex;
   align-items: center;
-  gap: 10px;
   min-width: 0;
-}
-.monitoring-panel-initials {
-  width: 30px;
-  height: 30px;
-  font-size: var(--ast-fs-12);
 }
 .monitoring-panel-name {
   margin: 0;
-  /* 16px, the rung above the 15 this was. */
-  font-size: var(--ast-fs-16);
-  font-weight: 700;
-  /* An address's local part has no spaces to wrap at. This is the one place a
-     break inside a word is the right answer: the alternative is an ellipsis on
-     the name of the person whose panel this is. */
-  overflow-wrap: anywhere;
+  min-width: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.monitoring-panel-name .identity-chip {
+  max-width: 100%;
 }
 .monitoring-drawer-close {
   flex: none;
+}
+.monitoring-drawer-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .monitoring-drawer-meta {
   margin: 0;

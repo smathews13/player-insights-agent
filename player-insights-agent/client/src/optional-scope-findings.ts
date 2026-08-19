@@ -4,13 +4,15 @@
  * WHAT THIS CORRECTS. The Connections panel is headed "What to fix" and drew one
  * block per refused check. On the example deployment that meant four blocks: the
  * catalog, the schema, the twelve tables collected into one, and the Vector
- * Search index. Three of those four turn on `catalog.catalogs:read`,
- * `catalog.schemas:read` and `catalog.tables:read`, which
- * `shared/optional-user-api-scopes.ts` records as OPTIONAL: no ask needs them,
- * a deployment may leave them off its OAuth config entirely, and the login gate
- * and the Identity card already draw them neutrally for exactly that reason.
- * The Connections page was the one surface left telling a reader to go and fix
- * three permissions the app had already decided it can live without.
+ * Search index. All of those turn on scopes `shared/optional-user-api-scopes.ts`
+ * records as OPTIONAL -- `catalog.catalogs:read`, `catalog.schemas:read`,
+ * `catalog.tables:read`, `workspace.workspace:read`, and (Sam's 2026-08-18 call)
+ * the two `vectorsearch.*:read` browse reads: no ask needs the APP's forwarded
+ * token to carry them, a deployment may leave them off its OAuth config
+ * entirely, and the login gate and the Identity card already draw them neutrally
+ * for exactly that reason. The Connections page was the one surface left telling
+ * a reader to go and fix permissions the app had already decided it can live
+ * without.
  *
  * WHY IT READS A VALUE AND NOT THE PROSE. Each of those blocks says which
  * permission it turned on, in a sentence, and matching the sentence would be the
@@ -26,8 +28,12 @@
  *     eligible, which is also the only one whose meaning is "the call stopped
  *     before it reached the object" (DECISIONS.md D6 and D8).
  *   - a refusal over a REQUIRED permission, whatever else is on the page. The
- *     Vector Search reads are required on a deployment with a semantic index,
- *     and they stay in the panel as findings.
+ *     ask-path scopes (`sql`, `dashboards.genie`, serving) are required and stay
+ *     in the panel as findings. The Vector Search reads used to be here too;
+ *     Sam's 2026-08-18 call moved them to OPTIONAL alongside catalog, because
+ *     they browse VS from the APP's forwarded token and ask-time semantic
+ *     retrieval runs on the MODEL's own token instead. A VS browse refusal is
+ *     now a neutral shortfall, not a finding.
  *   - a refusal that named no permission. An absent `scope` means nothing
  *     established which permission was implicated, and reading that silence as
  *     "an optional one, probably" is how a real finding gets hidden.

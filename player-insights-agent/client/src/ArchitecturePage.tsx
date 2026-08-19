@@ -44,7 +44,6 @@ import { BrandIcon } from './BrandIcon';
 // The word, the icon and the pending state, decided once for the whole app.
 import { RefreshControl } from './RefreshControl';
 import {
-  ARCHITECTURE_COPY,
   ARCHITECTURE_NODES,
   dependencyNodes,
   describeArchitecture,
@@ -740,7 +739,7 @@ export function ArchitecturePage() {
 
         <section className="arch-rail" aria-labelledby="arch-rail-storage">
           <h3 className="section-label" id="arch-rail-storage">
-            Storage &middot; off the answer path
+            Storage
           </h3>
           <ol className="arch-rail-rows">
             <RailRow accent="kept" badge="Store" title="Databricks App to Lakebase (Postgres)">
@@ -754,9 +753,6 @@ export function ArchitecturePage() {
               Explorer reads.
             </RailRow>
           </ol>
-          <p className="arch-rail-note" data-testid="architecture-checks-note">
-            {ARCHITECTURE_COPY.checks}
-          </p>
         </section>
       </div>
     </div>

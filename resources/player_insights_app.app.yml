@@ -2,16 +2,18 @@
 # Configures the app, OAuth scopes, source path, and resource attachments.
 # The app source tree and serving endpoint are deployed separately.
 #
+# The Lakebase instance and the two Genie spaces are NOT created here. Provision
+# the Lakebase project/branch/database and curate the Genie spaces first, then
+# name them with lakebase_project_id, genie_data_space_id and
+# genie_dictionary_space_id. The `postgres` binding below attaches this app to
+# that existing database; it does not create one.
+#
 # On a fresh workspace, deploy backing resources before the app:
 #
-#   pass 1  bundle deploy -t <target> --select postgres_projects.player_insights_lakebase \
-#                                     --select postgres_branches.player_insights_branch  \
-#                                     --select postgres_databases.player_insights_database \
-#                                     --select schemas.player_insights_schema \
+#   pass 0  provision Lakebase and the Genie spaces outside the bundle
+#   pass 1  bundle deploy -t <target> --select schemas.player_insights_schema \
 #                                     --select schemas.player_insights_telemetry_schema \
 #                                     --select volumes.player_insights_volume \
-#                                     --select genie_spaces.data_genie_space \
-#                                     --select genie_spaces.dictionary_genie_space \
 #                                     --select experiments.player_insights_experiment \
 #                                     --select jobs.player_insights_semantic_rebuild
 #           everything except this app
@@ -62,6 +64,15 @@ resources:
       # store, serving endpoint, and SQL warehouse. Do not bind governed tables
       # or Genie spaces; governed reads must use the signed-in user's token.
       resources:
+        # Attaches the app to an EXISTING Lakebase branch and database, named by
+        # full resource name. This binding is the whole of what the bundle
+        # declares about Lakebase: it grants the app's service principal
+        # CAN_CONNECT_AND_CREATE, and creates nothing. CAN_CONNECT_AND_CREATE is
+        # what lets the app create and own its own schema inside that database;
+        # the Postgres-level grants on that schema are applied by
+        # bundle/app-db-grant.sh before every app code deploy (and by its
+        # underlying scripts/grant-app-db-access.mjs), because privileges inside
+        # a database are out of the control plane's reach.
         - name: postgres
           postgres:
             branch: ${var.postgres_branch_name}
@@ -72,10 +83,14 @@ resources:
             name: ${var.serving_endpoint_name}
             permission: CAN_QUERY
         # This binding supplies the warehouse ID and grants app access.
+        # CAN_USE, not CAN_MANAGE: the app only runs queries on this warehouse,
+        # and a deployer who does not already hold MANAGE on it cannot grant
+        # MANAGE away, so asking for it fails the deploy in any workspace where
+        # the warehouse belongs to someone else.
         - name: sql-warehouse
           sql_warehouse:
             id: ${var.warehouse_id}
-            permission: CAN_MANAGE
+            permission: CAN_USE
 
       lifecycle:
         # Destroying the app also removes its service principal and grants.

@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import {
+  BuildFactRow,
   ConnectionRow,
   ConnectionsCounts,
   DeclaredTablesTable,
@@ -24,6 +25,28 @@ import { connectionsHeadline, connectionsSettled } from './connection-status';
 import { ENTITY_PARAM, entityHref } from './data-entities';
 import type { PreflightCheck } from './preflight';
 import { connectedResource } from '../../shared/deployment-config';
+import { pickerForField } from './asset-picker';
+
+describe('people on deployment facts', () => {
+  it('uses the shared identity chip for the deployer', () => {
+    const markup = renderToStaticMarkup(
+      <BuildFactRow
+        row={{
+          kind: 'text',
+          key: 'deployed',
+          label: 'Last deployed',
+          value: 'Aug 19, 11:36 AM',
+          identity: 'release.owner@example.test',
+        }}
+      />
+    );
+
+    expect(markup).toContain('identity-chip identity-chip--compact');
+    expect(markup).toContain('lucide-user-round');
+    expect(markup).toContain('identity-chip-name">release.owner');
+    expect(markup).not.toContain('>RO<');
+  });
+});
 
 /**
  * The Connections tab as it is composed, rather than as its source reads.
@@ -184,11 +207,15 @@ describe('the counts line under the status headline', () => {
    * reader to stop seeing red.
    */
   it('tints only the counts that describe something, and never a count of nothing', () => {
-    const healthy = render(<ConnectionsCounts counts={countsFor([row('catalog', { configured: 'c' })], [check('catalog', 'ok')])} />);
+    const healthy = render(
+      <ConnectionsCounts counts={countsFor([row('catalog', { configured: 'c' })], [check('catalog', 'ok')])} />
+    );
     expect(healthy).toMatch(/data-tone="reachable"/);
     expect(healthy).not.toMatch(/data-tone="blocked"/);
 
-    const broken = render(<ConnectionsCounts counts={countsFor([row('catalog', { configured: 'c' })], [check('catalog', 'failed')])} />);
+    const broken = render(
+      <ConnectionsCounts counts={countsFor([row('catalog', { configured: 'c' })], [check('catalog', 'failed')])} />
+    );
     expect(broken).toMatch(/data-tone="blocked"/);
     expect(broken).not.toMatch(/data-tone="reachable"/);
   });
@@ -201,8 +228,8 @@ describe('the counts line under the status headline', () => {
    * deployment was not in, and a reader had to read all four to find that out.
    */
   it('stays silent about every state the deployment is not in', () => {
-    const healthy = text(render(<ConnectionsCounts counts={countsFor([row('catalog', { configured: 'c' })], [check('catalog', 'ok')])} />
-      ),
+    const healthy = text(
+      render(<ConnectionsCounts counts={countsFor([row('catalog', { configured: 'c' })], [check('catalog', 'ok')])} />)
     );
     expect(healthy).toBe('1 reachable');
     expect(healthy).not.toContain('0');
@@ -218,12 +245,15 @@ describe('the counts line under the status headline', () => {
    * suppressed, which is how a zero leaves a mark after it stops being printed.
    */
   it('leaves no separator behind when a count in the middle is suppressed', () => {
-    const line = text(render(<ConnectionsCounts counts={countsFor(
-              [row('catalog', { configured: 'c' }), row('schema', { configured: 's' }), row('assets-volume')],
-              [check('catalog', 'ok'), check('schema', 'failed')],
-            )}
+    const line = text(
+      render(
+        <ConnectionsCounts
+          counts={countsFor(
+            [row('catalog', { configured: 'c' }), row('schema', { configured: 's' }), row('assets-volume')],
+            [check('catalog', 'ok'), check('schema', 'failed')]
+          )}
         />
-      ),
+      )
     );
     expect(line).toBe('1 reachable · 1 blocked · 1 configuration only');
     expect(line).not.toMatch(/^ ?\u00b7/);
@@ -249,7 +279,10 @@ describe('the counts line under the status headline', () => {
    * and each has a section of its own further down.
    */
   it('claims only that nothing is blocked, which is what these counts can settle', () => {
-    const partial = countsFor([row('catalog', { configured: 'c' }), row('genie-data', { configured: 'g' })], [check('catalog', 'ok')]);
+    const partial = countsFor(
+      [row('catalog', { configured: 'c' }), row('genie-data', { configured: 'g' })],
+      [check('catalog', 'ok')]
+    );
     expect(connectionsHeadline(partial)).toBe('Nothing is blocked');
     expect(connectionsHeadline(partial)).not.toMatch(/every/i);
     expect(connectionsSettled(partial)).toBe(true);
@@ -266,7 +299,7 @@ describe('the counts line under the status headline', () => {
   it('leads with the blocked count when anything is blocked', () => {
     const counts = countsFor(
       [row('catalog', { configured: 'c' }), row('schema', { configured: 's' })],
-      [check('catalog', 'failed'), check('schema', 'ok')],
+      [check('catalog', 'failed'), check('schema', 'ok')]
     );
     expect(connectionsHeadline(counts)).toBe('1 blocked');
     expect(connectionsSettled(counts)).toBe(false);
@@ -280,9 +313,9 @@ describe('the What to fix panel', () => {
    * unescaped into something that would fail if pasted.
    */
   it('carries the exact GRANT statement a reader is meant to paste', () => {
-    const statement =
-      'GRANT SELECT ON TABLE a_catalog.a_schema.gold_player_geo_summary TO `app-svc-principal-7f3a`;';
-    const rendered = render(<PreflightRemedyRow
+    const statement = 'GRANT SELECT ON TABLE a_catalog.a_schema.gold_player_geo_summary TO `app-svc-principal-7f3a`;';
+    const rendered = render(
+      <PreflightRemedyRow
         check={check('table-geo', 'failed', {
           kind: 'table',
           label: 'SELECT on gold_player_geo_summary',
@@ -305,21 +338,25 @@ describe('the What to fix panel', () => {
    * authorities genuinely differ, so one sentence for both would be wrong for one.
    */
   it('says who is able to run a Unity Catalog grant, and who a workspace permission', () => {
-    const sql = text(render(<PreflightRemedyRow
+    const sql = text(
+      render(
+        <PreflightRemedyRow
           check={check('t', 'failed', {
             remedy: { kind: 'sql', statement: 'GRANT SELECT ON TABLE a.b.c TO `p`;', guidance: '' },
           })}
         />
-      ),
+      )
     );
     expect(sql).toMatch(/metastore admin or the object\u2019s owner/);
 
-    const cli = text(render(<PreflightRemedyRow
+    const cli = text(
+      render(
+        <PreflightRemedyRow
           check={check('w', 'failed', {
             remedy: { kind: 'cli', statement: 'databricks permissions update ...', guidance: '' },
           })}
         />
-      ),
+      )
     );
     expect(cli).toMatch(/workspace admin/);
     expect(cli).toMatch(/manage this object/);
@@ -346,7 +383,8 @@ describe('the What to fix panel', () => {
    * and the source reads much the same for all of them.
    */
   it('draws the guidance as one inline line, with no fold and no heading', () => {
-    const rendered = render(<PreflightRemedyRow
+    const rendered = render(
+      <PreflightRemedyRow
         check={check('catalog', 'unverified', {
           label: 'Unity Catalog catalog',
           detail: 'HTTP 403. Your sign-in to this app does not carry `catalog.catalogs:read`.',
@@ -381,7 +419,8 @@ describe('the What to fix panel', () => {
 
   /** Almost every remedy has none, and must draw nothing rather than an empty line. */
   it('draws nothing where the statement stands on its own', () => {
-    const rendered = render(<PreflightRemedyRow
+    const rendered = render(
+      <PreflightRemedyRow
         check={check('catalog', 'failed', {
           detail: 'The workspace refused this identity: HTTP 403 PERMISSION_DENIED.',
           remedy: { kind: 'sql', statement: 'GRANT USE CATALOG ON CATALOG a TO `p`;', guidance: '' },
@@ -397,7 +436,8 @@ describe('the What to fix panel', () => {
    * object that does not exist, and when that fails they distrust the page.
    */
   it('offers no statement for a dependency that is missing rather than forbidden', () => {
-    const rendered = render(<PreflightRemedyRow
+    const rendered = render(
+      <PreflightRemedyRow
         check={check('genie-data', 'failed', {
           detail: 'The workspace has no such object: HTTP 404. This is missing rather than forbidden.',
           remedy: null,
@@ -416,27 +456,33 @@ describe('the What to fix panel', () => {
    * badge alone collapses the first two together.
    */
   it('tells a refusal, an absence and an unanswered probe apart in what it says', () => {
-    const refused = text(render(<PreflightRemedyRow
+    const refused = text(
+      render(
+        <PreflightRemedyRow
           check={check('schema', 'failed', {
             detail: 'The workspace refused this identity as someone@example.com: HTTP 403 PERMISSION_DENIED.',
             remedy: { kind: 'sql', statement: 'GRANT USE SCHEMA ON SCHEMA a.b TO `p`;', guidance: '' },
           })}
         />
-      ),
+      )
     );
-    const missing = text(render(<PreflightRemedyRow
+    const missing = text(
+      render(
+        <PreflightRemedyRow
           check={check('schema', 'failed', {
             detail: 'The workspace has no such object: HTTP 404. This is missing rather than forbidden.',
           })}
         />
-      ),
+      )
     );
-    const silent = text(render(<PreflightRemedyRow
+    const silent = text(
+      render(
+        <PreflightRemedyRow
           check={check('sql-warehouse', 'unverified', {
             detail: 'The workspace did not answer within 15000 ms, so whether this identity can reach it is unknown.',
           })}
         />
-      ),
+      )
     );
 
     expect(refused).toContain('403');
@@ -474,8 +520,7 @@ describe('one panel for the failures, not one panel per failure', () => {
     statement: 'Open this app again in a private browsing window, and sign in there.',
     guidance: 'Signing out of Databricks does not clear this app\u2019s sign-in.',
   };
-  const DIAGNOSIS =
-    'HTTP 403. Your sign-in to this app does not carry `catalog.tables:read`, which the app asks for.';
+  const DIAGNOSIS = 'HTTP 403. Your sign-in to this app does not carry `catalog.tables:read`, which the app asks for.';
 
   /** The twelve tables of the live deployment, all stopped by one missing scope. */
   const TABLES = Array.from({ length: 12 }, (_unused, index) =>
@@ -495,8 +540,10 @@ describe('one panel for the failures, not one panel per failure', () => {
   }
 
   function renderGroups(checks: PreflightCheck[]): string {
-    return render(<>
-        {groupByRemedy(groupByCause(checks)).map((block) => (<PreflightRemedyBlock key={block.key} block={block} />
+    return render(
+      <>
+        {groupByRemedy(groupByCause(checks)).map((block) => (
+          <PreflightRemedyBlock key={block.key} block={block} />
         ))}
       </>
     );
@@ -675,11 +722,12 @@ describe('one panel for the failures, not one panel per failure', () => {
  * Four blocks under a red heading reading "What to fix": the catalog, the schema,
  * twelve tables collected into one with their twelve names listed under it, and
  * the Vector Search index. Each carried the same paragraph again with a different
- * permission in it. Three of the four were the catalog reads
- * `shared/optional-user-api-scopes.ts` had already recorded as OPTIONAL, so the
- * section was asking a reader to repair three permissions no ask needs, and the
- * one finding on the screen that somebody did have to act on was the fourth
- * thing down.
+ * permission in it. All of them are now the browse reads
+ * `shared/optional-user-api-scopes.ts` records as OPTIONAL -- the catalog trio,
+ * workspace, and (Sam's 2026-08-18 call) Vector Search -- so the section was
+ * asking a reader to repair permissions no ask needs. The findings somebody does
+ * have to act on are the ask-path ones (Genie, SQL, serving), and those are what
+ * the panel is left holding.
  *
  * Composed rather than asserted on the source, for the reason this whole file
  * exists: "the page filters the optional shortfalls" is a claim about a function,
@@ -694,9 +742,11 @@ describe('optional permissions are not a thing to fix', () => {
 
   /** The sentence the server writes for a refusal over a declared permission. */
   function diagnosis(scope: string): string {
-    return `HTTP 403. Your sign-in to this app does not carry \`${scope}\`, which the app asks for. ` +
+    return (
+      `HTTP 403. Your sign-in to this app does not carry \`${scope}\`, which the app asks for. ` +
       'The call stopped there, so nothing was established about whether you can reach the object. ' +
-      'This is not a grant you are missing.';
+      'This is not a grant you are missing.'
+    );
   }
 
   function refused(id: string, label: string, scope: string, over: Partial<PreflightCheck> = {}) {
@@ -711,7 +761,12 @@ describe('optional permissions are not a thing to fix', () => {
     });
   }
 
-  /** The live screen: two catalog scopes, twelve tables, and one required index. */
+  /**
+   * The live screen's optional shortfalls: two catalog scopes, twelve tables,
+   * and the Vector Search index. All fifteen are optional as of Sam's 2026-08-18
+   * call -- Vector Search browse joined catalog/workspace in the optional set, so
+   * an app-side VS refusal is now a neutral shortfall, not a finding.
+   */
   const LIVE = [
     refused('catalog', 'Catalog \u00b7 a_catalog', 'catalog.catalogs:read'),
     refused('schema', 'Schema \u00b7 a_catalog.a_schema', 'catalog.schemas:read'),
@@ -720,9 +775,19 @@ describe('optional permissions are not a thing to fix', () => {
         kind: 'table',
       })
     ),
-    refused('semantic-index', 'Vector Search index \u00b7 a_catalog.a_schema.semantic_layer_index',
-      'vectorsearch.vector-search-indexes:read'),
+    refused(
+      'semantic-index',
+      'Vector Search index \u00b7 a_catalog.a_schema.semantic_layer_index',
+      'vectorsearch.vector-search-indexes:read'
+    ),
   ];
+
+  /**
+   * A refusal over a scope asks genuinely need. `dashboards.genie` is not in the
+   * optional set, so this stays a finding under "What to fix" -- it is the row
+   * the panel exists to surface once the optional shortfalls are drawn neutrally.
+   */
+  const REQUIRED = refused('genie', 'Genie space \u00b7 a_space', 'dashboards.genie');
 
   function occurrences(markup: string, phrase: string): number {
     return text(markup).split(phrase).length - 1;
@@ -736,10 +801,13 @@ describe('optional permissions are not a thing to fix', () => {
    */
   function renderRegion(checks: PreflightCheck[]): string {
     const findings = splitOptionalScopeFindings(checks);
-    return render(<>
-        {findings.required.length > 0 ? (<section>
+    return render(
+      <>
+        {findings.required.length > 0 ? (
+          <section>
             <h3>What to fix</h3>
-            {groupByRemedy(groupByCause(findings.required)).map((block) => (<PreflightRemedyBlock key={block.key} block={block} />
+            {groupByRemedy(groupByCause(findings.required)).map((block) => (
+              <PreflightRemedyBlock key={block.key} block={block} />
             ))}
           </section>
         ) : null}
@@ -756,13 +824,19 @@ describe('optional permissions are not a thing to fix', () => {
    * needs.
    */
   it('draws no fix block for a shortfall in an optional permission', () => {
-    const rendered = renderRegion(LIVE);
-    // One cause in the panel, and it is the required one.
+    const rendered = renderRegion([...LIVE, REQUIRED]);
+    // One cause in the panel, and it is the required one (Genie).
     expect([...rendered.matchAll(/connections-fix-problem-head/g)]).toHaveLength(1);
-    expect(text(rendered)).toContain('Vector Search index');
-    // The optional names are on the screen, and not inside the panel.
+    expect(text(rendered)).toContain('Genie space');
+    // The optional names, catalog AND Vector Search, are on the screen and not
+    // inside the panel.
     const panel = rendered.slice(0, rendered.indexOf('connections-optional-scopes'));
-    for (const scope of ['catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read']) {
+    for (const scope of [
+      'catalog.catalogs:read',
+      'catalog.schemas:read',
+      'catalog.tables:read',
+      'vectorsearch.vector-search-indexes:read',
+    ]) {
       expect(text(rendered)).toContain(scope);
       expect(panel).not.toContain(scope);
     }
@@ -778,7 +852,7 @@ describe('optional permissions are not a thing to fix', () => {
    * three red blocks and nothing wrong.
    */
   it('draws no What to fix section when every shortfall is optional', () => {
-    const rendered = renderRegion(LIVE.filter((entry) => entry.id !== 'semantic-index'));
+    const rendered = renderRegion(LIVE);
     expect(text(rendered)).not.toContain('What to fix');
     expect(rendered).not.toMatch(/connections-fix-problem/);
     expect(rendered).toMatch(/connections-optional-scopes/);
@@ -796,13 +870,15 @@ describe('optional permissions are not a thing to fix', () => {
   it('states the remedy once for the section, not once per finding', () => {
     const shared = renderRegion([
       ...LIVE,
-      refused('semantic-endpoint', 'Vector Search endpoint', 'vectorsearch.vector-search-endpoints:read'),
+      refused('genie', 'Genie space', 'dashboards.genie'),
+      refused('orchestrator', 'Orchestrator endpoint', 'serving.serving-endpoints'),
     ]);
     // Two required findings now, refused over two different permissions, so two
-    // rows: neither may be given the other's permission (D10).
+    // rows: neither may be given the other's permission (D10). Vector Search is
+    // optional now, so the two findings are the genuinely-required ones.
     expect([...shared.matchAll(/connections-fix-problem-head/g)]).toHaveLength(2);
-    expect(text(shared)).toContain('vectorsearch.vector-search-indexes:read');
-    expect(text(shared)).toContain('vectorsearch.vector-search-endpoints:read');
+    expect(text(shared)).toContain('dashboards.genie');
+    expect(text(shared)).toContain('serving.serving-endpoints');
     // One instruction, one browser note, one shared explanation.
     expect(occurrences(shared, 'private browsing window')).toBe(1);
     expect(occurrences(shared, 'Chrome and Edge call it Incognito')).toBe(1);
@@ -817,12 +893,12 @@ describe('optional permissions are not a thing to fix', () => {
    * lines before the panel said anything anybody could act on.
    */
   it('puts the object, the verdict and the permission on one line', () => {
-    const rendered = renderRegion(LIVE);
+    const rendered = renderRegion([...LIVE, REQUIRED]);
     const head = /<div class="connections-fix-problem-head">(.*?)<\/div>/s.exec(rendered)?.[1] ?? '';
     expect(head).not.toBe('');
-    expect(text(head)).toContain('Vector Search index');
+    expect(text(head)).toContain('Genie space');
     expect(text(head)).toContain('Refused');
-    expect(text(head)).toContain('vectorsearch.vector-search-indexes:read');
+    expect(text(head)).toContain('dashboards.genie');
   });
 
   /**
@@ -833,7 +909,9 @@ describe('optional permissions are not a thing to fix', () => {
   it('reports the optional shortfall neutrally, with no cause and no fix', () => {
     const readable = text(renderRegion(LIVE));
     expect(readable).toContain('Optional permissions');
-    expect(readable).toContain('14 checks on this page');
+    // Fifteen now: the twelve tables, catalog, schema, and the Vector Search
+    // index, all optional as of Sam's call.
+    expect(readable).toContain('15 checks on this page');
     expect(readable).toContain('before reaching the object');
     expect(readable).toContain('Questions do not need them');
     expect(readable).not.toMatch(/you have not|because/i);
@@ -855,7 +933,9 @@ describe('optional permissions are not a thing to fix', () => {
       detail: diagnosis('catalog.catalogs:read'),
       remedy: FRESH_SIGN_IN,
     });
-    const rendered = text(render(<ConnectionRow
+    const rendered = text(
+      render(
+        <ConnectionRow
           reading={readConnection({ row: row('catalog', { configured: 'a_catalog' }), check: optional, findings: [] })}
           tone="drifted"
           saving={false}
@@ -864,7 +944,7 @@ describe('optional permissions are not a thing to fix', () => {
           onSave={() => Promise.resolve(true)}
           onClear={() => Promise.resolve()}
         />
-      ),
+      )
     );
     expect(rendered).toContain('HTTP 403');
     expect(rendered).not.toContain('What to fix');
@@ -872,9 +952,9 @@ describe('optional permissions are not a thing to fix', () => {
 
   /** Nothing at all where nothing is short, rather than an empty grey line. */
   it('says nothing when every optional permission answered', () => {
-    const rendered = renderRegion([
-      refused('semantic-index', 'Vector Search index', 'vectorsearch.vector-search-indexes:read'),
-    ]);
+    // Only a required finding on the page and no optional shortfall, so the
+    // neutral line has nothing to draw.
+    const rendered = renderRegion([REQUIRED]);
     expect(rendered).not.toMatch(/connections-optional-scopes/);
     expect(text(rendered)).not.toContain('Optional permissions');
   });
@@ -895,9 +975,15 @@ describe('a connection row', () => {
   function renderRow(
     id: string,
     over: Record<string, unknown> = {},
-    { open = false, check, tone = 'plain' }: { open?: boolean; check?: PreflightCheck; tone?: StatusTone } = {},
+    {
+      open = false,
+      check,
+      tone = 'plain',
+      allowMutations = true,
+    }: { open?: boolean; check?: PreflightCheck; tone?: StatusTone; allowMutations?: boolean } = {}
   ) {
-    return render(<ConnectionRow
+    return render(
+      <ConnectionRow
         // Through the shared derivation, which is where the row now gets its
         // verdict from: composing a reading by hand here would let this file
         // assert a state `readConnection` cannot produce.
@@ -906,35 +992,83 @@ describe('a connection row', () => {
         saving={false}
         refreshing={false}
         requested={open}
+        allowMutations={allowMutations}
         onSave={noop}
         onClear={noopClear}
       />
     );
   }
 
+  it('shows the workspace name first and keeps the raw identifier secondary', () => {
+    const rendered = renderRow(
+      'sql-warehouse',
+      { configured: 'wh-0001' },
+      {
+        tone: 'reachable',
+        check: check('sql-warehouse', 'ok', {
+          name: 'wh-0001',
+          display_name: 'Customer analytics warehouse',
+        }),
+      }
+    );
+    expect(text(rendered)).toContain('Customer analytics warehouse');
+    expect(rendered).toMatch(/connection-row-raw-id[^>]*title="wh-0001"/);
+  });
+
+  it('falls back to the raw identifier when name resolution is unavailable', () => {
+    const rendered = renderRow(
+      'sql-warehouse',
+      { configured: 'wh-0001' },
+      {
+        tone: 'drifted',
+        check: check('sql-warehouse', 'unverified', { name: 'wh-0001', display_name: undefined }),
+      }
+    );
+    expect(text(rendered)).toContain('wh-0001');
+    expect(rendered).not.toContain('connection-row-raw-id');
+  });
+
   /**
-   * The design's right-hand affordance, and it is a promise rather than decoration:
-   * a pencil says a form here will offer to change something, a padlock says it will
-   * not. Getting these the wrong way round would invert the page's central claim on
-   * the one element a reader checks to decide whether opening the row is worth it.
-   *
-   * `agent-endpoint` is the locked case because it is neither runtime-editable nor
-   * stageable -- the endpoint name is baked into the app resource and only a release
-   * moves it. `sql-warehouse` is the pencil case because although no form applies it
-   * either, an intended value CAN be recorded against it, and the design draws that
-   * as a pencil: there is something to do here, even if what it does is record
-   * rather than apply.
+   * Option B (Sam 2026-08-18): every padlock unlocks for admins. A pencil says
+   * an admin can record (or apply live); a padlock is for non-admins only.
+   * Recording is not applying -- app-redeploy and model-version rows still say
+   * so in the editor -- but the affordance itself is no longer locked for admins.
    */
-  it('shows a padlock where nothing can be recorded and a pencil where something can', () => {
-    const locked = renderRow('agent-endpoint', { configured: 'pia-agent-serving' });
-    const writable = renderRow('sql-warehouse', { configured: 'wh-0001' });
-    expect(locked).toMatch(/data-affordance="locked"/);
-    expect(locked).not.toMatch(/data-affordance="write"/);
-    expect(writable).toMatch(/data-affordance="write"/);
-    expect(writable).not.toMatch(/data-affordance="locked"/);
-    // The icon is not the only carrier: an icon is not announced, and a reader on a
-    // screen reader has to be told the row is not changeable here.
-    expect(text(locked)).toMatch(/not changeable here/);
+  it('shows a pencil for every row when mutations are allowed, and a padlock when not', () => {
+    const adminLockedKind = renderRow('agent-endpoint', { configured: 'pia-agent-serving' });
+    const adminWritable = renderRow('sql-warehouse', { configured: 'wh-0001' });
+    expect(adminLockedKind).toMatch(/data-affordance="write"/);
+    expect(adminLockedKind).not.toMatch(/data-affordance="locked"/);
+    expect(adminWritable).toMatch(/data-affordance="write"/);
+
+    const consumer = renderRow('agent-endpoint', { configured: 'pia-agent-serving' }, { allowMutations: false });
+    expect(consumer).toMatch(/data-affordance="locked"/);
+    expect(consumer).not.toMatch(/data-affordance="write"/);
+    expect(text(consumer)).toMatch(/not changeable here/);
+  });
+
+  it('warns before recording a Shared conversation rail change', () => {
+    const rendered = renderRow('shared-conversation-rail', { configured: 'false' }, { open: true });
+    expect(text(rendered)).toMatch(/Widens tenancy/);
+    expect(text(rendered)).toMatch(/app release/i);
+  });
+
+  it('wires pickers for Lakebase, volume, VS and experiment rows admins can open', () => {
+    // The AssetPickerField only mounts once the pencil puts the row into edit
+    // mode (client state), so a static open-row render cannot assert the picker
+    // markup. What this page must not regress is the unlock + the field mapping.
+    for (const id of [
+      'lakebase',
+      'assets-volume',
+      'semantic-index-endpoint',
+      'semantic-index',
+      'experiment-id',
+    ] as const) {
+      expect(pickerForField(id), id).not.toBeNull();
+      const rendered = renderRow(id, { configured: 'placeholder' }, { open: true });
+      expect(rendered, id).toMatch(/data-affordance="write"/);
+      expect(text(rendered), id).toMatch(/Record intended value|Change/);
+    }
   });
 
   /**
@@ -943,14 +1077,17 @@ describe('a connection row', () => {
    * panel would read as a missing value.
    */
   it('draws the configured value beside the one in use, and names where each came from', () => {
-    const rendered = text(renderRow('agent-endpoint', {
-        configured: 'temperature = 0.1',
-        configuredFrom: 'artifact',
-        actual: 'temperature = 0.2',
-        actualObserved: true,
-      },
-        { open: true },
-      ),
+    const rendered = text(
+      renderRow(
+        'agent-endpoint',
+        {
+          configured: 'temperature = 0.1',
+          configuredFrom: 'artifact',
+          actual: 'temperature = 0.2',
+          actualObserved: true,
+        },
+        { open: true }
+      )
     );
     expect(rendered).toContain('Configured');
     expect(rendered).toContain('temperature = 0.1');
@@ -968,13 +1105,15 @@ describe('a connection row', () => {
    * keys off, and a page that stopped setting it would look healthy while drifting.
    */
   it('tints the in-use panel only when the two readings actually disagree', () => {
-    const disagreeing = renderRow('agent-endpoint',
+    const disagreeing = renderRow(
+      'agent-endpoint',
       { configured: 'temperature = 0.1', actual: 'temperature = 0.2', actualObserved: true },
-      { open: true },
+      { open: true }
     );
-    const agreeing = renderRow('agent-endpoint',
+    const agreeing = renderRow(
+      'agent-endpoint',
       { configured: 'temperature = 0.1', actual: 'temperature = 0.1', actualObserved: true },
-      { open: true },
+      { open: true }
     );
     expect(disagreeing).toMatch(/data-disagrees="true"/);
     expect(agreeing).not.toMatch(/data-disagrees="true"/);
@@ -986,9 +1125,10 @@ describe('a connection row', () => {
    * measurement nobody took. Most rows on the live deployment are in this state.
    */
   it('says the used value was never measured rather than echoing the configured one', () => {
-    const rendered = renderRow('catalog',
+    const rendered = renderRow(
+      'catalog',
       { configured: 'a_catalog', actual: '', actualObserved: false },
-      { open: true },
+      { open: true }
     );
     expect(text(rendered)).toMatch(/not measured/i);
     expect(rendered).not.toMatch(/data-disagrees/);
@@ -1015,7 +1155,8 @@ describe('a connection row', () => {
    * fabricates a value to make the badge appear on the live page.
    */
   it('counts each disagreement in the drift badge when there is one to count', () => {
-    const rendered = render(<ConnectionRow
+    const rendered = render(
+      <ConnectionRow
         reading={readConnection({
           row: row('agent-endpoint', { configured: 'temperature = 0.1' }),
           check: undefined,
@@ -1043,7 +1184,8 @@ describe('a connection row', () => {
    * measured is precisely the dishonesty this page exists to refuse.
    */
   it('does not report an unmeasured value as a disagreement', () => {
-    const rendered = render(<ConnectionRow
+    const rendered = render(
+      <ConnectionRow
         reading={readConnection({
           row: row('agent-endpoint', { configured: 'temperature = 0.1' }),
           check: undefined,
@@ -1087,14 +1229,20 @@ describe('the Unity Catalog tables section', () => {
     }),
   ];
 
-  it('draws a row per declared table, with its name, its verdict and the workspace’s own words', () => {
-    const rendered = text(render(<DeclaredTablesTable tableChecks={tables} requestedEntity="" />));
+  it('draws a row per declared table with concise reachability and freshness', () => {
+    const markup = render(
+      <DeclaredTablesTable tableChecks={tables} requestedEntity="" checkedAt="2026-08-19T15:00:00.000Z" />
+    );
+    const rendered = text(markup);
     expect(rendered).toContain('gold_title_daily_summary');
     expect(rendered).toContain('gold_player_geo_summary');
     expect(rendered).toContain('Reachable');
     expect(rendered).toContain('Blocked');
     expect(rendered).toContain('17 columns');
-    expect(rendered).toContain('403');
+    expect(rendered).toContain('Permission not confirmed');
+    expect(rendered).toContain('checked');
+    expect(markup).toMatch(/title="Reachability confirmed\. Schema has 17 columns\./);
+    expect(rendered).not.toContain('@example.com');
   });
 
   /**
@@ -1108,7 +1256,8 @@ describe('the Unity Catalog tables section', () => {
     const shared =
       'Your sign-in to this app does not carry `catalog.tables:read`, which the app asks for. ' +
       'The call stopped there, so nothing was established about whether you can reach the object.';
-    const rendered = render(<DeclaredTablesTable
+    const rendered = render(
+      <DeclaredTablesTable
         tableChecks={[
           check('t1', 'unverified', {
             kind: 'table',
@@ -1125,11 +1274,11 @@ describe('the Unity Catalog tables section', () => {
       />
     );
     const readable = text(rendered);
-    expect(readable).toContain('HTTP 403.');
+    expect(readable).toContain('Permission not confirmed');
     expect(readable).not.toContain('does not carry');
     // Not lost, though: the whole sentence is still on the cell for anyone who
     // wants it, and the explanation is stated once in What to fix above.
-    expect(rendered).toMatch(/title="HTTP 403\. Your sign-in/);
+    expect(rendered).toMatch(/title="The workspace refused the metadata read/);
   });
 
   /**
@@ -1139,7 +1288,8 @@ describe('the Unity Catalog tables section', () => {
    * because the tint is a class and the sentence is the part a person can read.
    */
   it('tells the reader which row the link they followed was about', () => {
-    const arrived = render(<DeclaredTablesTable tableChecks={tables} requestedEntity="a_catalog.a_schema.gold_title_daily_summary" />,
+    const arrived = render(
+      <DeclaredTablesTable tableChecks={tables} requestedEntity="a_catalog.a_schema.gold_title_daily_summary" />
     );
     expect(text(arrived)).toContain('Linked from the answer you followed here');
     // The tint and the announcement land on the same row as the sentence: one
@@ -1165,7 +1315,8 @@ describe('the Unity Catalog tables section', () => {
    * table and everything else on the row would corroborate it.
    */
   it('highlights nothing when the name asked for is not one of the declared tables', () => {
-    const rendered = render(<DeclaredTablesTable tableChecks={tables} requestedEntity="a_catalog.a_schema.no_such_table" />,
+    const rendered = render(
+      <DeclaredTablesTable tableChecks={tables} requestedEntity="a_catalog.a_schema.no_such_table" />
     );
     expect(rendered).not.toMatch(/data-highlighted="true"/);
     expect(text(rendered)).not.toContain('Linked from the answer');
@@ -1211,14 +1362,16 @@ describe('what the page still refuses to claim', () => {
    * a promise about reading data through it.
    */
   it('keeps saying that reaching a dependency is not a promise about its data', () => {
-    const rendered = text(render(<PreflightRemedyRow
+    const rendered = text(
+      render(
+        <PreflightRemedyRow
           check={check('sql-warehouse', 'ok', {
             detail:
               'The workspace answered: named \u201cA Warehouse\u201d, state STOPPED. That is a metadata read. ' +
               'It does not prove a statement would run.',
           })}
         />
-      ),
+      )
     );
     expect(rendered).toMatch(/metadata read/);
     expect(rendered).toMatch(/does not prove/);

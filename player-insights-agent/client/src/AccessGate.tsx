@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshButton } from './RefreshControl';
 import { principalLabel } from './execution-identity';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
+import { UserIdentityChip } from './UserIdentityChip';
 
 /**
  * Asks, once per session, under whose authority the answers should be taken.
@@ -419,7 +420,7 @@ export function LimitsReport({ limits }: { limits: readonly NotChecked[] }) {
 export function GateIntro({ signedInAs }: { signedInAs: string }) {
   return (
     <p>
-      Signed in as <strong>{signedInAs}</strong>. This checks your access under your own token: the
+      <UserIdentityChip identity={signedInAs} label="Signed in as" compact />. This checks your access under your own token: the
       SQL warehouse, the tables behind answers, and the Genie spaces. It does not decide who runs
       the questions that follow; that is reported on Connections.
     </p>

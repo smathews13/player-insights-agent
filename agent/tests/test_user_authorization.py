@@ -27,13 +27,24 @@ from user_authorization import (
     SYSTEM_PASSTHROUGH,
     USER_AUTHORIZATION,
     USER_AUTHORIZATION_ENV,
+    UserCredentialsUnavailable,
     announcement,
     api_scopes,
     coverage_caveat,
     executing_identity,
     from_artifact,
+    is_user_credentials_unavailable,
     resolve,
     user_authorized_client,
+)
+
+#: The sentence the SDK really raises when Model Serving hands the container no
+#: downscoped user token, as it reached a customer inside an HTTP 400. Quoted
+#: verbatim rather than paraphrased: the detector matches on the SDK's words, so
+#: a test that invents its own wording proves nothing about the real failure.
+SDK_NO_CREDENTIAL = (
+    "model_serving_user_credentials auth: Unable to authenticate using "
+    "user_credentials in Databricks Model Serving Environment"
 )
 
 LOG_MODEL = (Path(__file__).resolve().parents[1] / "log_model.py").read_text()
@@ -295,6 +306,115 @@ def test_an_unreadable_identity_does_not_fail_the_question():
 
     assert executing_identity(SimpleNamespace(current_user=SimpleNamespace(me=explode))) == ""
     assert executing_identity(SimpleNamespace()) == ""
+
+
+# ---------------------------------------------------------------------------
+# The serving environment with no invoker credential at all
+#
+# The customer incident: an endpoint deployed without on-behalf-of-user
+# forwarding raised the SDK's own sentence out of `predict`, and the first
+# question a person asked came back as an HTTP 400 whose body was that sentence.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        SDK_NO_CREDENTIAL,
+        "Unable to authenticate using user_credentials in Databricks Model Serving Environment",
+        # Case is the SDK's to choose and has already changed a check's answer in
+        # this repository once.
+        SDK_NO_CREDENTIAL.upper(),
+    ],
+)
+def test_the_missing_invoker_credential_is_recognised_however_it_is_spelled(text):
+    assert is_user_credentials_unavailable(ValueError(text))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "default auth: cannot configure default credentials",
+        "PERMISSION_DENIED: User does not have CAN QUERY on the endpoint",
+        "Unable to authenticate using azure-cli",
+        "invalid access token",
+        "",
+    ],
+)
+def test_a_different_auth_failure_is_not_folded_into_it(text):
+    """The narrowness IS the feature.
+
+    "Re-log and redeploy the model" is confident, specific, wrong advice for an
+    expired token or a revoked grant, and a reader who follows it spends a
+    release finding that out.
+    """
+
+    assert not is_user_credentials_unavailable(ValueError(text))
+
+
+def test_it_is_recognised_through_a_wrapper():
+    """The SDK wraps its own ValueError and a caller may wrap it again, so the
+    whole `raise ... from ...` chain is read rather than the outermost frame."""
+
+    inner = ValueError(SDK_NO_CREDENTIAL)
+    try:
+        raise inner
+    except ValueError as error:
+        outer = RuntimeError("client construction failed")
+        outer.__cause__ = error
+
+    assert is_user_credentials_unavailable(outer)
+
+
+def test_building_the_client_without_a_credential_raises_the_named_failure():
+    """Renamed rather than reworded: the SDK's sentence is kept as the message so
+    the endpoint's log still says exactly what the SDK said."""
+
+    def factory(**_kwargs):
+        raise ValueError(SDK_NO_CREDENTIAL)
+
+    with pytest.raises(UserCredentialsUnavailable) as raised:
+        user_authorized_client(factory=factory)
+
+    assert SDK_NO_CREDENTIAL in str(raised.value)
+    assert isinstance(raised.value.__cause__, ValueError)
+
+
+def test_any_other_construction_failure_is_re_raised_untouched():
+    """Identity, type and message, because a caller upstream may be catching on
+    any of the three."""
+
+    original = TimeoutError("the workspace did not answer in time")
+
+    def factory(**_kwargs):
+        raise original
+
+    with pytest.raises(TimeoutError) as raised:
+        user_authorized_client(factory=factory)
+
+    assert raised.value is original
+
+
+def test_a_credential_that_fails_on_first_use_is_named_too():
+    """The SDK resolves lazily, so the same fault can surface on the first call
+    rather than at construction. Swallowed to "" it becomes "sign in again",
+    which sends the reader to fix a session for a fault in the deployment."""
+
+    def explode():
+        raise ValueError(SDK_NO_CREDENTIAL)
+
+    with pytest.raises(UserCredentialsUnavailable):
+        executing_identity(SimpleNamespace(current_user=SimpleNamespace(me=explode)))
+
+
+def test_every_other_first_use_failure_still_reports_an_empty_identity():
+    """The best-effort contract above is unchanged for everything else: a live
+    turn is not dropped because one round trip failed."""
+
+    def explode():
+        raise RuntimeError("PERMISSION_DENIED: no CAN QUERY on the endpoint")
+
+    assert executing_identity(SimpleNamespace(current_user=SimpleNamespace(me=explode))) == ""
 
 
 def test_the_coverage_caveat_names_the_failure_that_cannot_be_detected():

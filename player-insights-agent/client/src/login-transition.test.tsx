@@ -81,6 +81,7 @@ describe('the flicker: nothing of the app is drawn before the gate decision', ()
     expect(markup).not.toContain('app-header');
     expect(markup).not.toContain('app-nav-tab');
     expect(markup).not.toContain('data-testid="role-badge"');
+    expect(markup).not.toContain('identity-chip');
     expect(markup).not.toContain('identity-avatar');
   });
 

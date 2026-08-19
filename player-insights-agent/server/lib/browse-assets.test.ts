@@ -3,13 +3,21 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   browseBlockedByScope,
   interpretBrowseAnswer,
+  lakebaseProjectParent,
   listCatalogs,
+  listExperiments,
   listGenieSpaces,
+  listLakebaseDatabases,
+  listLakebaseProjects,
   listNotebooks,
   listSchemas,
   listServingEndpoints,
   listTables,
+  listVectorSearchEndpoints,
+  listVectorSearchIndexes,
+  listVolumes,
   listWarehouses,
+  validateNotebookPath,
 } from './browse-assets';
 import { isBrowseOk, isBrowseUnavailable } from '../../shared/browse-contract';
 
@@ -28,6 +36,9 @@ const CATALOG_SCOPES = [
   'catalog.tables:read',
   'workspace.workspace:read',
   'serving.serving-endpoints',
+  'vectorsearch.vector-search-indexes:read',
+  'vectorsearch.vector-search-endpoints:read',
+  'postgres',
 ] as const;
 
 function fetchFor(routes: Record<string, { status: number; body: Record<string, unknown> }>) {
@@ -428,6 +439,290 @@ describe('listNotebooks', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     if (response.status === 'unavailable') {
       expect(response.scope).toBe('workspace.workspace:read');
+    }
+  });
+});
+
+describe('validateNotebookPath', () => {
+  const path = '/Users/someone@example.com/declare';
+
+  it('accepts only a readable notebook', async () => {
+    const result = await validateNotebookPath(path, {
+      host: HOST,
+      token: tokenWith(['workspace.workspace:read']),
+      declaredScopes: ['workspace.workspace:read'],
+      fetchImpl: fetchFor({
+        [`/api/2.0/workspace/get-status?path=${encodeURIComponent(path)}`]: {
+          status: 200,
+          body: { path, object_type: 'NOTEBOOK' },
+        },
+        [`/api/2.0/workspace/export?path=${encodeURIComponent(path)}&format=SOURCE`]: {
+          status: 200,
+          body: { content: 'cHJpbnQoIm9rIik=' },
+        },
+      }),
+    });
+    expect(result).toEqual({ ok: true, path });
+  });
+
+  it('rejects folders and unreadable notebooks without saving a guess', async () => {
+    const folder = await validateNotebookPath('/Shared/folder', {
+      host: HOST,
+      token: tokenWith(['workspace.workspace:read']),
+      declaredScopes: ['workspace.workspace:read'],
+      fetchImpl: fetchFor({
+        [`/api/2.0/workspace/get-status?path=${encodeURIComponent('/Shared/folder')}`]: {
+          status: 200,
+          body: { path: '/Shared/folder', object_type: 'DIRECTORY' },
+        },
+      }),
+    });
+    expect(folder).toMatchObject({ ok: false, status: 400 });
+
+    const denied = await validateNotebookPath(path, {
+      host: HOST,
+      token: tokenWith(['workspace.workspace:read']),
+      declaredScopes: ['workspace.workspace:read'],
+      fetchImpl: fetchFor({
+        [`/api/2.0/workspace/get-status?path=${encodeURIComponent(path)}`]: {
+          status: 200,
+          body: { path, object_type: 'NOTEBOOK' },
+        },
+        [`/api/2.0/workspace/export?path=${encodeURIComponent(path)}&format=SOURCE`]: {
+          status: 403,
+          body: { error_code: 'PERMISSION_DENIED' },
+        },
+      }),
+    });
+    expect(denied).toMatchObject({ ok: false, status: 403 });
+  });
+});
+
+describe('listVolumes', () => {
+  it('lists volumes under a catalog.schema and stores the leaf name', async () => {
+    const response = await listVolumes({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      catalog: 'main',
+      schema: 'assets',
+      fetchImpl: fetchFor({
+        '/api/2.1/unity-catalog/volumes': {
+          status: 200,
+          body: {
+            volumes: [
+              {
+                name: 'player_insights_assets',
+                full_name: 'main.assets.player_insights_assets',
+                volume_type: 'MANAGED',
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(isBrowseOk(response)).toBe(true);
+    if (response.status === 'ok') {
+      expect(response.items).toEqual([
+        {
+          id: 'player_insights_assets',
+          label: 'player_insights_assets',
+          secondary: 'MANAGED',
+          expandable: false,
+        },
+      ]);
+    }
+  });
+
+  it('refuses when catalog schemas browse is blocked, without inventing a volumes scope', async () => {
+    const fetchImpl = vi.fn();
+    const response = await listVolumes({
+      host: HOST,
+      token: tokenWith(['sql']),
+      declaredScopes: ['sql', 'dashboards.genie'],
+      catalog: 'main',
+      schema: 'assets',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(isBrowseUnavailable(response)).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    if (response.status === 'unavailable') {
+      expect(response.scope).toBe('catalog.schemas:read');
+    }
+  });
+});
+
+describe('Vector Search browse', () => {
+  it('lists endpoints and indexes under an endpoint', async () => {
+    const endpoints = await listVectorSearchEndpoints({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl: fetchFor({
+        '/api/2.0/vector-search/endpoints': {
+          status: 200,
+          body: {
+            endpoints: [
+              {
+                name: 'player-vs',
+                num_indexes: 2,
+                endpoint_status: { state: 'ONLINE' },
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(isBrowseOk(endpoints)).toBe(true);
+    if (endpoints.status === 'ok') {
+      expect(endpoints.items[0]).toEqual({
+        id: 'player-vs',
+        label: 'player-vs',
+        secondary: 'ONLINE, 2 indexes',
+        expandable: false,
+      });
+    }
+
+    const indexes = await listVectorSearchIndexes({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      endpoint: 'player-vs',
+      fetchImpl: fetchFor({
+        '/api/2.0/vector-search/indexes': {
+          status: 200,
+          body: {
+            vector_indexes: [
+              {
+                name: 'main.player.semantic_layer_index',
+                index_type: 'DELTA_SYNC',
+                endpoint_name: 'player-vs',
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(isBrowseOk(indexes)).toBe(true);
+    if (indexes.status === 'ok') {
+      expect(indexes.items[0]).toEqual({
+        id: 'main.player.semantic_layer_index',
+        label: 'semantic_layer_index',
+        secondary: 'DELTA_SYNC',
+        expandable: false,
+      });
+    }
+  });
+
+  it('returns unavailable when the VS endpoint scope is not carried', async () => {
+    const fetchImpl = vi.fn();
+    const response = await listVectorSearchEndpoints({
+      host: HOST,
+      token: tokenWith(['sql']),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(isBrowseUnavailable(response)).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    if (response.status === 'unavailable') {
+      expect(response.scope).toBe('vectorsearch.vector-search-endpoints:read');
+    }
+  });
+});
+
+describe('Lakebase browse', () => {
+  it('prefixes a bare project id for the branches parent', () => {
+    expect(lakebaseProjectParent('demo')).toBe('projects/demo');
+    expect(lakebaseProjectParent('projects/demo')).toBe('projects/demo');
+  });
+
+  it('lists projects and databases under a branch', async () => {
+    const projects = await listLakebaseProjects({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl: fetchFor({
+        '/api/2.0/postgres/projects': {
+          status: 200,
+          body: {
+            projects: [
+              {
+                name: 'projects/demo',
+                status: { display_name: 'Demo DB' },
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(isBrowseOk(projects)).toBe(true);
+    if (projects.status === 'ok') {
+      expect(projects.items[0]).toEqual({
+        id: 'projects/demo',
+        label: 'Demo DB',
+        secondary: 'demo',
+        expandable: false,
+      });
+    }
+
+    const databases = await listLakebaseDatabases({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      branch: 'projects/demo/branches/production',
+      fetchImpl: fetchFor({
+        '/api/2.0/postgres/projects/demo/branches/production/databases': {
+          status: 200,
+          body: {
+            databases: [
+              {
+                name: 'projects/demo/branches/production/databases/databricks-postgres',
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(isBrowseOk(databases)).toBe(true);
+    if (databases.status === 'ok') {
+      expect(databases.items[0].id).toBe(
+        'projects/demo/branches/production/databases/databricks-postgres',
+      );
+      expect(databases.items[0].label).toBe('databricks-postgres');
+    }
+  });
+
+  it('returns unavailable when postgres is not declared', async () => {
+    const fetchImpl = vi.fn();
+    const response = await listLakebaseProjects({
+      host: HOST,
+      token: tokenWith(['sql']),
+      declaredScopes: ['sql', 'dashboards.genie'],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(isBrowseUnavailable(response)).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    if (response.status === 'unavailable') {
+      expect(response.scope).toBe('postgres');
+    }
+  });
+});
+
+describe('listExperiments', () => {
+  it('is always unavailable because Apps has no MLflow scope', async () => {
+    const fetchImpl = vi.fn();
+    const response = await listExperiments({
+      host: HOST,
+      token: tokenWith([...CATALOG_SCOPES]),
+      declaredScopes: [...CATALOG_SCOPES],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(isBrowseUnavailable(response)).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    if (response.status === 'unavailable') {
+      expect(response.reason).toBe('apps_has_no_scope');
+      expect(response.scope).toBe('');
+      expect(response.detail).toContain('MLflow');
     }
   });
 });

@@ -577,37 +577,12 @@
   opacity: 0.65;
 }
 
-/* The watermark: who asked, as initials.
-   Deliberately the quietest thing in the row. It carries no colour of its own,
-   because the blue edge marker already means "this row is selected" here and amber
-   means evaluation: a third mark competing with those would make the rail harder to
-   scan, not easier.
-   Quiet comes from size and weight rather than from low contrast. It is the neutral
-   chip the handoff gives every set of initials, and it takes the chip's own text
-   colour rather than the app's secondary grey, which is only 4.23:1 there:
-   #445461 on #E8ECF0 is 6.58:1. */
 .conversation-owner {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 17px;
-  height: 17px;
-  border-radius: 50%;
-  background: var(--db-chip);
-  border: 1px solid var(--db-line);
-  color: var(--db-grey-blue);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  /* The address is on `title`, so the cursor should say there is something to read. */
-  cursor: help;
+  max-width: 132px;
 }
 .conversation-row.active .conversation-owner {
-  /* On the selected row's wash a grey circle looks like a rendering fault, so it
-     goes white and picks up the row's border. 7.82:1 on this background. */
   background: var(--background);
-  border-color: var(--db-chip);
+  border-color: var(--db-line-strong);
 }
 
 /* The scope note beside "RECENT", when the rail is carrying more than the signed-in
@@ -711,6 +686,23 @@
   outline-offset: 1px;
 }
 
+.conversation-filter-chip:not(.is-all) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.conversation-filter-chip:not(.is-all):hover {
+  background: transparent;
+}
+.conversation-filter-chip:not(.is-all)[aria-pressed='true'] {
+  background: transparent;
+}
+.conversation-filter-chip:not(.is-all)[aria-pressed='true'] > .identity-chip {
+  border-color: var(--db-chip);
+  background: var(--db-chip);
+  color: var(--db-ink-deep);
+}
+
 /* Tabular so a chip does not change width between 9 and 10, which would
    reflow the whole wrapped block on a refetch. */
 .conversation-filter-count {
@@ -720,10 +712,6 @@
 
 .conversation-filter-chip[aria-pressed='true'] .conversation-filter-count {
   color: inherit;
-}
-
-.conversation-filter-initials {
-  letter-spacing: 0.02em;
 }
 
 /* Destructive, so it stays out of the way until the row is under the pointer or the

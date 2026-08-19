@@ -26,11 +26,12 @@
  * mechanism that broke the app, and the first fix anybody reached for would be to
  * remove the mechanism.
  *
- * READING is not best effort. A log that answers an empty list on a failed read
- * says "nothing has left" to somebody who came to check exactly that, so a
- * failed read is reported as a failed read and the panel prints it.
+ * The events table is still written by {@link recordEgress}. Nothing in the app
+ * reads it back into a UI any more; the table stays so live deployments keep
+ * their history and a future surface can without a destructive migration.
  */
 
+import { APP_SCHEMA } from '../../shared/app-schema';
 import crypto from 'node:crypto';
 import {
   defaultEgressControls,
@@ -40,16 +41,14 @@ import {
   type EgressChannel,
   type EgressControls,
   type EgressEvent,
-  type EgressLogPayload,
   type EgressOutcome,
-  type EgressReadState,
   type EgressReport,
 } from '../../shared/egress-contract';
 import { readStored, type LakebaseReader } from './lakebase-store';
 
 /** The tables, named once. */
-export const EGRESS_EVENTS_TABLE = 'player_insights.egress_events';
-export const EGRESS_CONTROLS_TABLE = 'player_insights.egress_controls';
+export const EGRESS_EVENTS_TABLE = `${APP_SCHEMA}.egress_events`;
+export const EGRESS_CONTROLS_TABLE = `${APP_SCHEMA}.egress_controls`;
 
 /**
  * The SQLSTATE for a table that is not there.
@@ -59,9 +58,6 @@ export const EGRESS_CONTROLS_TABLE = 'player_insights.egress_controls';
  * "unavailable" would send somebody to look at a Lakebase endpoint that is fine.
  */
 const UNDEFINED_TABLE = '42P01';
-
-/** The most rows one read of the log returns. A ceiling, not a hint. */
-export const EGRESS_LOG_LIMIT = 200;
 
 /**
  * The longest a surface may hold a value this app clamps rather than trusts.
@@ -288,8 +284,7 @@ export interface RecordedEgress {
  *
  * Recording is reporting, not interception. A row here means the app was told an
  * export happened. Nothing in a browser is obliged to tell it, so the absence of
- * a row is not evidence that nothing left, and the panel says so rather than
- * counting silence as a clean day.
+ * a row is not evidence that nothing left.
  *
  * Never throws. See the file header.
  */
@@ -342,109 +337,8 @@ export async function recordEgress(
     // failing the request would cost the reader their copy button.
     console.warn(
       `[egress] A ${event.channel} export by ${event.actor} was not recorded: ${(error as Error).message}. ` +
-        'The control decision itself was applied. The record for this one is lost, which is why the panel ' +
-        'never presents an empty day as evidence that nothing left.'
+        'The control decision itself was applied. The record for this one is lost.'
     );
     return { event, written: false };
   }
-}
-
-/* ── Reading the log ───────────────────────────────────────────────────────── */
-
-function rowText(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
-
-function rowCount(value: unknown): number | null {
-  if (value === null || value === undefined) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
-}
-
-function rowInstant(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  return rowText(value);
-}
-
-/**
- * One event from one row, dropping anything this build cannot read.
- *
- * A row whose channel this build does not know is DROPPED rather than rendered
- * as itself, for the reason the contract gives: the only thing that could have
- * written it is a newer build, and drawing a path name with no label and no
- * enforcement state beside it would put a row on screen that the panel cannot
- * say anything true about.
- */
-function eventFromRow(row: Record<string, unknown>): EgressEvent | null {
-  const path = egressPath(rowText(row.channel));
-  if (!path) return null;
-  return {
-    id: rowText(row.id),
-    occurredAt: rowInstant(row.occurred_at),
-    actor: rowText(row.actor),
-    channel: path.channel,
-    // The path's shape rather than the row's, so a build that reclassifies a
-    // path does not draw two shapes for one channel in the same list.
-    shape: path.shape,
-    outcome: rowText(row.outcome) === 'refused' ? 'refused' : 'left',
-    surface: rowText(row.surface),
-    runId: rowText(row.run_id) || null,
-    conversationId: rowText(row.conversation_id) || null,
-    itemCount: rowCount(row.item_count),
-  };
-}
-
-/**
- * What has left recently, newest first, or why that could not be established.
- *
- * ── THREE READ STATES, AND WHY THE THIRD IS WORTH ITS OWN VALUE ──
- *
- * `read` with no rows means nothing has been recorded, which on this deployment
- * is the ordinary state of a feature nobody has exercised yet.
- * `unavailable` means the store did not answer.
- * `not-migrated` means the table is not there, and it is separated from
- * `unavailable` because it has a different remedy and a different prognosis: an
- * endpoint that is down comes back on its own, a migration that was never
- * applied does not. Collapsing them sends somebody to look at Lakebase health
- * for a schema problem.
- *
- * One more row than the limit is asked for, so `truncated` is a fact rather than
- * an inference from a full page. A page of exactly the limit and a range with
- * more in it are otherwise indistinguishable.
- */
-export async function readEgressLog(
-  client: LakebaseReader,
-  options: { limit?: number; now?: number } = {}
-): Promise<EgressLogPayload> {
-  const limit =
-    Number.isFinite(options.limit) && (options.limit ?? 0) > 0
-      ? Math.min(Math.trunc(options.limit as number), EGRESS_LOG_LIMIT)
-      : EGRESS_LOG_LIMIT;
-  const readAt = new Date(options.now ?? Date.now()).toISOString();
-
-  const read = await readStored(
-    client,
-    'GET /api/egress/admin/events',
-    `SELECT id, occurred_at, actor, channel, shape, outcome, surface, run_id, conversation_id, item_count
-     FROM ${EGRESS_EVENTS_TABLE}
-     ORDER BY occurred_at DESC, id DESC
-     LIMIT $1`,
-    [limit + 1]
-  );
-  if (!read.available) {
-    const readState: EgressReadState = read.code === UNDEFINED_TABLE ? 'not-migrated' : 'unavailable';
-    console.warn(
-      `[egress] The egress record could not be read (${read.code || 'no code'}): ${read.error}. ` +
-        `Reported as ${readState}, and NOT as an empty list: somebody reading this panel came to find out ` +
-        'whether anything left, and zero rows would answer that question wrongly.'
-    );
-    return { events: [], readState, limit, truncated: false, readAt };
-  }
-
-  const truncated = read.rows.length > limit;
-  const events = read.rows
-    .slice(0, limit)
-    .map(eventFromRow)
-    .filter((event): event is EgressEvent => event !== null);
-  return { events, readState: 'read', limit, truncated, readAt };
 }

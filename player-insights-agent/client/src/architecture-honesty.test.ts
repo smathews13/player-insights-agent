@@ -342,15 +342,15 @@ describe('the semantic lane is two objects, and one can fail without the other',
     expect(architectureNode(INDEX)!.lane).toBe('semantic');
   });
 
-  it('says the index is served by the endpoint, and searched by the orchestrator', () => {
+  it('says the index is served by the endpoint, and searched by the finder agent', () => {
     // The two relationships are different and the drawing states both. An edge
-    // from the orchestrator to the endpoint would say a search goes there
-    // directly; an edge only from the orchestrator to the index would leave the
+    // from the finder to the endpoint would say a search goes there directly;
+    // an edge only from the finder to the index would leave the
     // endpoint on the page with nothing joining it to anything.
     const serves = ARCHITECTURE_EDGES.find((edge) => edge.from === ENDPOINT && edge.to === INDEX);
-    const searches = ARCHITECTURE_EDGES.find((edge) => edge.from === 'agent-endpoint' && edge.to === INDEX);
+    const searches = ARCHITECTURE_EDGES.find((edge) => edge.from === 'data-source-finder' && edge.to === INDEX);
     expect(serves, 'the endpoint serves the index').toBeDefined();
-    expect(searches, 'the orchestrator searches the index').toBeDefined();
+    expect(searches, 'the finder searches the index').toBeDefined();
     expect(ARCHITECTURE_EDGES.some((edge) => edge.to === ENDPOINT)).toBe(false);
   });
 

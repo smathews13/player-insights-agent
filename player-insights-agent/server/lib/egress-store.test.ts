@@ -12,12 +12,10 @@
  * fails, and it fails on the commit that adds it rather than on the audit that
  * finds it.
  *
- * The second is that NO FAILURE PRODUCES A REASSURING ANSWER. An unreadable log
- * must not read as a quiet day, an unreadable control table must not read as a
- * deployment that permits nothing, and a client's own claim to have been allowed
- * must not be believed. Each of those is a way for this feature to be worse than
- * absent, because each one answers "has anything left" wrongly to somebody who
- * came to ask exactly that.
+ * The second is that NO FAILURE PRODUCES A REASSURING ANSWER. An unreadable
+ * control table must not read as a deployment that permits nothing, and a
+ * client's own claim to have been allowed must not be believed. Each of those is
+ * a way for this feature to be worse than absent.
  *
  * Every address here is invented. See `docs`-free convention elsewhere in this
  * suite: `.invalid` is reserved by RFC 2606 and can never be a real domain.
@@ -26,10 +24,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   EGRESS_CONTROLS_TABLE,
   EGRESS_EVENTS_TABLE,
-  EGRESS_LOG_LIMIT,
   forgetEgressControls,
   readEgressControls,
-  readEgressLog,
   recordEgress,
   workspaceLinksAllowed,
   writeEgressControl,
@@ -338,84 +334,6 @@ describe('moving one switch', () => {
     await expect(
       writeEgressControl(store, { channel: 'chart-image', allowed: true, actor: ANALYST })
     ).rejects.toThrow();
-  });
-});
-
-describe('reading the log', () => {
-  function row(partial: Record<string, unknown> = {}): Record<string, unknown> {
-    return {
-      id: 'e1',
-      occurred_at: new Date('2026-01-02T03:04:05.000Z'),
-      actor: ANALYST,
-      channel: 'generated-sql',
-      shape: 'statement',
-      outcome: 'left',
-      surface: 'runs',
-      run_id: null,
-      conversation_id: null,
-      item_count: null,
-      ...partial,
-    };
-  }
-
-  it('reads a row back as an event', async () => {
-    const payload = await readEgressLog(fakeStore({ events: [row()] }));
-    expect(payload.readState).toBe('read');
-    expect(payload.events).toHaveLength(1);
-    expect(payload.events[0].occurredAt).toBe('2026-01-02T03:04:05.000Z');
-    expect(payload.events[0].actor).toBe(ANALYST);
-  });
-
-  /**
-   * The reason `not-migrated` is its own state rather than one more unavailable:
-   * an endpoint that is down comes back on its own, a migration that was never
-   * applied does not, and collapsing them sends somebody to look at Lakebase
-   * health for a schema problem.
-   */
-  it('tells a missing table apart from a store that did not answer', async () => {
-    expect((await readEgressLog(fakeStore({ events: refusal('42P01') }))).readState).toBe('not-migrated');
-    expect((await readEgressLog(fakeStore({ events: refusal('57P01') }))).readState).toBe('unavailable');
-  });
-
-  /**
-   * Zero rows from a failed read says "nothing has left" to the one person who
-   * came to check exactly that. Every failure path answers with a state word and
-   * an empty list, never with an empty list alone.
-   */
-  it('never reports a failed read as a quiet day', async () => {
-    const payload = await readEgressLog(fakeStore({ events: refusal('57014') }));
-    expect(payload.events).toHaveLength(0);
-    expect(payload.readState).not.toBe('read');
-  });
-
-  /**
-   * One more row than the limit is asked for, so truncation is a fact rather than
-   * an inference. A page of exactly the limit and a range with more in it are
-   * otherwise indistinguishable.
-   */
-  it('reports truncation from a row it fetched and did not return', async () => {
-    const store = fakeStore({ events: [row({ id: 'a' }), row({ id: 'b' }), row({ id: 'c' })] });
-    const payload = await readEgressLog(store, { limit: 2 });
-    expect(payload.events).toHaveLength(2);
-    expect(payload.truncated).toBe(true);
-    expect(store.calls[0].params).toEqual([3]);
-  });
-
-  it('clamps a limit above the ceiling rather than trusting it', async () => {
-    const store = fakeStore({ events: [] });
-    await readEgressLog(store, { limit: 10_000 });
-    expect(store.calls[0].params).toEqual([EGRESS_LOG_LIMIT + 1]);
-  });
-
-  /**
-   * A row whose channel this build does not know was written by a newer one.
-   * Drawing it would put a row on screen the panel can say nothing true about:
-   * no label, no shape, no enforcement state.
-   */
-  it('drops a row naming a path this build does not know', async () => {
-    const payload = await readEgressLog(fakeStore({ events: [row({ channel: 'holographic-export' })] }));
-    expect(payload.events).toHaveLength(0);
-    expect(payload.readState).toBe('read');
   });
 });
 

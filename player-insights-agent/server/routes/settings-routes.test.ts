@@ -1,6 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { readOrchestratorReport } from './settings-routes';
+import {
+  configuredNotebookPath,
+  readOrchestratorReport,
+  releaseDeclaration,
+  validateAndStoreNotebookPath,
+} from './settings-routes';
 import { extractConfigurationReport, type InsightsAppKit, type ServingTransport } from './insights-routes';
 import { resourceStates, settingsPayload } from '../lib/app-settings';
 
@@ -91,7 +96,7 @@ describe('the configuration survives the retired-preflight shape', () => {
 describe('what /api/settings makes of an endpoint that answered', () => {
   it('reports the configuration instead of discarding it', async () => {
     const read = await readOrchestratorReport(
-      appkitAnswering(retiredPreflight([entry('catalog', 'a_catalog'), entry('sql_warehouse_id', 'abc123')])),
+      appkitAnswering(retiredPreflight([entry('catalog', 'a_catalog'), entry('sql_warehouse_id', 'abc123')]))
     );
     expect(read.answered).toBe(true);
     expect(read.report?.configuration.map((item) => item.key)).toEqual(['catalog', 'sql_warehouse_id']);
@@ -103,7 +108,7 @@ describe('what /api/settings makes of an endpoint that answered', () => {
     // that sentence. The stamp is reported as a setting rather than as a field of
     // a report, which is exactly why it was being lost.
     const read = await readOrchestratorReport(
-      appkitAnswering(retiredPreflight([entry('build_sha', 'deadbeef'), entry('catalog', 'a_catalog')])),
+      appkitAnswering(retiredPreflight([entry('build_sha', 'deadbeef'), entry('catalog', 'a_catalog')]))
     );
     expect(read.report?.build_sha).toBe('deadbeef');
   });
@@ -130,9 +135,7 @@ describe('what /api/settings makes of an endpoint that answered', () => {
     const silent = await readOrchestratorReport(appkitAnswering({ custom_outputs: { type: 'preflight_retired' } }));
     expect(silent).toEqual({ report: null, answered: true });
 
-    const unreachable = await readOrchestratorReport(
-      appkit(() => Promise.reject(new Error('endpoint is not ready'))),
-    );
+    const unreachable = await readOrchestratorReport(appkit(() => Promise.reject(new Error('endpoint is not ready'))));
     expect(unreachable).toEqual({ report: null, answered: false });
   });
 
@@ -157,7 +160,7 @@ describe('what /api/settings makes of an endpoint that answered', () => {
    */
   it('does not let the page claim agreement it never measured', async () => {
     const read = await readOrchestratorReport(
-      appkitAnswering(retiredPreflight([entry('build_sha', 'deadbeef'), entry('catalog', 'a_catalog')])),
+      appkitAnswering(retiredPreflight([entry('build_sha', 'deadbeef'), entry('catalog', 'a_catalog')]))
     );
     const payload = settingsPayload({
       report: read.report,
@@ -178,7 +181,97 @@ describe('what /api/settings makes of an endpoint that answered', () => {
     // itself: whether it can reach the endpoint, and whether it can reach its own
     // store. Neither needs the orchestrator's cooperation, so both are real. Every
     // row that would need the endpoint to have checked something stays unmeasured.
-    const observed = payload.resources.filter((resource) => resource.actualObserved).map((resource) => resource.resource.id);
+    const observed = payload.resources
+      .filter((resource) => resource.actualObserved)
+      .map((resource) => resource.resource.id);
     expect(observed.sort()).toEqual(['agent-endpoint', 'lakebase']);
+  });
+});
+
+describe('saving a workspace notebook path', () => {
+  it('prefers a saved path, falls back to the optional environment value, and otherwise stays empty', () => {
+    const saved = new Map([
+      [
+        'notebook-path',
+        {
+          resourceId: 'notebook-path',
+          value: '/Shared/saved',
+          intent: 'active' as const,
+          updatedAt: '',
+          updatedBy: '',
+          note: '',
+        },
+      ],
+    ]);
+    expect(configuredNotebookPath(saved, { PLAYER_INSIGHTS_NOTEBOOK_PATH: '/Shared/default' })).toBe(
+      '/Shared/saved',
+    );
+    expect(configuredNotebookPath(new Map(), { PLAYER_INSIGHTS_NOTEBOOK_PATH: '/Shared/default' })).toBe(
+      '/Shared/default',
+    );
+    expect(configuredNotebookPath(new Map(), {})).toBe('');
+  });
+
+  it('stores the validated path under its own setting without replacing the declarations table', async () => {
+    const write = vi.fn(async (_appkit, setting) => ({
+      ...setting,
+      updatedAt: '2026-08-19T16:00:00.000Z',
+    }));
+    const result = await validateAndStoreNotebookPath({
+      appkit: appkitAnswering({}),
+      path: '/Shared/player-insights',
+      host: 'https://workspace.invalid',
+      token: 'user-token',
+      updatedBy: 'admin@example.invalid',
+      validate: vi.fn(async () => ({ ok: true as const, path: '/Shared/player-insights' })),
+      write: write as typeof import('../lib/app-settings').writeStoredSetting,
+    });
+    expect(result.ok).toBe(true);
+    expect(write).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        resourceId: 'notebook-path',
+        value: '/Shared/player-insights',
+        intent: 'active',
+      }),
+    );
+  });
+
+  it('does not write a folder or a notebook the user cannot read', async () => {
+    const write = vi.fn();
+    const result = await validateAndStoreNotebookPath({
+      appkit: appkitAnswering({}),
+      path: '/Shared/folder',
+      host: 'https://workspace.invalid',
+      token: 'user-token',
+      updatedBy: 'admin@example.invalid',
+      validate: vi.fn(async () => ({
+        ok: false as const,
+        status: 400 as const,
+        detail: 'Choose a notebook, not a workspace folder.',
+      })),
+      write: write as typeof import('../lib/app-settings').writeStoredSetting,
+    });
+    expect(result).toMatchObject({ ok: false, status: 400 });
+    expect(write).not.toHaveBeenCalled();
+  });
+});
+
+describe('the release declaration', () => {
+  it('is the exact settings document Python consumes, with a stable revision', () => {
+    const plan = {
+      knobs: [
+        { key: 'warehouse_id', label: 'Warehouse', value: 'wh-1', source: 'intended' as const, envVar: 'X' },
+        { key: 'catalog', label: 'Catalog', value: 'catalog_a', source: 'notebook' as const, envVar: 'Y' },
+      ],
+      notes: [],
+      command: 'unused',
+      hasOverrides: true,
+    };
+    const first = releaseDeclaration(plan);
+    const second = releaseDeclaration({ ...plan, knobs: [...plan.knobs].reverse() });
+    expect(first.settings).toEqual({ warehouse_id: 'wh-1', catalog: 'catalog_a' });
+    expect(first.revision).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(second.revision).toBe(first.revision);
   });
 });

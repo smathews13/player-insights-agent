@@ -180,18 +180,13 @@ describe('every node is placed exactly once', () => {
   it('gives every card the height its own copy needs, not a shared one', () => {
     const heights = Object.entries(NODE_BOXES).map(([id, box]) => [id, box.height] as const);
     expect(new Set(heights.map(([, height]) => height)).size, 'the cards differ in height').toBeGreaterThan(1);
-    // The estimate was 140, and every card on the canvas is now taller than it --
-    // which it was not when the heights were first derived, because the columns
-    // were wider then and the Browser card came out at 133. Narrowing the columns
-    // to widen the corridors between them is what moved it, and it is the reason
-    // a shared constant cannot be rescued by picking a better one: the figure
-    // depends on a column width that the next spacing decision may change again.
-    expect(heights.filter(([, height]) => height > 140)).toHaveLength(heights.length);
-    // The spread, which is the fact a single number denies. Nearly 90px between
-    // the shortest card and the tallest.
+    // The copy and chrome were deliberately tightened; no card should return to
+    // the oversized boxes the earlier paragraphs required.
+    expect(Math.max(...heights.map(([, height]) => height))).toBeLessThan(190);
+    // The spread remains, which is why one fixed height is still wrong.
     const tallest = Math.max(...heights.map(([, height]) => height));
     const shortest = Math.min(...heights.map(([, height]) => height));
-    expect(tallest - shortest, 'the range no one constant covers').toBeGreaterThan(80);
+    expect(tallest - shortest, 'the range no one constant covers').toBeGreaterThan(60);
   });
 
   /**
@@ -260,11 +255,10 @@ describe('no two cards are drawn on top of each other', () => {
     expect(dictionary.top + dictionary.height).toBeLessThanOrEqual(data.top);
     expect(data.top - (dictionary.top + dictionary.height)).toBeGreaterThanOrEqual(ROW_GAP_MIN);
 
-    // And the two numbers that were wrong, so this is the check failing on what
-    // shipped rather than one written around it: the pitch was 160 and the
-    // estimate the checks reasoned with was 140.
-    expect(dictionary.height + ROW_GAP_MIN, 'the 160px pitch could not have cleared it').toBeGreaterThan(160);
-    expect(dictionary.height, 'and the 140px estimate could not have seen it').toBeGreaterThan(140);
+    // The new one-line copy is genuinely compact, while the explicit placement
+    // leaves much more than the minimum gap.
+    expect(dictionary.height).toBeLessThan(140);
+    expect(data.top - (dictionary.top + dictionary.height)).toBeGreaterThan(ROW_GAP_MIN + 20);
   });
 });
 
@@ -289,6 +283,7 @@ describe('a card is as tall as the stylesheet and the copy make it', () => {
     // twice for that reason.
     expect(CARD_ROW_GAP).toBe(px(rule(CSS, '.arch-node-main'), 'gap'));
     expect(CARD_LINE_HEIGHT).toBe(unitless(card, 'line-height'));
+    expect(CARD_LINE_HEIGHT).toBe(1.35);
     expect(card).toMatch(/font-size:\s*var\(--text-xs\)/);
     expect(CARD_TEXT).toBe(token('text-xs'));
     expect(rule(CSS, '.arch-node-label')).toMatch(/font-size:\s*var\(--text-base\)/);
@@ -355,14 +350,9 @@ describe('a card is as tall as the stylesheet and the copy make it', () => {
     expect(wrappedLines('unbreakablelongword', 11, 0.58, 10)).toBe(1);
   });
 
-  it('makes the Vector Search index card the tallest, because it says the most', () => {
-    // Two sentences of role and a third pill, which is 72px more than the single
-    // estimate allowed any card at all. This is the card that set the canvas
-    // height, and naming it here is what stops a future edit shortening the
-    // canvas without shortening the copy.
+  it('keeps the compact Vector Search description tied to its measured height', () => {
     const heights = Object.entries(NODE_BOXES).map(([id, box]) => [id, box.height] as const);
-    const tallest = heights.reduce((most, entry) => (entry[1] > most[1] ? entry : most));
-    expect(tallest[0]).toBe('semantic-index');
+    expect(Math.max(...heights.map(([, height]) => height))).toBeLessThan(190);
     expect(nodeHeight('semantic-index')).toBe(NODE_BOXES['semantic-index'].height);
   });
 });
@@ -947,9 +937,10 @@ describe('nothing on the canvas is drawn over anything else', () => {
     const dictionary = NODE_BOXES['genie-dictionary'];
     const data = NODE_BOXES['genie-data'];
     const shippedPitch = 160;
-    expect(dictionary.height, 'the card the 140px estimate called 140').toBe(157);
-    expect(shippedPitch - dictionary.height, 'the air the pitch left').toBe(3);
-    expect(shippedPitch - dictionary.height).toBeLessThan(ROW_GAP_MIN);
+    const shippedHeight = 157;
+    expect(shippedPitch - shippedHeight, 'the air the old pitch left').toBe(3);
+    expect(shippedPitch - shippedHeight).toBeLessThan(ROW_GAP_MIN);
+    expect(dictionary.height).toBeLessThan(shippedHeight);
     // And what it is now, which is the rule holding on the real table.
     expect(data.top - (dictionary.top + dictionary.height)).toBeGreaterThanOrEqual(ROW_GAP_MIN);
   });

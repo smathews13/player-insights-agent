@@ -1,5 +1,11 @@
 command: ['npm', 'run', 'start']
 env:
+  # Bundle target that produced this app. Empty in source so a Git-based deploy
+  # leaks no internal target name; bundle/app-release.sh fills it in the generated
+  # deploy tree. Release requests need it so the notebook can execute the exact
+  # approved target without asking the customer to edit bundle configuration.
+  - name: PLAYER_INSIGHTS_TARGET
+    value: ''
   - name: LAKEBASE_ENDPOINT
     valueFrom: postgres
   - name: DATABRICKS_SERVING_ENDPOINT_NAME
@@ -43,6 +49,14 @@ env:
   # present as unknown rather than as agreement.
   - name: PLAYER_INSIGHTS_BUILD_SHA
     value: ''
+  # Postgres schema the app creates and owns inside Lakebase. Safe to bake the
+  # default: it is the same string in every workspace (`player_insights`), and
+  # matches var.lakebase_app_schema. bundle/app-release.sh overrides it from the
+  # bundle var when a target changes it. Connections reads this env so the row
+  # shows the live schema, never "not set". Changing it on a live install still
+  # needs a grant + data migration; the env alone does not move existing tables.
+  - name: PLAYER_INSIGHTS_APP_SCHEMA
+    value: 'player_insights'
   # The model that scores benchmark answers. Never on the answer path.
   # bundle/app-release.sh resolves it from var.judge_endpoint. Safe to leave
   # empty, because a value saved on the settings page overrides it per request.

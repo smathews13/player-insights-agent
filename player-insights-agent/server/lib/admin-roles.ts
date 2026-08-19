@@ -183,13 +183,15 @@ export function announceSeedAdmins(raw: string | undefined = process.env[SEED_AD
   seedAdmins = emails;
   seedSuperAdmins = superEmails;
   if (rejected.length > 0) {
-    console.error(`[admin] ${SEED_ADMIN_EMAILS_ENV} contains ${rejected.length} entr${rejected.length === 1 ? 'y' : 'ies'} ` +
+    console.error(
+      `[admin] ${SEED_ADMIN_EMAILS_ENV} contains ${rejected.length} entr${rejected.length === 1 ? 'y' : 'ies'} ` +
         `with no "@" in ${JSON.stringify(rejected)}, so they are NOT addresses and have been ignored. ` +
         'Nothing is exposed by this. If one of them was meant to be an administrator, they are not one.'
     );
   }
   if (emails.length === 0) {
-    console.warn(`[admin] NO SEED ADMINISTRATORS. ${SEED_ADMIN_EMAILS_ENV} is unset or empty, so nobody is an ` +
+    console.warn(
+      `[admin] NO SEED ADMINISTRATORS. ${SEED_ADMIN_EMAILS_ENV} is unset or empty, so nobody is an ` +
         'administrator except whoever an existing admin has added in Lakebase, and on a fresh deployment ' +
         'that is nobody. Monitoring, Ops, Benchmark Lab and the Settings gear will refuse every caller ' +
         'with 403. An empty list means nobody rather than everybody, deliberately. Set the bundle ' +
@@ -197,14 +199,16 @@ export function announceSeedAdmins(raw: string | undefined = process.env[SEED_AD
     );
     return;
   }
-  console.log(`[admin] ${emails.length} seed administrator${emails.length === 1 ? '' : 's'} from ` +
+  console.log(
+    `[admin] ${emails.length} seed administrator${emails.length === 1 ? '' : 's'} from ` +
       `${SEED_ADMIN_EMAILS_ENV}, ${superEmails.length} of them super administrator` +
       `${superEmails.length === 1 ? '' : 's'}. They are read from the environment rather than from ` +
       'storage, so they stay administrators through a Lakebase outage, and the environment is a FLOOR: ' +
       `a stored role in ${ADDED_ADMINS_TABLE} can raise one of them and cannot lower one.`
   );
   if (superEmails.length === 0) {
-    console.log(`[admin] NO SEED SUPER ADMINISTRATOR. Nobody can appoint or remove administrators from ` +
+    console.log(
+      `[admin] NO SEED SUPER ADMINISTRATOR. Nobody can appoint or remove administrators from ` +
         'inside the app unless the stored roster already names a super admin. This deployment therefore ' +
         `has the two roles it always had. To name one, prefix an entry in ${SEED_ADMIN_EMAILS_ENV} with ` +
         `"${SEED_SUPER_ADMIN_PREFIX}".`
@@ -222,8 +226,7 @@ export function announceSeedAdmins(raw: string | undefined = process.env[SEED_AD
  * drawing zero rows.
  */
 export async function readAddedAdmins(store: AdminStore): Promise<AddedAdmin[]> {
-  const result = await store.query(`SELECT email, added_by, added_at FROM ${ADDED_ADMINS_TABLE} ORDER BY added_at ASC`
-  );
+  const result = await store.query(`SELECT email, added_by, added_at FROM ${ADDED_ADMINS_TABLE} ORDER BY added_at ASC`);
   return result.rows.map((row) => ({
     email: normalizeAdminEmail(columnText(row.email)),
     addedBy: columnText(row.added_by),
@@ -257,7 +260,8 @@ export async function resolveRole(store: AdminStore, email: string): Promise<Rol
     const role = caller ? effectiveRole({ seed, stored: rows, email: caller }) : 'consumer';
     return { role, addedAdminsReadable: true, seedAdminCount: seed.admins.length };
   } catch (error) {
-    console.warn(`[admin] The stored roster could not be read (${(error as Error).message}), so this request has ` +
+    console.warn(
+      `[admin] The stored roster could not be read (${(error as Error).message}), so this request has ` +
         'no stored roles to check against and resolves at the seed floor. Seed administrators are ' +
         'unaffected. An unreadable roster denies rather than admits.'
     );
@@ -294,12 +298,14 @@ export async function rolePayload(store: AdminStore, email: string): Promise<Rol
  * everybody. Monitoring and Ops are being built on top of this, so they get the
  * refusal by construction.
  *
- * `/api/settings` IS DELIBERATELY NOT HERE, and it looks like a gap. It is the
- * Connections page's endpoint, not the gear's: it reports what the deployment is
- * connected to, Connections is a consumer-visible page that reads it, and it is
- * one of the diagnostics that has to keep answering when the rest of the API is
- * refusing. The gear's own surface has one endpoint, `/api/admins`, and it is
- * here.
+ * `GET /api/settings` IS DELIBERATELY NOT HERE, and it looks like a gap. It is the
+ * Connections page's read endpoint: it reports what the deployment is connected
+ * to, Connections is a consumer-visible page that reads it, and it is one of the
+ * diagnostics that has to keep answering when the rest of the API is refusing.
+ * Mutating Connections routes ARE listed below as narrower prefixes, so a
+ * consumer can still read drift while only an administrator may stage intended
+ * values, edit declared connections, or request an Apply plan. The gear's own
+ * surface has one endpoint, `/api/admins`, and it is here.
  */
 export const ADMIN_ROUTE_PREFIXES: readonly string[] = [
   '/api/monitoring',
@@ -314,7 +320,7 @@ export const ADMIN_ROUTE_PREFIXES: readonly string[] = [
   // that a consumer is refused by the same middleware as every other admin surface
   // and a defect in the narrower guard cannot leave the roster open to everybody.
   '/api/users',
-  // The egress record and the egress controls' WRITE side. `/api/egress/admin` and
+  // The egress controls' WRITE side and classification. `/api/egress/admin` and
   // not `/api/egress`, and the narrowness is deliberate rather than an oversight:
   // `/api/egress/controls` and `/api/egress/events` have to stay open to every
   // signed-in reader, because a consumer's own browser is where the copy buttons
@@ -325,6 +331,17 @@ export const ADMIN_ROUTE_PREFIXES: readonly string[] = [
   // `setupEgressRoutes` checks BOTH halves of that and registers nothing if either
   // is wrong.
   '/api/egress/admin',
+  // Connections MUTATIONS and the Apply plan. Not `/api/settings` itself: GET
+  // must stay open so a consumer can see what the deployment is connected to.
+  // These prefixes cover PUT/DELETE on values, POST/DELETE on declared
+  // connections, impact/restore, and GET/POST on `/api/settings/apply`.
+  '/api/settings/values',
+  '/api/settings/connections',
+  '/api/settings/apply',
+  // One namespace for every release-request lifecycle operation. Creation,
+  // claim, and completion all resolve the acting person from the same trusted
+  // forwarded identity and are refused to consumers by construction.
+  '/api/admin',
 ];
 
 /**
@@ -421,14 +438,16 @@ export function requireAdmin(store: AdminStore, readEmail: (req: Request) => str
           next();
           return;
         }
-        console.warn(`[admin] REFUSED ${req.method} ${req.path}: the caller is not an administrator of this ` +
+        console.warn(
+          `[admin] REFUSED ${req.method} ${req.path}: the caller is not an administrator of this ` +
             'deployment. Expected whenever a consumer follows a link to an admin surface; the page they ' +
             'land on says so.'
         );
         res.status(403).json(ADMIN_REQUIRED_BODY);
       })
       .catch((error: Error) => {
-        console.error(`[admin] REFUSED ${req.method} ${req.path}: the role could not be established (${error.message}). ` +
+        console.error(
+          `[admin] REFUSED ${req.method} ${req.path}: the role could not be established (${error.message}). ` +
             'Denying rather than admitting, because an unresolved role is not evidence of one.'
         );
         res.status(403).json(ADMIN_REQUIRED_BODY);
@@ -474,14 +493,16 @@ export function requireSuperAdmin(store: AdminStore, readEmail: (req: Request) =
           next();
           return;
         }
-        console.warn(`[admin] REFUSED ${req.method} ${req.path}: the caller does not hold the super ` +
+        console.warn(
+          `[admin] REFUSED ${req.method} ${req.path}: the caller does not hold the super ` +
             'administrator role of this deployment. Expected whenever an administrator reaches the roster; ' +
             'the panel is not drawn for them.'
         );
         res.status(403).json(SUPER_ADMIN_REQUIRED_BODY);
       })
       .catch((error: Error) => {
-        console.error(`[admin] REFUSED ${req.method} ${req.path}: the role could not be established ` +
+        console.error(
+          `[admin] REFUSED ${req.method} ${req.path}: the role could not be established ` +
             `(${error.message}). Denying rather than admitting, because an unresolved role is not evidence of one.`
         );
         res.status(403).json(SUPER_ADMIN_REQUIRED_BODY);
@@ -519,7 +540,11 @@ export type AdminAction =
   | 'access-granted'
   | 'access-refused'
   | 'access-revoked'
-  | 'access-reconciled';
+  | 'access-reconciled'
+  | 'runtime-settings-updated'
+  /** An admin recorded or cleared a Connections setting intention (or live value). */
+  | 'connection-setting-saved'
+  | 'connection-setting-cleared';
 
 /**
  * Record what an admin did: who, when, what.
@@ -532,16 +557,19 @@ export type AdminAction =
  * the outage. The failure is logged loudly instead, so a missing row has a
  * matching line in the app's own output.
  */
-export async function recordAdminAction(store: AdminStore,
+export async function recordAdminAction(
+  store: AdminStore,
   entry: { actor: string; action: AdminAction; subject: string; detail: string }
 ): Promise<boolean> {
   try {
-    await store.query(`INSERT INTO ${ADMIN_AUDIT_TABLE} (id, actor, action, subject, detail) VALUES ($1, $2, $3, $4, $5)`,
+    await store.query(
+      `INSERT INTO ${ADMIN_AUDIT_TABLE} (id, actor, action, subject, detail) VALUES ($1, $2, $3, $4, $5)`,
       [crypto.randomUUID(), normalizeAdminEmail(entry.actor), entry.action, entry.subject, entry.detail]
     );
     return true;
   } catch (error) {
-    console.error(`[admin] AUDIT ROW NOT WRITTEN for ${entry.action} by ${entry.actor} on ${entry.subject}: ` +
+    console.error(
+      `[admin] AUDIT ROW NOT WRITTEN for ${entry.action} by ${entry.actor} on ${entry.subject}: ` +
         `${(error as Error).message}. The action itself went ahead. This line is the record.`
     );
     return false;
@@ -644,7 +672,8 @@ export const REMOVAL_REFUSAL_DETAIL: Readonly<Record<Exclude<RemovalRefusal, ''>
 /** Add one address. Returns false when it was already there, so the route can say so. */
 export async function addAdmin(store: AdminStore, input: { email: string; addedBy: string }): Promise<boolean> {
   const email = normalizeAdminEmail(input.email);
-  const result = await store.query(`INSERT INTO ${ADDED_ADMINS_TABLE} (email, added_by) VALUES ($1, $2)
+  const result = await store.query(
+    `INSERT INTO ${ADDED_ADMINS_TABLE} (email, added_by) VALUES ($1, $2)
      ON CONFLICT (email) DO NOTHING
      RETURNING email`,
     [email, normalizeAdminEmail(input.addedBy)]

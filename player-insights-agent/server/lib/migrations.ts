@@ -1,3 +1,4 @@
+import { APP_SCHEMA } from '../../shared/app-schema';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -119,7 +120,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * refusal, reports it, and leaves the ledger in shadow mode where a missing
        * column warns rather than failing an ask.
        */
-      `ALTER TABLE player_insights.runs
+      `ALTER TABLE ${APP_SCHEMA}.runs
          ADD COLUMN IF NOT EXISTS correlation_id TEXT`,
       /**
        * The lookup this exists for: an operator holding one id from a reader,
@@ -130,7 +131,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * indexing the absence of the thing being looked up.
        */
       `CREATE INDEX IF NOT EXISTS runs_correlation_idx
-         ON player_insights.runs (correlation_id)
+         ON ${APP_SCHEMA}.runs (correlation_id)
          WHERE correlation_id IS NOT NULL`,
     ],
     // Both objects are this migration's own, so undoing it destroys nothing that
@@ -138,8 +139,8 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     // for an index on a column being dropped is not strictly required and is
     // still the habit worth keeping.
     down: [
-      `DROP INDEX IF EXISTS player_insights.runs_correlation_idx`,
-      `ALTER TABLE player_insights.runs DROP COLUMN IF EXISTS correlation_id`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.runs_correlation_idx`,
+      `ALTER TABLE ${APP_SCHEMA}.runs DROP COLUMN IF EXISTS correlation_id`,
     ],
   },
   {
@@ -175,7 +176,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * attempted. So this is safe to run while serving, safe to run twice, and
        * needs no restart -- nothing caches whether the column exists.
        */
-      `ALTER TABLE player_insights.admin_emails
+      `ALTER TABLE ${APP_SCHEMA}.admin_emails
          ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'admin'`,
     ],
     /**
@@ -184,7 +185,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
      * roster falls back to reading every row as `admin`, so a rollback leaves a
      * working two-role deployment rather than a broken three-role one.
      */
-    down: [`ALTER TABLE player_insights.admin_emails DROP COLUMN IF EXISTS role`],
+    down: [`ALTER TABLE ${APP_SCHEMA}.admin_emails DROP COLUMN IF EXISTS role`],
   },
   {
     version: 4,
@@ -211,7 +212,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * conversation can have it back without anyone retyping a three-part name
        * from memory. Values are `declared` and `withdrawn`.
        */
-      `CREATE TABLE IF NOT EXISTS player_insights.declared_connections (
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.declared_connections (
          id TEXT PRIMARY KEY,
          label TEXT NOT NULL,
          kind TEXT NOT NULL,
@@ -231,7 +232,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * the thing being looked up.
        */
       `CREATE INDEX IF NOT EXISTS declared_connections_state_idx
-         ON player_insights.declared_connections (state)
+         ON ${APP_SCHEMA}.declared_connections (state)
          WHERE state = 'declared'`,
     ],
     /**
@@ -242,8 +243,8 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
      * from the tab that wrote them, and no answer anyone received depends on one.
      */
     down: [
-      `DROP INDEX IF EXISTS player_insights.declared_connections_state_idx`,
-      `DROP TABLE IF EXISTS player_insights.declared_connections`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.declared_connections_state_idx`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.declared_connections`,
     ],
   },
   {
@@ -266,7 +267,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * which is what `run_id` and `conversation_id` are for. That indirection
        * is the design: this table grants nothing on its own.
        *
-       * NO FOREIGN KEY on `run_id`, deliberately. `player_insights.runs` is
+       * NO FOREIGN KEY on `run_id`, deliberately. `${APP_SCHEMA}.runs` is
        * created by a statement a database can legitimately refuse when the app's
        * role does not own the schema, and a constraint against it would make
        * recording an export fail on exactly the deployments where the ledger is
@@ -278,7 +279,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * `conversations.user_email` already holds. Nothing here is a display name
        * this app invented and nothing here is a token.
        */
-      `CREATE TABLE IF NOT EXISTS player_insights.egress_events (
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.egress_events (
          id TEXT PRIMARY KEY,
          occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
          actor TEXT NOT NULL,
@@ -297,7 +298,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * partial indexes above, which index a state a minority of rows are in.
        */
       `CREATE INDEX IF NOT EXISTS egress_events_occurred_idx
-         ON player_insights.egress_events (occurred_at DESC)`,
+         ON ${APP_SCHEMA}.egress_events (occurred_at DESC)`,
       /**
        * Whether each path out is permitted on this deployment.
        *
@@ -312,7 +313,7 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        * here and no NOT NULL default that would have to agree with the source.
        * Two places declaring the same default is how they come to disagree.
        */
-      `CREATE TABLE IF NOT EXISTS player_insights.egress_controls (
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.egress_controls (
          channel TEXT PRIMARY KEY,
          allowed BOOLEAN NOT NULL,
          changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -328,10 +329,57 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
      * uncomfortable about dropping.
      */
     down: [
-      `DROP INDEX IF EXISTS player_insights.egress_events_occurred_idx`,
-      `DROP TABLE IF EXISTS player_insights.egress_events`,
-      `DROP TABLE IF EXISTS player_insights.egress_controls`,
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.egress_events_occurred_idx`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.egress_events`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.egress_controls`,
     ],
+  },
+  {
+    version: 6,
+    name: 'model release requests',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.model_release_requests (
+         id TEXT PRIMARY KEY,
+         status TEXT NOT NULL CHECK (status IN ('approved', 'running', 'succeeded', 'failed')),
+         requested_by TEXT NOT NULL,
+         requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         declaration JSONB NOT NULL,
+         declaration_revision TEXT NOT NULL,
+         target TEXT NOT NULL,
+         endpoint_name TEXT NOT NULL,
+         model_name TEXT NOT NULL,
+         v_from TEXT,
+         v_to TEXT,
+         preflight_at_request JSONB,
+         preflight_result JSONB,
+         started_at TIMESTAMPTZ,
+         completed_at TIMESTAMPTZ,
+         execution_id TEXT,
+         claimed_by TEXT,
+         completed_by TEXT,
+         error_summary TEXT,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+       )`,
+      `CREATE INDEX IF NOT EXISTS model_release_requests_requested_idx
+         ON ${APP_SCHEMA}.model_release_requests (requested_at DESC)`,
+    ],
+    down: [
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.model_release_requests_requested_idx`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.model_release_requests`,
+    ],
+  },
+  {
+    version: 7,
+    name: 'runtime settings',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.runtime_settings (
+         id TEXT PRIMARY KEY,
+         settings JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.runtime_settings`],
   },
 ];
 

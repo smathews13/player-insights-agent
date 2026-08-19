@@ -17,6 +17,7 @@
  * is the other half of the same idea: it says what stops working BEFORE the
  * withdrawal, because the alternative is finding out from the next question.
  */
+import { APP_SCHEMA } from '../../shared/app-schema';
 import {
   DECLARABLE_KINDS,
   type DeclaredConnection,
@@ -41,11 +42,11 @@ export interface StoredDeclaredConnection extends DeclaredConnection {
 
 export const DECLARED_CONNECTIONS_QUERY = `
   SELECT id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by
-  FROM player_insights.declared_connections
+  FROM ${APP_SCHEMA}.declared_connections
   ORDER BY created_at, id`;
 
 export const UPSERT_DECLARED_CONNECTION_QUERY = `
-  INSERT INTO player_insights.declared_connections
+  INSERT INTO ${APP_SCHEMA}.declared_connections
     (id, label, kind, value, note, state, origin, created_by, changed_by, changed_at)
   VALUES ($1, $2, $3, $4, $5, 'declared', $6, $7, $7, now())
   ON CONFLICT (id) DO UPDATE
@@ -67,13 +68,13 @@ export const UPSERT_DECLARED_CONNECTION_QUERY = `
  * row reports honestly rather than as a fresh one.
  */
 export const WITHDRAW_DECLARED_CONNECTION_QUERY = `
-  UPDATE player_insights.declared_connections
+  UPDATE ${APP_SCHEMA}.declared_connections
      SET state = 'withdrawn', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'declared'
   RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
 
 export const RESTORE_DECLARED_CONNECTION_QUERY = `
-  UPDATE player_insights.declared_connections
+  UPDATE ${APP_SCHEMA}.declared_connections
      SET state = 'declared', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'withdrawn'
   RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;

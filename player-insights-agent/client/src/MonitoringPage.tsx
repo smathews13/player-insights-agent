@@ -41,7 +41,7 @@ import { unavailableNotice } from './unavailable-copy';
 import { AnswerCard } from './AnswerCard';
 import { TraceTimeline } from './TraceTimeline';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
-import { userInitials } from './user-initials';
+import { UserIdentityChip, identityName } from './UserIdentityChip';
 import type { Answer, FeedbackEntry } from './app-types';
 import {
   answerTimeTile,
@@ -514,27 +514,8 @@ function OutcomePill({ question }: { question: MonitoringQuestion }) {
   );
 }
 
-/**
- * Whoever asked, as the mark the rest of the app already gives them.
- *
- * The same two letters `user-initials.ts` puts on a message bubble and the rail
- * puts on a conversation, from the same function, because the rail and this
- * table can show the same person on one screen and two conventions read as two
- * people. It handles the addresses that have no initials to take -- a service
- * principal, a missing header -- so the circle is never empty.
- *
- * `aria-hidden`, and the address stays on the cell's `title`: two letters read
- * aloud are not an answer to "who asked this".
- */
 function AskerMark({ email }: { email: string }) {
-  return (
-    <span className="monitoring-asker-who">
-      <span className="monitoring-initials monitoring-asker-initials" aria-hidden="true">
-        {userInitials(email).initials}
-      </span>
-      <span className="monitoring-asker-name">{localPart(email)}</span>
-    </span>
-  );
+  return <UserIdentityChip identity={email} compact className="monitoring-asker-who" />;
 }
 
 function RatingMark({ rating }: { rating: 'up' | 'down' | null }) {
@@ -746,15 +727,17 @@ export function QuestionDrawer({
           Joined rather than concatenated because the third segment is absent on
           a run that recorded no identity, and a hardcoded separator would leave
           the line ending in a dangling middot. */}
-      <p className="monitoring-drawer-meta">
-        {[
-          `Asked by ${localPart(detail.askedBy)}`,
-          askedAtLabel(detail.askedAt),
-          askerGrantsLine(detail.execution, localPart(detail.askedBy)),
-        ]
-          .filter((segment): segment is string => Boolean(segment))
-          .join(' · ')}
-      </p>
+      <div className="monitoring-drawer-meta-row">
+        <UserIdentityChip identity={detail.askedBy} label="Asked by" compact />
+        <p className="monitoring-drawer-meta">
+          {[
+            askedAtLabel(detail.askedAt),
+            askerGrantsLine(detail.execution, identityName(detail.askedBy)),
+          ]
+            .filter((segment): segment is string => Boolean(segment))
+            .join(' · ')}
+        </p>
+      </div>
 
       {detail.conditioning ? (
         /* One line where the content would have been, in the same type as the
@@ -925,13 +908,10 @@ export function PersonPanel({
     <aside className="monitoring-drawer" role="dialog" aria-modal="true" aria-label="Activity for one person">
       <div className="monitoring-drawer-head">
         <div className="monitoring-panel-who">
-          {/* The same mark the table's asker column now carries, so the row a
-              reader clicked and the panel it opened show one person one way. */}
-          <span className="monitoring-initials monitoring-panel-initials" aria-hidden="true">
-            {userInitials(panel.email).initials}
-          </span>
           <div className="min-w-0">
-          <h3 className="monitoring-panel-name" title={panel.email}>{localPart(panel.email)}</h3>
+          <h3 className="monitoring-panel-name">
+            <UserIdentityChip identity={panel.email} />
+          </h3>
           <p className="monitoring-drawer-meta">
             {panel.firstSeen ? `First seen ${whenLabel(panel.firstSeen, now)}` : 'First seen not recorded'}
             {' · '}

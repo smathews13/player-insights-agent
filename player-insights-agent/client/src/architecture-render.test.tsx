@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles } from './ArchitecturePage';
 import {
-  ARCHITECTURE_COPY,
+  ARCHITECTURE_EDGES,
   ARCHITECTURE_NODES,
   dependencyNodes,
   drawnReadings,
@@ -193,19 +193,14 @@ describe('the words on the tab are the words the design asked for', () => {
     expect(said).toContain('Live data flow');
   });
 
-  /**
-   * THE SENTENCE THIS USED TO PIN WAS RETIRED, and the reason is worth keeping.
-   * It said "Checks only run when you click Refresh -- 'Not checked' means not
-   * checked yet, not broken", which was true and approved for as long as the page
-   * probed nothing on load. The checks now start themselves once per session, so
-   * both halves of it became false at once, and a page that has already run its
-   * checks while telling the reader it has not is worse than one that says
-   * nothing: the reader stops trusting the statuses too.
-   */
-  it('carries the note about the checks exactly, with the button\u2019s own name in it', () => {
-    expect(text(pageMarkup())).toContain(
-      'Statuses match the Connections page. The checks run once when you open the app; Refresh asks again.'
-    );
+  it('keeps the storage heading plain and removes the checks helper box', () => {
+    const markup = pageMarkup();
+    const said = text(markup);
+
+    expect(markup).toContain('<h3 class="section-label" id="arch-rail-storage">Storage</h3>');
+    expect(said).not.toContain('off the answer path');
+    expect(said).not.toContain('Statuses match the Connections page');
+    expect(markup).not.toContain('architecture-checks-note');
   });
 
   it('no longer claims a click is what starts the checks', () => {
@@ -214,19 +209,10 @@ describe('the words on the tab are the words the design asked for', () => {
     expect(said).not.toContain('means not checked yet, not broken');
   });
 
-  /**
-   * The sentence about the checks names a control. If the button is labelled
-   * anything else, the page is pointing a reader at something that is not on
-   * screen -- which is what it did while it named "Run the checks" over a button
-   * that said Re-check. Both are gone: the action is called Refresh here, on the
-   * Connections page whose statuses this one says it matches, and everywhere else
-   * in the app that re-reads something.
-   */
-  it('labels the control with the name the note uses, and the name Connections uses', () => {
+  it('labels the refresh control consistently', () => {
     const markup = pageMarkup();
 
     expect(markup).toContain('Refresh');
-    expect(ARCHITECTURE_COPY.checks).toContain('Refresh');
     expect(markup).not.toContain('Run the checks');
     expect(markup).not.toContain('Re-check');
   });
@@ -392,6 +378,48 @@ describe('every card on the drawing reports the live reading and not a literal',
       expect(text(local), id).not.toContain('Reachable');
       expect(text(local), id).not.toContain('Not checked');
     }
+  });
+
+  it('draws the Data Source Finder as its own in-process agent card', () => {
+    const markup = canvasMarkup();
+    const finder = card(markup, 'data-source-finder');
+
+    expect(text(finder)).toContain('Data Source Finder');
+    expect(text(finder)).toContain('Runs in-process');
+    expect(text(finder)).toContain('Finds and validates governed data for the Orchestrator.');
+    expect(markup).toContain('data-testid="arch-dot-pe12"');
+    expect(markup).toContain('data-testid="arch-dot-pe13"');
+    expect(markup).toContain('data-testid="arch-dot-pe14"');
+    expect(
+      ARCHITECTURE_EDGES.filter((edge) => edge.from === 'data-source-finder').map((edge) => edge.to),
+    ).toEqual([
+      'llm-endpoint',
+      'genie-dictionary',
+      'genie-data',
+      'sql-warehouse',
+      'semantic-index',
+    ]);
+  });
+
+  it('keeps every node description to one tight sentence', () => {
+    const expected = new Map([
+      ['browser', 'Sends questions to the app.'],
+      ['app', 'Stores conversations and invokes the Orchestrator.'],
+      ['agent-endpoint', 'Plans each answer and delegates data discovery.'],
+      ['data-source-finder', 'Finds and validates governed data for the Orchestrator.'],
+      ['llm-endpoint', 'Reasons over prompts and writes answer prose.'],
+      ['genie-data', 'Answers metric questions from curated tables.'],
+      ['genie-dictionary', 'Defines business terms and fields.'],
+      ['sql-warehouse', 'Runs read-only SQL under the reader\u2019s grants.'],
+      ['catalog', 'Applies governance to every table read.'],
+      ['semantic-index', 'Searches field and metric descriptions for source discovery.'],
+      ['semantic-index-endpoint', 'Serves Vector Search queries.'],
+      ['lakebase', 'Stores conversations, uploads, feedback, and benchmark runs.'],
+      ['experiment-id', 'Stores run traces, tool calls, SQL, and token usage.'],
+    ]);
+
+    expect(new Map(ARCHITECTURE_NODES.map((node) => [node.id, node.role]))).toEqual(expected);
+    expect(ARCHITECTURE_NODES.every((node) => !/Mosaic/i.test(`${node.label} ${node.role}`))).toBe(true);
   });
 
   it('states each status in words, never in colour alone', () => {

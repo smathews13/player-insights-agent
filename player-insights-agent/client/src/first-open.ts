@@ -21,10 +21,10 @@
  * THE REQUIRED SET IS READ, NEVER WRITTEN DOWN HERE, which the spec asks for in
  * as many words. `declaredScopes` on the report is `PLAYER_INSIGHTS_USER_API_SCOPES`,
  * which the release resolves from `var.app_user_api_scopes` in `databricks.yml`.
- * That variable is layered per target -- the customer default declares four and
- * the example target declares nine -- so a literal list in this file would tell every
- * reader of the four-scope deployment that they are short of five permissions the
- * app never asked for. It would also drift from the platform's own spelling, and
+ * That variable is layered per target -- the shared default a customer/T2 target
+ * inherits and the example override carry different sets -- so a literal list in this
+ * file would tell a reader of one deployment that they are short of permissions
+ * the app never asked for on theirs. It would also drift from the platform's own spelling, and
  * the `:read` suffix is live enough to be worth naming: the app declares
  * `vectorsearch.vector-search-indexes:read`, with the suffix, while the design
  * mockup shows it without. Reading the list is what stops this screen taking a
@@ -117,19 +117,16 @@ export const SCOPES_HEADING = 'Required scopes';
 export const OPTIONAL_SCOPES_HEADING = 'Optional scopes';
 
 /**
- * Why an absence here is not a fault, said once under the optional rows.
+ * One caption under each heading, in the identity card's voice.
  *
- * Without it, neutral chips reading Not granted sit under a heading a reader
- * has just been told is optional, and they go looking for the grant anyway.
- * Asks do not touch these. Costs are named per capability on purpose: the set
- * mixes catalog reads (listings) with workspace read (notebook browse), and
- * blaming every shortfall for empty catalog listings is false the day only
- * workspace read is missing.
+ * Required scopes are load-bearing for every question. Optional scopes unlock
+ * Connections browsing and Lakebase; a deployment can omit any of them, and
+ * workspace read is used for notebook browsing.
  */
+export const REQUIRED_SCOPES_NOTE =
+  'The app cannot answer questions without these: they power serving, SQL, and Genie.';
 export const OPTIONAL_SCOPES_NOTE =
-  'Questions do not need these. Without the catalog reads, catalog and table listings on Connections and ' +
-  'Ops stay empty. Workspace read is for notebook browsing and no Connections field uses it yet. ' +
-  'A deployment can leave any of them out entirely.';
+  'Questions still work without these; they unlock Connections browsing (catalogs, tables, notebooks, Vector Search) and Lakebase, and a deployment can omit any of them.';
 export const CONTINUE_LABEL = 'Continue';
 
 /**
@@ -184,7 +181,7 @@ export const DISCLAIMER_BODY =
   'of your engagement.';
 
 export const SOURCE_LABEL = 'Source on GitHub';
-export const SOURCE_URL = 'https://github.com/<your-username>/player-insights-agent';
+export const SOURCE_URL = 'https://github.com/smathews13/player-insights-agent';
 
 /**
  * The body either side of the emphasised phrase.

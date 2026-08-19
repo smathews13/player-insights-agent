@@ -1,3 +1,4 @@
+import { APP_SCHEMA } from '../../shared/app-schema';
 /**
  * The three tables the admin role keeps: who was added, what admins did, and
  * which Unity Catalog grants this app is the reason for.
@@ -27,10 +28,10 @@
  */
 
 /** The table holding admins added from the Settings gear. */
-export const ADDED_ADMINS_TABLE = 'player_insights.admin_emails';
+export const ADDED_ADMINS_TABLE = `${APP_SCHEMA}.admin_emails`;
 
 /** The table holding what admins did. Written to, never read by the app. */
-export const ADMIN_AUDIT_TABLE = 'player_insights.admin_audit';
+export const ADMIN_AUDIT_TABLE = `${APP_SCHEMA}.admin_audit`;
 
 /**
  * The table recording which Unity Catalog grants this app is the reason for.
@@ -39,7 +40,7 @@ export const ADMIN_AUDIT_TABLE = 'player_insights.admin_audit';
  * we handed out" and "take away access somebody holds for a reason we know
  * nothing about". See admin-access.ts.
  */
-export const ADMIN_GRANTS_TABLE = 'player_insights.admin_access_grants';
+export const ADMIN_GRANTS_TABLE = `${APP_SCHEMA}.admin_access_grants`;
 
 export const ADMIN_ROLES_DDL: readonly string[] = [
   /**
@@ -88,7 +89,7 @@ export const ADMIN_ROLES_DDL: readonly string[] = [
    * ownership of the table before it considers `IF NOT EXISTS`.
    */
   `CREATE INDEX IF NOT EXISTS admin_audit_actor_time
-     ON player_insights.admin_audit (actor, recorded_at DESC)`,
+     ON ${APP_SCHEMA}.admin_audit (actor, recorded_at DESC)`,
   /**
    * One row per (person, object, privilege) this app tried to grant, and what
    * it found when it looked BEFORE granting.

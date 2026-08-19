@@ -1,34 +1,27 @@
 /**
- * What leaves this deployment, what an administrator may turn off, and what the
- * catalog says about the tables behind it.
+ * What an administrator may turn off, and what the catalog says about the
+ * tables behind it.
  *
- * Three cards on the Settings page, behind the experimental toggle, and mounted
- * only for an administrator. The server refuses the two admin routes whatever is
+ * Two cards on the Settings page, behind the experimental toggle, and mounted
+ * only for an administrator. The server refuses the admin routes whatever is
  * drawn here, so hiding the panel is about not offering dead controls rather than
  * about the permission itself.
  *
- * ── THE PANEL'S ONE JOB IS TO NOT OVERSTATE ITSELF ──
- *
- * A control surface listing eight switches reads as eight controls. Two of them
- * bite today. So every row carries what the app can actually do about that path,
- * the paths that cannot be controlled are listed WITHOUT switches rather than
- * omitted, and the words for all of it come from `egress-panel.ts`, where a test
- * pins them. Omitting the uncontrollable paths would be the more flattering
- * design and the dishonest one: an administrator is entitled to know that
- * selecting an answer and screenshotting a chart are ways out that no switch on
- * this page touches.
+ * Paths the app cannot stop (selection, screenshots, figures already on screen)
+ * are not listed here. Listing them as status rows read as a monitoring surface
+ * without adding a control; they remain in the shared registry so the contract
+ * stays honest about what the build cannot enforce.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Switch } from './ui';
 import {
-  EGRESS_PATHS,
+  controllablePaths,
   egressAllowed,
   type EgressChannel,
   type EgressClassificationPayload,
   type EgressControls,
   type EgressControlsPayload,
-  type EgressLogPayload,
   type EgressPath,
 } from '../../shared/egress-contract';
 import { adoptEgressControls, egressControlsSnapshot } from './egress-policy';
@@ -38,15 +31,10 @@ import {
   CLASSIFICATION_CAPTION,
   controlAccessibleName,
   CONTROL_WRITE_FAILED,
-  emptyLogNote,
   enforcementPill,
-  eventFacts,
-  OUTCOME_PILL,
   pathMeta,
-  readStateTone,
   type Pill,
 } from './egress-panel';
-import { whenLabel } from './monitoring-view';
 
 /** The separator, written once. The design allows this one and no em dash. */
 function Facts({ facts }: { facts: readonly string[] }) {
@@ -88,34 +76,13 @@ function ControlRow({
   );
 }
 
-/**
- * A path with no switch, because there is nothing to switch.
- *
- * Same row shape, no control. The absence is the statement: a disabled toggle
- * would read as something that could be enabled by somebody with more authority,
- * and no authority closes these.
- */
-function UncontrollableRow({ path }: { path: EgressPath }) {
-  return (<div className="settings-row egress-row">
-      <div className="egress-row-body">
-        <p className="settings-row-label">
-          {path.label} <PillChip pill={enforcementPill(path)} />
-        </p>
-        <Facts facts={pathMeta(path)} />
-      </div>
-    </div>
-  );
-}
-
 /* ── The panel ─────────────────────────────────────────────────────────────── */
 
 export function EgressPanel() {
   const [controls, setControls] = useState<EgressControls>(() => egressControlsSnapshot());
   const [stored, setStored] = useState(false);
   const [failed, setFailed] = useState<EgressChannel | null>(null);
-  const [log, setLog] = useState<EgressLogPayload | null>(null);
   const [classification, setClassification] = useState<EgressClassificationPayload | null>(null);
-  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let live = true;
@@ -131,28 +98,6 @@ export function EgressPanel() {
       } catch {
         // The snapshot the panel opened with stands. It is the build's defaults,
         // and `stored` stays false, which is what the card says.
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const response = await fetch('/api/egress/admin/events?limit=50', {
-          headers: { Accept: 'application/json' },
-        });
-        if (!response.ok || !live) return;
-        const payload = (await response.json()) as EgressLogPayload;
-        if (live) {
-          setLog(payload);
-          setNow(Date.now());
-        }
-      } catch {
-        if (live) setLog({ events: [], readState: 'unavailable', limit: 0, truncated: false, readAt: '' });
       }
     })();
     return () => {
@@ -209,9 +154,7 @@ export function EgressPanel() {
     }
   }, [controls]);
 
-  const controllable = EGRESS_PATHS.filter((path) => path.enforcement !== 'uncontrollable');
-  const uncontrollable = EGRESS_PATHS.filter((path) => path.enforcement === 'uncontrollable');
-  const events = log?.events ?? [];
+  const paths = controllablePaths();
 
   return (<>
       <Card>
@@ -222,7 +165,7 @@ export function EgressPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {controllable.map((path) => (
+          {paths.map((path) => (
             <ControlRow
               key={path.channel}
               path={path}
@@ -231,47 +174,7 @@ export function EgressPanel() {
               onChange={(allowed) => void move(path.channel, allowed)}
             />
           ))}
-          {uncontrollable.map((path) => (
-            <UncontrollableRow key={path.channel} path={path} />
-          ))}
         </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>What has left</CardTitle>
-          {/* The count is a fact, and zero never renders as a count. */}
-          <CardDescription>
-            {events.length > 0 ? (
-              <>
-                <span className="ast-num">{events.length}</span>
-                {log?.truncated ? ' most recent' : ''}
-              </>
-            ) : (
-              <span className={`ast-pill ast-pill--${readStateTone(log?.readState ?? 'read')}`}>
-                {emptyLogNote(log?.readState ?? 'read')}
-              </span>
-            )}
-          </CardDescription>
-        </CardHeader>
-        {events.length > 0 ? (
-          <CardContent>
-            <ul className="egress-log">
-              {events.map((event) => (
-                <li key={event.id} className="egress-log-row">
-                  <div className="egress-row-body">
-                    <p className="settings-row-label">
-                      <span className="ast-mono">{event.actor}</span>{' '}
-                      <PillChip pill={OUTCOME_PILL[event.outcome]} />
-                    </p>
-                    <Facts facts={eventFacts(event)} />
-                  </div>
-                  <span className="egress-when ast-num">{whenLabel(event.occurredAt, now)}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        ) : null}
       </Card>
 
       {classification ? (

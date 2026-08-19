@@ -444,6 +444,22 @@ describe('the owner filter chips are the one control that may not move when pres
 });
 
 describe('the inspector while a run is still going', () => {
+  it('uses the constellation as its only run view before and after completion', () => {
+    // The Ask rail keeps one representation across the run boundary. It mounts
+    // the live path directly, so setting activeIndex to -1 after the answer lands
+    // settles the constellation instead of revealing a second list underneath it.
+    expect(HOME_PAGE).toContain("import { AgentPathConstellation } from './AgentConstellation'");
+    expect(HOME_PAGE).not.toContain("import { TraceDag } from './TraceDag'");
+    expect(HOME_PAGE).toMatch(/<AgentPathConstellation[\s\S]{0,180}activeIndex=\{railActiveIndex\}/);
+    expect(HOME_PAGE).not.toMatch(/<TraceDag/);
+    const view = HOME_PAGE.slice(
+      HOME_PAGE.indexOf('<AgentPathConstellation'),
+      HOME_PAGE.indexOf('/>', HOME_PAGE.indexOf('<AgentPathConstellation')),
+    );
+    expect(view).not.toContain('compact');
+    expect(HOME_PAGE).toContain('<h3 className="trace-title">Agent path</h3>');
+  });
+
   it('rings the step in progress, falling back to the newest one reported', () => {
     // Two readings in one expression, and both are needed. An endpoint that
     // announces a step when it starts names the step the reader is waiting on,
@@ -475,7 +491,7 @@ describe('the inspector while a run is still going', () => {
     expect(HOME_PAGE.match(/setRunningSince\(null\)/g)).toHaveLength(4);
     // Both surfaces read the same number, so they cannot disagree about how long
     // the reader has been waiting.
-    expect(HOME_PAGE).toMatch(/<TraceDag[\s\S]{0,160}elapsedMs=\{railElapsedMs\}/);
+    expect(HOME_PAGE).toMatch(/<AgentPathConstellation[\s\S]{0,160}elapsedMs=\{railElapsedMs\}/);
     expect(HOME_PAGE).toMatch(/<LiveProgress[\s\S]{0,320}elapsedMs=\{railElapsedMs\}/);
   });
 

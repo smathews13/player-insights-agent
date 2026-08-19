@@ -64,15 +64,20 @@ export function SourcesModule({
     .map((entry) => ({
       key: `${entry.source}-${entry.metric}-${entry.window}-${entry.filter}`,
       facts: [
-        { label: 'Metric', value: entry.metric, source: false },
-        { label: 'Window', value: entry.window, source: false },
-        { label: 'Filter', value: entry.filter, source: false },
+        { label: 'Metric', value: entry.metric, source: false, tone: 'neutral' },
+        { label: 'Window', value: entry.window, source: false, tone: 'neutral' },
+        { label: 'Filter', value: entry.filter, source: false, tone: 'neutral' },
         // The table is repeated here only when the run read more than one, which
         // is the one case where "which of these did this figure come from" is a
         // real question. On a single-source answer the row above answers it, and
         // this file's whole argument is that a fact true of every row belongs in
         // one place.
-        { label: 'Source', value: rows.length > 1 ? entry.source : '', source: true },
+        {
+          label: 'Source',
+          value: rows.length > 1 ? entry.source : '',
+          source: true,
+          tone: rows.find((row) => row.name === entry.source)?.tone ?? 'neutral',
+        },
       ].filter((fact) => fact.value),
     }))
     .filter((entry) => entry.facts.length > 0);
@@ -103,7 +108,11 @@ export function SourcesModule({
               own. The freshness the server stated goes in the same tooltip
               rather than on the row -- see the header comment on why per-row
               text is spent only on the chip. */}
-          <span className="sources-row-name" title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}>
+          <span
+            className="sources-row-name source-name-pill"
+            data-tone={row.tone}
+            title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}
+          >
             <SourceEntityName name={row.name} />
           </span>
           {/* Exactly one chip. Never two: a row wearing "Queried for the
@@ -148,13 +157,16 @@ export function SourcesModule({
           paragraph around them would be the one part of it nothing checked. */}
       {derived.map((entry, index) => (<div className="sources-derivation" key={`${entry.key}-${index}`}>
           {entry.facts.map((fact) => (<span className="derivation-fact" key={fact.label}>
-              <em>{fact.label}</em>
+              <strong className="derivation-label">{fact.label}</strong>
               {/* The name goes through the same component the row above uses, so
                   the table is a link to this app's entry for it here too, and
                   the qualifier recesses the same way. */}
-              <b className={fact.source ? 'derivation-source' : undefined}>
+              <code
+                className={`derivation-value${fact.source ? ' derivation-source source-name-pill' : ''}`}
+                data-tone={fact.source ? fact.tone : undefined}
+              >
                 {fact.source ? <SourceEntityName name={fact.value} /> : fact.value}
-              </b>
+              </code>
             </span>
           ))}
         </div>

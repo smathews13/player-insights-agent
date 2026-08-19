@@ -25,6 +25,7 @@
  * indistinguishable from a cut one by length alone, hence the prefix test; and once
  * a row is repaired it no longer matches, so the second boot updates nothing.
  */
+import { APP_SCHEMA } from '../../shared/app-schema';
 import { conversationTitle } from '../../shared/conversation-title';
 
 /** The width the old cut used. Only rows of exactly this length are candidates. */
@@ -38,8 +39,8 @@ const OLD_CUT_LENGTH = 80;
  */
 const TRUNCATED_TITLES_QUERY = `
   SELECT DISTINCT ON (c.id) c.id, c.title, m.content
-    FROM player_insights.conversations c
-    JOIN player_insights.messages m ON m.conversation_id = c.id AND m.role = 'user'
+    FROM ${APP_SCHEMA}.conversations c
+    JOIN ${APP_SCHEMA}.messages m ON m.conversation_id = c.id AND m.role = 'user'
    WHERE length(c.title) = $1
      AND c.title <> m.content
      AND m.content LIKE c.title || '%'
@@ -92,7 +93,7 @@ export async function repairTruncatedTitles(appkit: {
   for (const repair of repairs) {
     try {
       await appkit.lakebase.query(
-        'UPDATE player_insights.conversations SET title = $2 WHERE id = $1',
+        `UPDATE ${APP_SCHEMA}.conversations SET title = $2 WHERE id = $1`,
         [repair.id, repair.title]
       );
       repaired += 1;

@@ -22,8 +22,39 @@
  * fails when there is no badge in it, rather than one more test of the module.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Shield } from 'lucide-react';
+import { Shield, ShieldPlus } from 'lucide-react';
+import type { ComponentType } from 'react';
 import { badgeAccessibleName, badgeAnnouncement, badgeLabel, badgeTitle, type RoleState } from './role';
+
+/**
+ * The mark each state carries, and the three that carry none.
+ *
+ * ONLY THE TWO ADMINISTRATOR RANKS GET ONE, and the handoff is explicit that
+ * Consumer has no icon. A mark here means "something extra is on the page",
+ * which is true of both ranks and of neither of the other three states.
+ *
+ * A map rather than a chain of ternaries in the markup, because the two ranks
+ * differ by one glyph and a reader of that markup should be able to see both
+ * choices at once. A state missing from it draws no icon, which is the right
+ * default: a role added later is unmarked until somebody decides what it means.
+ *
+ * The super rank takes the shield with a plus on it: Admin's mark, and more,
+ * which is what the rank is -- everything Admin can open plus setting who else
+ * may administer the deployment. `badgeTitle` says the same thing in words, and
+ * the two have to agree, because the glyph is the part a reader sees without
+ * hovering.
+ *
+ * `shield-user`, which is the more literal drawing of "administers people", was
+ * tried first and is the wrong glyph AT THIS SIZE. It is a shield containing a
+ * head and a pair of shoulders, and 11px of it is three strokes inside an
+ * outline: the head lands at under two pixels across and the whole mark reads as
+ * a smudge rather than as a figure. A plus is two strokes and survives the
+ * reduction, which is the only thing that matters for a mark this small.
+ */
+const BADGE_ICON: Partial<Record<RoleState, ComponentType<{ size?: number; strokeWidth?: number; 'aria-hidden'?: 'true' }>>> = {
+  super_admin: ShieldPlus,
+  admin: Shield,
+};
 
 /**
  * The chip, and the live region that speaks when the role changes under a
@@ -37,6 +68,7 @@ export function RoleBadge({ state }: { state: RoleState }) {
   const label = badgeLabel(state);
   const title = badgeTitle(state);
   const accessibleName = badgeAccessibleName(state);
+  const Icon = BADGE_ICON[state];
   // Resolving is the only state with nothing to say, and role.ts says so by
   // returning ''. Read that rather than re-testing the state here, so the two
   // cannot come apart if a fifth state is ever added.
@@ -76,9 +108,10 @@ export function RoleBadge({ state }: { state: RoleState }) {
         {...(accessibleName ? { 'aria-label': accessibleName } : {})}
       >
         {/*
-          ADMIN ONLY, and the handoff is explicit that Consumer has no icon. The
-          shield is there because Admin is the one state that means something
-          extra is on the page, and it earns a mark the other three do not.
+          THE ADMINISTRATOR RANKS ONLY, from BADGE_ICON above, and the handoff is
+          explicit that Consumer has no icon. A shield is there because those are
+          the states that mean something extra is on the page, and they earn a
+          mark the other three do not.
 
           Hidden from the accessibility tree because the pill already carries its
           whole meaning as a name: a shield announced beside "Role: Admin" is a
@@ -86,7 +119,7 @@ export function RoleBadge({ state }: { state: RoleState }) {
           with a utility class because 11px is not on the app's spacing scale --
           it is the handoff's number, chosen against a 12px label.
         */}
-        {state === 'admin' ? <Shield size={11} strokeWidth={2.5} aria-hidden="true" /> : null}
+        {Icon ? <Icon size={11} strokeWidth={2.5} aria-hidden="true" /> : null}
         {label}
       </span>
       {/*

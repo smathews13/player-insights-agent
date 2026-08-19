@@ -13,11 +13,7 @@
  * clauses, not sentences of explanation.
  */
 import { DECLARABLE_KEYS, SCOPES_KEY } from '../../shared/notebook-declaration';
-import type {
-  ConnectionEntry,
-  DeclarationComparisonRow,
-  NotebookPanel,
-} from './connection-model';
+import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
 
 /** The badge a compared setting carries. */
 export interface ComparisonBadge {
@@ -98,8 +94,7 @@ export function notebookIsBlocked(panel: NotebookPanel | undefined): boolean {
  * the two meanings apart. Which meaning should win is a decision about the notebook,
  * and belongs to whoever owns it.
  */
-export const EMPTY_SCOPES_NOTE =
-  'Empty means the configured catalog and schema, not every catalog.';
+export const EMPTY_SCOPES_NOTE = 'Empty means the configured catalog and schema, not every catalog.';
 
 /**
  * Which setting the line is about, in the words the rest of the tab uses for it.
@@ -138,13 +133,19 @@ export const CONNECTION_SCOPE_NOTE =
 export const CONNECTION_LIST_TITLE = 'Assets the agent may consider';
 
 /** The kinds a reader may choose from, with the words the tab uses for them. */
-export const ADDABLE_KINDS: ReadonlyArray<{ kind: string; label: string }> = [
-  { kind: 'unity-catalog', label: 'Table' },
-  { kind: 'genie-space', label: 'Genie space' },
-  { kind: 'sql-warehouse', label: 'SQL warehouse' },
-  { kind: 'volume', label: 'Volume' },
-  { kind: 'vector-search', label: 'Vector Search index' },
-  { kind: 'model', label: 'Model endpoint' },
+export const ADDABLE_KINDS: ReadonlyArray<{
+  id: string;
+  kind: string;
+  label: string;
+  browse: 'tables' | 'genie-spaces' | 'catalogs' | null;
+}> = [
+  { id: 'table', kind: 'unity-catalog', label: 'Tables', browse: 'tables' },
+  { id: 'genie-space', kind: 'genie-space', label: 'Genie spaces', browse: 'genie-spaces' },
+  { id: 'catalog', kind: 'unity-catalog', label: 'Catalogs', browse: 'catalogs' },
+  { id: 'sql-warehouse', kind: 'sql-warehouse', label: 'SQL warehouse', browse: null },
+  { id: 'volume', kind: 'volume', label: 'Volume', browse: null },
+  { id: 'vector-search', kind: 'vector-search', label: 'Vector Search index', browse: null },
+  { id: 'model', kind: 'model', label: 'Model endpoint', browse: null },
 ];
 
 /** Declared assets first, withdrawn ones after, each in the order given. */

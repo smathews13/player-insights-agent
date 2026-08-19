@@ -21,9 +21,10 @@
  * administrator list already use.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Trash2, UserPlus } from 'lucide-react';
+import { Lock, Trash2, UserPlus } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './ui';
-import { CopyableCommand } from './AdminListEditor';
+import { AccessLine, CopyableCommand } from './AdminListEditor';
+import { accessFor } from './admin-list';
 import {
   accessOwed,
   canSubmit,
@@ -41,6 +42,12 @@ import {
   type RosterMutationPayload,
   type RosterPayload,
 } from '../../shared/user-roster-contract';
+import type { AccessReport } from '../../shared/admin-contract';
+
+/** The #24a add row appoints an Admin or Consumer. Super-admin promotion stays
+ * on an existing row, where the server names it in `assignable` and protects the
+ * last-super-admin rule. */
+const ADDABLE_ROLES: readonly Role[] = ['admin', 'consumer'];
 
 /**
  * One row's role control, or the line saying why there is none.
@@ -104,11 +111,13 @@ function RoleControl({
  */
 export function RosterRows({
   payload,
+  access = [],
   busy,
   onChange,
   onRemove,
 }: {
   payload: RosterMutationPayload;
+  access?: AccessReport[];
   busy: boolean;
   onChange: (entry: RosterEntry, role: Role) => void;
   onRemove: (entry: RosterEntry) => void;
@@ -131,16 +140,36 @@ export function RosterRows({
               <div className="admin-row-who">
                 <p className="admin-row-email">
                   {entry.email}
-                  {entry.isYou ? <span className="admin-row-you">You</span> : null}
+                  {entry.isYou ? <span className="admin-row-you">you</span> : null}
                 </p>
-                {originLabel(entry) ? (<p className="admin-row-origin">
+                {entry.seedFloor !== 'consumer' ? (
+                  <span
+                    className="admin-row-origin admin-row-seed"
+                    title="Set at deployment. Edit the bundle variable to change it."
+                  >
+                    Seed
+                  </span>
+                ) : originLabel(entry) ? (
+                  <span className="admin-row-origin">
                     {originLabel(entry)}
                     {setOn(entry) ? ` on ${setOn(entry)}` : ''}
-                  </p>
+                  </span>
                 ) : null}
               </div>
               <div className="roster-row-controls">
-                <RoleControl entry={entry} payload={payload} busy={busy} onChange={onChange} />
+                {entry.assignable.length === 0 ? (
+                  <>
+                    <span className={`roster-role-chip roster-role-chip-${entry.role.replace('_', '-')}`}>
+                      {roleWord(entry.role)}
+                    </span>
+                    <Lock
+                      className="roster-row-lock"
+                      aria-label={rowLocked(entry, payload) || 'This row is immutable'}
+                    />
+                  </>
+                ) : (
+                  <RoleControl entry={entry} payload={payload} busy={busy} onChange={onChange} />
+                )}
                 {entry.canRemove ? (<Button
                     variant="outline"
                     size="sm"
@@ -153,6 +182,13 @@ export function RosterRows({
                 ) : null}
               </div>
             </div>
+            {entry.role !== 'consumer' ? (
+              <div className="admin-row-access">
+                {accessFor(entry.email, access).map((result) => (
+                  <AccessLine key={result.target} result={result} />
+                ))}
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -162,6 +198,7 @@ export function RosterRows({
 
 export function UserRoleEditor() {
   const [payload, setPayload] = useState<RosterMutationPayload | null>(null);
+  const [access, setAccess] = useState<AccessReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
@@ -171,13 +208,24 @@ export function UserRoleEditor() {
   const [notice, setNotice] = useState('');
   const [owed, setOwed] = useState<string[]>([]);
 
+  /** Merge reports for the people a mutation checked into the standing access
+   * picture without erasing everyone else. */
+  const mergeAccess = useCallback((reports: AccessReport[]) => {
+    setAccess((current) => {
+      const next = new Map(current.map((report) => [report.email, report]));
+      for (const report of reports) next.set(report.email, report);
+      return [...next.values()];
+    });
+  }, []);
+
   /**
-   * A pure read, and only one call.
+   * Read the roster, then reconcile the access every administrator needs.
    *
-   * Unlike the administrator list beside it, this does NOT reconcile access on load.
-   * Reconciling makes Unity Catalog grants, that list already does it on every open,
-   * and doing it twice on one page would run the same statements twice and write two
-   * audit rows for one page load.
+   * This is the merge of the old two cards: the administrator editor used to
+   * own the reconcile and this roster editor used to rely on that sibling doing
+   * it. There is no sibling now. The GET remains a pure roster read; the POST is
+   * still the explicit, auditable grant attempt and its result fills the
+   * granted-access block under the same person.
    */
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,10 +240,20 @@ export function UserRoleEditor() {
       setPayload({ ...read, access: [] });
     } catch (cause) {
       setError((cause as Error).message);
+      return;
     } finally {
       setLoading(false);
     }
-  }, []);
+    try {
+      const response = await fetch('/api/admins/access', { method: 'POST' });
+      if (!response.ok) return;
+      const reconciled = (await response.json()) as { access?: AccessReport[] };
+      mergeAccess(reconciled.access ?? []);
+    } catch {
+      // The roster is already on screen. Its grant rows stay "Not checked",
+      // which is distinct from refused and does not claim anybody lost access.
+    }
+  }, [mergeAccess]);
 
   useEffect(() => {
     void load();
@@ -219,6 +277,7 @@ export function UserRoleEditor() {
         return false;
       }
       setPayload(body);
+      mergeAccess(body.access ?? []);
       setNotice(request.said);
       // The grants the role needs and did not get. Never left silent: the whole
       // reason this is on screen is that a new admin would otherwise meet an Ops tab
@@ -258,6 +317,7 @@ export function UserRoleEditor() {
 
         {payload ? (<RosterRows
             payload={payload}
+            access={access}
             busy={busy}
             onChange={(entry, role) =>
               void write({
@@ -282,6 +342,12 @@ export function UserRoleEditor() {
           />
         ) : null}
 
+        {payload ? (
+          <p className="admin-grants-footer">
+            Telemetry feeds the Ops health block; billing feeds the Ops cost block.
+          </p>
+        ) : null}
+
         <div className="admin-add">
           <Input
             value={draft}
@@ -296,7 +362,7 @@ export function UserRoleEditor() {
             aria-label="Role to give them"
             onChange={(event) => setDraftRole(event.target.value as Role)}
           >
-            {ASSIGNABLE_ROLES.map((role) => (<option key={role} value={role}>
+            {ADDABLE_ROLES.map((role) => (<option key={role} value={role}>
                 {roleWord(role)}
               </option>
             ))}
@@ -305,6 +371,12 @@ export function UserRoleEditor() {
             <UserPlus className="size-3.5" /> Add
           </Button>
         </div>
+
+        <p className="admin-list-note admin-behavior-caption">
+          Adding grants the role and requests the Unity Catalog access the role needs, under your own permissions. A
+          refused grant still grants the role; the row says what is missing. Removing takes back only the access this
+          app granted. Access marked Already held is left alone.
+        </p>
 
         {/* The statements somebody with authority runs. One panel each, because a
             reader copies them one at a time into a SQL editor. */}

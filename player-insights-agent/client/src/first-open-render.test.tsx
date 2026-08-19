@@ -144,7 +144,12 @@ describe('all scopes granted', () => {
     // Undeclared optional scopes report that they were never asked for. NOT the
     // red Missing the required rows use: nothing an ask needs is short.
     expect(markup.match(/>Not requested</g)).toHaveLength(OPTIONAL_ROWS);
-    expect(markup).toContain('Questions do not need these.');
+    expect(markup).toContain('The app cannot answer questions without these: they power serving, SQL, and Genie.');
+    expect(markup).toContain(
+      'Questions still work without these; they unlock Connections browsing (catalogs, tables, notebooks, Vector Search) and Lakebase, and a deployment can omit any of them.'
+    );
+    expect(markup).not.toContain('Questions do not need these.');
+    expect(markup).not.toContain('no Connections field uses it yet');
   });
 
   it('offers one live Continue and no recheck', () => {
@@ -298,7 +303,7 @@ describe('the disclaimer', () => {
       expect(text(markup)).toContain(DISCLAIMER_BODY);
       expect(markup).toContain('Not official Databricks software');
       expect(markup).toContain('Source on GitHub');
-      expect(markup).toContain('https://github.com/<your-username>/player-insights-agent');
+      expect(markup).toContain('https://github.com/smathews13/player-insights-agent');
     }
   });
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { storageBannerNotice, type StorageHealth } from './storage-banner-copy';
-import { GRANT_SCRIPT_ENV_VARS } from '../../shared/setup-remedies';
 
 /**
  * The sentence a deployer reads when the figures on screen are invented.
@@ -65,20 +64,19 @@ describe('a deployment that never ran the grant script', () => {
     expect(notice?.detail).toContain('nothing you do here is being saved');
   });
 
-  it('puts the command and all five variables on screen', () => {
+  it('puts the target-aware release hook on screen', () => {
     // On screen rather than in a doc link. The deployer who reached this banner
     // is by definition someone who did not read the doc that says to run it,
     // and a second pointer at the same doc is not a fix.
-    expect(notice?.remedy).toContain('node scripts/grant-app-db-access.mjs');
-    const shown = `${notice?.remedy}${notice?.remedyNote}`;
-    for (const variable of GRANT_SCRIPT_ENV_VARS) expect(shown).toContain(variable);
+    expect(notice?.remedy).toContain('bundle/app-db-grant.sh');
+    expect(notice?.remedy).toContain('TARGET=<target>');
+    expect(notice?.remedy).toContain("PROFILE='<profile>'");
   });
 
-  it('explains why no redeploy will do it for them', () => {
-    // Without this the natural reading is that the bundle failed, and the
-    // deployer redeploys instead of running the script.
+  it('explains how releases and reattaches apply it', () => {
     expect(notice?.remedyNote).toContain('does not exist until the app does');
-    expect(notice?.remedyNote).toContain('Redeploying does not perform it');
+    expect(notice?.remedyNote).toContain('canonical app release');
+    expect(notice?.remedyNote).toContain('detach/reattach');
   });
 });
 

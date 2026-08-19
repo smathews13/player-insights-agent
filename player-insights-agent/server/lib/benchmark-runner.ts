@@ -1,3 +1,4 @@
+import { APP_SCHEMA } from '../../shared/app-schema';
 import {
   BENCHMARK_RUNNER_VERSION,
   BUDGET_TRUNCATION_CODE,
@@ -203,20 +204,20 @@ export const MAX_JUDGE_CONTEXT_CHARS = 16_000;
 
 export const BENCHMARK_SUITE_QUERY = `
   SELECT id, name, description, cases_json
-  FROM player_insights.benchmark_suites
+  FROM ${APP_SCHEMA}.benchmark_suites
   WHERE id = ANY($1)`;
 
 export const BENCHMARK_RUN_INSERT = `
-  INSERT INTO player_insights.benchmark_runs (id, suite_id, user_email, status, metrics_json)
+  INSERT INTO ${APP_SCHEMA}.benchmark_runs (id, suite_id, user_email, status, metrics_json)
   VALUES ($1,$2,$3,$4,$5)`;
 
 export const BENCHMARK_RUN_UPDATE = `
-  UPDATE player_insights.benchmark_runs SET status = $2, metrics_json = $3 WHERE id = $1`;
+  UPDATE ${APP_SCHEMA}.benchmark_runs SET status = $2, metrics_json = $3 WHERE id = $1`;
 
 /** The caller's own unfinished runs, for the stale sweep and the in-flight check. */
 export const BENCHMARK_RUNNING_QUERY = `
   SELECT id, suite_id, metrics_json, created_at
-  FROM player_insights.benchmark_runs
+  FROM ${APP_SCHEMA}.benchmark_runs
   WHERE user_email = $1 AND status = 'running'`;
 
 // ---------------------------------------------------------------------------

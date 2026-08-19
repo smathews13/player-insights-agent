@@ -118,7 +118,7 @@ def test_a_message_that_merely_mentions_permission_is_not_a_refusal():
 # ---------------------------------------------------------------------------
 
 
-def test_the_refusal_names_the_space_the_remedy_and_that_it_is_ui_only():
+def test_the_refusal_names_the_space_the_remedy_and_the_cli():
     denial = genie_access_denial(PermissionDenied("no grant"), SPACE)
     assert denial is not None
 
@@ -128,9 +128,12 @@ def test_the_refusal_names_the_space_the_remedy_and_that_it_is_ui_only():
     # The exact permission level, because CAN VIEW looks like sharing and is not
     # enough to run a query.
     assert "CAN RUN" in denial
+    # The remedy names the CLI, because older copy claimed sharing was UI-only.
+    assert "databricks permissions update genie" in denial
+    # And it does not send the fix to the serving endpoint principal.
+    assert "serving endpoint principal" in denial and "NOT the serving" in denial
     # And that no amount of redeploying will do it, which is otherwise the first
     # thing anyone tries.
-    assert "UI-only" in denial
     assert "Redeploying will not fix it" in denial
 
 
@@ -170,7 +173,7 @@ def test_the_refusal_names_who_was_refused_when_the_run_knows():
 
     unknown = genie_access_denial(PermissionDenied("no grant"), SPACE)
     assert unknown is not None
-    assert "the agent's serving principal" in unknown
+    assert "the signed-in caller" in unknown
 
 
 # ---------------------------------------------------------------------------

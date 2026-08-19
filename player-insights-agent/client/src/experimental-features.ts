@@ -31,9 +31,9 @@ export interface ExperimentalFeatures {
    */
   benchmarkLab: boolean;
   /**
-   * The egress panel: what leaves this deployment, what may be turned off, and
-   * what Unity Catalog says about the tables behind it. Unfinished, in that two
-   * of its paths are wired and the rest record a preference nothing reads yet.
+   * The egress panel: which paths may be turned off, and what Unity Catalog says
+   * about the tables behind it. Unfinished, in that two of its paths are wired
+   * and the rest record a preference nothing reads yet.
    *
    * ── THE FLAG HIDES THE PANEL AND NOT THE CONTROLS ──
    *

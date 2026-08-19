@@ -51,11 +51,12 @@ import { ratingLabel, ratingOutOf } from './benchmark-summary';
 import { useRunTrace, type RunTraceState } from './app-state';
 import { PageHeading } from './page-chrome';
 import { RunHeader } from './RunHeader';
-import { astPill, personName } from './run-header';
+import { astPill } from './run-header';
 import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
 import type { Run } from './app-types';
+import { UserIdentityChip } from './UserIdentityChip';
 
 /**
  * What a tile says when the run recorded no such measurement.
@@ -430,7 +431,7 @@ export function RunExplorer() {
               )}
             </TabsContent>
             <TabsContent value="map" className="pt-5">
-              {stages.length > 0 ? (<TraceDag stages={stages} activeIndex={-1} />
+              {stages.length > 0 ? (<TraceDag stages={stages} activeIndex={-1} charts={runTrace?.charts} />
               ) : (<TraceUnavailable state={traceState} />
               )}
             </TabsContent>
@@ -501,7 +502,7 @@ export function RunListItem({ run, active, onSelect }: {
       <span className="run-item-prompt">{runLabel(run)}</span>
       <span className="run-item-meta">
         <span>
-          {personName(run.stakeholder)}
+          <UserIdentityChip identity={run.stakeholder} compact />
           {run.duration_ms ? (<>
               {' · '}
               {/* The figure in mono, the name beside it in the body face. A

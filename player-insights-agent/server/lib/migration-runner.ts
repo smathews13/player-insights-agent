@@ -178,13 +178,13 @@ const CREATE_INDEX_TARGET = /^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)
  *
  * Long enough to find the statement, short enough to list a dozen of them on one
  * line. A bare "CREATE" tells a reader nothing; the whole statement pushes the
- * summary off the screen. A refused `ALTER TABLE player_insights.messages` reads
+ * summary off the screen. A refused `ALTER TABLE ${APP_SCHEMA}.messages` reads
  * as exactly the object somebody has to go and look at.
  *
  * An index is named by its own name rather than by its table. Naming it by the
- * table would give four statements on `player_insights.runs` the same label, and
+ * table would give four statements on `${APP_SCHEMA}.runs` the same label, and
  * the summary lists labels, so a reader would be told that "CREATE
- * player_insights.runs" failed with no way to tell which of the four it was.
+ * ${APP_SCHEMA}.runs" failed with no way to tell which of the four it was.
  */
 export function describeSql(sql: string): string {
   const collapsed = sql.replace(/\s+/g, ' ').trim();

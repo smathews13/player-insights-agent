@@ -151,10 +151,13 @@ describe('a row that has not been checked yet does not claim there is no access'
    * and may wait on a cold warehouse. In between, both targets say "Not checked".
    */
   it('says Not checked on both targets while the access call is still out', () => {
-    const rendered = text(rows({ entries: [seed('pat@example.com')] }));
+    const markup = rows({ entries: [seed('pat@example.com')] });
+    const rendered = text(markup);
 
-    expect(rendered).toContain('Telemetry schema Not checked');
-    expect(rendered).toContain('Billing tables Not checked');
+    expect(rendered).toContain('Telemetry schema');
+    expect(rendered).toContain('Billing tables');
+    expect(markup.match(/admin-access-state-not-checked/g) ?? []).toHaveLength(2);
+    expect(rendered.match(/not set/g) ?? []).toHaveLength(2);
     expect(rendered).not.toContain('No access');
     expect(rendered).not.toContain('Not granted');
   });
@@ -190,7 +193,8 @@ describe('a refused grant says what it is and what to run', () => {
       }),
     );
 
-    expect(rendered).toContain('Billing tables Not granted');
+    expect(rendered).toContain('Billing tables');
+    expect(rendered).toContain('Not granted');
     expect(rendered).toContain('The role was granted.');
     expect(rendered).toContain('needs a metastore administrator');
     // The object, the privilege and a statement somebody with authority runs, in
@@ -251,8 +255,9 @@ describe('access somebody already held is not access this app granted', () => {
       }),
     );
 
-    expect(rendered).toContain('Telemetry schema Already held');
-    expect(rendered).not.toContain('Telemetry schema Granted');
+    expect(rendered).toContain('Telemetry schema');
+    expect(rendered).toContain('Already held');
+    expect(rendered).not.toContain('Granted');
   });
 
   /**
@@ -284,7 +289,7 @@ describe('a row names the objects it is about, resolved at runtime', () => {
    * held" and named nothing, so a reader could not check the access, could not go
    * and look at the data, and could not tell what the row was about.
    */
-  it('spells out the telemetry destination and says what reads it', () => {
+  it('spells out the telemetry destination', () => {
     const rendered = text(rows({
         entries: [seed('sam@example.com')],
         access: [{ email: 'sam@example.com', results: [ALREADY_HELD] }],
@@ -292,7 +297,6 @@ describe('a row names the objects it is about, resolved at runtime', () => {
     );
 
     expect(rendered).toContain(TELEMETRY_SCHEMA);
-    expect(rendered).toContain('What the Ops health block reads.');
   });
 
   it('names both billing tables rather than the phrase Billing tables alone', () => {
@@ -304,7 +308,6 @@ describe('a row names the objects it is about, resolved at runtime', () => {
 
     expect(rendered).toContain('system.billing.usage');
     expect(rendered).toContain('system.billing.list_prices');
-    expect(rendered).toContain('What the Ops cost block reads.');
   });
 
   it('sets object names in mono, as the app sets every identifier', () => {
@@ -313,7 +316,7 @@ describe('a row names the objects it is about, resolved at runtime', () => {
       access: [{ email: 'sam@example.com', results: [ALREADY_HELD] }],
     });
 
-    expect(markup).toContain(`<code class="admin-access-object-name">${TELEMETRY_SCHEMA}</code>`);
+    expect(markup).toContain(`<code class="admin-access-object-name" title="${TELEMETRY_SCHEMA}">${TELEMETRY_SCHEMA}</code>`);
     // Both halves of the claim. A static render has no computed styles, so the
     // element carrying the class is one assertion and the class carrying the font
     // is the other -- and the second is the one that would rot silently if somebody
@@ -333,7 +336,8 @@ describe('a row names the objects it is about, resolved at runtime', () => {
       }),
     );
 
-    expect(rendered).toContain('Billing tables Not granted');
+    expect(rendered).toContain('Billing tables');
+    expect(rendered).toContain('Not granted');
     expect(rendered).toContain('GRANT SELECT ON TABLE system.billing.usage');
     expect(rendered).toContain('needs a metastore administrator');
   });
@@ -382,7 +386,8 @@ describe('a row names the objects it is about, resolved at runtime', () => {
     });
     const rendered = text(markup);
 
-    expect(rendered).toContain('Telemetry schema Not set up');
+    expect(rendered).toContain('Telemetry schema');
+    expect(rendered).toContain('Not set up');
     expect(rendered).toContain('writes no app telemetry');
     expect(rendered).toContain('Nothing is wrong.');
     // No empty name element, which is what a blank would look like in the markup.
@@ -446,6 +451,7 @@ describe('the line above the list', () => {
 
 describe('the copy on the card', () => {
   const editor = source('AdminListEditor.tsx');
+  const roles = source('UserRoleEditor.tsx');
 
   /** The binding copy rule for this app. */
   it('uses no em dashes', () => {
@@ -457,15 +463,6 @@ describe('the copy on the card', () => {
 
     expect(visible).not.toContain('\u2014');
     expect(stateWord('refused')).not.toContain('\u2014');
-  });
-
-  /**
-   * The card says what the role does NOT give, because the word "administrator"
-   * invites the opposite assumption. Every question still runs under the asker's
-   * own Unity Catalog grants.
-   */
-  it('says being an administrator grants no data', () => {
-    expect(editor).toContain('grants no data');
   });
 
   /**
@@ -487,6 +484,15 @@ describe('the copy on the card', () => {
   it('reports the add as the role only, and sends the reader to the rows', () => {
     expect(editor).toContain('is now an administrator. Their access is below.');
     expect(editor).not.toMatch(/now an administrator with (?:full )?access/);
+  });
+
+  it('uses the exact #24a behavior caption and add roles', () => {
+    expect(roles).toContain(
+      'Adding grants the role and requests the Unity Catalog access the role needs, under your own permissions.'
+    );
+    expect(roles).toMatch(/A\s+refused grant still grants the role; the row says what is missing\./);
+    expect(roles).toContain('Access marked Already held is left alone.');
+    expect(roles).toContain("const ADDABLE_ROLES: readonly Role[] = ['admin', 'consumer']");
   });
 });
 

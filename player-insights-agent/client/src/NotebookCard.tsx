@@ -14,6 +14,7 @@
  * how they render. Nothing about what the card SAYS moved: every string still
  * comes from `declared-connection-view.ts`.
  */
+import { useEffect, useState } from 'react';
 import {
   comparisonBadge,
   comparisonNote,
@@ -24,6 +25,47 @@ import {
 } from './declared-connection-view';
 import { astValueBadge, type AstPillFamily } from './astrolabe-pill';
 import type { NotebookPanel } from './connection-model';
+import { AssetPicker } from './AssetPicker';
+import type { AssetPickerSpec } from './asset-picker';
+
+const NOTEBOOK_PICKER: AssetPickerSpec = {
+  field: 'notebook-path',
+  levels: ['notebooks'],
+  pickAt: 'last',
+  multi: false,
+  title: 'Workspace notebooks your sign-in can see',
+  typeLabel: 'Workspace notebook path',
+  typeNote: '',
+};
+
+export function notebookPathView(panel: NotebookPanel): {
+  configured: string;
+  observed: string;
+  shown: string;
+} {
+  const configured = panel.configuredPath?.trim() ?? '';
+  const observed = panel.observedPath?.trim() || panel.read.declaration?.source?.trim() || '';
+  return { configured, observed, shown: configured || observed };
+}
+
+export async function persistNotebookPath(
+  path: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ ok: true; path: string } | { ok: false; detail: string }> {
+  try {
+    const response = await fetchImpl('/api/settings/notebook-path', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    const body = (await response.json().catch(() => ({}))) as { path?: string; detail?: string };
+    return response.ok
+      ? { ok: true, path: body.path?.trim() || path.trim() }
+      : { ok: false, detail: body.detail ?? 'The notebook path was not saved.' };
+  } catch {
+    return { ok: false, detail: 'The notebook path could not be saved just now.' };
+  }
+}
 
 /**
  * The comparison tones, in the palette's own families.
@@ -62,11 +104,56 @@ function Badge({ tone, children }: { tone: keyof typeof BADGE_FAMILY; children: 
  * draw no card rather than one saying a notebook is not connected, which would be a
  * claim about a deployment this page cannot see.
  */
-export function NotebookCard({ panel }: { panel?: NotebookPanel }) {
+export function NotebookCard({
+  panel,
+  allowMutations = false,
+  onSaved,
+}: {
+  panel?: NotebookPanel;
+  allowMutations?: boolean;
+  onSaved?: () => unknown | Promise<unknown>;
+}) {
   if (!panel) return null;
+  return <NotebookCardContent panel={panel} allowMutations={allowMutations} onSaved={onSaved} />;
+}
+
+function NotebookCardContent({
+  panel,
+  allowMutations,
+  onSaved,
+}: {
+  panel: NotebookPanel;
+  allowMutations: boolean;
+  onSaved?: () => unknown | Promise<unknown>;
+}) {
   const declaration = panel.read.declaration;
   const blocked = notebookIsBlocked(panel);
   const emptyScopes = emptyScopesNote(panel);
+  const { configured: configuredPath, observed: observedPath, shown: shownPath } = notebookPathView(panel);
+  const [browsing, setBrowsing] = useState(false);
+  const [draft, setDraft] = useState(shownPath);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => setDraft(shownPath), [shownPath]);
+
+  async function saveNotebookPath() {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const result = await persistNotebookPath(draft);
+      if (!result.ok) {
+        setSaveError(result.detail);
+        return;
+      }
+      setBrowsing(false);
+      await onSaved?.();
+    } catch {
+      setSaveError('The notebook path could not be saved just now.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section className="plane-card" aria-label="Notebook">
@@ -77,14 +164,30 @@ export function NotebookCard({ panel }: { panel?: NotebookPanel }) {
       <div className="plane-card-body">
         <div className="plane-facts">
           <span className="plane-label">Published to</span>
-          <span className="plane-value ast-mono" title={panel.location}>
-            {panel.location || 'not set'}
+          <span className="plane-value ast-mono" title={shownPath}>
+            {shownPath || 'not set'}
           </span>
-          {declaration?.source ? (
+          {shownPath ? (
             <>
-              <span className="plane-label">Notebook</span>
-              <span className="plane-value ast-mono" title={declaration.source}>
-                {declaration.source}
+              <span className="plane-label">Path source</span>
+              <span className="plane-value">
+                {configuredPath ? 'Saved configuration' : 'Latest published run'}
+              </span>
+            </>
+          ) : null}
+          {configuredPath && observedPath && configuredPath !== observedPath ? (
+            <>
+              <span className="plane-label">Last published by</span>
+              <span className="plane-value ast-mono" title={observedPath}>
+                {observedPath}
+              </span>
+            </>
+          ) : null}
+          {panel.location ? (
+            <>
+              <span className="plane-label">Declarations table</span>
+              <span className="plane-value ast-mono" title={panel.location}>
+                {panel.location}
               </span>
             </>
           ) : null}
@@ -104,6 +207,36 @@ export function NotebookCard({ panel }: { panel?: NotebookPanel }) {
             </>
           ) : null}
         </div>
+
+        {allowMutations ? (
+          <div className="plane-stack notebook-path-editor">
+            <button type="button" className="plane-button-quiet" onClick={() => setBrowsing((open) => !open)}>
+              {browsing ? 'Cancel notebook selection' : 'Browse workspace notebooks'}
+            </button>
+            {browsing ? (
+              <>
+                <AssetPicker spec={NOTEBOOK_PICKER} current={draft} onPick={setDraft} />
+                {draft ? (
+                  <div className="plane-row">
+                    <span className="plane-row-name">Review selection</span>
+                    <span className="plane-row-value ast-mono" title={draft}>
+                      {draft}
+                    </span>
+                    <button
+                      type="button"
+                      className="plane-button-primary"
+                      disabled={saving || draft === configuredPath}
+                      onClick={() => void saveNotebookPath()}
+                    >
+                      {saving ? 'Saving…' : 'Save notebook'}
+                    </button>
+                  </div>
+                ) : null}
+                {saveError ? <span className="plane-error">{saveError}</span> : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
 
         {panel.comparison.length > 0 ? (
           <div className="plane-rows">

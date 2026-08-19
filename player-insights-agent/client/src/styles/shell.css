@@ -251,17 +251,74 @@
   gap: 12px;
   font-size: 12px;
 }
+/* The gear, which is the cluster's third member now rather than a sibling of the
+   cluster. So its spacing is the row's own 12px gap and there is no margin here:
+   the `margin-left: 8px` this rule used to carry was the distance between two
+   children of the header, and inside the flex row it stacked on top of the gap
+   and set the gear 20px from the avatar while the avatar sat 12px from the badge.
+   `flex: none` because the chips are the part of the header that gives, and an
+   icon button that gives is a hit target that shrinks below its own size. */
 .header-settings {
-  margin-left: 8px;
+  flex: none;
 }
 .mobile-nav {
   margin-left: 8px;
 }
-/* The "Signed in <local part>" chip that used to live here is gone. §1's cluster
-   is role chip, avatar, divider, attribution, and the avatar carries the address
-   on `title` and to a screen reader -- see .identity-avatar in
-   astrolabe-chrome.css. The chip spent about 140px of a header that also holds
-   seven tabs, and truncated at exactly the widths where it mattered. */
+/* Signed-in identity chip: person icon + "Signed in" + local part. Equal 12px
+   gaps with the role badge and gear come from `.identity-chips` alone -- do not
+   add margin on `.header-settings` or this chip, or the three stop being
+   equidistant. The Built on Databricks half sits past the chrome rule. */
+.identity-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 180px;
+  border: 1px solid var(--db-line-strong);
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--db-ink-deep);
+  min-height: 30px;
+  min-width: 0;
+}
+.identity-chip > svg {
+  flex: none;
+}
+.identity-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.identity-chip-label {
+  color: var(--db-slate);
+}
+.identity-chip-name {
+  font-weight: 500;
+}
+.identity-chip--compact {
+  display: inline-flex;
+  min-height: 24px;
+  max-width: 150px;
+  gap: 4px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+.identity-chip--compact .identity-chip-text {
+  min-width: 0;
+}
+.identity-chip-suffix {
+  flex: none;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.mobile-identity .identity-chip {
+  max-width: none;
+}
+.mobile-identity .identity-chip-text {
+  overflow: visible;
+  white-space: normal;
+}
 /*
  * The OAuth badge: whether the sign-in this browser presented carries what the
  * app asks for. First in the right-hand cluster, ahead of the role badge, per
@@ -383,6 +440,30 @@
 .role-badge[data-role-state='admin'] {
   background: var(--ast-info-fill);
   color: var(--ast-info-text);
+}
+/* The higher administrator rank, as the SAME family inverted rather than as a
+   sixth colour. Admin is the info tint with the deep rung as type; this is the
+   deep rung as the fill with white on it, which is the one move that says "more
+   of what the pill beside it says" without introducing a hue.
+   #0E538B under #FFFFFF is 7.9:1, better than either of the tinted pairs.
+
+   NOT --ast-blue, AND NOT LAVA, and both exclusions are the point:
+
+     - --ast-blue #2272B4 is the action colour. It is every primary button's
+       fill, and it is the solid "Live" pill in the harness and the run rail, so
+       a pill wearing it either reads as pressable or reads as the agent working.
+       This is neither -- it is a label for an answer the server already gave.
+     - Lava #FF3621 belongs to the Databricks attribution six pixels to the
+       right of this pill and to nothing else in the product (§2). A role chip
+       taking it would be the app spending the one reserved accent it has on
+       saying who is signed in.
+
+   Amber is the evaluation mass and green and red are verdicts about whether
+   something answered, so none of the other three families means this either.
+   The rank is a fact about the reader, which is what the info family is for. */
+.role-badge[data-role-state='super_admin'] {
+  background: var(--ast-info-text);
+  color: var(--ast-white);
 }
 /* The ordinary case, so it is the neutral family and nothing louder.
 

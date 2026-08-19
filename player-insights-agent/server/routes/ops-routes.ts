@@ -29,6 +29,7 @@
  * as a failure. Being an admin opens the tab; it does not open the data.
  */
 
+import { APP_SCHEMA } from '../../shared/app-schema';
 import type { Application, Request, Response } from 'express';
 import {
   buildCostStatement,
@@ -628,7 +629,7 @@ async function readDependencies(
 /** Every question asked in the range, by the day it was asked. */
 export const QUESTIONS_PER_DAY_QUERY = `
   SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
-  FROM player_insights.messages m
+  FROM ${APP_SCHEMA}.messages m
   WHERE m.role = 'user' AND m.created_at >= $1 AND m.created_at < $2
   GROUP BY 1
   ORDER BY 1`;
@@ -645,14 +646,14 @@ export const QUESTIONS_PER_DAY_QUERY = `
  */
 export const RUN_OUTCOMES_QUERY = `
   SELECT r.state, COALESCE(r.terminal_code, '') AS terminal_code, COUNT(*)::int AS count
-  FROM player_insights.runs r
+  FROM ${APP_SCHEMA}.runs r
   WHERE r.created_at >= $1 AND r.created_at < $2
   GROUP BY 1, 2`;
 
 /** Tool-tagged stages, counted by the tool each one named. */
 export const TOOL_CALLS_QUERY = `
   SELECT stage->>'name' AS tool, COUNT(*)::int AS count
-  FROM player_insights.messages m,
+  FROM ${APP_SCHEMA}.messages m,
        LATERAL jsonb_array_elements(m.response_json->'trace'->'stages') AS stage
   WHERE m.role = 'assistant'
     AND jsonb_typeof(m.response_json->'trace'->'stages') = 'array'

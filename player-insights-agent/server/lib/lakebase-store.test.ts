@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { APP_SCHEMA } from '../../shared/app-schema';
 import {
   chooseRows,
   isLakebaseUnavailable,
@@ -388,16 +389,20 @@ describe('the watchdog probe', () => {
   it('reads through the app schema, so it needs the privileges a real read needs', () => {
     // A `SELECT 1` passes on a connection that cannot read a single table, and
     // a probe that cannot fail the way the app fails is not a probe.
-    expect(WATCHDOG_PROBE_SQL).toMatch(/player_insights\./);
+    expect(WATCHDOG_PROBE_SQL).toMatch(new RegExp(`${APP_SCHEMA}\\.`));
   });
 
   it('names only tables the app actually creates', () => {
     // The probe is a fourth place that knows the schema, and a table renamed in
     // the DDL would otherwise turn every tick into a false outage. Checked
-    // against the source rather than a copy of it.
+    // against the source rather than a copy of it. DDL uses ${APP_SCHEMA}.table.
     const ddl = readFileSync(new URL('../routes/insights-routes.ts', import.meta.url), 'utf8');
-    const created = [...ddl.matchAll(/CREATE TABLE IF NOT EXISTS player_insights\.(\w+)/g)].map((match) => match[1]);
-    const probed = [...WATCHDOG_PROBE_SQL.matchAll(/player_insights\.(\w+)/g)].map((match) => match[1]);
+    const created = [...ddl.matchAll(/CREATE TABLE IF NOT EXISTS \$\{APP_SCHEMA\}\.(\w+)/g)].map(
+      (match) => match[1],
+    );
+    const probed = [...WATCHDOG_PROBE_SQL.matchAll(new RegExp(`${APP_SCHEMA}\\.(\\w+)`, 'g'))].map(
+      (match) => match[1],
+    );
 
     expect(probed.length).toBeGreaterThan(0);
     expect(created).toEqual(expect.arrayContaining(probed));
@@ -509,7 +514,7 @@ describe('what counts as evidence of recovery', () => {
     const check = lakebaseStorageCheck();
     expect(check.status).toBe('failed');
     expect(check.detail).toContain('privilege or schema problem');
-    expect(check.remedy?.statement).toContain('grant-app-db-access.mjs');
+    expect(check.remedy?.statement).toContain('bundle/app-db-grant.sh');
   });
 
   it('still recovers when the failure was the connection itself', async () => {

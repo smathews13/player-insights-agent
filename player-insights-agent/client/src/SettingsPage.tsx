@@ -12,18 +12,11 @@ import { UserRoleEditor } from './UserRoleEditor';
 import { showsEgressControls } from './experimental-features';
 import { EgressPanel } from './EgressPanel';
 import { showsAdminSurfaces, showsUserRoster, useRole } from './role';
-import {
-  Button,
-  Card,
-  CardDescription,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Switch,
-} from './ui';
+import { Button, Card, CardDescription, CardContent, CardHeader, CardTitle, Switch } from './ui';
 import { PlugZap } from 'lucide-react';
 import { PageHeading } from './page-chrome';
 import type { ExperimentalFeaturesHandle } from './app-types';
+import { RuntimeSettingsPanel } from './RuntimeSettingsPanel';
 
 /**
  * What the gear opens: preferences that belong to the reader and to this browser.
@@ -61,20 +54,24 @@ export function SettingsPage() {
   const { features, setFeature } = useOutletContext<ExperimentalFeaturesHandle>();
   const role = useRole();
 
-  return (<div className="page-shell settings-page">
-      {/* Titled to match the gear's accessible name exactly, which is "App
-          settings" and not "Settings" -- see the header. A heading and a link do
-          not collide as locators, and settings is still not a nav entry, so the
-          word stays unambiguous. */}
-      <PageHeading title="App settings" />
+  return (
+    <div className="page-shell settings-page">
+      <PageHeading title="Settings" />
 
-      {/* First, above the administrator list, because it is the more consequential
-          of the two: it decides who may change that list. Absent for an
-          administrator rather than shown with dead controls, and `/api/users`
-          refuses them on the server whatever is drawn here. */}
-      {showsUserRoster(role.state) ? <UserRoleEditor /> : null}
+      {/* The one fact a reader needs before they touch this page: nothing here is
+          a lock. The controls decide who administers the deployment and how the
+          agent answers, and the server enforces those whether or not this page is
+          reachable. Hiding the gear is not a security boundary and the subhead
+          says so, per the #24a handoff. */}
+      <p className="settings-subhead">Admin only. Enforced on the server, not by hiding this page.</p>
 
-      <AdminListEditor />
+      {/* One Roles card, never the old roster card followed by a second
+          Administrators card. A super admin gets the full roster editor; a plain
+          administrator gets the server-authorized administrator view. The routes,
+          not this branch, remain the permission boundary. */}
+      {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
+
+      <RuntimeSettingsPanel />
 
       <Card>
         <CardHeader>
@@ -86,8 +83,8 @@ export function SettingsPage() {
             <div>
               <p className="settings-row-label">Egress controls</p>
               <p className="settings-row-note">
-                Shows what leaves this deployment and which paths may be turned off. Hiding it does
-                not change what is permitted.
+                Shows which egress paths can be turned off on this deployment. Hiding it does not change what is
+                permitted.
               </p>
             </div>
             <Switch
@@ -100,8 +97,8 @@ export function SettingsPage() {
       </Card>
 
       {/* Below the toggle that reveals it, so turning it on does not move the
-          switch the reader just used. Administrators only: the two routes it
-          reads are refused for anybody else on the server whatever is drawn
+          switch the reader just used. Administrators only: the admin routes it
+          uses are refused for anybody else on the server whatever is drawn
           here, so this is about not offering dead cards. */}
       {showsEgressControls(features) && showsAdminSurfaces(role.state) ? <EgressPanel /> : null}
 

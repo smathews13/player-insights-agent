@@ -46,26 +46,42 @@ const SCHEMA = check('schema', { label: 'Schema', scope: 'catalog.schemas:read' 
 const TABLES = Array.from({ length: 12 }, (_unused, index) =>
   check(`table:t${index}`, { kind: 'table', scope: 'catalog.tables:read' })
 );
+/**
+ * Vector Search browse joined the optional set on Sam's 2026-08-18 call, so its
+ * refusal is now a neutral shortfall like catalog rather than a finding.
+ */
 const SEMANTIC_INDEX = check('semantic-index', {
   label: 'Vector Search index',
   scope: 'vectorsearch.vector-search-indexes:read',
 });
+/** An ask-path scope that is still required, so its refusal stays a finding. */
+const WAREHOUSE = check('warehouse', { label: 'SQL warehouse', scope: 'sql' });
 
 describe('which refusals are a reader’s to fix', () => {
-  it('treats every optional catalog read as a shortfall rather than a finding', () => {
+  it('treats every optional scope read as a shortfall rather than a finding', () => {
     for (const scope of OPTIONAL_USER_API_SCOPES) {
       expect(isOptionalScopeShortfall(check('c', { scope }))).toBe(true);
     }
   });
 
   /**
-   * The Vector Search reads are required on a deployment with a semantic index,
-   * and they are the reason this is a set membership test rather than "anything
-   * with a scope". A rule that swept them out too would hide the one finding on
-   * the screen that somebody does have to act on.
+   * A refusal over a scope the app genuinely needs for asks -- `sql`,
+   * `dashboards.genie`, serving -- is not optional and stays a finding. This is
+   * the reason the check is set membership against the optional list rather than
+   * "anything with a scope": it must not sweep out a permission somebody has to
+   * act on.
    */
-  it('keeps a refusal over a required permission as a finding', () => {
-    expect(isOptionalScopeShortfall(SEMANTIC_INDEX)).toBe(false);
+  it('keeps a refusal over a required ask-path permission as a finding', () => {
+    expect(isOptionalScopeShortfall(WAREHOUSE)).toBe(false);
+  });
+
+  /**
+   * Vector Search browse is now optional (Sam's call): it browses VS from the
+   * app's forwarded token, and ask-time semantic retrieval runs on the model's
+   * own token, so an app-side VS refusal is a neutral shortfall.
+   */
+  it('treats a Vector Search browse refusal as an optional shortfall', () => {
+    expect(isOptionalScopeShortfall(SEMANTIC_INDEX)).toBe(true);
   });
 
   /**
@@ -98,11 +114,15 @@ describe('which refusals are a reader’s to fix', () => {
 });
 
 describe('the split the panel is drawn from', () => {
-  /** The live screen, as it arrived: fourteen refusals, one of them a finding. */
-  const split = splitOptionalScopeFindings([CATALOG, SCHEMA, ...TABLES, SEMANTIC_INDEX]);
+  /**
+   * The live screen, as it arrived, plus a genuinely-required warehouse refusal:
+   * fifteen optional shortfalls (catalog, schema, twelve tables, VS index) and
+   * one finding (the warehouse). VS is optional now, so it is a shortfall.
+   */
+  const split = splitOptionalScopeFindings([CATALOG, SCHEMA, ...TABLES, SEMANTIC_INDEX, WAREHOUSE]);
 
   it('leaves the panel holding only what somebody has to act on', () => {
-    expect(split.required).toEqual([SEMANTIC_INDEX]);
+    expect(split.required).toEqual([WAREHOUSE]);
   });
 
   it('names each optional permission once, in the order it was met', () => {
@@ -110,8 +130,9 @@ describe('the split the panel is drawn from', () => {
       'catalog.catalogs:read',
       'catalog.schemas:read',
       'catalog.tables:read',
+      'vectorsearch.vector-search-indexes:read',
     ]);
-    expect(split.optional.checks).toHaveLength(14);
+    expect(split.optional.checks).toHaveLength(15);
   });
 
   /**
@@ -129,9 +150,13 @@ describe('the split the panel is drawn from', () => {
   });
 
   it('keeps both halves in the order the report produced them', () => {
-    const ordered = splitOptionalScopeFindings([SEMANTIC_INDEX, CATALOG, SCHEMA]);
-    expect(ordered.required.map((entry) => entry.id)).toEqual(['semantic-index']);
-    expect(ordered.optional.checks.map((entry) => entry.id)).toEqual(['catalog', 'schema']);
+    const ordered = splitOptionalScopeFindings([WAREHOUSE, CATALOG, SCHEMA, SEMANTIC_INDEX]);
+    expect(ordered.required.map((entry) => entry.id)).toEqual(['warehouse']);
+    expect(ordered.optional.checks.map((entry) => entry.id)).toEqual([
+      'catalog',
+      'schema',
+      'semantic-index',
+    ]);
   });
 });
 

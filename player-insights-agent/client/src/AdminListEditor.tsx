@@ -21,9 +21,10 @@
  *     what this app granted. Access a person held for another reason is left
  *     alone and the row says so.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from './ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './ui';
+import { BrandIcon } from './BrandIcon';
 import {
   accessFor,
   addedOn,
@@ -93,7 +94,7 @@ export function CopyableCommand({ command, label }: { command: string; label: st
  */
 function AccessObjectName({ object }: { object: AccessObject }) {
   return (<span className="admin-access-object">
-      <code className="admin-access-object-name">{object.name}</code>
+      <code className="admin-access-object-name" title={object.name}>{object.name}</code>
       <OpenInDatabricks name={object.name} object={linkTargetFor(object)} />
     </span>
   );
@@ -115,22 +116,24 @@ function AccessObjectName({ object }: { object: AccessObject }) {
  * held, granted just now and refused are three different facts -- and a refusal
  * still carries the exact statement somebody with authority runs.
  */
-function AccessLine({ result }: { result: AccessResult }) {
+export function AccessLine({ result }: { result: AccessResult }) {
   const attention = needsAttention(result.state);
   return (<div className={`admin-access${attention ? ' admin-access-attention' : ''}`}>
-      <p className="admin-access-head">
+      <div className="admin-access-head">
         <span className="admin-access-label">{result.label}</span>
+        <span className="admin-uc-icon"><BrandIcon product="unity-catalog" size={12} /></span>
+        {namesNoObject(result) ? <span className="admin-access-empty">not set</span> : (
+          <span className="admin-access-objects">
+            {result.objects.map((object, index) => (
+              <Fragment key={object.name}>
+                {index > 0 ? <span className="admin-access-separator"> · </span> : null}
+                <AccessObjectName object={object} />
+              </Fragment>
+            ))}
+          </span>
+        )}
         <span className={`admin-access-state admin-access-state-${result.state}`}>{stateWord(result.state)}</span>
-      </p>
-      {/* The objects, or nothing at all. A row with none is either not configured
-          on this deployment or not answered for yet, and both say so in the line
-          below rather than showing an empty name or an invented one. */}
-      {namesNoObject(result) ? null : (<p className="admin-access-objects">
-          {result.objects.map((object) => (<AccessObjectName key={object.name} object={object} />
-          ))}
-        </p>
-      )}
-      {result.purpose ? <p className="admin-access-purpose">{result.purpose}</p> : null}
+      </div>
       {/* Only when it adds something. Empty for 'already-held', where the state
           word beside a spelled-out name is the whole fact. */}
       {result.summary ? <p className="admin-access-summary">{result.summary}</p> : null}
@@ -324,11 +327,7 @@ export function AdminListEditor() {
 
   return (<Card>
       <CardHeader>
-        <CardTitle>Administrators</CardTitle>
-        <CardDescription>
-          Who can open Monitoring, Ops and this page. Being an administrator grants no data: every question
-          still runs under the permissions of the person who asked it.
-        </CardDescription>
+        <CardTitle>Roles</CardTitle>
       </CardHeader>
       <CardContent>
         {loading ? <p className="admin-list-note">Reading the list.</p> : null}
@@ -339,6 +338,11 @@ export function AdminListEditor() {
         ) : null}
 
         {payload ? <AdminRows payload={payload} busy={busy} onRemove={(entry) => void remove(entry)} /> : null}
+        {payload ? (
+          <p className="admin-grants-footer">
+            Telemetry feeds the Ops health block; billing feeds the Ops cost block.
+          </p>
+        ) : null}
 
         <div className="admin-add">
           <Input
@@ -348,7 +352,7 @@ export function AdminListEditor() {
             aria-label="Email address of the administrator to add"
           />
           <Button disabled={!canSubmit(draft, busy)} onClick={() => void add()}>
-            <UserPlus className="size-3.5" /> Add administrator
+            <UserPlus className="size-3.5" /> Add
           </Button>
         </div>
         {/* The removal rule, stated once for the card rather than once per target
@@ -357,10 +361,9 @@ export function AdminListEditor() {
             object of every administrator, saying something true about this screen
             rather than anything about the row it sat under. */}
         <p className="admin-list-note">
-          Adding somebody grants the role and asks Unity Catalog for the access the role needs, under your own
-          permissions. If a grant is refused the role is still granted and the row says what is missing. Removing
-          somebody takes back only the access this app granted them; access marked already held was theirs
-          beforehand and is left alone.
+          Adding grants the role and requests the Unity Catalog access the role needs, under your own permissions. A
+          refused grant still grants the role; the row says what is missing. Removing takes back only the access this
+          app granted. Access marked Already held is left alone.
         </p>
 
         {/* One live region for both, because they are the same slot on screen and

@@ -69,7 +69,7 @@ const SHORT_OF_A_PERMISSION: DeploymentIdentity = {
 
 describe('IdentityCard', () => {
   it('names the account the app is holding, rather than describing it', () => {
-    expect(textOf(SIGNED_IN)).toContain('someone@example.com');
+    expect(textOf(SIGNED_IN)).toContain('someone');
   });
 
   it('prints none of the sentences the card was rebuilt to stop printing', () => {

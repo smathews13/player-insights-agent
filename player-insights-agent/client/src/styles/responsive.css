@@ -191,13 +191,32 @@
   .rail-sheet-trigger {
     display: inline-flex;
   }
-  /* The chip leaves the header for the sheet at the same width the rail does,
-     rather than 32px earlier at Tailwind's `md`. */
-  .app-header .identity-chips {
+  /*
+   * The cluster's informational half leaves the header for the sheet at the same
+   * width the rail does, rather than 32px earlier at Tailwind's `md`.
+   *
+   * EVERY MEMBER EXCEPT THE GEAR, rather than the cluster itself, and the
+   * exception is load-bearing now that the gear is drawn inside the cluster
+   * instead of after it. `display: none` on `.identity-chips` would take the gear
+   * with it, and the sheet's copy of the cluster is handed no gear -- so App
+   * settings would have no control anywhere on the page below 800px. The badge,
+   * the avatar, the divider and the attribution all belong to the sheet at this
+   * width; the gear is the only thing here a reader presses.
+   *
+   * Written as "not the gear" rather than as four selectors so a chip added to
+   * the cluster later is hidden here by default. A new informational chip that
+   * nobody remembered to add to a list is a chip that appears on a phone in a
+   * header with no room for it.
+   */
+  .app-header .identity-chips > :not(.header-settings) {
     display: none;
   }
-  .app-header .header-settings {
-    margin-left: auto;
+  /* Nothing visible is left for the row to space, so the 12px gap would sit
+     between the gear and the header's own right edge. The row keeps its
+     `margin-left: auto` from shell.css, which is what holds the gear against the
+     menu button exactly where it used to sit as the header's own child. */
+  .app-header .identity-chips {
+    gap: 0;
   }
   .mobile-identity {
     display: flex;

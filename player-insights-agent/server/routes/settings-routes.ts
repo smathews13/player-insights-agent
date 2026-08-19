@@ -9,7 +9,9 @@
  * that believed it had applied a customer's Genie space id would ship the same
  * silent misconfiguration this whole surface was built to expose.
  */
+import { APP_SCHEMA } from '../../shared/app-schema';
 import type { Request } from 'express';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   agentEndpointCheck,
@@ -25,6 +27,7 @@ import {
 import type { StoredSetting } from '../lib/app-settings';
 import { lakebaseStorageCheck } from '../lib/lakebase-store';
 import {
+  appBuildAncestors,
   appBuildSha,
   appEnvironment,
   classifyWrite,
@@ -35,19 +38,15 @@ import {
   writeStoredSetting,
 } from '../lib/app-settings';
 import { resolveNotebookDeclaration } from '../lib/app-settings';
+import { recordAdminAction, requireAdmin } from '../lib/admin-roles';
 import { readAppFacts } from '../lib/app-metadata';
 import { declaredTables, probeConnections } from '../lib/dependency-probes';
+import { validateNotebookPath } from '../lib/browse-assets';
 import { checkExperimentAsApp } from '../lib/experiment-probe';
 import { forwardedUserToken } from './access-verification';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
-import {
-  readPublishedDeclaration,
-  type DeclarationRead,
-} from '../lib/notebook-declaration-read';
-import {
-  compareDeclaration,
-  type DeclarationComparison,
-} from '../../shared/notebook-declaration';
+import { readPublishedDeclaration, type DeclarationRead } from '../lib/notebook-declaration-read';
+import { compareDeclaration, type DeclarationComparison } from '../../shared/notebook-declaration';
 import {
   addFault,
   addedConnectionEffect,
@@ -59,13 +58,60 @@ import {
   type RemovalImpact,
   type StoredDeclaredConnection,
 } from '../lib/declared-connections';
+import {
+  intendedFromResources,
+  resolveApplyPlan,
+  settingsFromDeclaration,
+  type ApplyPlan,
+} from '../../shared/apply-declaration';
 import type { ResourceKind } from '../../shared/deployment-config';
+import {
+  claimModelRelease,
+  completeModelRelease,
+  createModelRelease,
+  listModelReleases,
+  readModelRelease,
+} from '../lib/model-release-store';
+import type { ModelReleaseDeclaration, ReleasePreflight } from '../../shared/model-release';
 
 const WriteBody = z.object({
   value: z.string().trim().max(500),
   intent: z.enum(['active', 'intended']),
   note: z.string().trim().max(500).default(''),
 });
+
+const NotebookPathBody = z.strictObject({
+  path: z.string().trim().min(1).max(1024),
+});
+
+export async function validateAndStoreNotebookPath(input: {
+  appkit: InsightsAppKit;
+  path: string;
+  host: string;
+  token: string;
+  updatedBy: string;
+  validate?: typeof validateNotebookPath;
+  write?: typeof writeStoredSetting;
+}): Promise<
+  | { ok: true; saved: StoredSetting }
+  | { ok: false; status: 400 | 403 | 404 | 503; detail: string }
+> {
+  const validate = input.validate ?? validateNotebookPath;
+  const validation = await validate(input.path, {
+    host: input.host,
+    token: input.token,
+  });
+  if (!validation.ok) return validation;
+  const write = input.write ?? writeStoredSetting;
+  const saved = await write(input.appkit, {
+    resourceId: 'notebook-path',
+    value: validation.path,
+    intent: 'active',
+    note: 'Workspace notebook selected from Connections.',
+    updatedBy: input.updatedBy,
+  });
+  return { ok: true, saved };
+}
 
 /**
  * An asset somebody is adding to the list the agent may consider.
@@ -80,6 +126,28 @@ const ConnectionBody = z.object({
   kind: z.string().trim().max(60),
   value: z.string().trim().max(500),
   note: z.string().trim().max(500).default(''),
+});
+
+const ClaimBody = z.strictObject({
+  executionId: z.string().trim().min(8).max(200),
+});
+
+const CompletionBody = z.strictObject({
+  executionId: z.string().trim().min(8).max(200),
+  status: z.enum(['succeeded', 'failed']),
+  vTo: z.string().trim().max(100).nullable().optional(),
+  preflight: z
+    .strictObject({
+      status: z.string().trim().max(40),
+      checkedAt: z.string().trim().max(100),
+      ok: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+      unverified: z.number().int().nonnegative(),
+      detail: z.string().trim().max(1000).optional(),
+    })
+    .nullable()
+    .optional(),
+  errorSummary: z.string().trim().max(1000).nullable().optional(),
 });
 
 /**
@@ -159,7 +227,10 @@ export async function readOrchestratorReport(appkit: InsightsAppKit): Promise<Or
   try {
     raw = await invokePreflight(appkit);
   } catch (error) {
-    console.warn('[settings] The orchestrator could not be asked what it is configured with:', (error as Error).message);
+    console.warn(
+      '[settings] The orchestrator could not be asked what it is configured with:',
+      (error as Error).message
+    );
     return { report: null, answered: false };
   }
   const report = extractPreflightReport(raw);
@@ -219,6 +290,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         environment,
         stored,
         appBuildSha: appBuildSha(),
+        appBuildAncestors: appBuildAncestors(),
         // Asked separately, because `readStoredSettings` degrades an outage to
         // an empty map and that is indistinguishable from "nothing saved yet"
         // unless the state of the store is reported beside it. The same
@@ -239,10 +311,50 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         // function's own comment gives: it is pure, and both of these need a round
         // trip. The notebook read also needs the request, because it is made as the
         // signed-in user.
-        notebook: await readNotebook(req, appkit, report),
+        notebook: await readNotebook(req, appkit, report, stored),
         connections: await readConnections(appkit, states),
       });
     });
+
+    app.put(
+      '/api/settings/notebook-path',
+      requireAdmin(appkit.lakebase, userEmail),
+      async (req, res) => {
+        const parsed = NotebookPathBody.safeParse(req.body);
+        if (!parsed.success) {
+          res.status(400).json({ error: 'invalid_notebook_path', detail: parsed.error.message });
+          return;
+        }
+        try {
+          const savedResult = await validateAndStoreNotebookPath({
+            appkit,
+            path: parsed.data.path,
+            host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
+            token: forwardedUserToken(req) ?? '',
+            updatedBy: userEmail(req),
+          });
+          if (!savedResult.ok) {
+            res.status(savedResult.status).json({
+              error: 'notebook_path_not_usable',
+              detail: savedResult.detail,
+            });
+            return;
+          }
+          await recordAdminAction(appkit.lakebase, {
+            actor: userEmail(req),
+            action: 'connection-setting-saved',
+            subject: 'notebook-path',
+            detail: 'Configured the workspace notebook shown on Connections.',
+          });
+          res.json({ path: savedResult.saved.value });
+        } catch (error) {
+          res.status(503).json({
+            error: 'settings_store_unavailable',
+            detail: `The notebook path was validated but not saved: ${(error as Error).message}`,
+          });
+        }
+      },
+    );
 
     /**
      * Add an asset to the list the agent may consider.
@@ -318,9 +430,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         if (!connection || connection.state === 'withdrawn') {
           res.status(404).json({
             error: 'no_such_connection',
-            detail: connection
-              ? 'That connection is already withdrawn.'
-              : 'Nothing is declared under that name.',
+            detail: connection ? 'That connection is already withdrawn.' : 'Nothing is declared under that name.',
           });
           return;
         }
@@ -393,6 +503,12 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
           note: parsed.data.note,
           updatedBy: userEmail(req),
         });
+        await recordAdminAction(appkit.lakebase, {
+          actor: userEmail(req),
+          action: 'connection-setting-saved',
+          subject: resourceId,
+          detail: `${decision.intent} value recorded for ${resourceId}`,
+        });
         res.json({
           saved,
           appliesNow: decision.intent === 'active',
@@ -415,19 +531,223 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
           res.status(404).json({ error: 'no_such_setting', detail: 'Nothing was stored for that resource.' });
           return;
         }
+        await recordAdminAction(appkit.lakebase, {
+          actor: userEmail(req),
+          action: 'connection-setting-cleared',
+          subject: req.params.resourceId,
+          detail: `cleared stored setting for ${req.params.resourceId}`,
+        });
         res.json({ cleared: req.params.resourceId });
       } catch (error) {
         console.error(`[settings] ${req.params.resourceId} could not be cleared:`, (error as Error).message);
         res.status(503).json({ error: 'settings_store_unavailable', detail: 'The value was not cleared.' });
       }
     });
+
+    /** Preview the declaration the canonical admin release endpoint snapshots. */
+    app.get('/api/settings/apply', async (req, res) => {
+      res.json(await buildApplyResponse(req, appkit));
+    });
+
+    /**
+     * Create the immutable approval record Connections hands to a notebook.
+     *
+     * There is intentionally no request body: the server snapshots the same
+     * current plan it just displayed and takes the actor from the trusted
+     * forwarded identity. A caller cannot swap either after review.
+     */
+    app.post('/api/admin/model-releases', async (req, res) => {
+      try {
+        const current = await buildApplyResponse(req, appkit);
+        if (!current.plan.hasOverrides) {
+          res.status(409).json({
+            error: 'nothing_to_release',
+            detail: 'Nothing is waiting on a new model version.',
+          });
+          return;
+        }
+        if (!current.target || current.target.startsWith('<')) {
+          res.status(409).json({
+            error: 'release_target_unavailable',
+            detail:
+              'This app was not released with its bundle target recorded. Redeploy the app before approving a notebook release.',
+          });
+          return;
+        }
+        const declaration = releaseDeclaration(current.plan);
+        const release = await createModelRelease(appkit, {
+          id: randomUUID(),
+          requestedBy: userEmail(req),
+          declaration,
+          target: current.target,
+          endpointName: textEnv(process.env.DATABRICKS_SERVING_ENDPOINT_NAME),
+          modelName: current.modelName,
+          vFrom: current.vFrom,
+          preflightAtRequest: current.preflight,
+        });
+        res.status(201).json({ release });
+      } catch (error) {
+        console.error('[model-release] The approval could not be recorded:', (error as Error).message);
+        res.status(503).json({
+          error: 'release_store_unavailable',
+          detail: 'The release request was not recorded. Lakebase did not accept the audit row.',
+        });
+      }
+    });
+
+    app.get('/api/admin/model-releases', async (req, res) => {
+      const requested = Number(req.query.limit ?? 20);
+      const releases = await listModelReleases(appkit, Number.isFinite(requested) ? requested : 20);
+      res.json({ releases });
+    });
+
+    app.get('/api/admin/model-releases/:id', async (req, res) => {
+      const release = await readModelRelease(appkit, req.params.id);
+      if (!release) {
+        res.status(404).json({ error: 'no_such_release_request' });
+        return;
+      }
+      res.json({ release });
+    });
+
+    app.post('/api/admin/model-releases/:id/claim', async (req, res) => {
+      const parsed = ClaimBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_claim', detail: parsed.error.message });
+        return;
+      }
+      const result = await claimModelRelease(appkit, req.params.id, parsed.data.executionId, userEmail(req));
+      if (!result.release) {
+        res.status(404).json({ error: 'no_such_release_request' });
+        return;
+      }
+      if (!result.claimed) {
+        res.status(409).json({
+          error: 'release_request_already_claimed',
+          detail: 'Another helper already claimed this request, or it is already complete.',
+          release: result.release,
+        });
+        return;
+      }
+      res.json({ release: result.release });
+    });
+
+    app.post('/api/admin/model-releases/:id/status', async (req, res) => {
+      const parsed = CompletionBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_release_status', detail: parsed.error.message });
+        return;
+      }
+      const result = await completeModelRelease(appkit, req.params.id, userEmail(req), parsed.data);
+      if (!result.release) {
+        res.status(404).json({ error: 'no_such_release_request' });
+        return;
+      }
+      if (!result.updated) {
+        res.status(409).json({
+          error: 'invalid_release_transition',
+          detail: 'Only the helper that claimed a running request may complete it.',
+          release: result.release,
+        });
+        return;
+      }
+      res.json({ release: result.release });
+    });
   });
+}
+
+/** Apply plan plus UI status fields, built from the live settings + notebook. */
+async function buildApplyResponse(
+  req: Request,
+  appkit: InsightsAppKit
+): Promise<{
+  status: 'idle' | 'ready';
+  plan: ApplyPlan;
+  target: string;
+  vFrom: string | null;
+  modelName: string;
+  preflight: ReleasePreflight | null;
+}> {
+  const { report } = await readOrchestratorReport(appkit);
+  const stored = await readStoredSettings(appkit);
+  const environment = appEnvironment();
+  const payload = settingsPayload({
+    report,
+    endpointAnswered: true,
+    environment,
+    stored,
+    appBuildSha: appBuildSha(),
+    appBuildAncestors: appBuildAncestors(),
+    storeAvailable: await storeAnswers(appkit),
+    app: await readAppFacts(),
+  });
+  const notebookPanel = await readNotebook(req, appkit, report, stored);
+  const intended = intendedFromResources(payload.resources);
+  const notebook = settingsFromDeclaration(notebookPanel.read.declaration);
+  const target =
+    textEnv(process.env.PLAYER_INSIGHTS_TARGET) || textEnv(process.env.DATABRICKS_BUNDLE_TARGET) || '<your-target>';
+  const plan = resolveApplyPlan({ intended, notebook, target });
+  const live = liveConfiguration(report);
+  const vFrom = live.model_version || null;
+  return {
+    status: plan.hasOverrides ? 'ready' : 'idle',
+    plan,
+    target,
+    vFrom,
+    modelName: live.model_name || textEnv(process.env.PLAYER_INSIGHTS_MODEL_NAME),
+    preflight: releasePreflight(report),
+  };
+}
+
+function releasePreflight(report: PreflightReport | null): ReleasePreflight | null {
+  if (!report) return null;
+  return {
+    status: report.status,
+    checkedAt: report.checked_at,
+    ok: report.counts.ok,
+    failed: report.counts.failed,
+    unverified: report.counts.unverified,
+  };
+}
+
+function canonicalSettings(settings: Record<string, string>): string {
+  return JSON.stringify(
+    Object.fromEntries(Object.entries(settings).sort(([left], [right]) => left.localeCompare(right)))
+  );
+}
+
+/** The exact declaration document persisted and later handed to Python. */
+export function releaseDeclaration(plan: ApplyPlan): ModelReleaseDeclaration {
+  const settings = Object.fromEntries(plan.knobs.map((knob) => [knob.key, knob.value]));
+  const body = `connections-apply\n${canonicalSettings(settings)}`;
+  return {
+    source: 'connections-apply',
+    revision: `sha256:${createHash('sha256').update(body).digest('hex')}`,
+    settings,
+  };
+}
+
+function textEnv(value: string | undefined): string {
+  return (value ?? '').trim();
+}
+
+export function configuredNotebookPath(
+  stored: ReadonlyMap<string, StoredSetting>,
+  environment: NodeJS.ProcessEnv = process.env,
+): string {
+  const saved = stored.get('notebook-path');
+  if (saved?.intent === 'active' && saved.value.trim()) return saved.value.trim();
+  return environment.PLAYER_INSIGHTS_NOTEBOOK_PATH?.trim() ?? '';
 }
 
 /** What the notebook published, and how it compares with what is running. */
 export interface NotebookPanel {
   /** The table the declaration is read from, or '' when none is configured. */
   location: string;
+  /** Workspace notebook selected by an administrator, if one is saved. */
+  configuredPath: string;
+  /** Workspace notebook recorded by the latest declaration, if one was read. */
+  observedPath: string;
   read: DeclarationRead;
   /** One entry per published setting. Empty when nothing was read. */
   comparison: DeclarationComparison[];
@@ -464,11 +784,15 @@ export function liveConfiguration(report: PreflightReport | null): Record<string
  * of the things this page reports on, and a page opened to diagnose a deployment
  * must not be taken down by one of its subjects.
  */
-async function readNotebook(req: Request,
+async function readNotebook(
+  req: Request,
   appkit: InsightsAppKit,
-  report: PreflightReport | null
+  report: PreflightReport | null,
+  storedInput?: ReadonlyMap<string, StoredSetting>,
 ): Promise<NotebookPanel> {
   try {
+    const stored = storedInput ?? (await readStoredSettings(appkit));
+    const configuredPath = configuredNotebookPath(stored);
     const location = await resolveNotebookDeclaration(appkit);
     const read = await readPublishedDeclaration({
       location,
@@ -482,16 +806,22 @@ async function readNotebook(req: Request,
     });
     return {
       location,
+      configuredPath,
+      observedPath: read.declaration?.source?.trim() ?? '',
       read,
-      comparison: read.declaration
-        ? compareDeclaration(read.declaration, liveConfiguration(report))
-        : [],
+      comparison: read.declaration ? compareDeclaration(read.declaration, liveConfiguration(report)) : [],
     };
   } catch (error) {
     console.warn('[settings] The notebook declaration could not be read:', (error as Error).message);
     return {
       location: '',
-      read: { declaration: null, failure: 'unavailable', detail: 'The published declaration could not be read just now.' },
+      configuredPath: '',
+      observedPath: '',
+      read: {
+        declaration: null,
+        failure: 'unavailable',
+        detail: 'The published declaration could not be read just now.',
+      },
       comparison: [],
     };
   }
@@ -519,10 +849,7 @@ function configuredValues(states: ReturnType<typeof resourceStates>): string[] {
   return values;
 }
 
-async function impactFor(
-  appkit: InsightsAppKit,
-  connection: StoredDeclaredConnection
-): Promise<RemovalImpact> {
+async function impactFor(appkit: InsightsAppKit, connection: StoredDeclaredConnection): Promise<RemovalImpact> {
   const { report } = await readOrchestratorReport(appkit);
   const stored = await readStoredSettings(appkit);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
@@ -564,7 +891,8 @@ async function readConnections(
  * Never rejects. A dependency probe that took the settings route down would take
  * down the page somebody opens to find out why the deployment is misbehaving.
  */
-async function readReachability(req: Request,
+async function readReachability(
+  req: Request,
   input: {
     report: PreflightReport | null;
     environment: Record<string, string>;
@@ -577,8 +905,7 @@ async function readReachability(req: Request,
     // override ahead of the variable ahead of the compiled default where the app
     // does. Reading the raw configuration instead would answer about a value the
     // reader cannot see.
-    const configured = Object.fromEntries(resourceStates(input).map((state) => [state.resource.id, state.configured])
-    );
+    const configured = Object.fromEntries(resourceStates(input).map((state) => [state.resource.id, state.configured]));
     const checks = await probeConnections({
       configured,
       tables: declaredTables(input.report?.configuration ?? []),
@@ -608,7 +935,7 @@ async function readReachability(req: Request,
  */
 async function storeAnswers(appkit: InsightsAppKit): Promise<boolean> {
   try {
-    await appkit.lakebase.query('SELECT 1 FROM player_insights.deployment_settings LIMIT 1');
+    await appkit.lakebase.query(`SELECT 1 FROM ${APP_SCHEMA}.deployment_settings LIMIT 1`);
     return true;
   } catch {
     return false;

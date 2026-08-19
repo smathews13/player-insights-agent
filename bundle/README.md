@@ -22,18 +22,17 @@ held to it. A dry run reports it deliberately: a dry run is where somebody check
 target before committing to it, and a gate that only spoke on `--apply` would stay
 quiet at the one moment it is cheap to act on.
 
-`genie-drift.sh` answers a different and narrower question: is the Genie content
-in this repository what the workspace is actually serving? It reads and changes
-nothing, so it is safe to run mid-deploy or mid-demo. Exit 0 means a deploy would
-change nothing; exit 1 means the committed body is not the live one.
+`genie-drift.sh` answers a different and narrower question: does the Genie
+content committed under `genie/` still match what the workspace is serving? It
+reads and changes nothing, so it is safe to run mid-deploy or mid-demo. Exit 0
+means the reference bodies and the live spaces agree; exit 1 means they do not.
 
 It compares the TEXT rather than `serialized_space.version` or the instruction
-ids, and that distinction is the whole reason it exists. A version nobody bumped
-sits happily above a rewritten paragraph, so a tag-based check agrees with the
-deploy rather than with the workspace — which is how a Genie change was once
-committed, deployed, reported successful, and never landed. The comparison runs in
-both directions, because `bundle deploy` overwrites these bodies whole: a table
-that is live and no longer committed is drift too, and the next deploy deletes it.
+ids. The spaces themselves are **not** bundle-managed any more: this bundle
+attaches by id and does not overwrite instructions or curated tables on deploy.
+Use the drift check when you deliberately want to know whether a reference body
+and the live space have diverged; fixing drift is a Genie UI (or reference
+re-export) step, not a `bundle deploy`.
 
 What it cannot tell you is whether an instruction that landed is being **followed**.
 Those look identical from outside; ask the space a question that depends on the
@@ -48,17 +47,35 @@ quoted wherever you pass it.
 
 ## Deployment order on a fresh workspace
 
-Nothing enforces this order, so following it is on you.
+Nothing enforces this order, so following it is on you. The order below is the
+one that works without an existing app and without temporary endpoint swaps.
 
-1. `bundle deploy -t <target>` with `--select` for every resource except the app.
-2. `bundle/agent-release.sh`, which creates the serving endpoint.
-3. `bundle deploy -t <target>` again with no `--select`, which creates the app.
-   Both passes are needed: `Apps.Create` refuses an attachment naming a serving
-   endpoint that does not exist yet, and creates nothing.
-4. `bundle/app-release.sh`, which pushes the app's code.
+0. Provision Lakebase (project / branch / database) and curate the two Genie
+   spaces **outside** this bundle. Name them in
+   `.databricks/bundle/<target>/variable-overrides.json`
+   (`lakebase_project_id`, `genie_data_space_id`, `genie_dictionary_space_id`,
+   plus `warehouse_id`, `admin_emails`, and the other required inputs).
+1. `bundle deploy -t <target>` with `--select` for every resource **except** the
+   app (schemas, volume, experiment, optional semantic job). The bundle
+   attaches to existing Lakebase and Genie; it does not create them.
+2. `bundle/agent-release.sh --apply`, which logs the model and creates the
+   serving endpoint. This does **not** need the app to exist: governed reads
+   run as the signed-in user, and there is no Unity Catalog gate on the app
+   service principal before the re-log.
+3. `bundle deploy -t <target>` again with no `--select`, which creates the app
+   attached to the endpoint from step 2. `Apps.Create` refuses an attachment
+   naming a serving endpoint that does not exist yet.
+4. Run `bundle/app-release.sh --apply`. Before it pushes code, it resolves the
+   app role and the attached Lakebase connection from the live bundle resources,
+   applies the Postgres grants, and remediates AppKit cache ownership. The code
+   deploy does not begin if that step fails.
 
-Three steps in that sequence are manual. The administrator input now fails
-validation when skipped; the remaining workspace grants still require review.
+Do **not** create an app shell against a temporary old endpoint, rewrite
+`variable-overrides.json` mid-deploy, or use `--allow-missing-endpoint`. Those
+were workarounds for a deleted gate.
+
+Two inputs outside the app release still need an operator. The administrator
+input fails validation when skipped; Genie sharing still requires review.
 
 - **Name the deployment's administrators**, before step 4, because there is no
   way to appoint the first one from inside the running app:
@@ -89,7 +106,7 @@ validation when skipped; the remaining workspace grants still require review.
   the same warning, and a test fails while the addresses are there:
 
   ```bash
-  cd player-insights-agent && npx vitest run scripts/deploy-app-yaml.test.ts
+  cd player-insights-agent && npm test -- scripts/deploy-app-yaml.test.ts
   ```
 
   **That test is the only thing catching this before the commit**, so do not
@@ -97,20 +114,48 @@ validation when skipped; the remaining workspace grants still require review.
   addresses, but it gates the publication and no longer scans the internal tree,
   which puts it after the commit rather than before it.
 
-- **Grant the app's Postgres role**, after step 3, because the app's service
-  principal does not exist until the app does:
+- **The app release grants the app's Postgres role automatically**, after the
+  bundle has created the app service principal and immediately before the code
+  deploy that restarts it. `bundle/app-db-grant.sh` reads the app role, attached
+  branch and database from the live app, reads `PGHOST` from the branch's direct
+  connection (`databricks postgres get-branch`, never the pooled AppKit host),
+  and uses the profile's current identity as `PGUSER`. The profile must hold
+  `DATABRICKS_SUPERUSER`; an unreachable branch or failed grant stops the
+  release with the values it could not resolve.
+
+  The hook also drops a misowned AppKit cache schema (`appkit`) —
+  `GRANT USAGE, CREATE` alone cannot fix later `CREATE INDEX` ownership
+  failures. It is idempotent and leaves an app-owned cache schema alone.
+
+  After a Lakebase detach/reattach when no full app release is otherwise needed,
+  run the same hook as the manual escape hatch, then restart the app:
 
   ```bash
-  cd player-insights-agent && node scripts/grant-app-db-access.mjs
+  TARGET=<target> PROFILE='<profile>' bundle/app-db-grant.sh
+  databricks apps stop <app-name> --profile '<profile>'
+  databricks apps start <app-name> --profile '<profile>'
   ```
 
   Skipped, every route answers from representative data at HTTP 200 with no
-  error anywhere.
+  error anywhere, and AppKit's persistent cache stays in-memory across restarts.
 
-- **Share each Genie space with the agent's serving principal as `CAN RUN`.**
-  There is no CLI and no bundle resource for this, so it is a UI step. Skipped,
-  every Genie call fails `PermissionDenied` and the agent's SQL fallback answers
-  anyway.
+- **Share each Genie space with the people or groups who will use the app, at
+  `CAN RUN`.** With `execution_identity: user-authorization`, Genie runs as the
+  person who asked, not as the app or serving-endpoint service principal.
+  Skipped, every Genie call fails `PermissionDenied` and the agent's SQL fallback
+  answers anyway. Those same callers also need `CAN USE` on the warehouse and
+  `SELECT` on the curated tables, because Genie's query runs under their grants.
+  There is no bundle resource for the grant, but there **is** a CLI, so it need
+  not be a UI step:
+
+  ```bash
+  databricks permissions update genie <space_id> \
+    --json '{"access_control_list":[{"user_name":"someone@example.com","permission_level":"CAN_RUN"}]}'
+  ```
+
+  Do **not** grant the *serving-endpoint* principal `CAN RUN`: that was the old
+  passthrough remedy, and under user authorization it grants nothing the caller
+  needs.
 
 ## The scripts
 
@@ -118,10 +163,15 @@ validation when skipped; the remaining workspace grants still require review.
 | --- | --- |
 | `agent-release.sh` | Log the model, deploy it to the serving endpoint, wait for the traffic switch, read back the served versions, then prune the entities the release superseded. `--no-prune` leaves them and reports what it would have removed. |
 | `prune-served-entities.py` | Remove idle served entities from the endpoint, keeping whatever holds traffic plus `var.serving_rollbacks_kept` rollbacks — which defaults to **none**, because the version a kept rollback reaches is the one released *before* the current fix. Run by `agent-release.sh`; also runnable alone. Reports by default, acts on `--apply`, exits 3 when there is something to prune and it was not asked to. Endpoint only: it has no code path that reaches the registry, so every version stays registered and can be served again with `deploy_agent.py --model-version N` — that is the rollback path, and it needs no idle entity held open for it. |
-| `app-release.sh` | Resolve the MLflow experiment id for the target, build the dependency-free tree, upload, deploy. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` re-points the app at a known-good source directory without rebuilding. |
-| `app-spec.sh` | Emit the complete app spec for a target, generated from `bundle validate` so it can only carry that target's own values. Prints by default; `--apply` sends it and verifies what the API kept. Recovery only: the bundle owns this resource. Refuses to write on a host mismatch, a Lakebase project absent from the workspace being written to, a serving endpoint that does not exist (`--allow-missing-endpoint` for bootstrap), a lost load-bearing `user_api_scopes` entry, or a `sql-warehouse` resource with no id. |
+| `app-release.sh` | Resolve the MLflow experiment id, build the dependency-free tree, gate on `app-db-grant.sh`, upload, and deploy. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` applies the same grant gate and re-points the app at a known-good source directory without rebuilding. |
+| `app-db-grant.sh` | Resolve the app role, direct branch host, database, operator role and app schema from the target and live resources, then run `scripts/grant-app-db-access.mjs`. Called by every app release; runnable directly after Lakebase reattach without a full release. |
+| `app-spec.sh` | Emit the complete app spec for a target, generated from `bundle validate` so it can only carry that target's own values. Prints by default; `--apply` sends it and verifies what the API kept. Recovery only: the bundle owns this resource. Refuses to write on a host mismatch, a Lakebase project absent from the workspace, a serving endpoint that does not exist, a lost load-bearing `user_api_scopes` entry, or a `sql-warehouse` resource with no id. There is no `--allow-missing-endpoint`. |
 | `plan-gate.sh` | Refuse a `bundle deploy` that would delete or replace a resource. **This one blocks** — unlike the advisory suites, which report and are swallowed. About two seconds, so chain it: `TARGET=<t> bundle/plan-gate.sh && databricks bundle deploy -t <t>`. Decision logic in `plan-gate.py`, proved by `plan-gate.test.sh`. |
-| `assert-sp-no-data-select.py` | Ask Unity Catalog what the app's service principal can actually reach on the catalog, the data schema and every table in it — effective permissions, so a privilege inherited through `account users` is found where `SHOW GRANTS` shows nothing. Exceptions live in `sp-data-access-exceptions.json`, cover one grant each, and expire. **`agent-release.sh` runs it as a blocking gate**, before the model is logged, because a re-log is when the agent's data access changes. Exit 1 is a finding, exit 2 is "could not run" — *both stop the release*, separated only so the operator is told which. There is no flag past it; an accepted finding goes in the exceptions file with a review date, not on the command line. Also runnable alone: `--app`, `--catalog`, `--schema`, `--profile`. |
+
+Identity split (do not re-introduce an app-SP Unity Catalog data gate on release):
+
+- **Signed-in user** — governed UC / Genie / SQL reads (`execution_identity: user-authorization`).
+- **App service principal** — app-owned Lakebase operational storage and non-data control-plane work only. Lakebase grants are checked after app creation (`scripts/grant-app-db-access.mjs`, `/api/storage`, app-release ownership), not by asking UC what the SP can `SELECT` on customer catalogs.
 
 ## Before `bundle deploy`
 

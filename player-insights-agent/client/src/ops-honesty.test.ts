@@ -22,9 +22,14 @@ import {
   bars,
   costAbsence,
   count,
+  errorFraming,
   latencyRouteView,
+  latencySharedFacts,
   money,
+  P50_BAR_MIN_WIDTH,
+  p50BarWidths,
   productForCostTile,
+  splitMethod,
   telemetryNotice,
   tileView,
   trafficCaption,
@@ -491,6 +496,120 @@ describe('the mark on a cost tile', () => {
 
   it('answers null for an id it has never seen, rather than guessing', () => {
     expect(productForCostTile('a-component-added-after-this-was-written')).toBeNull();
+  });
+});
+
+/* ── Recorded errors vs a live failure ───────────────────────────────────── */
+
+describe('the framing over recorded error lines', () => {
+  it('says nothing at zero, because zero is not a count', () => {
+    expect(errorFraming({ errorCount: 0, dependencies: ['answered'] })).toBeNull();
+  });
+
+  it('calls them history when every dependency answered its last check', () => {
+    const framing = errorFraming({ errorCount: 2, dependencies: ['answered', 'answered', 'not-checked'] });
+    expect(framing?.live).toBe(false);
+    expect(framing?.headline).toBe('2 error lines recorded in this range');
+    expect(framing?.note).toMatch(/not a live failure/);
+  });
+
+  it('does not reassure when a dependency is not answering now', () => {
+    const framing = errorFraming({ errorCount: 1, dependencies: ['answered', 'did-not-answer'] });
+    expect(framing?.live).toBe(true);
+    expect(framing?.headline).toBe('1 error line recorded in this range');
+    expect(framing?.note).not.toMatch(/not a live failure/);
+    expect(framing?.note).toMatch(/Result column/);
+  });
+
+  it('treats a not-checked dependency as neither an outage nor a pass', () => {
+    // A probe that did not run has said nothing about the dependency, so it must
+    // not tip the note into the live-failure wording.
+    const framing = errorFraming({ errorCount: 1, dependencies: ['not-checked'] });
+    expect(framing?.live).toBe(false);
+  });
+});
+
+/* ── The log-scaled p50 bar ──────────────────────────────────────────────── */
+
+describe('the p50 bar scale', () => {
+  /**
+   * THE SCALE HAS TO MAKE 65ms AND 83.5s BOTH LEGIBLE. On a linear scale the
+   * fast route is 0.08% of the track beside the slow one — invisible, which
+   * reads as unmeasured rather than fast. Log scaling puts it back on the chart.
+   */
+  it('keeps the fastest route visible beside the slowest', () => {
+    const [slow, fast] = p50BarWidths([83_500, 65]);
+    expect(slow).toBe(100);
+    expect(fast).toBe(P50_BAR_MIN_WIDTH);
+    // The floor is the whole point: a linear scale would give the fast bar
+    // 65 / 83500 = 0.08%, which rounds to nothing.
+    expect(fast).toBeGreaterThan(Math.round((65 / 83_500) * 100));
+  });
+
+  it('orders the bars by duration and spaces them by ratio, not by difference', () => {
+    // Four routes across five orders of magnitude, the panel's real shape.
+    const widths = p50BarWidths([85_500, 8_709.2, 169.9, 0.7]);
+    // Monotone with the durations: slowest widest, fastest narrowest.
+    expect(widths[0]).toBeGreaterThan(widths[1]);
+    expect(widths[1]).toBeGreaterThan(widths[2]);
+    expect(widths[2]).toBeGreaterThan(widths[3]);
+    expect(widths[0]).toBe(100);
+    expect(widths[3]).toBe(P50_BAR_MIN_WIDTH);
+    // Log spacing: 8.7s is roughly one order below 85.5s and about four-fifths
+    // of the way up the track, not the ~10% a linear scale would give it.
+    expect(widths[1]).toBeGreaterThan(60);
+  });
+
+  it('draws no bar for a zero or an absent duration', () => {
+    // A drawn bar is a claim there is a duration; zero and absent are neither.
+    expect(p50BarWidths([0, 100, 200])[0]).toBe(0);
+    expect(p50BarWidths([-1])[0]).toBe(0);
+  });
+
+  it('gives every equal route the full bar rather than dividing by zero', () => {
+    expect(p50BarWidths([50, 50, 50])).toEqual([100, 100, 100]);
+  });
+});
+
+/* ── The method chip split ───────────────────────────────────────────────── */
+
+describe('splitting a span name into method and path', () => {
+  it('splits a normal route', () => {
+    expect(splitMethod('POST /api/insights/ask')).toEqual({ method: 'POST', path: '/api/insights/ask' });
+  });
+
+  it('keeps the whole string as the path when there is no method', () => {
+    // A background span with no leading verb must not be given an invented GET.
+    expect(splitMethod('background refresh')).toEqual({ method: '', path: 'background refresh' });
+  });
+});
+
+/* ── The shared-facts strip ──────────────────────────────────────────────── */
+
+describe('the latency shared-facts line', () => {
+  const thin = (over: Partial<RouteLatency> = {}): RouteLatency => route({ spans: 8, p95Ms: null, p99Ms: null, ...over });
+
+  it('says the whole window is thin when no route crosses the floor', () => {
+    const facts = latencySharedFacts([thin(), thin({ route: 'GET /api/ops/cost' })]);
+    expect(facts.showPercentiles).toBe(false);
+    expect(facts.line).toContain('Every route is under 20 spans this window: no p95, p99, or trend yet.');
+    expect(facts.line).toContain('Errors and refusals not reported by the endpoint.');
+  });
+
+  it('brings the columns back and drops the claim once a route crosses the floor', () => {
+    const facts = latencySharedFacts([thin(), route({ spans: 40, p95Ms: 200, p99Ms: 250 })]);
+    expect(facts.showPercentiles).toBe(true);
+    expect(facts.line).not.toContain('no p95');
+  });
+
+  it('names a real error count rather than hiding it in a grid with no column', () => {
+    const facts = latencySharedFacts([thin({ errorCount: 3 })]);
+    expect(facts.line).toContain('3 error spans recorded across these routes');
+    expect(facts.line).toContain('Refusals not reported by the endpoint.');
+  });
+
+  it('says nothing at all when there are no routes', () => {
+    expect(latencySharedFacts([]).line).toBe('');
   });
 });
 

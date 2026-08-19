@@ -1,5 +1,5 @@
 /*
- * The egress panel: three stacked lists on the Settings page.
+ * The egress panel: stacked lists on the Settings page.
  *
  * Written against the astrolabe tokens rather than the DuBois set, because this
  * surface is new. Nothing here restates a rule `settings.css` already carries --
@@ -9,7 +9,7 @@
  */
 
 /* A row that is a list item rather than a single control, so it needs its own
-   rhythm: `.settings-row` is one row in a card and these come in eights. */
+   rhythm: `.settings-row` is one row in a card and these come in a set. */
 .egress-row {
   padding: 10px 0;
   border-bottom: 1px solid var(--ast-hairline);
@@ -50,37 +50,4 @@
   font-size: var(--ast-fs-12);
   color: var(--ast-text-secondary);
   max-width: 60ch;
-}
-
-.egress-log {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.egress-log-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--ast-hairline);
-}
-
-.egress-log-row:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-
-.egress-log-row:first-child {
-  padding-top: 0;
-}
-
-/* Right-aligned meta, which is the placement rule that puts a figure in DM Mono.
-   `.ast-num` carries the family; this is the slot. */
-.egress-when {
-  flex: none;
-  font-size: var(--ast-fs-12);
-  color: var(--ast-text-secondary);
-  white-space: nowrap;
 }

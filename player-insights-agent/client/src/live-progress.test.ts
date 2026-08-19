@@ -387,6 +387,16 @@ describe('where the run has got to, on the row and in the rail', () => {
     expect(toLiveStep(stage({ id: 'step-1', depth: 9 })).depth).toBe(3);
   });
 
+  it('pins the step icon to the first line of the header, with an optical nudge', () => {
+    // Without start-align, a multi-line body centres the glyph between the
+    // title and the detail. Without the 1px top margin, both lucide and
+    // astrolabe marks read a hair high against the bold step name.
+    const icon = LIVE_CSS.match(/\.live-step-icon \{([^}]*)\}/)?.[1] ?? '';
+    expect(icon).toMatch(/align-self: start/);
+    expect(icon).toMatch(/margin-top: 1px/);
+    expect(icon).toMatch(/height: calc\(var\(--text-base\) \* 1\.4\)/);
+  });
+
   it('has no pulse on the compact rail left to guard', () => {
     // THE GAP IS CLOSED BY REMOVAL RATHER THAN BY A GUARD, which is the better of
     // the two answers and was not available while the halo was the design.

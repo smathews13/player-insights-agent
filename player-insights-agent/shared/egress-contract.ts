@@ -124,16 +124,15 @@ export interface EgressPath {
 }
 
 /**
- * Every path, in the order the panel lists them: the ones with switches first,
- * heaviest first, then the ones that carry none.
+ * Every path, in the order the panel lists controllable ones: switches first,
+ * heaviest first. Uncontrollable paths stay in the registry (the build still
+ * cannot stop them) but are not drawn on Settings.
  *
  * ── HOW THE ORDER WAS CHOSEN ──
  *
  * Descending by what leaves. A chart image and a result set are the data; a SQL
  * statement is the app's account of how it asked; an identifier names
- * infrastructure. The two at the bottom carry no switch, and they are last so
- * that a reader who stops halfway has read the controls rather than the
- * disclaimers.
+ * infrastructure.
  */
 export const EGRESS_PATHS: readonly EgressPath[] = [
   {
@@ -443,25 +442,6 @@ export interface EgressReport {
   runId?: string | null;
   conversationId?: string | null;
   itemCount?: number | null;
-}
-
-/**
- * Why the record could not be read, or '' when it was.
- *
- * Three states rather than an empty list, for the reason this app draws
- * everywhere else: "nothing has left" and "the record could not be read" put the
- * same zero rows on screen and mean opposite things.
- */
-export type EgressReadState = 'read' | 'unavailable' | 'not-migrated';
-
-export interface EgressLogPayload {
-  events: readonly EgressEvent[];
-  readState: EgressReadState;
-  /** How many rows the read was allowed to return, so a full page says so. */
-  limit: number;
-  /** True when the range holds at least as many rows as the limit returned. */
-  truncated: boolean;
-  readAt: string;
 }
 
 export interface EgressControlsPayload {

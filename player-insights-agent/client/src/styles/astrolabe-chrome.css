@@ -1,12 +1,11 @@
 /*
- * The 52px top bar's own furniture: the two dividers, the reader's avatar, and
- * the Databricks attribution.
+ * The 52px top bar's own furniture: the two dividers and the Databricks
+ * attribution. The signed-in identity chip lives in shell.css with the rest of
+ * the identity cluster (role badge · chip · gear).
  *
  * The bar's geometry -- its height, its inset, the brand column that aligns the
  * first tab with the conversation rail -- stays in shell.css, where the rest of
- * the frame is. What is here is what §1 added: the divider either side of the
- * navigation, the circle that replaced the "Signed in <name>" chip, and the
- * attribution that closes the row.
+ * the frame is.
  */
 
 /*
@@ -21,34 +20,6 @@
   width: 1px;
   height: 20px;
   background: var(--ast-hairline);
-}
-
-/*
- * Who is reading, as two characters in a circle.
- *
- * §1: 26px, navy, white 11px/500. It is an abbreviation, so the whole address is
- * on `title` and in the visually hidden label beside it -- a circle saying "SM"
- * with no way to expand it is a puzzle rather than an identity.
- *
- * `flex: none` because a flex child may shrink below its stated width: without
- * it a tight header ovals the circle rather than letting the tabs be the part
- * that gives.
- */
-.identity-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--ast-navy);
-  color: var(--ast-white);
-  font-size: var(--ast-fs-11);
-  font-weight: 500;
-  /* The glyphs are their own box, so the flex centring lands on the characters
-     rather than on a line box with leading above and below them. */
-  line-height: 1;
 }
 
 /*

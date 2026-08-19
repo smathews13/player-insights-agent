@@ -218,6 +218,27 @@ describe('a migration list this build cannot trust', () => {
   });
 });
 
+describe('the model release audit migration', () => {
+  it('persists identity, immutable declaration, versions, and both preflight results', () => {
+    const migration = MIGRATIONS.find((entry) => entry.name === 'model release requests');
+    expect(migration?.version).toBe(6);
+    const ddl = migration?.statements.join('\n') ?? '';
+    for (const column of [
+      'requested_by',
+      'requested_at',
+      'declaration JSONB',
+      'declaration_revision',
+      'v_from',
+      'v_to',
+      'preflight_at_request',
+      'preflight_result',
+      'execution_id',
+    ]) {
+      expect(ddl, column).toContain(column);
+    }
+  });
+});
+
 describe('a fresh database', () => {
   it('applies every version in order and records each one', async () => {
     const store = fakeStore();

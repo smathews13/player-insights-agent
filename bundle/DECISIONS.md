@@ -68,9 +68,13 @@ mistaken for removing it. All of these count:
   which instruct the answer writer and append the caveat;
 - any "Synthetic data" badge, source-strip label, or provenance chip on a surface
   a reader reaches;
-- the Genie space instructions in `resources/*.genie_space.yml`, which reach a
-  reader through the model's answer and which no re-log removes, because they
-  deploy as bundle resources rather than baking into the artifact;
+- the Genie space instructions, which reach a reader through the model's answer
+  and which no re-log removes, because they live on the space rather than baking
+  into the artifact. These are now HARDER to reach, not easier: the bundle
+  attaches to spaces it does not create, so a deploy no longer pushes this text
+  and the live space is the only copy that matters. `genie/*.reference.yml` holds
+  the bodies ours carry, and editing that file changes nothing by itself — the
+  wording has to be fixed on the space, in the Genie UI;
 - **Unity Catalog metadata**: table and column comments, schema and volume
   comments, and table properties, written when the tables are provisioned. These were
   omitted from this list until 2026-08-16 and deferred twice on the argument that
@@ -379,6 +383,7 @@ than copied, so there is one copy to keep true.
 | Where the repository specification and the design handoff disagree, behaviour follows the specification and appearance follows the handoff | `AS-COMMITTED.md`, "What the repository overrides" |
 | No workspace-specific value is baked into the committed build tree | `README.md`, "Deploy the app from the browser" |
 | `serving.serving-endpoints-data-plane` is not to be declared by any target | `databricks.yml`, under `app_user_api_scopes` |
+| Hard knobs (Genie / warehouse / catalogs) become live only via Apply → new model version; Connections and notebooks stage intent; soft knobs may stay live without Apply | `bundle/apply-declaration.sh`, Connections Apply card |
 
 ## What this file is not
 

@@ -208,11 +208,20 @@ describe('a consumer is refused at the route', () => {
   });
 
   it('leaves a consumer-visible path alone', async () => {
-    // `/api/settings` is the Connections page's endpoint, not the gear's, and it is
-    // one of the diagnostics that has to keep answering when the rest is refusing.
+    // `GET /api/settings` is the Connections page's read endpoint, and it is one
+    // of the diagnostics that has to keep answering when the rest is refusing.
+    // Mutating Connections routes are admin-only (asserted below).
     const app = await startApp(fakeLakebase());
 
     expect((await app.probe('/api/settings', CONSUMER)).status).not.toBe(403);
+  });
+
+  it('refuses a consumer on Connections mutations and Apply', async () => {
+    const app = await startApp(fakeLakebase());
+
+    expect((await app.probe('/api/settings/values/sql-warehouse', CONSUMER)).status).toBe(403);
+    expect((await app.probe('/api/settings/connections', CONSUMER)).status).toBe(403);
+    expect((await app.probe('/api/settings/apply', CONSUMER)).status).toBe(403);
   });
 });
 

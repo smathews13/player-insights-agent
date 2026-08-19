@@ -133,9 +133,9 @@ const TRANSCRIPT_SOURCE = readFileSync(new URL('./HomePage.tsx', import.meta.url
  * no mark on it, and a second copy of the rule.
  */
 describe('where the mark is used', () => {
-  it('signs the user’s own messages with an avatar', () => {
-    expect(TRANSCRIPT_SOURCE).toContain('className="user-avatar"');
-    expect(TRANSCRIPT_SOURCE).toContain('{asker.initials}');
+  it('signs the user’s own messages with the shared identity chip', () => {
+    expect(TRANSCRIPT_SOURCE).toContain('<UserIdentityChip identity={asker}');
+    expect(TRANSCRIPT_SOURCE).not.toContain('{asker.initials}');
   });
 
   /**
@@ -144,14 +144,11 @@ describe('where the mark is used', () => {
    * conversation rail's owner circle already does it.
    */
   it('puts the identity itself where it can be read', () => {
-    expect(TRANSCRIPT_SOURCE).toContain('title={asker.label}');
-    expect(TRANSCRIPT_SOURCE).toContain('Asked by {asker.label}');
+    expect(TRANSCRIPT_SOURCE).toContain('label="Asked by"');
   });
 
-  it('leaves one implementation of the rule, shared with the rail', () => {
-    expect(TRANSCRIPT_SOURCE).toContain('return userInitials(email).initials;');
-    // The rail's old private copy. Two implementations is how the rail and a
-    // bubble come to disagree about the same person.
+  it('leaves no initials implementation in the transcript or rail', () => {
+    expect(TRANSCRIPT_SOURCE).not.toContain('userInitials(');
     expect(TRANSCRIPT_SOURCE).not.toContain('localPart.slice(0, 2)');
   });
 });

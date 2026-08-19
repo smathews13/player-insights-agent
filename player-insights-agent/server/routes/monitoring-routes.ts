@@ -16,13 +16,14 @@
  * nothing here has a placeholder: where a value was not recorded the field is
  * null and the page says so in words.
  *
- * THE LEDGER IS READ SEPARATELY AND MAY FAIL. `player_insights.runs` is created
+ * THE LEDGER IS READ SEPARATELY AND MAY FAIL. `${APP_SCHEMA}.runs` is created
  * by a DDL statement that a database can legitimately refuse when the app's role
  * does not own the schema, so joining it into the main query would make an
  * absent ledger take the whole page down. It is a second read, and its failure
  * costs the outcome precision the trace fallback cannot provide rather than
  * costing the page.
  */
+import { APP_SCHEMA } from '../../shared/app-schema';
 import type { Application, Request, Response } from 'express';
 import {
   classifyOutcome,
@@ -226,8 +227,8 @@ export const MONITORING_QUESTIONS_QUERY = `
   WITH page AS (
     SELECT u.id AS question_id, u.conversation_id, u.content AS question,
            u.created_at AS asked_at, c.user_email
-    FROM player_insights.messages u
-    JOIN player_insights.conversations c ON c.id = u.conversation_id
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
     ORDER BY u.created_at DESC
@@ -237,8 +238,8 @@ export const MONITORING_QUESTIONS_QUERY = `
     SELECT COUNT(*)::int AS asked_total,
            COUNT(DISTINCT c.user_email)::int AS people_total,
            COALESCE(array_agg(DISTINCT c.user_email), ARRAY[]::text[]) AS people_list
-    FROM player_insights.messages u
-    JOIN player_insights.conversations c ON c.id = u.conversation_id
+    FROM ${APP_SCHEMA}.messages u
+    JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
     WHERE u.role = 'user' AND u.content <> $1
       AND u.created_at >= $2::timestamptz AND u.created_at < $3::timestamptz
   )
@@ -261,13 +262,13 @@ export const MONITORING_QUESTIONS_QUERY = `
   LEFT JOIN LATERAL (
     SELECT m.id, m.response_json, m.trace_id, m.execution_mode,
            m.execution_identity_verified, m.access_mode
-    FROM player_insights.messages m
+    FROM ${APP_SCHEMA}.messages m
     WHERE m.conversation_id = q.conversation_id
       AND m.role = 'assistant'
       AND jsonb_typeof(m.response_json->'trace') = 'object'
       AND m.created_at >= q.asked_at
       AND m.created_at < COALESCE(
-            (SELECT MIN(u.created_at) FROM player_insights.messages u
+            (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
               WHERE u.conversation_id = q.conversation_id AND u.role = 'user'
                 AND u.content <> $1 AND u.created_at > q.asked_at),
             'infinity'::timestamptz)
@@ -284,7 +285,7 @@ export const MONITORING_QUESTIONS_QUERY = `
   ) a ON TRUE
   LEFT JOIN LATERAL (
     SELECT fb.sentiment, fb.usefulness, fb.comment
-    FROM player_insights.feedback fb
+    FROM ${APP_SCHEMA}.feedback fb
     WHERE fb.message_id = a.id AND fb.user_email = q.user_email
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
@@ -300,7 +301,7 @@ export const MONITORING_QUESTIONS_QUERY = `
  */
 export const MONITORING_LEDGER_QUERY = `
   SELECT terminal_message_id AS answer_id, state, terminal_code
-  FROM player_insights.runs
+  FROM ${APP_SCHEMA}.runs
   WHERE terminal_message_id = ANY($1::text[])
 `;
 
@@ -324,15 +325,15 @@ export const MONITORING_DETAIL_QUERY = `
                         THEN a.response_json->'sources' ELSE '[]'::jsonb END) s
            WHERE s->>'name' IS NOT NULL) AS sources,
          f.sentiment, f.usefulness, f.comment
-  FROM player_insights.messages q
-  JOIN player_insights.conversations c ON c.id = q.conversation_id
+  FROM ${APP_SCHEMA}.messages q
+  JOIN ${APP_SCHEMA}.conversations c ON c.id = q.conversation_id
   LEFT JOIN LATERAL (
     SELECT m.id, m.response_json, m.trace_id, m.execution_mode, m.execution_identity_verified
-    FROM player_insights.messages m
+    FROM ${APP_SCHEMA}.messages m
     WHERE m.conversation_id = q.conversation_id AND m.role = 'assistant'
       AND jsonb_typeof(m.response_json->'trace') = 'object'
       AND m.created_at >= q.created_at
-      AND (SELECT u.id FROM player_insights.messages u
+      AND (SELECT u.id FROM ${APP_SCHEMA}.messages u
             WHERE u.conversation_id = m.conversation_id AND u.role = 'user'
               AND u.content <> $2 AND u.created_at <= m.created_at
             ORDER BY u.created_at DESC LIMIT 1) = q.id
@@ -345,7 +346,7 @@ export const MONITORING_DETAIL_QUERY = `
   ) a ON TRUE
   LEFT JOIN LATERAL (
     SELECT fb.sentiment, fb.usefulness, fb.comment
-    FROM player_insights.feedback fb
+    FROM ${APP_SCHEMA}.feedback fb
     WHERE fb.message_id = a.id AND fb.user_email = c.user_email
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
@@ -355,8 +356,8 @@ export const MONITORING_DETAIL_QUERY = `
 /** When they were first and last seen, over all time rather than the range. */
 export const MONITORING_PERSON_SEEN_QUERY = `
   SELECT MIN(u.created_at) AS first_seen, MAX(u.created_at) AS last_seen
-  FROM player_insights.messages u
-  JOIN player_insights.conversations c ON c.id = u.conversation_id
+  FROM ${APP_SCHEMA}.messages u
+  JOIN ${APP_SCHEMA}.conversations c ON c.id = u.conversation_id
   WHERE u.role = 'user' AND u.content <> $1 AND c.user_email = $2
 `;
 

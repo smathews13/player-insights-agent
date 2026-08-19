@@ -57,6 +57,7 @@ import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { Card } from './ui';
 import { OAuthBadge } from './OAuthBadge';
+import { UserIdentityChip } from './UserIdentityChip';
 import { CopyButton, NOT_SET, StatusBadge } from './StatusBadge';
 import type { Identity } from './app-types';
 import { type AnalyticalExecution } from './analytical-execution';
@@ -267,6 +268,7 @@ export function IdentityCard({
   const orchestrator = identity?.servingPrincipal?.id ?? checkedAs ?? '';
   const observedAt = when(identity?.servingPrincipal?.observedAt);
   const runsAs = questionsRunAs(identity);
+  const runsAsPerson = identity?.analyticalExecution?.mode !== 'app_service_principal';
   const clientId = identity?.executionIdentity?.trim() ?? '';
   const session = identity?.session;
   const allMissing = session?.missingScopes ?? [];
@@ -308,7 +310,9 @@ export function IdentityCard({
                 one a sign-in it read presented. Both come from the same read. */}
             {runsAs ? (<Fact label="Questions run as">
                 <OAuthBadge identity={identity} />
-                <span className="identity-principal">{runsAs}</span>
+                {runsAsPerson
+                  ? <UserIdentityChip identity={runsAs} compact className="identity-principal" />
+                  : <span className="identity-principal">{runsAs}</span>}
               </Fact>
             ) : null}
             <Fact label="App client id">

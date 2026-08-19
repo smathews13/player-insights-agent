@@ -129,9 +129,12 @@ describe('the qualification ledger, rendered', () => {
     expect(prose).toContain('are not counted as failures');
   });
 
-  it('leads the identity row with the address the suite ran as', () => {
-    const prose = readable(ledgerMarkup('partial', CUT_SHORT));
-    expect(prose).toContain('This suite ran as reader@example.com');
+  it('leads the identity row with the shared user chip', () => {
+    const markup = ledgerMarkup('partial', CUT_SHORT);
+    const prose = readable(markup);
+    expect(prose).toContain('This suite ran as reader');
+    expect(markup).toContain('identity-chip identity-chip--compact');
+    expect(markup).not.toContain('>RE<');
     expect(prose).toContain('scores differently for readers with different access');
   });
 
@@ -173,7 +176,7 @@ describe('the qualification ledger, rendered', () => {
     expect(clean).not.toContain('Not every case produced an answer');
     // What a clean run still says, because these qualify a score that is real.
     expect(clean).toContain('Scored by a judge model');
-    expect(clean).toContain('This suite ran as reader@example.com');
+    expect(clean).toContain('This suite ran as reader');
 
     // No run selected at all: an empty ledger, not a ledger with empty rows in it.
     expect(ledgerMarkup('unknown', null)).toBe('');

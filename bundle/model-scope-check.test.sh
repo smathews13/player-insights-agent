@@ -93,11 +93,30 @@ check_says "configured and documented agree" 0 "scopes agree" \
 check_says "and agree with a logged model that baked exactly them" 0 "and logged scopes agree" \
   python3 "$GATE" --target "$TARGET" --logged "$(summary good.json "$GENIE" "$SQL" $VS)"
 
+# THE DIRECTORY THE GATE IS INVOKED FROM MUST NOT DECIDE WHETHER IT RUNS. Three of
+# the gate's four inputs are siblings of itself -- drift-check.py, scope-contract.py
+# and scope-contract.json -- and one is the repository root's databricks.yml, which
+# drift-check.py reaches through its own parent. Resolve any of those against the
+# current working directory instead of __file__ and the gate dies with
+# FileNotFoundError on a path that plainly exists, which reads as a missing file
+# rather than as a bug in the gate. It has always been anchored; nothing proved it,
+# so nothing would notice a later edit that un-anchored it. `/` and bundle/ are the
+# two ends of the range: one shares no prefix with the repository at all, the other
+# is the near miss where a `bundle/`-prefixed relative path resolves to
+# `bundle/bundle/`.
+for from in / "$HERE"; do
+  check_says "the gate resolves its siblings when invoked from $from" 0 "scopes agree" \
+    bash -c 'cd "$1" && exec python3 "$2" --target "$3"' _ "$from" "$GATE" "$TARGET"
+done
+
 printf '\n==> the logged leg: what the release actually baked\n'
-# shellcheck disable=SC2086
+# The VS pair, not the SQL scope: the warehouse id is not in the tracked file, so
+# the SQL scope is undecidable here and a logged model that omits it is not a
+# finding. The semantic index IS declared in the resource file, so the VS pair is
+# the scope this target really does ask for.
 check_says "a logged model missing a scope this target asks for fails" 1 \
   "will not carry the scope" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary short.json "$GENIE" $VS)"
+  python3 "$GATE" --target "$TARGET" --logged "$(summary short.json "$GENIE" "$SQL")"
 
 check_says "a logged model carrying a scope nothing asks for fails" 1 \
   "one more API the agent could be made to call" \
@@ -108,10 +127,35 @@ check_says "an empty baked scope list fails, and says where it would have failed
   python3 "$GATE" --target "$TARGET" --logged "$(summary empty.json)"
 
 printf '\n==> the configured leg: the target really is read\n'
-edit "$BUNDLE" "{\n      warehouse_id: }{\n      warehouse_id_was: }" && \
-  check_says "a target with no warehouse no longer asks for the SQL scope" 1 \
-    "is baked into the logged model and this target" \
-    python3 "$GATE" --target "$TARGET" --logged "$(summary good2.json "$GENIE" "$SQL")"
+# A WAREHOUSE THIS FILE CANNOT RESOLVE IS "CANNOT TELL FROM HERE", NOT "NO
+# WAREHOUSE" -- the Genie ids' rule, applied to the warehouse because it is the
+# same situation: the id names one workspace's warehouse and reaches a release
+# through variable-overrides.json or BUNDLE_VAR_warehouse_id, never through this
+# tracked file. Read as "no warehouse" it made the gate block a correct release,
+# claiming the SQL scope was baked and unasked-for. These two assertions are what
+# stops that reading coming back: an absent value and one still written as an
+# interpolation must BOTH pass a model that baked the scope.
+# shellcheck disable=SC2086
+check_says "an unresolvable warehouse leaves the SQL scope undecided, not unasked-for" 0 \
+  "$SQL: undecidable statically, and the logged model carries it" \
+  python3 "$GATE" --target "$TARGET" --logged "$(summary undecided.json "$GENIE" "$SQL" $VS)"
+
+# shellcheck disable=SC2086
+edit "$BUNDLE" "{\n  warehouse_id:\n    description:}{\n  warehouse_id:\n    default: \\\$\\{resources.sql_warehouses.demo.id\\}\n    description:}" && \
+  check_says "a warehouse still written as an interpolation is undecided too" 0 \
+    "$SQL: undecidable statically, and the logged model carries it" \
+    python3 "$GATE" --target "$TARGET" --logged "$(summary interp.json "$GENIE" "$SQL" $VS)"
+restore
+
+# THE REAL CHECK MUST STILL FIRE. Undecidable is only the unresolvable case: when
+# the file DOES carry a warehouse id, the SQL scope is asked for, and a logged
+# model that did not bake it is the failure this gate exists for -- the agent calls
+# the SQL API and the downscoped token does not carry the scope.
+# shellcheck disable=SC2086
+edit "$BUNDLE" "{\n  warehouse_id:\n    description:}{\n  warehouse_id:\n    default: abc123def4567890\n    description:}" && \
+  check_says "a resolvable warehouse whose scope the model did not bake still fails" 1 \
+    "will not carry the scope" \
+    python3 "$GATE" --target "$TARGET" --logged "$(summary mismatch.json "$GENIE" $VS)"
 restore
 
 # A target with no semantic layer must not be told it asks for the Vector Search
@@ -184,8 +228,8 @@ if (( FAIL )); then
   printf 'FAIL  %d of %d assertions failed.\n' "$FAIL" "$((PASS + FAIL))"
   exit 1
 fi
-if (( PASS < 15 )); then
-  printf 'FAIL  only %d assertions ran; this suite has 15. Something is being skipped.\n' "$PASS"
+if (( PASS < 20 )); then
+  printf 'FAIL  only %d assertions ran; this suite has 20. Something is being skipped.\n' "$PASS"
   exit 1
 fi
 printf 'PASS  %d assertions.\n' "$PASS"

@@ -70,7 +70,9 @@ function rows(over: Partial<RosterMutationPayload> & { entries: RosterEntry[] })
     recoveryStatement: over.recoveryStatement ?? '',
     access: over.access ?? [],
   };
-  return renderToStaticMarkup(<RosterRows payload={full} busy={false} onChange={() => {}} onRemove={() => {}} />);
+  return renderToStaticMarkup(
+    <RosterRows payload={full} access={full.access} busy={false} onChange={() => {}} onRemove={() => {}} />
+  );
 }
 
 describe('the row offers only what the server allows', () => {
@@ -102,6 +104,97 @@ describe('the row offers only what the server allows', () => {
     expect(rows({ entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'] })] })).toContain(
       `Role for ${ANALYST}`
     );
+  });
+});
+
+describe('the #24a roster row', () => {
+  it('marks the reader, seed origin, super role, and immutable row explicitly', () => {
+    const markup = rows({
+      entries: [
+        entry({
+          email: LEAD,
+          role: 'super_admin',
+          seedFloor: 'super_admin',
+          isYou: true,
+          assignable: [],
+          canRemove: false,
+        }),
+      ],
+    });
+    expect(text(markup)).toContain(`${LEAD} you Seed Super admin`);
+    expect(markup).toContain('title="Set at deployment. Edit the bundle variable to change it."');
+    expect(markup).toContain('roster-role-chip-super-admin');
+    expect(markup).toContain('roster-row-lock');
+  });
+
+  it('draws granted access as labelled Unity Catalog rows with full values and state chips', () => {
+    const markup = rows({
+      entries: [entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' })],
+      access: [
+        {
+          email: LEAD,
+          results: [
+            {
+              target: 'telemetry',
+              label: 'Telemetry schema',
+              state: 'already-held',
+              objects: [{ name: 'example_catalog.telemetry', kind: 'schema' }],
+              purpose: 'What the Ops health block reads.',
+              summary: '',
+              grant: null,
+              note: '',
+            },
+            {
+              target: 'billing',
+              label: 'Billing tables',
+              state: 'already-held',
+              objects: [
+                { name: 'system.billing.usage', kind: 'table' },
+                { name: 'system.billing.list_prices', kind: 'table' },
+              ],
+              purpose: 'What the Ops cost block reads.',
+              summary: '',
+              grant: null,
+              note: '',
+            },
+          ],
+        },
+      ],
+    });
+    expect(markup).toContain('brand-icon');
+    expect(markup).toContain('title="example_catalog.telemetry"');
+    expect(markup).toContain('system.billing.usage');
+    expect(text(markup)).toContain('system.billing.usage · system.billing.list_prices');
+    expect(markup.match(/admin-access-state-already-held/g) ?? []).toHaveLength(2);
+  });
+});
+
+describe('the #24a Roles geometry', () => {
+  const css = partial('settings.css');
+
+  it('uses the 820px settings column and compact bordered roster rows', () => {
+    expect(css).toMatch(/\.settings-page \{[^}]*max-width:\s*820px/);
+    expect(css).toMatch(/\.settings-page \{[^}]*padding:\s*24px 32px/);
+    expect(css).toMatch(/\.settings-page \[data-slot='card'\] \{[^}]*border-radius:\s*8px/);
+    expect(css).toMatch(/\.admin-row \{[^}]*border:\s*1px solid #ebebeb/);
+    expect(css).toMatch(/\.admin-row \{[^}]*border-radius:\s*var\(--radius-sm\)/);
+    expect(css).toMatch(/\.admin-row-email \{[^}]*font-family:\s*var\(--font-mono\)/);
+  });
+
+  it('locks the grant anatomy to label, UC icon, value, and state columns', () => {
+    expect(css).toMatch(
+      /\.admin-access-head \{[^}]*grid-template-columns:\s*118px 13px minmax\(0, 1fr\) auto/
+    );
+    expect(css).toMatch(/\.admin-row-access \{[^}]*padding:\s*8px/);
+    expect(css).toMatch(/\.admin-row-access \{[^}]*background:\s*#f7f7f7/);
+    expect(css).toMatch(/\.admin-access-object-name \{[^}]*text-overflow:\s*ellipsis/);
+  });
+
+  it('uses the positive recipe for Already held and 32px add controls', () => {
+    expect(css).toMatch(/\.admin-access-state-already-held \{[^}]*border-color:\s*#c5ddd9/);
+    expect(css).toMatch(/\.admin-access-state-already-held \{[^}]*background:\s*#f4f9f8/);
+    expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*height:\s*32px/);
+    expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*height:\s*32px/);
   });
 });
 
@@ -192,8 +285,19 @@ describe('the line above the roster', () => {
         ],
       })
     );
-    expect(summary).toContain('2 administrators, 1 of them super');
+    expect(summary).toContain('2 administrators, 1 super');
     expect(summary).toContain('3 people');
+  });
+
+  it('uses the exact singular summary and suppresses zero counts', () => {
+    const summary = rosterSummary(
+      payload({ entries: [entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' })] })
+    );
+    expect(summary).toBe('1 administrator, 1 super. 1 person on the roster.');
+
+    const consumerOnly = rosterSummary(payload({ entries: [entry({ email: ANALYST, role: 'consumer' })] }));
+    expect(consumerOnly).toBe('1 person on the roster.');
+    expect(consumerOnly).not.toContain('0');
   });
 });
 

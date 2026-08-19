@@ -290,9 +290,7 @@ describe('which subjects a deployment has at all', () => {
     expect(paths.schema).toBe('/api/2.1/unity-catalog/schemas/a_catalog.a_schema');
     expect(paths['llm-endpoint']).toBe('/api/2.0/serving-endpoints/a-model');
     expect(paths['judge-endpoint']).toBe('/api/2.0/serving-endpoints/a-judge');
-    expect(paths['semantic-index']).toBe(
-      '/api/2.0/vector-search/indexes/a_catalog.a_schema.an_index',
-    );
+    expect(paths['semantic-index']).toBe('/api/2.0/vector-search/indexes/a_catalog.a_schema.an_index');
   });
 });
 
@@ -441,9 +439,7 @@ describe('the remedy a refused Vector Search row hands over', () => {
   it('grants SELECT on the index rather than reading it back', () => {
     const remedy = subjectFor('semantic-index').grant?.('someone@example.com');
     expect(remedy?.kind).toBe('sql');
-    expect(remedy?.statement).toBe(
-      'GRANT SELECT ON TABLE a_catalog.a_schema.an_index TO `someone@example.com`;',
-    );
+    expect(remedy?.statement).toBe('GRANT SELECT ON TABLE a_catalog.a_schema.an_index TO `someone@example.com`;');
     // An index is a Unity Catalog securable of type TABLE, so it is hidden from
     // a caller who cannot traverse to it and the single statement leaves the row
     // red. Same trap, and same sentence, as the declared tables.
@@ -470,7 +466,7 @@ describe('the remedy a refused Vector Search row hands over', () => {
     expect(remedy?.kind).toBe('cli');
     // The id, not the name: the permissions API rejects the name outright.
     expect(remedy?.statement).toContain(
-      'databricks permissions update vector-search-endpoints 00000000-0000-4000-8000-000000000000',
+      'databricks permissions update vector-search-endpoints 00000000-0000-4000-8000-000000000000'
     );
     expect(remedy?.statement).toContain('"permission_level":"CAN_USE"');
     expect(remedy?.statement).toContain('someone@example.com');
@@ -659,7 +655,10 @@ describe('whether the index answered is not whether its content is current', () 
   it('reads a continuous pipeline the same way, since only the block name differs', async () => {
     const check = await indexCheck({
       ...ONLINE,
-      status: { ...ONLINE.status, continuous_update_status: { last_processed_commit_timestamp: '2026-08-14T02:00:00Z' } },
+      status: {
+        ...ONLINE.status,
+        continuous_update_status: { last_processed_commit_timestamp: '2026-08-14T02:00:00Z' },
+      },
     });
     expect(check?.content_at).toBe('2026-08-14T02:00:00Z');
   });
@@ -713,6 +712,7 @@ describe('whether the index answered is not whether its content is current', () 
     });
     const warehouse = checks.find((entry) => entry.id === 'sql-warehouse');
     expect(warehouse?.status).toBe('ok');
+    expect(warehouse?.display_name).toBe('A warehouse');
     expect(warehouse?.content_at ?? '').toBe('');
     expect(warehouse?.detail).not.toContain('content from its source');
   });
@@ -794,16 +794,10 @@ describe('the one row that stands for the whole table list', () => {
    * one.
    */
   it('names no permission when the tables did not agree on one', () => {
-    const mixed = withManifestRollup([
-      refusedTable('a', 'catalog.tables:read'),
-      table('b', 'unverified'),
-    ]);
+    const mixed = withManifestRollup([refusedTable('a', 'catalog.tables:read'), table('b', 'unverified')]);
     expect(mixed.find((check) => check.id === 'declared-manifest')?.scope ?? '').toBe('');
 
-    const someAnswered = withManifestRollup([
-      refusedTable('a', 'catalog.tables:read'),
-      table('b', 'ok'),
-    ]);
+    const someAnswered = withManifestRollup([refusedTable('a', 'catalog.tables:read'), table('b', 'ok')]);
     expect(someAnswered.find((check) => check.id === 'declared-manifest')?.scope ?? '').toBe('');
   });
 
@@ -813,10 +807,7 @@ describe('the one row that stands for the whole table list', () => {
    * the scope off this row would hide a real finding.
    */
   it('names no permission when any table failed outright', () => {
-    const rolled = withManifestRollup([
-      refusedTable('a', 'catalog.tables:read'),
-      table('b', 'failed'),
-    ]);
+    const rolled = withManifestRollup([refusedTable('a', 'catalog.tables:read'), table('b', 'failed')]);
     const manifest = rolled.find((check) => check.id === 'declared-manifest');
     expect(manifest?.status).toBe('failed');
     expect(manifest?.scope ?? '').toBe('');
@@ -850,7 +841,13 @@ describe('telling three kinds of 403 apart', () => {
   const SCOPE_REFUSAL = 'Provided OAuth token does not have required scopes: vector-search [Reqid: abc123]';
 
   /** The three catalog scopes, which is what the live deployment declares. */
-  const DECLARES_CATALOG = ['sql', 'dashboards.genie', 'catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read'];
+  const DECLARES_CATALOG = [
+    'sql',
+    'dashboards.genie',
+    'catalog.catalogs:read',
+    'catalog.schemas:read',
+    'catalog.tables:read',
+  ];
 
   /**
    * WHICH OF THE TWO IT IS COMES FROM THE DECLARED LIST.
@@ -1178,7 +1175,7 @@ describe('telling three kinds of 403 apart', () => {
   it('prints no GRANT anywhere on a page refused entirely for scopes', async () => {
     const everything = subjects({ tables: ['a_catalog.a_schema.a_table'] });
     const refused = Object.fromEntries(
-      everything.map((subject) => [subject.path, { status: 403, body: { message: SCOPE_REFUSAL } }]),
+      everything.map((subject) => [subject.path, { status: 403, body: { message: SCOPE_REFUSAL } }])
     );
     const checks = await probeConnections({
       configured: CONFIGURED,
@@ -1268,9 +1265,7 @@ describe('the scope each probe needs', () => {
 
   it('takes the most specific family, so a general prefix cannot swallow a narrower one', () => {
     expect(scopeForPath('/api/2.1/unity-catalog/tables/a.b.c')).toBe('catalog.tables:read');
-    expect(scopeForPath('/api/2.0/vector-search/indexes/a.b.c')).toBe(
-      'vectorsearch.vector-search-indexes:read',
-    );
+    expect(scopeForPath('/api/2.0/vector-search/indexes/a.b.c')).toBe('vectorsearch.vector-search-indexes:read');
     expect(scopeForPath('/api/2.0/sql/warehouses/wh-1')).toBe('sql');
   });
 
@@ -1303,7 +1298,7 @@ describe('what a token\u2019s scope list does and does not establish', () => {
     // The OIDC scopes every forwarded token carries are not an API vocabulary,
     // so their presence must not stand the inference down for everything.
     expect(tokenScopeVerdict(['sql', 'openid', 'profile', 'email', 'offline_access'], 'catalog.tables:read')).toBe(
-      false,
+      false
     );
   });
 

@@ -648,6 +648,8 @@ export interface BenchmarkQualification {
    */
   tone: 'info' | 'identity' | 'danger';
   lead: string;
+  /** A human identity rendered by the shared user chip rather than folded into prose. */
+  identity?: string;
   sentence: string;
 }
 
@@ -725,13 +727,18 @@ export function benchmarkQualifications(summary: BenchmarkSummary): BenchmarkQua
     }
     if (!text) return [];
     if (field === 'executedAsNote') {
-      // The address in the lead, because it is the first thing a reader
-      // comparing two runs needs and the last thing they find in a paragraph.
+      const identity =
+        summary.executedAsIdentity?.includes('@') ? summary.executedAsIdentity : undefined;
       return [
         {
           field,
           tone,
-          lead: summary.executedAsIdentity ? `This suite ran as ${summary.executedAsIdentity}` : lead,
+          lead: identity
+            ? 'This suite ran as'
+            : summary.executedAsIdentity
+              ? `This suite ran as ${summary.executedAsIdentity}`
+              : lead,
+          identity,
           sentence: text,
         },
       ];

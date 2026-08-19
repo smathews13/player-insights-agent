@@ -510,6 +510,7 @@ interface RunTraceResponse {
   takeaway?: string;
   narrative?: string;
   sql?: string;
+  charts?: { id?: string; title?: string; kind?: string; data?: unknown[]; layout?: Record<string, unknown> }[];
   sources?: { name?: string }[];
   trace?: { id?: string; totalMs?: number; toolCalls?: number; stages?: Record<string, unknown>[] } | null;
   toolStages?: { id?: string; name?: string; durationMs?: number; arguments?: string; result?: string }[];
@@ -1811,6 +1812,9 @@ describe('Plotly charts on the answer contract', () => {
           executePlan: true,
         })
       ).id as string;
+      const trace = await app.runTrace(answeredId);
+      expect(trace.status).toBe(200);
+      expect(trace.body.charts).toEqual(specs);
     } finally {
       await app.close();
     }
@@ -1906,7 +1910,7 @@ describe('identity and benchmark records', () => {
     // with no identity was indistinguishable from that person signing in.
     expect(payload.signedInAs).toBe(DEVELOPMENT_IDENTITY);
     expect(payload.identitySource).toBe('development-fallback');
-    expect(payload.signedInAs).not.toContain('@databricks.com');
+    expect(payload.signedInAs).not.toContain('@example.com');
   });
 
   it('falls back to a readable execution identity when the client id is absent', () => {

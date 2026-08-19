@@ -104,8 +104,14 @@ export function parseCatalogDenylist(configured: string): string[] {
   return splitConfiguredList(configured);
 }
 
-/** Comma-separated segments, trimmed, empties dropped. */
-function splitConfiguredList(configured: string): string[] {
+/**
+ * Comma-separated segments, trimmed, empties dropped.
+ *
+ * Exported because the pickers write these values as well as read them: adding
+ * one entry to `data_catalogs` means splitting what is there, and a picker that
+ * split it its own way would be a second reading of the same string.
+ */
+export function splitConfiguredList(configured: string): string[] {
   if (!configured.trim()) return [];
   const parts: string[] = [];
   for (const segment of configured.split(',')) {

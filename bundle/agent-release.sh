@@ -201,10 +201,20 @@ note "semantic index        ${SEMANTIC_INDEX:-(none)}  ($SEMANTIC_INDEX_ORIGIN)"
 # whether the data behind an answer is real or generated.
 # Printed on every run, on or off, because "which identity did that answer run
 # as" is the question this release changes and it should never be inferred.
-note "execution identity    user-authorization, always: Genie and SQL run as"
-note "                      whoever invoked the endpoint, not as the passthrough"
-note "                      principal. That is the CALLING APPLICATION's identity"
-note "                      unless the app forwards the end user's token."
+#
+# IDENTITY SPLIT (do not re-introduce an app-SP UC data gate here):
+#   signed-in user  -- governed UC / Genie / SQL reads (execution_identity:
+#                     user-authorization; the user's token)
+#   app SP          -- app-owned Lakebase operational storage and non-data
+#                     control-plane work only. Lakebase grants are checked after
+#                     app creation (app-release / grant-app-db-access), not here.
+# Asking Unity Catalog what the app SP can SELECT was wrong for this model: the
+# deployer does not need READ_METADATA on customer catalogs merely to inspect
+# the SP, and a fresh agent release must not require an app to exist first.
+note "execution identity    user-authorization: governed UC/Genie/SQL run as"
+note "                      the signed-in user. The app service principal is for"
+note "                      Lakebase operational storage and control-plane work,"
+note "                      not customer-data reads."
 # Printed on every run for the same reason as the identity above: "why did that
 # answer show a figure with no source" and "why did that chart refuse" are both
 # this setting, and neither should have to be inferred from memory.
@@ -231,104 +241,6 @@ fi
 # failure it exists for was a synthetic-data setting that survived the instruction to
 # remove it three times while being printed in this very readout on every run.
 decisions_gate || exit $?
-
-# WHAT THE APP'S OWN IDENTITY CAN REACH, asked of Unity Catalog rather than of
-# the grant we think we made. HERE, in the re-log, because a re-log is when the
-# agent's data access changes: it bakes the catalog, the schema, the manifest
-# source and the execution-identity setting into the artifact, and it is the
-# release that decides how many tables the serving principal is granted SELECT
-# on. The app deploy ships a front end; this ships the thing that reads data.
-#
-# THE CLAIM BEING RE-PROVED. The agent reads governed tables AS THE SIGNED-IN
-# CALLER, never as itself, and agent/execution_identity.py refuses before the
-# model call when the identity does not match. That is a promise about a
-# capability, and a promise about a capability is worth what a release checks.
-#
-# BLOCKING, AND NO FLAG PAST IT, for decisions_gate's reason directly above:
-# every other gate here asks about the world and can honestly be answered "I
-# know, proceed". This one asks whether the identity we ship can reach data the
-# design says it cannot, and "I know" is exactly the answer that should stop a
-# release rather than continue one. An exception belongs in
-# sp-data-access-exceptions.json, with a reason, an owner and a review date that
-# expires -- not in a flag on this line, which expires never.
-#
-# EXIT 2 BLOCKS TOO. No credentials, no network, a renamed app, an API that
-# answered something other than JSON: none of those are "the service principal
-# cannot reach the data", and treating them as one is how this repository has
-# repeatedly shipped a check that could not fail. The two are separated so the
-# operator is told which happened, not so that one of them can be waved through.
-step "What the app service principal can reach (target: $TARGET)"
-SP_ASSERT="$BUNDLE_ROOT/bundle/assert-sp-no-data-select.py"
-SP_APP_NAME="$(bundle_var app_name 2>/dev/null)" || SP_APP_NAME=""
-
-if [[ ! -f "$SP_ASSERT" ]]; then
-  # NOT a skip. A missing checker is the cheapest possible way to turn a gate
-  # off, and it leaves no trace in a release log that anybody re-reads.
-  #
-  # PUBLICATION NOTE: bundle/scope-contract.* is excluded from the public mirror
-  # and bundle/app-release.sh tolerates its absence by design. This file is NOT
-  # excluded today. If it is ever added to mirror/publish-exclude.txt, this
-  # script has to be excluded with it or adjusted in the same change, or every
-  # agent release in a published tree stops here.
-  die "bundle/assert-sp-no-data-select.py is missing, so what this deployment's
-service principal can reach was not established.
-
-This gate is not optional and a missing checker is not a pass. Restore the file
-(git restore bundle/assert-sp-no-data-select.py) and re-run."
-fi
-
-if [[ -z "$SP_APP_NAME" ]]; then
-  die "This target declares no app_name, so there is no app service principal to
-ask Unity Catalog about, and the claim this release makes about data access
-cannot be checked.
-
-Set app_name for target '$TARGET' in databricks.yml."
-fi
-
-DATA_SCOPES=()
-while IFS= read -r scope; do DATA_SCOPES+=("$scope"); done < <(bundle_data_schema_scopes)
-[[ "${#DATA_SCOPES[@]}" -gt 0 ]] || die "data_catalogs resolved to no concrete schemas."
-for scope in "${DATA_SCOPES[@]}"; do
-  DATA_CATALOG="${scope%%.*}"
-  DATA_SCHEMA="${scope#*.}"
-  SP_STATUS=0
-  python3 "$SP_ASSERT" \
-    --app "$SP_APP_NAME" \
-    --catalog "$DATA_CATALOG" \
-    --schema "$DATA_SCHEMA" \
-    --profile "$PROFILE" || SP_STATUS=$?
-
-  case "$SP_STATUS" in
-    0) : ;;
-    1)
-      die "The app service principal can reach governed data in $scope, and this
-release would bake that deployment's configuration into a new model version.
-
-Read the FINDING lines above. Each names the privilege, the principal holding it
-and the securable it was granted ON -- which is the triple somebody has to go and
-change. A finding reached through a GROUP is not closed by revoking the service
-principal's own grant.
-
-Close it, or record it in bundle/sp-data-access-exceptions.json with a reason, an
-owner and a review date. Do not widen READ_PRIVILEGES and do not add a wildcard:
-both make the check agree with the thing it was written to find."
-      ;;
-    2)
-      die "The app service principal's data access to $scope COULD NOT BE ESTABLISHED, so this
-release does not know what the identity it is about can reach.
-
-Read the COULD NOT RUN line above. This is not a finding and it is not a pass --
-the question was never answered. Usually it is the profile: this gate talks to
-the workspace as '$PROFILE'. Check that profile can read
-$scope and that app '$SP_APP_NAME' exists there."
-      ;;
-    *)
-      die "bundle/assert-sp-no-data-select.py exited $SP_STATUS, which it has no
-documented meaning for. Treat the app service principal's data access as unknown
-and read the output above before releasing."
-      ;;
-  esac
-done
 
 # These reach `log_model.py`, which resolves them into Settings and BAKES them
 # into the model artifact (mlflow model_config). That is the only way they reach
@@ -818,6 +730,65 @@ smoke-test yet, because the answers would come from the previous version."
 done
 echo "  ok, version $MODEL_VERSION is taking traffic"
 
+# --- The model half of the on-behalf-of-user wiring ---------------------------
+#
+# A customer's deployment failed on the FIRST question anyone asked, with an HTTP
+# 400 carrying the SDK's `model_serving_user_credentials auth: Unable to
+# authenticate using user_credentials` and nothing else. Model Serving had no user
+# credential to hand the container. Nothing was wrong with the app, the data, the
+# grants or Lakebase; the wiring around the model was wrong, and the first person
+# to notice was a customer asking a question.
+#
+# HERE RATHER THAN BEFORE THE DEPLOY, because the claim is about the version that
+# is ACTUALLY TAKING TRAFFIC, which the loop above has just established and which
+# nothing earlier can. The policy itself is fixed at log time, so this cannot fail
+# because of anything the deploy did -- when it fails, it is telling you that the
+# thing now in front of people cannot answer, and it is better to hear that here
+# than from a customer.
+#
+# Exit 2 blocks as well as exit 1, for the reason the scope gate a hundred lines
+# up gives: "the question was never answered" is not "the answer was yes".
+if [[ -n "$LOG_SUMMARY" ]]; then
+  step "The served version's user auth policy"
+  USER_AUTH_CHECK="$BUNDLE_ROOT/bundle/model-user-auth-check.py"
+  [[ -f "$USER_AUTH_CHECK" ]] || die "bundle/model-user-auth-check.py is missing, so nothing confirmed that version
+$MODEL_VERSION can act as the person asking. A missing checker is not a pass:
+  git restore bundle/model-user-auth-check.py"
+  USER_AUTH_STATUS=0
+  # Under the agent's environment: it reads the registered version's MLmodel with
+  # MLflow's own reader rather than parsing YAML a second way.
+  (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python "$USER_AUTH_CHECK" \
+    --logged "$LOG_SUMMARY" --registered \
+    --user-authorization "$USER_AUTHORIZATION") || USER_AUTH_STATUS=$?
+  case "$USER_AUTH_STATUS" in
+    0) : ;;
+    1)
+      die "Version $MODEL_VERSION is serving on $ENDPOINT and cannot act as the person asking.
+Read the FAIL lines above. This is the fault that reaches a user as an HTTP 400 on
+their first question, and no restart, re-grant or data change can write it: the
+policy is decided when the model is logged. Re-run this script to log and deploy a
+new version, or roll $ENDPOINT back to the previous one at
+$HOST/ml/endpoints/$ENDPOINT/ while you do."
+      ;;
+    2)
+      die "The user auth policy on version $MODEL_VERSION was not established either way.
+Read the COULD NOT RUN line above: it is not a finding and it is not a pass. The
+version IS deployed and IS taking traffic, so decide from the output whether to
+roll back before anyone asks it a question."
+      ;;
+    *)
+      die "bundle/model-user-auth-check.py exited $USER_AUTH_STATUS, which it has no documented
+meaning for. Treat version $MODEL_VERSION's ability to run as the caller as unknown."
+      ;;
+  esac
+else
+  step "The served version's user auth policy: NOT CHECKED (--skip-log)"
+  note "This run deployed version $MODEL_VERSION without logging it, so there is no release
+  summary to check it against. The run that logged it checked it. If that run
+  predates this gate, check it by hand:
+    (cd agent && uv run --python 3.13 python ../bundle/model-user-auth-check.py --help)"
+fi
+
 # --- Take the superseded entities away ---------------------------------------
 #
 # The deploy above ADDED a served entity. Nothing here ever took one away, so
@@ -856,4 +827,28 @@ else
   "$BUNDLE_ROOT/bundle/prune-served-entities.py" \
     --endpoint "$ENDPOINT" --profile "$PROFILE" \
     --keep-rollbacks "$ROLLBACKS_KEPT" || true
+fi
+
+# Machine-readable handoff for callers such as the approved notebook helper.
+# Human output is unchanged, and the file appears only after traffic and the
+# post-traffic user-auth gate have succeeded.
+if [[ -n "${PLAYER_INSIGHTS_RELEASE_RESULT_JSON:-}" ]]; then
+  RESULT_TMP="${PLAYER_INSIGHTS_RELEASE_RESULT_JSON}.tmp.$$"
+  MODEL_VERSION="$MODEL_VERSION" ENDPOINT="$ENDPOINT" python3 - "$RESULT_TMP" <<'PY'
+import json
+import os
+import sys
+
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "status": "succeeded",
+            "model_version": os.environ["MODEL_VERSION"],
+            "endpoint": os.environ["ENDPOINT"],
+        },
+        handle,
+    )
+    handle.write("\n")
+PY
+  mv "$RESULT_TMP" "$PLAYER_INSIGHTS_RELEASE_RESULT_JSON"
 fi

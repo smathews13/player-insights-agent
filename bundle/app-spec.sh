@@ -38,14 +38,21 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 APPLY=false
-ALLOW_MISSING_ENDPOINT=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --apply) APPLY=true ;;
-    --allow-missing-endpoint) ALLOW_MISSING_ENDPOINT=true ;;
+    --allow-missing-endpoint)
+      die "--allow-missing-endpoint was removed.
+
+That flag existed so an app shell could be attached to a serving endpoint that
+did not exist yet, solely to mint the app service principal before a model
+release. The SP Unity Catalog data gate that needed that principal is gone;
+governed reads run as the signed-in user. Create the endpoint with
+bundle/agent-release.sh first, then create or update the app. There is no
+escape hatch past a missing endpoint any more." ;;
     *) die "unknown argument: $1
 
-  TARGET=<target> bundle/app-spec.sh [--apply] [--allow-missing-endpoint]" ;;
+  TARGET=<target> bundle/app-spec.sh [--apply]" ;;
   esac
   shift
 done
@@ -113,15 +120,18 @@ REQUIRED_SCOPES = {
     "sql",
     # Lets the gate ask whether a Genie space is shared with the signed-in user.
     "dashboards.genie",
-    # DELIBERATELY NOT THE `catalog.*` AND `vectorsearch.*` SCOPES, which example
-    # also declares for the Connections and Architecture probes. This set is the
-    # floor for EVERY target, and those five are set per target, so requiring
-    # them here would fail a target that has not adopted them. They are still
-    # sent: the
-    # spec below is generated from the resolved bundle, so whatever the target
-    # declares is what goes. The test that holds them is
-    # server/lib/user-api-scopes.test.ts, which checks them against the APIs the
-    # probes call rather than against a list somebody has to remember to update.
+    # DELIBERATELY NOT THE `catalog.*`, `workspace.*` AND `vectorsearch.*`
+    # SCOPES. This set is the hard floor for EVERY target -- a recovery aborts
+    # without one -- so it holds only scopes whose absence is unrecoverable. The
+    # catalog, workspace and Vector Search browse scopes are in the SHARED
+    # DEFAULT (Sam 2026-08-18: VS joined catalog/workspace so they are not
+    # example-only) and every target requests them, but they are OPTIONAL for the
+    # login gate: a workspace that cannot issue one must not abort a recovery,
+    # so they stay out of this floor. All of them are still SENT: the spec below
+    # is generated from the resolved bundle, so whatever the target declares is
+    # what goes. The tests that hold them are server/lib/user-api-scopes.test.ts,
+    # which pins the shared default against the APIs the probes call, rather
+    # than a list somebody has to remember to update.
 }
 
 bundle = json.load(sys.stdin)
@@ -264,10 +274,8 @@ another. Use the profile for the target's own workspace."
 fi
 note "host            $PROFILE_HOST"
 
-# The load-bearing one. Our Lakebase project does not exist in a customer's
-# workspace, so a spec carrying it cannot be applied there, which is the failure
-# the checked-in file made possible, now structurally refused rather than warned
-# about.
+# Lakebase is provisioned outside this bundle and named by id; a spec carrying
+# another account's project id must not be applied here.
 HERE="$(databricks postgres list-projects --profile "$PROFILE" -o json 2>/dev/null | python3 -c "
 import json,sys
 try:
@@ -283,30 +291,29 @@ this workspace.
 
 This is the check that stops one account's app being attached to another
 account's database. Either the target's lakebase_project_id is wrong, or the
-bundle has not been deployed into this workspace yet. Deploy first, so the
-project exists, and run this afterwards."
+Lakebase project has not been provisioned in this workspace yet. Create the
+project outside the bundle, set lakebase_project_id to its id, and run this
+afterwards."
 fi
 note "lakebase        $LAKEBASE_PROJECT exists here"
 
-# Attaching an endpoint that does not exist is the forward-reference case the
-# two-pass deploy avoids. It is legitimate exactly once, during bootstrap, and
-# never during a recovery, so it needs a flag rather than a warning.
+# Apps.Create and apps update both refuse (or attach to nothing) when the named
+# endpoint is missing. The endpoint is created by agent-release.sh; run that
+# before creating or recovering the app. There is deliberately no flag past this:
+# the old --allow-missing-endpoint path existed only to mint an app SP for a
+# Unity Catalog data gate that no longer runs.
 if databricks serving-endpoints get "$ENDPOINT_NAME" --profile "$PROFILE" >/dev/null 2>&1; then
   note "endpoint        $ENDPOINT_NAME exists here"
-elif [[ "$ALLOW_MISSING_ENDPOINT" == true ]]; then
-  note "endpoint        $ENDPOINT_NAME DOES NOT EXIST: proceeding on --allow-missing-endpoint"
 else
   die "the spec attaches serving endpoint '$ENDPOINT_NAME', which does not exist in
 this workspace.
 
-The endpoint is created by bundle/agent-release.sh, not by the bundle, so on a
-fresh workspace it legitimately does not exist yet. If that is where you are,
-say so:
-  TARGET=$TARGET bundle/app-spec.sh --apply --allow-missing-endpoint
+Create it first:
+  TARGET=$TARGET bundle/agent-release.sh --apply
 
-Otherwise the endpoint name is wrong, and applying this would leave the app
-attached to nothing: starting cleanly, returning HTTP 200, and answering every
-question from representative data."
+Then re-run this. Applying a recovery against a missing endpoint would leave the
+app attached to nothing: starting cleanly, returning HTTP 200, and answering
+every question from representative data."
 fi
 
 # --- Apply -------------------------------------------------------------------
@@ -333,12 +340,12 @@ if missing:
 
 cat <<'EOF'
 
-Done. Two things this did NOT do, and both matter:
+Done. Two things this recovery command did NOT do, and both matter:
 
-  1. Postgres grants are not restored by this. If the `postgres` resource had
-     been detached, its role was DROPPED and the reattach made a new one with
-     nothing granted to it. Re-run the grants:
-       cd player-insights-agent && node scripts/grant-app-db-access.mjs
+  1. Postgres grants are not restored by app-spec.sh. The canonical app release
+     applies them automatically. If this recovery reattached `postgres` and no
+     full release is needed, use the same target-aware hook, then restart:
+       TARGET=<target> PROFILE=<profile> bundle/app-db-grant.sh
   2. Adding a user_api_scope needs a full app stop and start to take effect. A
      redeploy leaves it inert.
 

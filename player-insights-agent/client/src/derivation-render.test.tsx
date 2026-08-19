@@ -52,7 +52,7 @@ function text(markup: string): string {
 
 /** A label and the value drawn beside it, as the markup pairs them. */
 function fact(label: string, value: string): string {
-  return `<em>${label}</em><b>${value}</b>`;
+  return `<strong class="derivation-label">${label}</strong><code class="derivation-value">${value}</code>`;
 }
 
 /**
@@ -102,8 +102,8 @@ describe('the facts the block states', () => {
       derivation({ metric: 'net_bookings', window: '2025-01-01 → 2025-03-31', filter: 'platform = xbox' }),
     ]);
 
-    // <em> for the word that is the same on every answer, <b> for the fragment of
-    // this run's statement, adjacent so the label reads as belonging to the value.
+    // A distinct strong label for the word repeated across answers, followed by a
+    // code value for the fragment of this run's statement.
     expect(markup).toContain(fact('Metric', 'net_bookings'));
     expect(markup).toContain(fact('Window', '2025-01-01 → 2025-03-31'));
     expect(markup).toContain(fact('Filter', 'platform = xbox'));
@@ -127,8 +127,8 @@ describe('the facts the block states', () => {
     const markup = renderModule([derivation({ metric: 'active_players' })]);
 
     expect(markup).toContain(fact('Metric', 'active_players'));
-    expect(markup).not.toContain('<em>Window</em>');
-    expect(markup).not.toContain('<em>Filter</em>');
+    expect(markup).not.toContain('class="derivation-label">Window</strong>');
+    expect(markup).not.toContain('class="derivation-label">Filter</strong>');
     expect(text(strips(markup))).not.toMatch(/all time|no filter|unknown|not recorded/i);
   });
 
@@ -177,18 +177,36 @@ describe('what it refuses to draw', () => {
     const markup = renderModule([derivation({ metric: 'net_bookings' })], [TABLE]);
 
     expect(text(markup).match(new RegExp(TABLE.replace(/\./g, '\\.'), 'g'))).toHaveLength(1);
-    expect(markup).not.toContain('<em>Source</em>');
+    expect(markup).not.toContain('class="derivation-label">Source</strong>');
   });
 
   it('names the table on an answer that read several, where the question is real', () => {
     const markup = renderModule([derivation({ metric: 'net_bookings', source: SECOND })], [TABLE, SECOND]);
 
-    expect(markup).toContain('<em>Source</em>');
+    expect(markup).toContain('class="derivation-label">Source</strong>');
     // Linked through the same component the row above uses, so the name in the
     // strip is the name a reader can paste into a query and a link to this app's
     // own entry for the table.
     expect(text(markup).match(new RegExp(SECOND.replace(/\./g, '\\.'), 'g'))).toHaveLength(2);
     expect(markup).toContain('derivation-source');
+  });
+
+  it('uses the same table-name pill treatment in source rows and provenance rows', () => {
+    const markup = renderModule(
+      [derivation({ metric: 'net_bookings', source: SECOND, filter: 'platform = xbox' })],
+      [TABLE, SECOND],
+    );
+
+    expect(markup.match(/class="sources-row-name source-name-pill"/g)).toHaveLength(2);
+    expect(markup).toContain(
+      'class="derivation-value derivation-source source-name-pill" data-tone="neutral"',
+    );
+    expect(markup).toContain('class="source-name-short">gold_title_daily_summary</span>');
+    expect(markup).toContain(
+      '<strong class="derivation-label">Filter</strong><code class="derivation-value">platform = xbox</code>',
+    );
+    expect(markup).toContain('class="derivation-label">Metric</strong>');
+    expect(markup).toContain('class="derivation-label">Source</strong>');
   });
 
   it('explains itself nowhere: no sentence, no heading of its own', () => {

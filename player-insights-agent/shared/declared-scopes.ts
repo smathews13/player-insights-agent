@@ -17,11 +17,11 @@ export const DECLARED_SCOPES_VAR = 'PLAYER_INSIGHTS_USER_API_SCOPES';
  *
  * NULL IS NOT AN EMPTY LIST. Unset means this build does not know what it asks
  * for, and the honest report of that is `undetermined`; an empty list would mean
- * it asks for nothing, which would make every session look current. A customer
- * target declares four scopes and the demo target declares nine, so this cannot
- * be a constant in the source: a literal list would tell every user of the
- * four-scope deployment that their sign-in is missing five permissions the app
- * never asked for.
+ * it asks for nothing, which would make every session look current. The scope
+ * list is target-layered -- the shared default a customer/T2 target inherits and
+ * the example override carry different sets -- so this cannot be a constant in the
+ * source: a literal list would tell a reader of one deployment that their
+ * sign-in is missing permissions the app never asked for on theirs.
  */
 export function declaredUserApiScopes(env: NodeJS.ProcessEnv = process.env): string[] | null {
   const raw = (env[DECLARED_SCOPES_VAR] ?? '').trim();

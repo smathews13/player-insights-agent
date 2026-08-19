@@ -1607,16 +1607,54 @@ def test_every_declared_target_asks_questions_as_the_person_who_asked_them():
         )
 
 
-def test_the_genie_spaces_take_their_tables_from_bundle_variables():
-    """Customer data tables must not be hardcoded into resource definitions."""
+def test_the_bundle_declares_no_genie_space_and_no_lakebase_resource():
+    """The bundle ATTACHES to existing Genie spaces and Lakebase; it creates neither.
 
-    resources = Path(__file__).resolve().parents[2] / "resources"
-    for name, variable in (
-        ("player_insights_data.genie_space.yml", "data_genie_tables"),
-        ("player_insights_dictionary.genie_space.yml", "dictionary_genie_tables"),
-    ):
-        source = (resources / name).read_text()
-        assert f"${{var.{variable}}}" in source
+    Asserted as the absence of the resource files, because `include:
+    resources/*.yml` is what turns one of them into a bundle-managed resource.
+    A Genie space declared there is overwritten wholesale on deploy -- curated
+    tables and instructions both -- and a Lakebase project/branch/database
+    declared there is created, owned, and destroyed with the bundle.
+
+    This replaces a test that asserted the two spaces took their table lists from
+    bundle variables. That was the right check for a bundle that populated the
+    spaces. This one is the right check for a bundle that must not.
+
+    The curated reference bodies still exist, under genie/, which is deliberately
+    not part of `include:`.
+    """
+
+    root = Path(__file__).resolve().parents[2]
+    spaces = sorted(p.name for p in (root / "resources").glob("*.genie_space.yml"))
+    assert spaces == [], (
+        f"resources/ declares Genie spaces again ({spaces}), so a deploy would "
+        "overwrite the live spaces. Attach by genie_data_space_id instead."
+    )
+    postgres = sorted(p.name for p in (root / "resources").glob("*.postgres.yml"))
+    assert postgres == [], (
+        f"resources/ declares Lakebase resources again ({postgres}), so a deploy "
+        "would create and own the project, branch and database. Attach with the "
+        "app's `postgres` resource binding instead."
+    )
+
+
+def test_no_lakebase_owner_role_variable_survives():
+    """Nothing may reintroduce an owner role: only creating a database needed one.
+
+    SKIPPED WHERE THE VARIABLES ARE NOT DECLARED, matching the tests above: the
+    published tree strips them.
+    """
+
+    bundle = yaml.safe_load((Path(__file__).resolve().parents[2] / "databricks.yml").read_text())
+    variables = bundle.get("variables") or {}
+    if not variables:
+        pytest.skip("this databricks.yml declares no variables")
+    for name in ("lakebase_owner_role_id", "postgres_owner_role_name"):
+        assert name not in variables, (
+            f"{name} is back. A database owner role is an input to CREATING a "
+            "database, and this bundle attaches to one that exists. Reintroducing "
+            "it puts a personal role id into a customer-facing deployment input."
+        )
 
 
 # ---------------------------------------------------------------------------

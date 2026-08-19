@@ -19,6 +19,7 @@
  * second request finds the first run and attaches to it.
  */
 
+import { APP_SCHEMA } from '../../shared/app-schema';
 import type { LakebaseReader } from './lakebase-store';
 import { EXECUTING_STATES, isTerminal, terminalRefusal, transitionRefusal, type RunState } from './run-state';
 import type { FailureCode } from './run-failure-codes';
@@ -273,7 +274,7 @@ export interface CreatedOrFound {
  */
 export async function createOrGetRun(store: LakebaseReader, input: NewRun): Promise<LedgerResult<CreatedOrFound>> {
   const sql = `WITH inserted AS (
-      INSERT INTO player_insights.runs
+      INSERT INTO ${APP_SCHEMA}.runs
         (run_id, user_email, conversation_id, turn_id, request_hash, idempotency_key_hash,
          state, deadline_at, identity_mode_requested, release_identity, correlation_id)
       VALUES ($1,$2,$3,$4,$5,$6,'RECEIVED',$7,$8,$9::jsonb,$10)
@@ -282,7 +283,7 @@ export async function createOrGetRun(store: LakebaseReader, input: NewRun): Prom
     )
     SELECT ${RUN_COLUMNS}, TRUE AS ledger_created FROM inserted
     UNION ALL
-    SELECT ${RUN_COLUMNS}, FALSE AS ledger_created FROM player_insights.runs
+    SELECT ${RUN_COLUMNS}, FALSE AS ledger_created FROM ${APP_SCHEMA}.runs
      WHERE NOT EXISTS (SELECT 1 FROM inserted)
        AND user_email = $2
        AND (idempotency_key_hash = $6
@@ -356,7 +357,7 @@ export async function acquireLease(
   from: readonly RunState[],
   leaseMs: number = LEASE_MS
 ): Promise<LedgerResult<LedgerRun>> {
-  const sql = `UPDATE player_insights.runs
+  const sql = `UPDATE ${APP_SCHEMA}.runs
        SET fencing_token = fencing_token + 1,
            attempts = attempts + 1,
            lease_owner = $2,
@@ -431,7 +432,7 @@ export async function transition(store: LakebaseReader, input: TransitionInput):
   // refused, and the approval can arrive well inside the lease window: a plan
   // shown to somebody who is already reading it is approved in seconds.
   const releasing = finishing || input.to === 'AWAITING_APPROVAL';
-  const sql = `UPDATE player_insights.runs
+  const sql = `UPDATE ${APP_SCHEMA}.runs
        SET state = $3,
            terminal_code = $4,
            terminal_message_id = COALESCE($5, terminal_message_id),
@@ -493,7 +494,7 @@ export async function heartbeat(
   const read = await ledgerQuery(
     store,
     'run ledger heartbeat',
-    `UPDATE player_insights.runs
+    `UPDATE ${APP_SCHEMA}.runs
         SET lease_expires_at = NOW() + ($3 || ' milliseconds')::interval, updated_at = NOW()
       WHERE run_id = $1 AND fencing_token = $2 AND completed_at IS NULL
      RETURNING run_id`,
@@ -518,7 +519,7 @@ export async function recordAttempt(
   const read = await ledgerQuery(
     store,
     'run ledger record attempt',
-    `INSERT INTO player_insights.run_attempts (attempt_id, run_id, fencing_token, executor)
+    `INSERT INTO ${APP_SCHEMA}.run_attempts (attempt_id, run_id, fencing_token, executor)
      VALUES ($1,$2,$3,$4)
      ON CONFLICT (run_id, fencing_token) DO NOTHING
      RETURNING attempt_id`,
@@ -535,7 +536,7 @@ export async function completeAttempt(
   const read = await ledgerQuery(
     store,
     'run ledger complete attempt',
-    `UPDATE player_insights.run_attempts
+    `UPDATE ${APP_SCHEMA}.run_attempts
         SET completed_at = NOW(), outcome = $3, failure_code = $4
       WHERE run_id = $1 AND fencing_token = $2
      RETURNING attempt_id`,
@@ -558,7 +559,7 @@ export async function readRun(
   const read = await ledgerQuery(
     store,
     'run ledger read run',
-    `SELECT ${RUN_COLUMNS} FROM player_insights.runs WHERE run_id = $1 AND user_email = $2`,
+    `SELECT ${RUN_COLUMNS} FROM ${APP_SCHEMA}.runs WHERE run_id = $1 AND user_email = $2`,
     [runId, userEmail]
   );
   if (!read.available) return unavailable(read);

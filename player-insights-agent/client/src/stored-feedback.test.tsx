@@ -181,7 +181,10 @@ describe('the two places the rating had to travel through', () => {
     // what has to be true is that this SELECT names the column at all.
     const query = ROUTES.slice(ROUTES.indexOf('function conversationMessagesQuery'));
     const select = query.slice(0, query.indexOf('return sharedRail.shared'));
-    expect(select).toContain('player_insights.feedback');
+    // The route must follow APP_SCHEMA in every deployment; pin both the
+    // interpolation and the absence of the old hardcoded default.
+    expect(select).toContain('${APP_SCHEMA}.feedback');
+    expect(select).not.toContain('player_insights.feedback');
     expect(select).toContain('AS usefulness');
     expect(select).toContain('AS feedback_comment');
     // Scoped to the caller. `feedback.message_id` has no foreign key and the

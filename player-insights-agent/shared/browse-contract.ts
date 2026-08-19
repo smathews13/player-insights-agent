@@ -35,10 +35,17 @@ export type BrowseKind =
   | 'catalogs'
   | 'schemas'
   | 'tables'
+  | 'volumes'
   | 'notebooks'
   | 'warehouses'
   | 'genie-spaces'
-  | 'serving-endpoints';
+  | 'serving-endpoints'
+  | 'vector-search-endpoints'
+  | 'vector-search-indexes'
+  | 'lakebase-projects'
+  | 'lakebase-branches'
+  | 'lakebase-databases'
+  | 'experiments';
 
 /**
  * One row a picker can show.
@@ -66,8 +73,12 @@ export interface BrowseItem {
  * `scope_not_carried` covers both "the token does not list it" and "the app does
  * not declare it, so no sign-in it hands out can carry it". The picker only needs
  * one branch: fall back to typing. The `scope` field names which permission.
+ *
+ * `apps_has_no_scope` is the harder stop: Databricks Apps rejects every name in
+ * that API family (MLflow today), so there is nothing to grant and nothing to
+ * declare. `scope` is empty; the detail says so in as many words.
  */
-export type BrowseUnavailableReason = 'scope_not_carried';
+export type BrowseUnavailableReason = 'scope_not_carried' | 'apps_has_no_scope';
 
 /** Successful list. Empty `items` means none visible, not that browsing failed. */
 export interface BrowseOk {
@@ -95,7 +106,10 @@ export interface BrowseUnavailable {
   status: 'unavailable';
   kind: BrowseKind;
   reason: BrowseUnavailableReason;
-  /** The Apps-API scope name this list needs. */
+  /**
+   * The Apps-API scope name this list needs, or '' when {@link reason} is
+   * `apps_has_no_scope` (there is no name Apps will accept).
+   */
   scope: string;
   detail: string;
 }
@@ -132,6 +146,20 @@ export function browseScopeUnavailableDetail(scope: string): string {
     `Browsing is unavailable because your sign-in does not carry \`${scope}\`. ` +
     'Nothing was established about which assets exist. Enter the value by hand, or sign in again ' +
     'after this app asks for that permission.'
+  );
+}
+
+/**
+ * Prose when Apps itself has no scope for this family.
+ *
+ * Distinct from {@link browseScopeUnavailableDetail}: there is nothing to put
+ * on `user_api_scopes` and nothing a fresh sign-in can carry. Typing is the
+ * only route, not a temporary fallback.
+ */
+export function browseAppsHasNoScopeDetail(family: string): string {
+  return (
+    `Browsing is unavailable because Databricks Apps has no ${family} scope to forward. ` +
+    'Nothing was established about which assets exist. Enter the value by hand.'
   );
 }
 

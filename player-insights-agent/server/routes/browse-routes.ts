@@ -1,10 +1,12 @@
 /**
  * Browse what the signed-in user can see, for Connections pickers.
  *
- * Lists catalogs, schemas, tables, notebooks, SQL warehouses, Genie spaces and
- * model serving endpoints under the forwarded user token. Catalog and notebook
- * browse return a distinct unavailable outcome when their optional scopes are
- * not on the sign-in; see `shared/browse-contract.ts`.
+ * Lists catalogs, schemas, tables, volumes, notebooks, SQL warehouses, Genie
+ * spaces, model serving endpoints, Vector Search endpoints/indexes, and Lakebase
+ * projects/branches/databases under the forwarded user token. Catalog, notebook,
+ * VS and Lakebase browse return a distinct unavailable outcome when their
+ * optional scopes are not on the sign-in; MLflow experiment browse is always
+ * unavailable because Apps has no MLflow scope. See `shared/browse-contract.ts`.
  *
  * Not admin-gated: Connections is consumer-visible and these lists are about
  * what the reader themselves can see.
@@ -15,11 +17,18 @@ import { forwardedUserToken } from './access-verification';
 import {
   browseRequestContext,
   listCatalogs,
+  listExperiments,
   listGenieSpaces,
+  listLakebaseBranches,
+  listLakebaseDatabases,
+  listLakebaseProjects,
   listNotebooks,
   listSchemas,
   listServingEndpoints,
   listTables,
+  listVectorSearchEndpoints,
+  listVectorSearchIndexes,
+  listVolumes,
   listWarehouses,
 } from '../lib/browse-assets';
 
@@ -72,6 +81,17 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
       );
     });
 
+    app.get('/api/browse/volumes', async (req, res) => {
+      await sendBrowse(req, res, (ctx) =>
+        listVolumes({
+          ...ctx,
+          catalog: queryString(req, 'catalog'),
+          schema: queryString(req, 'schema'),
+          pageToken: queryString(req, 'page_token') || undefined,
+        }),
+      );
+    });
+
     app.get('/api/browse/notebooks', async (req, res) => {
       const path = queryString(req, 'path') || defaultNotebookPath(req);
       await sendBrowse(req, res, (ctx) => listNotebooks({ ...ctx, path }));
@@ -96,6 +116,63 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
     app.get('/api/browse/serving-endpoints', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
         listServingEndpoints({ ...ctx, pageToken: queryString(req, 'page_token') || undefined }),
+      );
+    });
+
+    app.get('/api/browse/vector-search-endpoints', async (req, res) => {
+      await sendBrowse(req, res, (ctx) =>
+        listVectorSearchEndpoints({
+          ...ctx,
+          pageToken: queryString(req, 'page_token') || undefined,
+        }),
+      );
+    });
+
+    app.get('/api/browse/vector-search-indexes', async (req, res) => {
+      await sendBrowse(req, res, (ctx) =>
+        listVectorSearchIndexes({
+          ...ctx,
+          endpoint: queryString(req, 'endpoint'),
+          pageToken: queryString(req, 'page_token') || undefined,
+        }),
+      );
+    });
+
+    app.get('/api/browse/lakebase-projects', async (req, res) => {
+      await sendBrowse(req, res, (ctx) =>
+        listLakebaseProjects({
+          ...ctx,
+          pageToken: queryString(req, 'page_token') || undefined,
+        }),
+      );
+    });
+
+    app.get('/api/browse/lakebase-branches', async (req, res) => {
+      await sendBrowse(req, res, (ctx) =>
+        listLakebaseBranches({
+          ...ctx,
+          project: queryString(req, 'project'),
+          pageToken: queryString(req, 'page_token') || undefined,
+        }),
+      );
+    });
+
+    app.get('/api/browse/lakebase-databases', async (req, res) => {
+      await sendBrowse(req, res, (ctx) =>
+        listLakebaseDatabases({
+          ...ctx,
+          branch: queryString(req, 'branch'),
+          pageToken: queryString(req, 'page_token') || undefined,
+        }),
+      );
+    });
+
+    // Always unavailable: Apps has no MLflow scope. Kept as a route so the
+    // Connections experiment picker can show the same grant/fallback surface
+    // rather than a blank box with no explanation.
+    app.get('/api/browse/experiments', async (req, res) => {
+      await sendBrowse(req, res, (ctx) =>
+        listExperiments({ ...ctx, pageToken: queryString(req, 'page_token') || undefined }),
       );
     });
   });

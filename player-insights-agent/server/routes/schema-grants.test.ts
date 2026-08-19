@@ -4,14 +4,14 @@ import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applySchema, schemaStatements, setupInsightsRoutes, type InsightsAppKit } from './insights-routes';
 import { chooseRows, lakebaseHealth, readStored, resetLakebaseHealth } from '../lib/lakebase-store';
-import { GRANT_SCRIPT_ENV_VARS } from '../../shared/setup-remedies';
+import { GRANT_HOOK_PATH } from '../../shared/setup-remedies';
 
 /**
  * The setup step a customer's first deploy skips, and how loudly it is now said.
  *
- * `scripts/grant-app-db-access.mjs` has to be run once, by hand, after the app
- * has been created: the app's service principal does not exist until the app
- * does, so no bundle resource can grant to it. Skipping it left the app
+ * The release hook runs `scripts/grant-app-db-access.mjs` after the app has
+ * been created: the app's service principal does not exist until the app does,
+ * so no bundle resource can grant to it. Skipping it left the app
  * answering HTTP 200 with seeded conversations and runs, and the only thing
  * distinguishing that from a working deployment was a banner saying "Lakebase
  * is unreachable", which is not what is happening, sends the deployer to the
@@ -118,7 +118,7 @@ describe('a refused read is not an outage', () => {
     expect(lakebaseHealth().access).not.toBe('denied');
   });
 
-  it('names the script and every variable it needs, in the log line', async () => {
+  it('names the target-aware hook in the log line', async () => {
     await readStored(reader(grantsNeverRun()), 'GET /api/runs', 'SELECT id FROM player_insights.messages');
 
     const line = errors.find((entry) => entry.includes('SCHEMA GRANTS MISSING'));
@@ -126,11 +126,9 @@ describe('a refused read is not an outage', () => {
     // The four words that decide whether anyone reads the rest.
     expect(line).toContain('was REFUSED by Postgres');
     expect(line).toContain('not an outage and waiting will not fix it');
-    expect(line).toContain('scripts/grant-app-db-access.mjs');
-    // All five, because the script deliberately defaults none of them and a
-    // deployer who sets the four they were told about hits the fifth as an
-    // error they then have to go and research.
-    for (const variable of GRANT_SCRIPT_ENV_VARS) expect(line).toContain(variable);
+    expect(line).toContain(GRANT_HOOK_PATH);
+    expect(line).toContain('TARGET=<target>');
+    expect(line).toContain("PROFILE='<profile>'");
   });
 
   it('marks the substituted rows with a reason a client can word correctly', async () => {
@@ -182,10 +180,9 @@ describe('the Sources page row for a deployment that skipped the grant', () => {
       expect(check?.detail).toContain('Postgres is answering and REFUSING');
       // The sentence that stops the deployer waiting for it to clear.
       expect(check?.detail).toContain('not an outage that will pass');
-      expect(check?.remedy?.statement).toContain('node scripts/grant-app-db-access.mjs');
-      for (const variable of GRANT_SCRIPT_ENV_VARS) {
-        expect(`${check?.remedy?.statement}${check?.remedy?.note}`).toContain(variable);
-      }
+      expect(check?.remedy?.statement).toContain('bundle/app-db-grant.sh');
+      expect(check?.remedy?.statement).toContain('TARGET=<target>');
+      expect(check?.remedy?.statement).toContain("PROFILE='<profile>'");
     } finally {
       await app.close();
     }
@@ -206,7 +203,7 @@ describe('applying the schema against a database that refuses it', () => {
     const summary = errors.find((line) => line.includes('SCHEMA SETUP REFUSED'));
     expect(summary).toBeDefined();
     expect(summary).toContain('refused by Postgres on privileges');
-    expect(summary).toContain('scripts/grant-app-db-access.mjs');
+    expect(summary).toContain(GRANT_HOOK_PATH);
     // And not the other verdict, which describes a store that never answered.
     expect(errors.some((line) => line.includes('SCHEMA SETUP FAILED'))).toBe(false);
   });
@@ -239,7 +236,7 @@ describe('applying the schema against a database that refuses it', () => {
     const summary = errors.find((line) => line.includes('SCHEMA SETUP INCOMPLETE'));
     expect(summary).toBeDefined();
     expect(summary).not.toContain('privilege denial');
-    expect(summary).not.toContain(GRANT_SCRIPT_ENV_VARS[0]);
+    expect(summary).not.toContain(GRANT_HOOK_PATH);
   });
 
   it('still names a real denial that arrives alongside the ownership no-op', async () => {
@@ -258,7 +255,7 @@ describe('applying the schema against a database that refuses it', () => {
 
     const summary = errors.find((line) => line.includes('SCHEMA SETUP INCOMPLETE'));
     expect(summary).toContain('1 of those refusals is a privilege denial');
-    expect(summary).toContain('scripts/grant-app-db-access.mjs');
+    expect(summary).toContain(GRANT_HOOK_PATH);
   });
 });
 

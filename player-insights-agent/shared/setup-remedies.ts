@@ -14,33 +14,44 @@ export const GRANT_SCRIPT_ENV_VARS = [
 ] as const;
 
 export const GRANT_SCRIPT_PATH = 'scripts/grant-app-db-access.mjs';
+export const GRANT_HOOK_PATH = 'bundle/app-db-grant.sh';
 
-/** The invocation, as a deployer would paste it. */
+/** The supported escape hatch, as a deployer would paste it. */
 export const GRANT_SCRIPT_COMMAND = [
-  'cd player-insights-agent',
-  `${GRANT_SCRIPT_ENV_VARS.map((name) => `${name}=<value>`).join(' \\\n  ')} \\`,
-  `  node ${GRANT_SCRIPT_PATH}`,
+  "TARGET=<target> PROFILE='<profile>' bundle/app-db-grant.sh",
+  "databricks apps stop <app-name> --profile '<profile>'",
+  "databricks apps start <app-name> --profile '<profile>'",
 ].join('\n');
 
 /**
- * Why this step cannot have been done for the deployer.
+ * How the release applies this step and when it still needs an operator.
+ *
+ * Also covers AppKit's cache schema (`appkit`): a bare GRANT USAGE/CREATE is
+ * not enough for later CREATE INDEX (needs table ownership), so the script
+ * drops a misowned cache-only `appkit` and the app recreates it on next boot.
  */
 export const GRANT_SCRIPT_WHY =
-  'The app service principal does not exist until the app does, so this grant cannot be made ' +
-  'by the bundle and is not made by a redeploy. It is a one-off manual step after first create.';
+  'The app service principal does not exist until the app does. The canonical app release runs ' +
+  `${GRANT_HOOK_PATH} before every code deploy, deriving the direct branch host and the other ` +
+  'inputs from the target and live resources; a failed grant stops the release. After a Lakebase ' +
+  'detach/reattach without a full release, run that hook manually and restart the app so it can ' +
+  'recreate a dropped AppKit cache schema (`appkit`) as owner.';
 
 export const GRANT_SCRIPT_REMEDY =
-  `Run ${GRANT_SCRIPT_PATH} once, with all ` +
-  `${GRANT_SCRIPT_ENV_VARS.length} variables set (${GRANT_SCRIPT_ENV_VARS.join(', ')}): ` +
-  `none of them has a default. ${GRANT_SCRIPT_WHY}`;
+  `Re-run the canonical app release, or run ${GRANT_HOOK_PATH} with TARGET and PROFILE after ` +
+  `a Lakebase reattach. Its underlying ${GRANT_SCRIPT_PATH} requires ` +
+  `${GRANT_SCRIPT_ENV_VARS.length} resolved values (${GRANT_SCRIPT_ENV_VARS.join(', ')}). ` +
+  GRANT_SCRIPT_WHY;
 
 /**
- * Genie sharing, which is UI-only.
+ * Genie sharing: grant the people who use the app, not the serving principal.
  */
 export const GENIE_SHARE_REMEDY =
-  'Open each Genie space in the Databricks UI, choose Share, and add the agent serving ' +
-  'principal with CAN RUN. There is no CLI or bundle equivalent: Genie sharing is UI-only, ' +
-  'so a redeploy will not fix it.';
+  'Share each Genie space with the people or groups who use the app, at CAN RUN. Under ' +
+  'user authorization Genie runs as the signed-in caller, not the serving endpoint principal. ' +
+  'Do it in the Databricks UI, or with `databricks permissions update genie <space_id> --json`. ' +
+  'The same callers also need CAN USE on the warehouse and SELECT on the curated tables. ' +
+  'A redeploy will not fix it.';
 
 /**
  * The opening the app looks for to tell a degradation caveat from an ordinary one.

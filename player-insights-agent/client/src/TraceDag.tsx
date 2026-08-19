@@ -62,7 +62,8 @@ import { useId, useState, type CSSProperties } from 'react';
 import { Badge } from './ui';
 import { ChevronRight, Copy, Database, Search, Wrench } from 'lucide-react';
 import { AstrolabeMark } from './AstrolabeMark';
-import { AgentMapConstellation, AgentPathConstellation } from './AgentConstellation';
+import { AgentPathConstellation } from './AgentConstellation';
+import { AnswerCharts, type Chart } from './AnswerCharts';
 import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { reportEgress } from './egress-policy';
@@ -524,11 +525,13 @@ export function StageDetail({
   step,
   origin,
   id,
+  charts,
 }: {
   stage: TraceStage;
   step: number;
   origin: number;
   id: string;
+  charts?: Chart[];
 }) {
   const failed = stage.status === 'failed';
   const [raw, setRaw] = useState(failed);
@@ -572,6 +575,17 @@ export function StageDetail({
         </dd>
         <dt>Result</dt>
         <dd>
+          {stage.name === 'Built the charts' ? (
+            charts?.length ? (
+              <div className="dag-result-charts">
+                <AnswerCharts charts={charts} />
+              </div>
+            ) : (
+              <p className="dag-chart-empty">
+                {charts ? 'This step completed without a chart.' : 'The chart payload is unavailable for this stored run.'}
+              </p>
+            )
+          ) : null}
           {result.empty ? (<Absent />
           ) : (<>
               <div className="dag-result-meta">
@@ -649,6 +663,7 @@ export function TraceDag({
   activeIndex,
   compact = false,
   elapsedMs = null,
+  charts,
 }: {
   stages: TraceStage[];
   activeIndex: number;
@@ -663,6 +678,8 @@ export function TraceDag({
    * timer of its own. Ignored for every stage that reported a duration.
    */
   elapsedMs?: number | null;
+  /** The answer's canonical Plotly payload, shown only by its chart-building stage. */
+  charts?: Chart[];
 }) {
   // The step the reader opened, by id rather than by position, and looked up in
   // the current stages rather than trusted: selecting a different run in the
@@ -800,7 +817,14 @@ export function TraceDag({
           into a different column, which is the alignment this map exists to
           have. `key` is the stage, so opening a different step gets a panel that
           starts on Rendered rather than one that kept the last step's segment. */}
-      {!compact && open && (<StageDetail key={open.id} stage={open} step={openIndex + 1} origin={origin} id={panelId} />
+      {!compact && open && (<StageDetail
+          key={open.id}
+          stage={open}
+          step={openIndex + 1}
+          origin={origin}
+          id={panelId}
+          charts={charts}
+        />
       )}
       {!compact && stages.length > 0 && <RawIo stages={stages} />}
     </div>
@@ -821,32 +845,25 @@ export function TraceDag({
    * name is spelled out. A panel nested inside the list would inherit it.
    */
   const railPanel = open ? (<div className="trace-dag map">
-      <StageDetail key={open.id} stage={open} step={openIndex + 1} origin={origin} id={panelId} />
+      <StageDetail
+        key={open.id}
+        stage={open}
+        step={openIndex + 1}
+        origin={origin}
+        id={panelId}
+        charts={charts}
+      />
     </div>
   ) : null;
   /*
-   * THE BAND AND THE STEPS ARE ONE SELECTION, which is what settles the two forms
-   * the design draws the agent map in. `#18b` is the run as a horizontal
-   * constellation and `#10ar` is the same run as a grid of cards, and the brief
-   * asks whether they conflict. They do not: the cards are the control -- twelve
-   * real buttons, each opening a step panel, reachable by keyboard -- and the band
-   * above them is the run's shape at a glance, showing which card is open with the
-   * ring and tint §5 gives the selected star. One `openId` drives both, so they
-   * cannot disagree about which step a reader is looking at, and neither is a
-   * second copy of the other's reading: every string on both comes out of
-   * `agent-map.ts` and `agent-constellation.ts`.
-   *
-   * The band is `aria-hidden` and carries no click target of its own. Two sets of
-   * controls for one selection is two tab stops per step and two things to keep in
-   * step; the drawing is honestly a drawing, and the cards under it are the thing
-   * that works.
+   * The wide form is the Run Explorer's agent map: the operable stage cards and
+   * their detail panel, with no constellation stacked above them. The finished
+   * constellation belongs to Ask, where it is the one persistent view of the run.
+   * Keeping this branch to one representation is what prevents a completed run
+   * from showing the same steps twice on either page.
    */
   if (!compact) {
-    return (<div className="agent-map">
-        <AgentMapConstellation stages={stages} selectedId={openId} />
-        {steps}
-      </div>
-    );
+    return <div className="agent-map">{steps}</div>;
   }
   /*
    * The rail gets the vertical path (`#18a`) IN BOTH STATES, and the band is the

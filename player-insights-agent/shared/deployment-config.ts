@@ -215,7 +215,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     kind: 'genie-space',
     changedBy: 'model-version',
     arrivesBy: 'MLflow model_config, and a DatabricksGenieSpace resource on the same model version.',
-    bundleVariable: 'genie_data_space_id, or resources.genie_spaces.data_genie_space when the bundle made it',
+    bundleVariable: 'genie_data_space_id, naming a space the bundle attaches to rather than creates',
     agentKey: 'data_genie_space_id',
     appEnvVar: null,
     actualFromCheck: 'genie-data',
@@ -230,7 +230,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     changedBy: 'model-version',
     arrivesBy: 'MLflow model_config, and a DatabricksGenieSpace resource on the same model version.',
     bundleVariable:
-      'genie_dictionary_space_id, or resources.genie_spaces.dictionary_genie_space when the bundle made it',
+      'genie_dictionary_space_id, naming a space the bundle attaches to rather than creates',
     agentKey: 'dictionary_genie_space_id',
     appEnvVar: null,
     actualFromCheck: 'genie-dictionary',
@@ -358,28 +358,20 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     id: 'lakebase-schema',
     label: 'Lakebase schema',
     kind: 'lakebase',
-    changedBy: 'app-source',
+    changedBy: 'app-redeploy',
     arrivesBy:
-      'A bare SQL identifier in the app’s own DDL (server/routes/insights-routes.ts). ' +
-      'var.lakebase_app_schema documents it but nothing reads that variable. Postgres ' +
-      'privileges live inside the database, out of the control plane’s reach.',
-    // Null on purpose, even though `var.lakebase_app_schema` exists. NOTHING
-    // READS THAT VARIABLE, so recording it here as this resource's configuration
-    // route would offer a value that changes nothing when set, which is the
-    // exact shape of the defect this registry is built to prevent and the one
-    // place in this deployment where it is already true.
-    bundleVariable: null,
+      'PLAYER_INSIGHTS_APP_SCHEMA, resolved from var.lakebase_app_schema at release time ' +
+      '(authored default player_insights in app.yaml so a From-Git deploy still shows it). ' +
+      'Created by the app on boot; Connections shows the live env value, never "not set".',
+    bundleVariable: 'lakebase_app_schema',
     agentKey: null,
-    appEnvVar: null,
+    appEnvVar: 'PLAYER_INSIGHTS_APP_SCHEMA',
     actualFromCheck: null,
     namesRemoteObject: false,
     applyWith:
-      'Edit the DDL in server/routes/insights-routes.ts, var.lakebase_app_schema, and the grant\n' +
-      'script that parses the DDL (scripts/grant-app-db-access.mjs). All three have to move\n' +
-      'together: change one alone and the deployer grants on a schema the app never creates,\n' +
-      'after which every route serves representative data and still answers HTTP 200. A\n' +
-      'release-time advisory check compares the first two and prints a mismatch, but it\n' +
-      'reports rather than gates, so nothing stops a release that carries one.',
+      'Set var.lakebase_app_schema and release the app so PLAYER_INSIGHTS_APP_SCHEMA updates.\n' +
+      'Then grant on the new schema (scripts/grant-app-db-access.mjs) and migrate any data.\n' +
+      'Changing the variable alone does not move existing tables.',
     stageable: false,
   },
   {

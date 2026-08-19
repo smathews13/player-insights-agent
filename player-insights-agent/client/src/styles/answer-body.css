@@ -375,43 +375,45 @@
 .sources-row-name {
   flex: 1 1 auto;
   min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.source-name-pill {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
 }
 /* The link keeps its dotted rule and takes the row's role colour instead of the
    action blue. A source row is already unmistakably a list of links; what the
    colour has to carry here is which of these tables the numbers came from,
    which is the question the row exists to answer. */
-.sources-row-name a {
+.source-name-pill a {
   color: inherit;
 }
 /* The name reads in the chip's own text colour, so the row is one statement
    rather than a name and a separate label about it. Both are the pill families
    the chip takes, which is what keeps them the same two colours. */
-.sources-row[data-tone='queried'] .sources-row-name {
+.source-name-pill[data-tone='queried'] {
   color: var(--ast-info-text);
 }
-.sources-row[data-tone='neutral'] .sources-row-name {
+.source-name-pill[data-tone='neutral'] {
   color: var(--ast-neutral-text);
 }
 /* The qualifier is present but recessive: it disambiguates two tables with the
    same short name and is otherwise the same string on every row. */
-.sources-row-name .source-name-qualifier {
+.source-name-pill .source-name-qualifier {
   opacity: 0.72;
 }
 /* The segment a reader recognises the table by, tinted in the chip's own fill so
    the eye can find it without reading the catalog and schema first. */
-.sources-row-name .source-name-short {
+.source-name-pill .source-name-short {
   border-radius: 3px;
   padding: 1px 5px;
 }
-.sources-row[data-tone='queried'] .source-name-short {
+.source-name-pill[data-tone='queried'] .source-name-short {
   background: var(--ast-info-fill);
 }
-.sources-row[data-tone='neutral'] .source-name-short {
+.source-name-pill[data-tone='neutral'] .source-name-short {
   background: var(--ast-neutral-fill);
 }
 /* The row's one qualifier. Never two: a row wearing two chips is a row a reader
@@ -455,20 +457,21 @@
   gap: 6px;
   min-width: 0;
 }
-.derivation-fact > em {
+.derivation-label {
   flex: none;
-  font-style: normal;
-  font-weight: 500;
+  font-weight: 700;
   font-size: var(--ast-fs-11);
   color: var(--ast-text-secondary);
 }
 /* Mono for the value, because every one of them is a fragment of the statement
    that ran -- a column name, a date, a measure -- and a reader compares them
    character by character against the SQL and the prose above. */
-.derivation-fact > b {
+.derivation-value {
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 500;
+  padding: 0;
+  background: transparent;
   color: var(--ast-text);
   overflow-wrap: anywhere;
 }

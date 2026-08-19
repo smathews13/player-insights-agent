@@ -9,6 +9,7 @@ import { setupUserRoutes } from './routes/user-routes';
 import { setupMonitoringRoutes } from './routes/monitoring-routes';
 import { setupOpsRoutes } from './routes/ops-routes';
 import { setupEgressRoutes } from './routes/egress-routes';
+import { setupRuntimeSettingsRoutes } from './routes/runtime-settings-routes';
 import { announceSeedAdmins, isAdminRoute } from './lib/admin-roles';
 import { respondToHandlerFailures } from './lib/handler-failures';
 
@@ -40,6 +41,7 @@ createApp({
     // and Express applies middleware to whatever is added afterwards. Registering
     // the settings routes first would leave the write route unguarded.
     setupSettingsRoutes(appkit);
+    setupRuntimeSettingsRoutes(appkit);
     // After the identity gate: browse calls out as the signed-in user and must
     // refuse unidentified traffic rather than listing under nobody.
     setupBrowseRoutes(appkit);

@@ -98,21 +98,6 @@ export function astPill(status: string | null | undefined): string {
   return `ast-pill ast-pill--${statusFamily(status)}`;
 }
 
-/**
- * Who ran it, as the run list has always printed it: the local part of the
- * address and not the address.
- *
- * The header is a screen that gets photographed into tickets and pasted into
- * chat, and the whole address is neither what a reader needs to recognise a
- * colleague nor something they chose to publish. A run with no stakeholder
- * recorded says so rather than leaving the slot empty, which would read as a run
- * nobody ran.
- */
-export function personName(stakeholder: string | null | undefined): string {
-  const found = (stakeholder ?? '').trim();
-  return found === '' ? 'Unknown' : found.split('@')[0];
-}
-
 export interface RunHeadline {
   durationMs?: number | null;
   /** The agent's own external-call counter for this run. */

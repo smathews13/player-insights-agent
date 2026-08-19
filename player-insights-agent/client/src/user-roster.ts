@@ -61,10 +61,11 @@ export function rosterSummary(payload: RosterPayload): string {
     return 'This deployment has no administrators, and none can be added from here.';
   }
   const admins = payload.entries.filter((entry) => entry.role !== 'consumer').length;
-  return (
-    `${admins} administrator${admins === 1 ? '' : 's'}, ${payload.superAdminCount} of them super. ` +
-    `${payload.entries.length} ${payload.entries.length === 1 ? 'person' : 'people'} on the roster.`
-  );
+  const roleCounts: string[] = [];
+  if (admins > 0) roleCounts.push(`${admins} administrator${admins === 1 ? '' : 's'}`);
+  if (payload.superAdminCount > 0) roleCounts.push(`${payload.superAdminCount} super`);
+  const roster = `${payload.entries.length} ${payload.entries.length === 1 ? 'person' : 'people'} on the roster.`;
+  return roleCounts.length > 0 ? `${roleCounts.join(', ')}. ${roster}` : roster;
 }
 
 /**

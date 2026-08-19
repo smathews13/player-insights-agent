@@ -31,7 +31,14 @@ import {
 } from './first-open';
 import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes';
 
-/** The four the customer default declares, per `databricks.yml`. */
+/**
+ * A representative declared set: the four load-bearing base scopes, WITHOUT the
+ * optional catalog/workspace browse scopes. Kept deliberately free of the
+ * optional names so the "optional scope not on the deploy" rows below exercise
+ * the `not_declared` path. (The shared default in `databricks.yml` also requests
+ * the optional browse scopes; this fixture models a deployment that declared
+ * only the base set.)
+ */
 const DECLARED = ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie'];
 
 function session(over: Partial<SessionReport> = {}): SessionReport {

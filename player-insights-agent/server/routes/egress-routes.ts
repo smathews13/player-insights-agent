@@ -8,8 +8,8 @@
  *
  *   GET  /api/egress/controls        Any signed-in reader. WHAT IS PERMITTED.
  *   POST /api/egress/events         Any signed-in reader. RECORD MY OWN EXPORT.
- *   GET  /api/egress/admin/events   Administrators. WHAT EVERYONE HAS EXPORTED.
  *   PUT  /api/egress/admin/controls Administrators. CHANGE WHAT IS PERMITTED.
+ *   GET  /api/egress/admin/classification Administrators. WHAT THE CATALOG SAYS.
  *
  * The open pair has to be open. A consumer's browser is where the affordances
  * are, so it is the only party that can say an export happened, and a recorder
@@ -53,7 +53,6 @@ import {
 } from '../../shared/egress-contract';
 import {
   readEgressControls,
-  readEgressLog,
   recordEgress,
   writeEgressControl,
 } from '../lib/egress-store';
@@ -65,7 +64,6 @@ import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 
 /** The paths that must be behind the admin guard, checked at registration. */
 export const EGRESS_ADMIN_ROUTES: readonly string[] = [
-  '/api/egress/admin/events',
   '/api/egress/admin/controls',
   '/api/egress/admin/classification',
 ];
@@ -231,30 +229,6 @@ export function setupEgressRoutes(appkit: InsightsAppKit, deps: EgressDeps) {
         outcome: recorded.event.outcome,
         recorded: recorded.written,
       });
-    });
-
-    /**
-     * What has left recently. Administrators only.
-     *
-     * ── WHAT AN ADMINISTRATOR SEES, AND WHAT THEY STILL DO NOT ──
-     *
-     * Every row: who, when, which path, what shape, and whether it was permitted.
-     * None of the contents, because none was stored. To find out WHAT a run
-     * exported they open the run in Monitoring, where the answer stays conditioned
-     * on their own Unity Catalog grants exactly as it is today. That indirection
-     * is the design: this route hands out no data and widens nobody's reach.
-     */
-    app.get('/api/egress/admin/events', async (req: Request, res: Response) => {
-      const asked = Number.parseInt(String(req.query.limit ?? ''), 10);
-      const payload = await readEgressLog(appkit, {
-        limit: Number.isFinite(asked) ? asked : undefined,
-        now: clock(),
-      });
-      // 200 whatever the read state. The panel needs the state word to print, and
-      // a 503 would put this behind the app's generic unavailable panel, which
-      // says the store is out -- true for one of the two failures and wrong for
-      // the other, where the table simply has not been created yet.
-      res.json(payload);
     });
 
     /**

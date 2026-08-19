@@ -62,6 +62,7 @@ describe('the Architecture tab marks every node that is a Databricks product', (
     browser: null,
     app: 'apps',
     'agent-endpoint': 'mosaic-ai',
+    'data-source-finder': 'mosaic-ai',
     'llm-endpoint': 'mosaic-ai',
     'genie-data': 'genie',
     'genie-dictionary': 'genie',

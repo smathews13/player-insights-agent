@@ -71,8 +71,16 @@ const DIRTY_SUFFIX = '+dirty';
 
 /**
  * The commit this build came from, or '' when it cannot be known.
+ *
+ * PLAYER_INSIGHTS_SOURCE_SHA, when set, wins over git and is recorded verbatim.
+ * It names a source COMMIT, so it never gains the +dirty suffix. This supports
+ * release builds staged outside a Git checkout. PLAYER_INSIGHTS_BUILD_SHA stays
+ * the git-absent fallback for a bare local build.
  */
 function resolveBuildStamp(env = process.env) {
+  const explicit = (env.PLAYER_INSIGHTS_SOURCE_SHA ?? '').trim();
+  if (explicit) return explicit;
+
   const git = (args) => {
     try {
       return execFileSync('git', args, { cwd: root, encoding: 'utf8', timeout: 10_000 }).trim();
@@ -88,13 +96,40 @@ function resolveBuildStamp(env = process.env) {
   return (env.PLAYER_INSIGHTS_BUILD_SHA ?? '').trim();
 }
 
+/**
+ * Commits reachable from the app stamp while the source checkout still exists.
+ *
+ * The deployed container has no git history, so runtime code cannot safely infer
+ * whether a different model stamp is merely older or genuinely divergent.
+ * Publication builds may provide the list explicitly when their staged tree has
+ * no .git; otherwise derive it from the exact source commit being stamped.
+ */
+function resolveBuildAncestors(buildSha, env = process.env) {
+  const explicit = (env.PLAYER_INSIGHTS_BUILD_ANCESTORS ?? '').trim();
+  if (explicit) return explicit;
+  const commit = buildSha.replace(/\+dirty$/, '').trim();
+  if (!commit) return '';
+  try {
+    return execFileSync('git', ['rev-list', commit], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .join(',');
+  } catch {
+    return '';
+  }
+}
+
 function vendorFileName(pkg) {
   return `vendor-${pkg.replace(/^@/, '').replace(/\//g, '-')}.mjs`;
 }
 
 function vendorExternalsPlugin() {
-  const pattern = new RegExp(`^(${vendorPackages.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`
-  );
+  const pattern = new RegExp(`^(${vendorPackages.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`);
   return {
     name: 'vendor-externals',
     setup(builder) {
@@ -108,8 +143,27 @@ function vendorExternalsPlugin() {
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const RESERVED = new Set([
-  'default', 'delete', 'class', 'function', 'return', 'import', 'export', 'const', 'let', 'var',
-  'new', 'typeof', 'void', 'null', 'true', 'false', 'this', 'super', 'switch', 'case', 'catch',
+  'default',
+  'delete',
+  'class',
+  'function',
+  'return',
+  'import',
+  'export',
+  'const',
+  'let',
+  'var',
+  'new',
+  'typeof',
+  'void',
+  'null',
+  'true',
+  'false',
+  'this',
+  'super',
+  'switch',
+  'case',
+  'catch',
 ]);
 
 // `export * from` cannot re-export a CommonJS package, because the names are
@@ -117,8 +171,7 @@ const RESERVED = new Set([
 // bindings works for both CJS and ESM vendors.
 async function vendorEntrySource(pkg) {
   const namespace = await import(pkg);
-  const source =
-    namespace.default && typeof namespace.default === 'object' ? namespace.default : namespace;
+  const source = namespace.default && typeof namespace.default === 'object' ? namespace.default : namespace;
   const names = Object.keys(source).filter((n) => IDENTIFIER.test(n) && !RESERVED.has(n));
   return `import * as namespace from '${pkg}';
 const source = namespace.default && typeof namespace.default === 'object' ? namespace.default : namespace;
@@ -202,6 +255,7 @@ async function main() {
   // a clean checkout names a commit that rebuilds the artifact, while a previous
   // build's still-uncommitted output is real dirt and is still reported.
   const buildSha = resolveBuildStamp();
+  const buildAncestors = resolveBuildAncestors(buildSha);
 
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -231,20 +285,23 @@ async function main() {
   // variable before.
   const sharedRail = (process.env.PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL ?? '').trim();
   if (sharedRail && sharedRail.toLowerCase() === 'true') {
-    console.log('\n  note  PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL=true: the deployed app.yaml will let every\n' +
-        '        signed-in user see and open every other user\'s conversations. Deliberate for a shared\n' +
+    console.log(
+      '\n  note  PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL=true: the deployed app.yaml will let every\n' +
+        "        signed-in user see and open every other user's conversations. Deliberate for a shared\n" +
         '        evaluation workspace; not the default.'
     );
   }
 
   if (!buildSha) {
-    console.log('\n  note  no build stamp could be resolved (no git repository and no\n' +
+    console.log(
+      '\n  note  no build stamp could be resolved (no git repository and no\n' +
         '        PLAYER_INSIGHTS_BUILD_SHA). This app build will report its commit as\n' +
         '        unknown, and app-versus-orchestrator skew will not be detectable on\n' +
         '        the Connections page.'
     );
   } else if (buildSha.endsWith(DIRTY_SUFFIX)) {
-    console.log(`\n  note  building from a tree with uncommitted tracked changes (${buildSha}).\n` +
+    console.log(
+      `\n  note  building from a tree with uncommitted tracked changes (${buildSha}).\n` +
         '        The stamp records it. The release sequence asks for a clean worktree\n' +
         '        because the artifact cannot be reproduced from any commit.'
     );
@@ -270,7 +327,8 @@ async function main() {
   // later is a 403 on every admin tab and nothing on screen naming the cause.
   const adminEmails = (process.env.PLAYER_INSIGHTS_ADMIN_EMAILS ?? '').trim();
   if (!adminEmails) {
-    console.log('\n  note  PLAYER_INSIGHTS_ADMIN_EMAILS not set: the deployed app will have NO\n' +
+    console.log(
+      '\n  note  PLAYER_INSIGHTS_ADMIN_EMAILS not set: the deployed app will have NO\n' +
         '        administrators. Monitoring, Ops, Benchmark Lab and the settings gear will\n' +
         '        refuse every caller with 403, and nobody can appoint anybody from inside\n' +
         '        the app, because the editor that would do it is behind the same refusal.\n' +
@@ -284,7 +342,8 @@ async function main() {
     // publishes, so a routine `git add` after a release is the whole leak. The
     // release does not need the commit: it uploads this tree with
     // `workspace import-dir`, straight from the local build.
-    console.log('\n  note  the generated build/deploy/app.yaml now carries administrator addresses.\n' +
+    console.log(
+      '\n  note  the generated build/deploy/app.yaml now carries administrator addresses.\n' +
         '        DO NOT COMMIT IT. That file is tracked and is published to customers, and\n' +
         '        an address is a personal name and an employer. The release uploads the\n' +
         '        local tree directly, so the container gets the list either way. Restore it\n' +
@@ -299,10 +358,20 @@ async function main() {
   // from the scopes it happens to need. A bare `npm run build:deploy` has no
   // target to read them from, so absent is the normal local case.
   const declaredScopes = (process.env.PLAYER_INSIGHTS_USER_API_SCOPES ?? '').trim();
+  // The target is execution metadata, not a user-editable app setting. Empty in
+  // source and filled only by bundle/app-release.sh for the generated deploy
+  // tree, so a release request can hand the helper the exact approved target.
+  const bundleTarget = (process.env.PLAYER_INSIGHTS_TARGET ?? '').trim();
+
+  // Postgres schema the app owns. Authored as player_insights in app.yaml; the
+  // release overrides from var.lakebase_app_schema so Connections and DDL agree
+  // with the bundle. Absent here leaves the authored default standing.
+  const appSchema = (process.env.PLAYER_INSIGHTS_APP_SCHEMA ?? '').trim();
 
   const experimentId = (process.env.PLAYER_INSIGHTS_EXPERIMENT_ID ?? '').trim();
   if (!experimentId) {
-    console.log('\n  note  PLAYER_INSIGHTS_EXPERIMENT_ID not set: the deployed app.yaml will carry an\n' +
+    console.log(
+      '\n  note  PLAYER_INSIGHTS_EXPERIMENT_ID not set: the deployed app.yaml will carry an\n' +
         '        empty value and Run Explorer will show trace ids without a deep link.\n' +
         '        bundle/app-release.sh sets it from the bundle; a bare `npm run build:deploy`\n' +
         '        has no target to read it from.'
@@ -321,6 +390,7 @@ async function main() {
     env: [
       // ...and losing it also loses the NODE_ENV that script was setting.
       { name: 'NODE_ENV', value: 'production' },
+      ...(bundleTarget ? [{ name: 'PLAYER_INSIGHTS_TARGET', value: `'${bundleTarget}'` }] : []),
       // The MLflow experiment is per-workspace, so app.yaml declares the variable
       // without a value and the release supplies it. bundle/app-release.sh reads
       // it out of the bundle target being deployed. Absent here means the authored
@@ -331,6 +401,8 @@ async function main() {
       // is the step that turns source into the artifact being stamped. Nothing
       // else knows what went into it.
       ...(buildSha ? [{ name: 'PLAYER_INSIGHTS_BUILD_SHA', value: `'${buildSha}'` }] : []),
+      ...(buildAncestors ? [{ name: 'PLAYER_INSIGHTS_BUILD_ANCESTORS', value: `'${buildAncestors}'` }] : []),
+      ...(appSchema ? [{ name: 'PLAYER_INSIGHTS_APP_SCHEMA', value: `'${appSchema}'` }] : []),
       ...(judgeEndpoint ? [{ name: 'PLAYER_INSIGHTS_JUDGE_ENDPOINT', value: `'${judgeEndpoint}'` }] : []),
       // Whether the rail is shared is per-deployment, so app.yaml authors the
       // safe default and the release states the target's answer. Absent here
@@ -370,15 +442,18 @@ async function main() {
   console.log('');
   // Only the ones worth reading. A tree listing every icon buries the number that matters.
   for (const file of files.filter((f) => f.size > 64 * 1024 || oversized.includes(f))) {
-    console.log(`  ${file.name.padEnd(46)} ${(file.size / 1024 / 1024).toFixed(2).padStart(6)} MB` +
+    console.log(
+      `  ${file.name.padEnd(46)} ${(file.size / 1024 / 1024).toFixed(2).padStart(6)} MB` +
         (file.size > MAX_DEPLOY_FILE_BYTES ? '   EXCEEDS 10 MB DEPLOY LIMIT' : '')
     );
   }
-  console.log(`  ${String(`(${files.length} files total)`).padEnd(46)} ` +
+  console.log(
+    `  ${String(`(${files.length} files total)`).padEnd(46)} ` +
       `${(files.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2).padStart(6)} MB`
   );
   if (oversized.length > 0) {
-    throw new Error(`${oversized.map((f) => f.name).join(', ')} exceeds the 10 MB Databricks Apps limit. ` +
+    throw new Error(
+      `${oversized.map((f) => f.name).join(', ')} exceeds the 10 MB Databricks Apps limit. ` +
         'For a server file, add the heaviest package to vendorPackages in this script; for a ' +
         'client asset, split it with a dynamic import().'
     );

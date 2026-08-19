@@ -121,15 +121,13 @@ function body(
 }
 
 describe('who asked, in the list', () => {
-  it('marks each row with the initials the rest of the app gives that person', () => {
-    // The same function the message bubble and the conversation rail use, so a
-    // reader looking at the rail and this table sees one person one way. The
-    // circle is hidden from assistive tech; the whole address stays on the
-    // cell's title, where it already was.
+  it('uses the shared identity chip and renders no initials circle', () => {
     const markup = body('ready');
 
-    expect(markup).toContain('monitoring-initials monitoring-asker-initials');
-    expect(markup).toContain('>FP<');
+    expect(markup).toContain('identity-chip identity-chip--compact monitoring-asker-who');
+    expect(markup).toContain('lucide-user-round');
+    expect(markup).not.toContain('>FP<');
+    expect(markup).not.toContain('monitoring-initials');
     expect(markup).toContain('title="first.person@example.test"');
     expect(markup).toContain('first.person');
   });
@@ -138,7 +136,7 @@ describe('who asked, in the list', () => {
     // A `td` given `display: flex` leaves the table's column sizing, which is
     // the trap the question column next door is commented for. The layout lives
     // on a span inside the cell.
-    expect(body('ready')).toMatch(/<td class="monitoring-asker"[^>]*><span class="monitoring-asker-who">/);
+    expect(body('ready')).toMatch(/<td class="monitoring-asker"[^>]*><span class="identity-chip[^"]*monitoring-asker-who"/);
   });
 });
 
@@ -967,13 +965,12 @@ describe('the per-user panel', () => {
     expect(markup).toContain('monitoring-eyebrow-range');
   });
 
-  it('marks whoever the panel is about with the initials the rest of the app gives them', () => {
+  it('uses the shared identity chip for the person panel too', () => {
     const markup = render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />);
 
-    expect(markup).toContain('monitoring-panel-initials');
-    // Hidden from assistive tech and paired with the address, because two
-    // letters read aloud are not an answer to whose panel this is.
-    expect(markup).toMatch(/monitoring-initials monitoring-panel-initials" aria-hidden="true"/);
+    expect(markup).toContain('class="identity-chip"');
+    expect(markup).toContain('lucide-user-round');
+    expect(markup).not.toContain('>FP<');
   });
 
   it('shows the two refusal causes as separate counts and never their total', () => {

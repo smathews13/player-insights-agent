@@ -253,6 +253,8 @@
   display: inline-flex;
   width: 18px;
   height: 18px;
+  /* Optical: on-navy step mark sat a hair high against the status sentence. */
+  margin-top: 1px;
 }
 
 .ast-sky-status-mark svg {

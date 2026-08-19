@@ -32,7 +32,28 @@ import type { Identity } from './app-types';
 import { partial } from './styles/stylesheet';
 import { acknowledgeFirstOpen } from './first-open';
 
-const ALL_STATES: RoleState[] = ['resolving', 'admin', 'consumer', 'failed'];
+/**
+ * FIVE, AND super_admin USED TO BE MISSING FROM THIS LINE. That is the whole of
+ * why the top rank rendered as bare words in the header: every claim in this file
+ * is made by looping this array, so a state absent from it had no rule in
+ * shell.css, no icon, and nothing that failed when it drew as unstyled text
+ * beside a pill. `.role-badge`'s base rule gave it padding and a radius and no
+ * fill, which on white is indistinguishable from prose.
+ *
+ * Spelled as a total record rather than as an array, so the next state added to
+ * `RoleState` is a typecheck failure here instead of a state nobody styled.
+ */
+const EVERY_STATE: Readonly<Record<RoleState, true>> = {
+  resolving: true,
+  super_admin: true,
+  admin: true,
+  consumer: true,
+  failed: true,
+};
+const ALL_STATES = Object.keys(EVERY_STATE) as RoleState[];
+
+/** The two administrator ranks, which are the states that carry a mark. */
+const ADMIN_STATES: RoleState[] = ['super_admin', 'admin'];
 
 function resolution(state: RoleState): RoleResolution {
   return { state, addedAdminsReadable: true };
@@ -78,6 +99,28 @@ function cluster(state: RoleState, className?: string): string {
   );
 }
 
+/**
+ * The header's copy of the cluster, which is the one that carries the gear.
+ *
+ * The gear arrives as a slot rather than being drawn by `IdentityChips`, so a
+ * test that wants to assert where it lands has to hand it one. This stands in for
+ * the element Layout passes: it is the class and the accessible name that matter
+ * to the assertions, not the button recipe underneath them.
+ */
+function clusterWithGear(state: RoleState): string {
+  return renderToStaticMarkup(
+    <IdentityChips
+      identity={identity()}
+      role={resolution(state)}
+      gear={
+        <a className="header-settings" href="/settings" aria-label="App settings" title="App settings">
+          gear
+        </a>
+      }
+    />
+  );
+}
+
 describe('the header draws a badge at all', () => {
   it('renders one, which is the assertion that was missing when it rendered none', () => {
     // Deliberately the weakest possible claim about the badge, and the only one
@@ -104,22 +147,100 @@ describe('the header draws a badge at all', () => {
   });
 });
 
-describe('badge, then who, then who built it, then the gear', () => {
+describe('badge, then who, then what they can open, then who built it', () => {
   it('draws the badge to the LEFT of the reader it qualifies', () => {
     // Binding, and already corrected once: the design handoff puts it on the
     // right and this app puts it on the left. role.ts records the order and the
     // reasoning as HEADER_CLUSTER_ORDER; this is the assertion that the markup
     // agrees with it.
     //
-    // The reader is an avatar now rather than a "Signed in <name>" chip (§1), so
-    // the second landmark moved. The claim did not: the badge qualifies whoever
-    // it precedes, and the attribution closes the row behind both.
+    // The reader is the signed-in identity chip (local part), restored from the
+    // initials avatar. The claim did not move: the badge qualifies whoever it
+    // precedes, and the attribution closes the row behind both.
     const markup = cluster('admin');
-    const at = (needle: string) => markup.indexOf(needle);
+    const at = (needle: string) => markup.indexOf(`data-testid="${needle}"`);
     expect(at('role-badge')).toBeGreaterThan(-1);
-    expect(at('identity-avatar')).toBeGreaterThan(-1);
-    expect(at('role-badge')).toBeLessThan(at('identity-avatar'));
-    expect(at('identity-avatar')).toBeLessThan(at('built-on-databricks'));
+    expect(at('identity-chip')).toBeGreaterThan(-1);
+    expect(at('role-badge')).toBeLessThan(at('identity-chip'));
+    expect(markup.indexOf('identity-chip')).toBeLessThan(markup.indexOf('built-on-databricks'));
+  });
+
+  /**
+   * THE GEAR SITS BETWEEN THE READER AND THE DIVIDER, which is the change this
+   * item pins. It used to close the header from the far right, past "Built on
+   * Databricks" -- so a control belonging to the reader sat on the far side of
+   * the one divider whose whole job is to separate the reader from who built the
+   * app. §1 gives that divider exactly that job, so the gear was on the wrong
+   * side of it.
+   *
+   * Asserted through the CLUSTER rather than the header because the gear is now a
+   * member of it: this is the assertion that would fail if somebody put it back
+   * after the attribution, or after the cluster entirely.
+   */
+  it('puts the gear after the identity chip and before the divider and the attribution', () => {
+    const markup = clusterWithGear('admin');
+    const at = (needle: string) => markup.indexOf(needle);
+    expect(at('header-settings'), 'the cluster draws the gear it was handed').toBeGreaterThan(-1);
+    expect(at('identity-chip')).toBeLessThan(at('header-settings'));
+    expect(at('header-settings')).toBeLessThan(at('app-chrome-rule'));
+    expect(at('header-settings')).toBeLessThan(at('built-on-databricks'));
+  });
+
+  it('draws exactly one App settings control, and never one in the mobile sheet', () => {
+    // Two elements named "App settings" on one page is an ambiguous locator for a
+    // reader moving by keyboard and for a test, and the sheet's copy of the
+    // cluster is where a second one would come from: it renders the same
+    // component. It is handed no gear, and that is how it says so.
+    const markup = clusterWithGear('admin');
+    expect(markup.match(/aria-label="App settings"/g) ?? []).toHaveLength(1);
+    expect(cluster('admin', 'mobile-identity')).not.toContain('App settings');
+    expect(cluster('admin', 'mobile-identity')).not.toContain('header-settings');
+  });
+
+  it('keeps the gear in the header below 800px, where the rest of the cluster leaves', () => {
+    // The regression this change could most easily have shipped. The 800px band
+    // used to hide `.identity-chips` outright, which was harmless while the gear
+    // was a sibling of the cluster and fatal once it is a member: the sheet's copy
+    // carries no gear, so App settings would have had no control anywhere on the
+    // page at phone width. The rule hides the cluster's members EXCEPT the gear.
+    const band =
+      partial('responsive.css')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .match(/@media \(max-width: 800px\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    expect(band, 'responsive.css still has the 800 band').not.toEqual('');
+    expect(band).toMatch(/\.app-header \.identity-chips > :not\(\.header-settings\)\s*\{\s*display:\s*none/);
+    // And not the blunt version, at any width. `.identity-chips` may not be
+    // display:none in a header-scoped rule, because the gear is inside it.
+    expect(partial('responsive.css').replace(/\/\*[\s\S]*?\*\//g, ' ')).not.toMatch(
+      /\.app-header \.identity-chips\s*\{[^}]*display:\s*none/
+    );
+  });
+
+  it('does not let the gear shrink out of its own hit target', () => {
+    // The chips are the part of the header that gives -- shell.css pins
+    // `flex: none` on the brand and the nav so navigation is not -- and a flex
+    // child defaults to shrinking. An icon button that shrinks is a hit target
+    // that shrinks, on the one control in the cluster.
+    const shell = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const gear = shell.match(/\.header-settings\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(gear, 'shell.css still seats .header-settings').not.toEqual('');
+    expect(gear).toMatch(/flex:\s*none/);
+    // And no margin of its own: the row's 12px gap is the spacing now, and a
+    // margin here stacks on top of it and sets the gear further from the identity
+    // chip than the chip sits from the badge.
+    expect(gear).not.toMatch(/margin/);
+  });
+
+  it('spaces Super admin, identity chip, and gear with one shared gap', () => {
+    const shell = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const chips = shell.match(/\.identity-chips\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(chips).toMatch(/gap:\s*12px/);
+    const chip = shell.match(/\.identity-chip\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(chip, 'shell.css seats .identity-chip').not.toEqual('');
+    expect(chip).not.toMatch(/margin/);
+    const markup = clusterWithGear('admin');
+    expect(markup).toContain('Signed in');
+    expect(markup).toContain('<your-username>');
   });
 
   it('is not flipped back by the stylesheet', () => {
@@ -138,13 +259,76 @@ describe('badge, then who, then who built it, then the gear', () => {
   });
 });
 
-describe('all four states reach the screen, and none of them is blank prose', () => {
+describe('all five states reach the screen, and none of them is blank prose', () => {
   it('says Admin and Consumer in words rather than as an initial', () => {
     expect(badge('admin')).toContain('Admin');
     expect(badge('consumer')).toContain('Consumer');
     // "A" and "C" would be indistinguishable from the initials the header draws
     // elsewhere, which is why role.ts refuses to abbreviate them.
     expect(badge('admin')).not.toMatch(/>A</);
+  });
+
+  /**
+   * THE ONE THIS FILE MISSED, and the reason it is worth its own item.
+   *
+   * `super_admin` has been a `RoleState` since the rank landed, role.ts has given
+   * it a word and a tooltip since then, and shell.css had no rule for it -- so the
+   * header drew the top rank as unstyled text next to a styled pill. Nothing
+   * failed, because every claim in this file was made against a four-element array
+   * the state was not in. `ALL_STATES` is a total record now for exactly that
+   * reason, and the assertions here are about the pixels a reader would have
+   * reported.
+   */
+  it('says Super admin in a pill rather than as bare prose beside one', () => {
+    const markup = badge('super_admin');
+    expect(markup).toContain('Super admin');
+    // The word is role.ts's, so the badge and the roster cannot spell the rank
+    // two ways. Sentence case, which is what the label already read.
+    expect(markup).toContain(badgeLabel('super_admin'));
+    expect(markup).toContain(badgeTitle('super_admin'));
+    // The pill itself: same class, same state attribute, and a fill that is not
+    // the page. The class alone was there before this change; the fill was not.
+    expect(markup).toContain('class="role-badge"');
+    expect(markup).toContain('data-role-state="super_admin"');
+  });
+
+  it('does not spend a reserved accent on saying who is signed in', () => {
+    // The rationing in design-spec-master.md §0, which a role chip is on the wrong
+    // side of in three different ways:
+    //
+    //   - Lava #FF3621 is the Databricks attribution, which sits about six pixels
+    //     to the right of this pill in the same cluster. A role chip taking it
+    //     would put the app's one reserved accent on the reader's rank.
+    //   - --ast-blue is the action colour: every primary button's fill, and the
+    //     solid Live pill. A pill wearing it reads as pressable or as the agent
+    //     working, and this is a label for an answer the server already gave.
+    //   - Amber is the evaluation mass, and green and red are verdicts about
+    //     whether a dependency answered. None of those is a rank.
+    const shell = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const rule =
+      shell.match(/\.role-badge\[data-role-state='super_admin'\]\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(rule, 'shell.css styles the super_admin badge').not.toEqual('');
+    expect(rule).not.toMatch(/--ast-blue|--ast-warn|--ast-pos|--ast-neg|--db-|FF3621/i);
+    expect(rule).not.toMatch(/#[0-9A-Fa-f]{3,8}\b/);
+  });
+
+  it('is the same pill as Admin with a different tone, not a different component', () => {
+    // Same shape, same size, same type -- all of that comes from the shared base
+    // rule, which is what makes the pair read as one family. The only per-state
+    // declarations either of them carries are the two colours.
+    const shell = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const declarations = (state: RoleState) =>
+      (shell.match(new RegExp(`\\.role-badge\\[data-role-state='${state}'\\]\\s*\\{([^}]*)\\}`))?.[1] ?? '')
+        .split(';')
+        .map((line) => line.split(':')[0].trim())
+        .filter(Boolean)
+        .sort();
+    expect(declarations('super_admin')).toEqual(['background', 'color']);
+    expect(declarations('super_admin')).toEqual(declarations('admin'));
+    // And the tone genuinely differs, or the two ranks are one pill drawn twice.
+    const shellRule = (state: RoleState) =>
+      shell.match(new RegExp(`\\.role-badge\\[data-role-state='${state}'\\]\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+    expect(shellRule('super_admin')).not.toEqual(shellRule('admin'));
   });
 
   it('says Role unknown when the role could not be read', () => {
@@ -229,6 +413,13 @@ describe('all four states reach the screen, and none of them is blank prose', ()
     expect(ruleFor('admin')).toMatch(/background:\s*var\(--ast-info-fill\)/);
     expect(ruleFor('admin')).toMatch(/color:\s*var\(--ast-info-text\)/);
 
+    // The super rank is the SAME family inverted -- the deep rung as the fill,
+    // white on it -- rather than a sixth colour. That is the one move that reads
+    // as "more of what the pill beside it says" without adding a hue, and #0E538B
+    // under white is 7.9:1.
+    expect(ruleFor('super_admin')).toMatch(/background:\s*var\(--ast-info-text\)/);
+    expect(ruleFor('super_admin')).toMatch(/color:\s*var\(--ast-white\)/);
+
     // Consumer and Role unknown share one rule and both are neutral. The word is
     // the whole distinction between them, which is why they can share a colour.
     expect(ruleFor('failed')).toMatch(/background:\s*var\(--ast-neutral-fill\)/);
@@ -251,17 +442,35 @@ describe('all four states reach the screen, and none of them is blank prose', ()
   });
 
   /**
-   * The one state with a mark, and the reason it is the only one: Admin means
-   * extra surfaces are on the page. Consumer is explicitly given no icon.
+   * The two states with a mark, and the reason they are the only two: both
+   * administrator ranks mean extra surfaces are on the page. Consumer is
+   * explicitly given no icon, and neither is a state that is not a role.
    */
-  it('gives Admin the shield and gives no other state an icon', () => {
-    expect(badge('admin')).toContain('<svg');
+  it('gives both administrator ranks a shield and gives no other state an icon', () => {
+    for (const state of ADMIN_STATES) expect(badge(state)).toContain('<svg');
     expect(badge('consumer')).not.toContain('<svg');
     expect(badge('failed')).not.toContain('<svg');
     expect(badge('resolving')).not.toContain('<svg');
     // Hidden, because the pill is already named "Role: Admin" and a shield
     // announced beside that is a second wordless copy of the word next to it.
-    expect(badge('admin')).toMatch(/<svg[^>]*aria-hidden="true"/);
+    for (const state of ADMIN_STATES) expect(badge(state)).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  it('gives the two ranks different shields, so the pair is not one glyph twice', () => {
+    // The super rank's mark names the one control it has that Admin does not:
+    // setting who else may administer the deployment, which is the sentence
+    // `badgeTitle` gives it. Two identical shields would leave the colour as the
+    // only difference between the two pills, which is the thing this app does not
+    // do -- see the fill test below for the other half of that claim.
+    const paths = (state: RoleState) => [...badge(state).matchAll(/<path\b/g)].length;
+    expect(paths('super_admin')).toBeGreaterThan(0);
+    expect(paths('admin')).toBeGreaterThan(0);
+    expect(badge('super_admin')).not.toEqual(badge('admin'));
+    // Not just a different label with the same drawing: the glyphs themselves
+    // differ, which is what makes the mark carry information.
+    const glyph = (state: RoleState) => badge(state).match(/<svg[\s\S]*?<\/svg>/)?.[0] ?? '';
+    expect(glyph('super_admin')).not.toEqual(glyph('admin'));
+    expect(glyph('super_admin')).not.toEqual('');
   });
 
   it('names each state in the markup, so a stuck one can be told from a missing one', () => {

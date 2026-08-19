@@ -16,14 +16,10 @@
  */
 
 import {
-  anythingReports,
   CLASSIFICATION_LABEL,
   CLASSIFICATION_TONE,
-  egressPath,
   type EgressEnforcement,
-  type EgressEvent,
   type EgressPath,
-  type EgressReadState,
   type TableClassification,
 } from '../../shared/egress-contract';
 
@@ -42,14 +38,17 @@ export interface Pill {
  *
  * The tempting label for a `stored` path is nothing at all: draw the switch, let
  * the reader assume. That is the failure this whole field exists against. An
- * administrator turning off "Step input and output copy" and seeing no
- * qualification will believe the copy button is gone, will say so to somebody,
- * and the button will still be there. "Recorded only" is unglamorous and it is
- * what is true: the preference is saved and the export is logged when it happens,
- * and nothing removes the affordance yet.
+ * administrator turning off "Generated SQL copy" and seeing no qualification will
+ * believe the copy button is gone, will say so to somebody, and the button will
+ * still be there. "Recorded only" is unglamorous and it is what is true: the
+ * preference is saved and the export is logged when it happens, and nothing
+ * removes the affordance yet.
  *
  * The tone is deliberately NOT positive for either. A green chip on a control is
  * this panel congratulating itself.
+ *
+ * `uncontrollable` stays in the map so the type stays complete with the shared
+ * registry; those paths are not drawn on the panel.
  */
 export const ENFORCEMENT_PILL: Readonly<Record<EgressEnforcement, Pill>> = {
   enforced: { label: 'Enforced', tone: 'info' },
@@ -82,103 +81,6 @@ export function pathMeta(path: EgressPath): string[] {
   const reporting = reportingNote(path);
   if (reporting) facts.push(reporting);
   return facts;
-}
-
-/* ── The log ───────────────────────────────────────────────────────────────── */
-
-/**
- * Whether an export was permitted, in one word.
- *
- * `refused` is the interesting row and reads as negative on purpose. It is a
- * client that reported an export through a path this deployment has turned off:
- * an old bundle, a tab open since before the switch moved, or somebody who put
- * the affordance back. An administrator scanning the log should find it.
- */
-export const OUTCOME_PILL: Readonly<Record<EgressEvent['outcome'], Pill>> = {
-  left: { label: 'Left', tone: 'neutral' },
-  refused: { label: 'Refused', tone: 'neg' },
-};
-
-/**
- * The facts beside one row, in reading order, ready to be joined by ' · '.
- *
- * ── ZERO NEVER RENDERS, AND NEITHER DOES NULL ──
- *
- * `itemCount` is null for "not counted" and the app's rule is that a zero count
- * is not printed. Both are dropped here rather than at the markup, so the two
- * cannot disagree. An export of nothing is not an export, so a zero arriving is a
- * bug upstream and printing "0 items" would put that bug on an administrator's
- * screen dressed as a fact.
- */
-export function eventFacts(event: EgressEvent): string[] {
-  const facts: string[] = [];
-  const path = egressPath(event.channel);
-  facts.push(path?.label ?? event.channel);
-  if (event.surface) facts.push(event.surface);
-  if (typeof event.itemCount === 'number' && event.itemCount > 0) {
-    facts.push(`${event.itemCount} item${event.itemCount === 1 ? '' : 's'}`);
-  }
-  return facts;
-}
-
-/** Whether the row can offer a way through to what it points at. */
-export function eventPointer(event: EgressEvent): { runId: string } | null {
-  return event.runId ? { runId: event.runId } : null;
-}
-
-/**
- * What the panel says when the log has no rows, which is three different things.
- *
- * "Nothing has left" and "the record could not be read" put the same zero rows on
- * screen and mean opposite things, and the third -- the table is not there yet --
- * is a deployment that has not run the migration rather than a fault. Each gets
- * its own words, because an administrator acting on the wrong one either relaxes
- * about a blind spot or chases an outage that is not happening.
- */
-export const READ_STATE_NOTE: Readonly<Record<EgressReadState, string>> = {
-  read: 'Nothing recorded yet',
-  unavailable: 'The record could not be read',
-  'not-migrated': 'The record has not been created on this deployment',
-};
-
-/**
- * The fourth state, and the one that would otherwise be a lie.
- *
- * ── AN EMPTY LOG ONLY MEANS "NOTHING LEFT" IF SOMETHING WOULD HAVE SAID SO ──
- *
- * Every affordance that reports an export does so from the browser it happened
- * in, and until a surface calls the recorder, this table stays empty however
- * much leaves. "Nothing recorded yet" on that deployment is technically accurate
- * and reads as "nothing has left", which is the most comfortable possible wrong
- * answer for an administrator to take away from a page about data leaving.
- *
- * So where no path reports, the card says that instead of printing a zero. It
- * disappears on its own as producers land, because {@link anythingReports} is
- * derived from the registry rather than written here.
- */
-export const NOTHING_REPORTS_NOTE = 'No path reports yet';
-
-/**
- * What an empty log says, checked in the order that a reader needs.
- *
- * The read failures come FIRST. A deployment where nothing reports and the store
- * is also down should say the store is down, because that is the fault and the
- * other is a known gap.
- */
-export function emptyLogNote(readState: EgressReadState, reports: boolean = anythingReports()): string {
-  if (readState !== 'read') return READ_STATE_NOTE[readState];
-  return reports ? READ_STATE_NOTE.read : NOTHING_REPORTS_NOTE;
-}
-
-/**
- * A read that could not happen is a warning, not a quiet empty state.
- *
- * And so is a deployment where nothing reports, for the same reason: both are
- * blind spots wearing an empty list, and neutral would let a reader scroll past.
- */
-export function readStateTone(readState: EgressReadState, reports: boolean = anythingReports()): PillTone {
-  if (readState !== 'read') return 'warn';
-  return reports ? 'neutral' : 'warn';
 }
 
 /**

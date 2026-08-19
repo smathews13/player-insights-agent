@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  browseAppsHasNoScopeDetail,
   browseScopeUnavailableDetail,
   isBrowseOk,
   isBrowseUnavailable,
@@ -65,5 +66,18 @@ describe('browse-contract', () => {
     expect(detail).toContain('Browsing is unavailable');
     expect(detail).not.toMatch(/\u2014/);
     expect(detail).not.toMatch(/—/);
+  });
+
+  it('names Apps having no scope as a distinct unavailable reason', () => {
+    const unavailable: BrowseResponse = {
+      status: 'unavailable',
+      kind: 'experiments',
+      reason: 'apps_has_no_scope',
+      scope: '',
+      detail: browseAppsHasNoScopeDetail('MLflow'),
+    };
+    expect(isBrowseUnavailable(unavailable)).toBe(true);
+    expect(unavailable.detail).toContain('no MLflow scope');
+    expect(unavailable.detail).not.toMatch(/\u2014/);
   });
 });

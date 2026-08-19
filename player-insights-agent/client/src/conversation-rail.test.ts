@@ -269,7 +269,7 @@ describe('the rail draws one answer to "whose is this", not two', () => {
     // Reading `conversation.user_email` again inside the row is how the rail and
     // its chips came to disagree in the first place.
     expect(HOME_PAGE).toMatch(/visibleEntries\.map\(\(\{ conversation, owner \}\)/);
-    expect(HOME_PAGE).toMatch(/title=\{`Asked by \$\{owner\}`\}/);
+    expect(HOME_PAGE).toContain('<UserIdentityChip identity={owner} label="Asked by"');
     expect(HOME_PAGE).not.toMatch(/\{conversation\.user_email && \(/);
   });
 

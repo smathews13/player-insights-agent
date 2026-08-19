@@ -115,7 +115,9 @@
    glyph centres on the header rather than the whole multi-line body beside it.
    `align-self: start` keeps it on the first line when the header wraps or a
    running pill widens the row; centring in a fixed box holds for every kind of
-   mark whatever intrinsic padding its own SVG carries. */
+   mark whatever intrinsic padding its own SVG carries. A 1px optical nudge
+   drops the glyph onto the bold step name's x-height: without it every family
+   (astrolabe mark and lucide alike) reads a hair high against the header. */
 .live-step-icon {
   align-self: start;
   display: flex;
@@ -123,6 +125,7 @@
   justify-content: center;
   width: 13px;
   height: calc(var(--text-base) * 1.4);
+  margin-top: 1px;
 }
 
 /* The kind glyph. The default icon stroke rather than the action colour: these

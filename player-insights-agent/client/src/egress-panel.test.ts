@@ -20,8 +20,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CLASSIFICATION_LABEL,
+  controllablePaths,
   EGRESS_PATHS,
-  type EgressEvent,
   type TableClassification,
 } from '../../shared/egress-contract';
 import {
@@ -29,38 +29,15 @@ import {
   classificationFacts,
   classificationPill,
   controlAccessibleName,
-  emptyLogNote,
   ENFORCEMENT_PILL,
   ENFORCEMENT_SITE,
   enforcementPill,
-  eventFacts,
-  eventPointer,
-  NOTHING_REPORTS_NOTE,
-  OUTCOME_PILL,
   pathMeta,
-  readStateTone,
-  READ_STATE_NOTE,
   reportingNote,
 } from './egress-panel';
 
 const PANEL_SOURCE = readFileSync(new URL('./EgressPanel.tsx', import.meta.url), 'utf8');
 const WORDS_SOURCE = readFileSync(new URL('./egress-panel.ts', import.meta.url), 'utf8');
-
-function event(over: Partial<EgressEvent> = {}): EgressEvent {
-  return {
-    id: 'ev-1',
-    occurredAt: '2026-03-04T10:00:00.000Z',
-    actor: 'reader@example.invalid',
-    channel: 'chart-image',
-    shape: 'image',
-    outcome: 'left',
-    surface: 'answer',
-    runId: null,
-    conversationId: null,
-    itemCount: null,
-    ...over,
-  };
-}
 
 function table(over: Partial<TableClassification> = {}): TableClassification {
   return {
@@ -74,8 +51,8 @@ function table(over: Partial<TableClassification> = {}): TableClassification {
 }
 
 describe('a switch says how far it reaches', () => {
-  it('gives every path a word, so no row is silent about its own coverage', () => {
-    for (const path of EGRESS_PATHS) {
+  it('gives every controllable path a word, so no row is silent about its own coverage', () => {
+    for (const path of controllablePaths()) {
       expect(enforcementPill(path).label, path.channel).toBeTruthy();
     }
   });
@@ -94,10 +71,6 @@ describe('a switch says how far it reaches', () => {
     }
   });
 
-  it('says plainly that the uncontrollable paths cannot be stopped', () => {
-    expect(ENFORCEMENT_PILL.uncontrollable.label).toMatch(/cannot/i);
-  });
-
   it('names where each enforced path is enforced, because the two are not equal', () => {
     // One withholds the value; the other removes a button in a browser that
     // already has it. Collapsing them into one word would overstate the second.
@@ -110,110 +83,33 @@ describe('a switch says how far it reaches', () => {
     }
   });
 
-  it('puts where the affordance is on every row', () => {
-    for (const path of EGRESS_PATHS) {
+  it('puts where the affordance is on every controllable row', () => {
+    for (const path of controllablePaths()) {
       expect(pathMeta(path)[0], path.channel).toBe(path.where);
     }
   });
 
   it('names the action on the control and not the path, so the two are distinct', () => {
-    const path = EGRESS_PATHS[0];
+    const path = controllablePaths()[0];
     expect(controlAccessibleName(path)).not.toBe(path.label);
     expect(controlAccessibleName(path)).toMatch(/^Permit /);
   });
 });
 
 describe('what the panel lists', () => {
-  it('draws the uncontrollable paths rather than quietly leaving them out', () => {
-    // The flattering design omits them. An administrator is entitled to know
-    // that selecting an answer and screenshotting a chart are ways out no switch
-    // on this page touches.
-    expect(PANEL_SOURCE).toContain("=== 'uncontrollable'");
-    expect(PANEL_SOURCE).toContain('UncontrollableRow');
+  it('draws only controllable paths, with switches', () => {
+    expect(PANEL_SOURCE).toContain('controllablePaths()');
+    expect(PANEL_SOURCE).toContain('ControlRow');
+    expect(PANEL_SOURCE).toContain('<Switch');
   });
 
-  it('gives an uncontrollable path no switch at all, not a disabled one', () => {
-    // A greyed toggle reads as something a bigger permission could turn on.
-    const row = PANEL_SOURCE.slice(
-      PANEL_SOURCE.indexOf('function UncontrollableRow'),
-      PANEL_SOURCE.indexOf('/* ── The panel')
-    );
-    expect(row).not.toContain('<Switch');
-    expect(row).not.toContain('disabled');
-  });
-});
-
-describe('a row in the log', () => {
-  it('names the path in the panel\'s own words', () => {
-    expect(eventFacts(event({ channel: 'chart-image' }))[0]).toBe('Chart image download');
-  });
-
-  it('does not print a count of zero', () => {
-    // The app's rule everywhere. An export of nothing is not an export, so a
-    // zero arriving is a bug upstream and printing it dresses that bug as a fact.
-    expect(eventFacts(event({ itemCount: 0 })).join(' ')).not.toMatch(/\b0\b/);
-  });
-
-  it('does not print a count that was never taken', () => {
-    expect(eventFacts(event({ itemCount: null })).some((fact) => /item/.test(fact))).toBe(false);
-  });
-
-  it('prints a real count, singular and plural', () => {
-    expect(eventFacts(event({ itemCount: 1 }))).toContain('1 item');
-    expect(eventFacts(event({ itemCount: 4 }))).toContain('4 items');
-  });
-
-  it('offers a way through only when there is a run to point at', () => {
-    expect(eventPointer(event({ runId: null }))).toBeNull();
-    expect(eventPointer(event({ runId: 'run-7' }))).toEqual({ runId: 'run-7' });
-  });
-
-  it('reads a refusal as negative, because it is the row worth finding', () => {
-    expect(OUTCOME_PILL.refused.tone).toBe('neg');
-    expect(OUTCOME_PILL.left.tone).not.toBe('neg');
-  });
-});
-
-describe('an empty log means four different things', () => {
-  it('distinguishes nothing recorded from a read that could not happen', () => {
-    const notes = new Set(Object.values(READ_STATE_NOTE));
-    expect(notes.size).toBe(3);
-    expect(emptyLogNote('read', true)).toMatch(/nothing/i);
-    expect(emptyLogNote('unavailable', true)).toMatch(/could not be read/i);
-    expect(emptyLogNote('not-migrated', true)).toMatch(/not been created/i);
-  });
-
-  it('does not say nothing has left when the record could not be read', () => {
-    // The two put the same zero rows on screen and mean opposite things.
-    expect(emptyLogNote('unavailable', true)).not.toMatch(/nothing/i);
-    expect(emptyLogNote('not-migrated', true)).not.toMatch(/nothing/i);
-  });
-
-  /**
-   * The fourth state, and the reason it exists. Until an affordance calls the
-   * recorder this table stays empty however much leaves, and "Nothing recorded
-   * yet" on that deployment reads as "nothing has left" -- the most comfortable
-   * possible wrong answer to take away from a page about data leaving.
-   */
-  it('does not say nothing has left when nothing would have said so', () => {
-    expect(emptyLogNote('read', false)).toBe(NOTHING_REPORTS_NOTE);
-    expect(emptyLogNote('read', false)).not.toMatch(/nothing recorded/i);
-  });
-
-  it('reports the store being down ahead of the gap, because that is the fault', () => {
-    expect(emptyLogNote('unavailable', false)).toBe(READ_STATE_NOTE.unavailable);
-    expect(emptyLogNote('not-migrated', false)).toBe(READ_STATE_NOTE['not-migrated']);
-  });
-
-  it('marks a failed read as a warning rather than a quiet empty state', () => {
-    expect(readStateTone('read', true)).toBe('neutral');
-    expect(readStateTone('unavailable', true)).toBe('warn');
-    expect(readStateTone('not-migrated', true)).toBe('warn');
-  });
-
-  it('marks a deployment where nothing reports as a warning too', () => {
-    // A blind spot wearing an empty list. Neutral would let a reader scroll past.
-    expect(readStateTone('read', false)).toBe('warn');
+  it('does not draw the uncontrollable status rows or the egress log', () => {
+    // Those were a reporting surface with no control behind them. The registry
+    // still names the paths; Settings no longer lists them or "What has left".
+    expect(PANEL_SOURCE).not.toContain('UncontrollableRow');
+    expect(PANEL_SOURCE).not.toContain('What has left');
+    expect(PANEL_SOURCE).not.toContain('/api/egress/admin/events');
+    expect(PANEL_SOURCE).not.toMatch(/Cannot be stopped/);
   });
 });
 
@@ -332,10 +228,11 @@ describe('what the panel says about personal information', () => {
 
 describe('the house style the design asks for', () => {
   it('uses no em dash in anything that reaches the screen', () => {
-    for (const words of [...Object.values(READ_STATE_NOTE), CLASSIFICATION_CAPTION,
+    for (const words of [
+      CLASSIFICATION_CAPTION,
       ...Object.values(CLASSIFICATION_LABEL),
       ...Object.values(ENFORCEMENT_PILL).map((pill) => pill.label),
-      ...Object.values(OUTCOME_PILL).map((pill) => pill.label)]) {
+    ]) {
       expect(words, words).not.toMatch(/—|–/);
     }
   });
@@ -349,10 +246,6 @@ describe('the house style the design asks for', () => {
   it('draws its chips with the astrolabe pill recipe', () => {
     expect(PANEL_SOURCE).toContain('ast-pill');
     expect(PANEL_SOURCE).toContain('ast-pill--');
-  });
-
-  it('sets figures in the columnar family', () => {
-    expect(PANEL_SOURCE).toContain('ast-num');
   });
 
   it('never claims the data is synthetic', () => {

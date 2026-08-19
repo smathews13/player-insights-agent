@@ -14,6 +14,7 @@
  * the work that maps stages onto run states, since both need the same hook.
  */
 
+import { APP_SCHEMA } from '../../shared/app-schema';
 import { ledgerQuery } from './run-ledger';
 import type { LedgerRun } from './run-ledger';
 import type { LakebaseReader } from './lakebase-store';
@@ -55,8 +56,8 @@ export async function readReplay(store: LakebaseReader, run: LedgerRun): Promise
   }
 
   const read = await ledgerQuery(store, 'run replay',
-    `SELECT m.response_json FROM player_insights.messages m
-       JOIN player_insights.conversations c ON c.id = m.conversation_id
+    `SELECT m.response_json FROM ${APP_SCHEMA}.messages m
+       JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
       WHERE m.id = $1 AND c.user_email = $2`,
     [run.terminalMessageId, run.userEmail]
   );

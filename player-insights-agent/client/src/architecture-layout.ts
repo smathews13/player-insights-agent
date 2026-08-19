@@ -158,7 +158,7 @@ export const CANVAS_FIT_SLACK = 2;
  * why the answer to a card that needs more room is always to give it more room.
  */
 export const CANVAS_WIDTH = 1264;
-export const CANVAS_HEIGHT = 912;
+export const CANVAS_HEIGHT = 939;
 
 /**
  * The smallest the drawing may be drawn at before scrolling is the better answer.
@@ -266,14 +266,14 @@ export function canvasFits(panelWidth: number): boolean {
  * architecture-layout.test.ts reads that declaration back out of the stylesheet,
  * so a change to the padding fails there rather than reappearing as an overlap.
  */
-/** 1px border and 10px padding, top and bottom. */
-export const CARD_CHROME_HEIGHT = 22;
-/** 1px border either side, 14px padding left and 12px right. */
-export const CARD_CHROME_WIDTH = 28;
+/** 1px border and 8px padding, top and bottom. */
+export const CARD_CHROME_HEIGHT = 18;
+/** 1px border either side, 12px padding left and 10px right. */
+export const CARD_CHROME_WIDTH = 24;
 /** The `gap` on `.arch-node` and on `.arch-node-main`, which are the same. */
-export const CARD_ROW_GAP = 4;
+export const CARD_ROW_GAP = 3;
 /** `line-height` on `.arch-node`, inherited by everything inside it. */
-export const CARD_LINE_HEIGHT = 1.45;
+export const CARD_LINE_HEIGHT = 1.35;
 /** `--text-xs`, which the card sets and the role, value and pills inherit. */
 export const CARD_TEXT = 11;
 /** `--text-base`, which only `.arch-node-label` sets. */
@@ -417,7 +417,7 @@ export function nodeHeight(id: string): number {
   if (!node) return 0;
   const content = (NODE_PLACEMENTS[id]?.width ?? 0) - CARD_CHROME_WIDTH;
   const dependency = node.presence === 'connection';
-  const pills = node.presence === 'local'
+  const pills = node.presence !== 'connection'
     ? [PILL_CHARS.status]
     : node.rebuilt
       ? [PILL_CHARS.status, PILL_CHARS.drift, PILL_CHARS.age]
@@ -554,18 +554,19 @@ export interface NodeBox {
  * above and below it, which is why those three are wider than the rest.
  */
 const NODE_PLACEMENTS: Readonly<Record<string, Omit<NodeBox, 'height'>>> = {
-  browser: { left: 12, top: 320, width: 140, accent: 'question' },
-  app: { left: 226, top: 300, width: 184, accent: 'question' },
-  'agent-endpoint': { left: 472, top: 290, width: 208, accent: 'agent' },
-  lakebase: { left: 226, top: 541, width: 184, accent: 'kept' },
-  'experiment-id': { left: 472, top: 541, width: 208, accent: 'kept' },
-  'llm-endpoint': { left: 748, top: 36, width: 232, accent: 'agent' },
-  'genie-dictionary': { left: 748, top: 245, width: 232, accent: 'genie' },
-  'genie-data': { left: 748, top: 438, width: 232, accent: 'genie' },
-  'semantic-index': { left: 748, top: 631, width: 232, accent: 'search' },
-  'sql-warehouse': { left: 1042, top: 260, width: 210, accent: 'governed' },
-  catalog: { left: 1042, top: 485, width: 210, accent: 'governed' },
-  'semantic-index-endpoint': { left: 1042, top: 686, width: 210, accent: 'search' },
+  browser: { left: 12, top: 320, width: 128, accent: 'question' },
+  app: { left: 226, top: 300, width: 172, accent: 'question' },
+  'agent-endpoint': { left: 472, top: 290, width: 196, accent: 'agent' },
+  'data-source-finder': { left: 472, top: 485, width: 196, accent: 'agent' },
+  lakebase: { left: 226, top: 541, width: 172, accent: 'kept' },
+  'experiment-id': { left: 472, top: 740, width: 196, accent: 'kept' },
+  'llm-endpoint': { left: 748, top: 36, width: 218, accent: 'agent' },
+  'genie-dictionary': { left: 748, top: 245, width: 218, accent: 'genie' },
+  'genie-data': { left: 748, top: 438, width: 218, accent: 'genie' },
+  'semantic-index': { left: 748, top: 631, width: 218, accent: 'search' },
+  'sql-warehouse': { left: 1054, top: 260, width: 198, accent: 'governed' },
+  catalog: { left: 1054, top: 485, width: 198, accent: 'governed' },
+  'semantic-index-endpoint': { left: 1054, top: 686, width: 198, accent: 'search' },
 };
 
 /**
@@ -640,8 +641,8 @@ const EDGE_GEOMETRY: Readonly<
   'browser->app': {
     id: 'pe1',
     label: 'question',
-    d: 'M152 400 H226',
-    labelX: 189,
+    d: 'M140 400 H226',
+    labelX: 183,
     labelY: 390,
     labelAnchor: 'middle',
     accent: 'question',
@@ -651,8 +652,8 @@ const EDGE_GEOMETRY: Readonly<
   'app->agent-endpoint': {
     id: 'pe2',
     label: 'invoke',
-    d: 'M410 380 H472',
-    labelX: 441,
+    d: 'M398 380 H472',
+    labelX: 435,
     labelY: 370,
     labelAnchor: 'middle',
     accent: 'question',
@@ -667,9 +668,9 @@ const EDGE_GEOMETRY: Readonly<
   'app->lakebase': {
     id: 'pe3',
     label: 'conversation',
-    d: 'M318 481 V539',
-    labelX: 334,
-    labelY: 513,
+    d: 'M312 405 V541',
+    labelX: 328,
+    labelY: 478,
     accent: 'kept',
     duration: 3.2,
     delay: 0,
@@ -677,9 +678,9 @@ const EDGE_GEOMETRY: Readonly<
   'agent-endpoint->experiment-id': {
     id: 'pe4',
     label: 'trace',
-    d: 'M576 447 V539',
-    labelX: 590,
-    labelY: 513,
+    d: 'M570 438 C450 438 450 740 570 740',
+    labelX: 584,
+    labelY: 715,
     accent: 'kept',
     duration: 3.2,
     delay: 1.4,
@@ -687,31 +688,51 @@ const EDGE_GEOMETRY: Readonly<
   'agent-endpoint->llm-endpoint': {
     id: 'pe5',
     label: 'plan + prose',
-    d: 'M680 315 C722 315 706 86 748 86',
+    d: 'M668 315 C716 315 700 86 748 86',
     labelX: 645,
     labelY: 170,
     accent: 'agent',
     duration: 2.8,
     delay: 0,
   },
-  // The four lines out of the orchestrator arrive 50px down each card they point
+  'agent-endpoint->data-source-finder': {
+    id: 'pe12',
+    label: 'delegate',
+    d: 'M570 438 V485',
+    labelX: 582,
+    labelY: 468,
+    accent: 'agent',
+    duration: 2.4,
+    delay: 0.4,
+  },
+  'data-source-finder->llm-endpoint': {
+    id: 'pe13',
+    label: 'reason',
+    d: 'M668 510 C724 510 700 110 748 110',
+    labelX: 696,
+    labelY: 222,
+    accent: 'agent',
+    duration: 2.8,
+    delay: 0.5,
+  },
+  // The lines out of the finder arrive 50px down each card they point
   // at, which is under its title and level with its status pill. That is why
   // every one of these end coordinates moved when the middle column was
   // re-spaced: the arrival point is relative to a card, not to the canvas.
-  'agent-endpoint->genie-dictionary': {
+  'data-source-finder->genie-dictionary': {
     id: 'pe6',
     label: 'terms',
-    d: 'M680 340 C722 340 706 295 748 295',
+    d: 'M668 535 C716 535 700 295 748 295',
     labelX: 692,
     labelY: 318,
     accent: 'genie',
     duration: 2.8,
     delay: 0.7,
   },
-  'agent-endpoint->genie-data': {
+  'data-source-finder->genie-data': {
     id: 'pe7',
     label: 'metrics',
-    d: 'M680 365 C722 365 706 488 748 488',
+    d: 'M668 560 C716 560 700 488 748 488',
     labelX: 736,
     labelY: 480,
     labelAnchor: 'end',
@@ -719,15 +740,26 @@ const EDGE_GEOMETRY: Readonly<
     duration: 2.8,
     delay: 1.4,
   },
-  'agent-endpoint->semantic-index': {
+  'data-source-finder->semantic-index': {
     id: 'pe8',
     label: 'search',
-    d: 'M680 390 C722 390 706 681 748 681',
+    d: 'M668 585 C716 585 700 681 748 681',
     labelX: 692,
     labelY: 560,
     accent: 'search',
     duration: 2.8,
     delay: 2.1,
+  },
+  'data-source-finder->sql-warehouse': {
+    id: 'pe14',
+    label: 'resolve + SQL',
+    d: 'M668 520 C710 520 700 220 1010 220 C1034 220 1028 300 1054 300',
+    labelX: 870,
+    labelY: 210,
+    labelAnchor: 'middle',
+    accent: 'governed',
+    duration: 3,
+    delay: 1.8,
   },
   // Drawn from the endpoint to the index, in the same shape as the warehouse
   // pairing above it, because the endpoint is what a search of the index runs
@@ -736,8 +768,8 @@ const EDGE_GEOMETRY: Readonly<
   'semantic-index-endpoint->semantic-index': {
     id: 'pe11',
     label: 'serves',
-    d: 'M1040 746 C1011 746 1011 681 982 681',
-    labelX: 1011,
+    d: 'M1054 746 C1010 746 1010 681 966 681',
+    labelX: 1010,
     labelY: 670,
     labelAnchor: 'middle',
     accent: 'search',
@@ -747,8 +779,8 @@ const EDGE_GEOMETRY: Readonly<
   'genie-data->sql-warehouse': {
     id: 'pe9',
     label: 'SQL',
-    d: 'M982 483 C1011 483 1011 320 1040 320',
-    labelX: 1011,
+    d: 'M966 483 C1010 483 1010 320 1054 320',
+    labelX: 1010,
     labelY: 400,
     labelAnchor: 'middle',
     accent: 'governed',
@@ -761,9 +793,9 @@ const EDGE_GEOMETRY: Readonly<
   'sql-warehouse->catalog': {
     id: 'pe10',
     label: 'governed reads',
-    d: 'M1147 435 V483',
-    labelX: 1159,
-    labelY: 462,
+    d: 'M1153 408 V485',
+    labelX: 1165,
+    labelY: 450,
     accent: 'governed',
     duration: 2.4,
     delay: 1.2,

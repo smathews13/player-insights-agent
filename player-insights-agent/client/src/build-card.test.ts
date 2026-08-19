@@ -148,7 +148,7 @@ describe('the right column: what it was built from', () => {
     const rows = telemetryRows(facts({ deployedAt: AUG_2, deployedBy: 'someone@example.com' }), Date.parse(AUG_2) + 14 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000);
     const byKey = new Map(rows.map((row) => [row.key, row]));
 
-    expect(byKey.get('deployed')).toMatchObject({ aside: ' \u00b7 by someone@example.com' });
+    expect(byKey.get('deployed')).toMatchObject({ identity: 'someone@example.com' });
     expect(byKey.get('uptime')).toMatchObject({ value: '14d 6h', aside: ' \u00b7 since last deploy' });
   });
 

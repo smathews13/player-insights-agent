@@ -109,7 +109,8 @@ describe('the opening block', () => {
 
   it('still says what was checked and what the check does not decide', () => {
     const read = text(markup);
-    expect(read).toContain('reader@example.com');
+    expect(read).toContain('Signed in as reader');
+    expect(markup).toContain('identity-chip identity-chip--compact');
     expect(read).toContain('under your own token');
     expect(read).toContain('SQL warehouse');
     expect(read).toContain('tables behind answers');

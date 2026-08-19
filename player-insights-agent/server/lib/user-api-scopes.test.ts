@@ -57,11 +57,41 @@ function scopeBlock(target: string): string[] {
   return lines;
 }
 
-/** The scopes one target declares, read out of the bundle's own text. */
+/** The scopes one target lists in a block of its OWN, empty if it has none. */
 function declaredScopes(target: string): string[] {
   return scopeBlock(target)
     .map((line) => /^\s+- (\S+)\s*$/.exec(line)?.[1])
     .filter((scope): scope is string => Boolean(scope));
+}
+
+/**
+ * The scopes a target actually REQUESTS: its own block if it has one, else the
+ * shared default it inherits. A DAB complex-variable override replaces the
+ * default rather than merging (bundle/scope-contract.py and bundle/drift-check.py
+ * both resolve it this way), so this is either/or, not a union.
+ */
+function effectiveScopes(target: string): string[] {
+  const own = declaredScopes(target);
+  return own.length > 0 ? own : defaultScopes();
+}
+
+/**
+ * The `app_user_api_scopes` VARIABLE default -- what a target with no override
+ * block of its own inherits, i.e. what a customer / customer deployment requests.
+ *
+ * Read as text for the same reason as the target blocks: a DAB complex variable
+ * is target-layered and a YAML parse of one file resolves nothing. A target
+ * override REPLACES this default rather than merging with it (see
+ * bundle/scope-contract.py), so this list is exactly the customer/T2 request.
+ */
+function defaultScopes(): string[] {
+  const bundle = readFileSync(BUNDLE, 'utf8');
+  const at = bundle.indexOf('\n  app_user_api_scopes:');
+  if (at < 0) throw new Error('databricks.yml declares no app_user_api_scopes variable');
+  const next = bundle.slice(at + 1).search(/\n {2}\w+:\n/);
+  const section = next < 0 ? bundle.slice(at) : bundle.slice(at, at + 1 + next);
+  const tail = section.slice(section.indexOf('default:'));
+  return [...tail.matchAll(/^\s+- (\S+)\s*$/gm)].map((m) => m[1]);
 }
 
 /**
@@ -78,11 +108,28 @@ function declaredScopes(target: string): string[] {
  * Without this, staging would mean deleting the names, which would make the
  * derivation test pass by forgetting the requirement rather than by meeting it
  * -- the exact failure that test exists to prevent.
+ *
+ * When the target has no scope block of its own it inherits the shared default,
+ * including whatever is staged there (overnight 2026-08-18: postgres and
+ * workspace.workspace:read).
  */
 function stagedScopes(target: string): string[] {
-  return scopeBlock(target)
+  const own = scopeBlock(target);
+  if (own.length === 0) return defaultStagedScopes();
+  return own
     .map((line) => /^\s*# - (\S+)\s*$/.exec(line)?.[1])
     .filter((scope): scope is string => Boolean(scope));
+}
+
+/** Commented-out `# - name` entries in the shared `app_user_api_scopes` default. */
+function defaultStagedScopes(): string[] {
+  const bundle = readFileSync(BUNDLE, 'utf8');
+  const at = bundle.indexOf('\n  app_user_api_scopes:');
+  if (at < 0) throw new Error('databricks.yml declares no app_user_api_scopes variable');
+  const next = bundle.slice(at + 1).search(/\n {2}\w+:\n/);
+  const section = next < 0 ? bundle.slice(at) : bundle.slice(at, at + 1 + next);
+  const tail = section.slice(section.indexOf('default:'));
+  return [...tail.matchAll(/^\s*# - (\S+)\s*$/gm)].map((m) => m[1]);
 }
 
 /** Every subject the live example deployment probes, including its tables. */
@@ -102,7 +149,7 @@ const SUBJECTS = connectionSubjects({
 
 describe('the scopes the bundle declares against the scopes the probes call with', () => {
   it('accounts for every scope the example probes need, as declared or as staged', () => {
-    const declared = declaredScopes('example');
+    const declared = effectiveScopes('example');
     const staged = stagedScopes('example');
     const needed = scopesProbesNeed(SUBJECTS).filter(Boolean);
     const unaccounted = needed.filter(
@@ -122,8 +169,10 @@ describe('the scopes the bundle declares against the scopes the probes call with
    * happened here, with `serving.serving-endpoints-data-plane`, and it cost a
    * day. So an ADDITION has to break this test too, not just a removal.
    */
-  it('declares those and no more, so an added scope is a decision rather than a drift', () => {
-    expect(declaredScopes('example')).toEqual([
+  it('requests those and no more, so an added scope is a decision rather than a drift', () => {
+    // example inherits the shared default. Workspace read is now required by the
+    // released notebook browser; postgres remains staged for Lakebase browse.
+    expect(effectiveScopes('example')).toEqual([
       'serving.serving-endpoints',
       'model-serving',
       'sql',
@@ -138,25 +187,25 @@ describe('the scopes the bundle declares against the scopes the probes call with
   });
 
   /**
-   * NOTHING IS STAGED ANY MORE, and this asserts the absence rather than
-   * deleting the reader that finds it.
-   *
-   * The Vector Search pair was the last staged set and went live on 2026-08-16,
-   * so the honest expectation is now empty. The reader stays because staging is
-   * still the right move for a name whose issuability is unknown -- valid and
-   * issuable are different questions and only the first has an API behind it --
-   * and because this test is what stops a name being written down, commented
-   * out, and mistaken for declared.
+   * example carries no scope override of its own any more. It used to re-list the
+   * whole default plus the Vector Search pair; now the pair is in the default,
+   * so the override was an exact duplicate -- a second copy to drift out of step
+   * -- and was removed. This pins the inheritance so a well-meaning "be explicit"
+   * re-list does not quietly reintroduce the drift trap.
    */
-  it('leaves nothing commented out, so a written-down scope is a declared one', () => {
-    expect(stagedScopes('example')).toEqual([]);
+  it('carries no scope block of its own, inheriting the shared default', () => {
+    expect(declaredScopes('example')).toEqual([]);
+  });
+
+  it('keeps only the unreleased Lakebase scope staged', () => {
+    expect(stagedScopes('example')).toEqual(['postgres']);
   });
 
   // A scope cannot be both. Advancing a staged name means moving it, not
   // copying it, and a stale commented copy left behind would make the staged
   // list read as pending forever.
   it('never has a scope declared and staged at once', () => {
-    const declared = declaredScopes('example');
+    const declared = effectiveScopes('example');
     expect(stagedScopes('example').filter((scope) => declared.includes(scope))).toEqual([]);
   });
 
@@ -184,7 +233,7 @@ describe('the scopes the bundle declares against the scopes the probes call with
    * <name> is not a valid scope" is a fail. Run it before changing this list.
    */
   it('names the scopes the way the Apps API does, not the way the OAuth server does', () => {
-    const declared = declaredScopes('example');
+    const declared = effectiveScopes('example');
     // `workspace` joined this list on 2026-08-18, on the same evidence and by
     // the same route: it is advertised by the OAuth server, it was written into
     // the browse code from the documentation, and the Apps API answers "The
@@ -249,5 +298,82 @@ describe('the scopes the bundle declares against the scopes the probes call with
 
     expect(tokenCarriesScope(['sql'], 'catalog.tables:read')).toBe(false);
     expect(tokenCarriesScope([], 'catalog.tables:read')).toBe(false);
+  });
+});
+
+/**
+ * The shared default a customer / customer deployment inherits.
+ *
+ * WHY THIS IS THE GUARD THAT MATTERS. The default is now the ONE source of the
+ * scope list -- example inherits it rather than re-listing it (see the block
+ * above). The regression this stops: the browse scopes were once the demo workspace-ONLY, so
+ * every customer deploy shipped without catalog/table listings or picker browse,
+ * and the Connections page had no way to enumerate anything. They were moved
+ * into the variable default on 2026-08-18, and the Vector Search pair joined
+ * them on Sam's call, so every target -- customer and example alike -- requests the
+ * same list. A DAB complex-variable override REPLACES the default, so the only
+ * thing that keeps a *customer* deploy from silently losing them is asserting
+ * the default itself -- a target that declares no block of its own gets exactly
+ * this list.
+ */
+describe('the shared default every customer / T2 deployment inherits', () => {
+  it('requests the catalog browse scopes, not just example', () => {
+    const declared = defaultScopes();
+    for (const scope of [
+      'catalog.catalogs:read',
+      'catalog.schemas:read',
+      'catalog.tables:read',
+    ]) {
+      expect(declared).toContain(scope);
+    }
+  });
+
+  it('still carries the four load-bearing base scopes', () => {
+    const declared = defaultScopes();
+    for (const scope of ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie']) {
+      expect(declared).toContain(scope);
+    }
+  });
+
+  /**
+   * Sam's call (2026-08-18): the Vector Search browse pair is in the SHARED
+   * default alongside catalog/workspace, not example-only, so the Connections
+   * pickers can enumerate VS endpoints and indexes on every deployment. It is
+   * optional for OUR login gate (shared/optional-user-api-scopes.ts). The
+   * caveat, kept honest: Apps consent is all-or-nothing, so a workspace that
+   * cannot issue these still fails sign-in ahead of the app -- "optional" is
+   * about our gate, not the platform's. That is the accepted trade for making
+   * browse work everywhere by default.
+   */
+  it('requests the Vector Search browse scopes too, not just example', () => {
+    const declared = defaultScopes();
+    expect(declared).toContain('vectorsearch.vector-search-indexes:read');
+    expect(declared).toContain('vectorsearch.vector-search-endpoints:read');
+  });
+
+  it('declares workspace read for notebook browse and leaves postgres staged', () => {
+    expect(defaultScopes()).toContain('workspace.workspace:read');
+    expect(defaultScopes()).not.toContain('postgres');
+    expect(defaultStagedScopes()).toEqual(['postgres']);
+  });
+
+  /**
+   * The exact default, pinned. An addition here reaches every customer's OAuth
+   * consent, so it has to be a decision that updates this test, not a drift that
+   * slips through. example inherits this exact list.
+   */
+  it('declares exactly these scopes and no more', () => {
+    expect(defaultScopes()).toEqual([
+      'serving.serving-endpoints',
+      'model-serving',
+      'sql',
+      'dashboards.genie',
+      'catalog.catalogs:read',
+      'catalog.schemas:read',
+      'catalog.tables:read',
+      'workspace.workspace:read',
+      'vectorsearch.vector-search-indexes:read',
+      'vectorsearch.vector-search-endpoints:read',
+    ]);
   });
 });

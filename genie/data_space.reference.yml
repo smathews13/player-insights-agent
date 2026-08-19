@@ -1,0 +1,150 @@
+# REFERENCE ONLY. THIS FILE IS NOT PART OF THE BUNDLE.
+#
+# The data Genie space: the agent's governed data-source finder. This is the
+# curated body that space is meant to carry, kept here so it can be read,
+# reviewed and reproduced.
+#
+# WHY IT IS NOT A RESOURCE. The bundle attaches to Genie spaces that already
+# exist; it does not create them or overwrite their instructions. It lived at
+# `resources/player_insights_data.genie_space.yml`, where the `resources/*.yml`
+# include made it a bundle-managed resource, and a deploy pushed this body over
+# whatever the space was serving. Moving it here is what stops that. Do NOT move
+# it back under resources/ and do not add this directory to `include:`.
+#
+# HOW TO USE IT. Curate the space in the Genie UI and paste the instruction text
+# below into it. `${var...}` references are dead here: substitute your own
+# warehouse, parent path and table identifiers. Every table the space curates
+# must fall inside `data_catalogs`, which agent/preflight.py enforces when the
+# model is logged.
+#
+# Nothing verifies this file against the live space. `bundle/genie-drift.sh`
+# compared a bundle-declared body against the workspace, and reports both spaces
+# as unmanaged now that the bundle declares neither.
+
+space:
+  title: Player Insights Data
+  description: >-
+    Representative, safe-to-share player engagement, title, purchase, and
+    addressability analytics
+  serialized_space:
+    version: 2
+    data_sources:
+      # Substitute the tables this space should curate, as
+      #   - identifier: <catalog>.<schema>.<table>
+      # Each one must fall inside data_catalogs.
+      tables: []
+    instructions:
+      text_instructions:
+        - id: "10000000000000000000000000000005"
+          content:
+            - >-
+              Player Insights representative console gaming data for the
+              Northwind and Contoso publishing labels. Prefer gold tables for
+              business questions. Use gold_title_daily_summary for label,
+              title, daily engagement, net bookings, and addressability
+              trends at date, label, title, and country grain. Use
+              gold_player_180d_summary for player-level cohort aggregates
+              but never return player identifiers. Count distinct players
+              with platformid_accountid. partner_player_ref is many-to-one over
+              platform accounts and is null for Contoso players, so counts differ
+              by identity key and the key behind a count must be stated.
+              A per-player identifier MAY be used INSIDE a query — in a CTE,
+              a subquery, a join key, a filter or a GROUP BY — whenever the
+              analysis is about per-player sets, and retention, churn,
+              overlap and cohort questions all are. What is restricted is
+              the RESULT: no row you return may carry platformid_accountid,
+              partner_player_ref, player_id, crm_customer_ref, email or display_name,
+              under its own name, under an alias, or as a handful of
+              examples. Refuse that, say the identifiers cannot be returned,
+              and give the counts instead. This is not "counts are always
+              fine": a count grouped by a per-player identifier returns one
+              row per player and is still one row per person, so never group
+              the outermost query by an identifier. Worked example,
+              week-over-week retention by ISO week for a title. First CTE:
+              SELECT DISTINCT title_name, date_trunc('WEEK', event_date) AS
+              week_start, platformid_accountid FROM
+              silver_gameplay_activity WHERE integrity_status = 'VALID' and
+              the row is not CROSS_LABEL_BLOCK. Second CTE: from the first,
+              count(DISTINCT platformid_accountid) AS previous_week_players
+              GROUP BY title_name, week_start. Third CTE: self-join the
+              first CTE to itself ON title_name, ON platformid_accountid,
+              and ON curr.week_start = date_add(prev.week_start, 7), giving
+              count(DISTINCT curr.platformid_accountid) AS retained per
+              title and week. Final SELECT: join the second and third on
+              title and week and return title, the ISO week, retained,
+              previous_week_players, and try_divide(retained,
+              previous_week_players) AS retention_ratio — five columns, none
+              of them an identifier. Anchor the quarter to the latest
+              event_date, and state that the counts are of platform
+              accounts. RETENTION IS THE INTERSECTION OF TWO WEEKS' PLAYER
+              SETS, NOT THE RATIO OF TWO WEEKLY TOTALS. Dividing this week's
+              count(DISTINCT platformid_accountid) by last week's measures
+              growth: it counts players who arrived this week and were never
+              there last week, so it can exceed 1, and a retention figure
+              above 100% is the tell that the self-join on
+              platformid_accountid was skipped. The retained count must come
+              from that self-join. Resolve a title abbreviation to the
+              title_name it stands for before filtering, by reading the
+              distinct title_name values first. An ILIKE on an abbreviation
+              that does not occur in title_name matches no rows and answers
+              "no data for that title" about a title with a quarter of
+              activity in the table, which is a wrong answer wearing an
+              empty result.
+              Never bridge identity across labels: crm_customer_ref is
+              restricted and identity_use_scope governs permitted use. Keep
+              Northwind and Contoso separate unless explicitly comparing aggregate
+              label metrics. Exclude CROSS_LABEL_BLOCK activity from
+              standard analytics, and exclude silver rows whose
+              integrity_status is not VALID; the gold tables already
+              exclude both, which is why a gold total is lower than a naive
+              sum over the silver or raw tables. net_bookings_usd already
+              nets refunds, so
+              never filter to completed purchases and sum it as well;
+              recurrent_consumer_spending_usd is the portion of net bookings
+              that is not a full-game sale. Platform generations are Gen9,
+              Gen8, and PC. Marketing region NA is US, CA, and MX; state
+              region membership rather than assuming it. Email-addressable
+              means consent is true, email is present, and status is
+              ADDRESSABLE. State the time window for active-player
+              questions; the reporting window is the 180 dates ending at the
+              latest snapshot_date, which is BEHIND today. Anchor a relative
+              window such as the last 30 days to the latest event_date in
+              the data, never to the current date: measured from today the
+              window silently covers only the part of itself that has data,
+              and once the data is a month old it covers none of it and the
+              question answers empty. TOTAL THE COUNTRIES WITHIN A DATE
+              BEFORE AGGREGATING ACROSS DATES. gold_title_daily_summary
+              holds one row per date, label, title, and country, eleven
+              countries to a title-day, so a question asked at label or
+              title grain that ranks or averages the rows themselves answers
+              about one country while sounding like the whole day: it names
+              the wrong peak day, and it reports a flagship title at a tenth
+              of its players. Total the countries first, then average or
+              rank across dates, and never sum a daily count across dates —
+              that is country-days, not players. Attribute a spike with
+              live_event_sessions or launch_campaign_sessions rather than
+              with total sessions: both are columns of
+              gold_title_daily_summary, and a peak explained by the total it
+              is part of explains nothing. Make no claim about whether the
+              data is real, generated, demo or live: nothing here
+              establishes which it is, so a statement either way would be
+              invented. Return aggregates only and name source tables and
+              grain.
+    config:
+      sample_questions:
+        - id: "10000000000000000000000000000001"
+          question:
+            - >-
+              Compare average daily active players by label and title over
+              the last 30 days
+        - id: "10000000000000000000000000000002"
+          question:
+            - How many email-addressable players does each label have?
+        - id: "10000000000000000000000000000003"
+          question:
+            - Which days had the most VLH Online live event sessions?
+        - id: "10000000000000000000000000000004"
+          question:
+            - >-
+              How does recurrent consumer spending compare with total net
+              bookings by title?

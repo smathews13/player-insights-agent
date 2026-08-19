@@ -53,6 +53,7 @@ import { Button } from './ui';
 import { RefreshButton } from './RefreshControl';
 import type { Identity } from './app-types';
 import { AstrolabeLockup } from './AstrolabeMark';
+import { UserIdentityChip } from './UserIdentityChip';
 import { ConceptFlicker } from './ConceptFlicker';
 import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 import { OpeningSequence } from './OpeningSequence';
@@ -72,6 +73,7 @@ import {
   OAUTH_BADGE,
   OPTIONAL_SCOPES_HEADING,
   OPTIONAL_SCOPES_NOTE,
+  REQUIRED_SCOPES_NOTE,
   SCOPES_HEADING,
   SKIP_LABEL,
   SKIP_NOTE,
@@ -141,12 +143,11 @@ function ScopePill({ status, optional = false }: { status: ScopeRow['status']; o
 }
 
 /**
- * A scopes box: heading, the rows, and whatever the box has to say about them.
+ * A scopes box: heading, a one-line caption, the rows, and any footer.
  *
- * `note` and `footer` BOTH sit under the rows, inside the box, because that is
- * where a reader looks after reading the chips that raised the question. A line
- * outside the box reads as a remark about the card rather than as part of the
- * finding it explains.
+ * The caption sits directly under the heading so each box says what it is for
+ * before the chips. The footer still sits under the rows: it is about a
+ * finding the chips just raised, not about the heading.
  */
 function ScopeSection({
   heading,
@@ -172,6 +173,7 @@ function ScopeSection({
   return (
     <section className="fo-box fo-scopes">
       <p className="fo-scopes-head">{heading}</p>
+      {note ? <p className="fo-scopes-note">{note}</p> : null}
       {/* No empty list element where there are no rows: `.fo-scope-list` is a grid
           with its own borders, and an empty one draws a stray hairline. */}
       {scopes.length > 0 ? (
@@ -184,7 +186,6 @@ function ScopeSection({
           ))}
         </ul>
       ) : null}
-      {note ? <p className="fo-scopes-note">{note}</p> : null}
       {footer}
     </section>
   );
@@ -280,7 +281,7 @@ export function FirstOpenPanel({
         <section className="fo-box fo-identity">
           <p className="fo-label">{IDENTITY_LABEL}</p>
           <p className="fo-who">
-            <span className="fo-email">{report.signedInAs}</span>
+            <UserIdentityChip identity={report.signedInAs} className="fo-email" />
             {report.oauthVerified ? (
               <span className="ast-pill ast-pill--pos fo-oauth">
                 <Check className="fo-check" aria-hidden="true" />
@@ -294,6 +295,7 @@ export function FirstOpenPanel({
         <ScopeSection
           heading={SCOPES_HEADING}
           scopes={requiredScopeRows(report.scopes)}
+          note={REQUIRED_SCOPES_NOTE}
           footer={
             report.footer ? (
               <p className="fo-scope-footer">

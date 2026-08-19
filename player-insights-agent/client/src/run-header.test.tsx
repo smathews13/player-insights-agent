@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { RunHeader } from './RunHeader';
-import { astPill, personName, runHeadline, shortRunId, statusFamily, statusTone } from './run-header';
+import { astPill, runHeadline, shortRunId, statusFamily, statusTone } from './run-header';
 import { RATING_SCALE } from './benchmark-summary';
 import { partial } from './styles/stylesheet';
 import type { Run } from './app-types';
@@ -85,15 +85,12 @@ describe('the run header names the run without spelling it out', () => {
     expect(header()).toContain('aria-label="Copy the full run id"');
   });
 
-  it('names the person without publishing their address', () => {
-    // The same treatment the run list has always given it. A header gets
-    // photographed into tickets and pasted into chat, and the domain half is
-    // neither what identifies a colleague nor something they chose to publish.
-    expect(header()).toContain('someone');
-    expect(header()).not.toContain('someone@example.com');
-    expect(personName('someone@example.com')).toBe('someone');
-    expect(personName(null)).toBe('Unknown');
-    expect(personName('   ')).toBe('Unknown');
+  it('uses the shared identity chip instead of plain text or initials', () => {
+    const markup = header();
+    expect(markup).toContain('identity-chip identity-chip--compact run-detail-user');
+    expect(markup).toContain('lucide-user-round');
+    expect(markup).toContain('identity-chip-name">someone');
+    expect(markup).not.toContain('>SO<');
   });
 
   it('keeps the store’s own word for the status, and tones it', () => {
@@ -169,7 +166,7 @@ describe('the run header is four objects, not one sentence', () => {
     const markup = header();
     expect(markup).toContain('class="run-detail-ident"');
     expect(markup).toContain('class="run-id-chip"');
-    expect(markup).toContain('class="run-detail-user"');
+    expect(markup).toContain('identity-chip identity-chip--compact run-detail-user');
     // The line they used to be: id, middot, person, middot, status, as one string.
     expect(markup).not.toMatch(/cafebabecafe[^<]*·[^<]*·/);
   });

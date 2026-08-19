@@ -743,7 +743,9 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     // prose above, so it takes the mono face, and there is no freshness line
     // left to get wrong because the freshness is in the row's tooltip.
     expect(ruleFor(BODY_CSS, '.code-panel pre {')).toContain('var(--font-mono');
-    expect(ruleFor(BODY_CSS, '.sources-row-name {')).toContain('var(--font-mono)');
+    // The shared source-name recipe also reaches derivation rows; pin the
+    // recipe rather than the one seating that opts into it.
+    expect(ruleFor(BODY_CSS, '.source-name-pill {')).toContain('var(--font-mono)');
     // The header's facts are a sentence about the list, not something to be
     // compared, and mono on them would make the count read as data.
     expect(ruleFor(BODY_CSS, '.sources-module-facts {')).not.toContain('font-family');
@@ -973,10 +975,10 @@ describe('the card holds text it did not write', () => {
     expect(rule).not.toMatch(/background|color:|border-radius|font-size|font-weight/);
     // And the name beside it reads in the same family's text colour, so the row
     // is one statement rather than a name and a separate label about it.
-    expect(ruleFor(BODY_CSS, ".sources-row[data-tone='queried'] .sources-row-name {")).toContain(
+    expect(ruleFor(BODY_CSS, ".source-name-pill[data-tone='queried'] {")).toContain(
       'color: var(--ast-info-text)'
     );
-    expect(ruleFor(BODY_CSS, ".sources-row[data-tone='queried'] .source-name-short {")).toContain(
+    expect(ruleFor(BODY_CSS, ".source-name-pill[data-tone='queried'] .source-name-short {")).toContain(
       'background: var(--ast-info-fill)'
     );
   });

@@ -35,7 +35,7 @@ import {
   Settings,
   Workflow,
 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { useFirstOpen } from './FirstOpenGate';
 import { LANDED_ANNOUNCEMENT, drawsAppShell, isArriving } from './login-transition';
 import { Disclosure } from './page-chrome';
@@ -44,9 +44,9 @@ import { useIdentity, useStorageHealth } from './app-state';
 import type { Identity } from './app-types';
 import { AstrolabeLockup } from './AstrolabeMark';
 import { BuiltOnDatabricks } from './BuiltOnDatabricks';
-import { userInitials } from './user-initials';
 import { RoleBadge } from './RoleBadge';
 import { RoleLostNotice } from './GatePanel';
+import { UserIdentityChip } from './UserIdentityChip';
 import {
   navEntries,
   roleFrom,
@@ -237,61 +237,54 @@ export function NavLinks({
 }
 
 /**
- * Who is reading, as two characters in a circle.
+ * Who is reading: person icon, "Signed in", and the email local part.
  *
- * §1's chrome is "role chip · avatar · divider · Built on Databricks", and the
- * avatar is where the "Signed in <local part>" chip used to be. The chip spent
- * about 140px of a header that also has to hold seven tabs to say a name the
- * reader already knows, and truncated it at the widths where it mattered.
+ * Restored from the pre-avatar treatment. The navy initials circle saved header
+ * width but hid the name behind a puzzle ("SM") that only `title` and a screen
+ * reader could expand. The chip shows the local part again; the full address
+ * stays on `title` for hover and for when the chip truncates.
  *
- * THE WHOLE ADDRESS IS STILL HERE, on `title` and as the accessible name, which
- * is where it belongs: the circle is an abbreviation and an abbreviation that
- * cannot be expanded is a puzzle. `userInitials` is what expands it, and it
- * answers for a service principal and for an identity read that never landed as
- * well as for a person, so the circle always holds something.
+ * ORDER IS role.ts's HEADER_CLUSTER_ORDER: role badge, this chip, gear, then
+ * the Built on Databricks attribution past the chrome rule.
  */
-export function IdentityAvatar({ identity }: { identity: Identity }) {
-  const mark = userInitials(identity.signedInAs);
-  return (<span className="identity-avatar" data-testid="identity-avatar" title={identity.signedInAs}>
-      <span aria-hidden="true">{mark.initials}</span>
-      <span className="sr-only">{mark.label}</span>
-    </span>
-  );
+export function IdentityChip({ identity }: { identity: Identity }) {
+  return <UserIdentityChip identity={identity.signedInAs} label="Signed in" testId="identity-chip" />;
 }
 
 /**
- * The header's right-hand cluster, minus the gear: the role chip, the avatar, a
- * divider, and the Databricks attribution.
+ * The header's right-hand cluster: the role chip, the identity chip, the gear,
+ * a divider, and the Databricks attribution.
  *
  * ORDER IS role.ts's, as HEADER_CLUSTER_ORDER, rather than this file's.
  *
- * THE OAUTH BADGE IS NO LONGER HERE, and that is a move rather than a deletion.
- * §1 enumerates this cluster and the badge is not in it; the two surfaces that
- * are ABOUT the sign-in still carry it, and they are the two a reader goes to
- * when they want to know -- the login gate states it on the way in
- * (`login-gate.md`, Identity block) and the Connections identity card states it
- * beside the address (`design-spec-master.md` §8). What it was doing in the
- * header was reporting a fact nobody had asked about, in the row that has to
- * hold the navigation.
+ * Spacing is the row's single 12px gap for Super admin → identity → gear. The
+ * chrome rule and Built on Databricks sit after that cluster so attribution
+ * stays visually separated from the reader's badges.
  *
- * The cluster is one component rather than markup in the header so the mobile
- * sheet gets the same three things in the same order. That is the argument
- * NavLinks makes about the two navigations: one component means one decision.
+ * THE GEAR ARRIVES AS A SLOT RATHER THAN BEING DRAWN HERE, and it is the one
+ * member of the cluster that does. Whether it is drawn at all is a role
+ * decision; the mobile sheet's copy must not carry it -- two elements labelled
+ * "App settings" on one page is an ambiguous locator. Passing nothing is how the
+ * sheet says so.
+ *
+ * THE OAUTH BADGE IS NO LONGER HERE, and that is a move rather than a deletion.
+ * The login gate and the Connections identity card still state it.
  */
 export function IdentityChips({
   identity,
   role,
   className,
+  gear,
 }: {
   identity: Identity;
   role: RoleResolution;
   className?: string;
+  gear?: ReactNode;
 }) {
   return (<div className={`identity-chips ${className ?? ''}`}>
       <RoleBadge state={role.state} />
-      <IdentityAvatar identity={identity} />
-      {/* The divider §1 puts between the reader and the attribution. Decorative,
-          and the only thing separating "who you are" from "who made this". */}
+      <IdentityChip identity={identity} />
+      {gear}
       <span className="app-chrome-rule" aria-hidden="true" />
       <BuiltOnDatabricks />
     </div>
@@ -406,7 +399,6 @@ export function Layout() {
             was full and the page had lost a column. One set of breakpoints now --
             480, 800, 1180, 1366 -- and the nav goes at 1180 with the inspector. */}
         <NavLinks className="app-nav" linkClass={navLinkClass} role={role} features={features} />
-        <IdentityChips identity={identity} role={role} />
         {/* The way into settings, and now into settings rather than towards them.
             
             This pointed at `/connections` for as long as the gear existed, on
@@ -441,13 +433,26 @@ export function Layout() {
             a drawn-but-dead gear would be an invitation to press something that
             cannot work. A consumer's own preferences are not lost with it: the
             only one this app has is the Benchmark Lab toggle, which is an
-            experiment rather than a preference. */}
-        {showsSettingsGear(role.state) && (<Button asChild variant="ghost" size="icon" className="header-settings text-muted-foreground hover:text-foreground">
-            <NavLink to="/settings" aria-label="App settings" title="App settings">
-              <Settings className="size-5" />
-            </NavLink>
-          </Button>
-        )}
+            experiment rather than a preference.
+
+            IT IS HANDED TO THE CLUSTER RATHER THAN PLACED AFTER IT. It used to be
+            the header's last child, which drew it past the attribution at the far
+            right -- so a control belonging to the reader sat on the far side of the
+            divider whose job is to separate the reader from who built the app. It
+            now goes between the identity chip and that divider, which is where
+            HEADER_CLUSTER_ORDER records it, and only the header's copy of the
+            cluster is given one: the mobile sheet's copy is passed nothing, so
+            "App settings" names exactly one element at any width. */}
+        <IdentityChips
+          identity={identity}
+          role={role}
+          gear={showsSettingsGear(role.state) && (<Button asChild variant="ghost" size="icon" className="header-settings text-muted-foreground hover:text-foreground">
+              <NavLink to="/settings" aria-label="App settings" title="App settings">
+                <Settings className="size-5" />
+              </NavLink>
+            </Button>
+          )}
+        />
         {/* Mobile nav, drawn only below the width at which the desktop nav is
             hidden. Both sides of that switch are in responsive.css, so they cannot
             be read off two different breakpoint systems and leave the header with

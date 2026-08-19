@@ -45,7 +45,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Info } from 'lucide-react';
 import { Button, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
@@ -59,14 +59,17 @@ import {
   bars,
   costAbsence,
   count,
+  errorFraming,
   latencyAbsence,
   latencyFigure,
   latencyRouteView,
+  latencySharedFacts,
+  p50BarWidths,
   productForCostTile,
   productForProbe,
   resultLabel,
   RESULT_TONE,
-  splitRouteLabel,
+  splitMethod,
   telemetryNotice,
   WITHHELD,
   withheldReason,
@@ -74,8 +77,9 @@ import {
   trafficCaption,
   type Absence as AbsenceCopy,
 } from './ops-view';
-import { LATENCY_BASELINE_FLOOR, opsDayRange, opsRangeDates } from '../../shared/ops-contract';
+import { opsDayRange, opsRangeDates } from '../../shared/ops-contract';
 import type {
+  DependencyResult,
   GrantRemedy,
   HealthDependency,
   OpsCostPayload,
@@ -208,8 +212,15 @@ function BlockHead({
    * position.
    */
   badges?: readonly { word: string; tone: string }[];
-  /** The block's own one line: what these figures are, and when they were read. */
-  meta?: string;
+  /**
+   * The block's own one line: what these figures are, and when they were read.
+   *
+   * A node rather than a string, so a caption can carry a `title` — Latency
+   * shows human-readable window times on the page and keeps the exact
+   * timestamps on hover, per the handoff — without every other block having to.
+   * A plain string is still a valid node, so the other callers are unchanged.
+   */
+  meta?: React.ReactNode;
   control?: React.ReactNode;
   children?: React.ReactNode;
 }) {
@@ -330,6 +341,37 @@ function platformTone(reading: PlatformReading): string {
 function probeMark(kind: string) {
   const product = productForProbe(kind);
   return product ? <BrandIcon product={product} size={16} className="ops-dependency-mark" /> : null;
+}
+
+/**
+ * The recorded error lines under the health table, framed so history does not
+ * read as a live failure.
+ *
+ * The framing sentence and the count are `errorFraming`'s, so the one line a
+ * reader acts on can be asserted without a browser. This component is the list
+ * itself and the absolute timestamp on each line. Nothing renders at zero.
+ */
+function RecordedErrors({
+  errors,
+  dependencies,
+}: {
+  errors: { count: number; recent: Array<{ at: string; body: string }> };
+  dependencies: DependencyResult[];
+}) {
+  const framing = errorFraming({ errorCount: errors.count, dependencies });
+  if (!framing) return null;
+  return (<div className="ops-errors">
+      <p className="ops-errors-headline">{framing.headline}</p>
+      <p className="ops-errors-note">{framing.note}</p>
+      {errors.recent.length > 0 ? (<ul className="ops-error-list">
+          {errors.recent.map((line) => (<li key={`${line.at}-${line.body}`}>
+              <When at={line.at} /> <span className="ops-error-body">{line.body}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 function reasonCell(row: HealthDependency): string {
@@ -490,16 +532,19 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                       in this range" is a line of text saying nothing happened,
                       which is what the absence of the line already says, and it
                       draws the eye to a number a reader then has to read to
-                      discover is nothing. */}
-                  {payload.app.errors.count > 0 ? (<p>{count(payload.app.errors.count)} error lines in this range</p>
-                  ) : null}
-                  {payload.app.errors.recent.length > 0 ? (<ul className="ops-error-list">
-                      {payload.app.errors.recent.map((line) => (<li key={`${line.at}-${line.body}`}>
-                          <When at={line.at} /> <span className="ops-error-body">{line.body}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
+                      discover is nothing.
+
+                      When there IS a count, it is framed rather than left bare:
+                      the same figure of two-day-old lines reads as a live
+                      Connection failure without the sentence saying the checks
+                      above all answered just now. See `errorFraming`. The lines
+                      themselves are never hidden, and each carries its own
+                      absolute timestamp so "when" is a fact on the row, not a
+                      guess. */}
+                  <RecordedErrors
+                    errors={payload.app.errors}
+                    dependencies={(payload.dependencies ?? []).map((row) => row.result)}
+                  />
                 </div>
               ) : null}
             </div>
@@ -708,6 +753,7 @@ function BarChart({
   series,
   tone,
   href,
+  note,
 }: {
   title: string;
   /** Shown INSTEAD of the bars when there are none, never under them. */
@@ -717,6 +763,14 @@ function BarChart({
   tone: 'failure' | 'refusal' | 'tool';
   /** Where a count links, if a count links anywhere. */
   href?: (bar: { key: string }) => string;
+  /**
+   * A standing fact about what this chart is FOR, under it whether or not it has
+   * bars. The tool-call chart carries the one that pays for the chart: a shift in
+   * its shape is usually the first sign a release moved the agent. It is body
+   * text, not a caption on the empty state, because it is true of the populated
+   * chart too.
+   */
+  note?: string;
 }) {
   return (<div className={`ops-chart ops-chart-${tone}`}>
       <h4>{title}</h4>
@@ -745,6 +799,7 @@ function BarChart({
           ))}
         </ul>
       )}
+      {note ? <p className="ops-chart-note">{note}</p> : null}
     </div>
   );
 }
@@ -900,15 +955,16 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
   const from = current * LATENCY_PAGE_SIZE;
   const shown = routes.slice(from, from + LATENCY_PAGE_SIZE);
 
+  const facts = payload ? latencySharedFacts(routes) : { line: '', showPercentiles: false };
+  // Log-scaled across the rows ON SCREEN, so the scale answers to the page a
+  // reader is looking at rather than to routes on another page of the table.
+  const barWidths = p50BarWidths(shown.map((route) => route.p50Ms));
+
   return (<section className="ops-block" aria-labelledby="ops-latency-heading">
       <BlockHead
         id="ops-latency-heading"
         title="Latency"
-        meta={
-          payload?.coveredFrom && payload.coveredTo
-            ? `Vs each route's prior half of ${payload.coveredFrom} to ${payload.coveredTo}`
-            : `Vs each route's own prior half · ${LATENCY_BASELINE_FLOOR}+ spans each side to judge`
-        }
+        meta={<LatencyCaption from={payload?.coveredFrom ?? ''} to={payload?.coveredTo ?? ''} />}
         control={<RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />}
       />
 
@@ -917,26 +973,53 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
         ) : absence ? (<Absence notice={absence}>
             {payload?.grant ? <Grant grant={payload.grant} /> : null}
           </Absence>
-        ) : payload ? (<table className="ops-table ops-latency-table" data-testid="ops-latency">
-            <thead>
-              <tr>
-                <th scope="col">Route</th>
-                <th scope="col">Spans</th>
-                <th scope="col">p50</th>
-                <th scope="col">p95</th>
-                <th scope="col">p99</th>
-                <th scope="col">Slowest</th>
-                <th scope="col">Errors</th>
-                <th scope="col">Refusals</th>
-                <th scope="col">Trend</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((route) => (
-                <LatencyRow key={route.route} route={route} />
-              ))}
-            </tbody>
-          </table>
+        ) : payload ? (<>
+            {/* THE FACT TRUE OF EVERY ROW, SAID ONCE. Replaces the columns of
+                repeated dashes p95/p99/errors/refusals/trend became on a quiet
+                window. When a route crosses the span floor the columns come
+                back and this line stops claiming there are none. */}
+            {facts.line ? (<p className="ops-latency-facts">
+                <Info className="size-3.5" aria-hidden="true" />
+                <span>{facts.line}</span>
+              </p>
+            ) : null}
+            <table className="ops-table ops-latency-table" data-testid="ops-latency">
+              <thead>
+                <tr>
+                  <th scope="col" className="ops-lat-method">
+                    Method
+                  </th>
+                  <th scope="col" className="ops-lat-route">
+                    Route
+                  </th>
+                  <th scope="col" className="ops-lat-hit">
+                    Last hit
+                  </th>
+                  <th scope="col">Spans</th>
+                  <th scope="col">p50</th>
+                  <th scope="col" className="ops-lat-bar-head">
+                    P50 · log scale
+                  </th>
+                  <th scope="col">Slowest</th>
+                  {facts.showPercentiles ? (<>
+                      <th scope="col">p95</th>
+                      <th scope="col">p99</th>
+                      <th scope="col">Trend</th>
+                    </>
+                  ) : null}
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((route, index) => (<LatencyRow
+                    key={route.route}
+                    route={route}
+                    barWidth={barWidths[index]}
+                    showPercentiles={facts.showPercentiles}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </>
         ) : null}
       </BlockBody>
 
@@ -981,6 +1064,40 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
   );
 }
 
+/**
+ * The window the baseline is taken from, in the reader's words, with the exact
+ * span timestamps kept on hover.
+ *
+ * "vs each route's prior half" is the constant; the dates are what the table is
+ * actually over, which is NOT the range chip at the top of the page — telemetry
+ * does not backfill, so the spans reach back only as far as they were recorded.
+ * Human-readable on the page, full timestamps in `title`, per the handoff.
+ */
+function LatencyCaption({ from, to }: { from: string; to: string }) {
+  if (!from || !to) {
+    return <span className="ops-block-meta">By route, vs each route’s prior half</span>;
+  }
+  return (<span className="ops-block-meta" title={`${from} to ${to}`}>
+      By route, vs each route’s prior half · {spokenSpanTime(from)} to {spokenSpanTime(to)}
+    </span>
+  );
+}
+
+/** A span time as a reader reads one: "Aug 16, 7:30 PM". Empty stays empty. */
+function spokenSpanTime(raw: string): string {
+  if (!raw) return '';
+  const at = Date.parse(raw.includes('T') ? raw : `${raw.replace(' ', 'T')}Z`);
+  if (!Number.isFinite(at)) return raw;
+  return new Date(at).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'UTC',
+  });
+}
+
 /** One high percentile, or the withheld mark with the reason on the cell. */
 function PercentileCell({ ms, spans }: { ms: number | null; spans: number }) {
   if (ms === null) {
@@ -993,9 +1110,23 @@ function PercentileCell({ ms, spans }: { ms: number | null; spans: number }) {
   return <td>{latencyFigure(ms)}</td>;
 }
 
-function LatencyRow({ route }: { route: RouteLatency }) {
+/**
+ * One route in the compact grid: method chip · route · last hit · spans · p50 ·
+ * log-scaled p50 bar · slowest, with p95/p99/trend appended only where the block
+ * has crossed the span floor for at least one route.
+ */
+function LatencyRow({
+  route,
+  barWidth,
+  showPercentiles,
+}: {
+  route: RouteLatency;
+  barWidth: number;
+  showPercentiles: boolean;
+}) {
   const view = latencyRouteView(route);
-  const parts = splitRouteLabel(route.route);
+  const { method, path } = splitMethod(route.route);
+  const p50 = latencyFigure(route.p50Ms);
   const verdictTone =
     view.verdict === 'slower'
       ? astPill('neg', 'ops-pill')
@@ -1005,31 +1136,45 @@ function LatencyRow({ route }: { route: RouteLatency }) {
 
   return (
     <tr className={view.verdict === 'slower' ? 'ops-latency-row-slower' : undefined}>
-      <th scope="row">
-        <span className="ops-route" title={route.route}>
-          <span className="ops-route-head">{parts.head}</span>
-          {parts.tail ? <span className="ops-route-tail">{parts.tail}</span> : null}
-          <span className="ops-route-fresh">{view.freshLabel}</span>
+      <td className="ops-lat-method">
+        {method ? (<span className={`ops-lat-chip ops-lat-chip-${method.toLowerCase()}`}>{method}</span>
+        ) : null}
+      </td>
+      <th scope="row" className="ops-lat-route">
+        <span className="ops-lat-path" title={route.route}>
+          {path}
         </span>
       </th>
+      <td className="ops-lat-hit">{view.freshLabel}</td>
       <td>{count(route.spans)}</td>
-      <td>{latencyFigure(route.p50Ms)}</td>
-      <PercentileCell ms={route.p95Ms} spans={route.spans} />
-      <PercentileCell ms={route.p99Ms} spans={route.spans} />
-      <td>{latencyFigure(route.slowestMs)}</td>
-      <td title={view.errorsLabel || `0 of ${count(route.spans)} spans`}>
-        {view.errorsLabel ? view.errorsLabel : <span className="ops-when-absent">{WITHHELD}</span>}
+      {/* Empty is not zero: an unmeasurable p50 says "not set" in mono rather
+          than a bare 0 or a blank cell, per the tab's own rule. */}
+      <td className="ops-lat-p50">{p50 || <span className="ops-when-absent">not set</span>}</td>
+      <td className="ops-lat-bar">
+        {/* The bar is a length that can be misread; the p50 beside it is the
+            number that cannot, so the bar is decorative and aria-hidden. No
+            track at all where there is no duration to draw. */}
+        {barWidth > 0 ? (<span className="ops-lat-bar-track" aria-hidden="true">
+            <span className="ops-lat-bar-fill" style={{ width: `${barWidth}%` }} />
+          </span>
+        ) : null}
       </td>
-      <td>
-        <span className="ops-when-absent" title="Refusals are run outcomes, not span statuses.">
-          {view.refusalsLabel}
-        </span>
-      </td>
-      <td>
-        <span className={verdictTone} title={view.verdictDetail || undefined}>
-          {view.verdictLabel}
-        </span>
-      </td>
+      <td>{latencyFigure(route.slowestMs) || <span className="ops-when-absent">not set</span>}</td>
+      {showPercentiles ? (<>
+          <PercentileCell ms={route.p95Ms} spans={route.spans} />
+          <PercentileCell ms={route.p99Ms} spans={route.spans} />
+          <td>
+            {view.verdict === 'slower' || view.verdict === 'within' ? (<span className={verdictTone} title={view.verdictDetail || undefined}>
+                {view.verdictLabel}
+              </span>
+            ) : (
+              <abbr className="ops-when-absent" title={view.verdictDetail || withheldReason(route.spans)}>
+                {WITHHELD}
+              </abbr>
+            )}
+          </td>
+        </>
+      ) : null}
     </tr>
   );
 }
@@ -1124,6 +1269,11 @@ export function TrafficBody({
               caption="No tool calls"
               series={bars(payload.toolCalls)}
               tone="tool"
+              // The reason this chart earns its column, said on the chart. It is
+              // the one whose shape an operator reads for release drift, so the
+              // sentence that tells them that stands under it rather than in a
+              // doc they will not have open.
+              note="A change in this shape is usually the first sign a release changed the agent's behaviour."
             />
             </div>
           </>

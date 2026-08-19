@@ -132,6 +132,7 @@ const OAUTH_FAMILY_BY_SCOPE: Readonly<Record<string, string>> = {
   'serving.serving-endpoints': 'model-serving',
   'dashboards.genie': 'genie',
   sql: 'sql',
+  postgres: 'postgres',
 };
 
 /**
@@ -265,6 +266,8 @@ export interface ProbeSubject {
   grant?: (principal: string) => PreflightRemedy;
   /** The one or two fields of a success payload worth reporting back. */
   observe?: (body: Record<string, unknown>) => string;
+  /** Human-readable object name, kept separately from the configured identifier. */
+  displayName?: (body: Record<string, unknown>) => string;
   /**
    * When the content this object serves was last written, off the same payload.
    *
@@ -429,6 +432,7 @@ export function connectionSubjects(input: {
         const name = text(body.name);
         return [name && `named \u201c${name}\u201d`, state && `state ${state}`].filter(Boolean).join(', ');
       },
+      displayName: (body) => text(body.name),
       grant: (principal) =>
         // No guidance. What stood here said a warehouse is a workspace object
         // rather than a Unity Catalog one, which is why the fix is an API call
@@ -438,7 +442,7 @@ export function connectionSubjects(input: {
         cli(
           `databricks permissions update warehouses ${warehouse} --json '` +
             `{"access_control_list":[{"user_name":"${principal || '<the signed-in user>'}",` +
-            `"permission_level":"CAN_USE"}]}'`,
+            `"permission_level":"CAN_USE"}]}'`
         ),
     });
   }
@@ -462,6 +466,7 @@ export function connectionSubjects(input: {
         const title = text(body.title);
         return title ? `titled \u201c${title}\u201d` : '';
       },
+      displayName: (body) => text(body.title),
       grant: (principal) =>
         // No guidance. The dropped sentence said the tables behind a space are
         // granted separately in Unity Catalog, which is a real fact and one this
@@ -471,7 +476,7 @@ export function connectionSubjects(input: {
         cli(
           `databricks permissions update genie ${space} --json '` +
             `{"access_control_list":[{"user_name":"${principal || '<the signed-in user>'}",` +
-            `"permission_level":"CAN_RUN"}]}'`,
+            `"permission_level":"CAN_RUN"}]}'`
         ),
     });
   }
@@ -544,7 +549,7 @@ export function connectionSubjects(input: {
         sql(
           `GRANT SELECT ON TABLE ${table} TO ${granteeFor(principal)};`,
           'This is not enough on its own: the holder also needs USE CATALOG and USE SCHEMA on the ' +
-            'two containers above it.',
+            'two containers above it.'
         ),
     });
   }
@@ -578,6 +583,7 @@ export function connectionSubjects(input: {
         const state = text((body.status as Record<string, unknown> | undefined)?.detailed_state);
         return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(', ');
       },
+      displayName: (body) => text(body.name),
       contentAt: (body) => indexContentAt(body),
       // NOW A GRANT, which is what this row always claimed to be offering. What
       // stood here was a `databricks api get` against the index -- the same call
@@ -599,7 +605,7 @@ export function connectionSubjects(input: {
         sql(
           `GRANT SELECT ON TABLE ${index} TO ${granteeFor(principal)};`,
           'This is not enough on its own: the holder also needs USE CATALOG and USE SCHEMA on the ' +
-            'catalog and schema the index sits in.',
+            'catalog and schema the index sits in.'
         ),
     });
   }
@@ -654,7 +660,7 @@ function servingEndpointSubject(id: string, label: string, name: string, note: s
       cli(
         `databricks permissions update serving-endpoints ${name} --json '` +
           `{"access_control_list":[{"user_name":"${principal || '<the signed-in user>'}",` +
-          `"permission_level":"CAN_QUERY"}]}'`,
+          `"permission_level":"CAN_QUERY"}]}'`
       ),
   };
 }
@@ -707,7 +713,7 @@ export function vectorEndpointSubject(indexBody: Record<string, unknown>): Probe
             `databricks permissions update vector-search-endpoints ${endpointId} --json '` +
               `{"access_control_list":[{"user_name":"${principal || '<the signed-in user>'}",` +
               `"permission_level":"CAN_USE"}]}'`,
-            'This endpoint is not a Unity Catalog securable, so no GRANT reaches it.',
+            'This endpoint is not a Unity Catalog securable, so no GRANT reaches it.'
           )
       : undefined,
   };
@@ -812,8 +818,7 @@ export function refusalCause(input: {
     };
   }
   const wording = input.message.toLowerCase();
-  const saysPermission =
-    input.code === 'PERMISSION_DENIED' || GRANT_MARKERS.some((marker) => wording.includes(marker));
+  const saysPermission = input.code === 'PERMISSION_DENIED' || GRANT_MARKERS.some((marker) => wording.includes(marker));
   if (saysPermission) {
     return {
       kind: 'grant',
@@ -938,6 +943,7 @@ export function probeVerdict(input: {
           'age of what it serves is not established here. ';
     return check(subject, {
       status: 'ok',
+      display_name: subject.displayName?.(body) || undefined,
       duration_ms: durationMs,
       content_at: contentAt,
       detail:
@@ -1129,7 +1135,7 @@ export function unaskedChecks(subjects: readonly ProbeSubject[], reason: string)
       stopped: 'unasked',
       detail: `${reason} So this is unchecked rather than unreachable: nobody asked.`,
       error: '',
-    }),
+    })
   );
 }
 
@@ -1200,10 +1206,7 @@ export async function runProbe(subject: ProbeSubject, options: ProbeOptions): Pr
  * `allSettled` rather than `all` for the same reason `runProbe` swallows: one
  * subject cannot be allowed to decide whether the other twenty are reported.
  */
-export async function runProbes(
-  subjects: readonly ProbeSubject[],
-  options: ProbeOptions,
-): Promise<PreflightCheck[]> {
+export async function runProbes(subjects: readonly ProbeSubject[], options: ProbeOptions): Promise<PreflightCheck[]> {
   const settled = await Promise.allSettled(subjects.map((subject) => runProbe(subject, options)));
   return settled.map((result, index) =>
     result.status === 'fulfilled'
@@ -1214,7 +1217,7 @@ export async function runProbes(
           principal: options.principal,
           tokenScopes: options.token ? scopesFromToken(options.token) : null,
           declaredScopes: options.declaredScopes === undefined ? declaredUserApiScopes() : options.declaredScopes,
-        }),
+        })
   );
 }
 
@@ -1241,14 +1244,13 @@ export async function probeConnections(input: {
 }): Promise<PreflightCheck[]> {
   const subjects = connectionSubjects(input);
   if (subjects.length === 0) return [];
-  const settle = (checks: PreflightCheck[]) =>
-    withSemanticFollowUps(withManifestRollup(checks), input.configured);
+  const settle = (checks: PreflightCheck[]) => withSemanticFollowUps(withManifestRollup(checks), input.configured);
   if (!input.host) {
     return settle(
       unaskedChecks(
         subjects,
-        'The app container was given no DATABRICKS_HOST, so it does not know which workspace to ask.',
-      ),
+        'The app container was given no DATABRICKS_HOST, so it does not know which workspace to ask.'
+      )
     );
   }
   if (!input.token) {
@@ -1256,8 +1258,8 @@ export async function probeConnections(input: {
       unaskedChecks(
         subjects,
         'This request carried no signed-in user token, and these answers are about the signed-in ' +
-          'user\u2019s own grants rather than the app\u2019s.',
-      ),
+          'user\u2019s own grants rather than the app\u2019s.'
+      )
     );
   }
 
@@ -1302,7 +1304,7 @@ export async function probeConnections(input: {
  */
 export function withSemanticFollowUps(
   checks: PreflightCheck[],
-  configured: Readonly<Record<string, string>>,
+  configured: Readonly<Record<string, string>>
 ): PreflightCheck[] {
   const index = (configured['semantic-index'] ?? '').trim();
   if (!index) return checks;
@@ -1393,9 +1395,7 @@ export function withManifestRollup(checks: PreflightCheck[]): PreflightCheck[] {
   // the object and no scope shortfall explains it away.
   const refusedScopes = new Set(unverified.map((entry) => (entry.scope ?? '').trim()));
   const scope =
-    failed.length === 0 && refusedScopes.size === 1 && unverified.length === tables.length
-      ? [...refusedScopes][0]
-      : '';
+    failed.length === 0 && refusedScopes.size === 1 && unverified.length === tables.length ? [...refusedScopes][0] : '';
   return [
     ...checks,
     {
@@ -1435,10 +1435,7 @@ export function withManifestRollup(checks: PreflightCheck[]): PreflightCheck[] {
  * verdict: the index's own verdict has already been recorded from the first
  * call, and a failure here must not restate it as a second problem.
  */
-async function readIndexBody(
-  subject: ProbeSubject,
-  options: ProbeOptions,
-): Promise<Record<string, unknown> | null> {
+async function readIndexBody(subject: ProbeSubject, options: ProbeOptions): Promise<Record<string, unknown> | null> {
   try {
     const call = options.fetchImpl ?? fetch;
     const response = await call(`${options.host}${subject.path}`, {
