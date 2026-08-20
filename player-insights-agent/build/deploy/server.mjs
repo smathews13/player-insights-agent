@@ -175633,7 +175633,16 @@ async function bootstrapSeedRoles(store, raw2 = process.env[SEED_ADMIN_EMAILS_EN
       `[admin] ${SEED_ADMIN_EMAILS_ENV} contains ${parsed.rejected.length} invalid entr${parsed.rejected.length === 1 ? "y" : "ies"} and they were ignored.`
     );
   }
-  const current = await readRoster(store);
+  let current;
+  try {
+    current = await readRoster(store);
+  } catch (error48) {
+    const code = String(error48.code ?? "unknown");
+    console.error(
+      `[admin] ROLE BOOTSTRAP SKIPPED: the Lakebase roster could not be read (code ${code}: ${error48.message}). Astrolabe will keep serving with no stored roles available; Connections reports the storage problem. No configured role was written or retained, because an unreadable roster is not evidence that it is empty.`
+    );
+    return "unavailable";
+  }
   if (current.rows.length > 0) {
     console.log(
       `[admin] Lakebase already contains ${current.rows.length} role row${current.rows.length === 1 ? "" : "s"}; ${SEED_ADMIN_EMAILS_ENV} is ignored. A code deploy cannot add, remove, promote, or demote anybody.`

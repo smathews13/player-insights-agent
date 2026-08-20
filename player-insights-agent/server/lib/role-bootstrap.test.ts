@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { bootstrapSeedRoles, type AdminStore } from './admin-roles';
 import { writeRole, type Role, type StoredRole } from './user-roster';
@@ -104,5 +104,30 @@ describe('deployment role bootstrap', () => {
 
     expect(await bootstrapSeedRoles(fixture.store, `super:${STALE}`)).toBe('existing-roster');
     expect(fixture.rows).toEqual([stored(EXISTING, 'consumer')]);
+  });
+
+  it.each([
+    ['permission denied', '42501', 'permission denied for schema player_insights'],
+    ['missing schema', '3F000', 'schema "player_insights" does not exist'],
+  ])('keeps boot running with an empty runtime roster when the schema is %s', async (_label, code, message) => {
+    const queries: string[] = [];
+    const store: AdminStore = {
+      async query(sql) {
+        queries.push(sql);
+        const error = new Error(message) as Error & { code?: string };
+        error.code = code;
+        throw error;
+      },
+    };
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await expect(bootstrapSeedRoles(store, `super:${DEPLOYER}`)).resolves.toBe('unavailable');
+      expect(queries).toHaveLength(1);
+      expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('ROLE BOOTSTRAP SKIPPED'));
+      expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('No configured role was written or retained'));
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 });

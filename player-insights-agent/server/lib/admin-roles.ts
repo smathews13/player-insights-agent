@@ -36,7 +36,14 @@ import type { NextFunction, Request, Response } from 'express';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE } from './admin-roles-schema';
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-identity';
 import { opensAdminSurfaces, opensUserRoster, type Role } from '../../shared/user-roster-contract';
-import { effectiveRole, readRoster, ROLE_COLUMN, seedFloorFor, type SeedRoles } from './user-roster';
+import {
+  effectiveRole,
+  readRoster,
+  ROLE_COLUMN,
+  seedFloorFor,
+  type SeedRoles,
+  type StoredRoster,
+} from './user-roster';
 // The wire shape lives in shared/ so the editor and these routes cannot disagree
 // about what a row is. Re-exported because most callers here want it, and a second
 // import line at every call site is noise.
@@ -208,7 +215,7 @@ export function announceSeedAdmins(raw: string | undefined = process.env[SEED_AD
   }
 }
 
-export type RoleBootstrapState = 'existing-roster' | 'bootstrapped' | 'empty';
+export type RoleBootstrapState = 'existing-roster' | 'bootstrapped' | 'empty' | 'unavailable';
 
 /**
  * Persist deployment config exactly once, then remove it from runtime authority.
@@ -238,7 +245,19 @@ export async function bootstrapSeedRoles(
     );
   }
 
-  const current = await readRoster(store);
+  let current: StoredRoster;
+  try {
+    current = await readRoster(store);
+  } catch (error) {
+    const code = String((error as { code?: unknown }).code ?? 'unknown');
+    console.error(
+      `[admin] ROLE BOOTSTRAP SKIPPED: the Lakebase roster could not be read (code ${code}: ` +
+        `${(error as Error).message}). Astrolabe will keep serving with no stored roles available; ` +
+        'Connections reports the storage problem. No configured role was written or retained, because ' +
+        'an unreadable roster is not evidence that it is empty.'
+    );
+    return 'unavailable';
+  }
   if (current.rows.length > 0) {
     console.log(
       `[admin] Lakebase already contains ${current.rows.length} role row${current.rows.length === 1 ? '' : 's'}; ` +
