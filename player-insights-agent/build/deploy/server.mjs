@@ -171242,6 +171242,7 @@ function proseOnlyAnswer(id, prose) {
     figures: [],
     charts: [],
     sources: [],
+    document_snippets: [],
     caveats: [PROSE_ONLY_ANSWER_CAVEAT],
     derivation: [],
     sql: "",
@@ -174090,25 +174091,6 @@ function commitOf(sha) {
   const trimmed = sha.trim();
   return trimmed.endsWith(DIRTY_SUFFIX) ? trimmed.slice(0, -DIRTY_SUFFIX.length) : trimmed;
 }
-function stampsAgree(stamp2, candidate) {
-  const a = commitOf(stamp2).toLowerCase();
-  const b = commitOf(candidate).toLowerCase();
-  if (!a || !b) return false;
-  if (a.length < MIN_ABBREV || b.length < MIN_ABBREV) return false;
-  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  return longer.startsWith(shorter);
-}
-function compareCommits(appSha, modelSha, ancestors = []) {
-  const app = commitOf(appSha).toLowerCase();
-  const model = commitOf(modelSha).toLowerCase();
-  if (!app || !model) return "uncompared";
-  if (app.length < MIN_ABBREV || model.length < MIN_ABBREV) return "unidentifiable";
-  if (stampsAgree(app, model)) return "same";
-  if (ancestors.length === 0) return "different";
-  const modelIsKnownAncestor = ancestors.some((entry) => stampsAgree(model, entry));
-  if (modelIsKnownAncestor) return "ancestor";
-  return "different";
-}
 function parseAncestorList(raw2) {
   if (!raw2?.trim()) return [];
   return raw2.trim().split(/[\s,]+/).map((entry) => commitOf(entry)).filter((entry) => entry.length >= MIN_ABBREV);
@@ -174545,37 +174527,6 @@ function computeDrift(input) {
     });
   }
   const modelSha = report.build_sha ?? "";
-  if (!appSha || !modelSha) {
-    findings.push({
-      id: "build-skew-unknown",
-      severity: "unknown",
-      resourceId: null,
-      headline: "App and orchestrator builds cannot be compared",
-      detail: (!appSha ? "This app build carries no stamp, so it does not know which commit it came from. " : "") + (!modelSha ? "The served model version carries no stamp, so it predates the build stamp. " : "") + "Agreement between the two is unknown here, not confirmed: a matching feature set cannot be assumed from the absence of a warning.",
-      remedy: !modelSha ? "Re-log the model to stamp it." : "Release the app from a stamped build."
-    });
-  } else {
-    const agreement = compareCommits(appSha, modelSha, input.appBuildAncestors);
-    if (agreement === "ancestor") {
-      findings.push({
-        id: "build-freshness",
-        severity: "note",
-        resourceId: null,
-        headline: "The orchestrator is from an earlier commit on this app\u2019s lineage",
-        detail: `The app is running ${appSha} and the served model version was logged from ancestor ${modelSha}. The app and orchestrator deploy separately, so this is ordinary freshness drift rather than incompatible history.`,
-        remedy: ""
-      });
-    } else if (agreement === "different" || agreement === "unidentifiable") {
-      findings.push({
-        id: "build-skew",
-        severity: "warning",
-        resourceId: null,
-        headline: "App and orchestrator builds may be incompatible",
-        detail: `The app is running ${appSha} and the served model version was logged from ${modelSha}. The app build does not contain the orchestrator commit in its stamped lineage, so these histories are divergent or cannot be identified safely.`,
-        remedy: "Release both from the same commit when the answer contract has changed."
-      });
-    }
-  }
   const dirty = [appSha, modelSha].filter((sha) => sha.endsWith("+dirty"));
   if (dirty.length > 0) {
     findings.push({
@@ -178976,6 +178927,11 @@ var DerivationEntrySchema = DerivationSchema.catch((ctx) => {
   );
   return { source: "", metric: "", window: "", filter: "" };
 });
+var DocumentSnippetSchema = external_exports.looseObject({
+  filename: external_exports.string().min(1),
+  quote: external_exports.string().min(1),
+  supports: external_exports.string().min(1)
+});
 var LiveAnswerSchema = external_exports.looseObject({
   id: external_exports.string().min(1),
   takeaway: external_exports.string().min(1),
@@ -178989,6 +178945,7 @@ var LiveAnswerSchema = external_exports.looseObject({
   // and requiring it would drop every live answer back to a representative one.
   charts: external_exports.array(ChartSchema).default([]),
   sources: external_exports.array(SourceSchema),
+  document_snippets: external_exports.array(DocumentSnippetSchema).default([]),
   caveats: external_exports.array(external_exports.string()),
   // Defaulted for the same reason `charts` is: an endpoint still running the
   // model version that shipped before this returns no key at all, and requiring

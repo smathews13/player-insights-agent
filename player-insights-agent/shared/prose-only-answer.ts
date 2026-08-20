@@ -62,6 +62,7 @@ export interface ProseOnlyAnswer {
   figures: never[];
   charts: never[];
   sources: never[];
+  document_snippets: never[];
   caveats: string[];
   /**
    * Empty for the same reason `sql` is empty: no statement ran on this path, so
@@ -109,6 +110,7 @@ export function proseOnlyAnswer(id: string, prose: string): ProseOnlyAnswer {
     figures: [],
     charts: [],
     sources: [],
+    document_snippets: [],
     caveats: [PROSE_ONLY_ANSWER_CAVEAT],
     derivation: [],
     sql: '',

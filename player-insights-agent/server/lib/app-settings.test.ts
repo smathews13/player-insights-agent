@@ -359,13 +359,7 @@ describe('what the page refuses to call healthy', () => {
     expect(driftStatus(findings)).toBe('unknown');
   });
 
-  /**
-   * The first fix for the above returned early, which silenced the two
-   * comparisons a configuration report DOES support. A stale model on a healthy
-   * endpoint would then have gone unreported, which is the failure this
-   * comparison was added for.
-   */
-  it('still compares the build stamps it was given, having measured nothing', () => {
+  it('does not turn independent build stamps into a compatibility warning', () => {
     const findings = computeDrift({
       report: {
         ...report(),
@@ -382,7 +376,9 @@ describe('what the page refuses to call healthy', () => {
 
     const ids = findings.map((finding) => finding.id);
     expect(ids).toContain('orchestrator-report-retired');
-    expect(ids).toContain('build-skew');
+    expect(ids).not.toContain('build-skew');
+    expect(ids).not.toContain('build-skew-unknown');
+    expect(ids).not.toContain('build-freshness');
   });
 
   it('reports an unanswered endpoint as unreachable when nobody established otherwise', () => {
@@ -619,7 +615,7 @@ describe('a value somebody saved but nobody applied', () => {
 });
 
 describe('app against orchestrator', () => {
-  it('reports divergent histories between the two builds', () => {
+  it('leaves divergent build stamps as facts instead of warnings', () => {
     const findings = computeDrift({
       report: report({ build_sha: 'bbbb2222', configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
@@ -627,14 +623,10 @@ describe('app against orchestrator', () => {
       appBuildAncestors: ['aaaa1111', 'cccc3333'],
     });
 
-    const skew = findings.find((finding) => finding.id === 'build-skew');
-    expect(skew?.severity).toBe('warning');
-    expect(skew?.detail).toContain('aaaa1111');
-    expect(skew?.detail).toContain('bbbb2222');
-    expect(skew?.detail).toMatch(/divergent/i);
+    expect(findings.map((finding) => finding.id)).not.toContain('build-skew');
   });
 
-  it('reports an older orchestrator on the app lineage as normal freshness', () => {
+  it('leaves an older orchestrator stamp as a fact instead of a finding', () => {
     const findings = computeDrift({
       report: report({ build_sha: '11be12b', configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
@@ -642,26 +634,20 @@ describe('app against orchestrator', () => {
       appBuildAncestors: ['59ff353', '11be12b'],
     });
 
-    const freshness = findings.find((finding) => finding.id === 'build-freshness');
-    expect(freshness?.severity).toBe('note');
-    expect(freshness?.detail).toContain('59ff353');
-    expect(freshness?.detail).toContain('11be12b');
-    expect(freshness?.detail).toMatch(/ordinary freshness/i);
+    expect(findings.map((finding) => finding.id)).not.toContain('build-freshness');
     expect(findings.map((finding) => finding.id)).not.toContain('build-skew');
   });
 
-  it('says the comparison is impossible rather than passing it', () => {
-    // An unstamped build must not read as a matching one. This is the case that
-    // exists in production today, where the app carries no stamp at all.
+  it('does not warn when either independent stamp is absent', () => {
     const findings = computeDrift({
       report: report({ configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
       appBuildSha: '',
     });
 
-    expect(findings.map((finding) => finding.id)).toContain('build-skew-unknown');
+    expect(findings.map((finding) => finding.id)).not.toContain('build-skew-unknown');
     expect(findings.map((finding) => finding.id)).not.toContain('build-skew');
-    expect(driftStatus(findings)).toBe('unknown');
+    expect(driftStatus(findings)).toBe('ok');
   });
 
   it('reports a build made from a modified worktree', () => {

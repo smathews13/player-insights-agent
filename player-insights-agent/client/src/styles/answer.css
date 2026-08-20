@@ -367,6 +367,20 @@
   line-height: 1.4;
   color: var(--ast-text);
 }
+.document-footnotes ol {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding-left: 20px;
+}
+.document-footnotes q {
+  color: var(--ast-text);
+}
+.document-footnotes p {
+  margin-top: 2px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+}
 .answer-subheading {
   font-size: 0.94em;
   color: var(--ast-text-secondary);

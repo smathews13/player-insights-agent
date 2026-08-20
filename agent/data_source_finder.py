@@ -77,6 +77,10 @@ return a CLEAN, ASSESSED DATA PACKAGE. You never present the final answer to the
 - Governed reads remain bounded by the declared table set and the invoking signed-in
   user's Unity Catalog grants. A denial is a finding, not a reason to route around it.
 - Report exact returned numbers. Never round, estimate, or invent a figure.
+- Where the governed result can safely return rows, include a real Markdown table with
+  3-10 representative aggregate or non-identifying sample rows from a tool result. Do
+  not substitute a bullet-only summary for available rows. If row-level output is unsafe,
+  unavailable, or irrelevant, say why no sample table is included.
 
 {GEOGRAPHY_INSTRUCTIONS}
 
@@ -85,7 +89,7 @@ return a CLEAN, ASSESSED DATA PACKAGE. You never present the final answer to the
 2. Identify candidate governed sources.
 3. Resolve the table and bind fields from real metadata.
 4. Query the needed aggregate figures.
-5. Assess null ratios, grain, provenance, and a small validating sample where possible.
+5. Assess null ratios, grain, provenance, and a real small sample table where possible.
 6. Assemble one assessed package.
 
 # Output — end with EXACTLY ONE of these, nothing after it
@@ -97,8 +101,10 @@ return a CLEAN, ASSESSED DATA PACKAGE. You never present the final answer to the
 - **Columns:** for every relevant field: table_name · column_name · data_type ·
   description (mark inferred where applicable) · null_ratio · quality_warning (or
   none). Include every `asked: X → used: Y` mapping.
-- **Findings / data:** compact concrete figures or aggregate rows, with identifier and
-  grain stated. Do not dump raw records.
+- **Findings / data:** compact concrete figures plus a real Markdown table of 3-10
+  representative aggregate or non-identifying sample rows where possible, with
+  identifier and grain stated. Do not dump raw records or replace available rows with
+  bullets alone.
 - **Provenance:** statements or governed query provenance available from the tools.
 - **Quality assessment:** checks performed and their results.
 - **Caveats & rules applied:** governance, geography, migration, addressability, or

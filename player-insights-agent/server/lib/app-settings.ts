@@ -12,7 +12,7 @@ import {
 import { DEFAULT_JUDGE_ENDPOINT } from '../../shared/benchmark-contract';
 import { APP_SCHEMA, DEFAULT_APP_SCHEMA } from '../../shared/app-schema';
 import type { AppFacts } from '../../shared/app-facts';
-import { compareCommits, parseAncestorList } from '../../shared/build-stamps';
+import { parseAncestorList } from '../../shared/build-stamps';
 import type { LakebaseReader } from './lakebase-store';
 import type { PreflightReport } from '../routes/insights-routes';
 import { workspaceExperimentIdResolver, type ExperimentIdResolver } from './experiment-probe';
@@ -715,54 +715,10 @@ export function computeDrift(input: {
     });
   }
 
-  // 6. App and orchestrator built from different commits. This is the comparison
-  //    the model version's build stamp was added for: it reports its own stamp
-  //    and cannot see the app's, so the app is the only place the two meet.
+  // App and orchestrator releases are independent. Their real stamps are exposed
+  // in the Build and telemetry card, without turning a missing or different
+  // commit into a warning that has no reliable compatibility meaning.
   const modelSha = report.build_sha ?? '';
-  if (!appSha || !modelSha) {
-    findings.push({
-      id: 'build-skew-unknown',
-      severity: 'unknown',
-      resourceId: null,
-      headline: 'App and orchestrator builds cannot be compared',
-      detail:
-        (!appSha
-          ? 'This app build carries no stamp, so it does not know which commit it came from. '
-          : '') +
-        (!modelSha
-          ? 'The served model version carries no stamp, so it predates the build stamp. '
-          : '') +
-        'Agreement between the two is unknown here, not confirmed: a matching feature set cannot ' +
-        'be assumed from the absence of a warning.',
-      remedy: !modelSha ? 'Re-log the model to stamp it.' : 'Release the app from a stamped build.',
-    });
-  } else {
-    const agreement = compareCommits(appSha, modelSha, input.appBuildAncestors);
-    if (agreement === 'ancestor') {
-      findings.push({
-        id: 'build-freshness',
-        severity: 'note',
-        resourceId: null,
-        headline: 'The orchestrator is from an earlier commit on this app’s lineage',
-        detail:
-          `The app is running ${appSha} and the served model version was logged from ancestor ${modelSha}. ` +
-          'The app and orchestrator deploy separately, so this is ordinary freshness drift rather than incompatible history.',
-        remedy: '',
-      });
-    } else if (agreement === 'different' || agreement === 'unidentifiable') {
-      findings.push({
-        id: 'build-skew',
-        severity: 'warning',
-        resourceId: null,
-        headline: 'App and orchestrator builds may be incompatible',
-        detail:
-          `The app is running ${appSha} and the served model version was logged from ${modelSha}. ` +
-          'The app build does not contain the orchestrator commit in its stamped lineage, so these ' +
-          'histories are divergent or cannot be identified safely.',
-        remedy: 'Release both from the same commit when the answer contract has changed.',
-      });
-    }
-  }
 
   const dirty = [appSha, modelSha].filter((sha) => sha.endsWith('+dirty'));
   if (dirty.length > 0) {

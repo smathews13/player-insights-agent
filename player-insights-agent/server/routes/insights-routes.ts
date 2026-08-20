@@ -405,6 +405,12 @@ const DerivationEntrySchema = DerivationSchema.catch((ctx) => {
   return { source: '', metric: '', window: '', filter: '' };
 });
 
+const DocumentSnippetSchema = z.looseObject({
+  filename: z.string().min(1),
+  quote: z.string().min(1),
+  supports: z.string().min(1),
+});
+
 const LiveAnswerSchema = z.looseObject({
   id: z.string().min(1),
   takeaway: z.string().min(1),
@@ -418,6 +424,7 @@ const LiveAnswerSchema = z.looseObject({
   // and requiring it would drop every live answer back to a representative one.
   charts: z.array(ChartSchema).default([]),
   sources: z.array(SourceSchema),
+  document_snippets: z.array(DocumentSnippetSchema).default([]),
   caveats: z.array(z.string()),
   // Defaulted for the same reason `charts` is: an endpoint still running the
   // model version that shipped before this returns no key at all, and requiring

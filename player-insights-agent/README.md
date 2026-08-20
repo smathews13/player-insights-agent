@@ -143,7 +143,7 @@ installed Chrome or Edge instead with `PLAYWRIGHT_CHANNEL=chrome`.
 
 The CLI path below builds and directly releases the app from a maintainer's
 working copy. Internal and customer deployments use the same three-command
-bootstrap in the root README: agent release, complete bundle deploy, then app
+bootstrap in the root README: complete bundle deploy, agent release, then app
 release. After the bundle has created the app and its bindings, normal app-code
 updates use the existing app's **Deploy → From Git** flow, pointed at the
 committed `player-insights-agent/build/deploy` directory.

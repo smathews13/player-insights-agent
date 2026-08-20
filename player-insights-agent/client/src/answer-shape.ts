@@ -65,6 +65,12 @@ export interface SourceRef {
   role?: SourceRole;
 }
 
+export interface DocumentSnippet {
+  filename: string;
+  quote: string;
+  supports: string;
+}
+
 /**
  * What one statement of the run measured, over what, from where.
  *
@@ -102,6 +108,7 @@ export interface WireAnswer {
   figures?: unknown;
   charts?: unknown;
   sources?: unknown;
+  document_snippets?: unknown;
   caveats?: unknown;
   derivation?: unknown;
   sql?: unknown;
@@ -240,6 +247,18 @@ function normalizeSources(raw: unknown): SourceRef[] {
     .filter((source): source is SourceRef => source !== null);
 }
 
+function normalizeDocumentSnippets(raw: unknown): DocumentSnippet[] {
+  return asArray(raw)
+    .map((entry) => {
+      const snippet = (entry ?? {}) as Record<string, unknown>;
+      const filename = asString(snippet.filename).trim();
+      const quote = asString(snippet.quote).trim();
+      const supports = asString(snippet.supports).trim();
+      return filename && quote && supports ? { filename, quote, supports } : null;
+    })
+    .filter((snippet): snippet is DocumentSnippet => snippet !== null);
+}
+
 /**
  * The run's own claim about which credential the endpoint was called with.
  *
@@ -345,6 +364,7 @@ export interface NormalizedAnswer {
   figures: Figure[];
   charts?: unknown;
   sources: SourceRef[];
+  document_snippets: DocumentSnippet[];
   caveats: string[];
   /**
    * What each statement of the run measured, over what window, from where.
@@ -398,6 +418,7 @@ export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
     content: asString(raw.content),
     figures: normalizeFigures(raw.figures),
     sources: normalizeSources(raw.sources),
+    document_snippets: normalizeDocumentSnippets(raw.document_snippets),
     caveats: normalizeCaveats(raw.caveats),
     derivation: normalizeDerivation(raw.derivation),
     sql: asString(raw.sql),

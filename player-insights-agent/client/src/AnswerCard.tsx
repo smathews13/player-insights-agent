@@ -129,6 +129,8 @@ export function AnswerCard({
   // reads `mode` rather than looking for the representative caveat.
   const fallback = answerFallback(answer);
   const badge = answerBadge(answer);
+  const usedAttachments = answer.trace.stages.some((stage) => stage.id === 'attachment');
+  const missingDocumentFootnotes = usedAttachments && answer.document_snippets.length === 0;
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
   const dataAccess = dataAccessDisclosure(answer.executionIdentity);
@@ -235,6 +237,30 @@ export function AnswerCard({
               columns={mentionedIdentifiers([answer.content])}
             />
           </section>
+        ) : null}
+        {answer.document_snippets.length > 0 ? (
+          <section className="answer-content document-footnotes" aria-label="Document footnotes">
+            <h3 className="answer-heading">Document footnotes</h3>
+            <ol>
+              {answer.document_snippets.map((snippet, index) => (
+                <li key={`${snippet.filename}-${index}`}>
+                  <q>{snippet.quote}</q>
+                  <p>
+                    <strong>{snippet.filename}</strong> supports {snippet.supports}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+        {missingDocumentFootnotes ? (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription>
+              Attached reports were used, but this answer includes no document footnotes or quoted
+              snippets. Verify its document-based claims against the attachments before using them.
+            </AlertDescription>
+          </Alert>
         ) : null}
         {/* Above the figure breakdown: the chart is the shape of the result, the figures
             beneath it are the numbers that shape is made of. Renders nothing when the

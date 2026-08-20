@@ -48,6 +48,14 @@ class Source(BaseModel):
     role: str = ""
 
 
+class DocumentSnippet(BaseModel):
+    """A short, verbatim footnote from an attached document used in the answer."""
+
+    filename: str
+    quote: str
+    supports: str
+
+
 class Derivation(BaseModel):
     """What one statement measured, over what, from where.
 
@@ -212,6 +220,7 @@ class AnswerContract(BaseModel):
     figures: list[Figure] = Field(default_factory=list)
     charts: list[Chart] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
+    document_snippets: list[DocumentSnippet] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
     #: Per-statement provenance, in the order the run ran them.
     #:

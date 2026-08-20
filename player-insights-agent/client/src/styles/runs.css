@@ -236,6 +236,10 @@
   font-size: var(--text-h-sub);
   font-weight: 700;
 }
+.run-conversation-filter {
+  width: 100%;
+  justify-content: space-between;
+}
 /* The search field's leading icon sits in the field rather than beside it, so
    the 340px column spends none of its width on a second box. */
 .run-search {

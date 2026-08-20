@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { conversationRunTitle, toolStageDurationMs } from './RunExplorer';
+import { conversationFilterOptions, conversationRunTitle, toolStageDurationMs } from './RunExplorer';
 import type { Run } from './app-types';
 import type { TraceStage } from './answer-shape';
 
@@ -30,5 +30,9 @@ describe('Run Explorer feedback', () => {
       run('c1-r1', 'c1', '2026-08-19T01:00:00Z'),
     ];
     expect(conversationRunTitle(runs, runs[1])).toBe('Conversation 1, Run 2');
+    expect(conversationFilterOptions(runs)).toEqual([
+      { id: 'c1', label: 'Conversation 1' },
+      { id: 'c2', label: 'Conversation 2' },
+    ]);
   });
 });

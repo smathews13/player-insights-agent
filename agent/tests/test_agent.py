@@ -2570,7 +2570,26 @@ def test_a_follow_up_carries_the_recent_conversation_into_the_loop():
 
 
 def test_attachment_context_reaches_the_model_and_run_explorer_trace():
-    llm = ScriptedLlm("The loyalty cohort is 4,100 players.")
+    llm = ScriptedLlm(
+        "The loyalty cohort is 4,100 players.",
+        synthesis=json.dumps(
+            {
+                "takeaway": "The loyalty cohort should be prioritised.",
+                "narrative": "The attached notes identify the priority.",
+                "content": "The loyalty cohort contains 4,100 players.",
+                "figures": [],
+                "document_snippets": [
+                    {
+                        "filename": "notes.txt",
+                        "quote": "Focus on the loyalty cohort",
+                        "supports": "the recommended cohort",
+                    }
+                ],
+                "caveats": [],
+            }
+        ),
+        charts=False,
+    )
     attachment_text = "Focus on the loyalty cohort described in these meeting notes."
     request_input = [{"role": "user", "content": "Analyze active-player trends."}]
 
@@ -2608,6 +2627,14 @@ def test_attachment_context_reaches_the_model_and_run_explorer_trace():
     attachment_stage = next(stage for stage in recorded if stage["id"] == "attachment")
     assert attachment_stage["name"] == "Included conversation attachment"
     assert attachment_text in attachment_stage["output"]
+    assert answered.custom_outputs["answer"]["document_snippets"] == [
+        {
+            "filename": "notes.txt",
+            "quote": "Focus on the loyalty cohort",
+            "supports": "the recommended cohort",
+        }
+    ]
+    assert "document_snippets is required" in SYNTHESIS_INSTRUCTIONS
 
 
 def test_attachment_text_custom_input_from_the_app_backend_is_used():
@@ -3411,6 +3438,7 @@ APP_ANSWER_FIELDS = {
     "figures",
     "charts",
     "sources",
+    "document_snippets",
     "caveats",
     "derivation",
     "sql",

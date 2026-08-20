@@ -51,6 +51,7 @@ from contracts import (
     Chart,
     Clarification,
     Derivation,
+    DocumentSnippet,
     Figure,
     GenieSpace,
     PlanStep,
@@ -235,6 +236,7 @@ Keys: takeaway (one decision-oriented sentence), narrative (plain-language inter
 written as Markdown), content (the concrete positive findings returned by the assessed
 data package, written as Markdown), figures (up to 6 objects with exactly these keys: label, value,
 display, comparison; value is a number from 0-100 used as a relative bar width),
+document_snippets (an array of objects with exactly filename, quote, supports),
 and caveats (array of concise limitations).
 
 Use only the supplied assessed data package. Never invent a value. Keep labels
@@ -245,6 +247,10 @@ Every answer must carry all four notebook sections: narrative, takeaway,
 content, and figures. Never pad narrative, content, figures, result breakdowns, or
 trace text with actions that were not taken. Omit absent filters, exclusions, skipped
 steps, and other non-falsifiable negative filler instead of listing them.
+When conversation attachment context is supplied and used, document_snippets is required:
+include at least one short verbatim quote as a footnote for every attached document the
+answer relies on, name its filename, and state which claim it supports. Never paraphrase
+inside quote. Return an empty document_snippets array when no attachment supports the answer.
 
 Geographic answers must also follow this contract:
 {GEOGRAPHY_INSTRUCTIONS}
@@ -341,6 +347,7 @@ class Synthesis(BaseModel):
     narrative: str
     content: str = ""
     figures: list[Figure] = Field(default_factory=list)
+    document_snippets: list[DocumentSnippet] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
 
 
@@ -4711,6 +4718,11 @@ Tables available to this analysis, with their columns:
                 )
                 for source in answer_sources
             ],
+            document_snippets=(
+                synthesis.document_snippets
+                if any(stage.id == "attachment" for stage in log.stages)
+                else []
+            ),
             caveats=caveats,
             # Derived from the statements this run executed, not from anything
             # the synthesiser said about them. The model was never asked for its

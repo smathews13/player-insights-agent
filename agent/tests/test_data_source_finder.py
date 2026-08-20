@@ -89,6 +89,8 @@ def test_finder_owns_notebook_workflow_and_assessed_package_contract():
     assert "Identify candidate governed sources" in FINDER_SYSTEM_PROMPT
     assert "Bind every SQL column" in FINDER_SYSTEM_PROMPT
     assert "null ratio" in FINDER_SYSTEM_PROMPT
+    assert "real Markdown table" in FINDER_SYSTEM_PROMPT
+    assert "bullet-only summary" in FINDER_SYSTEM_PROMPT
     assert "## DATA PACKAGE" in FINDER_SYSTEM_PROMPT
     assert "- **Provenance:**" in FINDER_SYSTEM_PROMPT
     assert "- **Quality assessment:**" in FINDER_SYSTEM_PROMPT

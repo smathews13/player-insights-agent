@@ -35,6 +35,10 @@ import {
   EmptyMedia,
   EmptyTitle,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
   Skeleton,
   Tabs,
   TabsContent,
@@ -95,6 +99,12 @@ export function conversationRunTitle(runs: readonly Run[], selected: Run | null)
   return conversation > 0 && run > 0 ? `Conversation ${conversation}, Run ${run}` : undefined;
 }
 
+/** Conversations in the same chronological numbering used by the run header. */
+export function conversationFilterOptions(runs: readonly Run[]): Array<{ id: string; label: string }> {
+  const ids = [...new Set([...runs].reverse().map((run) => run.conversation_id).filter((id): id is string => Boolean(id)))];
+  return ids.map((id, index) => ({ id, label: `Conversation ${index + 1}` }));
+}
+
 /**
  * The class a tile's value takes.
  *
@@ -132,6 +142,7 @@ export function RunExplorer() {
   // resets on reload, which is the right scope for a preference nothing stores.
   const [advanced, setAdvanced] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [conversationFilter, setConversationFilter] = useState(searchParams.get('conversation') ?? '');
   // Whether the rows below are stored runs, seeded ones, or nothing at all
   // because nobody could find out. Classified in list-availability.ts from what
   // the server said, not guessed from the ids or the row count: an empty store
@@ -156,9 +167,14 @@ export function RunExplorer() {
       })
       .finally(() => setLoading(false));
   }, []);
-  const visibleRuns = runs.filter((run) =>
-    `${runLabel(run)} ${run.stakeholder ?? ''} ${run.conversation_id ?? ''}`.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const conversationOptions = conversationFilterOptions(runs);
+  const visibleRuns = runs.filter((run) => {
+    const inConversation = !conversationFilter || run.conversation_id === conversationFilter;
+    const matchesSearch = `${runLabel(run)} ${run.stakeholder ?? ''} ${run.conversation_id ?? ''}`
+      .toLowerCase()
+      .includes(searchText.toLowerCase());
+    return inConversation && matchesSearch;
+  });
   /**
    * Whether a `?run=` deep link asked for a run that is not here.
    */
@@ -262,6 +278,25 @@ export function RunExplorer() {
         <Card className="run-list">
           <CardHeader>
             <CardTitle>Recent runs</CardTitle>
+            <Select
+              value={conversationFilter || 'all'}
+              onValueChange={(value) => setConversationFilter(value === 'all' ? '' : value)}
+            >
+              <SelectTrigger className="run-conversation-filter" aria-label="Filter runs by conversation">
+                <span>
+                  {conversationOptions.find((option) => option.id === conversationFilter)?.label ??
+                    'All conversations'}
+                </span>
+              </SelectTrigger>
+              <SelectContent position="popper" align="start" sideOffset={4}>
+                <SelectItem value="all">All conversations</SelectItem>
+                {conversationOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="run-search">
               <Search />
               <Input
@@ -293,7 +328,7 @@ export function RunExplorer() {
                     <Search />
                   </EmptyMedia>
                   <EmptyTitle>No matching runs</EmptyTitle>
-                  <EmptyDescription>Try a different prompt or stakeholder search.</EmptyDescription>
+                  <EmptyDescription>Try a different conversation filter, prompt, or stakeholder search.</EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : (visibleRuns.map((run) => (<RunListItem
