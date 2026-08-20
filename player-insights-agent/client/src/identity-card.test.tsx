@@ -1,7 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { IdentityCard, questionsRunAs, type DeploymentIdentity, type PanelIdentity } from './IdentityPanel';
+import { IdentityCard } from './IdentityPanel';
+import {
+  questionsRunAs,
+  type DeploymentIdentity,
+  type PanelIdentity,
+} from './identity-panel-state';
 
 /**
  * The Identity card as it is composed, rather than as its source reads.

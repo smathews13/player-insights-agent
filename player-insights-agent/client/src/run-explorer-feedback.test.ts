@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { KPI_HINTS, conversationFilterOptions, conversationRunTitle, toolStageDurationMs } from './RunExplorer';
+import { KPI_HINTS, conversationFilterOptions, conversationRunTitle, toolStageDurationMs } from './run-explorer-state';
 import type { Run } from './app-types';
 import type { TraceStage } from './answer-shape';
 

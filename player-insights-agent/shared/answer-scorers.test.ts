@@ -87,10 +87,10 @@ describe('what a rationale may say', () => {
 
   it('never quotes the answer text back', () => {
     const answerText = CASES.flatMap((entry) => [
-      String(entry.envelope.answer?.takeaway ?? ''),
-      String(entry.envelope.answer?.narrative ?? ''),
-      String(entry.envelope.question ?? ''),
-      String(entry.envelope.message ?? ''),
+      typeof entry.envelope.answer?.takeaway === 'string' ? entry.envelope.answer.takeaway : '',
+      typeof entry.envelope.answer?.narrative === 'string' ? entry.envelope.answer.narrative : '',
+      typeof entry.envelope.question === 'string' ? entry.envelope.question : '',
+      typeof entry.envelope.message === 'string' ? entry.envelope.message : '',
     ]).filter((value) => value.trim().length > 0);
 
     for (const rationale of rationales) {

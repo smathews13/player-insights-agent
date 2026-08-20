@@ -433,6 +433,9 @@ export interface FirstOpen {
   gate: ReactNode;
 }
 
+// Kept with the gate components because this hook owns their one-session state
+// and returns those private layers; extracting it would split one state machine.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useFirstOpen(identity: Identity): FirstOpen {
   const [dismissed, setDismissed] = useState(() => firstOpenAcknowledged());
   /*

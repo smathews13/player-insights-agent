@@ -73,9 +73,9 @@ import { evalScorecard } from './eval-scorecard';
 import {
   SCORECARD_NON_GATING_NOTICE,
   SCORER_CATALOG,
-  type ScorerDefinition,
 } from '../../shared/scorer-catalog';
-import type { Scorecard, ScorecardState, ScorecardValue } from '../../shared/scorecard-contract';
+import type { Scorecard, ScorecardState } from '../../shared/scorecard-contract';
+import { formatScore, labelSourceSummary, scoreCoverage } from './benchmark-state';
 
 /**
  * Formats a stored benchmark metric, or says it is absent.
@@ -258,56 +258,6 @@ export function BenchmarkTiles({ summary, hasRun }: { summary: BenchmarkSummary;
  * dash for the same reason `metricOrDash` exists above: a missing measurement
  * must never be drawn as a zero.
  */
-export function formatScore(definition: ScorerDefinition, value: number | null): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
-  if (definition.unit === 'rate') return `${Math.round(value * 100)}%`;
-  if (definition.unit === 'milliseconds') return formatDuration(value);
-  return value % 1 === 0 ? String(value) : value.toFixed(1);
-}
-
-/**
- * What a scorer's number is over, or why there isn't one.
- *
- * Always present, never conditional. The Benchmark Lab's existing rule is that
- * a rate is displayed with its denominator, because "87%" and "87% of 11 judged
- * cases" are different claims and only the second is a result. The same rule
- * applies here, and an abstention gets a sentence rather than a blank -- a
- * blank beside a scorer name reads as a score of nothing.
- */
-export function scoreCoverage(definition: ScorerDefinition, score: ScorecardValue | null): string {
-  if (definition.availability === 'unimplementable') return definition.blockedReason;
-  if (!score) return 'Not measured by the published evaluation.';
-  if (score.state !== 'scored') return score.reason || 'No case produced a verdict for this scorer.';
-  const applied = `${score.scored} of ${score.scored + score.notApplicable} case${score.scored + score.notApplicable === 1 ? '' : 's'}`;
-  return definition.unit === 'rate'
-    ? `Over the ${applied} this scorer applied to.`
-    : `Median across the ${applied} this scorer applied to.`;
-}
-
-/**
- * How much of the label set somebody other than its author can check.
- *
- * A LABEL DERIVED FROM A QUERY AND A LABEL DERIVED FROM A DOCUMENT ARE DIFFERENT
- * KINDS OF CLAIM, and the difference survives review in a way "unreviewed" does
- * not. A reviewer handed the definitional cases can re-run one statement and
- * settle whether the label is right. A reviewer handed the refusal cases can
- * only agree or disagree with a reading of policy, because nothing in the data
- * says what the agent ought to decline. Saying so here tells a reader which
- * third of the set to spend their scepticism on.
- */
-export function labelSourceSummary(scorecard: Scorecard): string {
-  const counts = scorecard.provenance.labelSourceCounts ?? {};
-  const byQuery = counts['data-query'] ?? 0;
-  const byPolicy = counts['policy-document'] ?? 0;
-  const total = scorecard.provenance.caseCount;
-  return (
-    `Of ${total} labelled cases, ${byQuery} are settled by a query anyone can re-run against the data, and ` +
-    `${byPolicy} rest on a reading of policy alone -- those are the ones no query can check and the first ` +
-    'worth an expert\'s time. The rest mix the two: which table an answer had to reach is checkable, what it ' +
-    'had to say about it is not.'
-  );
-}
-
 /**
  * The held-out evaluation: the full scorer set, and what each one currently says.
  *

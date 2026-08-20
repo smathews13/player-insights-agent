@@ -60,8 +60,13 @@ import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
 import type { Run } from './app-types';
-import type { TraceStage } from './answer-shape';
 import { UserIdentityChip } from './UserIdentityChip';
+import {
+  conversationFilterOptions,
+  conversationRunTitle,
+  KPI_HINTS,
+  toolStageDurationMs,
+} from './run-explorer-state';
 
 /**
  * What a tile says when the run recorded no such measurement.
@@ -82,57 +87,6 @@ const ABSENT = 'not set';
 
 /** Stages whose time belongs to data work, including older traces that tagged
  * the finder or SQL wrapper as an agent stage instead of a tool stage. */
-function isDataWork(stage: TraceStage): boolean {
-  return stage.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${stage.id} ${stage.name}`);
-}
-
-/**
- * Every stage this one ran inside, nearest first.
- *
- * Walked through `parent_id` rather than read off `depth`, because the chain
- * runs through stages that are not data work themselves: the finder's tool
- * calls hang off a `step-n` model turn, which hangs off the finder. A depth
- * comparison would miss that the finder encloses them. `seen` guards a
- * malformed trace whose parents cycle, which would otherwise spin here.
- */
-function enclosingIds(stage: TraceStage, byId: Map<string, TraceStage>): string[] {
-  const chain: string[] = [];
-  const seen = new Set<string>([stage.id]);
-  let above = stage.parent_id ? byId.get(stage.parent_id) : undefined;
-  while (above && !seen.has(above.id)) {
-    chain.push(above.id);
-    seen.add(above.id);
-    above = above.parent_id ? byId.get(above.parent_id) : undefined;
-  }
-  return chain;
-}
-
-/**
- * Milliseconds the spans cover between them, counting a shared instant once.
- *
- * The agent dispatches a step's tool calls through a thread pool, so two calls
- * can genuinely be in flight at the same moment. Their durations add up to more
- * time than the run had, which is not a contradiction: it is two things
- * happening at once, and a figure a reader compares against wall time has to
- * say so.
- */
-function coveredMs(spans: readonly { from: number; to: number }[]): number {
-  const ordered = [...spans].filter((span) => span.to > span.from).sort((left, right) => left.from - right.from);
-  let covered = 0;
-  let open: { from: number; to: number } | null = null;
-  for (const span of ordered) {
-    // Touching edges continue the same run of activity: one call returning at
-    // the instant the next begins is what a serial loop looks like.
-    if (!open || span.from > open.to) {
-      if (open) covered += open.to - open.from;
-      open = { from: span.from, to: span.to };
-    } else if (span.to > open.to) {
-      open.to = span.to;
-    }
-  }
-  return open ? covered + (open.to - open.from) : covered;
-}
-
 /**
  * How much of a run was data work, as a figure that fits inside the run.
  *
@@ -157,26 +111,6 @@ function coveredMs(spans: readonly { from: number; to: number }[]): number {
  * the run it happened inside rather than published as a longer run than
  * happened.
  */
-export function toolStageDurationMs(stages: readonly TraceStage[], wallMs?: number | null): number | null {
-  const dataWork = stages.filter(isDataWork);
-  if (!dataWork.length) return null;
-  const byId = new Map(stages.map((stage) => [stage.id, stage]));
-  const containers = new Set(dataWork.flatMap((stage) => enclosingIds(stage, byId)));
-  const innermost = dataWork.filter((stage) => !containers.has(stage.id));
-  // Empty only if every data stage encloses another, which takes a cycle in the
-  // recorded parents. Then nothing is known about the nesting and the flat sum
-  // is the most that can be said.
-  const counted = innermost.length ? innermost : dataWork;
-  // Strictly measured, not merely present: `start` is coerced to 0 when the wire
-  // omitted it, and a union over stages that all begin at 0 returns the longest
-  // of them, which would report a fiction as an exact overlap. Where starts were
-  // not recorded the durations are added, as they always were.
-  const total = counted.every((stage) => stage.startMeasured === true)
-    ? coveredMs(counted.map((stage) => ({ from: stage.start, to: stage.start + stage.duration })))
-    : counted.reduce((sum, stage) => sum + stage.duration, 0);
-  return typeof wallMs === 'number' && wallMs > 0 && total > wallMs ? wallMs : total;
-}
-
 /**
  * What each tile on the Overview grid is a measurement of, in one sentence.
  *
@@ -191,31 +125,6 @@ export function toolStageDurationMs(stages: readonly TraceStage[], wallMs?: numb
  * of text under every figure. That is a real limitation for a reader on a
  * keyboard or a screen reader, and the tiles are still labelled without it.
  */
-export const KPI_HINTS = {
-  wallTime: 'How long this run took from end to end, from the question arriving to the answer being stored.',
-  toolStageTime:
-    'How much of that run was spent in data work, counting nested and parallel steps once rather than twice.',
-  agentToolCalls: 'How many external tool calls the agent recorded making while it answered this question.',
-  llmTokens: 'How many tokens the model gateway metred for this run, split into the prompt and the reply.',
-  userRating: 'What a person scored this answer out of five, or Not rated when nobody has scored it yet.',
-} as const;
-
-export function conversationRunTitle(runs: readonly Run[], selected: Run | null): string | undefined {
-  if (!selected?.conversation_id) return undefined;
-  const chronological = [...runs].reverse();
-  const conversations = [...new Set(chronological.map((run) => run.conversation_id).filter(Boolean))];
-  const conversation = conversations.indexOf(selected.conversation_id) + 1;
-  const inConversation = chronological.filter((run) => run.conversation_id === selected.conversation_id);
-  const run = inConversation.findIndex((item) => item.id === selected.id) + 1;
-  return conversation > 0 && run > 0 ? `Conversation ${conversation}, Run ${run}` : undefined;
-}
-
-/** Conversations in the same chronological numbering used by the run header. */
-export function conversationFilterOptions(runs: readonly Run[]): Array<{ id: string; label: string }> {
-  const ids = [...new Set([...runs].reverse().map((run) => run.conversation_id).filter((id): id is string => Boolean(id)))];
-  return ids.map((id, index) => ({ id, label: `Conversation ${index + 1}` }));
-}
-
 /**
  * The class a tile's value takes.
  *

@@ -18,7 +18,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { roleOptions, RosterRows } from './UserRoleEditor';
+import { RosterRows } from './UserRoleEditor';
+import { roleOptions } from './user-role-options';
 import { canSubmit, originLabel, roleWord, rosterSummary, rowLocked, setOn, stepsDownFrom } from './user-roster';
 import { badgeAnnouncement, badgeLabel, badgeTitle, roleFrom, showsAdminSurfaces, showsUserRoster } from './role';
 import type { Role, RosterEntry, RosterPayload } from '../../shared/user-roster-contract';

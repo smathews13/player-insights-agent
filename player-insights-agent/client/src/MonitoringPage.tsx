@@ -42,7 +42,8 @@ import { unavailableNotice } from './unavailable-copy';
 import { AnswerCard } from './AnswerCard';
 import { TraceTimeline } from './TraceTimeline';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
-import { UserIdentityChip, identityName } from './UserIdentityChip';
+import { UserIdentityChip } from './UserIdentityChip';
+import { identityName } from './user-identity';
 import type { Answer, FeedbackEntry } from './app-types';
 import {
   answerTimeTile,

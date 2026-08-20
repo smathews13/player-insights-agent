@@ -851,7 +851,7 @@ export function HomePage() {
       return;
     }
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages.length, loading, conversationLoading, requestedAnswer]);
+  }, [messages, loading, conversationLoading, requestedAnswer]);
 
   // Keeps every elapsed counter moving: the parsing chips during a slow PDF
   // extraction, and the agent's own wait, which is the longer of the two.

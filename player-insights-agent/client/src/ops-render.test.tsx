@@ -25,7 +25,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { CostBody, HealthBody, LatencyBody, OpsPage, TrafficBody, type Block } from './OpsPage';
-import { REFRESH_LABEL } from './RefreshControl';
+import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
 function text(markup: string): string {

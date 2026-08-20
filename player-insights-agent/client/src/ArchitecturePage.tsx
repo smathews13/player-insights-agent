@@ -39,7 +39,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';
-import { astPill, type AstPillFamily } from './astrolabe-pill';
+import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 // The word, the icon and the pending state, decided once for the whole app.
 import { RefreshControl } from './RefreshControl';
@@ -54,8 +54,8 @@ import {
   nodeValue,
   staleContent,
   type ArchitectureNode,
-  type NodeReport,
 } from './architecture';
+import { NODE_FAMILY } from './architecture-view';
 import {
   ACCENT_TOKEN,
   CANVAS_HEIGHT,
@@ -178,15 +178,6 @@ function workspaceObject(node: ArchitectureNode,
  * with a word in it says exactly that. Only `reachable` and `blocked` are
  * verdicts, and only they are tinted.
  */
-export const NODE_FAMILY: Record<NodeReport['tone'], AstPillFamily> = {
-  reachable: 'pos',
-  blocked: 'neg',
-  'not-checked': 'neutral-outline',
-  'nothing-to-reach': 'neutral-outline',
-  local: 'neutral-outline',
-  unreadable: 'neutral-outline',
-};
-
 function ArchitectureNodeCard({
   node,
   reading,

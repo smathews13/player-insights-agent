@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { RunDetails } from './RunDetails';
-import { KPI_HINTS, RunExplorer } from './RunExplorer';
+import { RunExplorer } from './RunExplorer';
+import { KPI_HINTS } from './run-explorer-state';
 import type { RunTrace } from './app-types';
 
 /**

@@ -53,14 +53,16 @@
  * is the difference as a row and the action as a line, which is the shape of
  * every other fact here.
  */
-import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { Card } from './ui';
 import { OAuthBadge } from './OAuthBadge';
 import { UserIdentityChip } from './UserIdentityChip';
 import { CopyButton, NOT_SET, StatusBadge } from './StatusBadge';
-import type { Identity } from './app-types';
-import { type AnalyticalExecution } from './analytical-execution';
+import {
+  questionsRunAs,
+  useDeploymentIdentity,
+  type DeploymentIdentity,
+} from './identity-panel-state';
 // WHETHER to say it, decided away from this file. The condition is the part
 // that must not vary between the surfaces that state it, and a card that
 // decided for itself would eventually offer a fresh sign-in to somebody whose
@@ -80,18 +82,6 @@ import {
  * and `session`. A local shape that happened to omit either would draw a neutral
  * badge on a deployment whose sign-in had failed.
  */
-export interface PanelIdentity extends Identity {
-  accessDecision?: { mode: string; decidedAt: string; detail: string } | null;
-  /**
-   * The endpoint's own principal. Only ever set by a re-verification through
-   * `/api/access-verification`; the endpoint stopped reporting it when the
-   * dependency checks were retired, so on most loads this is null.
-   */
-  servingPrincipal?: { id: string; observedAt: string } | null;
-  /** Which identity the next question would execute under. */
-  analyticalExecution?: AnalyticalExecution | null;
-}
-
 /** A stamp as a reader's own local time, or '' when there is nothing to show. */
 function when(iso: string | undefined): string {
   if (!iso) return '';
@@ -100,47 +90,6 @@ function when(iso: string | undefined): string {
 }
 
 /** What one read of `/api/identity` established, or that it could not be read. */
-export interface DeploymentIdentity {
-  identity: PanelIdentity | null;
-  failed: boolean;
-}
-
-/**
- * Who this deployment is connected as, read once.
- *
- * Lifted out of the card below because the page holds the answer as well: one
- * `fetch` on the page would otherwise ask the same route twice and let two
- * surfaces disagree about the answer, which on a card about identity is the worst
- * available outcome.
- */
-export function useDeploymentIdentity(enabled = true): DeploymentIdentity {
-  const [identity, setIdentity] = useState<PanelIdentity | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    // Not a conditional hook: the hook always runs and the REQUEST is what is
-    // skipped, so a card handed a read its caller already made does not ask the
-    // route a second time for an answer it is being given.
-    if (!enabled) return;
-    let live = true;
-    fetch('/api/identity')
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
-      .then((body: PanelIdentity) => {
-        if (live) setIdentity(body);
-      })
-      .catch(() => {
-        // A card that cannot say who it is connected as says that, rather than
-        // staying blank and letting the absence read as "nothing is connected".
-        if (live) setFailed(true);
-      });
-    return () => {
-      live = false;
-    };
-  }, [enabled]);
-
-  return { identity, failed };
-}
-
 /**
  * Whose grants the next question would be computed with, named.
  *
@@ -151,14 +100,6 @@ export function useDeploymentIdentity(enabled = true): DeploymentIdentity {
  * itself is never printed: it is an internal identifier and this row is read by
  * somebody deciding whether an answer could have used grants they do not have.
  */
-export function questionsRunAs(identity: PanelIdentity | null): string {
-  if (!identity) return '';
-  if (identity.analyticalExecution?.mode === 'app_service_principal') {
-    return identity.executionIdentity ?? '';
-  }
-  return identity.signedInAs ?? '';
-}
-
 /** One label-and-value line. Nothing renders when there is no value. */
 function Fact({ label, wrap, children }: { label: string; wrap?: boolean; children: React.ReactNode }) {
   return (<div className="identity-fact" data-wrap={wrap ? 'true' : undefined}>

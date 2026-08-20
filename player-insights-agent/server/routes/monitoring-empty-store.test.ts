@@ -37,7 +37,8 @@ function routeUnder(rows: Record<string, unknown>[]) {
   setupMonitoringRoutes(
     {
       lakebase: {
-        query: async (text: string) => (text === MONITORING_QUESTIONS_QUERY ? { rows } : { rows: [] }),
+        query: (text: string) =>
+          Promise.resolve(text === MONITORING_QUESTIONS_QUERY ? { rows } : { rows: [] }),
       },
       server: { extend: (fn: (target: Application) => void) => fn(app) },
     } as unknown as InsightsAppKit,

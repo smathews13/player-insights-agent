@@ -48,6 +48,7 @@ import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
 import { RoleLostNotice } from './GatePanel';
 import { UserIdentityChip } from './UserIdentityChip';
+import { mobileNavLinkClass } from './layout-view';
 import {
   navEntries,
   roleFrom,
@@ -143,13 +144,6 @@ function StorageBanner() {
 // what a screen reader is told and what is painted are one fact read twice
 // rather than two facts that can drift. See .app-nav-tab in shell.css.
 const navLinkClass = () => 'app-nav-tab';
-
-export const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `block px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-    isActive
-      ? 'bg-primary text-primary-foreground'
-      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-  }`;
 
 type NavLinkClassFn = (props: { isActive: boolean }) => string;
 

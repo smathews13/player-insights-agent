@@ -6,7 +6,7 @@ import {
   applyActionState,
   modelReleaseNotebookSnippet,
   releaseVersionLine,
-} from './ApplyDeclarationCard';
+} from './apply-declaration-state';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
 

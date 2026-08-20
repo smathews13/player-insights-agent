@@ -15,9 +15,9 @@ function client(rows: Record<string, unknown>[] = []) {
   return {
     calls,
     lakebase: {
-      query: async (sql: string, values?: unknown[]) => {
+      query: (sql: string, values?: unknown[]) => {
         calls.push({ sql, values });
-        return { rows };
+        return Promise.resolve({ rows });
       },
     },
   };

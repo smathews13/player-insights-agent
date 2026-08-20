@@ -148,7 +148,7 @@ function list(value: unknown): unknown[] {
 
 function answerOf(envelope: AnswerEnvelope): EnvelopeAnswer | null {
   if (envelope?.type !== ANSWER) return null;
-  return (envelope.answer ?? {}) as EnvelopeAnswer;
+  return (envelope.answer ?? {});
 }
 
 function sourcesOf(answer: EnvelopeAnswer): EnvelopeSource[] {

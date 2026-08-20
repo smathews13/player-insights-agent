@@ -13,7 +13,9 @@ const COLUMNS = `id, status, requested_by, requested_at, declaration,
   claimed_by, completed_by, error_summary`;
 
 function text(value: unknown): string {
-  return typeof value === 'string' ? value : value == null ? '' : String(value);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') return String(value);
+  return '';
 }
 
 function instant(value: unknown): string | null {

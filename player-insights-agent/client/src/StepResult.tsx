@@ -225,15 +225,15 @@ function ResultGrid({ table }: { table: ResultTable }) {
       <table>
         <thead>
           <tr>
-            {table.head.map((cell, at) => (<th key={at} scope="col">
+            {table.head.map((cell, at) => (<th key={table.head.slice(0, at + 1).join('|')} scope="col">
                 {cell}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {table.rows.map((row, at) => (<tr key={at}>
-              {row.map((cell, cellAt) => (<td key={cellAt}>{
+          {table.rows.map((row) => (<tr key={row.join('|')}>
+              {row.map((cell, cellAt) => (<td key={row.slice(0, cellAt + 1).join('|')}>{
                   FIGURE.test(cell.trim()) ? <b>{cell}</b>
                     : cell.split('.').length === 3 ? <EntityName>{cell}</EntityName>
                       : cell
@@ -426,10 +426,11 @@ function FactGrid({ facts }: { facts: Fact[] }) {
  */
 export function AgentReport({ sections }: { sections: ReportSection[] }) {
   return (<div className="dag-report">
-      {sections.map((section, at) => {
-        if (section.kind === 'facts') return <FactGrid facts={section.facts} key={at} />;
+      {sections.map((section) => {
+        const key = section.kind === 'facts' ? `facts-${JSON.stringify(section.facts)}` : `${section.kind}-${section.text}`;
+        if (section.kind === 'facts') return <FactGrid facts={section.facts} key={key} />;
         if (section.kind === 'note') {
-          return (<div className="dag-note" key={at}>
+          return (<div className="dag-note" key={key}>
               <span className="dag-note-tag">Note</span>
               <div>
                 <MarkdownText text={section.text} />
@@ -437,7 +438,7 @@ export function AgentReport({ sections }: { sections: ReportSection[] }) {
             </div>
           );
         }
-        return <MarkdownText key={at} text={section.text} />;
+        return <MarkdownText key={key} text={section.text} />;
       })}
     </div>
   );

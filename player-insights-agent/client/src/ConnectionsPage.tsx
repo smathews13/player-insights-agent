@@ -61,11 +61,12 @@ import {
 // The official product marks, from the one module that pairs a product with its
 // artwork. The Lucide glyphs above keep the actions and the generic concepts --
 // the carets, pencils, padlocks and copies -- and never stand in for a product.
-import { BrandIcon, type BrandProduct } from './BrandIcon';
+import { BrandIcon } from './BrandIcon';
 // The word, the icon and the pending state, decided once for the whole app.
 import { RefreshButton, RefreshControl } from './RefreshControl';
-import { CONNECTED_RESOURCES, type ChangedBy, type ResourceKind } from '../../shared/deployment-config';
-import { IdentityCard, useDeploymentIdentity } from './IdentityPanel';
+import { CONNECTED_RESOURCES, type ChangedBy } from '../../shared/deployment-config';
+import { IdentityCard } from './IdentityPanel';
+import { useDeploymentIdentity } from './identity-panel-state';
 // The value that is its own verdict, and the affordance that carries the whole
 // of it. Both are the design's, and both are shared with the identity card.
 import { CopyButton, NOT_SET, StatusBadge, type StatusTone } from './StatusBadge';
@@ -81,7 +82,8 @@ import { buildFacts } from './connection-build';
 import { deploymentRows, telemetryRows, type BuildRow } from './build-card';
 import { UserIdentityChip } from './UserIdentityChip';
 import { NO_APP_FACTS } from '../../shared/app-facts';
-import { EntityHighlight, entityRowProps, isRequestedEntity, useRequestedEntity } from './DataEntityLinks';
+import { EntityHighlight } from './DataEntityLinks';
+import { entityRowProps, isRequestedEntity, useRequestedEntity } from './data-entity-state';
 import { entityRowId } from './data-entities';
 import {
   checkBadgeVariant,
@@ -99,6 +101,7 @@ import { CHECK_VERDICT_LABEL } from '../../shared/check-verdict';
 import { NotebookCard } from './NotebookCard';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ApplyDeclarationCard } from './ApplyDeclarationCard';
+import { configurationValue, RESOURCE_PRODUCT, tableReachabilityCopy } from './connections-view';
 import { useSessionChecks } from './session-checks';
 import { restoredNotice } from './check-session';
 import {
@@ -207,24 +210,6 @@ const GROUP_TONE: Record<ConnectionGroupKey, StatusTone> = {
  * a compile error here rather than a row that silently draws nothing. Every kind
  * has a mark; the handoff's mapping covers all ten, so no row falls back.
  */
-export const RESOURCE_PRODUCT: Record<ResourceKind, BrandProduct> = {
-  // A serving endpoint, whichever half of the deployment it belongs to.
-  agent: 'mosaic-ai',
-  model: 'mosaic-ai',
-  'vector-search': 'mosaic-ai',
-  'sql-warehouse': 'databricks-sql',
-  'genie-space': 'genie',
-  lakebase: 'lakebase',
-  // A catalog, a schema, the declared tables and the assets volume are all
-  // Unity Catalog objects, which is the handoff's grouping and also the truth.
-  'unity-catalog': 'unity-catalog',
-  volume: 'unity-catalog',
-  observability: 'mlflow',
-  // Values the app itself owns and applies, with no product behind them beyond
-  // Apps: the conversation rail is the one, and it is an app setting.
-  'app-behaviour': 'apps',
-};
-
 const SEVERITY_ICON: Record<DriftSeverity, typeof CircleAlert> = {
   blocking: CircleAlert,
   warning: CircleAlert,
@@ -530,30 +515,6 @@ export function DeclaredTablesTable({
 }
 
 /** Concise table-specific reachability, without repeating the probing identity. */
-export function tableReachabilityCopy(check: PreflightCheck, checkedAt: string): { row: string; title: string } {
-  const evidence = `${check.error} ${check.detail}`.trim();
-  const columns = /(\d+)\s+columns?/i.exec(evidence)?.[1] ?? '';
-  const when = checkedAt ? formatCheckedAt(checkedAt) : 'time not reported';
-  if (check.status === 'ok') {
-    const count = columns ? `${columns} columns` : 'schema metadata reachable';
-    return {
-      row: `${count} · checked ${when}`,
-      title: `Reachability confirmed. ${columns ? `Schema has ${columns} columns. ` : ''}Last checked ${when}.`,
-    };
-  }
-  const permission = /403|permission|denied|grant/i.test(evidence);
-  if (check.stopped === 'refused' || permission) {
-    return {
-      row: `Permission not confirmed · checked ${when}`,
-      title: `The workspace refused the metadata read, so reachability under this sign-in is not confirmed. Last checked ${when}.`,
-    };
-  }
-  return {
-    row: `Reachability not confirmed · checked ${when}`,
-    title: `The metadata read did not establish reachability. Last checked ${when}.`,
-  };
-}
-
 /**
  * ONE CAUSE inside a block: what it is, and what it alone says.
  *
@@ -1196,13 +1157,6 @@ export function ConnectionRow({
  * anybody reads a switch. Everything else is passed through untouched, including
  * the empty string, which the caller renders as `not set`.
  */
-export function configurationValue(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed === 'true') return 'on';
-  if (trimmed === 'false') return 'off';
-  return trimmed;
-}
-
 /**
  * The agent's Unity Catalog read boundary: each entry labelled by blast radius.
  *
@@ -2005,7 +1959,9 @@ export function ConnectionsPage() {
         entries={payload?.connections}
         storeAvailable={payload?.storeAvailable ?? true}
         allowMutations={allowMutations}
-        onChanged={rereadSettings}
+        onChanged={() => {
+          void rereadSettings();
+        }}
       />
 
       {tableChecks.length > 0 ? (

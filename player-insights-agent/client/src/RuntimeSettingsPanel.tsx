@@ -67,7 +67,10 @@ export function RuntimeSettingsPanel() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const start = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(start);
   }, [load]);
 
   const setLoop = (key: keyof RuntimeSettings['loop'], value: number) =>

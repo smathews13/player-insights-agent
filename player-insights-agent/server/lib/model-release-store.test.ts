@@ -4,7 +4,7 @@ import type { LakebaseReader } from './lakebase-store';
 
 function fakeStore() {
   let row: Record<string, unknown> | null = null;
-  const query = async (sql: string, values: unknown[] = []) => {
+  const query = (sql: string, values: unknown[] = []) => {
     if (/^INSERT INTO/i.test(sql.trim())) {
       row = {
         id: values[0],
@@ -18,7 +18,7 @@ function fakeStore() {
         model_name: values[6],
         v_from: values[7],
         v_to: null,
-        preflight_at_request: values[8] ? JSON.parse(String(values[8])) : null,
+        preflight_at_request: typeof values[8] === 'string' ? JSON.parse(values[8]) : null,
         preflight_result: null,
         started_at: null,
         completed_at: null,
@@ -27,7 +27,7 @@ function fakeStore() {
         completed_by: null,
         error_summary: null,
       };
-      return { rows: [row] };
+      return Promise.resolve({ rows: [row] });
     }
     if (/SET status = 'running'/i.test(sql) && row?.status === 'approved') {
       row = {
@@ -37,22 +37,22 @@ function fakeStore() {
         claimed_by: values[2],
         started_at: new Date('2026-08-18T00:01:00Z'),
       };
-      return { rows: [row] };
+      return Promise.resolve({ rows: [row] });
     }
     if (/SET status = \$3/i.test(sql) && row?.status === 'running' && row.execution_id === values[1]) {
       row = {
         ...row,
         status: values[2],
         v_to: values[3],
-        preflight_result: values[4] ? JSON.parse(String(values[4])) : null,
+        preflight_result: typeof values[4] === 'string' ? JSON.parse(values[4]) : null,
         error_summary: values[5],
         completed_by: values[6],
         completed_at: new Date('2026-08-18T00:02:00Z'),
       };
-      return { rows: [row] };
+      return Promise.resolve({ rows: [row] });
     }
-    if (/^UPDATE/i.test(sql.trim())) return { rows: [] };
-    return { rows: row && row.id === values[0] ? [row] : [] };
+    if (/^UPDATE/i.test(sql.trim())) return Promise.resolve({ rows: [] });
+    return Promise.resolve({ rows: row && row.id === values[0] ? [row] : [] });
   };
   const store = { lakebase: { query } } as unknown as LakebaseReader;
   return { store, row: () => row };

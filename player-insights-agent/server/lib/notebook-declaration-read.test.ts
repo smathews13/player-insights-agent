@@ -21,8 +21,8 @@ const DOCUMENT = JSON.stringify({
 });
 
 function answering(body: unknown, status = 200): typeof fetch {
-  return vi.fn(async () =>
-    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  return vi.fn(() =>
+    Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
   ) as unknown as typeof fetch;
 }
 
@@ -95,8 +95,8 @@ describe('reading it as the person looking at the page', () => {
   });
 
   it('sends the reader’s own token and nothing else', async () => {
-    const call = vi.fn(async () =>
-      new Response(JSON.stringify(succeeded(DOCUMENT)), { status: 200 })
+    const call = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(succeeded(DOCUMENT)), { status: 200 }))
     ) as unknown as typeof fetch;
     await read({
       location: LOCATION,

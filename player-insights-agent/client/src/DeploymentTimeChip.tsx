@@ -15,60 +15,7 @@
 import { useId } from 'react';
 import { Clock3 } from 'lucide-react';
 
-import { commitOf, SHORT_SHA_LENGTH } from '../../shared/build-stamps';
-
-/** `Aug 20`. No year, no time, no verb: the chip's context supplies all three. */
-export function deploymentTimeLabel(deployedAt: string): string {
-  const at = new Date(deployedAt);
-  if (!deployedAt || Number.isNaN(at.getTime())) return '';
-  return at.toLocaleString(undefined, { month: 'short', day: 'numeric' });
-}
-
-/** `10:51:23 AM MDT`, or '' for a reader whose own zone IS the one already named. */
-export function deploymentLocalTime(deployedAt: string): string {
-  const at = new Date(deployedAt);
-  if (!deployedAt || Number.isNaN(at.getTime())) return '';
-  const clock = { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short' } as const;
-  const local = at.toLocaleString('en-US', clock);
-  // Printing "4:51:23 PM UTC · 4:51:23 PM UTC" to a reader in London states one
-  // fact twice and reads as a rendering fault rather than as agreement.
-  return local === at.toLocaleString('en-US', { ...clock, timeZone: 'UTC' }) ? '' : local;
-}
-
-/**
- * The whole fact, for hover and for focus: the release time in UTC and in the
- * reader's own zone, who released it, and the commit it was built from.
- *
- * UTC LEADS because this string is what gets pasted into an incident note, where
- * a reader's own zone is the one thing the note cannot carry. The local clock
- * follows it for the reader who is placing the release against their own
- * afternoon rather than against a log.
- *
- * AN UNSTAMPED BUILD SAYS NOTHING ABOUT A COMMIT. A deploy tree built outside
- * the release script carries no `PLAYER_INSIGHTS_BUILD_SHA`, and appending an
- * empty clause -- "built from" with nothing after it -- would read as a commit
- * this app failed to print rather than as one nobody stamped.
- */
-export function deploymentTimeTitle(deployedAt: string, buildSha = '', deployedBy = ''): string {
-  const at = new Date(deployedAt);
-  if (!deployedAt || Number.isNaN(at.getTime())) return '';
-  const when = `Deployed ${at.toLocaleString('en-US', {
-    timeZone: 'UTC',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZoneName: 'short',
-  })}`;
-  // The same abbreviation the Build card prints, and the same `+dirty` handling:
-  // the suffix is the build's opinion of its worktree, not part of the hash.
-  const commit = commitOf(buildSha).slice(0, SHORT_SHA_LENGTH);
-  const local = deploymentLocalTime(deployedAt);
-  const facts = [when, local, deployedBy.trim() ? `by ${deployedBy.trim()}` : '', commit ? `commit ${commit}` : ''];
-  return facts.filter(Boolean).join(' \u00b7 ');
-}
+import { deploymentTimeLabel, deploymentTimeTitle } from './deployment-time';
 
 /**
  * THE TOOLTIP IS AN ELEMENT, NOT A `title` ATTRIBUTE, and the difference is the

@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 import { ArchitecturePage } from './ArchitecturePage';
 import { ConnectionsPage } from './ConnectionsPage';
 import { UnavailablePanel } from './UnavailablePanel';
-import { NEVER_READ, REFRESH_BUSY_LABEL, REFRESH_LABEL, RefreshControl, readAgo } from './RefreshControl';
+import { RefreshControl } from './RefreshControl';
+import { NEVER_READ, REFRESH_BUSY_LABEL, REFRESH_LABEL, readAgo } from './refresh-state';
 import { unavailableNotice } from './unavailable-copy';
 import { partial } from './styles/stylesheet';
 
@@ -324,7 +325,7 @@ describe('one clock', () => {
       .filter((name) => name !== 'architecture.ts') // where it is defined
       .filter((name) => source(name).includes('checkedAgo('));
 
-    expect(callers).toEqual(['RefreshControl.tsx']);
+    expect(callers).toEqual(['refresh-state.ts']);
   });
 
   it('states it in one place on the page, not two', () => {

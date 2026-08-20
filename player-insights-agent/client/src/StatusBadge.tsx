@@ -19,7 +19,8 @@ import { useState } from 'react';
 import { Copy } from 'lucide-react';
 import { reportEgress } from './egress-policy';
 
-import { astValueBadge, type AstPillFamily } from './astrolabe-pill';
+import { astValueBadge } from './astrolabe-pill';
+import { BADGE_FAMILY } from './status-badge-state';
 
 /**
  * Which treatment a value takes.
@@ -43,13 +44,6 @@ export type StatusTone = 'reachable' | 'blocked' | 'drifted' | 'plain';
  * be a claim: it would put a verdict-shaped element on every row and teach a
  * reader that the shape means nothing.
  */
-export const BADGE_FAMILY: Record<StatusTone, AstPillFamily | 'plain'> = {
-  reachable: 'pos',
-  blocked: 'neg',
-  drifted: 'warn',
-  plain: 'plain',
-};
-
 export function StatusBadge({
   value,
   tone,

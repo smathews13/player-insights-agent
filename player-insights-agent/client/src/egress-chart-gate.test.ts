@@ -26,7 +26,7 @@ vi.mock('plotly.js-cartesian-dist-min', () => ({
   purge: vi.fn(),
 }));
 
-const { FIGURE_CONFIG } = await import('./PlotlyFigure');
+const { FIGURE_CONFIG } = await import('./plotly-config');
 const { adoptEgressControls, resetEgressPolicy } = await import('./egress-policy');
 
 function removed(): string[] {

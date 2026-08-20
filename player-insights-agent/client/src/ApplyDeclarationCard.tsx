@@ -12,9 +12,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApplyPlan } from '../../shared/apply-declaration';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
-import { notebookPathView } from './NotebookCard';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button } from './ui';
+import {
+  NOTEBOOK_REQUIRED_ACTION,
+  applyActionState,
+  modelReleaseNotebookSnippet,
+  releaseVersionLine,
+} from './apply-declaration-state';
 
 interface ApplyResponse {
   status: 'idle' | 'ready';
@@ -22,47 +27,6 @@ interface ApplyResponse {
   target: string;
   submitted?: boolean;
   detail?: string;
-}
-
-export function modelReleaseNotebookSnippet(release: ModelReleaseRequest, appUrl: string): string {
-  return `from apply_model_version import apply_model_version\n\napply_model_version(\n    request_id="${release.id}",\n    app_url="${appUrl}",\n    repo_root="/path/to/player-insights-agent",\n)`;
-}
-
-export function releaseVersionLine(release: ModelReleaseRequest): string {
-  if (!release.vFrom && !release.vTo) return '';
-  return `version ${release.vFrom ?? 'unknown'} → ${release.vTo ?? 'pending'}`;
-}
-
-/** The precondition, stated where the action is refused. */
-export const NOTEBOOK_REQUIRED_REASON =
-  'Select a notebook first. The model version is logged from the connected notebook.';
-
-/** Where to select one. Names the control on the Notebook card verbatim. */
-export const NOTEBOOK_REQUIRED_ACTION = 'Use Browse workspace notebooks on the Notebook card.';
-
-/**
- * Whether Approve is live, and the reason when it is not.
- *
- * The reason is returned rather than only the flag because a disabled button
- * that says nothing leaves the reader guessing at a precondition the page
- * already knows.
- *
- * AN ABSENT PANEL IS NOT AN UNCONNECTED NOTEBOOK. A build serving an older
- * payload knows nothing about notebooks, and refusing there would be a claim
- * about a deployment this page cannot see.
- */
-export function applyActionState(input: {
-  notebook?: NotebookPanel;
-  busy?: boolean;
-  knobCount: number;
-  releaseStatus?: ModelReleaseRequest['status'];
-}): { disabled: boolean; reason: string } {
-  const noNotebook = input.notebook ? notebookPathView(input.notebook).shown === '' : false;
-  const releasing = input.releaseStatus === 'approved' || input.releaseStatus === 'running';
-  return {
-    disabled: noNotebook || Boolean(input.busy) || input.knobCount === 0 || releasing,
-    reason: noNotebook ? NOTEBOOK_REQUIRED_REASON : '',
-  };
 }
 
 export function ApplyDeclarationCard({

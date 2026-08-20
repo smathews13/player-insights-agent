@@ -424,9 +424,9 @@ describe('the exporter is counted, not asserted', () => {
 
   it('takes one count per window and serves the rest from it', async () => {
     let counts = 0;
-    const read = async () => {
+    const read = () => {
       counts += 1;
-      return exporterFailure(`call ${counts}`, 'a_catalog.a_schema');
+      return Promise.resolve(exporterFailure(`call ${counts}`, 'a_catalog.a_schema'));
     };
 
     const first = await readExporter({ read, now: 1_000, cacheMs: 60_000 });

@@ -27,7 +27,7 @@ import {
   STALE_AFTER_HOURS,
   STALE_AFTER_REBUILDS,
 } from './semantic-freshness';
-import { NODE_FAMILY } from './ArchitecturePage';
+import { NODE_FAMILY } from './architecture-view';
 import { readConnections, readingsById, type ResourceRow, type SettingsPayload } from './connection-model';
 import { CONNECTION_STATUS_LABEL } from './connection-status';
 import { ENTITY_PARAM, entityHref } from './data-entities';

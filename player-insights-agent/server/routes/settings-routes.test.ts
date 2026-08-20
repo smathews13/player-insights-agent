@@ -213,17 +213,22 @@ describe('saving a workspace notebook path', () => {
   });
 
   it('stores the validated path under its own setting without replacing the declarations table', async () => {
-    const write = vi.fn(async (_appkit, setting) => ({
-      ...setting,
-      updatedAt: '2026-08-19T16:00:00.000Z',
-    }));
+    const write = vi.fn((
+      _appkit: unknown,
+      setting: Parameters<typeof import('../lib/app-settings').writeStoredSetting>[1],
+    ) =>
+      Promise.resolve({
+        ...setting,
+        updatedAt: '2026-08-19T16:00:00.000Z',
+      }),
+    );
     const result = await validateAndStoreNotebookPath({
       appkit: appkitAnswering({}),
       path: '/Shared/player-insights',
       host: 'https://workspace.invalid',
       token: 'user-token',
       updatedBy: 'admin@example.invalid',
-      validate: vi.fn(async () => ({ ok: true as const, path: '/Shared/player-insights' })),
+      validate: vi.fn(() => Promise.resolve({ ok: true as const, path: '/Shared/player-insights' })),
       write: write as typeof import('../lib/app-settings').writeStoredSetting,
     });
     expect(result.ok).toBe(true);
@@ -245,11 +250,13 @@ describe('saving a workspace notebook path', () => {
       host: 'https://workspace.invalid',
       token: 'user-token',
       updatedBy: 'admin@example.invalid',
-      validate: vi.fn(async () => ({
-        ok: false as const,
-        status: 400 as const,
-        detail: 'Choose a notebook, not a workspace folder.',
-      })),
+      validate: vi.fn(() =>
+        Promise.resolve({
+          ok: false as const,
+          status: 400 as const,
+          detail: 'Choose a notebook, not a workspace folder.',
+        }),
+      ),
       write: write as typeof import('../lib/app-settings').writeStoredSetting,
     });
     expect(result).toMatchObject({ ok: false, status: 400 });

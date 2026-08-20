@@ -951,13 +951,13 @@ export async function listLakebaseDatabases(
  * returns the settled unavailable outcome without calling the workspace, so the
  * picker falls back to typing rather than flashing a red failure.
  */
-export async function listExperiments(
+export function listExperiments(
   _options: BrowseCallOptions & { pageToken?: string } = {
     host: '',
     token: '',
   },
 ): Promise<BrowseResponse> {
-  return unavailableNoAppsScope('experiments', 'MLflow');
+  return Promise.resolve(unavailableNoAppsScope('experiments', 'MLflow'));
 }
 
 /** Host + token from the request environment, shared by every browse route. */

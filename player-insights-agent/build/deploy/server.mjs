@@ -175654,7 +175654,8 @@ async function bootstrapSeedRoles(store, raw2 = process.env[SEED_ADMIN_EMAILS_EN
   try {
     current = await readRoster(store);
   } catch (error48) {
-    const code = String(error48.code ?? "unknown");
+    const rawCode = error48.code;
+    const code = typeof rawCode === "string" || typeof rawCode === "number" ? String(rawCode) : "unknown";
     console.error(
       `[admin] ROLE BOOTSTRAP SKIPPED: the Lakebase roster could not be read (code ${code}: ${error48.message}). Astrolabe will keep serving with no stored roles available; Connections reports the storage problem. No configured role was written or retained, because an unreadable roster is not evidence that it is empty.`
     );
@@ -180239,7 +180240,7 @@ async function prepareStore(appkit) {
     );
   }
 }
-async function setupInsightsRoutes(appkit) {
+function setupInsightsRoutes(appkit) {
   const storeReady = prepareStore(appkit);
   startLakebaseWatchdog(appkit);
   announceSharedConversationRail(resolveSharedConversationRail(process.env[SHARED_CONVERSATION_RAIL_ENV]));
@@ -181458,7 +181459,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       res.status(202).json(started.body);
     });
   });
-  return { storeReady };
+  return Promise.resolve({ storeReady });
 }
 
 // server/routes/settings-routes.ts
@@ -182514,11 +182515,11 @@ async function listLakebaseDatabases(options) {
     lakebaseDatabaseItems
   );
 }
-async function listExperiments(_options = {
+function listExperiments(_options = {
   host: "",
   token: ""
 }) {
-  return unavailableNoAppsScope("experiments", "MLflow");
+  return Promise.resolve(unavailableNoAppsScope("experiments", "MLflow"));
 }
 function browseRequestContext(input) {
   return {
@@ -183008,7 +183009,9 @@ var COLUMNS = `id, status, requested_by, requested_at, declaration,
   preflight_at_request, preflight_result, started_at, completed_at,
   claimed_by, completed_by, error_summary`;
 function text10(value) {
-  return typeof value === "string" ? value : value == null ? "" : String(value);
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
+  return "";
 }
 function instant(value) {
   if (value == null) return null;

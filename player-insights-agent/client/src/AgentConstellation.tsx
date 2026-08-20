@@ -52,7 +52,7 @@ import {
   type BrandProduct,
   type BrandTone,
 } from './brand-icons';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { TraceStage } from './answer-shape';
 
 /**
@@ -167,14 +167,12 @@ export function AgentPathConstellation({
   /** How long that step has been going, from the caller's one clock. */
   elapsedMs: number | null;
 }) {
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  useEffect(() => {
-    // Follow the live frontier. A manual selection remains useful only until the
-    // agent reports its next current step.
-    setSelectedIndex(null);
-  }, [activeIndex]);
+  const [selection, setSelection] = useState<{ index: number; activeIndex: number } | null>(null);
   if (stages.length === 0) return null;
   const current = activeIndex >= 0 && activeIndex < stages.length ? stages[activeIndex] : null;
+  // Follow the live frontier. A manual selection remains useful only until the
+  // agent reports its next current step.
+  const selectedIndex = selection?.activeIndex === activeIndex ? selection.index : null;
   const shownIndex = selectedIndex ?? (current ? activeIndex : -1);
   const shown = shownIndex >= 0 ? stages[shownIndex] : null;
   /*
@@ -235,9 +233,9 @@ export function AgentPathConstellation({
             role="button"
             tabIndex={0}
             aria-label={`Select step ${path.numbers[index].label}: ${stages[index].name}`}
-            onClick={() => setSelectedIndex(index)}
+            onClick={() => setSelection({ index, activeIndex })}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') setSelectedIndex(index);
+              if (event.key === 'Enter' || event.key === ' ') setSelection({ index, activeIndex });
             }}
           >
             <Star star={star} tone="dark" />

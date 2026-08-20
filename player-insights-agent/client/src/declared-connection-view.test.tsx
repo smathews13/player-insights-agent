@@ -24,7 +24,8 @@ import {
   notebookSummary,
   orderConnections,
 } from './declared-connection-view';
-import { NotebookCard, notebookPathView, persistNotebookPath } from './NotebookCard';
+import { NotebookCard } from './NotebookCard';
+import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { DECLARABLE_KEYS, DECLARABLE_KINDS } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
@@ -177,11 +178,11 @@ describe('the notebook row', () => {
   });
 
   it('persists a reviewed notebook path and surfaces validation failures', async () => {
-    const accepted = vi.fn(async () =>
-      new Response(JSON.stringify({ path: '/Shared/accepted' }), {
+    const accepted = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ path: '/Shared/accepted' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
+      })),
     ) as unknown as typeof fetch;
     await expect(persistNotebookPath('/Shared/accepted', accepted)).resolves.toEqual({
       ok: true,
@@ -192,11 +193,11 @@ describe('the notebook row', () => {
       expect.objectContaining({ method: 'PUT', body: JSON.stringify({ path: '/Shared/accepted' }) }),
     );
 
-    const denied = vi.fn(async () =>
-      new Response(JSON.stringify({ detail: 'Choose a notebook, not a workspace folder.' }), {
+    const denied = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ detail: 'Choose a notebook, not a workspace folder.' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
-      }),
+      })),
     ) as unknown as typeof fetch;
     await expect(persistNotebookPath('/Shared/folder', denied)).resolves.toEqual({
       ok: false,

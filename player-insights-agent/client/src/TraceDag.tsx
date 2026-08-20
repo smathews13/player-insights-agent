@@ -270,13 +270,14 @@ function StageName({ stage, mono, clamp }: { stage: TraceStage; mono: boolean; c
   const parts = mono ? nameParts(stage.name, stage.id) : [];
   return (<span className="dag-name" title={clamp ? stage.name : undefined}>
       {parts.length > 1
-        ? parts.map((part, at) =>
-            part.mono ? (<code className="dag-name-tool" key={at}>
+        ? parts.map((part, at) => {
+            const key = parts.slice(0, at + 1).map(({ text }) => text).join('|');
+            return part.mono ? (<code className="dag-name-tool" key={key}>
                 {part.text}
               </code>
-            ) : (<span key={at}>{part.text}</span>
-            )
-          )
+            ) : (<span key={key}>{part.text}</span>
+            );
+          })
         : stage.name}
     </span>
   );
@@ -404,15 +405,15 @@ function RenderedResult({ shape, text }: { shape: ResultShape; text: string }) {
       <table>
         <thead>
           <tr>
-            {view.head.map((cell, at) => (<th key={at} scope="col">
+            {view.head.map((cell, at) => (<th key={view.head.slice(0, at + 1).join('|')} scope="col">
                 {cell}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {view.rows.map((row, at) => (<tr key={at} className={row.finding ? 'finding' : undefined}>
-              {row.cells.map((cell, cellAt) => (<td key={cellAt}>
+          {view.rows.map((row) => (<tr key={`${row.finding ? 'finding' : 'plain'}-${row.cells.join('|')}`} className={row.finding ? 'finding' : undefined}>
+              {row.cells.map((cell, cellAt) => (<td key={row.cells.slice(0, cellAt + 1).join('|')}>
                   {cell.split('.').length === 3 ? <EntityName>{cell}</EntityName> : cell}
                 </td>
               ))}
@@ -477,10 +478,10 @@ function SqlBlock({ sql }: { sql: string }) {
       </div>
       <div className="dag-sql-body">
         <pre>
-          {lines.map((line, at) => (<span key={at}>
+          {lines.map((line, at) => (<span key={lines.slice(0, at + 1).join('\n')}>
               {sqlTokens(line).map((token, tokenAt) =>
-                token.keyword ? (<b key={tokenAt}>{token.text}</b>
-                ) : (<span key={tokenAt}>{token.text}</span>
+                token.keyword ? (<b key={sqlTokens(line).slice(0, tokenAt + 1).map(({ text }) => text).join('|')}>{token.text}</b>
+                ) : (<span key={sqlTokens(line).slice(0, tokenAt + 1).map(({ text }) => text).join('|')}>{token.text}</span>
                 )
               )}
               {'\n'}

@@ -26,8 +26,9 @@ vi.mock('plotly.js-cartesian-dist-min', () => ({
   purge: vi.fn(),
 }));
 
-const { FIGURE_CONFIG } = await import('./PlotlyFigure');
+const { FIGURE_CONFIG } = await import('./plotly-config');
 const SOURCE = readFileSync(new URL('./PlotlyFigure.tsx', import.meta.url), 'utf8');
+const CONFIG_SOURCE = readFileSync(new URL('./plotly-config.ts', import.meta.url), 'utf8');
 
 /**
  * Every piece of a figure Plotly can be told to accept typing on, from its own
@@ -89,7 +90,7 @@ describe('nothing a reader sees in a chart accepts a keystroke', () => {
     }
     // And one config object in the file, so there is one place to read and one to
     // change. A second literal is how two charts come to disagree.
-    expect(SOURCE.match(/: PlotConfig\b/g)).toHaveLength(1);
+    expect(CONFIG_SOURCE.match(/: PlotConfig\b/g)).toHaveLength(1);
   });
 
   it('is the only figure component, so this config covers every chart drawn', () => {

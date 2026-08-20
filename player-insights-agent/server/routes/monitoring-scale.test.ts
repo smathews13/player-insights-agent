@@ -168,9 +168,10 @@ function executor() {
   }
 
   async function query(text: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[] }> {
+    await Promise.resolve();
     statements.push(text);
-    const from = Date.parse(String(params[1] ?? ''));
-    const to = Date.parse(String(params[2] ?? ''));
+    const from = Date.parse(typeof params[1] === 'string' ? params[1] : '');
+    const to = Date.parse(typeof params[2] === 'string' ? params[2] : '');
 
     if (text.includes('WITH page AS')) {
       const limit = Number(params[3]);

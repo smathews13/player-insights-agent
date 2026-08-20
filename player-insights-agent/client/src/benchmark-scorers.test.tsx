@@ -17,7 +17,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { HeldOutEvaluation, formatScore, scoreCoverage } from './BenchmarkLab';
+import { HeldOutEvaluation } from './BenchmarkLab';
+import { formatScore, scoreCoverage } from './benchmark-state';
 import { NOT_PUBLISHED_REASON, evalScorecard } from './eval-scorecard';
 import {
   SCORECARD_NON_GATING_NOTICE,

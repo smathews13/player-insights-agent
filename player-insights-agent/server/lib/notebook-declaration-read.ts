@@ -199,7 +199,7 @@ function firstCell(body: unknown): string | null {
   if (typeof result !== 'object' || result === null) return null;
   const rows = (result as { data_array?: unknown }).data_array;
   if (!Array.isArray(rows) || rows.length === 0) return null;
-  const first = rows[0];
+  const first: unknown = rows[0];
   if (!Array.isArray(first) || first.length === 0) return null;
   return typeof first[0] === 'string' ? first[0] : null;
 }

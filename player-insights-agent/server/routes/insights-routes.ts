@@ -2736,7 +2736,7 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
  * missing GRANT produces. `markSchemaPending` is what stops that being
  * misdiagnosed as "run the grant script" during the second it is true.
  */
-export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeReady: Promise<void> }> {
+export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeReady: Promise<void> }> {
   const storeReady = prepareStore(appkit);
 
   // Reads are what the pages depend on, and a `CREATE TABLE IF NOT EXISTS` that
@@ -4547,5 +4547,5 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
 
   // Handed back rather than awaited. See the note on this function: awaiting it
   // here would be the cold-start block this arrangement exists to remove.
-  return { storeReady };
+  return Promise.resolve({ storeReady });
 }

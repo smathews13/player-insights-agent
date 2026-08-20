@@ -34,23 +34,14 @@ import {
   stepsDownFrom,
   type RosterEntry,
 } from './user-roster';
-import { ASSIGNABLE_ROLES, type Role, type RosterPayload } from '../../shared/user-roster-contract';
+import { type Role, type RosterPayload } from '../../shared/user-roster-contract';
 import { AppSelect } from './AppSelect';
+import { roleOptions } from './user-role-options';
 
 /** The #24a add row appoints an Admin or Consumer. Super-admin promotion stays
  * on an existing row, where the server names it in `assignable` and protects the
  * last-super-admin rule. */
 const ADDABLE_ROLES: readonly Role[] = ['admin', 'consumer'];
-
-export function roleOptions(entry: RosterEntry): { value: Role; label: string }[] {
-  return [
-    { value: entry.role, label: roleWord(entry.role) },
-    ...ASSIGNABLE_ROLES.filter((role) => entry.assignable.includes(role)).map((role) => ({
-      value: role,
-      label: roleWord(role),
-    })),
-  ];
-}
 
 /**
  * One row's role control, or the line saying why there is none.

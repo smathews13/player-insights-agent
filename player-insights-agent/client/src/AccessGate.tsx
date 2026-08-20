@@ -3,6 +3,7 @@ import { RefreshButton } from './RefreshControl';
 import { principalLabel } from './execution-identity';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
 import { UserIdentityChip } from './UserIdentityChip';
+import { GATE_FOCUSABLE, gateKeyIntent, gateTabTarget, tableCountLine } from './access-gate-state';
 
 /**
  * Asks, once per session, under whose authority the answers should be taken.
@@ -237,20 +238,6 @@ function shortName(table: string): string {
  * that it ran and failed (DECISIONS D8) -- so it is never folded in with the
  * refusals to make the line shorter.
  */
-export function tableCountLine(result: VerificationResult): string {
-  const verdicts = result.verdicts ?? [];
-  const count = (status: TableVerdict['status']) => verdicts.filter((verdict) => verdict.status === status).length;
-  const ok = result.ok ?? count('ok');
-  const denied = result.denied ?? count('denied');
-  const errored = result.errored ?? count('error');
-  const total = ok + denied + errored;
-  if (total === 0) return '';
-  const parts = [`${ok} of ${total} table${total === 1 ? '' : 's'} readable`];
-  if (denied > 0) parts.push(`${denied} refused`);
-  if (errored > 0) parts.push(`${errored} not checked`);
-  return parts.join(' \u00b7 ');
-}
-
 /**
  * The refusals, one per object, each with the statement that clears it.
  *
@@ -464,16 +451,6 @@ function unreachableVerification(status: number, body: Failure | null): Verifica
  * disable themselves while a check is in flight, and a trap that cycles onto a
  * disabled button drops focus onto the document instead.
  */
-export const GATE_FOCUSABLE =
-  'button:not([disabled]), summary, [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/** What a keypress inside the gate is asking for, if anything. */
-export function gateKeyIntent(event: { key: string; shiftKey: boolean }): 'escape' | 'forward' | 'backward' | null {
-  if (event.key === 'Escape') return 'escape';
-  if (event.key !== 'Tab') return null;
-  return event.shiftKey ? 'backward' : 'forward';
-}
-
 /**
  * Where Tab should go, or null to let the browser move focus itself.
  *
@@ -487,16 +464,6 @@ export function gateKeyIntent(event: { key: string; shiftKey: boolean }): 'escap
  * -- goes to the first element forward and the last backward, so the first Tab
  * from the opening state enters the list rather than leaving the dialog.
  */
-export function gateTabTarget<T>(focusable: readonly T[], active: T | null, direction: 'forward' | 'backward'): T | null {
-  if (focusable.length === 0) return null;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  const at = active === null ? -1 : focusable.indexOf(active);
-  if (at === -1) return direction === 'forward' ? first : last;
-  if (direction === 'forward') return at === focusable.length - 1 ? first : null;
-  return at === 0 ? last : null;
-}
-
 /**
  * @param enabled Whether the check is asked for at all, defaulting to the
  *   deployment's switch. A parameter so a test can drive both states; nothing in

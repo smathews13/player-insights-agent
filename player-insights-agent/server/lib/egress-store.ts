@@ -303,7 +303,7 @@ export async function recordEgress(
     // A channel this build does not know cannot reach here: the route validates
     // it before calling. The fallback keeps the type honest rather than covering
     // for a caller.
-    channel: path?.channel ?? (input.report.channel as EgressChannel),
+    channel: path?.channel ?? (input.report.channel),
     shape: path?.shape ?? 'prose',
     outcome,
     surface: clamp(input.report.surface, SURFACE_MAX),

@@ -21,7 +21,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { AdminOnly, GatePanel, RoleLostNotice, roleLostNotice } from './GatePanel';
+import { AdminOnly, GatePanel, RoleLostNotice } from './GatePanel';
+import { roleLostNotice } from './gate-panel-state';
 import {
   ADMIN_PAGE_NAMES,
   GATE_ACTION,

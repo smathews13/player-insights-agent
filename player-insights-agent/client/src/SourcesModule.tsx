@@ -155,7 +155,7 @@ export function SourcesModule({
           every answer. No sentence explains the block, and none should — the
           agent derives these from the parse of the query that ran, and a
           paragraph around them would be the one part of it nothing checked. */}
-      {derived.map((entry, index) => (<div className="sources-derivation" key={`${entry.key}-${index}`}>
+      {derived.map((entry) => (<div className="sources-derivation" key={entry.key}>
           {entry.facts.map((fact) => (<span className="derivation-fact" key={fact.label}>
               <strong className="derivation-label">{fact.label}</strong>
               {/* The name goes through the same component the row above uses, so

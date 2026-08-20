@@ -53,7 +53,7 @@ function Element({ element, at }: { element: MarkElement; at: number }) {
         fill="none"
       >
         {element.children.map((child, index) => (
-          <Element element={child} at={index} key={index} />
+          <Element element={child} at={index} key={JSON.stringify(child)} />
         ))}
       </g>
     );
@@ -151,7 +151,7 @@ export function AstrolabeMark({
       data-ast-rest={rest ? '' : undefined}
     >
       {elements.map((element, index) => (
-        <Element element={element} at={index} key={index} />
+        <Element element={element} at={index} key={JSON.stringify(element)} />
       ))}
     </svg>
   );

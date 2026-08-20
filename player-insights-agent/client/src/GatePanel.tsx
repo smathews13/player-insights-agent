@@ -26,7 +26,6 @@ import { useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { Button } from './ui';
 import {
-  ADMIN_PAGE_NAMES,
   GATE_ACTION,
   GATE_HEADING,
   gateLine,
@@ -35,6 +34,7 @@ import {
   showsAdminSurfaces,
   useRole,
 } from './role';
+import { adminPageName, roleLostNotice } from './gate-panel-state';
 
 /**
  * The panel itself: a heading, one line, and the way back.
@@ -139,12 +139,6 @@ export function AdminOnly({ children }: { children: React.ReactNode }) {
  * it belongs to ONE arrival: a reader who navigates on and comes back should not
  * be told again that their access changed at some point earlier.
  */
-export function roleLostNotice(state: unknown): string {
-  if (!state || typeof state !== 'object') return '';
-  const said = (state as { roleLost?: unknown }).roleLost;
-  return typeof said === 'string' ? said : '';
-}
-
 /**
  * The notice on the page the reader was moved to.
  *
@@ -167,6 +161,3 @@ export function RoleLostNotice() {
 }
 
 /** The page name for a path, for the pages that pass their own. */
-export function adminPageName(pathname: string): string {
-  return ADMIN_PAGE_NAMES[pathname] ?? '';
-}

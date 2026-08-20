@@ -10,12 +10,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import {
-  DeploymentTimeChip,
-  deploymentLocalTime,
-  deploymentTimeLabel,
-  deploymentTimeTitle,
-} from './DeploymentTimeChip';
+import { DeploymentTimeChip } from './DeploymentTimeChip';
+import { deploymentLocalTime, deploymentTimeLabel, deploymentTimeTitle } from './deployment-time';
 import { HeaderBrand, IdentityChips } from './Layout';
 import { WORDMARK } from './astrolabe-mark';
 import type { Identity } from './app-types';

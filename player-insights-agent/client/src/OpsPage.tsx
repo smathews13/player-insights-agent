@@ -50,12 +50,13 @@ import { Button, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { PageHeading } from './page-chrome';
-import { ageAgo, checkedAgoLine, RefreshButton, RefreshControl } from './RefreshControl';
+import { RefreshButton, RefreshControl } from './RefreshControl';
+import { ageAgo, checkedAgoLine } from './refresh-state';
 import { TimeRangeControl } from './TimeRangeControl';
 // Shared with Monitoring, so the two tabs cannot be over different windows.
 import { rangeWindow } from './time-range';
 import { OUTCOME_PARAM } from './monitoring-filters';
-import { useWorkspaceHost } from './DataEntityLinks';
+import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
 import {
   bars,

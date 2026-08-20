@@ -16,76 +16,7 @@
  */
 import { RefreshCw } from 'lucide-react';
 import { Button } from './ui';
-import { checkedAgo } from './architecture';
-
-/** The word, in one place. */
-export const REFRESH_LABEL = 'Refresh';
-
-/**
- * What it says while it is working.
- *
- * The word carries the state on its own, which is what makes the spinner
- * optional: with animation switched off, the label and the disabled attribute
- * still say a read is in flight.
- */
-export const REFRESH_BUSY_LABEL = 'Refreshing\u2026';
-
-/** What the freshness line says before anything has been read. */
-export const NEVER_READ = 'Not read yet';
-
-/** The same, for a surface whose timestamp is a check rather than a read. */
-export const NEVER_CHECKED = 'Not checked yet';
-
-/**
- * When these answers were taken, in the design's own words.
- *
- * Relative rather than a clock time, because the question a reader has is
- * whether what they are looking at is from this sitting -- and a timestamp makes
- * them work that out. Rounded by `checkedAgo`, which the Architecture tile
- * strip also calls, so the two cannot round the same instant differently.
- *
- * Never a fake time and never a blank: nothing read yet says so.
- *
- * `now` defaults here rather than in the component so the clock is not read
- * during a render, and so a test can assert a rounding instead of the time of
- * day it happened to run at.
- */
-export function readAgo(checkedAt: string, now: number = Date.now()): string {
-  if (!checkedAt) return NEVER_READ;
-  const ago = checkedAgo(checkedAt, now);
-  return ago === 'not yet' ? NEVER_READ : `Read ${ago}`;
-}
-
-/**
- * The same instant, said as a CHECK rather than as a read.
- *
- * TWO WORDINGS, ONE CLOCK, AND THAT IS THE WHOLE REASON THIS LIVES HERE. The Ops
- * health band carries the moment a set of live probes ran, which is not the
- * moment a table was read, and the design says "Checked" there for that reason.
- * The rounding, the never-yet case and both wordings are in this file so that a
- * page cannot round the same instant its own way -- which is exactly what
- * `refresh-control.test.tsx` holds, by asserting that nothing outside this module
- * calls `checkedAgo`. Reach for one of these instead of importing that.
- */
-export function checkedAgoLine(checkedAt: string, now: number = Date.now()): string {
-  if (!checkedAt) return NEVER_CHECKED;
-  const ago = checkedAgo(checkedAt, now);
-  return ago === 'not yet' ? NEVER_CHECKED : `Checked ${ago}`;
-}
-
-/**
- * The rounded age with nothing said around it, for a cell under its own heading.
- *
- * The Ops health table has a "Last check" column, so a cell repeating the word
- * would be the heading again on every row. Empty rather than "Not checked" where
- * there is no stamp: the row's Result column already says that in the pill, and
- * saying it twice on one line reads as two findings.
- */
-export function ageAgo(at: string, now: number = Date.now()): string {
-  if (!at) return '';
-  const ago = checkedAgo(at, now);
-  return ago === 'not yet' ? '' : ago;
-}
+import { REFRESH_BUSY_LABEL, REFRESH_LABEL, readAgo } from './refresh-state';
 
 export interface RefreshButtonProps {
   /** Whether a read is in flight. Disables the button and spins the icon. */

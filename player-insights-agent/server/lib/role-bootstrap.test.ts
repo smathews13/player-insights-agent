@@ -14,26 +14,26 @@ function stored(email: string, role: Role, actor = DEPLOYER): StoredRole {
 function fakeRoster(initial: StoredRole[] = []) {
   const rows = initial.map((row) => ({ ...row }));
   const store: AdminStore = {
-    async query(sql, params = []) {
+    query(sql, params = []) {
       if (sql.startsWith('SELECT email, role,')) {
-        return {
+        return Promise.resolve({
           rows: rows.map((row) => ({
             email: row.email,
             role: row.role,
             added_by: row.setBy,
             added_at: row.setAt,
           })),
-        };
+        });
       }
       if (sql.includes('FROM (VALUES')) {
-        if (rows.length > 0) return { rows: [] };
+        if (rows.length > 0) return Promise.resolve({ rows: [] });
         const inserted: Record<string, unknown>[] = [];
         for (let index = 0; index < params.length; index += 3) {
           const row = stored(String(params[index]), String(params[index + 1]) as Role, String(params[index + 2]));
           rows.push(row);
           inserted.push({ email: row.email, role: row.role });
         }
-        return { rows: inserted };
+        return Promise.resolve({ rows: inserted });
       }
       if (sql.startsWith('INSERT INTO') && sql.includes('ON CONFLICT (email) DO UPDATE')) {
         const email = String(params[0]);
@@ -46,7 +46,7 @@ function fakeRoster(initial: StoredRole[] = []) {
         } else {
           rows.push(stored(email, role, actor));
         }
-        return { rows: [] };
+        return Promise.resolve({ rows: [] });
       }
       throw new Error(`Unexpected role-bootstrap SQL: ${sql}`);
     },
@@ -112,11 +112,11 @@ describe('deployment role bootstrap', () => {
   ])('keeps boot running with an empty runtime roster when the schema is %s', async (_label, code, message) => {
     const queries: string[] = [];
     const store: AdminStore = {
-      async query(sql) {
+      query(sql) {
         queries.push(sql);
         const error = new Error(message) as Error & { code?: string };
         error.code = code;
-        throw error;
+        return Promise.reject(error);
       },
     };
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { GATE_FOCUSABLE, gateKeyIntent, gateTabTarget } from './AccessGate';
+import { GATE_FOCUSABLE, gateKeyIntent, gateTabTarget } from './access-gate-state';
 
 /**
  * The focus trap the gate declared and did not have.

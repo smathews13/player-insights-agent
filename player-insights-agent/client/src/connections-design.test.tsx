@@ -8,11 +8,10 @@ import {
   ConfigurationList,
   ConnectionRow,
   ConnectionsCounts,
-  RESOURCE_PRODUCT,
-  configurationValue,
   DataCatalogsValue,
   CatalogDenylistValue,
 } from './ConnectionsPage';
+import { configurationValue, RESOURCE_PRODUCT } from './connections-view';
 import { BRAND_MARKS, BRAND_THEME_MARKS } from './brand-icons';
 import { buildFacts } from './connection-build';
 import { groupConnections, readConnections, type SettingsPayload } from './connection-model';

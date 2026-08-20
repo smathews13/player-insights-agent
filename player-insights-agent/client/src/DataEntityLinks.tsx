@@ -1,20 +1,21 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Fragment, useEffect, useRef, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';
 import {
-  ENTITY_PARAM,
   entityHref,
   entityRowId,
   trackedEntity,
-  trackedTables,
   type ProseSegment,
 } from './data-entities';
 import { answerBlocks, answerInline, type Block, type Inline } from './answer-markdown';
 import { splitSourceName } from './source-rows';
-import { readPreflightOnce } from './agent-readiness';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
-import { useRuntimeEntityStyles } from './runtime-entity-styles';
+import {
+  useRequestedEntity,
+  useTrackedTables,
+  useWorkspaceHost,
+} from './data-entity-state';
 
 /**
  * The rendering half of "an answer names a table, the reader can go and see it".
@@ -32,28 +33,6 @@ import { useRuntimeEntityStyles } from './runtime-entity-styles';
  * invokes the serving endpoint, so two modules each memoising their own request
  * would be two cold starts on one page load rather than one.
  */
-let trackedRequest: Promise<string[]> | null = null;
-
-async function readTrackedTables(): Promise<string[]> {
-  return trackedTables(await readPreflightOnce());
-}
-
-export function useTrackedTables(): string[] {
-  useRuntimeEntityStyles();
-  const [tables, setTables] = useState<string[]>([]);
-  useEffect(() => {
-    let live = true;
-    trackedRequest ??= readTrackedTables().catch(() => []);
-    void trackedRequest.then((names) => {
-      if (live) setTables(names);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-  return tables;
-}
-
 /**
  * The workspace this app runs in, read once per page load and shared.
  *
@@ -63,29 +42,6 @@ export function useTrackedTables(): string[] {
  * deployment that was not given one -- which is a supported state here and the
  * reason `databricksLink` returns null rather than guessing a host.
  */
-let workspaceRequest: Promise<string> | null = null;
-
-async function readWorkspaceHost(): Promise<string> {
-  const response = await fetch('/api/architecture');
-  const payload = (await response.json()) as { workspaceHost?: unknown } | null;
-  return typeof payload?.workspaceHost === 'string' ? payload.workspaceHost : '';
-}
-
-export function useWorkspaceHost(): string {
-  const [host, setHost] = useState('');
-  useEffect(() => {
-    let live = true;
-    workspaceRequest ??= readWorkspaceHost().catch(() => '');
-    void workspaceRequest.then((value) => {
-      if (live) setHost(value);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-  return host;
-}
-
 /**
  * One identifier, linked to the entry that documents it.
  *
@@ -143,7 +99,7 @@ function EntityParts({ text, entity }: { text: string; entity: string }) {
           : fullIndex === full.length - 2 && full.length >= 2
             ? 'schema'
             : 'table';
-        return (<Fragment key={`${index}-${part}`}>
+        return (<Fragment key={shown.slice(0, index + 1).join('.')}>
             {index > 0 ? '.' : null}
             <span className={`entity-token entity-${kind}`}>{part}</span>
           </Fragment>
@@ -404,12 +360,6 @@ export function SourceEntityName({ name }: { name: string }) {
   return entry ? <EntityLink entity={entry}>{spelled}</EntityLink> : spelled;
 }
 
-/** The entry the Connections page has been asked to highlight, as the URL asked for it. */
-export function useRequestedEntity(): string {
-  const [params] = useSearchParams();
-  return (params.get(ENTITY_PARAM) ?? '').trim();
-}
-
 /**
  * Attributes that make one table row addressable and, when asked for, obvious.
  *
@@ -434,23 +384,6 @@ export function useRequestedEntity(): string {
  * disagree about case or whitespace and paint the wash on one row while
  * captioning another.
  */
-export function isRequestedEntity(name: string, requested: string): boolean {
-  return !!requested && requested.toLowerCase() === name.trim().toLowerCase();
-}
-
-export function entityRowProps(name: string, requested: string) {
-  const highlighted = isRequestedEntity(name, requested);
-  return {
-    id: entityRowId(name),
-    'data-entity': name,
-    'data-highlighted': highlighted ? 'true' : undefined,
-    // Announced as well as tinted: a reader who cannot see the wash still needs
-    // to be told which of six rows the link they followed was about.
-    'aria-current': highlighted ? ('location' as const) : undefined,
-    className: highlighted ? 'bg-accent text-accent-foreground font-medium' : undefined,
-  };
-}
-
 /**
  * Scrolls the requested entry into view, and says so when there is not one.
  */

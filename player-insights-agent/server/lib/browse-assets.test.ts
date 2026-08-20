@@ -42,17 +42,17 @@ const CATALOG_SCOPES = [
 ] as const;
 
 function fetchFor(routes: Record<string, { status: number; body: Record<string, unknown> }>) {
-  return vi.fn(async (url: string) => {
+  return vi.fn((url: string) => {
     const path = String(url).replace(HOST, '');
     const key = Object.keys(routes).find((prefix) => path.startsWith(prefix));
     if (!key) {
-      return {
+      return Promise.resolve({
         status: 404,
-        json: async () => ({ error_code: 'NOT_FOUND', message: path }),
-      };
+        json: () => Promise.resolve({ error_code: 'NOT_FOUND', message: path }),
+      });
     }
     const hit = routes[key];
-    return { status: hit.status, json: async () => hit.body };
+    return Promise.resolve({ status: hit.status, json: () => Promise.resolve(hit.body) });
   }) as unknown as typeof fetch;
 }
 

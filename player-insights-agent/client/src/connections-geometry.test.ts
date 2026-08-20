@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BADGE_FAMILY } from './StatusBadge';
+import { BADGE_FAMILY } from './status-badge-state';
 import { partial } from './styles/stylesheet';
 
 /**

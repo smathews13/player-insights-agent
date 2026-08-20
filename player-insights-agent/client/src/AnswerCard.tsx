@@ -242,8 +242,8 @@ export function AnswerCard({
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
             <h3 className="answer-heading">Document footnotes</h3>
             <ol>
-              {answer.document_snippets.map((snippet, index) => (
-                <li key={`${snippet.filename}-${index}`}>
+              {answer.document_snippets.map((snippet) => (
+                <li key={`${snippet.filename}-${snippet.quote}-${snippet.supports}`}>
                   <q>{snippet.quote}</q>
                   <p>
                     <strong>{snippet.filename}</strong> supports {snippet.supports}

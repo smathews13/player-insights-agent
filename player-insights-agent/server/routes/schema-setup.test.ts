@@ -291,7 +291,7 @@ function ownedTable(columnsByTable: Record<string, string[]>) {
           return Promise.reject(new Error('must be owner of table messages'));
         }
         if (/information_schema\.columns/i.test(text)) {
-          const table = String(params?.[1] ?? '');
+          const table = typeof params?.[1] === 'string' ? params[1] : '';
           const present = columnsByTable[table] ?? [];
           return Promise.resolve({ rows: present.map((column_name) => ({ column_name })) });
         }

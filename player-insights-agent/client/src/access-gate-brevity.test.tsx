@@ -20,7 +20,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { DenialReport, GateIntro, LimitsReport, tableCountLine } from './AccessGate';
+import { DenialReport, GateIntro, LimitsReport } from './AccessGate';
+import { tableCountLine } from './access-gate-state';
 
 /** What a reader sees, with the markup taken out. */
 function text(markup: string): string {

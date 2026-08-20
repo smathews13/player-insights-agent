@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
-import Plotly, { type PlotConfig, type PlotData, type PlotLayout } from 'plotly.js-cartesian-dist-min';
-
-import { egressPathAllowed } from './egress-policy';
+import Plotly, { type PlotData, type PlotLayout } from 'plotly.js-cartesian-dist-min';
+import { FIGURE_CONFIG } from './plotly-config';
 
 /**
  * The only module that imports Plotly, and the reason it is a module of its own.
@@ -19,51 +18,6 @@ import { egressPathAllowed } from './egress-policy';
  * keystroke lives on Plotly's context, never in `layout`, so nothing the agent sends
  * can reopen what is closed here.
  */
-export const FIGURE_CONFIG: PlotConfig = {
-  displaylogo: false,
-  displayModeBar: 'hover',
-  responsive: true,
-  scrollZoom: false,
-  doubleClick: 'reset',
-  // The master switch for every `edits` flag -- axis and figure titles, annotations,
-  // the key beside the plot. Plotly already defaults it off; stated because a default
-  // is not a decision anybody can see, and because it is what a reader of this file
-  // should find when they ask whether the figure is writable.
-  editable: false,
-  // The one that was genuinely open, and how a reader changed an x-axis label by
-  // clicking it. Plotly defaults this to `true` and reads it straight off the context
-  // WITHOUT consulting `editable`, so turning editing off did not cover it: one click
-  // on an axis end handle replaces the tick text with a live text box, and committing
-  // it moves that end of the range. Off here, those same handles still drag.
-  showAxisRangeEntryBoxes: false,
-  // Off by Plotly's default too. Listed with the rest because they are the mode bar's
-  // write affordances -- each one hands the figure to an editor elsewhere -- and a
-  // list of what is closed is only useful if it is the whole list.
-  showEditInChartStudio: false,
-  showSendToCloud: false,
-  // Selection tools produce no result here. Nothing downstream consumes a selection,
-  // and spike lines duplicate what the unified tooltip already shows.
-  //
-  // `toImage` joins them when this deployment does not permit the chart image
-  // download. That download is an egress path and not a view control: a PNG of a
-  // figure is an extract of the rows behind it, leaving with no record of what was
-  // in it. Plotly offers no boolean for it, so removing the button is the whole
-  // mechanism. The path, its default -- off -- and what the app can honestly claim
-  // about removing a button are all in `shared/egress-contract.ts`.
-  //
-  // A GETTER because the deployment's answer arrives from the server after this
-  // object is built, and both draw calls must keep passing this object by name:
-  // one reviewed config is the guarantee the rest of this file exists to make, and
-  // assembling a variant at the call site would satisfy every assertion here while
-  // shipping something else. Plotly reads the property while drawing, so each draw
-  // gets the current answer. A figure already on screen when an administrator moves
-  // the switch takes it on its next draw rather than at once.
-  get modeBarButtonsToRemove(): string[] {
-    const reading = ['lasso2d', 'select2d', 'toggleSpikelines', 'autoScale2d'];
-    return egressPathAllowed('chart-image') ? reading : [...reading, 'toImage'];
-  },
-};
-
 export interface PlotlyFigureProps {
   data: PlotData[];
   layout: PlotLayout;

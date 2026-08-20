@@ -706,11 +706,10 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     // Deleting the caption must not delete the behaviour it narrated. These are
     // the affordances a reader still has, and the mode bar is what discloses
     // them now, so the buttons that reset and zoom may not be stripped from it.
-    const plot = readFileSync(new URL('./PlotlyFigure.tsx', import.meta.url), 'utf8');
+    const plot = readFileSync(new URL('./plotly-config.ts', import.meta.url), 'utf8');
     expect(plot).toContain("doubleClick: 'reset'");
     expect(plot).toContain("displayModeBar: 'hover'");
-    const removed = plot.match(/modeBarButtonsToRemove: \[([^\]]*)\]/)?.[1] ?? '';
-    expect(removed).not.toMatch(/resetScale2d|zoom2d|pan2d/);
+    expect(plot).not.toMatch(/resetScale2d|zoom2d|pan2d/);
   });
 
   it('holds the plot at 320px and the skeleton at the same number', () => {

@@ -26,6 +26,7 @@ import type { NotebookPanel } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import type { AssetPickerSpec } from './asset-picker';
 import { Button } from './ui';
+import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 
 const NOTEBOOK_PICKER: AssetPickerSpec = {
   field: 'notebook-path',
@@ -36,35 +37,6 @@ const NOTEBOOK_PICKER: AssetPickerSpec = {
   typeLabel: 'Workspace notebook path',
   typeNote: '',
 };
-
-export function notebookPathView(panel: NotebookPanel): {
-  configured: string;
-  observed: string;
-  shown: string;
-} {
-  const configured = panel.configuredPath?.trim() ?? '';
-  const observed = panel.observedPath?.trim() || panel.read.declaration?.source?.trim() || '';
-  return { configured, observed, shown: configured || observed };
-}
-
-export async function persistNotebookPath(
-  path: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<{ ok: true; path: string } | { ok: false; detail: string }> {
-  try {
-    const response = await fetchImpl('/api/settings/notebook-path', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-    });
-    const body = (await response.json().catch(() => ({}))) as { path?: string; detail?: string };
-    return response.ok
-      ? { ok: true, path: body.path?.trim() || path.trim() }
-      : { ok: false, detail: body.detail ?? 'The notebook path was not saved.' };
-  } catch {
-    return { ok: false, detail: 'The notebook path could not be saved just now.' };
-  }
-}
 
 /**
  * The comparison tones, in the palette's own families.
@@ -110,7 +82,7 @@ export function NotebookCard({
 }: {
   panel?: NotebookPanel;
   allowMutations?: boolean;
-  onSaved?: () => unknown | Promise<unknown>;
+  onSaved?: () => unknown;
 }) {
   if (!panel) return null;
   return <NotebookCardContent panel={panel} allowMutations={allowMutations} onSaved={onSaved} />;
@@ -123,7 +95,7 @@ function NotebookCardContent({
 }: {
   panel: NotebookPanel;
   allowMutations: boolean;
-  onSaved?: () => unknown | Promise<unknown>;
+  onSaved?: () => unknown;
 }) {
   const declaration = panel.read.declaration;
   const emptyScopes = emptyScopesNote(panel);

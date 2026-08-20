@@ -44,7 +44,8 @@ import { describe, expect, it, vi } from 'vitest';
  */
 vi.mock('./nav-reveal', () => ({ SHOW_EVERY_TAB_TO_EVERYONE: false, BENCHMARK_LAB_ENABLED: false }));
 
-import { NavLinks, mobileNavLinkClass } from './Layout';
+import { NavLinks } from './Layout';
+import { mobileNavLinkClass } from './layout-view';
 import { showsSettingsGear, type RoleResolution, type RoleState } from './role';
 import { NO_EXPERIMENTS, type ExperimentalFeatures } from './experimental-features';
 import { partial } from './styles/stylesheet';
