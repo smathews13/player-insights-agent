@@ -171238,6 +171238,7 @@ function proseOnlyAnswer(id, prose) {
     id,
     takeaway: firstLine ? firstLine.slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY,
     narrative: prose,
+    content: "",
     figures: [],
     charts: [],
     sources: [],
@@ -175324,6 +175325,11 @@ var ADMIN_ROLES_DDL = [
 ];
 
 // shared/runtime-settings.ts
+var RuntimeEntityKindSchema = external_exports.enum(["catalog", "schema", "table", "column", "quote", "tag"]);
+var EntityStyleSchema = external_exports.strictObject({
+  foreground: external_exports.string().regex(/^#[0-9a-f]{6}$/i, "Use a six-digit hex color."),
+  background: external_exports.string().regex(/^#[0-9a-f]{6}$/i, "Use a six-digit hex color.")
+});
 var RuntimeSettingsSchema = external_exports.strictObject({
   loop: external_exports.strictObject({
     maxSteps: external_exports.number().int().min(1).max(20),
@@ -175355,6 +175361,21 @@ var RuntimeSettingsSchema = external_exports.strictObject({
     clarification: external_exports.enum(["strict", "balanced", "proceed-with-caveat"]),
     timezone: external_exports.string().trim().max(80),
     injectCurrentDate: external_exports.boolean()
+  }),
+  entityStyles: external_exports.strictObject({
+    catalog: EntityStyleSchema,
+    schema: EntityStyleSchema,
+    table: EntityStyleSchema,
+    column: EntityStyleSchema,
+    quote: EntityStyleSchema,
+    tag: EntityStyleSchema
+  }).default({
+    catalog: { foreground: "#ffffff", background: "#0e538b" },
+    schema: { foreground: "#16324f", background: "#ddeaf4" },
+    table: { foreground: "#3a3838", background: "#e8e8e8" },
+    column: { foreground: "#3a3838", background: "#f4f4f4" },
+    quote: { foreground: "#46596b", background: "#f7f7f7" },
+    tag: { foreground: "#ffffff", background: "#243746" }
   })
 });
 var DEFAULT_RUNTIME_SETTINGS = {
@@ -175379,6 +175400,14 @@ var DEFAULT_RUNTIME_SETTINGS = {
     clarification: "balanced",
     timezone: "",
     injectCurrentDate: false
+  },
+  entityStyles: {
+    catalog: { foreground: "#ffffff", background: "#0e538b" },
+    schema: { foreground: "#16324f", background: "#ddeaf4" },
+    table: { foreground: "#3a3838", background: "#e8e8e8" },
+    column: { foreground: "#3a3838", background: "#f4f4f4" },
+    quote: { foreground: "#46596b", background: "#f7f7f7" },
+    tag: { foreground: "#ffffff", background: "#243746" }
   }
 };
 
@@ -178665,16 +178694,20 @@ function createAskResponder(req, res) {
   const wantsStream = acceptsEventStream(req);
   let statusCode = 200;
   let open = false;
+  let closed = false;
   let heartbeat;
   const stop = () => {
     if (heartbeat) clearInterval(heartbeat);
     heartbeat = void 0;
   };
-  res.on("close", stop);
+  res.on("close", () => {
+    closed = true;
+    stop();
+  });
   const responder = {
     wantsStream,
     begin() {
-      if (!wantsStream || open) return;
+      if (!wantsStream || open || closed) return;
       open = true;
       res.status(statusCode);
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -178688,7 +178721,7 @@ function createAskResponder(req, res) {
       heartbeat.unref?.();
     },
     stage(stage) {
-      if (!wantsStream) return;
+      if (!wantsStream || closed) return;
       responder.begin();
       write(res, "stage", stage);
     },
@@ -178698,6 +178731,7 @@ function createAskResponder(req, res) {
     },
     json(body) {
       stop();
+      if (closed) return;
       if (!open) {
         res.status(statusCode).json(body);
         return;
@@ -178946,6 +178980,9 @@ var LiveAnswerSchema = external_exports.looseObject({
   id: external_exports.string().min(1),
   takeaway: external_exports.string().min(1),
   narrative: external_exports.string().min(1),
+  // Added by the notebook answer shape. Defaulted so an older served model and
+  // a newer app can overlap safely during rollout.
+  content: external_exports.string().default(""),
   figures: external_exports.array(FigureSchema),
   // Defaulted rather than required, so the agent and the app can ship separately:
   // an endpoint still running the previous agent returns no `charts` key at all,
@@ -179743,6 +179780,11 @@ function conversationMessagesQuery(conversationId, email3) {
     params: [conversationId, email3]
   };
 }
+var CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code
+  FROM ${APP_SCHEMA}.runs
+  WHERE conversation_id = $1 AND user_email = $2
+  ORDER BY created_at DESC
+  LIMIT 1`;
 function isEndpointError(record2) {
   const status = record2.status ?? record2.statusCode;
   return Boolean(record2.error) || typeof record2.error_code === "string" || typeof status === "number" && status >= 400;
@@ -180531,6 +180573,22 @@ async function setupInsightsRoutes(appkit) {
     app.get("/api/conversations/:id/messages", async (req, res) => {
       const { sql: sql3, params } = conversationMessagesQuery(req.params.id, userEmail(req));
       await respondWithStored(appkit, res, "GET /api/conversations/:id/messages", sql3, params);
+    });
+    app.get("/api/conversations/:id/run", async (req, res) => {
+      const read2 = await readStored(
+        appkit,
+        "GET /api/conversations/:id/run",
+        CONVERSATION_RUN_STATUS_QUERY,
+        [req.params.id, userEmail(req)]
+      );
+      if (!read2.available) {
+        res.status(503).json({
+          error: "conversation_run_unavailable",
+          message: "The current state of this conversation could not be read just now."
+        });
+        return;
+      }
+      res.json(read2.rows[0] ?? null);
     });
     app.get("/api/conversations/:id/attachments", async (req, res) => {
       const read2 = await readStored(
@@ -181724,106 +181782,6 @@ async function readExporter(input = {}) {
   const reading = await (input.read ?? workspaceExporterReader)();
   cached2 = { at: now, reading };
   return reading;
-}
-var SPANS_TABLE = "otel_spans";
-function spansTable(schema) {
-  return schema ? `${schema}.${SPANS_TABLE}` : "";
-}
-var SERVER_SPAN_KIND = "SPAN_KIND_SERVER";
-function buildLatencyStatement(table) {
-  const httpStatus = `try_cast(coalesce(
-    variant_get(attributes, '$["http.status_code"]', 'string'),
-    variant_get(attributes, '$["http.response.status_code"]', 'string')
-  ) AS INT)`;
-  return `WITH served AS (
-  SELECT name,
-         (end_time_unix_nano - start_time_unix_nano) / 1e6 AS ms,
-         time,
-         CASE WHEN ${httpStatus} >= 500 THEN 1 ELSE 0 END AS is_error
-  FROM ${table}
-  WHERE kind = '${SERVER_SPAN_KIND}'
-    AND end_time_unix_nano >= start_time_unix_nano
-),
-bounds AS (
-  SELECT MIN(time) AS t0, MAX(time) AS t1 FROM served
-),
-marked AS (
-  SELECT s.*,
-         CASE
-           WHEN b.t0 IS NULL OR b.t1 IS NULL OR b.t0 = b.t1 THEN 'current'
-           WHEN s.time < b.t0 + (b.t1 - b.t0) / 2 THEN 'prior'
-           ELSE 'current'
-         END AS half
-  FROM served s CROSS JOIN bounds b
-)
-SELECT 'route' AS kind,
-       name AS label,
-       CAST(SUM(CASE WHEN half = 'current' THEN 1 ELSE 0 END) AS STRING) AS spans,
-       CAST(percentile_approx(CASE WHEN half = 'current' THEN ms END, 0.5) AS STRING) AS p50,
-       CAST(percentile_approx(CASE WHEN half = 'current' THEN ms END, 0.95) AS STRING) AS p95,
-       CAST(percentile_approx(CASE WHEN half = 'current' THEN ms END, 0.99) AS STRING) AS p99,
-       CAST(MAX(CASE WHEN half = 'current' THEN ms END) AS STRING) AS slowest,
-       CAST(SUM(CASE WHEN half = 'current' THEN is_error ELSE 0 END) AS STRING) AS errors,
-       CAST(MAX(CASE WHEN half = 'current' THEN time END) AS STRING) AS last_at,
-       CAST(SUM(CASE WHEN half = 'prior' THEN 1 ELSE 0 END) AS STRING) AS prior_spans,
-       CAST(percentile_approx(CASE WHEN half = 'prior' THEN ms END, 0.5) AS STRING) AS prior_p50
-FROM marked
-GROUP BY name
-HAVING SUM(CASE WHEN half = 'current' THEN 1 ELSE 0 END) > 0
-UNION ALL
-SELECT 'covered', '', CAST(MIN(time) AS STRING), CAST(MAX(time) AS STRING), '', '', '', '', '', '', ''
-FROM served
-ORDER BY 1`;
-}
-function readLatencyRows(dataArray) {
-  const routes = [];
-  let coveredFrom = "";
-  let coveredTo = "";
-  if (Array.isArray(dataArray)) {
-    for (const raw2 of dataArray) {
-      if (!Array.isArray(raw2) || raw2.length < 5) continue;
-      const [
-        kind,
-        label,
-        spans,
-        p50,
-        p95,
-        p99,
-        slowest,
-        errors,
-        lastAt,
-        priorSpans,
-        priorP50
-      ] = raw2;
-      if (kind === "covered") {
-        coveredFrom = rowText(spans);
-        coveredTo = rowText(p50);
-        continue;
-      }
-      if (kind !== "route") continue;
-      const route = rowText(label);
-      if (!route) continue;
-      const counted = Number(spans ?? 0) || 0;
-      if (counted <= 0) continue;
-      const priorCounted = Number(priorSpans ?? 0) || 0;
-      routes.push({
-        route,
-        spans: counted,
-        p50Ms: Number(p50 ?? 0) || 0,
-        p95Ms: counted >= SPAN_PERCENTILE_FLOOR ? Number(p95 ?? 0) || 0 : null,
-        p99Ms: counted >= SPAN_PERCENTILE_FLOOR ? Number(p99 ?? 0) || 0 : null,
-        slowestMs: Number(slowest ?? p50 ?? 0) || 0,
-        errorCount: Number(errors ?? 0) || 0,
-        // Refusals are not on the span. See RouteLatency.refusalCount.
-        refusalCount: null,
-        lastSpanAt: rowText(lastAt),
-        priorSpans: priorCounted,
-        priorP50Ms: priorCounted > 0 ? Number(priorP50 ?? 0) || 0 : null
-      });
-    }
-  }
-  routes.sort((left, right) => right.p50Ms - left.p50Ms);
-  return { routes, coveredFrom, coveredTo };
 }
 
 // server/lib/app-metadata.ts
@@ -184795,21 +184753,21 @@ function setupUserRoutes(appkit) {
 
 // shared/monitoring-contract.ts
 var OUTCOME_BY_STATE = {
-  SUCCEEDED: "answered",
   REFUSED: "refused",
   FAILED: "failed",
   DEADLINE_EXCEEDED: "failed",
   PERSISTENCE_FAILED: "failed",
-  // Neither answered nor refused nor broken. The agent asked something back.
-  CLARIFICATION_REQUIRED: "other",
-  CANCELLED: "other"
+  CLARIFICATION_REQUIRED: "partial",
+  CANCELLED: "partial"
 };
 function classifyOutcome(input) {
   const state = (input.runState ?? "").trim().toUpperCase();
   if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
-  if (state) return "other";
-  if (!input.hasStoredAnswer) return "other";
-  return input.traceHasFailedStage ? "failed" : "answered";
+  if (state && state !== "SUCCEEDED") return "partial";
+  if (input.traceHasFailedStage) return "failed";
+  if (input.traceHasPartialStage) return "partial";
+  if (state === "SUCCEEDED" || input.hasStoredAnswer) return "completed";
+  return "partial";
 }
 var CAUSE_BY_LAYER = {
   authorization: "missing-grant",
@@ -185037,6 +184995,10 @@ var MONITORING_QUESTIONS_QUERY = `
          a.response_json->'trace'->>'toolCalls' AS tool_calls,
          a.response_json->'trace'->>'total_tokens' AS total_tokens,
          jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS trace_failed,
+         jsonb_path_exists(
+           a.response_json->'trace',
+           '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
+         ) AS trace_partial,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
@@ -185086,6 +185048,11 @@ var MONITORING_DETAIL_QUERY = `
   SELECT q.id AS question_id, q.conversation_id, q.content AS question,
          q.created_at AS asked_at, c.user_email,
          a.id AS answer_id, a.trace_id, a.response_json,
+         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS trace_failed,
+         jsonb_path_exists(
+           a.response_json->'trace',
+           '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
+         ) AS trace_partial,
          a.execution_mode, a.execution_identity_verified,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
@@ -185198,7 +185165,8 @@ function questionFromRow(row2, ledger) {
   const outcome = classifyOutcome({
     runState: verdict?.state ?? null,
     hasStoredAnswer: answerId !== "",
-    traceHasFailedStage: row2.trace_failed === true
+    traceHasFailedStage: row2.trace_failed === true,
+    traceHasPartialStage: row2.trace_partial === true
   });
   return {
     id: text11(row2.question_id),
@@ -185218,7 +185186,7 @@ function questionFromRow(row2, ledger) {
   };
 }
 function summarize(questions, peopleAsking) {
-  const buckets = { answered: 0, refused: 0, failed: 0, other: 0 };
+  const buckets = { completed: 0, partial: 0, refused: 0, failed: 0 };
   let ratedUp = 0;
   let ratedTotal = 0;
   const durations = [];
@@ -185236,10 +185204,10 @@ function summarize(questions, peopleAsking) {
   return {
     questionsAsked: questions.length,
     peopleAsking,
-    answered: buckets.answered,
+    completed: buckets.completed,
+    partial: buckets.partial,
     refused: buckets.refused,
     failed: buckets.failed,
-    other: buckets.other,
     ratedUp,
     ratedTotal,
     medianMs: durations.length > 0 ? durations[Math.floor((durations.length - 1) / 2)] : null,
@@ -185421,7 +185389,8 @@ function setupMonitoringRoutes(appkit, deps) {
         outcome: classifyOutcome({
           runState: verdict?.state ?? null,
           hasStoredAnswer: answerId !== "",
-          traceHasFailedStage: false
+          traceHasFailedStage: row2.trace_failed === true,
+          traceHasPartialStage: row2.trace_partial === true
         }),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,
@@ -185621,6 +185590,7 @@ var MATCHERS = {
   }
 };
 var RANGE_ROW = "__range";
+var BILLING_TAG_KEY = "astrolabe";
 function canAsk(component, ids) {
   return Boolean(ids[MATCHERS[component].parameter]);
 }
@@ -185671,6 +185641,7 @@ ${branches.join("\n")}
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
   WHERE u.usage_date >= CAST(:from_day AS DATE)
     AND u.usage_date <= CAST(:to_day AS DATE)
+    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
 )
 SELECT
   component,
@@ -185815,6 +185786,17 @@ function opsRange(req, now = Date.now()) {
 }
 function instantsFor(range) {
   return { from: `${range.from}T00:00:00Z`, to: `${range.to}T23:59:59Z` };
+}
+function activityInstants(req, now) {
+  const from = Date.parse(queryText(req, "from"));
+  const to = Date.parse(queryText(req, "to"));
+  if (Number.isFinite(from) && Number.isFinite(to) && to >= from) {
+    return { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+  }
+  return {
+    from: new Date(now - 7 * 864e5).toISOString(),
+    to: new Date(now).toISOString()
+  };
 }
 function text12(value) {
   if (typeof value === "string") return value;
@@ -185986,72 +185968,6 @@ async function readAppMeasurement(req, range, insightsHref) {
   }
   return { ...base, ...figures, telemetry: "reading", table, reason: "" };
 }
-async function readLatency(req, readAt) {
-  const schema = telemetrySchema();
-  const base = {
-    readAt,
-    state: "not-enabled",
-    reason: "",
-    grant: null,
-    table: "",
-    routes: [],
-    coveredFrom: "",
-    coveredTo: ""
-  };
-  if (!schema) {
-    return {
-      ...base,
-      reason: `App telemetry is not switched on for this deployment, so no spans are being written and there is nothing to time. Set ${TELEMETRY_SCHEMA_ENV} to a catalog and schema and redeploy.`
-    };
-  }
-  const table = spansTable(schema);
-  const workspace = host();
-  const warehouse = warehouseId();
-  const token = forwardedUserToken(req);
-  const principal = userEmail(req) || UNKNOWN_PRINCIPAL;
-  if (!workspace || !warehouse || !token) {
-    return {
-      ...base,
-      state: "no-warehouse",
-      table,
-      reason: `${table} was not read: this app has no warehouse, workspace address or forwarded sign-in to read it with.`
-    };
-  }
-  const outcome = await runStatement2({
-    host: workspace,
-    token,
-    warehouseId: warehouse,
-    statement: buildLatencyStatement(table)
-  });
-  if (!outcome.ok) {
-    const classified = stateFromFailure(outcome.message, table);
-    if (classified.state === "no-grant") {
-      return {
-        ...base,
-        state: "no-grant",
-        table,
-        grant: grantFor(classified.object, principal, classified.permission),
-        reason: `Spans are being written to ${table}, and you do not have ${classified.permission} on ${classified.object}. Every admin needs their own grant; being an administrator of this app does not grant it.`
-      };
-    }
-    return {
-      ...base,
-      state: "unreadable",
-      table,
-      reason: `${table} could not be read, so no timings were established. Databricks said: ${outcome.message}`
-    };
-  }
-  const { routes, coveredFrom, coveredTo } = readLatencyRows(outcome.rows);
-  if (routes.length === 0) {
-    return {
-      ...base,
-      state: "no-rows",
-      table,
-      reason: `${table} is readable and holds no server spans. Telemetry does not backfill: the platform starts writing at the deploy that switches it on and records nothing about the time before.`
-    };
-  }
-  return { ...base, state: "ready", table, routes, coveredFrom, coveredTo, reason: "" };
-}
 async function readDependencies(appkit, req) {
   try {
     const stored = await readStoredSettings(appkit).catch(() => /* @__PURE__ */ new Map());
@@ -186114,6 +186030,41 @@ var TOOL_CALLS_QUERY = `
     AND COALESCE(stage->>'name', '') <> ''
   GROUP BY 1
   ORDER BY 2 DESC`;
+var ANSWER_LATENCY_QUERY = `
+  WITH bounds AS (
+    SELECT $1::timestamptz AS from_at,
+           $2::timestamptz AS to_at,
+           $1::timestamptz + (($2::timestamptz - $1::timestamptz) / 2) AS split_at
+  ),
+  samples AS (
+    SELECT m.created_at,
+           (m.response_json->'trace'->>'totalMs')::double precision AS duration_ms,
+           jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS failed
+    FROM ${APP_SCHEMA}.messages m, bounds b
+    WHERE m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+      AND jsonb_typeof(m.response_json->'trace'->'totalMs') = 'number'
+      AND m.created_at >= b.from_at AND m.created_at < b.to_at
+  )
+  SELECT
+    COUNT(*) FILTER (WHERE s.created_at >= b.split_at)::int AS current_count,
+    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p50_ms,
+    ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p95_ms,
+    ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p99_ms,
+    ROUND(MAX(s.duration_ms) FILTER (WHERE s.created_at >= b.split_at))::int AS slowest_ms,
+    COUNT(*) FILTER (WHERE s.created_at >= b.split_at AND s.failed)::int AS error_count,
+    MAX(s.created_at) FILTER (WHERE s.created_at >= b.split_at) AS last_answer_at,
+    COUNT(*) FILTER (WHERE s.created_at < b.split_at)::int AS prior_count,
+    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at < b.split_at))::int AS prior_p50_ms,
+    MIN(s.created_at) AS covered_from,
+    MAX(s.created_at) AS covered_to
+  FROM bounds b
+  LEFT JOIN samples s ON TRUE
+  GROUP BY b.split_at`;
 var FAILURE_STATES = /* @__PURE__ */ new Set(["FAILED", "DEADLINE_EXCEEDED", "PERSISTENCE_FAILED"]);
 function causeLabel(code) {
   if (!code) return "No cause recorded";
@@ -186284,8 +186235,7 @@ function setupOpsRoutes(appkit, deps) {
       }
     });
     app.get("/api/ops/traffic", async (req, res) => {
-      const range = opsRange(req, clock());
-      const instants = instantsFor(range);
+      const instants = activityInstants(req, clock());
       const readAt = new Date(clock()).toISOString();
       const bounds = [instants.from, instants.to];
       try {
@@ -186352,18 +186302,56 @@ function setupOpsRoutes(appkit, deps) {
     });
     app.get("/api/ops/latency", async (req, res) => {
       const readAt = new Date(clock()).toISOString();
+      const instants = activityInstants(req, clock());
+      const base = {
+        readAt,
+        state: "no-rows",
+        reason: "",
+        grant: null,
+        table: `${APP_SCHEMA}.messages`,
+        routes: [],
+        coveredFrom: "",
+        coveredTo: ""
+      };
       try {
-        res.json(await readLatency(req, readAt));
+        const result = await appkit.lakebase.query(ANSWER_LATENCY_QUERY, [instants.from, instants.to]);
+        const row2 = result.rows[0] ?? {};
+        const current = count2(row2.current_count);
+        if (current === 0) {
+          res.json({
+            ...base,
+            reason: "No stored answer timings were recorded in this range.",
+            coveredFrom: text12(row2.covered_from),
+            coveredTo: text12(row2.covered_to)
+          });
+          return;
+        }
+        res.json({
+          ...base,
+          state: "ready",
+          routes: [
+            {
+              route: "POST /api/insights/ask",
+              spans: current,
+              p50Ms: count2(row2.current_p50_ms),
+              p95Ms: current >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p95_ms) : null,
+              p99Ms: current >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p99_ms) : null,
+              slowestMs: count2(row2.slowest_ms),
+              errorCount: count2(row2.error_count),
+              refusalCount: null,
+              lastSpanAt: text12(row2.last_answer_at),
+              priorSpans: count2(row2.prior_count),
+              priorP50Ms: row2.prior_p50_ms === null ? null : count2(row2.prior_p50_ms)
+            }
+          ],
+          coveredFrom: text12(row2.covered_from),
+          coveredTo: text12(row2.covered_to)
+        });
       } catch (error48) {
         const payload = {
-          readAt,
+          ...base,
           state: "unreadable",
-          reason: `No timings could be read: ${error48.message}`,
-          grant: null,
-          table: "",
-          routes: [],
-          coveredFrom: "",
-          coveredTo: ""
+          reason: `No stored answer timings could be read: ${error48.message}`
         };
         res.json(payload);
       }

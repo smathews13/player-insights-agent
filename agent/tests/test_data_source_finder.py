@@ -1,4 +1,4 @@
-"""Acme's finder is a boundary, not an orchestrator prompt section."""
+"""The notebook's finder is a boundary, not an orchestrator prompt section."""
 
 from __future__ import annotations
 
@@ -97,6 +97,22 @@ def test_finder_owns_notebook_workflow_and_assessed_package_contract():
     assert "invoking signed-in user's Unity Catalog grants" in " ".join(
         FINDER_SYSTEM_PROMPT.split()
     )
+
+
+def test_finder_carries_the_notebook_geography_contract():
+    for rule in (
+        "explicit ISO 3166-1 alpha-2 country codes",
+        "ask the user to verify the membership",
+        "Use `country_code` for cross-market comparisons",
+        "Germany-specific rule",
+        "for GB and DE",
+        "DE is country-level, not a German state or",
+        "explicit `Unknown` chart",
+        "owning label",
+        "governed conversion table",
+        "suppression threshold",
+    ):
+        assert rule in FINDER_SYSTEM_PROMPT
 
 
 def test_finder_system_prompt_receives_todays_date():

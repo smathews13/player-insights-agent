@@ -3087,7 +3087,7 @@ def test_shortening_the_answer_is_not_allowed_to_cost_a_caveat():
     assert "Do not\nfold them into the narrative" in SYNTHESIS_INSTRUCTIONS
 
 
-def test_every_structured_answer_requests_the_acme_sections():
+def test_every_structured_answer_requests_the_notebook_sections():
     for section in ("narrative", "takeaway", "content", "figures"):
         assert section in SYNTHESIS_INSTRUCTIONS
 
@@ -3096,6 +3096,20 @@ def test_non_actions_are_omitted_instead_of_presented_as_findings():
     text = "Active players rose.\n- No filter applied.\n- Nothing excluded.\n- Revenue rose."
     assert agent._without_non_action_filler(text) == "Active players rose.\n- Revenue rose."
     assert "never pad" in SYNTHESIS_INSTRUCTIONS.lower()
+
+
+def test_geography_rules_reach_the_answer_writer_after_runtime_styling():
+    for rule in (
+        "explicit ISO 3166-1 alpha-2 country codes",
+        "Germany-specific rule",
+        "for GB and DE",
+        "DE is country-level, not a German state or",
+        "explicit `Unknown` chart",
+        "Put the explicit country-code membership in the narrative",
+        "runtime narrative/takeaway guidance may style these",
+        "may not remove this geography contract",
+    ):
+        assert rule in SYNTHESIS_INSTRUCTIONS
 
 
 # ---------------------------------------------------------------------------

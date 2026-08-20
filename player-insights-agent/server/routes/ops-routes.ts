@@ -41,18 +41,14 @@ import {
   type StatementParameter,
 } from '../lib/ops-billing';
 import {
-  buildLatencyStatement,
   buildTelemetryStatement,
   grantFor,
   hasHistory,
   logsTable,
   noHistoryReason,
   offMeasurement,
-  readLatencyRows,
   readTelemetryRows,
-  spansTable,
   stateFromFailure,
-  TELEMETRY_SCHEMA_ENV,
   telemetrySchema,
   uncheckedMeasurement,
 } from '../lib/ops-telemetry';
@@ -67,7 +63,7 @@ import { appEnvironment, readStoredSettings, resourceStates } from '../lib/app-s
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
-import { opsDayRange } from '../../shared/ops-contract';
+import { opsDayRange, SPAN_PERCENTILE_FLOOR } from '../../shared/ops-contract';
 import type {
   AppMeasurement,
   DependencyResult,
@@ -123,6 +119,26 @@ export function opsRange(req: Request, now = Date.now()): CostRange {
 /** The half-open timestamp bounds a Lakebase or telemetry read uses for that range. */
 function instantsFor(range: CostRange): { from: string; to: string } {
   return { from: `${range.from}T00:00:00Z`, to: `${range.to}T23:59:59Z` };
+}
+
+/**
+ * The exact activity window the browser asked for, including today.
+ *
+ * Cost intentionally ends on the last complete day because billing arrives
+ * late. Traffic and latency are app-owned operational records and must not
+ * inherit that lag: doing so made a new customer deployment say no questions
+ * had been asked while people were actively using it.
+ */
+function activityInstants(req: Request, now: number): { from: string; to: string } {
+  const from = Date.parse(queryText(req, 'from'));
+  const to = Date.parse(queryText(req, 'to'));
+  if (Number.isFinite(from) && Number.isFinite(to) && to >= from) {
+    return { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+  }
+  return {
+    from: new Date(now - 7 * 86_400_000).toISOString(),
+    to: new Date(now).toISOString(),
+  };
 }
 
 interface StatementOutcome {
@@ -473,103 +489,6 @@ async function readAppMeasurement(req: Request, range: CostRange, insightsHref: 
 }
 
 /**
- * Per-route latency, out of the server spans.
- *
- * ITS OWN READ, ITS OWN ROUTE, ITS OWN BLOCK, like the other three. A warehouse
- * that will not answer this must leave health, cost and traffic standing.
- *
- * Read on the FORWARDED SIGN-IN rather than as the application, matching the
- * telemetry block above: this is an admin surface, the grant is the reader's to
- * hold, and a refusal here should print the statement that fixes it rather than
- * quietly succeeding on the app's own credentials.
- *
- * Nothing here is bounded by the Ops range. See `buildLatencyStatement`: this
- * table does not reach back as far as the range does, and the payload reports
- * the window it actually covers instead.
- */
-async function readLatency(req: Request, readAt: string): Promise<OpsLatencyPayload> {
-  const schema = telemetrySchema();
-  const base: OpsLatencyPayload = {
-    readAt,
-    state: 'not-enabled',
-    reason: '',
-    grant: null,
-    table: '',
-    routes: [],
-    coveredFrom: '',
-    coveredTo: '',
-  };
-  if (!schema) {
-    return {
-      ...base,
-      reason:
-        'App telemetry is not switched on for this deployment, so no spans are being written and ' +
-        `there is nothing to time. Set ${TELEMETRY_SCHEMA_ENV} to a catalog and schema and redeploy.`,
-    };
-  }
-
-  const table = spansTable(schema);
-  const workspace = host();
-  const warehouse = warehouseId();
-  const token = forwardedUserToken(req);
-  const principal = userEmail(req) || UNKNOWN_PRINCIPAL;
-
-  if (!workspace || !warehouse || !token) {
-    return {
-      ...base,
-      state: 'no-warehouse',
-      table,
-      reason: `${table} was not read: this app has no warehouse, workspace address or forwarded sign-in to read it with.`,
-    };
-  }
-
-  const outcome = await runStatement({
-    host: workspace,
-    token,
-    warehouseId: warehouse,
-    statement: buildLatencyStatement(table),
-  });
-
-  if (!outcome.ok) {
-    const classified = stateFromFailure(outcome.message, table);
-    if (classified.state === 'no-grant') {
-      return {
-        ...base,
-        state: 'no-grant',
-        table,
-        grant: grantFor(classified.object, principal, classified.permission),
-        reason:
-          `Spans are being written to ${table}, and you do not have ${classified.permission} on ` +
-          `${classified.object}. Every admin needs their own grant; being an administrator of this ` +
-          'app does not grant it.',
-      };
-    }
-    // The read failed, which establishes nothing about whether spans exist. It
-    // is never reported as an empty table -- that substitution is behind two of
-    // this app's shipped defects.
-    return {
-      ...base,
-      state: 'unreadable',
-      table,
-      reason: `${table} could not be read, so no timings were established. Databricks said: ${outcome.message}`,
-    };
-  }
-
-  const { routes, coveredFrom, coveredTo } = readLatencyRows(outcome.rows);
-  if (routes.length === 0) {
-    return {
-      ...base,
-      state: 'no-rows',
-      table,
-      reason:
-        `${table} is readable and holds no server spans. Telemetry does not backfill: the platform ` +
-        'starts writing at the deploy that switches it on and records nothing about the time before.',
-    };
-  }
-  return { ...base, state: 'ready', table, routes, coveredFrom, coveredTo, reason: '' };
-}
-
-/**
  * The dependency rows, from the probes the Connections page already runs.
  *
  * The same probe path rather than a second one, so a dependency cannot be
@@ -662,6 +581,49 @@ export const TOOL_CALLS_QUERY = `
     AND COALESCE(stage->>'name', '') <> ''
   GROUP BY 1
   ORDER BY 2 DESC`;
+
+/**
+ * Answer latency from the app's own durable messages.
+ *
+ * This is deliberately not an OpenTelemetry query. Every successful answer
+ * stores its measured `trace.totalMs` in Lakebase, so customer deployments that
+ * leave billed telemetry off still have the operational timing they own.
+ */
+export const ANSWER_LATENCY_QUERY = `
+  WITH bounds AS (
+    SELECT $1::timestamptz AS from_at,
+           $2::timestamptz AS to_at,
+           $1::timestamptz + (($2::timestamptz - $1::timestamptz) / 2) AS split_at
+  ),
+  samples AS (
+    SELECT m.created_at,
+           (m.response_json->'trace'->>'totalMs')::double precision AS duration_ms,
+           jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS failed
+    FROM ${APP_SCHEMA}.messages m, bounds b
+    WHERE m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+      AND jsonb_typeof(m.response_json->'trace'->'totalMs') = 'number'
+      AND m.created_at >= b.from_at AND m.created_at < b.to_at
+  )
+  SELECT
+    COUNT(*) FILTER (WHERE s.created_at >= b.split_at)::int AS current_count,
+    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p50_ms,
+    ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p95_ms,
+    ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p99_ms,
+    ROUND(MAX(s.duration_ms) FILTER (WHERE s.created_at >= b.split_at))::int AS slowest_ms,
+    COUNT(*) FILTER (WHERE s.created_at >= b.split_at AND s.failed)::int AS error_count,
+    MAX(s.created_at) FILTER (WHERE s.created_at >= b.split_at) AS last_answer_at,
+    COUNT(*) FILTER (WHERE s.created_at < b.split_at)::int AS prior_count,
+    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+      FILTER (WHERE s.created_at < b.split_at))::int AS prior_p50_ms,
+    MIN(s.created_at) AS covered_from,
+    MAX(s.created_at) AS covered_to
+  FROM bounds b
+  LEFT JOIN samples s ON TRUE
+  GROUP BY b.split_at`;
 
 /** The terminal states that mean something broke, as opposed to something was declined. */
 const FAILURE_STATES = new Set(['FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED']);
@@ -945,8 +907,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     /* ── Traffic ─────────────────────────────────────────────────────────── */
 
     app.get('/api/ops/traffic', async (req: Request, res: Response) => {
-      const range = opsRange(req, clock());
-      const instants = instantsFor(range);
+      const instants = activityInstants(req, clock());
       const readAt = new Date(clock()).toISOString();
       const bounds = [instants.from, instants.to];
       try {
@@ -1042,28 +1003,59 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     /* ── Latency ─────────────────────────────────────────────────────────── */
 
-    /**
-     * Per-route timings, from the spans an exporter is writing.
-     *
-     * A ROUTE OF ITS OWN, so a warehouse that will not answer this leaves the
-     * other three blocks standing. It answers 200 with a state and a reason on
-     * every path, like the others: an admin opening this to find out why a page
-     * is slow is worse served by a 503 than by a block that says what happened.
-     */
+    /** Answer timings from Lakebase, independent of billed app telemetry. */
     app.get('/api/ops/latency', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
+      const instants = activityInstants(req, clock());
+      const base: OpsLatencyPayload = {
+        readAt,
+        state: 'no-rows',
+        reason: '',
+        grant: null,
+        table: `${APP_SCHEMA}.messages`,
+        routes: [],
+        coveredFrom: '',
+        coveredTo: '',
+      };
       try {
-        res.json(await readLatency(req, readAt));
+        const result = await appkit.lakebase.query(ANSWER_LATENCY_QUERY, [instants.from, instants.to]);
+        const row = result.rows[0] ?? {};
+        const current = count(row.current_count);
+        if (current === 0) {
+          res.json({
+            ...base,
+            reason: 'No stored answer timings were recorded in this range.',
+            coveredFrom: text(row.covered_from),
+            coveredTo: text(row.covered_to),
+          });
+          return;
+        }
+        res.json({
+          ...base,
+          state: 'ready',
+          routes: [
+            {
+              route: 'POST /api/insights/ask',
+              spans: current,
+              p50Ms: count(row.current_p50_ms),
+              p95Ms: current >= SPAN_PERCENTILE_FLOOR ? count(row.current_p95_ms) : null,
+              p99Ms: current >= SPAN_PERCENTILE_FLOOR ? count(row.current_p99_ms) : null,
+              slowestMs: count(row.slowest_ms),
+              errorCount: count(row.error_count),
+              refusalCount: null,
+              lastSpanAt: text(row.last_answer_at),
+              priorSpans: count(row.prior_count),
+              priorP50Ms: row.prior_p50_ms === null ? null : count(row.prior_p50_ms),
+            },
+          ],
+          coveredFrom: text(row.covered_from),
+          coveredTo: text(row.covered_to),
+        } satisfies OpsLatencyPayload);
       } catch (error) {
         const payload: OpsLatencyPayload = {
-          readAt,
+          ...base,
           state: 'unreadable',
-          reason: `No timings could be read: ${(error as Error).message}`,
-          grant: null,
-          table: '',
-          routes: [],
-          coveredFrom: '',
-          coveredTo: '',
+          reason: `No stored answer timings could be read: ${(error as Error).message}`,
         };
         res.json(payload);
       }

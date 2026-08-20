@@ -60,6 +60,7 @@ from contracts import (
 )
 from data_source_finder import (
     FINDER_SYSTEM_PROMPT,
+    GEOGRAPHY_INSTRUCTIONS,
     DataSourceFinderAgent,
     DiscoveryRequest,
 )
@@ -240,10 +241,17 @@ Use only the supplied assessed data package. Never invent a value. Keep labels
 separate, never expose identifiers or emails,
 {SYNTHESIS_PROVENANCE_RULE}
 If the package lacks a requested value, say so and return no figure for it.
-Every answer must carry all four Acme notebook sections: narrative, takeaway,
+Every answer must carry all four notebook sections: narrative, takeaway,
 content, and figures. Never pad narrative, content, figures, result breakdowns, or
 trace text with actions that were not taken. Omit absent filters, exclusions, skipped
 steps, and other non-falsifiable negative filler instead of listing them.
+
+Geographic answers must also follow this contract:
+{GEOGRAPHY_INSTRUCTIONS}
+Put the explicit country-code membership in the narrative before its regional figure.
+Put verification needs, suppression limits, currency limits, and mixed-level warnings
+in caveats as separate entries; runtime narrative/takeaway guidance may style these
+sections but may not remove this geography contract.
 
 How to write the narrative. It is read in a chat card by somebody deciding something,
 who skims it before reading it:
@@ -383,7 +391,8 @@ REQUEST_CLARIFICATION_TOOL = {
     },
 }
 
-#: The tools Acme assigns to the finder, in the order its model sees them.
+#: The tools the reference notebook assigns to the finder, in the order its
+#: model sees them.
 #: The orchestrator never receives this list; it invokes the finder boundary.
 DATA_SOURCE_FINDER_TOOLS = [
     data_genie_tool(_SETTINGS.data_genie_space_title),
@@ -2860,7 +2869,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             system = f"{system}\n\n{runtime_prompt}"
 
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
-        # Acme's finder gets exactly one self-contained user message. The
+        # The notebook's finder gets exactly one self-contained user message. The
         # component always calls this loop with no role-bearing history and no
         # separately injected attachment message.
         messages.append({"role": "user", "content": question})

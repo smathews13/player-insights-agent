@@ -146,7 +146,7 @@ def current() -> RuntimeSettings:
 
 
 def today_line(timezone: str = "", *, now: datetime | None = None) -> str:
-    """Acme notebook parity: the agent must know what calendar day it is.
+    """Reference notebook parity: the agent must know what calendar day it is.
 
     Relative windows ("last 30 days", "yesterday", as-of dating) need a concrete
     calendar day. Serving models do not reliably know wall-clock date, so the

@@ -409,7 +409,7 @@ const LiveAnswerSchema = z.looseObject({
   id: z.string().min(1),
   takeaway: z.string().min(1),
   narrative: z.string().min(1),
-  // Added by the Acme answer shape. Defaulted so an older served model and
+  // Added by the notebook answer shape. Defaulted so an older served model and
   // a newer app can overlap safely during rollout.
   content: z.string().default(''),
   figures: z.array(FigureSchema),
