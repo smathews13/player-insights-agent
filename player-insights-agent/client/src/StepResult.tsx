@@ -26,7 +26,7 @@
  * carry one, for the reason `answer-markdown.ts` spells out: this is model
  * output, and the tree it parses into has no branch that holds markup.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 import { parseAnswerMarkdown, type Block, type Inline } from './answer-markdown';
@@ -62,11 +62,28 @@ const COLUMN_PREVIEW = 5;
  * Carries its own name in `title` because the chip truncates: a name cut at the
  * width of its row has to stay recoverable without leaving the panel.
  */
+export function EntityName({ children }: { children: string }) {
+  const parts = children.split('.');
+  if (parts.length === 3 && parts.every(Boolean)) {
+    return (<code className="dag-entity-name" title={children}>
+        <span className="dag-entity-catalog">{parts[0]}</span>
+        <span aria-hidden="true">.</span>
+        <span className="dag-entity-schema">{parts[1]}</span>
+        <span aria-hidden="true">.</span>
+        <span className="dag-entity-table">{parts[2]}</span>
+      </code>
+    );
+  }
+  return (<code className="dag-name-chip" title={children}>{children}</code>);
+}
+
 function Name({ children }: { children: string }) {
-  return (<code className="dag-name-chip" title={children}>
-      {children}
-    </code>
-  );
+  // Chips are labels, not containers. A whole sentence or pasted result wrapped
+  // in backticks must remain readable code instead of becoming one blue slab.
+  if (children.length > 72 || /\s/.test(children)) {
+    return <code className="dag-inline-code">{children}</code>;
+  }
+  return <EntityName>{children}</EntityName>;
 }
 
 /** A sentence with the table and column names in it set as chips. */
@@ -150,9 +167,37 @@ function MarkdownBlock({ block }: { block: Block }) {
 
 /** Markdown, where every shape that would not parse lands. */
 export function MarkdownText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  const rendered: ReactNode[] = [];
+  let prose: string[] = [];
+  const flushProse = () => {
+    if (prose.some((line) => line.trim())) {
+      rendered.push(...parseAnswerMarkdown(prose.join('\n')).map((block) => <MarkdownBlock block={block} key={`p-${block.start}-${rendered.length}`} />));
+    }
+    prose = [];
+  };
+  for (let at = 0; at < lines.length;) {
+    const isTableStart = lines[at].includes('|') && /^\s*\|?\s*:?-{2,}/.test(lines[at + 1] ?? '');
+    if (!isTableStart) {
+      prose.push(lines[at]);
+      at += 1;
+      continue;
+    }
+    flushProse();
+    const tableLines: string[] = [lines[at]];
+    at += 2; // the separator is layout, not a data row
+    while (at < lines.length && lines[at].includes('|') && lines[at].trim()) {
+      tableLines.push(lines[at]);
+      at += 1;
+    }
+    const cells = (line: string) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+    const head = cells(tableLines[0]);
+    const rows = tableLines.slice(1).map(cells).filter((row) => row.length === head.length);
+    rendered.push(<ResultGrid key={`t-${at}`} table={{ head, rows, note: null }} />);
+  }
+  flushProse();
   return (<div className="dag-md">
-      {parseAnswerMarkdown(text).map((block) => (<MarkdownBlock block={block} key={block.start} />
-      ))}
+      {rendered}
     </div>
   );
 }
@@ -188,7 +233,11 @@ function ResultGrid({ table }: { table: ResultTable }) {
         </thead>
         <tbody>
           {table.rows.map((row, at) => (<tr key={at}>
-              {row.map((cell, cellAt) => (<td key={cellAt}>{FIGURE.test(cell.trim()) ? <b>{cell}</b> : cell}</td>
+              {row.map((cell, cellAt) => (<td key={cellAt}>{
+                  FIGURE.test(cell.trim()) ? <b>{cell}</b>
+                    : cell.split('.').length === 3 ? <EntityName>{cell}</EntityName>
+                      : cell
+                }</td>
               ))}
             </tr>
           ))}

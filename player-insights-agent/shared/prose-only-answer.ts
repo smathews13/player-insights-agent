@@ -58,6 +58,7 @@ export interface ProseOnlyAnswer {
   id: string;
   takeaway: string;
   narrative: string;
+  content: string;
   figures: never[];
   charts: never[];
   sources: never[];
@@ -104,6 +105,7 @@ export function proseOnlyAnswer(id: string, prose: string): ProseOnlyAnswer {
     id,
     takeaway: firstLine ? firstLine.slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY,
     narrative: prose,
+    content: '',
     figures: [],
     charts: [],
     sources: [],

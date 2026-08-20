@@ -207,6 +207,8 @@ class AnswerContract(BaseModel):
     id: str
     takeaway: str
     narrative: str
+    #: Concrete findings returned by the run, kept separate from interpretation.
+    content: str = ""
     figures: list[Figure] = Field(default_factory=list)
     charts: list[Chart] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)

@@ -653,6 +653,12 @@ fi
 step "Deploying version $MODEL_VERSION to $ENDPOINT"
 (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION")
 
+step "Applying the astrolabe resource tag"
+(cd "$BUNDLE_ROOT/agent" \
+  && uv run --python 3.13 python ../bundle/tag-resources.py \
+       --registered-model "$MODEL_NAME" \
+       --serving-endpoint "$ENDPOINT")
+
 # A traffic switch is not atomic from the caller's point of view. Smoke-testing
 # immediately measures the PREVIOUS version and will happily report success.
 #

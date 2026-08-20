@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+export const RuntimeEntityKindSchema = z.enum(['catalog', 'schema', 'table', 'column', 'quote', 'tag']);
+export type RuntimeEntityKind = z.infer<typeof RuntimeEntityKindSchema>;
+
+const EntityStyleSchema = z.strictObject({
+  foreground: z.string().regex(/^#[0-9a-f]{6}$/i, 'Use a six-digit hex color.'),
+  background: z.string().regex(/^#[0-9a-f]{6}$/i, 'Use a six-digit hex color.'),
+});
+
 export const RuntimeSettingsSchema = z.strictObject({
   loop: z.strictObject({
     maxSteps: z.number().int().min(1).max(20),
@@ -32,6 +40,21 @@ export const RuntimeSettingsSchema = z.strictObject({
     timezone: z.string().trim().max(80),
     injectCurrentDate: z.boolean(),
   }),
+  entityStyles: z.strictObject({
+    catalog: EntityStyleSchema,
+    schema: EntityStyleSchema,
+    table: EntityStyleSchema,
+    column: EntityStyleSchema,
+    quote: EntityStyleSchema,
+    tag: EntityStyleSchema,
+  }).default({
+    catalog: { foreground: '#ffffff', background: '#0e538b' },
+    schema: { foreground: '#16324f', background: '#ddeaf4' },
+    table: { foreground: '#3a3838', background: '#e8e8e8' },
+    column: { foreground: '#3a3838', background: '#f4f4f4' },
+    quote: { foreground: '#46596b', background: '#f7f7f7' },
+    tag: { foreground: '#ffffff', background: '#243746' },
+  }),
 });
 
 export type RuntimeSettings = z.infer<typeof RuntimeSettingsSchema>;
@@ -60,7 +83,27 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
     timezone: '',
     injectCurrentDate: false,
   },
+  entityStyles: {
+    catalog: { foreground: '#ffffff', background: '#0e538b' },
+    schema: { foreground: '#16324f', background: '#ddeaf4' },
+    table: { foreground: '#3a3838', background: '#e8e8e8' },
+    column: { foreground: '#3a3838', background: '#f4f4f4' },
+    quote: { foreground: '#46596b', background: '#f7f7f7' },
+    tag: { foreground: '#ffffff', background: '#243746' },
+  },
 };
+
+export type RuntimeEntityCssVariables = Record<`--entity-${RuntimeEntityKind}-${'fg' | 'bg'}`, string>;
+
+/** Shared Ask/Run Explorer rendering tokens derived from the saved settings. */
+export function runtimeEntityCssVariables(settings: RuntimeSettings): RuntimeEntityCssVariables {
+  return Object.fromEntries(
+    RuntimeEntityKindSchema.options.flatMap((kind) => [
+      [`--entity-${kind}-fg`, settings.entityStyles[kind].foreground],
+      [`--entity-${kind}-bg`, settings.entityStyles[kind].background],
+    ]),
+  ) as RuntimeEntityCssVariables;
+}
 
 export function parseRuntimeSettings(value: unknown): RuntimeSettings {
   return RuntimeSettingsSchema.parse(value);

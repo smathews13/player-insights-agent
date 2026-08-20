@@ -409,6 +409,9 @@ const LiveAnswerSchema = z.looseObject({
   id: z.string().min(1),
   takeaway: z.string().min(1),
   narrative: z.string().min(1),
+  // Added by the The customer answer shape. Defaulted so an older served model and
+  // a newer app can overlap safely during rollout.
+  content: z.string().default(''),
   figures: z.array(FigureSchema),
   // Defaulted rather than required, so the agent and the app can ship separately:
   // an endpoint still running the previous agent returns no `charts` key at all,
@@ -1736,6 +1739,21 @@ function conversationMessagesQuery(conversationId: string, email: string) {
         params: [conversationId, email] as unknown[],
       };
 }
+
+/**
+ * The newest durable run for one conversation.
+ *
+ * Kept separate from the message list because an in-flight run has no assistant
+ * message yet. Reopening a conversation used to inspect messages alone, find
+ * only the user's question, and conclude that nothing was happening. This row
+ * is written before Model Serving starts and remains readable after the
+ * original SSE connection is gone.
+ */
+export const CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code
+  FROM ${APP_SCHEMA}.runs
+  WHERE conversation_id = $1 AND user_email = $2
+  ORDER BY created_at DESC
+  LIMIT 1`;
 
 function isEndpointError(record: Record<string, unknown>) {
   const status = record.status ?? record.statusCode;
@@ -3185,6 +3203,30 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
     app.get('/api/conversations/:id/messages', async (req, res) => {
       const { sql, params } = conversationMessagesQuery(req.params.id, userEmail(req));
       await respondWithStored(appkit, res, 'GET /api/conversations/:id/messages', sql, params);
+    });
+
+    /**
+     * Reconnect a browser to the durable state of work it did not stay to watch.
+     *
+     * This does not resume or duplicate execution. The original request keeps
+     * running in this server process; this route only reads the Lakebase row
+     * created before that execution began.
+     */
+    app.get('/api/conversations/:id/run', async (req, res) => {
+      const read = await readStored(
+        appkit,
+        'GET /api/conversations/:id/run',
+        CONVERSATION_RUN_STATUS_QUERY,
+        [req.params.id, userEmail(req)]
+      );
+      if (!read.available) {
+        res.status(503).json({
+          error: 'conversation_run_unavailable',
+          message: 'The current state of this conversation could not be read just now.',
+        });
+        return;
+      }
+      res.json(read.rows[0] ?? null);
     });
 
     /**

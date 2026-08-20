@@ -67,6 +67,15 @@
   width: 100%;
   height: auto;
 }
+.ast-star-select {
+  cursor: pointer;
+  outline: none;
+}
+.ast-star-select:hover,
+.ast-star-select:focus-visible,
+.ast-star-select.selected {
+  filter: drop-shadow(0 0 4px var(--ast-blue-on-dark));
+}
 
 /* ---- Connectors ---- */
 

@@ -43,6 +43,7 @@ def main() -> None:
         model_version=str(args.model_version),
         endpoint_name=args.endpoint_name,
         tags={
+            "astrolabe": "true",
             "project": "player-insights-agent",
             "environment": args.environment or "unspecified",
         },

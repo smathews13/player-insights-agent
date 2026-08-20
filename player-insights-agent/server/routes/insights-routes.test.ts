@@ -594,6 +594,19 @@ function memoryLakebase(attachments: StoredAttachment[] = [],
         return Promise.resolve({ rows: owner === undefined ? [] : [{ user_email: owner }] });
       }
 
+      if (sql.startsWith('SELECT id, title, updated_at, user_email FROM player_insights.conversations')) {
+        const caller = params.length > 0 ? String(params[0]) : null;
+        const rows = [...conversations.entries()]
+          .filter(([, owner]) => caller === null || owner === caller)
+          .map(([id, user_email]) => ({
+            id,
+            user_email,
+            title: conversationTitles.get(id),
+            updated_at: new Date().toISOString(),
+          }));
+        return Promise.resolve({ rows });
+      }
+
       if (sql.startsWith('SELECT resource_id')) {
         return Promise.resolve({ rows: settings });
       }
@@ -877,6 +890,39 @@ async function startInsightsApp(transport: ServingTransport,
     async runs(): Promise<RunRow[]> {
       const response = await fetch(`http://127.0.0.1:${port}/api/runs`, { headers: headers() });
       return (await response.json()) as RunRow[];
+    },
+    async conversations(): Promise<{ id: string; title: string }[]> {
+      const response = await fetch(`http://127.0.0.1:${port}/api/conversations`, { headers: headers() });
+      return (await response.json()) as { id: string; title: string }[];
+    },
+    async conversationRun(id: string): Promise<Record<string, unknown> | null> {
+      const response = await fetch(
+        `http://127.0.0.1:${port}/api/conversations/${encodeURIComponent(id)}/run`,
+        { headers: headers() }
+      );
+      return (await response.json()) as Record<string, unknown> | null;
+    },
+    /**
+     * Starts the same SSE request Ask PIA uses and lets the test navigate away.
+     *
+     * Aborting this socket is stronger than a React unmount: if server work
+     * survives it, changing views without a signal cannot cancel the run.
+     */
+    askAndDisconnect(body: Record<string, unknown>) {
+      const controller = new AbortController();
+      const finished = fetch(`http://127.0.0.1:${port}/api/insights/ask`, {
+        method: 'POST',
+        headers: headers({
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          'x-forwarded-access-token': 'forwarded-user-token',
+        }),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+        .then((response) => response.text())
+        .catch((error: unknown) => error);
+      return { abort: () => controller.abort(), finished };
     },
     async runTrace(id: string): Promise<{ status: number; body: RunTraceResponse }> {
       const response = await fetch(`http://127.0.0.1:${port}/api/runs/${encodeURIComponent(id)}/trace`, {
@@ -3659,6 +3705,64 @@ describe('the run ledger under POST /api/insights/ask', () => {
         'SUCCEEDED',
       ]);
     } finally {
+      await app.close();
+    }
+  });
+
+  it('persists before serving and finishes after the Ask view disconnects', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    let announceStarted: () => void = () => {};
+    let releaseAnswer: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      announceStarted = resolve;
+    });
+    const answerGate = new Promise<void>((resolve) => {
+      releaseAnswer = resolve;
+    });
+    const transport: ServingTransport = async () => {
+      announceStarted();
+      await answerGate;
+      return servingResponses.liveAnswerResponse;
+    };
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const app = await startInsightsApp(transport, lakebase);
+
+    try {
+      const request = app.askAndDisconnect({
+        conversationId: 'conv-detached',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      await started;
+
+      // All three durable records exist before Model Serving is allowed to
+      // answer: the rail row, the user's turn, and the run itself.
+      expect(store.conversations.has('conv-detached')).toBe(true);
+      expect(store.messages.some((message) => message.conversation_id === 'conv-detached' && message.role === 'user')
+      ).toBe(true);
+      expect(ledger.runs).toHaveLength(1);
+      expect(ledger.runs[0].state).toBe('RECEIVED');
+
+      // A second view can discover both the conversation and its working run.
+      await expect(app.conversations()).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'conv-detached' })])
+      );
+      await expect(app.conversationRun('conv-detached')).resolves.toMatchObject({ state: 'RECEIVED' });
+
+      request.abort();
+      await request.finished;
+      releaseAnswer();
+
+      // Closing the response only drops narration. The server still stores the
+      // answer and closes the run, which is what the returning view polls for.
+      await vi.waitFor(() => {
+        expect(store.messages.some((message) => message.conversation_id === 'conv-detached' && message.role === 'assistant')
+        ).toBe(true);
+        expect(ledger.runs[0].state).toBe('SUCCEEDED');
+      });
+    } finally {
+      releaseAnswer();
       await app.close();
     }
   });

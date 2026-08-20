@@ -70,7 +70,7 @@ import { reportEgress } from './egress-policy';
 import type { TraceStage } from './answer-shape';
 import { describePayload, payloadSize, type Payload } from './trace-payload';
 import { runOrigin, toolNameFromId } from './trace-timeline';
-import { AgentReport, ChipText, GenieCard, MarkdownText, ResultSource, SemanticCard } from './StepResult';
+import { AgentReport, ChipText, EntityName, GenieCard, MarkdownText, ResultSource, SemanticCard } from './StepResult';
 import {
   argumentLabel,
   genieResult,
@@ -410,7 +410,9 @@ function RenderedResult({ shape, text }: { shape: ResultShape; text: string }) {
         </thead>
         <tbody>
           {view.rows.map((row, at) => (<tr key={at} className={row.finding ? 'finding' : undefined}>
-              {row.cells.map((cell, cellAt) => (<td key={cellAt}>{cell}</td>
+              {row.cells.map((cell, cellAt) => (<td key={cellAt}>
+                  {cell.split('.').length === 3 ? <EntityName>{cell}</EntityName> : cell}
+                </td>
               ))}
             </tr>
           ))}

@@ -142,6 +142,14 @@
   color: var(--muted-foreground);
 }
 
+.runtime-control-note {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--muted-foreground);
+}
+
 /* A field that wants the whole width of the section body (the guidance boxes). */
 .runtime-field-wide {
   grid-column: 1 / -1;
@@ -210,6 +218,10 @@
   gap: 16px;
 }
 
+.runtime-answer-head > span:first-child {
+  min-width: 0;
+}
+
 /* The name carries the row; 500 weight, base rung, no description beside it. */
 .runtime-answer-name {
   font-size: var(--text-base);
@@ -238,6 +250,29 @@
 .runtime-timezone {
   max-width: 280px;
   font-family: var(--font-mono);
+}
+
+.runtime-entity-section {
+  gap: 10px;
+}
+
+.runtime-entity-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) repeat(2, minmax(9rem, 0.8fr));
+  align-items: end;
+  gap: 10px 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.runtime-entity-row input {
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 640px) {
+  .runtime-entity-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* The card foot: the mandatory-safeguards line on the left, Save pinned right.

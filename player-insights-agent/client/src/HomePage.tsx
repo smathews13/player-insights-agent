@@ -70,6 +70,11 @@ import { mergeLiveStage, nextRunningSince, runningElapsed, runningStepNumber } f
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
 import { RunStatusPill } from './RunStatusPill';
+import {
+  isWorkingConversationRun,
+  readConversationRun,
+  type ConversationRunStatus,
+} from './conversation-run';
 import { AstrolabeMark } from './AstrolabeMark';
 import { ConceptFlicker } from './ConceptFlicker';
 import { WorkingConstellation } from './WorkingConstellation';
@@ -298,6 +303,16 @@ export function HomePage() {
   const [attaching, setAttaching] = useState(false);
   const [clearingDocs, setClearingDocs] = useState(false);
   const [loading, setLoading] = useState(false);
+  /**
+   * A run discovered from Lakebase after this view was reopened.
+   *
+   * The original fetch belongs to the view that started it and may no longer
+   * exist. This is only the durable handle a returning view polls; it never
+   * starts or resumes execution.
+   */
+  const [activeConversationRun, setActiveConversationRun] = useState<
+    (ConversationRunStatus & { conversationId: string }) | null
+  >(null);
   const [conversationLoading, setConversationLoading] = useState(true);
   /**
    * What the rail's own emptiness means, taken from the response rather than
@@ -569,6 +584,7 @@ export function HomePage() {
     activeConversationRef.current = id;
     setConversationLoading(true);
     setLoading(false);
+    setActiveConversationRun(null);
     setError(null);
     setFeedback({});
     // The run that stopped belongs to the conversation it stopped in. Left
@@ -581,9 +597,10 @@ export function HomePage() {
     liveStagesRef.current = [];
     setRunningSince(null);
     try {
-      const [messageResponse, attachmentResponse] = await Promise.all([
+      const [messageResponse, attachmentResponse, durableRun] = await Promise.all([
         fetch(`/api/conversations/${encodeURIComponent(id)}/messages`),
         fetch(`/api/conversations/${encodeURIComponent(id)}/attachments`),
+        readConversationRun(id).catch(() => null),
       ]);
       if (!messageResponse.ok) throw new Error('Conversation unavailable');
       const stored = (await messageResponse.json()) as ConversationMessage[];
@@ -608,10 +625,19 @@ export function HomePage() {
           : []
       );
       setDraft('');
+      if (isWorkingConversationRun(durableRun)) {
+        setActiveConversationRun({ ...durableRun, conversationId: id });
+        setLoading(true);
+        const started = Date.parse(durableRun.created_at);
+        setAskStartedAt(Number.isFinite(started) ? started : Date.now());
+        setStreamOpenedAt(Number.isFinite(started) ? started : Date.now());
+        setAskedQuestion([...stored].reverse().find((message) => message.role === 'user')?.content ?? '');
+      }
     } catch {
       setDraft('');
       setMessages([]);
       setAttachments([]);
+      setActiveConversationRun(null);
       setAttachmentsUnreadable(false);
       setError('This conversation could not be loaded. Start a new conversation or try again.');
     } finally {
@@ -679,6 +705,55 @@ export function HomePage() {
   const loadRunSummaries = useCallback(() => {
     void readRunSummaries().then((summaries) => setRunSummaries(summaries));
   }, []);
+
+  /**
+   * Follow a run whose original stream belonged to another view or browser tab.
+   *
+   * Unmounting clears only this timer. There is intentionally no AbortController
+   * here: the browser has no authority to cancel the server's Model Serving
+   * invocation, and reopening this page creates a fresh status read.
+   */
+  useEffect(() => {
+    if (!activeConversationRun) return;
+    let live = true;
+    let timer: number | undefined;
+    const schedule = () => {
+      timer = window.setTimeout(() => void poll(), 1500);
+    };
+    const poll = async () => {
+      try {
+        const [status, response] = await Promise.all([
+          readConversationRun(activeConversationRun.conversationId),
+          fetch(`/api/conversations/${encodeURIComponent(activeConversationRun.conversationId)}/messages`),
+        ]);
+        if (!live || activeConversationRef.current !== activeConversationRun.conversationId) return;
+        if (response.ok) {
+          const stored = (await response.json()) as ConversationMessage[];
+          if (!live || activeConversationRef.current !== activeConversationRun.conversationId) return;
+          setMessages(stored);
+          setFeedback(feedbackFromStored(stored));
+        }
+        if (isWorkingConversationRun(status)) {
+          setActiveConversationRun({ ...status, conversationId: activeConversationRun.conversationId });
+          schedule();
+          return;
+        }
+        setActiveConversationRun(null);
+        setLoading(false);
+        setRunningSince(null);
+        loadRunSummaries();
+      } catch {
+        // A transient status-read failure is not evidence that the server work
+        // stopped. Keep the working state and reconnect on the next tick.
+        if (live) schedule();
+      }
+    };
+    schedule();
+    return () => {
+      live = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [activeConversationRun, loadRunSummaries]);
 
   /**
    * The rail, in one round trip rather than two.
@@ -862,6 +937,7 @@ export function HomePage() {
         }
       );
       if (!stillInThisConversation()) return;
+      setActiveConversationRun(null);
       // Normalized before it is read rather than after it is stored: the envelope
       // below reads `result.narrative` and `result.id`, and those can be absent too.
       const result = normalizeResponse(body);
@@ -990,6 +1066,7 @@ export function HomePage() {
       // and a question asked in the new one would have its "Working…" state
       // switched off by the abandoned run finishing behind it.
       if (stillInThisConversation()) {
+        setActiveConversationRun(null);
         setLoading(false);
         // Every way a run can end passes through here -- answered, refused,
         // stopped mid-step -- which is why the counter is stopped here rather

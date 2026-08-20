@@ -56,6 +56,7 @@ import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
 import type { Run } from './app-types';
+import type { TraceStage } from './answer-shape';
 import { UserIdentityChip } from './UserIdentityChip';
 
 /**
@@ -74,6 +75,25 @@ import { UserIdentityChip } from './UserIdentityChip';
  * not this lane's file. See the note in explorer-geometry.test.ts.
  */
 const ABSENT = 'not set';
+
+/** Durations that belong to data work, including older traces that tagged the
+ * finder or SQL wrapper as an agent stage instead of a tool stage. */
+export function toolStageDurationMs(stages: readonly TraceStage[]): number | null {
+  const measured = stages.filter((stage) =>
+    stage.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${stage.id} ${stage.name}`)
+  );
+  return measured.length ? measured.reduce((sum, stage) => sum + stage.duration, 0) : null;
+}
+
+export function conversationRunTitle(runs: readonly Run[], selected: Run | null): string | undefined {
+  if (!selected?.conversation_id) return undefined;
+  const chronological = [...runs].reverse();
+  const conversations = [...new Set(chronological.map((run) => run.conversation_id).filter(Boolean))];
+  const conversation = conversations.indexOf(selected.conversation_id) + 1;
+  const inConversation = chronological.filter((run) => run.conversation_id === selected.conversation_id);
+  const run = inConversation.findIndex((item) => item.id === selected.id) + 1;
+  return conversation > 0 && run > 0 ? `Conversation ${conversation}, Run ${run}` : undefined;
+}
 
 /**
  * The class a tile's value takes.
@@ -137,7 +157,7 @@ export function RunExplorer() {
       .finally(() => setLoading(false));
   }, []);
   const visibleRuns = runs.filter((run) =>
-    `${runLabel(run)} ${run.stakeholder ?? ''}`.toLowerCase().includes(searchText.toLowerCase())
+    `${runLabel(run)} ${run.stakeholder ?? ''} ${run.conversation_id ?? ''}`.toLowerCase().includes(searchText.toLowerCase())
   );
   /**
    * Whether a `?run=` deep link asked for a run that is not here.
@@ -178,8 +198,7 @@ export function RunExplorer() {
   // `toolStages` is the subset of stages it tagged as tool work for the timeline,
   // `discover` and `synthesis` increment the counter while being tagged `agent`, so
   // the counter is routinely larger and the list is often empty on a real run.
-  const toolStages = runTrace?.toolStages ?? [];
-  const toolStageMs = toolStages.reduce((total, stage) => total + stage.durationMs, 0);
+  const toolStageMs = toolStageDurationMs(stages);
   const agentToolCalls = runTrace?.trace?.toolCalls ?? null;
   // Nothing was tagged, so the time spent in those calls is unmeasured, not zero.
   // Rendering 0.0s next to a non-zero call count reads as "the tools were free".
@@ -189,7 +208,7 @@ export function RunExplorer() {
   // reader who did not ask -- and it restated a figure already standing in the
   // tile beside it. The tile now says "not set", in the register the rest of the
   // page uses for a measurement nobody took.
-  const toolStageTime = toolStages.length > 0 ? `${(toolStageMs / 1000).toFixed(1)}s` : ABSENT;
+  const toolStageTime = toolStageMs !== null ? `${(toolStageMs / 1000).toFixed(1)}s` : ABSENT;
   const groundedness = runTrace?.benchmark?.groundedness ?? null;
   const tokens = runTrace?.trace ?? null;
   // Unmeasured, not zero, for the same reason the tool time above is. A run whose
@@ -246,8 +265,8 @@ export function RunExplorer() {
             <div className="run-search">
               <Search />
               <Input
-                placeholder="Search prompts or people…"
-                aria-label="Search runs by prompt or person"
+                placeholder="Search conversations, prompts, or people…"
+                aria-label="Search runs by conversation, prompt, or person"
                 value={searchText}
                 onChange={(event) => setSearchText(event.target.value)}
               />
@@ -290,6 +309,7 @@ export function RunExplorer() {
         <div className="run-detail">
           <RunHeader
             run={selected}
+            title={conversationRunTitle(runs, selected)}
             toolCalls={agentToolCalls}
             reference={isReference}
             groundedness={groundedness}

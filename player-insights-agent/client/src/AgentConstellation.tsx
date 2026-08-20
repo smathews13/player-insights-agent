@@ -58,6 +58,7 @@ import {
   type BrandProduct,
   type BrandTone,
 } from './brand-icons';
+import { useEffect, useState } from 'react';
 import type { TraceStage } from './answer-shape';
 
 /**
@@ -172,8 +173,16 @@ export function AgentPathConstellation({
   /** How long that step has been going, from the caller's one clock. */
   elapsedMs: number | null;
 }) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  useEffect(() => {
+    // Follow the live frontier. A manual selection remains useful only until the
+    // agent reports its next current step.
+    setSelectedIndex(null);
+  }, [activeIndex]);
   if (stages.length === 0) return null;
   const current = activeIndex >= 0 && activeIndex < stages.length ? stages[activeIndex] : null;
+  const shownIndex = selectedIndex ?? (current ? activeIndex : -1);
+  const shown = shownIndex >= 0 ? stages[shownIndex] : null;
   /*
    * WHETHER THE RUN IS ACTUALLY INSIDE THAT STEP, which is not the same question as
    * which step is the frontier.
@@ -213,8 +222,8 @@ export function AgentPathConstellation({
   return (
     <div className="ast-sky ast-sky-path">
       <svg
-        aria-hidden="true"
-        focusable="false"
+        role="group"
+        aria-label="Agent steps"
         className="ast-sky-canvas"
         viewBox={`0 0 ${path.width} ${path.height}`}
         preserveAspectRatio="xMidYMin meet"
@@ -225,8 +234,20 @@ export function AgentPathConstellation({
             <Link key={`${link.from}-${link.to}`} link={link} />
           ))}
         </g>
-        {path.stars.map((star) => (
-          <Star key={star.id} star={star} tone="dark" />
+        {path.stars.map((star, index) => (
+          <g
+            key={star.id}
+            className={`ast-star-select ${shownIndex === index ? 'selected' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`Select step ${path.numbers[index].label}: ${stages[index].name}`}
+            onClick={() => setSelectedIndex(index)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') setSelectedIndex(index);
+            }}
+          >
+            <Star star={star} tone="dark" />
+          </g>
         ))}
         {/* The step in progress, marked twice: the glyph beats and a ring breathes
             around it. Two marks rather than one, because a reader who cannot see
@@ -271,8 +292,8 @@ export function AgentPathConstellation({
           <AstrolabeMark size={18} ink="dark" />
         </span>
         <span className="ast-sky-status-text">
-          {current
-            ? `Step ${path.numbers[activeIndex].label} · ${current.name}`
+          {shown
+            ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
             : ended === null
               ? 'Every step recorded'
               : `Step ${path.numbers[endedAt].label} · ${ended.name} · ${

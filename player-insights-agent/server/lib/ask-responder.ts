@@ -48,6 +48,7 @@ export function createAskResponder(req: Request, res: Response): AskResponder {
   const wantsStream = acceptsEventStream(req);
   let statusCode = 200;
   let open = false;
+  let closed = false;
   let heartbeat: NodeJS.Timeout | undefined;
 
   const stop = () => {
@@ -58,13 +59,16 @@ export function createAskResponder(req: Request, res: Response): AskResponder {
   // The client going away mid-run is ordinary: a closed tab, a reload. The run
   // continues, because its answer is written to Lakebase and will be there when
   // the conversation is reopened; only the narration is lost.
-  res.on('close', stop);
+  res.on('close', () => {
+    closed = true;
+    stop();
+  });
 
   const responder: AskResponder = {
     wantsStream,
 
     begin() {
-      if (!wantsStream || open) return;
+      if (!wantsStream || open || closed) return;
       open = true;
       res.status(statusCode);
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -85,7 +89,7 @@ export function createAskResponder(req: Request, res: Response): AskResponder {
     },
 
     stage(stage) {
-      if (!wantsStream) return;
+      if (!wantsStream || closed) return;
       responder.begin();
       write(res, 'stage', stage);
     },
@@ -97,6 +101,12 @@ export function createAskResponder(req: Request, res: Response): AskResponder {
 
     json(body) {
       stop();
+      // The HTTP connection is only a view onto the run. A route change, reload,
+      // or background-tab eviction may close it while Model Serving is still
+      // working. The caller has gone, but the handler must carry on to the
+      // Lakebase answer write; trying to write the terminal frame to a dead
+      // response risks turning that durable completion into a socket error.
+      if (closed) return;
       if (!open) {
         res.status(statusCode).json(body);
         return;

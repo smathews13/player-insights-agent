@@ -59,6 +59,17 @@ describe('Runtime settings in the Settings gear', () => {
     expect(source).toContain('As the agent ranks them');
     expect(source).toContain('Auto from the data shape');
     expect(source).toContain('aria-label="Timezone (IANA name)"');
+    expect(source).toContain('placeholder="Example: America/Los_Angeles"');
+    expect(source).toContain('Changes how the agent writes the takeaway.');
+  });
+
+  it('gives every entity its own editable style and rendering token', () => {
+    for (const kind of ['catalog', 'schema', 'table', 'column', 'quote', 'tag']) {
+      expect(source).toContain(`'${kind}'`);
+    }
+    expect(source).toContain('entityStyles');
+    expect(source).toContain('Six-digit hex color.');
+    expect(source).toContain('shared CSS variables used by Ask and Run Explorer');
   });
 
   /**

@@ -81,12 +81,6 @@ to `/Shared/player-insights-agent`; override either when needed.
 The `super:` prefix gives the initial administrator permission to persist a
 second super administrator before the first Deploy-from-Git update.
 
-Validate after saving the file:
-
-```bash
-databricks bundle validate -t customer --profile <their-profile>
-```
-
 `data_catalogs` is the complete read boundary. A catalog name includes all of
 its non-system schemas; `catalog.schema` limits the boundary to one schema.
 The app schema is separate and holds only app-owned objects.
@@ -99,20 +93,43 @@ discovering the tables instead of typing them does not widen the read boundary.
 Adding a table to a Genie space therefore changes the agent's grants, and takes
 effect at the next model re-log.
 
-Use the same three commands for the demo workspace and customer deployments. Release the model
-endpoint first because the App attaches to it; then the single bundle deploy
-creates or updates every bundle-owned resource, including the App; finally
-release the app code:
+Use the same three commands for the demo workspace and customer deployments. The wrapper runs
+one complete, interactive bundle deploy: it does not require a separate
+`bundle plan`, never auto-approves changes, refuses stale local Lakebase state,
+and includes the App. Then release the model and app code:
 
 ```bash
-TARGET=customer PROFILE='<your-profile>' bundle/agent-release.sh --apply
-databricks bundle deploy -t customer --profile '<your-profile>'
-TARGET=customer PROFILE='<your-profile>' bundle/app-release.sh --apply
+TARGET=customer PROFILE='<your-profile>' bash bundle/deploy.sh
+TARGET=customer PROFILE='<your-profile>' bash bundle/agent-release.sh --apply
+TARGET=customer PROFILE='<your-profile>' bash bundle/app-release.sh --apply
 ```
 
 For the demo workspace, replace `customer` with `example` and use its profile. Do not create the
 App by hand, exclude it with `--select`, or use the Terraform engine as a
 separate deployment path.
+
+The first command preserves existing tags while adding `astrolabe=true` to the
+attached Lakebase project and SQL warehouse, plus the AI Search endpoint when
+configured. The agent release applies the same tag to the registered model and
+serving endpoint. AI Search indexes expose no custom-tag field or patch API;
+their billed compute is attributed through their tagged endpoint.
+
+### Deployment landmines
+
+| Issue | How this process avoids it |
+| --- | --- |
+| CLI 1.11/1.12.1 App-create crash in `OverrideChangeDesc` when `telemetry_export_destinations: []` is rendered | Customer targets omit the optional field. The complete bundle deploy creates the App; Terraform is not presented as an alternate engine because Apps still use the direct engine. |
+| Old state still owns Lakebase while current YAML only attaches it | `bundle/deploy.sh` refuses a local `resources.json` that still tracks `postgres_projects`, `postgres_branches`, or `postgres_databases`. Migrate those entries out of state before deploying; never use `--auto-approve`. |
+| A crashed deploy leaves a stale lock | Retry with `--force-lock` only after confirming no deploy is live: set `PIA_CONFIRMED_NO_LIVE_DEPLOY=true` and pass `--force-lock` to the wrapper. |
+| `--select` values were passed with spaces | The happy path uses no selection. If debugging the CLI separately, its selection list is comma-separated. |
+| Public clones have no `node_modules`, so `tsc` exits 127 | `app-release.sh` runs `npm ci` automatically when `node_modules` is absent, before `npm run build:deploy`. |
+| One empty schema caused `preflight.ScopeError`; one deployment also exceeded its table budget | Empty schemas inside a usable catalog are skipped. The 90-table ceiling remains a release guard; narrow that deployment in its git-ignored overrides rather than adding customer-specific schemas to bundle defaults. |
+| A newly created App's compute is `STOPPED` | `app-release.sh` starts compute before its first code deploy. |
+| Recreating a deleted App gives it a new service principal | Set `lakebase_app_schema` to a new unused schema; the ownership gate refuses the old schema rather than trying to steal it. |
+| Lakebase binding id is `databricks-postgres`, while its live PostgreSQL database name may be `databricks_postgres` | Keep the binding id unchanged. The grant step resolves the live PostgreSQL name from Lakebase before connecting. |
+| First OBO request returns HTTP 400 `Unable to authenticate using user_credentials` | Treat it as user consent/session state: restart after scope changes and have the user consent again. Repeating the bundle deploy does not repair an old token. |
+| Additional users cannot run the attached Genie spaces | Grant every user or group `CAN RUN` on both spaces. No customer names are hardcoded. |
+| A restored old Lakebase project keeps billing | Inventory and delete the orphan explicitly after recovery. This is operator cleanup, not part of the normal deployment path. |
 
 ## How the app gets onto the workspace, and how it is updated
 
@@ -166,7 +183,7 @@ touch the rest of the stack.
 3. Confirm the Git settings (set once; re-check if the UI clears them):
 
    | Setting | Value |
-   |---|---|
+   | --- | --- |
    | Repository | `https://github.com/smathews13/player-insights-agent` |
    | Provider | **GitHub** |
    | Branch / reference | **`main`** (Reference type **Branch**) |

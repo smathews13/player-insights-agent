@@ -14,6 +14,7 @@ import { answerBlocks, answerInline, type Block, type Inline } from './answer-ma
 import { splitSourceName } from './source-rows';
 import { readPreflightOnce } from './agent-readiness';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
+import { useRuntimeEntityStyles } from './runtime-entity-styles';
 
 /**
  * The rendering half of "an answer names a table, the reader can go and see it".
@@ -38,6 +39,7 @@ async function readTrackedTables(): Promise<string[]> {
 }
 
 export function useTrackedTables(): string[] {
+  useRuntimeEntityStyles();
   const [tables, setTables] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
@@ -103,7 +105,7 @@ export function EntityLink({ entity, children }: { entity: string; children: Rea
       to={entityHref(entity)}
       data-entity={entity}
       title={`${entity}, see it on Connections`}
-      className="text-primary font-medium underline decoration-dotted decoration-1 underline-offset-2 hover:decoration-solid"
+      className="entity-table text-primary font-medium underline decoration-dotted decoration-1 underline-offset-2 hover:decoration-solid"
     >
       {children}
     </Link>
@@ -126,7 +128,29 @@ export function EntityLink({ entity, children }: { entity: string; children: Rea
  * came out at 700, and neither would be a decision anyone made.
  */
 export function EntityMark({ children }: { children: ReactNode }) {
-  return <span className="entity-mark font-semibold">{children}</span>;
+  return <span className="entity-mark entity-column font-semibold">{children}</span>;
+}
+
+function EntityParts({ text, entity }: { text: string; entity: string }) {
+  const full = entity.split('.');
+  const shown = text.split('.');
+  const offset = Math.max(0, full.length - shown.length);
+  return (<>
+      {shown.map((part, index) => {
+        const fullIndex = offset + index;
+        const kind = fullIndex === 0 && full.length >= 3
+          ? 'catalog'
+          : fullIndex === full.length - 2 && full.length >= 2
+            ? 'schema'
+            : 'table';
+        return (<Fragment key={`${index}-${part}`}>
+            {index > 0 ? '.' : null}
+            <span className={`entity-token entity-${kind}`}>{part}</span>
+          </Fragment>
+        );
+      })}
+    </>
+  );
 }
 
 /**
@@ -177,7 +201,7 @@ function ProseRuns({ runs }: { runs: readonly ProseSegment[] }) {
       {runs.map((run) => {
         if (run.entity)
           return (<EntityLink entity={run.entity} key={run.start}>
-              {run.text}
+              <EntityParts text={run.text} entity={run.entity} />
             </EntityLink>
           );
         if (run.emphasis) return <EntityMark key={run.start}>{run.text}</EntityMark>;
@@ -203,7 +227,7 @@ function InlineNodes({ nodes }: { nodes: readonly Inline[] }) {
           case 'text':
             return <ProseRuns runs={node.runs} key={node.start} />;
           case 'code':
-            return (<code className="answer-code" key={node.start}>
+            return (<code className="answer-code entity-quote" key={node.start}>
                 <ProseRuns runs={node.runs} />
               </code>
             );

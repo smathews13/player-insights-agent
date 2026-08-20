@@ -412,6 +412,7 @@ if version is None:
     )
 version = str(version)
 client = MlflowClient(registry_uri="databricks-uc")
+client.set_registered_model_tag(model_name, "astrolabe", "true")
 client.set_registered_model_alias(model_name, "prod", version)
 print(
     json.dumps(

@@ -722,8 +722,8 @@ export function ArchitecturePage() {
             </RailRow>
             <RailStep label="invoke" />
             <RailRow accent="agent" title="Orchestrator on Model Serving">
-              Plans with the foundation model, resolves terms in the Dictionary Genie, asks the Data
-              Genie for metrics, optionally searches the semantic index.
+              Always owns the run. It plans and writes the answer, optionally delegates governed
+              discovery to the Data Source Finder, and may search the semantic index.
             </RailRow>
             <RailStep label="generated SQL" />
             <RailRow accent="governed" badge="Governed" title="SQL warehouse to Unity Catalog">

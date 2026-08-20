@@ -889,6 +889,34 @@
   vertical-align: bottom;
   white-space: nowrap;
 }
+.trace-dag.map .dag-inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: inherit;
+  background: var(--ast-fill-band);
+  border-radius: 3px;
+  padding: 0 3px;
+  white-space: normal;
+}
+/* One shared default for qualified Unity Catalog names. Settings may override
+   these later; until then catalog is dark blue, schema light blue, table gray. */
+.trace-dag.map .dag-entity-name {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  white-space: nowrap;
+  background: transparent;
+}
+.trace-dag.map .dag-entity-catalog {
+  color: var(--ast-info-text);
+  font-weight: 700;
+}
+.trace-dag.map .dag-entity-schema {
+  color: var(--ast-blue);
+}
+.trace-dag.map .dag-entity-table {
+  color: var(--ast-text-secondary);
+  font-weight: 600;
+}
 /*
  * The question a step was asked.
  *

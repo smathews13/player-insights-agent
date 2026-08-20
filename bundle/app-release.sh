@@ -111,20 +111,21 @@ Dry run. Nothing was built or deployed. Re-run with --apply to:
      attached to the live app. THIS ONE STOPS THE RELEASE before anything is
      built. ~7s, two workspace reads.
      Run it now, without releasing:  TARGET=$TARGET bundle/release-gate.sh
-  1. resolve the MLflow experiment id for '$TARGET' out of the bundle
-  2. npm run build:deploy        (vite client build + esbuild server bundle)
-  3. print the findings of any local advisory checks this tree carries.
+  1. install exact package-lock dependencies with npm ci when node_modules is absent
+  2. resolve the MLflow experiment id for '$TARGET' out of the bundle
+  3. npm run build:deploy        (vite client build + esbuild server bundle)
+  4. print the findings of any local advisory checks this tree carries.
      They never gate this release.
-  4. check the app owns its Postgres schema. THIS ONE STOPS THE RELEASE, before
+  5. check the app owns its Postgres schema. THIS ONE STOPS THE RELEASE, before
      anything is uploaded: ownership cannot be repaired by a later deploy.
-  5. resolve the app role, direct Lakebase branch host, Postgres database and
+  6. resolve the app role, direct Lakebase branch host, Postgres database and
      operator role from the live bundle resources, then run
      scripts/grant-app-db-access.mjs. This STOPS the release on failure.
-  6. databricks workspace import-dir build/deploy $SRC_PATH --overwrite
-  7. databricks apps deploy $APP_NAME --source-code-path $SRC_PATH
-  8. fail if a declared OAuth scope is not in effect. The code is deployed by
+  7. databricks workspace import-dir build/deploy $SRC_PATH --overwrite
+  8. databricks apps deploy $APP_NAME --source-code-path $SRC_PATH
+  9. fail if a declared OAuth scope is not in effect. The code is deployed by
      then; the app needs a stop/start, which this prints.
-  9. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
+ 10. restore player-insights-agent/build/deploy/app.yaml, which the build wrote
      this deployment's administrators and experiment id into. Tracked file, and
      it publishes; nothing to remember afterwards.
 
@@ -176,6 +177,14 @@ else
   note "the upload. Establish them by hand if this deployment matters:"
   note "'databricks apps get $APP_NAME -o json' shows the resources and the"
   note "effective scopes."
+fi
+
+# Public customer clones deliberately carry no node_modules. Install the locked
+# dependency tree before invoking TypeScript or Vite rather than failing with
+# `tsc: command not found` halfway through an app release.
+if [[ ! -d "$APP_DIR/node_modules" ]]; then
+  step "Installing locked app build dependencies"
+  (cd "$APP_DIR" && npm ci)
 fi
 
 # Run Explorer deep-links a stored trace into MLflow, which needs the experiment's

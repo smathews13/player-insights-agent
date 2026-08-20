@@ -255,6 +255,29 @@ describe('a dictionary_genie step', () => {
   });
 });
 
+describe('rendered markdown results', () => {
+  it('renders a heading, markdown table, and bold answer instead of leftover syntax', () => {
+    const markup = result(panel({
+      id: 'synthesis',
+      kind: 'agent',
+      name: 'Prepared the answer',
+      output: '# DSF Result\n\n| catalog.schema.table | players |\n| --- | ---: |\n| catalog.schema.players | 12,000 |\n\n**Prepared the answer.**',
+    }));
+    expect(markup).toContain('class="dag-md-head"');
+    expect(markup).toContain('<table>');
+    expect(markup).toContain('<strong>Prepared the answer.</strong>');
+    expect(markup).not.toContain('| --- |');
+    expect(markup).not.toContain('**Prepared');
+  });
+
+  it('does not turn a whole prose block into one blue identifier chip', () => {
+    const long = '`This is an entire paragraph with spaces and enough content that it must remain readable code, not a chip.`';
+    const markup = result(panel({ id: 'synthesis', kind: 'agent', output: long }));
+    expect(markup).toContain('class="dag-inline-code"');
+    expect(markup).not.toContain('class="dag-name-chip"');
+  });
+});
+
 describe('a search_semantics step', () => {
   const markup = panel({
     id: 'step-2-1-search_semantics',

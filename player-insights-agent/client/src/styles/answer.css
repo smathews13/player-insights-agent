@@ -12,11 +12,53 @@
    with the page's gradient, and the radius comes down to the 8px a card takes,
    from AppKit's 12px, which is a third radius the handoff collapses away. */
 .answer-card {
+  --entity-catalog-fg: #ffffff;
+  --entity-catalog-bg: #0e538b;
+  --entity-schema-fg: #16324f;
+  --entity-schema-bg: #ddeaf4;
+  --entity-table-fg: #3a3838;
+  --entity-table-bg: #e8e8e8;
+  --entity-column-fg: #3a3838;
+  --entity-column-bg: #f4f4f4;
+  --entity-quote-fg: #46596b;
+  --entity-quote-bg: #f7f7f7;
+  --entity-tag-fg: #ffffff;
+  --entity-tag-bg: #243746;
   border: 1px solid var(--ast-hairline);
   border-top: 3px solid var(--ast-blue);
   border-radius: var(--ast-radius-card);
   box-shadow: none;
   margin-bottom: 26px;
+}
+
+.entity-token {
+  padding: 1px 3px;
+  text-decoration: inherit;
+}
+.entity-catalog {
+  color: var(--entity-catalog-fg);
+  background: var(--entity-catalog-bg);
+}
+.entity-schema {
+  color: var(--entity-schema-fg);
+  background: var(--entity-schema-bg);
+}
+.entity-table {
+  color: var(--entity-table-fg);
+  background: var(--entity-table-bg);
+}
+.entity-column {
+  color: var(--entity-column-fg);
+  background: var(--entity-column-bg);
+  padding: 1px 3px;
+}
+.entity-quote {
+  color: var(--entity-quote-fg);
+  background: var(--entity-quote-bg);
+}
+.answer-card .provenance-chip {
+  color: var(--entity-tag-fg);
+  background: var(--entity-tag-bg);
 }
 /* A plan is the one card that is waiting on the user, so it is the most emphatic
    thing in the transcript until it resolves: a heavier blue edge and a wash, blue

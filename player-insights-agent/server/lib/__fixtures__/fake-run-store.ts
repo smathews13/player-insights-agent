@@ -103,6 +103,9 @@ export class FakeStore implements LakebaseReader {
     if (/UPDATE player_insights\.runs[\s\S]*lease_expires_at = NOW\(\)/i.test(text)) {
       return { rows: this.heartbeat(params) };
     }
+    if (/FROM player_insights\.runs[\s\S]*WHERE conversation_id = \$1 AND user_email = \$2/i.test(text)) {
+      return { rows: this.latestConversationRun(params) };
+    }
     if (/SELECT[\s\S]*FROM player_insights\.runs WHERE run_id/i.test(text)) return { rows: this.read(params) };
     if (/FROM player_insights\.messages m/i.test(text)) return { rows: this.readMessage(params) };
     if (/INSERT INTO player_insights\.run_attempts/i.test(text)) return { rows: this.insertAttempt(params) };
@@ -218,6 +221,14 @@ export class FakeStore implements LakebaseReader {
     const [runId, email] = params as string[];
     const run = this.runs.find((row) => row.run_id === runId && row.user_email === email);
     return run ? [{ ...run }] : [];
+  }
+
+  private latestConversationRun(params: unknown[]): Record<string, unknown>[] {
+    const [conversationId, email] = params as string[];
+    const runs = this.runs
+      .filter((row) => row.conversation_id === conversationId && row.user_email === email)
+      .sort((a, b) => b.created_at - a.created_at);
+    return runs.length > 0 ? [{ ...runs[0] }] : [];
   }
 
   /**

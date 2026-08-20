@@ -33,11 +33,13 @@ import { UserIdentityChip } from './UserIdentityChip';
 
 export function RunHeader({
   run,
+  title,
   toolCalls,
   reference,
   groundedness,
 }: {
   run: Run | null;
+  title?: string;
   /** The agent's own call counter, from the trace rather than from the row. */
   toolCalls: number | null;
   reference: boolean;
@@ -47,7 +49,7 @@ export function RunHeader({
   const family = statusFamily(run?.status);
   return (<div className="run-detail-head">
       <div className="min-w-0">
-        <h3 className="run-detail-title">{run ? runLabel(run) : 'Select a run'}</h3>
+        <h3 className="run-detail-title">{run ? (title ?? runLabel(run)) : 'Select a run'}</h3>
         {/* Only when there is a run to describe. With nothing selected this row
             used to carry "Pick a run from the list to inspect its trace." -- the
             same sentence the empty state below it prints, under a heading that

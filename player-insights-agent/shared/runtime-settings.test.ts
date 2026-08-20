@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RUNTIME_SETTINGS, RuntimeSettingsSchema } from './runtime-settings';
+import { DEFAULT_RUNTIME_SETTINGS, RuntimeSettingsSchema, runtimeEntityCssVariables } from './runtime-settings';
 
 describe('runtime settings contract', () => {
   it('keeps the current agent behavior as its defaults', () => {
@@ -8,6 +8,17 @@ describe('runtime settings contract', () => {
       maxSteps: 8,
       maxToolCalls: 12,
       maxRunSeconds: 90,
+    });
+  });
+
+  it('ships distinct shared answer entity tokens', () => {
+    expect(DEFAULT_RUNTIME_SETTINGS.entityStyles.catalog.background).toBe('#0e538b');
+    expect(DEFAULT_RUNTIME_SETTINGS.entityStyles.schema.background).toBe('#ddeaf4');
+    expect(DEFAULT_RUNTIME_SETTINGS.entityStyles.table.background).toBe('#e8e8e8');
+    expect(runtimeEntityCssVariables(DEFAULT_RUNTIME_SETTINGS)).toMatchObject({
+      '--entity-catalog-bg': '#0e538b',
+      '--entity-schema-bg': '#ddeaf4',
+      '--entity-table-bg': '#e8e8e8',
     });
   });
 

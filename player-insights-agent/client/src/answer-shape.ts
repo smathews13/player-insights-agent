@@ -98,6 +98,7 @@ export interface WireAnswer {
   provenance?: unknown;
   takeaway?: unknown;
   narrative?: unknown;
+  content?: unknown;
   figures?: unknown;
   charts?: unknown;
   sources?: unknown;
@@ -340,6 +341,7 @@ export interface NormalizedAnswer {
   provenance?: AnswerProvenance;
   takeaway: string;
   narrative: string;
+  content?: string;
   figures: Figure[];
   charts?: unknown;
   sources: SourceRef[];
@@ -393,6 +395,7 @@ export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
     mode: raw.mode === 'live' ? 'live' : 'representative',
     takeaway: asString(raw.takeaway, 'The agent returned an answer with no summary line.'),
     narrative: asString(raw.narrative),
+    content: asString(raw.content),
     figures: normalizeFigures(raw.figures),
     sources: normalizeSources(raw.sources),
     caveats: normalizeCaveats(raw.caveats),

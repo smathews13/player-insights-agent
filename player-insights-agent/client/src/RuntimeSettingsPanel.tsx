@@ -17,12 +17,14 @@ import { Lock } from 'lucide-react';
  */
 function AnswerRow({
   label,
+  description,
   checked,
   editable,
   onToggle,
   children,
 }: {
   label: string;
+  description: string;
   checked: boolean;
   editable: boolean;
   onToggle: (checked: boolean) => void;
@@ -31,7 +33,10 @@ function AnswerRow({
   return (
     <div className="runtime-answer-row">
       <div className="runtime-answer-head">
-        <span className="runtime-answer-name">{label}</span>
+        <span>
+          <span className="runtime-answer-name">{label}</span>
+          <span className="runtime-control-note">{description}</span>
+        </span>
         <Switch checked={checked} disabled={!editable} onCheckedChange={onToggle} aria-label={label} />
       </div>
       {checked && children ? <div className="runtime-answer-body">{children}</div> : null}
@@ -69,13 +74,23 @@ export function RuntimeSettingsPanel() {
   const setAnswer = <K extends keyof RuntimeSettings['answer']>(key: K, value: RuntimeSettings['answer'][K]) =>
     setSettings((current) => ({ ...current, answer: { ...current.answer, [key]: value } }));
 
-  const number = (label: string, value: number, min: number, max: number, update: (value: number) => void) => (
+  const number = (
+    label: string,
+    description: string,
+    example: string,
+    value: number,
+    min: number,
+    max: number,
+    update: (value: number) => void,
+  ) => (
     <label className="runtime-field">
       <span className="runtime-field-label">{label}</span>
+      <span className="runtime-control-note">{description}</span>
       <Input
         type="number"
         aria-label={label}
         value={value}
+        placeholder={example}
         min={min}
         max={max}
         disabled={!editable}
@@ -84,16 +99,22 @@ export function RuntimeSettingsPanel() {
     </label>
   );
 
-  const guidance = (label: string, value: string, update: (value: string) => void) => (
+  const guidance = (
+    label: string,
+    description: string,
+    example: string,
+    value: string,
+    update: (value: string) => void,
+  ) => (
     <label className="runtime-field runtime-field-wide">
       <span className="runtime-field-label">{label}</span>
-      {/* Ships empty, no placeholder prose: an example in the box reads as a
-          value already set, and this text goes to the agent verbatim. */}
+      <span className="runtime-control-note">{description}</span>
       <textarea
         className="runtime-guidance"
         aria-label={label}
         rows={2}
         value={value}
+        placeholder={example}
         disabled={!editable}
         onChange={(event) => update(event.target.value)}
       />
@@ -131,9 +152,9 @@ export function RuntimeSettingsPanel() {
         <section className="runtime-section">
           <h3 className="runtime-section-label">Loop structure</h3>
           <div className="runtime-loop-row">
-            {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (v) => setLoop('maxSteps', v))}
-            {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (v) => setLoop('maxToolCalls', v))}
-            {number('Run budget (s)', settings.loop.maxRunSeconds, 30, 180, (v) => setLoop('maxRunSeconds', v))}
+            {number('Max DSF steps', 'Limits how many reasoning passes one ask may take.', 'Example: 8', settings.loop.maxSteps, 1, 20, (v) => setLoop('maxSteps', v))}
+            {number('Max tool calls', 'Limits how many data and metadata calls one ask may make.', 'Example: 12', settings.loop.maxToolCalls, 1, 40, (v) => setLoop('maxToolCalls', v))}
+            {number('Run budget (s)', 'Stops new work after this many seconds.', 'Example: 90', settings.loop.maxRunSeconds, 30, 180, (v) => setLoop('maxRunSeconds', v))}
           </div>
           <p className="runtime-footnote">Bounds the Data Source Finder loop. The agent boundary does not change.</p>
         </section>
@@ -146,34 +167,38 @@ export function RuntimeSettingsPanel() {
 
           <AnswerRow
             label="Takeaway"
+            description="Shows or hides the decision-ready lead sentence."
             checked={settings.answer.takeaway}
             editable={editable}
             onToggle={(v) => setAnswer('takeaway', v)}
           >
-            {guidance('Guidance', settings.answer.takeawayGuidance, (v) => setAnswer('takeawayGuidance', v))}
+            {guidance('Guidance', 'Changes how the agent writes the takeaway.', 'Example: Lead with the recommended decision.', settings.answer.takeawayGuidance, (v) => setAnswer('takeawayGuidance', v))}
           </AnswerRow>
 
           <AnswerRow
             label="Narrative"
+            description="Shows or hides the explanatory story behind the result."
             checked={settings.answer.narrative}
             editable={editable}
             onToggle={(v) => setAnswer('narrative', v)}
           >
-            {guidance('Guidance', settings.answer.narrativeGuidance, (v) => setAnswer('narrativeGuidance', v))}
-            {number('Character cap (0 = uncapped)', settings.answer.narrativeMaxCharacters, 0, 12_000, (v) =>
+            {guidance('Guidance', 'Changes how the agent explains its evidence.', 'Example: Name the source beside each finding.', settings.answer.narrativeGuidance, (v) => setAnswer('narrativeGuidance', v))}
+            {number('Character cap (0 = uncapped)', 'Trims only the narrative after this many characters.', 'Example: 1200', settings.answer.narrativeMaxCharacters, 0, 12_000, (v) =>
               setAnswer('narrativeMaxCharacters', v)
             )}
           </AnswerRow>
 
           <AnswerRow
             label="Figures"
+            description="Shows or hides the numeric result breakdown."
             checked={settings.answer.figures}
             editable={editable}
             onToggle={(v) => setAnswer('figures', v)}
           >
-            {number('Max figures', settings.answer.maxFigures, 0, 12, (v) => setAnswer('maxFigures', v))}
+            {number('Max figures', 'Caps the numeric highlights returned with an answer.', 'Example: 6', settings.answer.maxFigures, 0, 12, (v) => setAnswer('maxFigures', v))}
             <label className="runtime-field">
               <span className="runtime-field-label">Order</span>
+              <span className="runtime-control-note">Changes which numeric highlights appear first.</span>
               <select
                 className="runtime-select"
                 aria-label="Order"
@@ -192,13 +217,15 @@ export function RuntimeSettingsPanel() {
 
           <AnswerRow
             label="Charts"
+            description="Shows or hides visualizations built from returned data."
             checked={settings.answer.charts}
             editable={editable}
             onToggle={(v) => setAnswer('charts', v)}
           >
-            {number('Max charts', settings.answer.maxCharts, 0, 6, (v) => setAnswer('maxCharts', v))}
+            {number('Max charts', 'Caps the charts built for one answer.', 'Example: 2', settings.answer.maxCharts, 0, 6, (v) => setAnswer('maxCharts', v))}
             <label className="runtime-field">
               <span className="runtime-field-label">Types</span>
+              <span className="runtime-control-note">Limits which chart shapes the agent may choose.</span>
               <select
                 className="runtime-select"
                 aria-label="Types"
@@ -217,21 +244,23 @@ export function RuntimeSettingsPanel() {
 
           <AnswerRow
             label="Analyst caveats"
+            description="Shows or hides concise limitations that affect interpretation."
             checked={settings.answer.caveats}
             editable={editable}
             onToggle={(v) => setAnswer('caveats', v)}
           >
-            {number('Max caveats (0 = all)', settings.answer.maxCaveats, 0, 20, (v) => setAnswer('maxCaveats', v))}
+            {number('Max caveats (0 = all)', 'Caps displayed limitations without weakening safeguards.', 'Example: 3', settings.answer.maxCaveats, 0, 20, (v) => setAnswer('maxCaveats', v))}
             <p className="runtime-footnote">Governance and outage warnings always remain.</p>
           </AnswerRow>
         </section>
 
-        <section className="runtime-section runtime-section-last">
+        <section className="runtime-section">
           <h3 className="runtime-section-label">Timezone (IANA name)</h3>
           <Input
             className="runtime-timezone"
             aria-label="Timezone (IANA name)"
             value={settings.behavior.timezone}
+            placeholder="Example: America/Los_Angeles"
             disabled={!editable}
             onChange={(event) =>
               setSettings((current) => ({
@@ -240,6 +269,41 @@ export function RuntimeSettingsPanel() {
               }))
             }
           />
+          <p className="runtime-control-note">Changes how relative dates such as “yesterday” are resolved.</p>
+        </section>
+
+        <section className="runtime-section runtime-section-last runtime-entity-section">
+          <h3 className="runtime-section-label">Answer entity styling</h3>
+          <p className="runtime-footnote">These colors become shared CSS variables used by Ask and Run Explorer.</p>
+          {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => (
+            <div className="runtime-entity-row" key={kind}>
+              <div>
+                <span className="runtime-answer-name">{kind[0].toUpperCase() + kind.slice(1)}</span>
+                <span className="runtime-control-note">Changes this entity’s text and highlight colors in answers.</span>
+              </div>
+              {(['foreground', 'background'] as const).map((property) => (
+                <label className="runtime-field" key={property}>
+                  <span className="runtime-field-label">{property === 'foreground' ? 'Text' : 'Highlight'}</span>
+                  <span className="runtime-control-note">Six-digit hex color.</span>
+                  <Input
+                    aria-label={`${kind} ${property}`}
+                    value={settings.entityStyles[kind][property]}
+                    placeholder={property === 'foreground' ? 'Example: #ffffff' : 'Example: #0e538b'}
+                    disabled={!editable}
+                    onChange={(event) =>
+                      setSettings((current) => ({
+                        ...current,
+                        entityStyles: {
+                          ...current.entityStyles,
+                          [kind]: { ...current.entityStyles[kind], [property]: event.target.value },
+                        },
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          ))}
         </section>
 
         <div className="runtime-foot">

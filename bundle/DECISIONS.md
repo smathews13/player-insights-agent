@@ -366,6 +366,57 @@ decision is for is the review comment "the guide asked for an icon here and ther
 isn't one" -- the answer is that the row it belongs to was never built, and
 building one to hold a logo is the mistake this records.
 
+### D15. The app holds no sign-in of its own, and follows the one Databricks hands it
+
+**Decided 2026-08-19.** A reader's identity provider session timed out and asked
+him to sign in again, while this app went on showing him signed in. The two
+reflex fixes are to give the app its own session with a shorter clock, or a hook
+that ends the app's sign-in when the identity provider ends its own. Both are
+refused, for different reasons.
+
+**There is no session here to shorten.** No session middleware, no cookie the app
+sets, nothing stored about a sign-in. Every request's identity is read off the
+`x-forwarded-email` and `x-forwarded-access-token` headers Databricks Apps puts
+on it, and read again on the next request. A deployed request that arrives
+without them is refused 401 `identity_unavailable` before a statement is composed
+(`requireIdentity` in `server/routes/insights-routes.ts`, pinned by
+`server/routes/identity-boundary.test.ts`), and a forwarded token past its own
+expiry is refused as `USER_AUTH_REJECTED` (`server/lib/identity-subject.ts`).
+Server side the app is already exactly as short-lived as the sign-in it is given.
+The one cookie in the tree is AppKit's `dev-tunnel-id`, which exists only in the
+development server, carries no credential and grants nothing.
+
+**What outlived the sign-in was a page, not a session.** `useIdentity` in
+`client/src/app-state.ts` reads `/api/identity` once when the app opens and holds
+that answer for the life of the loaded tab, so a tab left open all morning still
+shows the name it was given at breakfast. That is a display gone stale. Nothing
+that reads governed data believes it, and the first request that tab makes is
+authorised from headers or refused.
+
+**And the app cannot see the identity provider.** Databricks Apps forwards a
+Databricks token and says nothing about the identity provider session behind it.
+An app that logged somebody out on the grounds that their identity provider had
+would be asserting something it never read, which is D10.
+
+**Where the clocks actually live,** because this is the question the complaint is
+really asking:
+
+- The identity provider's own session policy. Databricks defers to it: there is
+  no workspace setting for how long a browser session lasts.
+- The account-level OAuth token lifetime policy, `token_access_policy`, whose
+  `absolute_session_lifetime_in_minutes` is the cap on how long somebody stays
+  signed in without re-authenticating. An account admin sets it.
+- Nothing on the app. `databricks apps create` has no session or time-to-live
+  option, and neither has the app resource in the bundle.
+
+So aligning the two is an administrator changing the identity provider session
+policy and the Databricks OAuth session policy together. The app follows
+whatever those two agree on, which is the whole of its job here.
+
+**Displayed only.** Nothing can check for the absence of a session. What this
+entry is for is the change that adds `express-session` with a short `maxAge`, or
+an identity provider hook, in answer to this complaint.
+
 ---
 
 ## Decisions recorded elsewhere, not repeated here

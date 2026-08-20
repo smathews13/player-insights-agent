@@ -47,9 +47,9 @@ quoted wherever you pass it.
 
 ## Deployment order on a fresh workspace
 
-Internal and customer targets use the same sequence. Release the serving
-endpoint first because the App attaches to it; the bundle itself then creates
-or updates every declared resource, including the App:
+Internal and customer targets use the same sequence. Start with one complete,
+interactive bundle reconciliation, including the App, then release the model
+and app code:
 
 0. Provision Lakebase (project / branch / database) and curate the two Genie
    spaces **outside** this bundle. Name them in
@@ -64,8 +64,8 @@ or updates every declared resource, including the App:
 1. Run the deployment:
 
    ```bash
+   TARGET=<target> PROFILE='<profile>' bash bundle/deploy.sh
    TARGET=<target> PROFILE='<profile>' bundle/agent-release.sh --apply
-   databricks bundle deploy -t <target> --profile '<profile>'
    TARGET=<target> PROFILE='<profile>' bundle/app-release.sh --apply
    ```
 
@@ -73,12 +73,13 @@ or updates every declared resource, including the App:
    Terraform-engine path. The App is bundle-owned; `app-release.sh` remains the
    code and database-grant release after the bundle creates it.
 
-If `bundle deploy` says its deployment lock is held after an earlier deploy
-crashed or was interrupted, first confirm no deploy is still running, then retry
-that same deploy with the CLI's stale-lock override:
+If the deploy says its lock is held after an earlier deploy crashed or was
+interrupted, first confirm no deploy is still running, then retry through the
+same wrapper with its guarded stale-lock override:
 
 ```bash
-databricks bundle deploy -t <target> --profile <profile> --force-lock
+PIA_CONFIRMED_NO_LIVE_DEPLOY=true TARGET=<target> PROFILE=<profile> \
+  bash bundle/deploy.sh --force-lock
 ```
 
 Do not make `--force-lock` the normal deploy command: it disables the protection
@@ -186,14 +187,14 @@ input fails validation when skipped; Genie sharing still requires review.
 | `app-release.sh` | Resolve the MLflow experiment id, build the dependency-free tree, gate on `app-db-grant.sh`, upload, and deploy. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` applies the same grant gate and re-points the app at a known-good source directory without rebuilding. |
 | `app-db-grant.sh` | Resolve the app role, direct branch host, database, operator role and app schema from the target and live resources, then run `scripts/grant-app-db-access.mjs`. Called by every app release; runnable directly after Lakebase reattach without a full release. |
 | `app-spec.sh` | Emit the complete app spec for a target, generated from `bundle validate` so it can only carry that target's own values. Prints by default; `--apply` sends it and verifies what the API kept. Recovery only: the bundle owns this resource. Refuses to write on a host mismatch, a Lakebase project absent from the workspace, a serving endpoint that does not exist, a lost load-bearing `user_api_scopes` entry, or a `sql-warehouse` resource with no id. There is no `--allow-missing-endpoint`. |
-| `plan-gate.sh` | Refuse a `bundle deploy` that would delete or replace a resource. **This one blocks** — unlike the advisory suites, which report and are swallowed. About two seconds, so chain it: `TARGET=<t> bundle/plan-gate.sh && databricks bundle deploy -t <t>`. Decision logic in `plan-gate.py`, proved by `plan-gate.test.sh`. |
+| `deploy.sh` | Run one complete interactive bundle deploy. Refuses `--auto-approve`, blocks stale local state that still owns Lakebase, and gates `--force-lock` on explicit confirmation that no deploy is live. It does not require `bundle plan`, which has crashed in affected CLI versions. |
 
 Identity split (do not re-introduce an app-SP Unity Catalog data gate on release):
 
 - **Signed-in user** — governed UC / Genie / SQL reads (`execution_identity: user-authorization`).
 - **App service principal** — app-owned Lakebase operational storage and non-data control-plane work only. Lakebase grants are checked after app creation (`scripts/grant-app-db-access.mjs`, `/api/storage`, app-release ownership), not by asking UC what the SP can `SELECT` on customer catalogs.
 
-## Before a later direct `bundle deploy`
+## Before a later bundle reconciliation
 
 The greenfield sequence includes one complete `bundle deploy`. For later
 resource-only reconciliation, that command can remove a resource. Two of them
@@ -203,20 +204,16 @@ registered model and app-owned semantic assets, and
 Both carry `prevent_destroy`, which stops `bundle destroy` and does **not** stop a
 `replace`.
 
-So run the gate and let `&&` do the deciding:
+Use the same wrapper. It checks the known Lakebase state hazard before invoking
+the CLI, then leaves the CLI's change list and confirmation visible:
 
 ```bash
-TARGET=<target> bundle/plan-gate.sh && databricks bundle deploy -t <target>
+TARGET=<target> PROFILE=<profile> bash bundle/deploy.sh
 ```
 
-`bundle deploy` prints its own plan and asks, so this is redundant in principle.
-In practice the twentieth deploy is read less carefully than the first. If a
-removal is intended, acknowledge it by name rather than skipping the gate:
-
-```bash
-TARGET=<target> PIA_PLAN_ALLOW_DESTROY=resources.jobs.some_retired_job \
-  bundle/plan-gate.sh && databricks bundle deploy -t <target>
-```
+Do not add `--auto-approve`: the prompt is where the operator checks for a
+delete or replacement. `bundle plan` is available for diagnosis but is not a
+required step in this process.
 
 ## Verifying a deployment
 

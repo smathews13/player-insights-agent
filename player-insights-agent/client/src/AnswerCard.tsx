@@ -227,6 +227,15 @@ export function AnswerCard({
           sources={answer.sources}
           columns={mentionedIdentifiers([answer.narrative])}
         />
+        {answer.content ? (<section className="answer-content" aria-label="Answer content">
+            <h3 className="answer-heading">Content</h3>
+            <AnswerProse
+              text={answer.content}
+              sources={answer.sources}
+              columns={mentionedIdentifiers([answer.content])}
+            />
+          </section>
+        ) : null}
         {/* Above the figure breakdown: the chart is the shape of the result, the figures
             beneath it are the numbers that shape is made of. Renders nothing when the
             answer carries no charts, which is every representative answer. */}
