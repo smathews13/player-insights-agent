@@ -169909,11 +169909,20 @@ function statementTimeoutSql(env = process.env) {
 var STATEMENT_TIMEOUT_CODE = "57014";
 
 // shared/app-schema.ts
-var DEFAULT_APP_SCHEMA = "player_insights";
+var DEFAULT_APP_SCHEMA = "astrolabe";
+var LEGACY_APP_SCHEMA = "player_insights";
 var APP_SCHEMA_ENV = "PLAYER_INSIGHTS_APP_SCHEMA";
+var APP_TARGET_ENV = "PLAYER_INSIGHTS_TARGET";
+var LAKEBASE_ENDPOINT_ENV = "LAKEBASE_ENDPOINT";
 function resolveAppSchema(env = process.env) {
   const fromEnv = (env[APP_SCHEMA_ENV] ?? "").trim();
-  return fromEnv || DEFAULT_APP_SCHEMA;
+  const bundleTarget = (env[APP_TARGET_ENV] ?? "").trim();
+  const lakebaseBound = Boolean((env[LAKEBASE_ENDPOINT_ENV] ?? "").trim());
+  if (!bundleTarget && lakebaseBound && (!fromEnv || fromEnv === LEGACY_APP_SCHEMA)) {
+    return DEFAULT_APP_SCHEMA;
+  }
+  if (!fromEnv) return LEGACY_APP_SCHEMA;
+  return fromEnv;
 }
 var APP_SCHEMA = resolveAppSchema();
 function appTable(name2) {
@@ -170027,12 +170036,18 @@ var GRANT_SCRIPT_ENV_VARS = [
 ];
 var GRANT_SCRIPT_PATH = "scripts/grant-app-db-access.mjs";
 var GRANT_HOOK_PATH = "bundle/app-db-grant.sh";
+var GIT_GRANT_COMMAND = [
+  "APP_ROLE=$(databricks apps get <app-name> --profile '<profile>' -o json | jq -r .service_principal_client_id)",
+  `databricks psql --project <lakebase-project-id> --profile '<profile>' -- -v app_role="$APP_ROLE" -c 'GRANT CREATE, CONNECT ON DATABASE <postgres-database-name> TO :"app_role";'`,
+  "databricks apps stop <app-name> --profile '<profile>'",
+  "databricks apps start <app-name> --profile '<profile>'"
+].join("\n");
 var GRANT_SCRIPT_COMMAND = [
   "TARGET=<target> PROFILE='<profile>' bundle/app-db-grant.sh",
   "databricks apps stop <app-name> --profile '<profile>'",
   "databricks apps start <app-name> --profile '<profile>'"
 ].join("\n");
-var GRANT_SCRIPT_WHY = `The app service principal does not exist until the app does. The canonical app release runs ${GRANT_HOOK_PATH} before every code deploy, deriving the direct branch host and the other inputs from the target and live resources; a failed grant stops the release. After a Lakebase detach/reattach without a full release, run that hook manually and restart the app so it can recreate a dropped AppKit cache schema (\`appkit\`) as owner.`;
+var GRANT_SCRIPT_WHY = `For Deploy from Git, grant CREATE and CONNECT on the bound Postgres database to the app service principal, then restart; the app creates and owns its \`astrolabe\` schema. The app service principal does not exist until the app does. The canonical bundle release runs ${GRANT_HOOK_PATH} before every code deploy, deriving the direct branch host and the other inputs from the target and live resources; a failed grant stops the release. After a Lakebase detach/reattach without a full release, run that hook manually and restart the app so it can recreate a dropped AppKit cache schema (\`appkit\`) as owner.`;
 var GRANT_SCRIPT_REMEDY = `Re-run the canonical app release, or run ${GRANT_HOOK_PATH} with TARGET and PROFILE after a Lakebase reattach. Its underlying ${GRANT_SCRIPT_PATH} requires ${GRANT_SCRIPT_ENV_VARS.length} resolved values (${GRANT_SCRIPT_ENV_VARS.join(", ")}). ` + GRANT_SCRIPT_WHY;
 var DEGRADED_ANSWER_MARKER = "This answer is degraded:";
 
@@ -170168,7 +170183,7 @@ function markOk(route, depth) {
     if (!health.connectionOkSinceFailure) {
       health.connectionOkSinceFailure = true;
       console.error(
-        `[lakebase] STILL UNAVAILABLE, but the endpoint answers: ${route} succeeded without reading through the player_insights schema, while the failing read (${health.lastError?.route}, code ${health.lastError?.code}) does. The connection and the credential are fine, so this is a privilege or schema problem and waiting will not fix it, run scripts/grant-app-db-access.mjs.`
+        `[lakebase] STILL UNAVAILABLE, but the endpoint answers: ${route} succeeded without reading through the ${APP_SCHEMA} schema, while the failing read (${health.lastError?.route}, code ${health.lastError?.code}) does. The connection and the credential are fine, so this is a privilege or schema problem and waiting will not fix it, run scripts/grant-app-db-access.mjs.`
       );
     }
     return;
@@ -170201,7 +170216,7 @@ function markUnavailable(route, error48, depth) {
     health.connectionOkSinceFailure = false;
     if (denied) {
       console.error(
-        `[lakebase] STORAGE UNAVAILABLE, SCHEMA GRANTS MISSING: ${route} was REFUSED by Postgres (code ${code}): ${message}. Previously ${healthyFor}. This is not an outage and waiting will not fix it: the endpoint answered and then declined the read, so the app's Postgres role has no privilege on the player_insights schema. Conversation storage is therefore unavailable and every route that reads it reports itself unavailable. ${GRANT_DENIED_LOG_REMEDY}`
+        `[lakebase] STORAGE UNAVAILABLE, SCHEMA GRANTS MISSING: ${route} was REFUSED by Postgres (code ${code}): ${message}. Previously ${healthyFor}. This is not an outage and waiting will not fix it: the endpoint answered and then declined the read, so the app's Postgres role has no privilege on the ${APP_SCHEMA} schema. Conversation storage is therefore unavailable and every route that reads it reports itself unavailable. ${GRANT_DENIED_LOG_REMEDY}`
       );
       return;
     }
@@ -170347,10 +170362,10 @@ function lakebaseStorageCheck() {
         name: name2,
         label: `Lakebase storage \xB7 ${database}`,
         status: "failed",
-        detail: `Postgres is answering and REFUSING the app's reads of the player_insights schema, so conversation storage is unavailable and the conversations, runs and benchmarks in the app cannot be listed at all. This is a privilege or schema problem, not an outage that will pass: the app's Postgres role has no grant on the schema, which is the state a deployment is in until ${GRANT_HOOK_PATH} has completed. Refused since ${snapshot.since}` + (snapshot.last_ok_at ? `; last successful read ${snapshot.last_ok_at}, so the grant existed and was lost.` : "; no read has ever succeeded, so the grant has most likely never been made."),
+        detail: `Postgres is answering and REFUSING the app's reads of the ${APP_SCHEMA} schema, so conversation storage is unavailable and the conversations, runs and benchmarks in the app cannot be listed at all. This is a privilege or schema problem, not an outage that will pass: the app's Postgres role has no grant on the schema, which is the state a deployment is in until ${GRANT_HOOK_PATH} has completed. Refused since ${snapshot.since}` + (snapshot.last_ok_at ? `; last successful read ${snapshot.last_ok_at}, so the grant existed and was lost.` : "; no read has ever succeeded, so the grant has most likely never been made."),
         checked_with: error48 ? `${error48.route} (code ${error48.code})` : "app Lakebase pool",
         duration_ms: 0,
-        error: error48 ? error48.message : "Postgres refused a read of the player_insights schema.",
+        error: error48 ? error48.message : `Postgres refused a read of the ${APP_SCHEMA} schema.`,
         remedy: {
           kind: "cli",
           statement: GRANT_SCRIPT_COMMAND,
@@ -170416,7 +170431,7 @@ function lakebaseStorageCheck() {
     }
     return {
       ...base,
-      detail: `The app reached its Postgres store successfully at ${snapshot.last_ok_at}, so the connection, the credential and its privileges on the player_insights schema are all good. Nothing has read content out of it yet (the watchdog probe deliberately does not count), so whether it holds any stored records is not known. Open Conversations or Run Explorer and this row will say which.`,
+      detail: `The app reached its Postgres store successfully at ${snapshot.last_ok_at}, so the connection, the credential and its privileges on the ${APP_SCHEMA} schema are all good. Nothing has read content out of it yet (the watchdog probe deliberately does not count), so whether it holds any stored records is not known. Open Conversations or Run Explorer and this row will say which.`,
       remedy: {
         kind: "sql",
         statement: counts,
@@ -173919,7 +173934,7 @@ var CONNECTED_RESOURCES = [
     label: "Lakebase schema",
     kind: "lakebase",
     changedBy: "app-redeploy",
-    arrivesBy: 'PLAYER_INSIGHTS_APP_SCHEMA, resolved from var.lakebase_app_schema at release time (authored default player_insights in app.yaml so a From-Git deploy still shows it). Created by the app on boot; Connections shows the live env value, never "not set".',
+    arrivesBy: "PLAYER_INSIGHTS_APP_SCHEMA, resolved from var.lakebase_app_schema at release time (a source-only Git deploy maps the legacy authored player_insights value to the app-owned astrolabe schema). Created by the app on boot; bundle targets keep their configured schema.",
     bundleVariable: "lakebase_app_schema",
     agentKey: null,
     appEnvVar: "PLAYER_INSIGHTS_APP_SCHEMA",
@@ -174361,10 +174376,9 @@ function appEnvironment() {
 var APP_DEFAULTS = {
   "judge-endpoint": DEFAULT_JUDGE_ENDPOINT,
   "shared-conversation-rail": "false",
-  // Same string as DEFAULT_APP_SCHEMA / var.lakebase_app_schema. Authored into
-  // app.yaml so From-Git deploys usually set the env; this fallback covers an
-  // older deploy tree that pre-dates the env and must never show "not set".
-  "lakebase-schema": DEFAULT_APP_SCHEMA
+  // The process-resolved value, not the legacy string authored into app.yaml.
+  // A direct Git deployment maps that old value to its app-owned schema.
+  "lakebase-schema": APP_SCHEMA
 };
 function namespaceInUse(checks) {
   const prefixes = /* @__PURE__ */ new Set();
@@ -174408,6 +174422,9 @@ function resourceStates(input) {
     } else if (resource.appEnvVar) {
       configured = environment[resource.appEnvVar] ?? "";
       configuredFrom = "app-environment";
+      if (resource.id === "lakebase-schema") {
+        configured = APP_SCHEMA;
+      }
       if (!configured && resource.id in APP_DEFAULTS) {
         configured = APP_DEFAULTS[resource.id];
         configuredFrom = "app-default";
@@ -180787,17 +180804,6 @@ async function setupInsightsRoutes(appkit) {
           approvedPlanId ? PLAN_APPROVAL_MESSAGE : prompt
         ]
       );
-      const refuseWithout = (missing) => {
-        console.error(
-          `[serving] Refusing to answer: ${missing} could not be read, so the agent would have been asked this question without the context it depends on.`
-        );
-        markResponse(res, noSubstitution("storage_unavailable"));
-        reply.status(503).json({
-          error: "context_unavailable",
-          missing: [missing],
-          message: `Your ${missing} could not be read just now, so this question was not sent to the agent: an answer without it could be confidently wrong. Storage is degraded; try again shortly.`
-        });
-      };
       const historyRead = await readStored(
         appkit,
         "POST /api/insights/ask (history)",
@@ -180809,10 +180815,6 @@ async function setupInsightsRoutes(appkit) {
          ) recent ORDER BY created_at`,
         [conversationId, email3]
       );
-      if (!historyRead.available) {
-        refuseWithout("conversation history");
-        return;
-      }
       const attachmentRead = await readStored(
         appkit,
         "POST /api/insights/ask (attachments)",
@@ -180820,12 +180822,19 @@ async function setupInsightsRoutes(appkit) {
          WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
         [conversationId, email3]
       );
-      if (!attachmentRead.available) {
-        refuseWithout("uploaded documents");
-        return;
+      const missingContext = [
+        ...historyRead.available ? [] : ["conversation history"],
+        ...attachmentRead.available ? [] : ["uploaded documents"]
+      ];
+      if (missingContext.length > 0) {
+        console.error(
+          `[serving] Answering without ${missingContext.join(" or ")} because Lakebase storage is unavailable. Only the current prompt is sent, and the answer will be marked not stored.`
+        );
       }
-      const historyResult = { rows: historyRead.rows };
-      const attachmentText = attachmentRead.rows.map((row2) => `## ${String(row2.filename)}
+      const historyRows = historyRead.available ? historyRead.rows : [];
+      const attachmentRows = attachmentRead.available ? attachmentRead.rows : [];
+      const historyResult = { rows: historyRows };
+      const attachmentText = attachmentRows.map((row2) => `## ${String(row2.filename)}
 ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHMENT_TEXT);
       const admission = await admitRun(appkit, {
         mode: resolveRunLedgerMode(process.env[RUN_LEDGER_MODE_ENV]),
@@ -180838,11 +180847,11 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           userEmail: email3,
           conversationId,
           prompt,
-          history: historyRead.rows.map((row2) => ({
+          history: historyRows.map((row2) => ({
             role: String(row2.role),
             content: String(row2.content)
           })),
-          attachments: attachmentRead.rows.map((row2) => ({
+          attachments: attachmentRows.map((row2) => ({
             filename: String(row2.filename),
             text: String(row2.extracted_text)
           })),
