@@ -83,6 +83,39 @@ bash "$WORK/hook-fails.sh" >/dev/null 2>&1 || hook_status=$?
 check "a failing hook does not change the exit status" "3" "$hook_status"
 check "a failing hook does not stop the next one" "ran" "$(cat "$WORK/after-failing-hook" 2>/dev/null || true)"
 
+echo
+echo "release serialization"
+mkdir -p "$WORK/locks"
+cat >"$WORK/lock-holder.sh" <<EOF
+set -euo pipefail
+source "$HERE/_lib.sh"
+acquire_run_lock "app-release-example-<your profile>"
+touch "$WORK/lock-ready"
+while [[ ! -e "$WORK/lock-stop" ]]; do sleep 0.05; done
+EOF
+cat >"$WORK/lock-contender.sh" <<EOF
+set -euo pipefail
+source "$HERE/_lib.sh"
+acquire_run_lock "app-release-example-<your profile>"
+EOF
+TMPDIR="$WORK/locks" bash "$WORK/lock-holder.sh" >"$WORK/holder-out" 2>&1 &
+holder_pid=$!
+for _ in {1..100}; do
+  [[ -e "$WORK/lock-ready" ]] && break
+  sleep 0.02
+done
+contender_status=0
+TMPDIR="$WORK/locks" bash "$WORK/lock-contender.sh" >"$WORK/contender-out" 2>&1 \
+  || contender_status=$?
+check "a concurrent release is refused" "1" "$contender_status"
+check "the refusal explains the user-facing risk" "1" \
+  "$(grep -c 'Refusing to race its build, upload, or deployment' "$WORK/contender-out" || true)"
+touch "$WORK/lock-stop"
+wait "$holder_pid"
+after_status=0
+TMPDIR="$WORK/locks" bash "$WORK/lock-contender.sh" >/dev/null 2>&1 || after_status=$?
+check "the lock is released when its owner exits" "0" "$after_status"
+
 # The property the release actually needs: a file the script modified is put back
 # even though the script failed afterwards.
 echo
@@ -111,7 +144,7 @@ check "restores a generated file after a failed release" "value: committed" "$(c
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]] || exit 1
 # A floor, not a total, for the reason bundle/bundle-var.test.sh states.
-readonly MIN_ASSERTIONS=7
+readonly MIN_ASSERTIONS=10
 [[ "$PASS" -ge "$MIN_ASSERTIONS" ]] || {
   printf '\nFAIL  only %d assertions ran; at least %d are expected.\n' "$PASS" "$MIN_ASSERTIONS" >&2
   exit 1

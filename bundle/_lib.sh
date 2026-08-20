@@ -52,6 +52,29 @@ on_exit() {
   trap _run_cleanup_hooks EXIT
 }
 
+# Serialize a mutating release on this machine. The app release builds into one
+# tracked working tree and uploads into one workspace directory before asking
+# Apps to snapshot it. Two copies running together can therefore snapshot an
+# index.html from one build and hashed assets from the other, which serves HTML
+# at the missing JavaScript URL and leaves the browser on a blank page.
+acquire_run_lock() {
+  local name="${1:?lock name is required}" safe_name lock_dir
+  safe_name="$(printf '%s' "$name" | tr -c '[:alnum:]_.-' '-')"
+  lock_dir="${TMPDIR:-/tmp}/pia-${safe_name}.lock"
+
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    die "Another '$name' run is already active on this machine.
+Refusing to race its build, upload, or deployment.
+
+Lock: $lock_dir
+
+If no such process is running, remove that stale EMPTY directory with:
+  rmdir '$lock_dir'"
+  fi
+
+  on_exit "rmdir '$lock_dir' 2>/dev/null || true"
+}
+
 require_target() {
   [[ -n "$TARGET" ]] && return 0
   die "TARGET is not set, and there is deliberately no default.

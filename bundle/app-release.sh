@@ -44,6 +44,11 @@ require_cmd npm
 
 require_target
 resolve_profile
+# One working tree, one workspace source directory, one snapshot. A second app
+# release on this machine must stop before either run builds or uploads; otherwise
+# the active deployment can pair one build's index.html with another build's
+# hashed assets and the browser receives HTML where it asked for JavaScript.
+acquire_run_lock "app-release-${TARGET}-${PROFILE}"
 # Resolve the target once and share it with child checks.
 seed_bundle_cache
 
