@@ -204,6 +204,7 @@ const MATCHERS: Record<
 
 /** The row this statement adds so the block can date itself even with no matches. */
 export const RANGE_ROW = '__range';
+export const BILLING_TAG_KEY = 'astrolabe';
 
 /**
  * Whether this deployment knows enough to ask about a component.
@@ -292,6 +293,7 @@ ${branches.join('\n')}
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
   WHERE u.usage_date >= CAST(:from_day AS DATE)
     AND u.usage_date <= CAST(:to_day AS DATE)
+    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
 )
 SELECT
   component,

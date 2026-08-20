@@ -81,6 +81,9 @@
 .monitoring-refused {
   color: var(--ast-neutral-text);
 }
+.monitoring-partial {
+  color: var(--ast-warn-text);
+}
 .monitoring-failed {
   color: var(--ast-neg-text);
 }

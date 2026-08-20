@@ -20,15 +20,9 @@
 import { FAILURE_TAXONOMY, isFailureCode, type FailureCode, type FailureLayer } from './failure-taxonomy';
 
 /**
- * What came of one question, in the three words the page shows.
- *
- * `other` is the fourth, and it is not a fudge: a run that came back asking a
- * clarifying question, a run somebody cancelled, and a run still executing are
- * each a question asked whose outcome is none of the three. The summary strip
- * says so rather than filing them under the nearest word, because filing a
- * clarification as answered would claim an answer nobody received.
+ * What came of one question, using the same run vocabulary as Run Explorer.
  */
-export type QuestionOutcome = 'answered' | 'refused' | 'failed' | 'other';
+export type QuestionOutcome = 'completed' | 'partial' | 'refused' | 'failed';
 
 /**
  * The run ledger's terminal states, mapped to the three words.
@@ -40,14 +34,12 @@ export type QuestionOutcome = 'answered' | 'refused' | 'failed' | 'other';
  * governance refusal.
  */
 const OUTCOME_BY_STATE: Record<string, QuestionOutcome> = {
-  SUCCEEDED: 'answered',
   REFUSED: 'refused',
   FAILED: 'failed',
   DEADLINE_EXCEEDED: 'failed',
   PERSISTENCE_FAILED: 'failed',
-  // Neither answered nor refused nor broken. The agent asked something back.
-  CLARIFICATION_REQUIRED: 'other',
-  CANCELLED: 'other',
+  CLARIFICATION_REQUIRED: 'partial',
+  CANCELLED: 'partial',
 };
 
 /**
@@ -70,14 +62,16 @@ export function classifyOutcome(input: {
   hasStoredAnswer?: boolean;
   /** Whether that reply's trace carries a stage the agent marked failed. */
   traceHasFailedStage?: boolean;
+  /** Whether that reply's trace carries a non-cosmetic partial stage. */
+  traceHasPartialStage?: boolean;
 }): QuestionOutcome {
   const state = (input.runState ?? '').trim().toUpperCase();
   if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
-  // A ledger row in a state that is not terminal is a run still being worked
-  // on. Not an answer, and not a failure.
-  if (state) return 'other';
-  if (!input.hasStoredAnswer) return 'other';
-  return input.traceHasFailedStage ? 'failed' : 'answered';
+  if (state && state !== 'SUCCEEDED') return 'partial';
+  if (input.traceHasFailedStage) return 'failed';
+  if (input.traceHasPartialStage) return 'partial';
+  if (state === 'SUCCEEDED' || input.hasStoredAnswer) return 'completed';
+  return 'partial';
 }
 
 /**
@@ -167,11 +161,10 @@ export interface MonitoringQuestion {
 export interface MonitoringSummary {
   questionsAsked: number;
   peopleAsking: number;
-  answered: number;
+  completed: number;
+  partial: number;
   refused: number;
   failed: number;
-  /** Clarified, cancelled, still running, or never recorded. See QuestionOutcome. */
-  other: number;
   /** Thumbs up, and the population it is a share of. Never one without the other. */
   ratedUp: number;
   ratedTotal: number;

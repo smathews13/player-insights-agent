@@ -632,6 +632,10 @@ describe('the cost block', () => {
     expect(markup).toContain('per day');
   });
 
+  it('states the Astrolabe billing-tag filter beside the source', () => {
+    expect(render(<CostBody block={block(cost())} />)).toContain("custom_tags['astrolabe']");
+  });
+
   /**
    * BADGES OVER THE BLOCK, WHERE THERE WERE THREE QUALIFIERS UNDER IT.
    *

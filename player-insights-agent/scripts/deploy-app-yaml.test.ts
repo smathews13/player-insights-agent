@@ -300,4 +300,9 @@ describe('the bundler derives rather than reconstructs', () => {
         'own output as source dirt and stamps +dirty from a clean checkout.'
     ).toBeLessThan(destroyed);
   });
+
+  it('refuses to publish an app artifact with an empty build stamp', () => {
+    expect(bundler).toContain('No app build stamp could be resolved');
+    expect(bundler).toContain('PLAYER_INSIGHTS_SOURCE_SHA');
+  });
 });

@@ -63,7 +63,7 @@ function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuesti
     question: 'Compare active players by title over the last 30 days',
     askedBy: 'first.person@example.test',
     askedAt: '2026-08-15T10:00:00Z',
-    outcome: 'answered',
+    outcome: 'completed',
     outcomeDetail: null,
     durationMs: 76_200,
     toolCalls: 5,
@@ -80,10 +80,10 @@ function payload(overrides: Partial<MonitoringQuestionsPayload> = {}): Monitorin
     summary: {
       questionsAsked: 214,
       peopleAsking: 23,
-      answered: 196,
+      completed: 190,
+      partial: 6,
       refused: 11,
       failed: 7,
-      other: 0,
       ratedUp: 36,
       ratedTotal: 46,
       medianMs: 41_000,
@@ -141,11 +141,12 @@ describe('who asked, in the list', () => {
 });
 
 describe('the summary strip', () => {
-  it('shows the three outcomes separately and never their total', () => {
+  it('shows the four outcomes separately and never their total', () => {
     const rendered = text(render(<SummaryStrip payload={payload()} rangeLabel="last 7 days" />));
 
-    expect(rendered).toContain('Answered · Refused · Failed');
-    expect(rendered).toContain('196');
+    expect(rendered).toContain('Completed · Partial · Refused · Failed');
+    expect(rendered).toContain('190');
+    expect(rendered).toContain('6');
     expect(rendered).toContain('11');
     expect(rendered).toContain('7');
     expect(rendered).toContain('sum to questions asked');
@@ -596,8 +597,8 @@ describe('every state in the list', () => {
    */
   it('separates an empty all-time range from a store it could not read', () => {
     const markup = body('empty-range', { summary: { ...payload().summary, questionsAsked: 0 } });
-    // The empty block on its own. The strip above it prints "Answered · Refused ·
-    // Failed" as a column label whatever the state, and reading the whole page
+    // The empty block on its own. The strip above it prints all four outcomes as
+    // a column label whatever the state, and reading the whole page
     // would catch that word and call it a claim of failure.
     const empty = text(/<div class="monitoring-empty">[\s\S]*?<\/div><\/div>/.exec(markup)?.[0] ?? '');
 
@@ -620,7 +621,7 @@ describe('every state in the list', () => {
 
     expect(rendered).toContain('Compare active players by title over the last 30 days');
     expect(rendered).toContain('first.person');
-    expect(rendered).toContain('Answered');
+    expect(rendered).toContain('Completed');
     expect(rendered).toContain('76.2s');
   });
 
@@ -715,7 +716,7 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
     question: 'Which countries grew fastest this quarter?',
     askedBy: 'first.person@example.test',
     askedAt: '2026-08-15T06:40:00Z',
-    outcome: 'answered',
+    outcome: 'completed',
     outcomeDetail: null,
     outcomeCode: null,
     answer: {
@@ -890,10 +891,10 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
     summary: {
       questionsAsked: 41,
       peopleAsking: 1,
-      answered: 36,
+      completed: 34,
+      partial: 2,
       refused: 3,
       failed: 2,
-      other: 0,
       ratedUp: 7,
       ratedTotal: 9,
       medianMs: 39_000,

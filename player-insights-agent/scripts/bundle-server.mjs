@@ -256,6 +256,12 @@ async function main() {
   // build's still-uncommitted output is real dirt and is still reported.
   const buildSha = resolveBuildStamp();
   const buildAncestors = resolveBuildAncestors(buildSha);
+  if (!buildSha) {
+    throw new Error(
+      'No app build stamp could be resolved. Build from a Git checkout or set ' +
+      'PLAYER_INSIGHTS_SOURCE_SHA to the source commit before creating the deploy artifact.'
+    );
+  }
 
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -292,14 +298,7 @@ async function main() {
     );
   }
 
-  if (!buildSha) {
-    console.log(
-      '\n  note  no build stamp could be resolved (no git repository and no\n' +
-        '        PLAYER_INSIGHTS_BUILD_SHA). This app build will report its commit as\n' +
-        '        unknown, and app-versus-orchestrator skew will not be detectable on\n' +
-        '        the Connections page.'
-    );
-  } else if (buildSha.endsWith(DIRTY_SUFFIX)) {
+  if (buildSha.endsWith(DIRTY_SUFFIX)) {
     console.log(
       `\n  note  building from a tree with uncommitted tracked changes (${buildSha}).\n` +
         '        The stamp records it. The release sequence asks for a clean worktree\n' +

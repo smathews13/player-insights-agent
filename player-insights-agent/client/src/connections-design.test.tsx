@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ConfigurationList, ConnectionRow, ConnectionsCounts, RESOURCE_PRODUCT, configurationValue, DataCatalogsValue, CatalogDenylistValue } from './ConnectionsPage';
 import { BRAND_MARKS, BRAND_THEME_MARKS } from './brand-icons';
-import { buildFacts, compareCommits } from './connection-build';
+import { buildFacts } from './connection-build';
 import { groupConnections, readConnections, type SettingsPayload } from './connection-model';
 import { truncateHead } from './connection-status';
 import type { PreflightCheck } from './preflight';
@@ -383,120 +383,21 @@ describe('the value the app writes to, which the design wants green', () => {
 });
 
 describe('the Build and telemetry card', () => {
-  /**
-   * The hashes were a clause in a 12px grey line under a headline about
-   * reachability: `app build abc1234 · orchestrator build def5678 · ...`.
-   * Nothing about it said the two were a comparison, and the comparison is the
-   * only reason to print either.
-   */
-  it('is green only when both halves came from the same committed tree', () => {
-    const facts = buildFacts({ appBuildSha: 'abc1234def', modelBuildSha: 'abc1234def' });
-    expect(facts.notes).toEqual([]);
-    expect(facts.artifacts.map((artifact) => artifact.tone)).toEqual(['reachable', 'reachable']);
-  });
-
-  /**
-   * AND SAYS WHY, ONCE, IN WORDS THAT NAME THE HALVES. Sam read the live card as
-   * two bright red hashes with nothing explaining them: the reason was a two-word
-   * chip on the header strip, four rows up, and `Different commits` does not say
-   * which two things differ.
-   */
-  it('turns both halves red when they name different commits, and says so once', () => {
+  it('shows both real stamps without judging whether they match', () => {
     const facts = buildFacts({ appBuildSha: 'aaaaaaaa11', modelBuildSha: 'bbbbbbbb22' });
-    expect(facts.notes).toEqual([
-      'Different commits: the app and the orchestrator were not built from the same one, and ancestry could not be confirmed.',
-    ]);
-    expect(facts.artifacts.every((artifact) => artifact.tone === 'blocked')).toBe(true);
-  });
-
-  it('keeps same-lineage freshness neutral instead of painting both commits red', () => {
-    const facts = buildFacts({
-      appBuildSha: '59ff353aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      modelBuildSha: '11be12bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-      appBuildAncestors: [
-        '59ff353aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        '11be12bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-      ],
-    });
-    expect(facts.agreement).toBe('ancestor');
-    expect(facts.differ).toBe(false);
     expect(facts.artifacts.map((artifact) => artifact.tone)).toEqual(['plain', 'plain']);
-    expect(facts.notes.join(' ')).toMatch(/same lineage.*normal/i);
+    expect(facts.artifacts.map((artifact) => artifact.short)).toEqual(['aaaaaaaa', 'bbbbbbbb']);
   });
 
-  /**
-   * `+dirty` is a fact about the build, not part of the commit: on screen
-   * `abc1234+dirty` is not a hash anybody can look up, and pasted into `git
-   * show` it fails.
-   */
   it('keeps the working-tree suffix out of the hash and out of the clipboard', () => {
     const [app] = buildFacts({ appBuildSha: 'abc1234def+dirty', modelBuildSha: '' }).artifacts;
     expect(app.short).toBe('abc1234d');
     expect(app.full).toBe('abc1234def');
-    expect(buildFacts({ appBuildSha: 'abc1234def+dirty', modelBuildSha: '' }).notes).toEqual([
-      'Uncommitted changes: one half was built from a tree with edits that were never committed.',
-    ]);
   });
 
-  /**
-   * THE RELEASE GATE, AND THE WAY IT WAS SET TO FAIL ITS FIRST GREEN.
-   *
-   * The two stamps are written by two producers, so they can arrive at different
-   * lengths. The comparison was an exact string match, which meant the first
-   * release cut from ONE commit -- the release made specifically to turn these
-   * chips green -- would still have been reported as drift if the lengths
-   * differed. A card that cries drift on a clean release gets its check loosened
-   * under pressure, which is how a badge starts lying.
-   *
-   * So the rule is git's: an abbreviated hash identifies a commit when it is a
-   * prefix of it, with a seven-character floor because below that a match means
-   * nothing.
-   */
-  it('reads an abbreviation of a commit as that commit, at either end', () => {
-    const long = 'aaaaaaa1111bbbbbbb2222ccccccc3333ddddddd4';
-    expect(buildFacts({ appBuildSha: long.slice(0, 7), modelBuildSha: long }).differ).toBe(false);
-    expect(buildFacts({ appBuildSha: long, modelBuildSha: long.slice(0, 12) }).differ).toBe(false);
-    // And case is not a difference: a hash is hex, and git takes either.
-    expect(buildFacts({ appBuildSha: long.toUpperCase(), modelBuildSha: long }).differ).toBe(false);
-    expect(buildFacts({ appBuildSha: long.slice(0, 7), modelBuildSha: long }).notes).toEqual([]);
-  });
-
-  it('still calls two different commits different, leading characters and all', () => {
-    // The failure mode of a prefix test, held out by name: seven characters in
-    // common and the eighth apart is two commits, not one.
-    const facts = buildFacts({ appBuildSha: 'abc1234ffff', modelBuildSha: 'abc1234eeee' });
-    expect(facts.differ).toBe(true);
-    expect(facts.artifacts.every((artifact) => artifact.tone === 'blocked')).toBe(true);
-  });
-
-  /**
-   * A stamp under the floor is not agreement. Seven is git's own abbreviation
-   * length; two characters agree between one commit in 256, and a coin toss must
-   * not be reported as a matched release.
-   */
-  it('refuses to compare a stamp too short to identify a commit', () => {
-    const facts = buildFacts({ appBuildSha: 'abc1', modelBuildSha: 'abc1234ffff' });
-    expect(compareCommits('abc1', 'abc1234ffff')).toBe('unidentifiable');
-    expect(facts.differ).toBe(false);
-    // Not green either, and it says which way the reading failed.
-    expect(facts.artifacts.map((artifact) => artifact.tone)).toEqual(['plain', 'plain']);
-    expect(facts.notes).toEqual([
-      'Not comparable: a stamp shorter than 7 characters does not identify a commit, so whether these ' +
-        'two agree is unknown.',
-    ]);
-  });
-
-  /**
-   * An absent hash is not a failing one. Calling it a mismatch would put a red
-   * chip on every deployment whose model version predates the field.
-   */
   it('stays quiet about a half that reported nothing', () => {
     const facts = buildFacts({ appBuildSha: 'abc1234def', modelBuildSha: '' });
-    expect(facts.differ).toBe(false);
     expect(facts.artifacts[1].tone).toBe('plain');
-    // Nothing red, so nothing to explain. An unread stamp is an absence, and the
-    // note that would go beside it would be explaining a fault nobody found.
-    expect(facts.notes).toEqual([]);
   });
 });
 

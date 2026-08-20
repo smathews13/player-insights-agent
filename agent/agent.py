@@ -230,8 +230,9 @@ SYNTHESIS_PROVENANCE_RULE = (
 
 SYNTHESIS_INSTRUCTIONS = f"""You are the Player Insights Agent, the final analyst voice.
 Return one valid JSON object and nothing around it: no code fence, no commentary.
-Keys: takeaway (one decision-oriented sentence), narrative (plain-language evidence,
-written as Markdown), figures (up to 6 objects with exactly these keys: label, value,
+Keys: takeaway (one decision-oriented sentence), narrative (plain-language interpretation,
+written as Markdown), content (the concrete positive findings returned by the assessed
+data package, written as Markdown), figures (up to 6 objects with exactly these keys: label, value,
 display, comparison; value is a number from 0-100 used as a relative bar width),
 and caveats (array of concise limitations).
 
@@ -239,6 +240,10 @@ Use only the supplied assessed data package. Never invent a value. Keep labels
 separate, never expose identifiers or emails,
 {SYNTHESIS_PROVENANCE_RULE}
 If the package lacks a requested value, say so and return no figure for it.
+Every answer must carry all four The customer notebook sections: narrative, takeaway,
+content, and figures. Never pad narrative, content, figures, result breakdowns, or
+trace text with actions that were not taken. Omit absent filters, exclusions, skipped
+steps, and other non-falsifiable negative filler instead of listing them.
 
 How to write the narrative. It is read in a chat card by somebody deciding something,
 who skims it before reading it:
@@ -262,6 +267,22 @@ who skims it before reading it:
 Caveats stay in caveats, one limitation per entry, however long that list gets. Do not
 fold them into the narrative and do not leave one out to make the answer shorter.
 """
+
+_NON_ACTION_FILLER = re.compile(
+    r"(?i)\b(?:no filters? (?:were )?applied|nothing (?:was )?excluded|"
+    r"no exclusions?(?: (?:were )?applied)?|no rows? (?:were )?excluded)\b"
+)
+
+
+def _without_non_action_filler(text: str) -> str:
+    """Drop standalone non-actions instead of presenting them as findings."""
+
+    kept = [
+        line
+        for line in text.splitlines()
+        if not _NON_ACTION_FILLER.search(line)
+    ]
+    return "\n".join(kept).strip()
 
 # ---------------------------------------------------------------------------
 # What bounds the loop
@@ -310,6 +331,7 @@ MAX_TRACE_CHARS = 200_000
 class Synthesis(BaseModel):
     takeaway: str
     narrative: str
+    content: str = ""
     figures: list[Figure] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
 
@@ -1054,11 +1076,8 @@ def _plan_table_steps(
         sentences.append(
             f"Columns: {', '.join(columns)}." if columns else "Columns: to be read from the table."
         )
-        sentences.append(
-            f"Filters: {'; '.join(filters)}."
-            if filters
-            else "Filters: none beyond the question's own scope."
-        )
+        if filters:
+            sentences.append(f"Filters: {'; '.join(filters)}.")
         steps.append(
             PlanStep(
                 id=f"data-{len(steps) + 1}",
@@ -3383,7 +3402,18 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             if capped:
                 break
         else:
-            capped = f"the {max_steps}-step ceiling was reached"
+            counted = [
+                stage for stage in log.stages
+                if re.fullmatch(r"step-\d+", stage.id)
+            ]
+            names = ", ".join(
+                f"{stage.name} ({stage.duration / 1000:.2f}s)" for stage in counted
+            )
+            summed = sum(stage.duration for stage in counted) / 1000
+            capped = (
+                f"the {max_steps}-step ceiling was reached; counted {names or 'no named steps'}; "
+                f"their summed duration was {summed:.2f}s"
+            )
 
         answer_text, stage = self._forced_answer(
             messages,
@@ -3420,8 +3450,9 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 "role": "user",
                 "content": (
                     f"Stop here: {capped}. Answer now from the evidence already gathered, in "
-                    "prose. Say plainly what you could not check and do not imply it was "
-                    "checked. If nothing was retrieved, say no data was retrieved."
+                    "prose. State only positive findings supported by retrieved evidence. Put "
+                    "an actionable access or outage blocker in caveats; never pad the answer "
+                    "or trace with filters, exclusions, or checks that were not applied."
                 ),
             },
         ]
@@ -4289,12 +4320,18 @@ Tables available to this analysis, with their columns:
                 "agent",
                 time.perf_counter(),
                 "Bounded attachment context supplied with the request.",
-                (
-                    f"Included {len(attachment_context):,} characters of attachment "
-                    "context without exposing its contents in the trace."
-                ),
+                attachment_context,
             )
 
+        orchestrator_started = time.perf_counter()
+        orchestrator = log.open_stage(
+            "orchestrator",
+            "Orchestrator",
+            "agent",
+            orchestrator_started,
+            question,
+        )
+        yield orchestrator
         with mlflow.start_span(name="orchestrator.loop", span_type="AGENT") as span:
             span.set_inputs(
                 {
@@ -4330,7 +4367,12 @@ Tables available to this analysis, with their columns:
             if turn_facts:
                 mlflow.update_current_trace(tags=turn_facts)
                 span.set_attributes(turn_facts)
-            outcome = yield from self.data_source_finder.invoke(discovery_request, log)
+            outcome = yield from self.data_source_finder.invoke(
+                discovery_request,
+                log,
+                parent_id=orchestrator.id,
+                depth=1,
+            )
             # Read WHILE A SPAN IS ACTIVE. Taken after the block, the only span
             # this module opens has closed and the id falls back to a local one,
             # which the app reads as "not from a traced run" and discloses as
@@ -4363,6 +4405,7 @@ Tables available to this analysis, with their columns:
                 )
 
         if outcome.clarification is not None:
+            yield log.close_stage(orchestrator, orchestrator_started, outcome.clarification.question, "partial")
             clarification = outcome.clarification.model_copy(
                 update={"trace": log.trace_summary(trace_id)}
             )
@@ -4380,7 +4423,10 @@ Tables available to this analysis, with their columns:
             )
 
         synthesis_started = time.perf_counter()
-        yield log.starting("synthesis", "Preparing the answer", "agent", synthesis_started)
+        yield log.starting(
+            "synthesis", "Preparing the answer", "agent", synthesis_started,
+            depth=1, parent_id=orchestrator.id,
+        )
         synthesis = self._synthesize(
             question, history, attachment_context, log, outcome.answer_text
         )
@@ -4391,6 +4437,8 @@ Tables available to this analysis, with their columns:
             synthesis_started,
             outcome.answer_text or "(the loop produced no findings)",
             synthesis.takeaway,
+            depth=1,
+            parent_id=orchestrator.id,
         )
 
         # Charts come from the result set, so there is nothing to plot when no tool
@@ -4407,7 +4455,10 @@ Tables available to this analysis, with their columns:
             and runtime_settings.current().answer.max_charts > 0
         ):
             plot_started = time.perf_counter()
-            yield log.starting("plot", "Building the charts", "tool", plot_started)
+            yield log.starting(
+                "plot", "Building the charts", "tool", plot_started,
+                depth=1, parent_id=orchestrator.id,
+            )
             charts, plot_note, plot_status = self._plot(question, synthesis.takeaway, log)
             yield log.stage(
                 "plot",
@@ -4423,13 +4474,16 @@ Tables available to this analysis, with their columns:
                 f"{len(plottable_evidence)} tool result(s) to plot",
                 plot_note,
                 plot_status,
+                depth=1,
+                parent_id=orchestrator.id,
             )
 
+        yield log.close_stage(orchestrator, orchestrator_started, synthesis.takeaway)
         answer = self._answer(run_id, trace_id, synthesis, charts, log, outcome)
         return ResponsesAgentResponse(
             output=[
                 self.create_text_output_item(
-                    text=f"{answer.takeaway}\n\n{answer.narrative}",
+                    text="\n\n".join(part for part in (answer.takeaway, answer.narrative, answer.content) if part),
                     id=f"response-{run_id}",
                 )
             ],
@@ -4579,8 +4633,22 @@ Tables available to this analysis, with their columns:
         # figures are anything other than what the queried rows contained. The
         # only remaining guard is the prompt rule, which forbids the synthesiser
         # from volunteering the claim in a caveat of its own.
-        takeaway, narrative = synthesis.takeaway, synthesis.narrative
-        figures = synthesis.figures[: presentation.max_figures] if presentation.figures else []
+        takeaway = _without_non_action_filler(synthesis.takeaway)
+        narrative = _without_non_action_filler(synthesis.narrative)
+        content = (
+            ""
+            if log.no_evidence_survived or not presentation.narrative
+            else _without_non_action_filler(synthesis.content)
+        )
+        figures = (
+            [
+                figure
+                for figure in synthesis.figures
+                if not _NON_ACTION_FILLER.search(f"{figure.label} {figure.comparison}")
+            ][: presentation.max_figures]
+            if presentation.figures
+            else []
+        )
         if log.no_evidence_survived:
             # The degraded caveat already fires here and is not enough: it sat
             # third in a list beside a takeaway, a narrative and a figure that
@@ -4608,6 +4676,7 @@ Tables available to this analysis, with their columns:
             id=f"msg-{run_id}",
             takeaway=takeaway,
             narrative=narrative,
+            content=content,
             figures=figures,
             charts=charts,
             sources=[

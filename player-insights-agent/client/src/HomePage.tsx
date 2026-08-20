@@ -843,6 +843,13 @@ export function HomePage() {
         return;
       }
     }
+    const newest = messages[messages.length - 1];
+    if (!loading && newest?.role === 'assistant' && newest.id) {
+      // An answer is read from its beginning. Scrolling to the transcript end
+      // landed on the final trace row and made the result appear to open midway.
+      document.getElementById(answerRowId(newest.id))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length, loading, conversationLoading, requestedAnswer]);
 

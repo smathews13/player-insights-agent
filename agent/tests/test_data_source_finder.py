@@ -132,7 +132,10 @@ def test_a_simple_data_question_still_invokes_the_finder():
     response = execute(build(llm, FakeTools()), "How many active players are there?")
 
     trace = response.custom_outputs["answer"]["trace"]["stages"]
-    assert trace[0]["id"] == "data_source_finder"
+    assert trace[0]["id"] == "orchestrator"
+    assert trace[0]["name"] == "Orchestrator"
+    assert trace[1]["id"] == "data_source_finder"
+    assert trace[1]["parent_id"] == "orchestrator"
     assert llm.loop_calls[0]["messages"][0]["content"].startswith(
         "# Role\nYou are the Data Source Finder"
     )

@@ -36,7 +36,7 @@ export interface MonitoringFilters {
   /** Full email address, or '' for everyone. */
   person: string;
   /** One of the outcome words, or '' for all. */
-  outcome: '' | 'answered' | 'refused' | 'failed';
+  outcome: '' | 'completed' | 'partial' | 'refused' | 'failed';
   rating: '' | 'up' | 'down' | 'unrated';
   /** Fully-qualified table, or '' for any. */
   table: string;
@@ -80,7 +80,7 @@ function oneOf<T extends string>(raw: string | null, allowed: readonly T[]): T |
 export function filtersFromParams(params: ReadableParams): MonitoringFilters {
   return {
     person: (params.get(PERSON_PARAM) ?? '').trim(),
-    outcome: oneOf(params.get(OUTCOME_PARAM), ['answered', 'refused', 'failed'] as const),
+    outcome: oneOf(params.get(OUTCOME_PARAM), ['completed', 'partial', 'refused', 'failed'] as const),
     rating: oneOf(params.get(RATING_PARAM), ['up', 'down', 'unrated'] as const),
     table: (params.get(TABLE_PARAM) ?? '').trim(),
     search: (params.get(SEARCH_PARAM) ?? '').trim(),

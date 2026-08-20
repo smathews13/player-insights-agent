@@ -90,7 +90,7 @@ export function peopleAskingTile(summary: MonitoringSummary): TileValue {
 }
 
 /**
- * The three-part tile, and the caption that has to be true.
+ * The four-part tile, using the same verdicts as the run table.
  *
  * The caption in the design reads "sum to questions asked", and it is only
  * printed when they do. A range holding a clarification, a cancelled run, or a
@@ -101,23 +101,24 @@ export function peopleAskingTile(summary: MonitoringSummary): TileValue {
  * failed are different problems with different fixes.
  */
 export interface OutcomeTile {
-  answered: string;
+  completed: string;
+  partial: string;
   refused: string;
   failed: string;
   caption: string;
 }
 
 export function outcomeTile(summary: MonitoringSummary): OutcomeTile {
-  const { answered, refused, failed, other, questionsAsked } = summary;
-  const accounted = answered + refused + failed + other;
+  const { completed, partial, refused, failed, questionsAsked } = summary;
+  const accounted = completed + partial + refused + failed;
+  const missing = questionsAsked - accounted;
   const caption =
-    other === 0 && accounted === questionsAsked
+    accounted === questionsAsked
       ? 'sum to questions asked'
-      : other > 0
-        ? `${count(other)} more were clarified, cancelled, or are still running`
-        : `${count(questionsAsked - accounted)} more have no recorded outcome`;
+      : `${count(missing)} more ${missing === 1 ? 'has' : 'have'} no recorded outcome`;
   return {
-    answered: count(answered),
+    completed: count(completed),
+    partial: count(partial),
     refused: count(refused),
     failed: count(failed),
     caption,
@@ -603,10 +604,10 @@ export function whenLabel(iso: string, now: number): string {
 
 /** The word on an outcome pill. Never colour alone. */
 export const OUTCOME_LABEL: Record<QuestionOutcome, string> = {
-  answered: 'Answered',
+  completed: 'Completed',
+  partial: 'Partial',
   refused: 'Refused',
   failed: 'Failed',
-  other: 'No outcome recorded',
 };
 
 /**
@@ -615,11 +616,11 @@ export const OUTCOME_LABEL: Record<QuestionOutcome, string> = {
  * `other` is neutral rather than red. A question whose outcome nobody recorded
  * is not a failure, and painting it as one manufactures an incident.
  */
-export const OUTCOME_TONE: Record<QuestionOutcome, 'ok' | 'neutral' | 'bad'> = {
-  answered: 'ok',
+export const OUTCOME_TONE: Record<QuestionOutcome, 'ok' | 'warn' | 'neutral' | 'bad'> = {
+  completed: 'ok',
+  partial: 'warn',
   refused: 'neutral',
   failed: 'bad',
-  other: 'neutral',
 };
 
 /** Sorted newest first, which is the order the list is specified in. */

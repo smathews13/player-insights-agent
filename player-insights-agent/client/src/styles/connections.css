@@ -1109,6 +1109,11 @@
   font-size: var(--ast-fs-13);
   font-weight: 700;
 }
+.plane-card-purpose {
+  font-size: var(--ast-fs-12);
+  font-weight: 400;
+  color: var(--ast-text-secondary);
+}
 .plane-card-head-aside {
   display: flex;
   align-items: center;

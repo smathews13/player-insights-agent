@@ -38,10 +38,10 @@ function summary(overrides: Partial<MonitoringSummary> = {}): MonitoringSummary 
   return {
     questionsAsked: 0,
     peopleAsking: 0,
-    answered: 0,
+    completed: 0,
+    partial: 0,
     refused: 0,
     failed: 0,
-    other: 0,
     ratedUp: 0,
     ratedTotal: 0,
     medianMs: null,
@@ -234,11 +234,12 @@ describe('a table badge states what was established and nothing more', () => {
   });
 });
 
-describe('refused and failed are never one number', () => {
-  it('reports the three separately and offers no total', () => {
-    const tile = outcomeTile(summary({ questionsAsked: 214, answered: 196, refused: 11, failed: 7 }));
+describe('run outcomes remain separate', () => {
+  it('reports the four separately and offers no total', () => {
+    const tile = outcomeTile(summary({ questionsAsked: 214, completed: 190, partial: 6, refused: 11, failed: 7 }));
 
-    expect(tile.answered).toBe('196');
+    expect(tile.completed).toBe('190');
+    expect(tile.partial).toBe('6');
     expect(tile.refused).toBe('11');
     expect(tile.failed).toBe('7');
     // 11 + 7. Nothing in the tile may be the two added together.
@@ -246,22 +247,16 @@ describe('refused and failed are never one number', () => {
   });
 
   it('claims they sum to the questions asked only when they do', () => {
-    const exact = outcomeTile(summary({ questionsAsked: 214, answered: 196, refused: 11, failed: 7 }));
+    const exact = outcomeTile(summary({ questionsAsked: 214, completed: 190, partial: 6, refused: 11, failed: 7 }));
 
     expect(exact.caption).toBe('sum to questions asked');
   });
 
-  /**
-   * A clarification is a question asked whose outcome is none of the three. The
-   * caption stops claiming a sum and names the remainder instead, because an
-   * admin who adds up three figures that do not reach the total goes looking for
-   * a counting bug.
-   */
-  it('names the remainder rather than claiming a sum that is false', () => {
-    const mixed = outcomeTile(summary({ questionsAsked: 214, answered: 190, refused: 11, failed: 7, other: 6 }));
+  it('names an unaccounted remainder rather than claiming a false sum', () => {
+    const mixed = outcomeTile(summary({ questionsAsked: 214, completed: 189, partial: 6, refused: 11, failed: 7 }));
 
     expect(mixed.caption).not.toContain('sum to questions asked');
-    expect(mixed.caption).toBe('6 more were clarified, cancelled, or are still running');
+    expect(mixed.caption).toBe('1 more has no recorded outcome');
   });
 
   it('keeps the two refusal causes on separate code lists', () => {
@@ -376,18 +371,19 @@ describe('the withdrawn line about the size of the window', () => {
 describe('an outcome is what a store recorded, never the good case by default', () => {
   it('prefers the run ledger over the stored trace', () => {
     expect(classifyOutcome({ runState: 'REFUSED', hasStoredAnswer: true })).toBe('refused');
-    expect(classifyOutcome({ runState: 'SUCCEEDED', hasStoredAnswer: true })).toBe('answered');
+    expect(classifyOutcome({ runState: 'SUCCEEDED', hasStoredAnswer: true })).toBe('completed');
     expect(classifyOutcome({ runState: 'DEADLINE_EXCEEDED' })).toBe('failed');
     expect(classifyOutcome({ runState: 'PERSISTENCE_FAILED' })).toBe('failed');
   });
 
-  it('files a clarification and a cancellation as neither answered nor failed', () => {
-    expect(classifyOutcome({ runState: 'CLARIFICATION_REQUIRED' })).toBe('other');
-    expect(classifyOutcome({ runState: 'CANCELLED' })).toBe('other');
+  it('files clarification and cancellation as partial', () => {
+    expect(classifyOutcome({ runState: 'CLARIFICATION_REQUIRED' })).toBe('partial');
+    expect(classifyOutcome({ runState: 'CANCELLED' })).toBe('partial');
   });
 
   it('falls back to the trace for a question asked before the ledger existed', () => {
-    expect(classifyOutcome({ hasStoredAnswer: true, traceHasFailedStage: false })).toBe('answered');
+    expect(classifyOutcome({ hasStoredAnswer: true, traceHasFailedStage: false })).toBe('completed');
+    expect(classifyOutcome({ hasStoredAnswer: true, traceHasPartialStage: true })).toBe('partial');
     expect(classifyOutcome({ hasStoredAnswer: true, traceHasFailedStage: true })).toBe('failed');
   });
 
@@ -397,9 +393,9 @@ describe('an outcome is what a store recorded, never the good case by default', 
    * answered would be the app claiming an answer that does not exist.
    */
   it('never assumes an answer for a question with nothing recorded', () => {
-    expect(classifyOutcome({})).toBe('other');
-    expect(classifyOutcome({ hasStoredAnswer: false })).toBe('other');
-    expect(classifyOutcome({ runState: 'RUNNING' })).toBe('other');
+    expect(classifyOutcome({})).toBe('partial');
+    expect(classifyOutcome({ hasStoredAnswer: false })).toBe('partial');
+    expect(classifyOutcome({ runState: 'RUNNING' })).toBe('partial');
   });
 });
 

@@ -1948,20 +1948,22 @@ def test_tool_stages_nest_under_the_step_that_asked_for_them():
     )
 
     recorded = stages(ask(build(llm)))
-    finder = recorded[0]
+    orchestrator = recorded[0]
+    finder = recorded[1]
     step = next(stage for stage in recorded if stage["id"] == "step-1")
     children = [stage for stage in recorded if stage["parent_id"] == "step-1"]
 
     assert finder["id"] == "data_source_finder"
     assert finder["name"] == "Data Source Finder"
     assert finder["kind"] == "agent"
-    assert finder["depth"] == 0
-    assert finder["parent_id"] == ""
-    assert step["depth"] == 1
+    assert orchestrator["id"] == "orchestrator"
+    assert finder["depth"] == 1
+    assert finder["parent_id"] == orchestrator["id"]
+    assert step["depth"] == 2
     assert step["parent_id"] == finder["id"]
     assert step["calls"] == 2, "the step reports how many calls it asked for"
     assert len(children) == 2
-    assert all(child["depth"] == 2 for child in children)
+    assert all(child["depth"] == 3 for child in children)
     assert [child["name"] for child in children] == [
         "Checked field definitions",
         "Queried governed data",
@@ -2050,19 +2052,19 @@ def test_predict_stream_reports_each_stage_as_it_completes_then_the_answer():
     assert kinds[-1] == "answer"
     assert kinds[:-1] and set(kinds[:-1]) == {"stage"}
     streamed = [event.custom_outputs["stage"] for event in carrying[:-1]]
-    assert streamed[0]["id"] == "data_source_finder"
+    assert streamed[0]["id"] == "orchestrator"
     assert streamed[0]["status"] == "running"
-    assert streamed[1]["id"] == "step-1"
+    assert streamed[1]["id"] == "data_source_finder"
     assert streamed[1]["status"] == "running"
     assert streamed[2]["id"] == "step-1"
-    assert streamed[2]["status"] == "complete"
+    assert streamed[2]["status"] == "running"
     # The same stages the blocking path records, so the two cannot disagree. The
     # announcements are excluded because they are not in the trace by design: a
     # step that has not returned has nothing measured to record.
     finished = [stage["id"] for stage in streamed if stage["status"] != "running"]
     recorded = carrying[-1].custom_outputs["answer"]["trace"]["stages"]
     assert sorted(finished) == sorted(stage["id"] for stage in recorded)
-    assert recorded[0]["id"] == "data_source_finder"
+    assert recorded[0]["id"] == "orchestrator"
 
 
 def test_every_streamed_step_is_announced_before_it_is_reported():
@@ -2105,6 +2107,7 @@ def test_every_streamed_step_is_announced_before_it_is_reported():
     # Every step of this run: the model call, the Genie call under it, the
     # closing model call, the synthesis and the plot.
     assert [stage["id"] for stage in stages if stage["status"] == "running"] == [
+        "orchestrator",
         "data_source_finder",
         "step-1",
         "step-1-1-data_genie",
@@ -2119,7 +2122,7 @@ def test_every_streamed_step_is_announced_before_it_is_reported():
         for stage in stages
         if stage["id"] == "step-1-1-data_genie" and stage["status"] == "running"
     )
-    assert genie["depth"] == 2
+    assert genie["depth"] == 3
     assert genie["parent_id"] == "step-1"
     assert genie["name"] == "Querying governed data"
 
@@ -2566,7 +2569,7 @@ def test_a_follow_up_carries_the_recent_conversation_into_the_loop():
     assert "turn-12" in sent
 
 
-def test_attachment_context_reaches_the_model_without_entering_the_trace():
+def test_attachment_context_reaches_the_model_and_run_explorer_trace():
     llm = ScriptedLlm("The loyalty cohort is 4,100 players.")
     attachment_text = "Focus on the loyalty cohort described in these meeting notes."
     request_input = [{"role": "user", "content": "Analyze active-player trends."}]
@@ -2603,8 +2606,8 @@ def test_attachment_context_reaches_the_model_without_entering_the_trace():
 
     recorded = stages(answered)
     attachment_stage = next(stage for stage in recorded if stage["id"] == "attachment")
-    assert "Included" in attachment_stage["output"]
-    assert attachment_text not in str(attachment_stage)
+    assert attachment_stage["name"] == "Included conversation attachment"
+    assert attachment_text in attachment_stage["output"]
 
 
 def test_attachment_text_custom_input_from_the_app_backend_is_used():
@@ -3084,6 +3087,17 @@ def test_shortening_the_answer_is_not_allowed_to_cost_a_caveat():
     assert "Do not\nfold them into the narrative" in SYNTHESIS_INSTRUCTIONS
 
 
+def test_every_structured_answer_requests_the_garrecht_sections():
+    for section in ("narrative", "takeaway", "content", "figures"):
+        assert section in SYNTHESIS_INSTRUCTIONS
+
+
+def test_non_actions_are_omitted_instead_of_presented_as_findings():
+    text = "Active players rose.\n- No filter applied.\n- Nothing excluded.\n- Revenue rose."
+    assert agent._without_non_action_filler(text) == "Active players rose.\n- Revenue rose."
+    assert "never pad" in SYNTHESIS_INSTRUCTIONS.lower()
+
+
 # ---------------------------------------------------------------------------
 # What the answer discloses
 # ---------------------------------------------------------------------------
@@ -3379,6 +3393,7 @@ APP_ANSWER_FIELDS = {
     "id",
     "takeaway",
     "narrative",
+    "content",
     "figures",
     "charts",
     "sources",

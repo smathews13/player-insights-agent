@@ -24,6 +24,7 @@
  * costing the page.
  */
 import { APP_SCHEMA } from '../../shared/app-schema';
+import { VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
 import type { Application, Request, Response } from 'express';
 import {
   classifyOutcome,
@@ -251,6 +252,10 @@ export const MONITORING_QUESTIONS_QUERY = `
          a.response_json->'trace'->>'toolCalls' AS tool_calls,
          a.response_json->'trace'->>'total_tokens' AS total_tokens,
          jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS trace_failed,
+         jsonb_path_exists(
+           a.response_json->'trace',
+           '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
+         ) AS trace_partial,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
@@ -318,6 +323,11 @@ export const MONITORING_DETAIL_QUERY = `
   SELECT q.id AS question_id, q.conversation_id, q.content AS question,
          q.created_at AS asked_at, c.user_email,
          a.id AS answer_id, a.trace_id, a.response_json,
+         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS trace_failed,
+         jsonb_path_exists(
+           a.response_json->'trace',
+           '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
+         ) AS trace_partial,
          a.execution_mode, a.execution_identity_verified,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
@@ -542,6 +552,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
     runState: verdict?.state ?? null,
     hasStoredAnswer: answerId !== '',
     traceHasFailedStage: row.trace_failed === true,
+    traceHasPartialStage: row.trace_partial === true,
   });
   return {
     id: text(row.question_id),
@@ -569,7 +580,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
  * response carries both and the strip says which it is showing.
  */
 export function summarize(questions: MonitoringQuestion[], peopleAsking: number): MonitoringSummary {
-  const buckets: Record<QuestionOutcome, number> = { answered: 0, refused: 0, failed: 0, other: 0 };
+  const buckets: Record<QuestionOutcome, number> = { completed: 0, partial: 0, refused: 0, failed: 0 };
   let ratedUp = 0;
   let ratedTotal = 0;
   const durations: number[] = [];
@@ -587,10 +598,10 @@ export function summarize(questions: MonitoringQuestion[], peopleAsking: number)
   return {
     questionsAsked: questions.length,
     peopleAsking,
-    answered: buckets.answered,
+    completed: buckets.completed,
+    partial: buckets.partial,
     refused: buckets.refused,
     failed: buckets.failed,
-    other: buckets.other,
     ratedUp,
     ratedTotal,
     medianMs: durations.length > 0 ? durations[Math.floor((durations.length - 1) / 2)] : null,
@@ -885,7 +896,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         outcome: classifyOutcome({
           runState: verdict?.state ?? null,
           hasStoredAnswer: answerId !== '',
-          traceHasFailedStage: false,
+          traceHasFailedStage: row.trace_failed === true,
+          traceHasPartialStage: row.trace_partial === true,
         }),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,

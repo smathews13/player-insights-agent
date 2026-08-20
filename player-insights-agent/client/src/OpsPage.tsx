@@ -55,6 +55,8 @@ import { TimeRangeControl } from './TimeRangeControl';
 // Shared with Monitoring, so the two tabs cannot be over different windows.
 import { rangeWindow } from './time-range';
 import { OUTCOME_PARAM } from './monitoring-filters';
+import { useWorkspaceHost } from './DataEntityLinks';
+import { databricksLink } from '../../shared/databricks-links';
 import {
   bars,
   costAbsence,
@@ -608,6 +610,7 @@ function spokenDay(day: string): string {
 
 export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
   const payload = block.data;
+  const billingHref = databricksLink(useWorkspaceHost(), { kind: 'table', table: 'system.billing.usage' });
 
   if (block.failed) {
     return (<section className="ops-block" aria-labelledby="ops-cost-heading">
@@ -668,7 +671,8 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
         ) : absent ? (<Absence notice={absent}>
             {payload?.grant ? <Grant grant={payload.grant} /> : null}
           </Absence>
-        ) : payload ? (<div className="ops-tiles">
+        ) : payload ? (<>
+          <div className="ops-tiles">
             {payload.tiles.map((tile) => {
               const view = tileView(tile, payload.currency);
               const product = productForCostTile(tile.id);
@@ -732,6 +736,16 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               );
             })}
           </div>
+          {billingHref ? (
+            <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer">
+              Open system.billing.usage
+              <ExternalLink className="size-3.5" aria-hidden="true" />
+            </a>
+          ) : null}
+          <p className="ops-source-filter">
+            Filtered to <code>{"custom_tags['astrolabe']"}</code>.
+          </p>
+        </>
         ) : null}
       </BlockBody>
     </section>

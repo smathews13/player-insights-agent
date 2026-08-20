@@ -31,7 +31,7 @@ function question(overrides: Partial<MonitoringQuestion> = {}): MonitoringQuesti
     question: 'A question.',
     askedBy: 'first.person@example.test',
     askedAt: '2026-08-15T10:00:00Z',
-    outcome: 'answered',
+    outcome: 'completed',
     outcomeDetail: null,
     durationMs: 1000,
     toolCalls: 1,
@@ -205,7 +205,7 @@ describe('clearing a filter round-trips through the URL', () => {
 
 describe('the filters combine with AND', () => {
   const rows = [
-    question({ id: 'a', outcome: 'answered', rating: 'up', askedBy: 'one@example.test' }),
+    question({ id: 'a', outcome: 'completed', rating: 'up', askedBy: 'one@example.test' }),
     question({ id: 'b', outcome: 'refused', rating: null, askedBy: 'one@example.test' }),
     question({ id: 'c', outcome: 'failed', rating: 'down', askedBy: 'two@example.test', tables: ['x.y.z'] }),
   ];
@@ -215,7 +215,7 @@ describe('the filters combine with AND', () => {
     expect(applyFilters(rows, { ...NO_FILTERS, person: 'ONE@EXAMPLE.TEST' }).map((row) => row.id)).toEqual(['a', 'b']);
     expect(applyFilters(rows, { ...NO_FILTERS, table: 'x.y.z' }).map((row) => row.id)).toEqual(['c']);
     expect(
-      applyFilters(rows, { ...NO_FILTERS, person: 'one@example.test', outcome: 'answered' }).map((r) => r.id)
+      applyFilters(rows, { ...NO_FILTERS, person: 'one@example.test', outcome: 'completed' }).map((r) => r.id)
     ).toEqual(['a']);
   });
 

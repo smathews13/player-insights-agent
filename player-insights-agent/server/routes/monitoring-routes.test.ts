@@ -235,12 +235,13 @@ describe('one row, from what the stores recorded', () => {
   });
 
   it('falls back to the trace when there is no ledger row', () => {
-    expect(questionFromRow(row(), ledger()).outcome).toBe('answered');
+    expect(questionFromRow(row(), ledger()).outcome).toBe('completed');
+    expect(questionFromRow(row({ trace_partial: true }), ledger()).outcome).toBe('partial');
     expect(questionFromRow(row({ trace_failed: true }), ledger()).outcome).toBe('failed');
   });
 
-  it('records no outcome for a question with no answer and no ledger row', () => {
-    expect(questionFromRow(row({ answer_id: null }), ledger()).outcome).toBe('other');
+  it('records a question with no terminal answer as partial', () => {
+    expect(questionFromRow(row({ answer_id: null }), ledger()).outcome).toBe('partial');
   });
 
   /**
@@ -300,7 +301,7 @@ describe('one row, from what the stores recorded', () => {
 });
 
 describe('the summary counts what it read', () => {
-  it('counts the three outcomes separately and never their sum', () => {
+  it('counts the four outcomes separately and never their sum', () => {
     const summary = summarize(
       [
         questionFromRow(row({ question_id: '1', answer_id: 'a' }), ledger([['a', { state: 'SUCCEEDED', code: null }]])),
@@ -316,7 +317,8 @@ describe('the summary counts what it read', () => {
       3
     );
 
-    expect(summary.answered).toBe(1);
+    expect(summary.completed).toBe(1);
+    expect(summary.partial).toBe(0);
     expect(summary.refused).toBe(1);
     expect(summary.failed).toBe(1);
     expect(summary.questionsAsked).toBe(3);

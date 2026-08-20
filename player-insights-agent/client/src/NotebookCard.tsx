@@ -20,13 +20,12 @@ import {
   comparisonNote,
   EMPTY_SCOPES_LABEL,
   emptyScopesNote,
-  notebookIsBlocked,
-  notebookSummary,
 } from './declared-connection-view';
 import { astValueBadge, type AstPillFamily } from './astrolabe-pill';
 import type { NotebookPanel } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import type { AssetPickerSpec } from './asset-picker';
+import { Button } from './ui';
 
 const NOTEBOOK_PICKER: AssetPickerSpec = {
   field: 'notebook-path',
@@ -127,7 +126,6 @@ function NotebookCardContent({
   onSaved?: () => unknown | Promise<unknown>;
 }) {
   const declaration = panel.read.declaration;
-  const blocked = notebookIsBlocked(panel);
   const emptyScopes = emptyScopesNote(panel);
   const { configured: configuredPath, observed: observedPath, shown: shownPath } = notebookPathView(panel);
   const [browsing, setBrowsing] = useState(false);
@@ -159,7 +157,9 @@ function NotebookCardContent({
     <section className="plane-card" aria-label="Notebook">
       <div className="plane-card-head">
         <span>Notebook</span>
-        <Badge tone={blocked ? 'red' : declaration ? 'green' : 'neutral'}>{notebookSummary(panel)}</Badge>
+        <span className="plane-card-purpose">
+          Connecting one shows the settings it published beside what the running agent uses.
+        </span>
       </div>
       <div className="plane-card-body">
         <div className="plane-facts">
@@ -210,9 +210,9 @@ function NotebookCardContent({
 
         {allowMutations ? (
           <div className="plane-stack notebook-path-editor">
-            <button type="button" className="plane-button-quiet" onClick={() => setBrowsing((open) => !open)}>
+            <Button type="button" variant="default" size="sm" onClick={() => setBrowsing((open) => !open)}>
               {browsing ? 'Cancel notebook selection' : 'Browse workspace notebooks'}
-            </button>
+            </Button>
             {browsing ? (
               <>
                 <AssetPicker spec={NOTEBOOK_PICKER} current={draft} onPick={setDraft} />

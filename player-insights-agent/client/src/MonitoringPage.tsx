@@ -122,7 +122,7 @@ export function SummaryTile({ label, tile }: { label: string; tile: TileValue })
 }
 
 /**
- * The five figures, of which the third is one tile holding three values.
+ * The five figures, of which the third is one tile holding four run outcomes.
  *
  * REFUSED AND FAILED ARE NEVER ADDED, here or anywhere. A refusal is the app
  * working correctly and telling somebody they cannot read something; a failure is
@@ -136,11 +136,10 @@ export function SummaryStrip({ payload, rangeLabel }: { payload: MonitoringQuest
       <SummaryTile label="Questions asked" tile={questionsAskedTile(payload.summary, rangeLabel)} />
       <SummaryTile label="People asking" tile={peopleAskingTile(payload.summary)} />
       <div className="monitoring-tile">
-        <p className="monitoring-tile-label">Answered · Refused · Failed</p>
+        <p className="monitoring-tile-label">Completed · Partial · Refused · Failed</p>
         <p className="monitoring-tile-value ast-num">
-          <span>{outcomes.answered}</span>
-          {/* Neutral for the refusals and red for the failures, and the words are
-              in the label above, so the split never rides on colour alone. */}
+          <span>{outcomes.completed}</span>
+          <span className="monitoring-partial"> · {outcomes.partial}</span>
           <span className="monitoring-refused"> · {outcomes.refused}</span>
           <span className="monitoring-failed"> · {outcomes.failed}</span>
         </p>
@@ -420,7 +419,8 @@ export function FilterRow({
         onChange={(outcome) => onChange({ ...filters, outcome: outcome as MonitoringFilters['outcome'] })}
         options={[
           { value: '', label: 'All' },
-          { value: 'answered', label: 'Answered' },
+          { value: 'completed', label: 'Completed' },
+          { value: 'partial', label: 'Partial' },
           { value: 'refused', label: 'Refused' },
           { value: 'failed', label: 'Failed' },
         ]}
@@ -483,7 +483,7 @@ export function FilterRow({
 /**
  * The view layer's three tones, in the palette's own families.
  *
- * `monitoring-view.ts` says `ok`, `neutral` and `bad`, which are statements
+ * `monitoring-view.ts` names semantic tones, which are statements
  * about a reading rather than about a colour, and that is the right vocabulary
  * for a module with no stylesheet in front of it. This is the one place the
  * translation happens, so a fourth tone there is a compile error here rather
@@ -493,8 +493,9 @@ export function FilterRow({
  * nor a failure, and it sits in a table row beside filled green and filled red;
  * a third fill there reads as a third verdict rather than as the absence of one.
  */
-const PILL_FAMILY: Record<'ok' | 'neutral' | 'bad', AstPillFamily> = {
+const PILL_FAMILY: Record<'ok' | 'warn' | 'neutral' | 'bad', AstPillFamily> = {
   ok: 'pos',
+  warn: 'warn',
   neutral: 'neutral-outline',
   bad: 'neg',
 };
@@ -933,7 +934,8 @@ export function PersonPanel({
           <p className="monitoring-panel-tile-label">Questions</p>
           <p className="monitoring-panel-tile-value ast-num">{panel.summary.questionsAsked.toLocaleString()}</p>
           <p className="monitoring-tile-caption">
-            {`${outcomes.answered} answered`}
+            {`${outcomes.completed} completed`}
+            <span className="monitoring-partial">{` · ${outcomes.partial} partial`}</span>
             <span className="monitoring-refused">{` · ${outcomes.refused} refused`}</span>
             <span className="monitoring-failed">{` · ${outcomes.failed} failed`}</span>
           </p>

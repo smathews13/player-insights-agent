@@ -95,7 +95,7 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
     question: 'Which countries grew fastest this quarter?',
     askedBy: 'first.person@example.test',
     askedAt: '2026-08-15T06:40:00Z',
-    outcome: 'answered',
+    outcome: 'completed',
     outcomeDetail: null,
     outcomeCode: null,
     answer: answerWith(trace),

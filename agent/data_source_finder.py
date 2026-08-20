@@ -146,6 +146,9 @@ class DataSourceFinderAgent:
         self,
         request: DiscoveryRequest,
         log: Any,
+        *,
+        parent_id: str = "",
+        depth: int = 0,
     ) -> Generator[Any, None, Any]:
         rendered = request.render()
         started = time.perf_counter()
@@ -155,6 +158,8 @@ class DataSourceFinderAgent:
             "agent",
             started,
             rendered,
+            depth=depth,
+            parent_id=parent_id,
         )
         yield parent
         with mlflow.start_span(name=self.name, span_type="AGENT") as span:
@@ -172,7 +177,7 @@ class DataSourceFinderAgent:
                 "",
                 log,
                 parent_id=parent.id,
-                depth=1,
+                depth=depth + 1,
             )
             span.set_outputs(
                 {

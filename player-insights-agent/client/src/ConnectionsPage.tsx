@@ -73,8 +73,7 @@ import { CopyButton, NOT_SET, StatusBadge, type StatusTone } from './StatusBadge
 // so the call has to be made here too or the channel reports from one site and
 // not the other.
 import { reportEgress } from './egress-policy';
-// `+dirty` and the two-commit comparison, decided away from the markup so the
-// suffix cannot reach the screen by being interpolated into a string here.
+// Build stamps are shortened consistently away from the markup.
 import { buildFacts } from './connection-build';
 // What this deployment is, as against what it was built from. The two grids the
 // Build card draws are decided there, so a row with nothing to say is dropped
@@ -1659,13 +1658,7 @@ export function ConnectionsPage() {
     .filter(Boolean)
     .join(' \u00b7 ');
 
-  /**
-   * What each half was built from, and whether they agree.
-   *
-   * Derived even without a payload, so the card can say `not set` rather than
-   * vanish: a deployment whose settings route has not answered is exactly the
-   * one where somebody wants to know which app they are looking at.
-   */
+  /** The independent app and orchestrator build stamps. */
   const build = buildFacts({
     appBuildSha: payload?.appBuildSha ?? '',
     modelBuildSha: payload?.modelBuildSha ?? '',
@@ -1889,11 +1882,6 @@ export function ConnectionsPage() {
               <GitCommitHorizontal className="size-3.5" aria-hidden="true" />
               Build and telemetry
             </p>
-            {/* The two facts that make a hash untrustworthy used to be chips on
-                this strip, four rows above the badges they were about. Sam read
-                the live card as two bright red hashes with no reason given, which
-                is what a two-word chip that far from its subject buys. They are
-                lines beside the commit rows now, once each, below. */}
           </div>
           {/* TWO GRIDS, which is the design's arrangement and is also a
               division of subject: what this deployment IS on the left, what it
@@ -1931,22 +1919,6 @@ export function ConnectionsPage() {
                     ) : null}
                   </div>
                 </div>
-              ))}
-              {/* WHY THOSE TWO ROWS ARE RED, under them and aligned with them.
-                  Amber type rather than red: a mismatched or uncommitted build
-                  runs perfectly well, and it is the identification that cannot be
-                  trusted -- the red is on the hashes because it is the hashes that
-                  do not identify what is running.
-
-                  Nothing is hardcoded on. Every line comes from `buildFacts` off
-                  the two hashes the payload carries, so a matched build from a
-                  committed tree draws none of them, and an unreported hash draws
-                  none either: there is nothing to explain about a value nobody
-                  sent, and it is not red. */}
-              {build.notes.map((note) => (
-                <p key={note} className="deployment-note">
-                  {note}
-                </p>
               ))}
               {telemetryFacts.map((row) => (
                 <BuildFactRow key={row.key} row={row} />
