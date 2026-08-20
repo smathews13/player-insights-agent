@@ -265,17 +265,8 @@ targets:
     workspace:
       root_path: ${var.bundle_root_path}
     variables:
-      # Keep the three production scopes that fit whole (69 tables total).
-      # 2k_production is omitted because its 121 tables exceed the manifest's
-      # 90-table ceiling by itself; adding it needs an evidence-backed table
-      # denylist from a live catalog review, not arbitrary truncation.
-      data_catalogs:
-        - cdp_share_prod.northwind_production
-        - cdp_share_prod.global_production
-        - cdp_share_prod.acme_production
-      # Enumerate the explicit schemas above; do not derive this manifest from
-      # the attached Genie spaces.
-      manifest_source: ""
+      # Declare only tables curated by the Genie spaces.
+      manifest_source: genie
       # Run governed data calls as the signed-in user. Release matching app and
       # model versions together.
       execution_identity: user-authorization

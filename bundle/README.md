@@ -47,9 +47,9 @@ quoted wherever you pass it.
 
 ## Deployment order on a fresh workspace
 
-`bundle/deploy.sh` enforces the one supported order. Run it for internal and
-customer targets rather than creating an App by hand or maintaining a
-target-specific `--select` list.
+Internal and customer targets use the same sequence. Release the serving
+endpoint first because the App attaches to it; the bundle itself then creates
+or updates every declared resource, including the App:
 
 0. Provision Lakebase (project / branch / database) and curate the two Genie
    spaces **outside** this bundle. Name them in
@@ -64,13 +64,14 @@ target-specific `--select` list.
 1. Run the deployment:
 
    ```bash
-   TARGET=<target> PROFILE='<profile>' bundle/deploy.sh --apply
+   TARGET=<target> PROFILE='<profile>' bundle/agent-release.sh --apply
+   databricks bundle deploy -t <target> --profile '<profile>'
+   TARGET=<target> PROFILE='<profile>' bundle/app-release.sh --apply
    ```
 
-   The command creates and binds a no-compute App shell when needed, deploys
-   bundle prerequisites, releases the model endpoint, reconciles the complete
-   bundle including the App and its attachments, applies Postgres grants, and
-   deploys app source.
+   Do not create the App by hand, exclude it with `--select`, or introduce a
+   Terraform-engine path. The App is bundle-owned; `app-release.sh` remains the
+   code and database-grant release after the bundle creates it.
 
 If `bundle deploy` says its deployment lock is held after an earlier deploy
 crashed or was interrupted, first confirm no deploy is still running, then retry
@@ -180,7 +181,6 @@ input fails validation when skipped; Genie sharing still requires review.
 
 | Script | What it does |
 | --- | --- |
-| `deploy.sh` | The only greenfield operator path. Works around the CLI 1.11/1.12 greenfield App planner crash by creating and binding a no-compute shell, then executes the prerequisite bundle, agent release, complete bundle, and app release in dependency order. |
 | `agent-release.sh` | Log the model, deploy it to the serving endpoint, wait for the traffic switch, read back the served versions, then prune the entities the release superseded. `--no-prune` leaves them and reports what it would have removed. |
 | `prune-served-entities.py` | Remove idle served entities from the endpoint, keeping whatever holds traffic plus `var.serving_rollbacks_kept` rollbacks — which defaults to **none**, because the version a kept rollback reaches is the one released *before* the current fix. Run by `agent-release.sh`; also runnable alone. Reports by default, acts on `--apply`, exits 3 when there is something to prune and it was not asked to. Endpoint only: it has no code path that reaches the registry, so every version stays registered and can be served again with `deploy_agent.py --model-version N` — that is the rollback path, and it needs no idle entity held open for it. |
 | `app-release.sh` | Resolve the MLflow experiment id, build the dependency-free tree, gate on `app-db-grant.sh`, upload, and deploy. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` applies the same grant gate and re-points the app at a known-good source directory without rebuilding. |
@@ -195,9 +195,8 @@ Identity split (do not re-introduce an app-SP Unity Catalog data gate on release
 
 ## Before a later direct `bundle deploy`
 
-The greenfield wrapper runs `bundle deploy` in dependency order. For later
-resource-only reconciliation, `bundle deploy` is the one command here that can
-remove a resource. Two of them
+The greenfield sequence includes one complete `bundle deploy`. For later
+resource-only reconciliation, that command can remove a resource. Two of them
 hold things that do not come back — `schemas.player_insights_schema` has the
 registered model and app-owned semantic assets, and
 `schemas.player_insights_telemetry_schema` has app history that does not backfill.

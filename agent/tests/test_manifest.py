@@ -811,10 +811,10 @@ def test_a_scope_that_lists_nothing_stops_the_log():
 #
 # The gate refused ANY scope that listed no tables, and a bare catalog entry
 # expands to every schema in the catalog, so one empty schema anywhere in it
-# stopped the release. `cdp_share_prod` holds four schemas of production data
-# and an empty `default`, and the release died on `default` while telling the
-# operator the scope was wrong. The only way past was to hand-list the non-empty
-# schemas, which is a list that goes stale the moment a schema is added.
+# stopped the release. A catalog holding several schemas of data and one empty
+# `default` died on `default` while telling the operator the scope was wrong.
+# The only way past was to hand-list the non-empty schemas, which is a list that
+# goes stale the moment a schema is added.
 # ---------------------------------------------------------------------------
 
 
@@ -935,45 +935,44 @@ def test_an_entry_with_tables_is_unaffected_by_another_entry_being_empty():
     assert "'other_catalog'" in str(raised.value)
 
 
-def test_explicit_production_schemas_build_the_whole_69_table_manifest():
-    """The production trim is schema-level and does not truncate table listings.
+def test_several_explicit_schemas_declare_every_table_in_each_of_them():
+    """Naming schemas instead of the catalog narrows the SCOPE, not the listing.
 
-    `2k_production` cannot be represented whole under the 90-table ceiling: its
-    121 tables exceed the budget before any other schema is added. The other
-    three production schemas fit together at 69, and every table in each must
-    survive the explicit-schema path.
+    A deployment whose catalog is too wide for the ceiling says so by naming the
+    schemas it means. Each named schema must then be declared in full: a
+    manifest that silently stopped short would produce an endpoint that cannot
+    read tables the operator deliberately kept.
     """
 
     scopes = {
-        "cdp_share_prod.northwind_production": [f"northwind_{index}" for index in range(41)],
-        "cdp_share_prod.global_production": [f"global_{index}" for index in range(25)],
-        "cdp_share_prod.acme_production": [f"acme_{index}" for index in range(3)],
+        "share_catalog.brand_a_production": [f"a_{index}" for index in range(41)],
+        "share_catalog.brand_b_production": [f"b_{index}" for index in range(25)],
+        "share_catalog.brand_c_production": [f"c_{index}" for index in range(3)],
     }
 
     manifest, _ = resolve_declared_manifest(
-        settings(catalog_allowlist=tuple(scopes)),
-        FakeCatalog(scopes),
+        settings(catalog_allowlist=tuple(scopes)), FakeCatalog(scopes)
     )
 
     assert len(manifest) == 69
-    assert {
-        name.rsplit(".", 1)[0]
-        for name in manifest
-    } == set(scopes)
+    assert {name.rsplit(".", 1)[0] for name in manifest} == set(scopes)
 
 
 def test_an_empty_explicit_schema_is_an_empty_entry_and_still_refuses():
     """Skipping applies inside a catalog, not to an explicitly empty entry.
 
-    When `catalog.schema` is listed directly, that schema is the whole
-    `data_catalogs` entry. Zero visible tables there is still the real scope
-    failure, even when another explicit entry exposes tables.
+    When `catalog.schema` is listed directly, that schema IS the whole
+    `data_catalogs` entry, so zero visible tables there is still the real scope
+    failure, even when another explicit entry exposes tables. This is the line
+    between the two behaviours: an empty schema swept up by a bare catalog is
+    incidental, and an empty schema somebody named is a mistake worth stopping
+    for.
     """
 
     workspace = FakeCatalog(
         {
-            "cdp_share_prod.northwind_production": ["fact_session"],
-            "cdp_share_prod.empty_production": [],
+            "share_catalog.brand_a_production": ["fact_session"],
+            "share_catalog.brand_z_production": [],
         }
     )
 
@@ -981,15 +980,15 @@ def test_an_empty_explicit_schema_is_an_empty_entry_and_still_refuses():
         resolve_declared_manifest(
             settings(
                 catalog_allowlist=(
-                    "cdp_share_prod.northwind_production",
-                    "cdp_share_prod.empty_production",
+                    "share_catalog.brand_a_production",
+                    "share_catalog.brand_z_production",
                 )
             ),
             workspace,
         )
 
     message = str(raised.value)
-    assert "'cdp_share_prod.empty_production'" in message
+    assert "'share_catalog.brand_z_production'" in message
     assert "whole entry" in message.lower()
 
 
@@ -1736,23 +1735,6 @@ def test_the_empty_denylist_on_the_demo_target_reads_as_a_decision():
         "the empty value reads as a decision, not an omission"
     )
     assert "payload" in demo, "the one real exclusion, and how it is recognised, is named"
-
-
-def test_the_production_target_declares_its_69_table_schema_scope():
-    """The deployed scope is the reviewed whole-schema trim, not a bare catalog."""
-
-    bundle = yaml.safe_load((Path(__file__).resolve().parents[2] / "databricks.yml").read_text())
-    targets = bundle.get("targets") or {}
-    if "customer" not in targets:
-        pytest.skip("the production target is not declared in this databricks.yml")
-
-    variables = targets["customer"]["variables"]
-    assert variables["manifest_source"] == "", "the schemas must generate the manifest"
-    assert variables["data_catalogs"] == [
-        "cdp_share_prod.northwind_production",
-        "cdp_share_prod.global_production",
-        "cdp_share_prod.acme_production",
-    ]
 
 
 def test_no_target_can_declare_that_its_figures_are_not_real():

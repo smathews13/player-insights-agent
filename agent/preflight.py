@@ -716,11 +716,11 @@ def _manifest_from_schema(
     absent one is reported instead (see `_absent_contract_advice`).
 
     AN EMPTY SCHEMA IS SKIPPED, NOT FATAL. This refused any scope that listed no
-    tables, which made a bare catalog entry unusable: `cdp_share_prod` holds four
-    schemas of production data and an empty `default`, and the empty one stopped
-    the release while claiming the scope was wrong. It was not. The refusal now
-    fires per `data_catalogs` ENTRY, where zero visible tables really does mean
-    the entry names the wrong thing or the identity lacks USE SCHEMA.
+    tables, which made a bare catalog entry unusable: a catalog holding several
+    schemas of data and one empty `default` stopped the release on `default`
+    while claiming the scope was wrong. It was not. The refusal now fires per
+    `data_catalogs` ENTRY, where zero visible tables really does mean the entry
+    names the wrong thing or the identity lacks USE SCHEMA.
     """
 
     groups = discovery_scope_groups(settings, workspace)

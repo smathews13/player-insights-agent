@@ -93,11 +93,11 @@ def telemetry_targets() -> list[tuple[str, dict]]:
 # ---------------------------------------------------------------------------
 
 
-def test_the_app_takes_its_destinations_from_the_variable():
-    """Not a literal. A literal here is on for everyone, including a stranger."""
+def test_the_base_app_omits_empty_destinations():
+    """An empty API field crashes CLI 1.11/1.12 while creating the App."""
 
     app = app_document()["resources"]["apps"]["player_insights_app"]
-    assert app["telemetry_export_destinations"] == "${var." + DESTINATIONS_VAR + "}"
+    assert "telemetry_export_destinations" not in app
 
 
 def test_the_destinations_default_to_empty():
@@ -139,6 +139,20 @@ def test_a_target_declaring_destinations_has_a_schema_name():
         has_destinations = bool(variables.get(DESTINATIONS_VAR))
         if has_destinations:
             assert variables.get(SCHEMA_VAR) or app_document()["variables"][SCHEMA_VAR]["default"]
+
+
+def test_a_target_declaring_destinations_adds_the_app_field():
+    """Only opt-in targets should send the optional field to the Apps API."""
+
+    for name, body in telemetry_targets():
+        app = (
+            body.get("resources", {})
+            .get("apps", {})
+            .get("player_insights_app", {})
+        )
+        assert app.get("telemetry_export_destinations") == (
+            "${var." + DESTINATIONS_VAR + "}"
+        ), f"target {name!r} opts into telemetry but does not configure the App"
 
 
 def test_telemetry_never_lands_in_the_agents_own_schema():

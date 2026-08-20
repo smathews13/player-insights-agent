@@ -36,6 +36,14 @@ describe('Runtime settings in the Settings gear', () => {
     expect(source).toContain("fetch('/api/admin/runtime-settings'");
   });
 
+  it('shows the server reason and lets a failed load be retried', () => {
+    expect(source).toContain("runtimeSettingsFromResponse(response, 'loaded')");
+    expect(source).toContain("runtimeSettingsFromResponse(response, 'saved')");
+    expect(source).toContain('failure.message');
+    expect(source).toContain('Retry runtime settings');
+    expect(source).not.toContain('Runtime settings could not be loaded or saved.');
+  });
+
   /**
    * The #24a controls that carry guidance and shape to the agent. These are the
    * fields that make this a live settings surface rather than a set of toggles:

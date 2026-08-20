@@ -99,16 +99,20 @@ discovering the tables instead of typing them does not widen the read boundary.
 Adding a table to a Genie space therefore changes the agent's grants, and takes
 effect at the next model re-log.
 
-Run the repository deployment command. It creates and binds the App shell,
-deploys bundle prerequisites, releases the model endpoint, reconciles the full
-bundle including the App, applies Lakebase grants, and deploys app source:
+Use the same three commands for the demo workspace and customer deployments. Release the model
+endpoint first because the App attaches to it; then the single bundle deploy
+creates or updates every bundle-owned resource, including the App; finally
+release the app code:
 
 ```bash
-TARGET=customer PROFILE='<your-profile>' bundle/deploy.sh --apply
+TARGET=customer PROFILE='<your-profile>' bundle/agent-release.sh --apply
+databricks bundle deploy -t customer --profile '<your-profile>'
+TARGET=customer PROFILE='<your-profile>' bundle/app-release.sh --apply
 ```
 
-Use this same command for greenfield internal and customer targets. Do not
-create the App by hand or split the bundle with your own `--select` list.
+For the demo workspace, replace `customer` with `example` and use its profile. Do not create the
+App by hand, exclude it with `--select`, or use the Terraform engine as a
+separate deployment path.
 
 ## How the app gets onto the workspace, and how it is updated
 
@@ -116,8 +120,8 @@ create the App by hand or split the bundle with your own `--select` list.
 the app schema, volume, experiment, registered model, serving endpoint, OAuth
 scopes, resource bindings, and the app itself. It attaches the existing SQL
 warehouse, Lakebase database, and Genie spaces; it does not create those three
-resources. Do not start the Git flow before step 3 has created the app and step 4
-has applied its database grants and initial code release.
+resources. Do not start the Git flow before the bundle has created the app and
+`bundle/app-release.sh` has applied its database grants and initial code release.
 
 **After that bootstrap, app-code updates are manual Deploy from Git onto the
 existing app.** UI, server, and other TypeScript in

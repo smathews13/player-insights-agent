@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
+import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Switch } from './ui';
 import { Lock } from 'lucide-react';
@@ -43,19 +44,25 @@ export function RuntimeSettingsPanel() {
   const editable = showsAdminSurfaces(role.state);
   const [settings, setSettings] = useState<RuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
+  const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
+
+  const load = useCallback(async () => {
+    setState('loading');
+    setFailure(null);
+    try {
+      const response = await fetch('/api/runtime-settings');
+      const value = await runtimeSettingsFromResponse(response, 'loaded');
+      setSettings(value);
+      setState('ready');
+    } catch (caught) {
+      setState('failed');
+      setFailure({ operation: 'load', message: (caught as Error).message });
+    }
+  }, []);
 
   useEffect(() => {
-    void fetch('/api/runtime-settings')
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Runtime settings could not be loaded.');
-        return response.json() as Promise<{ settings: RuntimeSettings }>;
-      })
-      .then(({ settings: value }) => {
-        setSettings(value);
-        setState('ready');
-      })
-      .catch(() => setState('failed'));
-  }, []);
+    void load();
+  }, [load]);
 
   const setLoop = (key: keyof RuntimeSettings['loop'], value: number) =>
     setSettings((current) => ({ ...current, loop: { ...current.loop, [key]: value } }));
@@ -95,12 +102,20 @@ export function RuntimeSettingsPanel() {
 
   const save = async () => {
     setState('saving');
-    const response = await fetch('/api/admin/runtime-settings', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(settings),
-    });
-    setState(response.ok ? 'saved' : 'failed');
+    setFailure(null);
+    try {
+      const response = await fetch('/api/admin/runtime-settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      const saved = await runtimeSettingsFromResponse(response, 'saved');
+      setSettings(saved);
+      setState('saved');
+    } catch (caught) {
+      setState('failed');
+      setFailure({ operation: 'save', message: (caught as Error).message });
+    }
   };
 
   return (
@@ -235,17 +250,23 @@ export function RuntimeSettingsPanel() {
           {editable ? (
             <Button
               className="runtime-save"
-              onClick={() => void save()}
+              onClick={() => void (failure?.operation === 'load' ? load() : save())}
               disabled={state === 'loading' || state === 'saving'}
             >
-              {state === 'saving' ? 'Saving…' : 'Save runtime settings'}
+              {state === 'saving'
+                ? 'Saving…'
+                : state === 'loading'
+                  ? 'Loading…'
+                  : failure?.operation === 'load'
+                    ? 'Retry runtime settings'
+                    : 'Save runtime settings'}
             </Button>
           ) : null}
         </div>
 
         {!editable ? <p className="settings-row-note">Read-only. An administrator can change these values.</p> : null}
         {state === 'saved' ? <p role="status">Saved. The next ask uses these settings.</p> : null}
-        {state === 'failed' ? <p role="alert">Runtime settings could not be loaded or saved.</p> : null}
+        {failure ? <p role="alert">{failure.message}</p> : null}
       </CardContent>
     </Card>
   );

@@ -34,9 +34,9 @@ resources:
       description: ${var.app_description}
       source_code_path: ${var.app_source_code_path}
 
-      # Optional OpenTelemetry destinations. Empty disables telemetry.
-      # This feature is region-limited and can create ingestion charges.
-      telemetry_export_destinations: ${var.app_telemetry_destinations}
+      # Optional OpenTelemetry destinations are added only by targets that opt
+      # in. Do not render this API field as an empty list: CLI 1.11/1.12
+      # dereference a nil prior value while creating an App.
 
       # OAuth scopes for the signed-in user's forwarded token. Keep this list
       # minimal: one unavailable required scope can block sign-in. Catalog
