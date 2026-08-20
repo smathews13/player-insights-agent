@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from data_source_finder import FINDER_SYSTEM_PROMPT, DiscoveryRequest
-from tests.test_agent import Call, FakeTools, ScriptedLlm, app_request, build
+from evidence import EvidenceGateway
+from tests.test_agent import (
+    MANIFEST,
+    TITLE_DAILY,
+    Call,
+    FakeTools,
+    ScriptedLlm,
+    app_request,
+    build,
+)
+from tools import ToolResult
 
 
 def execute(
@@ -99,6 +109,10 @@ def test_finder_owns_notebook_workflow_and_assessed_package_contract():
     assert "invoking signed-in user's Unity Catalog grants" in " ".join(
         FINDER_SYSTEM_PROMPT.split()
     )
+    assert "gold/approved aggregates first" in FINDER_SYSTEM_PROMPT
+    assert "STOP calling tools" in FINDER_SYSTEM_PROMPT
+    assert "do not make the" in FINDER_SYSTEM_PROMPT
+    assert "package partial" in FINDER_SYSTEM_PROMPT
 
 
 def test_finder_carries_the_notebook_geography_contract():
@@ -169,3 +183,83 @@ def test_orchestrator_delegates_discovery_tools_only_through_finder():
     assert "dictionary_genie" in names
     assert "run_sql" in names
     assert "ask_data_source_finder" not in names  # in-process boundary, not a second endpoint tool
+
+
+def test_gold_query_stays_succeeded_when_optional_silver_is_left_unsampled():
+    sql = f"SELECT title_name, active_players FROM {TITLE_DAILY}"
+    verdict = EvidenceGateway(MANIFEST).admit_genie_query("data_genie", sql)
+    tools = FakeTools(
+        data_genie=ToolResult(
+            text="VLH Online has 8,413 active players in the requested window.",
+            sql=sql,
+            sources=[TITLE_DAILY],
+            verdicts=(verdict,),
+        )
+    )
+    llm = ScriptedLlm(
+        [
+            Call("data_genie", {"question": "query the approved title aggregate"}, "gold"),
+            Call("data_genie", {"question": "also sample optional silver activity"}, "silver"),
+        ],
+        charts=False,
+    )
+
+    response = execute(
+        build(llm, tools),
+        "Compare active players by title over the last 30 days.",
+        custom_inputs={
+            "runtime_settings": {
+                "loop": {"maxSteps": 8, "maxToolCalls": 1, "maxRunSeconds": 90}
+            }
+        },
+    )
+
+    trace = response.custom_outputs["answer"]["trace"]["stages"]
+    finder = next(stage for stage in trace if stage["id"] == "data_source_finder")
+    cap = next(stage for stage in trace if stage["id"] == "cap")
+
+    assert finder["status"] == "complete"
+    assert cap["status"] == "complete"
+    assert cap["name"] == "Completed from assessed sources"
+    assert tools.named("data_genie") == [{"question": "query the approved title aggregate"}]
+    assert not any(
+        "stopped early" in caveat.lower()
+        for caveat in response.custom_outputs["answer"]["caveats"]
+    )
+
+
+def test_empty_catalog_hit_by_budget_remains_partial():
+    tools = FakeTools(
+        list_data_assets=ToolResult(
+            text="No declared tables are available.",
+            sources=[],
+        )
+    )
+    llm = ScriptedLlm(
+        [
+            Call("list_data_assets", {}, "first-list"),
+            Call("list_data_assets", {}, "second-list"),
+        ],
+        charts=False,
+    )
+
+    response = execute(
+        build(llm, tools),
+        "What engagement data is available?",
+        custom_inputs={
+            "runtime_settings": {
+                "loop": {"maxSteps": 8, "maxToolCalls": 1, "maxRunSeconds": 90}
+            }
+        },
+    )
+
+    trace = response.custom_outputs["answer"]["trace"]["stages"]
+    finder = next(stage for stage in trace if stage["id"] == "data_source_finder")
+    cap = next(stage for stage in trace if stage["id"] == "cap")
+
+    assert finder["status"] == "partial"
+    assert cap["status"] == "partial"
+    assert any(
+        "stopped early" in caveat.lower()
+        for caveat in response.custom_outputs["answer"]["caveats"]
+    )

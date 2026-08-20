@@ -416,3 +416,124 @@ ol.answer-list {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/*
+ * ── The agent's tables ─────────────────────────────────────────────────────
+ *
+ * A table the agent wrote, in the treatment the app already gives structured
+ * data. Nothing here is a new design: the bordered box with a clipped radius,
+ * the tinted header band and the ruled rows are `.sources-module`'s, and the
+ * cell padding and the right-aligned mono figures are the results table's, from
+ * `.table-scroll` and `.bench-num` in benchmark.css. An answer's table is the
+ * same kind of object as those two and should not be a third look.
+ *
+ * WHAT WAS ON SCREEN BEFORE THESE RULES was the Markdown source -- `| Date |
+ * Sessions |` and a row of dashes -- because the parser did not read a table and
+ * the renderer had nothing to draw. So this block is second half of that fix and
+ * not a restyle of anything: there was no table element here to style.
+ *
+ * The wrapper carries the border and the scroll, and the table inside it carries
+ * none, which is the one structural decision worth noting. A scrolling element
+ * cannot also draw the edge that the scrolled content passes under: the border
+ * would scroll away with the first column.
+ */
+.answer-table-wrap {
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--ast-radius-card);
+  /* So the header band's fill is clipped to the radius rather than squaring off
+     the two corners it sits in. */
+  overflow: hidden;
+  /* Six columns of daily figures are wider than the transcript column at some
+     widths, and the alternative to scrolling them is a figure that wraps
+     mid-number. See the comment on the table case in DataEntityLinks.tsx. */
+  overflow-x: auto;
+  background: var(--ast-white);
+}
+.answer-table {
+  /* `collapse` is Tailwind preflight's default and is restated because the row
+     rules below are one hairline between two rows, not two abutting borders. */
+  border-collapse: collapse;
+  /* Fills the wrapper when the columns are narrow enough to, and grows past it
+     when they are not -- which is what makes the wrapper's scroll conditional
+     rather than always on. */
+  width: 100%;
+  font-size: var(--ast-fs-13);
+  /* Prose in the card is #3A3838; a figure being compared against the figure
+     under it is read as data and takes the body ink. */
+  color: var(--ast-text);
+  /* The default for a table, restated because `.answer-prose` sets `pretty` and
+     a balanced last line inside a 60px cell is not a kindness. */
+  text-wrap: initial;
+}
+/* The band, and the column names on it. The names are the quietest thing in the
+   block on purpose: the reader came for the figures, and a heading that competes
+   with them is a heading being read twice. Same reasoning and same values as
+   `.table-scroll thead th`. */
+.answer-table thead th {
+  padding: 7px 14px;
+  background: var(--ast-fill-band);
+  border-bottom: 1px solid var(--ast-hairline);
+  font-size: var(--ast-fs-12);
+  font-weight: 700;
+  color: var(--ast-text-secondary);
+  /* A column name is one or two words and belongs on one line above its
+     numbers. The wrapper scrolls if that makes the table wide. */
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: bottom;
+}
+.answer-table tbody td {
+  padding: 8px 14px;
+  vertical-align: top;
+}
+/* A rule between rows, never above the first one: the band already closes the
+   header off, and a second line under it reads as an empty row. */
+.answer-table tbody tr + tr td {
+  border-top: 1px solid var(--ast-hairline);
+}
+/* The last row of an aggregate table is the total and the agent bolds it, so it
+   arrives as `**...**` and comes out as a `strong` in every cell. 700 flat,
+   against Tailwind preflight's relative `bolder` -- which compounds, and inside
+   a header cell that is already 700 would have set one row of the table at 900
+   for no reason anybody chose. */
+.answer-table strong {
+  font-weight: 700;
+}
+/*
+ * The columns the parser read as figures.
+ *
+ * Right-aligned so the digits line up under each other rather than the first
+ * character of each number lining up, and mono so a column of them does not
+ * jitter by most of a digit as the values change. That is `.bench-num`'s
+ * argument and `.bench-num`'s pair of declarations; the difference is only that
+ * this app cannot put a class on a cell the model wrote, so the parser states
+ * the alignment per cell as a data attribute. `tabular-nums` is belt and braces
+ * for a proportional face -- DM Mono is already fixed-pitch.
+ *
+ * The head is aligned and NOT set in mono: it is a word, and a right-aligned
+ * word over a right-aligned column of figures is the association being made
+ * without the word being made harder to read.
+ */
+.answer-table [data-align='right'] {
+  text-align: right;
+}
+.answer-table [data-align='center'] {
+  text-align: center;
+}
+.answer-table tbody td[data-align='right'] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  /* The card's content slot sets `overflow-wrap: anywhere`, which is right for a
+     table name in a sentence and wrong for a number: the place it chose to break
+     was inside the figure, and "$1,381" over "16" is a number a reader has to
+     reassemble before they can believe it. Same exception, same reason, as
+     `.bar-row b` in answer-body.css. */
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+/* A cell of prose -- a country, a phase name, a note -- breaks where it has to.
+   `anywhere` is inherited from the card and is left alone here: these cells hold
+   table and column names as often as they hold words. */
+.answer-table tbody td[data-align='left'] {
+  color: var(--ast-text-long);
+}

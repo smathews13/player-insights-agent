@@ -243,6 +243,52 @@ function ProseBlock({ block }: { block: Block }) {
         </Tag>
       );
     }
+    case 'table':
+      /**
+       * The agent's Markdown table, as a table.
+       *
+       * A real `<table>` and not a grid of divs, which is the one decision in
+       * here worth arguing. The block IS tabular data: it has a header row that
+       * names its columns and rows whose cells belong to those columns, and a
+       * screen reader given a grid of divs is handed a run of numbers with no
+       * statement of which column each is in. `scope="col"` is what associates
+       * them, and it costs one attribute.
+       *
+       * The alignment is on the cell rather than on a column class, because CSS
+       * cannot select a column: a class per cell is the only way to right-align
+       * the fourth column, and `data-align` is that class as an attribute so a
+       * reviewer can see in the DOM which columns the parser read as figures.
+       *
+       * Scrolls in a wrapper rather than wrapping its cells. Six columns of
+       * daily figures do not fit the transcript column at every width, and the
+       * two ways out of that are a horizontal scrollbar or a table whose numbers
+       * wrap mid-figure. A figure that wraps has to be re-read to be believed
+       * (the argument `.bar-row b` makes in answer-body.css), so this one
+       * scrolls.
+       */
+      return (<div className="answer-table-wrap">
+          <table className="answer-table">
+            {block.header ? (<thead>
+                <tr>
+                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]}>
+                      <InlineNodes nodes={cell.children} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            ) : null}
+            <tbody>
+              {block.rows.map((row) => (<tr key={row.start}>
+                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]}>
+                      <InlineNodes nodes={cell.children} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
     case 'paragraph':
       return (<p>
           <InlineNodes nodes={block.children} />

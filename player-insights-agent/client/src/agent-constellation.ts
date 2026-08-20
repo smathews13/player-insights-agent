@@ -542,16 +542,15 @@ export const PATH_MAX_PITCH = 56;
 export const PATH_MIN_PITCH = 30;
 
 /**
- * How much vertical sky the path spends before it starts compressing.
+ * How many hops are drawn at the full pitch before the path starts tightening.
  *
- * A run of seven steps draws at the full pitch; a longer one tightens towards the
- * floor rather than growing without limit. The panel still grows -- a
- * twenty-step run is taller than a seven-step one, because pretending otherwise
- * would mean dropping steps, which is the defect the live step list was built to
- * replace: the rail it succeeded subsampled to four evenly spread stages and
- * silently dropped seventeen of a twenty-one step run.
+ * Six, so a run of seven steps -- the length `#18a` is drawn at -- is the
+ * reference's own drawing, every hop at 56 and the panel 430 units tall.
  */
-const PATH_BODY = 380;
+const PATH_FULL_PITCH_HOPS = 6;
+
+/** What each hop past that one gives up, until it reaches the floor. */
+const PATH_PITCH_DECAY = 6;
 
 /** The scatter, as fractions of the band. The reference's own seven x positions. */
 const PATH_SCATTER = [0.42, 1, 0.78, 0, 0.22, 0.98, 0.5];
@@ -564,6 +563,11 @@ export interface PathConstellation {
   links: ConstellationLink[];
   /** The step numbers beside the stars, placed on whichever side has room. */
   numbers: PathNumber[];
+  /**
+   * The hop the newest star arrived on. Not a pitch for the whole path any
+   * more -- see `pathPitch` -- and reported for the frontier because that is
+   * the only hop a caller could want a figure for.
+   */
   pitch: number;
 }
 
@@ -577,16 +581,60 @@ export interface PathNumber {
   anchor: 'start' | 'end';
 }
 
-/** The pitch a run of this many steps draws at. */
-export function pathPitch(count: number): number {
-  if (count < 2) return PATH_MAX_PITCH;
-  return Math.max(PATH_MIN_PITCH, Math.min(PATH_MAX_PITCH, Math.round(PATH_BODY / (count - 1))));
+/**
+ * The pitch of the hop that lands STEP `step` under the one before it.
+ *
+ * A PROPERTY OF THE HOP AND NEVER OF THE RUN, and that distinction is the whole
+ * of this fix. It used to be `PATH_BODY / (count - 1)`: one pitch for the path,
+ * derived from how many steps the run had reported SO FAR. On a finished trace
+ * that is a fine way to fit a run into a panel. On the live path it meant every
+ * star was re-placed each time the agent announced a step -- step 07 sat at
+ * y=362 on an eight-step run, 326 on a nine, 290 on a ten -- so the chain
+ * concertinaed upward every few seconds while the reader was watching it draw.
+ * The panel's own foot moved with it, and not even monotonically: the rounding
+ * put the height at 472 units on eight steps, 478 on nine and 472 again on ten,
+ * so the band grew, shrank and grew as the run went on. That is the shake.
+ *
+ * Keyed on the hop instead, `pathStarY` is a function of a star's index alone,
+ * so a star that has been placed stays where it was placed and a new step only
+ * ever adds to the foot of the panel. The compression the old arithmetic was
+ * there for survives -- the hops decay from 56 towards a floor of 30, so a long
+ * run still tightens rather than spending 56 units a step forever -- it is just
+ * spent forwards, on the hops that have not been drawn yet, rather than
+ * retrospectively on the ones that have.
+ *
+ * `count` and `step` are the same number to every existing caller, which is why
+ * the signature did not change: both ask "the path is this long, how far apart
+ * are its stars at that end".
+ */
+export function pathPitch(step: number): number {
+  if (step < 2) return PATH_MAX_PITCH;
+  const past = Math.max(0, step - 1 - PATH_FULL_PITCH_HOPS);
+  return Math.max(PATH_MIN_PITCH, Math.min(PATH_MAX_PITCH, PATH_MAX_PITCH - past * PATH_PITCH_DECAY));
 }
 
-/** The height a path of this many steps needs. */
+/**
+ * Where the star at this index sits, which depends on the index and nothing else.
+ *
+ * The one invariant the live path needs and did not have. `agent-constellation.test.ts`
+ * reads it back against `buildPathConstellation` at every count, because a
+ * position that is stable in this function and recomputed differently in the
+ * builder is the same defect wearing a different hat.
+ */
+export function pathStarY(index: number): number {
+  let y = PATH_PAD_TOP;
+  for (let hop = 1; hop <= index; hop += 1) y += pathPitch(hop + 1);
+  return y;
+}
+
+/**
+ * The height a path of this many steps needs.
+ *
+ * Grows with the run and never shrinks, which is the other half of not shaking:
+ * the band's foot is the last star plus the room reserved under it.
+ */
 export function pathHeight(count: number): number {
-  const steps = Math.max(1, count);
-  return PATH_PAD_TOP + (steps - 1) * pathPitch(steps) + PATH_PAD_BOTTOM;
+  return pathStarY(Math.max(1, count) - 1) + PATH_PAD_BOTTOM;
 }
 
 /**
@@ -600,21 +648,33 @@ export function pathHeight(count: number): number {
  *
  * A step number sits on the side of its star away from the panel's centre, so it
  * runs outward into the margin rather than back across the chain.
+ *
+ * APPEND-ONLY. Every position here is a function of a star's INDEX and nothing
+ * else -- `PATH_SCATTER` for the x, `pathStarY` for the y -- so appending a step
+ * cannot move a star that is already on screen. That is a property of this
+ * function rather than of the component, which is why it is asserted here: the
+ * band is redrawn on every tick of the caller's clock, and a layout that only
+ * happened to be stable would shake on a surface nobody would think to check.
  */
 export function buildPathConstellation(stages: TraceStage[], activeIndex = -1): PathConstellation {
-  const pitch = pathPitch(stages.length);
   const band = PATH_BAND_RIGHT - PATH_BAND_LEFT;
   const centre = PATH_WIDTH / 2;
 
-  const stars: ConstellationStar[] = stages.map((stage, index) => ({
-    id: stage.id,
-    step: index + 1,
-    x: PATH_BAND_LEFT + PATH_SCATTER[index % PATH_SCATTER.length] * band,
-    y: PATH_PAD_TOP + index * pitch,
-    decision: stage.kind === 'agent',
-    tool: toolNameFromId(stage.id),
-    row: 0,
-  }));
+  /* Accumulated rather than `pathStarY` per star, so the walk is one pass; the
+     two agree by construction and the test holds them to it. */
+  let y = PATH_PAD_TOP;
+  const stars: ConstellationStar[] = stages.map((stage, index) => {
+    if (index > 0) y += pathPitch(index + 1);
+    return {
+      id: stage.id,
+      step: index + 1,
+      x: PATH_BAND_LEFT + PATH_SCATTER[index % PATH_SCATTER.length] * band,
+      y,
+      decision: stage.kind === 'agent',
+      tool: toolNameFromId(stage.id),
+      row: 0,
+    };
+  });
 
   const links: ConstellationLink[] = stars.slice(1).map((to, index) => {
     const from = stars[index];
@@ -638,7 +698,14 @@ export function buildPathConstellation(stages: TraceStage[], activeIndex = -1): 
     anchor: star.x < centre ? 'end' : 'start',
   }));
 
-  return { width: PATH_WIDTH, height: pathHeight(stages.length), stars, links, numbers, pitch };
+  return {
+    width: PATH_WIDTH,
+    height: pathHeight(stages.length),
+    stars,
+    links,
+    numbers,
+    pitch: pathPitch(stages.length),
+  };
 }
 
 /**

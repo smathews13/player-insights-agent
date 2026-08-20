@@ -45,6 +45,7 @@ import {
   settleRun,
 } from '../lib/run-admission';
 import { readReplay, replayBody } from '../lib/run-replay';
+import { createStageRecorder, readStageEvents } from '../lib/run-stage-events';
 import { isUsableIdempotencyKey } from '../lib/run-request-hash';
 import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
@@ -3216,8 +3217,21 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
      * Reconnect a browser to the durable state of work it did not stay to watch.
      *
      * This does not resume or duplicate execution. The original request keeps
-     * running in this server process; this route only reads the Lakebase row
-     * created before that execution began.
+     * running in this server process; this route only reads the Lakebase rows
+     * written before and during that execution.
+     *
+     * THE STEPS COME WITH IT, and that is what makes this a reconnect rather
+     * than a notification. The row alone says a run is working, which is what
+     * the returning browser used to be told and all it was told: the question
+     * came back on screen, the composer stayed shut because a run was in
+     * flight, and the agent path stayed empty for the rest of the run. The
+     * narration is durable now (see run-stage-events.ts), so the same read
+     * hands back the path the reader walked away from and it goes on growing.
+     *
+     * Served together rather than from a second endpoint because they are one
+     * question -- "what is happening in this conversation" -- and because a
+     * browser polling two routes can hold a state neither of them ever
+     * reported, a run that has finished beside the steps of one that had not.
      */
     app.get('/api/conversations/:id/run', async (req, res) => {
       const read = await readStored(
@@ -3233,7 +3247,16 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         });
         return;
       }
-      res.json(read.rows[0] ?? null);
+      const run = read.rows[0];
+      if (!run) {
+        res.json(null);
+        return;
+      }
+      // Read under the run id this owner-scoped query returned, so the
+      // narration cannot be reached by naming somebody else's run. An
+      // unreadable narration is an empty one rather than a failed reconnect:
+      // the state above is still true and still the thing the browser needs.
+      res.json({ ...run, stages: await readStageEvents(appkit, String(run.run_id)) });
     });
 
     /**
@@ -3750,6 +3773,18 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // the same red panel today, and they send a reader to two different
         // people. The forwarding behaviour is unchanged: this only reads what is
         // already going by.
+        /**
+         * Where each step is written down, so a browser that leaves mid-run can
+         * be shown the path again when it returns.
+         *
+         * Null when the ledger recorded no run for this request, which is shadow
+         * mode over a database whose ledger tables were refused: there is no
+         * `run_id` to file the steps under, and inventing one would produce a
+         * narration nothing could ever find. The run is unaffected either way --
+         * nothing below waits on this, and a reconnect simply has no steps to
+         * replay, which is the behaviour every run had before this existed.
+         */
+        const stageRecorder = admission.run ? createStageRecorder(appkit, admission.run.runId) : null;
         const onStage = reply.wantsStream
           ? (stage: Record<string, unknown>) => {
               // Forwarded whatever it is, counted only if it finished. The
@@ -3766,6 +3801,12 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
                 lastStage = { title: readStageTitle(stage), completed: stagesSeen };
               }
               reply.stage(stage);
+              // AFTER the forward, and never awaited. The reader watching this
+              // run live must not wait behind a write that exists for the
+              // reader who left. Announcements are stored as well as
+              // completions: the step a returning reader is waiting ON is the
+              // one worth showing them, and it arrives as `running`.
+              stageRecorder?.record(stage);
             }
           : undefined;
         // Two calls rather than one with a nullable token, so the path that runs

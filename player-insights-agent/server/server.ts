@@ -1,17 +1,6 @@
 import { createApp, lakebase, server } from '@databricks/appkit';
 import { lakebasePoolSettings } from './lib/lakebase-pool';
-import { setupInsightsRoutes } from './routes/insights-routes';
-import { setupSettingsRoutes } from './routes/settings-routes';
-import { setupBrowseRoutes } from './routes/browse-routes';
-import { setupArchitectureRoutes } from './routes/architecture-routes';
-import { setupAdminRoutes } from './routes/admin-routes';
-import { setupUserRoutes } from './routes/user-routes';
-import { setupMonitoringRoutes } from './routes/monitoring-routes';
-import { setupOpsRoutes } from './routes/ops-routes';
-import { setupEgressRoutes } from './routes/egress-routes';
-import { setupRuntimeSettingsRoutes } from './routes/runtime-settings-routes';
-import { bootstrapSeedRoles, isAdminRoute } from './lib/admin-roles';
-import { respondToHandlerFailures } from './lib/handler-failures';
+import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
 
 // The serving() plugin is deliberately NOT registered. Its invoke path runs the
 // request body through two allowlists that drop unknown keys (the plugin's own
@@ -30,6 +19,37 @@ import { respondToHandlerFailures } from './lib/handler-failures';
 createApp({
   plugins: [lakebase({ pool: lakebasePoolSettings() }), server()],
   async onPluginsReady(appkit) {
+    // Git replaces app.yaml, including a bundle release's private schema value,
+    // but keeps the App identity and its Postgres ownership. Resolve that owned
+    // store before importing modules whose SQL constants capture APP_SCHEMA.
+    await preserveOwnedAppSchema(appkit.lakebase);
+    const [
+      { setupInsightsRoutes },
+      { setupSettingsRoutes },
+      { setupBrowseRoutes },
+      { setupArchitectureRoutes },
+      { setupAdminRoutes },
+      { setupUserRoutes },
+      { setupMonitoringRoutes },
+      { setupOpsRoutes },
+      { setupEgressRoutes },
+      { setupRuntimeSettingsRoutes },
+      { bootstrapSeedRoles, isAdminRoute },
+      { respondToHandlerFailures },
+    ] = await Promise.all([
+      import('./routes/insights-routes'),
+      import('./routes/settings-routes'),
+      import('./routes/browse-routes'),
+      import('./routes/architecture-routes'),
+      import('./routes/admin-routes'),
+      import('./routes/user-routes'),
+      import('./routes/monitoring-routes'),
+      import('./routes/ops-routes'),
+      import('./routes/egress-routes'),
+      import('./routes/runtime-settings-routes'),
+      import('./lib/admin-roles'),
+      import('./lib/handler-failures'),
+    ]);
     const { storeReady } = await setupInsightsRoutes(appkit);
     // Role bootstrap is the one boot task that must wait for Lakebase migrations.
     // The database is authoritative at runtime; deployment config may insert the

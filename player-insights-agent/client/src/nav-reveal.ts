@@ -32,13 +32,13 @@ export const SHOW_EVERY_TAB_TO_EVERYONE: boolean = true;
 /**
  * Whether the Benchmark Lab is offered in the app at all.
  *
- * OFF FOR NOW. The tab is unfinished and non-functional (empty metrics, no
- * recorded runs), so it is hidden from every role, including administrators.
- * This is the single switch: set it to `true` to restore the previous behaviour
- * (nav entry for everyone, and `/benchmarks` rendering the lab again).
+ * ON as the emergency gate around the operator-facing preference. The Settings
+ * toggle remains off by default and decides whether one browser sees the tab,
+ * scorers and judge details. Setting this to false still removes the surface
+ * from every browser without deleting its routes or data.
  *
  * While off, `/benchmarks` redirects to Ask rather than rendering the empty lab
  * or a permission gate. Server `/api/benchmarks*` routes stay registered; this
  * flag is UI visibility only.
  */
-export const BENCHMARK_LAB_ENABLED: boolean = false;
+export const BENCHMARK_LAB_ENABLED: boolean = true;

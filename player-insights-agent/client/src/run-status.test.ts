@@ -336,6 +336,29 @@ describe('a run that stopped says where it stopped, and only what it knows', () 
     });
     expect(between.label).toBe('Live · step 06');
   });
+
+  it('counts the run’s newest step rather than an envelope that opened at step 01', () => {
+    /*
+     * THE REPORTED DEFECT, on this badge: "Live · step 01" for a whole run.
+     *
+     * A run announces `orchestrator` before it does anything and reports it only at
+     * the end, so the step-in-progress reading can name step 01 while seven steps
+     * are on screen. The later of the two readings is the newest step either way,
+     * which is also what the band beside this pill marks -- the two cannot disagree
+     * about which step the reader is waiting on.
+     */
+    const envelope = runStatusFor({
+      loading: true,
+      liveSteps: 7,
+      runningStep: 1,
+      runStopped: false,
+      awaitingApproval: false,
+      asked: false,
+      answered: false,
+      readiness: 'ready',
+    });
+    expect(envelope.label).toBe('Live · step 07');
+  });
 });
 
 describe('the pill under a reduced-motion preference, and to a screen reader', () => {

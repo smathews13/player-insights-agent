@@ -31,10 +31,19 @@ import { linkifyEntities, type ProseSegment } from './data-entities';
  * WHAT IS DELIBERATELY NOT SUPPORTED. Underscore emphasis, above all: every
  * table this app links has underscores in it, and `_`-delimited emphasis would
  * eat `gold_title_daily_summary` and hand back a half-italic fragment that no
- * longer matches anything. Also absent: tables, block quotes, fenced code
- * blocks, thematic breaks, images and backslash escapes. Anything unsupported
- * survives as the characters the agent wrote, which is what the app did with
- * all of it before this module existed.
+ * longer matches anything. Also absent: block quotes, thematic breaks, images
+ * and backslash escapes. Anything unsupported survives as the characters the
+ * agent wrote, which is what the app did with all of it before this module
+ * existed.
+ *
+ * TABLES ARE SUPPORTED, and they were the last construct in this list that the
+ * agent writes on nearly every quantitative answer. An answer that aggregated
+ * three weeks of sessions by day put its six columns on screen as the pipes and
+ * the dashes the model typed -- `| Date | Sessions |` and a row of `---` under
+ * it -- which is the same defect this module was written for, one construct
+ * later, and the worst instance of it: a table is the one shape whose whole
+ * value is that the figures line up, and unrendered it is the shape that reads
+ * worst as plain text. See `tableBlock` below for what counts as one.
  */
 
 /** A run of prose, or a code span, already cut into linkable segments. */
@@ -55,10 +64,37 @@ export interface ListItem {
   children: Inline[];
 }
 
+/** How one column is read: down as digits, or across as words. */
+export type CellAlign = 'left' | 'right' | 'center';
+
+export interface TableCell {
+  start: number;
+  children: Inline[];
+}
+
+export interface TableRow {
+  start: number;
+  cells: TableCell[];
+}
+
 export type Block =
   | { kind: 'paragraph'; start: number; children: Inline[] }
   | { kind: 'heading'; start: number; level: 2 | 3; children: Inline[] }
-  | { kind: 'list'; start: number; ordered: boolean; items: ListItem[] };
+  | { kind: 'list'; start: number; ordered: boolean; items: ListItem[] }
+  | {
+      kind: 'table';
+      start: number;
+      /** One entry per column, so a cell never has to work out its own. */
+      align: CellAlign[];
+      /**
+       * Absent when the model wrote data rows and no header. That happens, and
+       * it is worth rendering rather than refusing: the stray row an answer
+       * leaves after its table -- one day's figures, pipes and all -- is a row a
+       * reader can read in columns and cannot read as punctuation.
+       */
+      header?: TableRow;
+      rows: TableRow[];
+    };
 
 /**
  * Line shapes that open a block.
@@ -237,6 +273,196 @@ function contentAfter(line: SourceLine, marker: string): { text: string; start: 
   return { text: rest.trim(), start: line.start + marker.length + lead };
 }
 
+/** One cell's source, and where in the answer it starts. */
+interface RawCell {
+  text: string;
+  start: number;
+}
+
+/** A line that is a row, and the cells it cut into. */
+interface RawRow {
+  line: SourceLine;
+  cells: RawCell[];
+}
+
+/**
+ * The cells of a pipe row, or nothing when the line is not one.
+ *
+ * A LINE HAS TO WEAR AN OUTER PIPE TO PARTICIPATE, which is stricter than GFM,
+ * where `Date | Sessions` with no delimiting pipes opens a table. The stricter
+ * rule is the whole guard against a false table: this answer is prose written by
+ * a model, `|` appears in it as a separator inside a sentence ("GB | DE | FR"),
+ * and a rule that reads any pipe as a column boundary turns that sentence into a
+ * three-column table with no way for a reader to get the sentence back. Every
+ * table the agent actually writes carries the outer pipes.
+ *
+ * Two cells minimum, for the same reason. A single-cell row is a line that
+ * happens to start with a pipe, and one column is not a table.
+ *
+ * Split on the pipe and nothing else -- not on pipes outside code spans, which
+ * is also what GFM does. The row is cut into cells first and each cell is parsed
+ * afterwards, so a backtick in one cell cannot reach across into the next.
+ */
+function rowCells(line: SourceLine): RawCell[] | undefined {
+  const trimmed = line.text.trim();
+  if (!trimmed.startsWith('|') && !trimmed.endsWith('|')) return undefined;
+  const lead = line.text.length - line.text.trimStart().length;
+  let from = lead;
+  let to = lead + trimmed.length;
+  if (trimmed.startsWith('|')) from += 1;
+  if (trimmed.endsWith('|') && to - 1 > from) to -= 1;
+  if (to < from) return undefined;
+  const cells: RawCell[] = [];
+  let at = 0;
+  for (const piece of line.text.slice(from, to).split('|')) {
+    const offset = piece.length - piece.trimStart().length;
+    cells.push({ text: piece.trim(), start: line.start + from + at + offset });
+    at += piece.length + 1;
+  }
+  return cells.length >= 2 ? cells : undefined;
+}
+
+/** A delimiter cell: dashes, with a colon on either end to ask for an alignment. */
+const DELIMITER_CELL = /^:?-+:?$/;
+
+/**
+ * What the delimiter row under a header asked for, or nothing when the row is
+ * not a delimiter row at all.
+ *
+ * A column is `undefined` when its cell is a plain run of dashes, which is what
+ * the agent writes: the model states the columns and leaves the alignment to the
+ * reader's renderer, and `left` and "unstated" have to be told apart so that
+ * `alignFor` below can look at the figures instead of guessing.
+ */
+function delimiterAligns(cells: readonly RawCell[]): (CellAlign | undefined)[] | undefined {
+  if (!cells.every((cell) => DELIMITER_CELL.test(cell.text))) return undefined;
+  return cells.map((cell) => {
+    const left = cell.text.startsWith(':');
+    const right = cell.text.endsWith(':');
+    if (left && right) return 'center';
+    if (right) return 'right';
+    return left ? 'left' : undefined;
+  });
+}
+
+/**
+ * A cell's text with its emphasis and its code marks off it.
+ *
+ * The last row of an aggregate table is the total and the agent bolds it, so the
+ * figure in it arrives as `**$1,381.16**`. Read literally that is not a number,
+ * and a column whose last cell "is not a number" loses its alignment on the one
+ * row a reader most wants lined up under the rest.
+ */
+function bareCell(text: string): string {
+  return text.replace(/[*`]/g, '').trim();
+}
+
+/**
+ * A figure, as the agent formats one.
+ *
+ * Currency and a thousands separator are in, because the answers this was
+ * written for report bookings in dollars. A date is deliberately OUT: `2026-08-03`
+ * is digits and nothing else, and right-aligning the date column of a daily table
+ * pushes the one value a reader scans down the column away from its own heading.
+ * Which is the whole reason this is a pattern over the whole cell rather than a
+ * count of the digits in it.
+ */
+const NUMERIC_CELL = /^[-+\u2212(]?\s*[$€£]?\s*\d+(?:,\d{3})*(?:\.\d+)?\s*%?\)?$/;
+
+/**
+ * How one column is aligned: what the delimiter row said, or what its figures
+ * say when the delimiter row said nothing.
+ *
+ * A column is right-aligned only when EVERY value in it is a figure. One cell of
+ * prose in a column of numbers means the column is a mixed column, and a mixed
+ * column read as digits sets its sentence flush against the column to its right.
+ */
+function alignFor(column: number, declared: readonly (CellAlign | undefined)[] | undefined, rows: readonly RawRow[]): CellAlign {
+  const stated = declared?.[column];
+  if (stated) return stated;
+  let figures = 0;
+  for (const row of rows) {
+    const cell = row.cells[column];
+    if (!cell || !cell.text) continue;
+    if (!NUMERIC_CELL.test(bareCell(cell.text))) return 'left';
+    figures += 1;
+  }
+  return figures > 0 ? 'right' : 'left';
+}
+
+function tableRow(row: RawRow, width: number): TableRow {
+  return {
+    start: row.line.start,
+    // Truncated to the header's width, which is GFM's rule and is also the only
+    // safe one: an extra cell has no column, so no alignment and no heading, and
+    // rendering it would put a figure under a heading that does not describe it.
+    cells: row.cells.slice(0, width).map((cell) => ({ start: cell.start, children: parseInline(cell.text, cell.start) })),
+  };
+}
+
+/**
+ * A run of pipe rows, as a table -- or nothing, when there is no table in them.
+ *
+ * The header is the first row only when a delimiter row follows it, which is
+ * what tells a heading apart from a datum. Without one, every row is data and
+ * the table renders headerless rather than promoting a row of figures into a
+ * heading it would then be missing from.
+ *
+ * A delimiter row anywhere else is dropped rather than rendered. It carries no
+ * cell a reader can read, and a model that writes a second one is ruling off its
+ * own rows, not adding to them.
+ */
+function tableBlock(raw: readonly RawRow[]): Block | undefined {
+  if (raw.length === 0) return undefined;
+  const declared = raw.length > 1 ? delimiterAligns(raw[1].cells) : undefined;
+  const header = declared ? raw[0] : undefined;
+  const body = raw.slice(header ? 2 : 0).filter((row) => !delimiterAligns(row.cells));
+  if (body.length === 0) return undefined;
+  const width = header ? header.cells.length : Math.max(...body.map((row) => row.cells.length));
+  const align: CellAlign[] = [];
+  for (let column = 0; column < width; column += 1) align.push(alignFor(column, declared, body));
+  const block: Block = { kind: 'table', start: raw[0].line.start, align, rows: body.map((row) => tableRow(row, width)) };
+  return header ? { ...block, header: tableRow(header, width) } : block;
+}
+
+/** A fence line: three or more backticks or tildes, whatever follows them. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
+/**
+ * The table inside a fenced block, when that is all the block holds.
+ *
+ * WHY A FENCE IS OPENED AT ALL. Fenced blocks are otherwise unsupported here and
+ * survive as the characters the agent typed, which is the documented behaviour
+ * for everything this parser does not read. It is the wrong behaviour for a
+ * table, and a fenced table is not a rare accident: a model asked for a table
+ * inside a JSON field very often fences it, and the reader then gets the pipes
+ * AND three backticks above them. The pipes leaking through a fence is one of
+ * the two ways this defect reaches a screen and it has the same cause and the
+ * same fix as the other.
+ *
+ * ONLY WHEN THE FENCE HOLDS NOTHING ELSE. Every non-blank line inside has to be
+ * a pipe row. A fence with a sentence in it is a fence the agent meant, most
+ * likely SQL or JSON, and the pipes in a `CASE WHEN` are not columns.
+ */
+function fencedTable(lines: readonly SourceLine[], from: number): { block: Block; next: number } | undefined {
+  const fence = FENCE.exec(lines[from].text)?.[1];
+  if (!fence) return undefined;
+  let close = from + 1;
+  while (close < lines.length && !lines[close].text.trim().startsWith(fence)) close += 1;
+  // An unclosed fence is a fence the agent is still writing, or one it never
+  // finished. Either way there is no block here to read to the end of.
+  if (close >= lines.length) return undefined;
+  const raw: RawRow[] = [];
+  for (const line of lines.slice(from + 1, close)) {
+    if (!line.text.trim()) continue;
+    const cells = rowCells(line);
+    if (!cells) return undefined;
+    raw.push({ line, cells });
+  }
+  const block = tableBlock(raw);
+  return block ? { block, next: close + 1 } : undefined;
+}
+
 /**
  * The answer, as blocks.
  *
@@ -257,6 +483,16 @@ export function parseAnswerMarkdown(source: string): Block[] {
       continue;
     }
 
+    // Before the heading check, because a fence is not a heading and the fence
+    // branch declines every block that is not a table -- so a fenced SQL
+    // statement falls through to exactly the lines it fell through to before.
+    const fenced = fencedTable(lines, index);
+    if (fenced) {
+      blocks.push(fenced.block);
+      index = fenced.next;
+      continue;
+    }
+
     const heading = HEADING.exec(line.text);
     if (heading) {
       const content = contentAfter(line, heading[0]);
@@ -267,6 +503,29 @@ export function parseAnswerMarkdown(source: string): Block[] {
       blocks.push({ kind: 'heading', start: line.start, level, children: parseInline(content.text, content.start) });
       index += 1;
       continue;
+    }
+
+    // Before the list check, so that a delimiter row written without its outer
+    // pipes -- `--- | ---` -- is read as part of the table above it rather than
+    // as a bullet whose marker is its first dash.
+    const opening = rowCells(line);
+    if (opening) {
+      const raw: RawRow[] = [];
+      for (let at = index; at < lines.length; at += 1) {
+        const cells = rowCells(lines[at]);
+        if (!cells) break;
+        raw.push({ line: lines[at], cells });
+      }
+      const table = tableBlock(raw);
+      // Only the rows the table took. A run of pipe rows that is nothing but
+      // delimiters is not a table, and leaving `index` alone lets it fall
+      // through to the paragraph branch below -- as the characters it is, which
+      // is what every unsupported construct here does.
+      if (table) {
+        blocks.push(table);
+        index += raw.length;
+        continue;
+      }
     }
 
     const ordered = !BULLET.test(line.text) && NUMBERED.test(line.text);
@@ -290,6 +549,16 @@ export function parseAnswerMarkdown(source: string): Block[] {
       const current = lines[index];
       if (!current.text.trim()) break;
       if (HEADING.test(current.text) || BULLET.test(current.text) || NUMBERED.test(current.text)) break;
+      // A table that opens on the line after a sentence, with no blank line
+      // between them, is still a table. Without this the paragraph swallowed it
+      // and every row of it came out as pipes inside a run of prose -- which is
+      // how the reported defect looked on the answer it was reported from,
+      // because the agent introduces its tables in a sentence and does not
+      // always leave a blank line after it.
+      // Not on the paragraph's own first line, which is how a run of pipe rows
+      // that the table branch already refused gets to be the text it is rather
+      // than a paragraph that breaks before it starts.
+      if (children.length > 0 && rowCells(current)) break;
       // Keyed on the newline that produced it, which is a position no node
       // built from the line either side of it can also claim.
       if (children.length > 0) children.push({ kind: 'break', start: current.start - 1 });
@@ -367,7 +636,22 @@ export function answerBlocks(source: string,
   // block shapes widens the result to a shape with every field optional, which
   // is no longer a `Block`.
   return parseAnswerMarkdown(source).map((block): Block => {
+    const linkRow = (row: TableRow): TableRow => ({
+      ...row,
+      cells: row.cells.map((cell) => ({ ...cell, children: linkifyInline(cell.children, declared, tracked, columns) })),
+    });
     switch (block.kind) {
+      // A cell is linked on the same two rules as a sentence: the answer cited
+      // the table and Connections has a row for it. Worth stating because a
+      // table of geographies looks like a table of entities and is not one --
+      // "Germany" is a country, the answer declared no such source, and nothing
+      // in the cell matches a tracked name, so nothing in it links.
+      case 'table':
+        return {
+          ...block,
+          ...(block.header ? { header: linkRow(block.header) } : {}),
+          rows: block.rows.map(linkRow),
+        };
       case 'list':
         return {
           ...block,

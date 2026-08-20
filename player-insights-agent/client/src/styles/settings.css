@@ -61,6 +61,10 @@
   gap: 16px;
 }
 
+.settings-row + .settings-row {
+  margin-top: 16px;
+}
+
 .settings-row-label {
   margin: 0;
   font-size: var(--text-base);

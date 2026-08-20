@@ -64,7 +64,26 @@ export function resolveAppSchema(
  * deployment constants). Tests that need a different schema must set the env
  * before importing this module, or call {@link resolveAppSchema} directly.
  */
-export const APP_SCHEMA = resolveAppSchema();
+export let APP_SCHEMA = resolveAppSchema();
+
+const POSTGRES_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_$]*$/;
+
+/**
+ * Adopt the schema already owned by this app identity before route modules load.
+ *
+ * A Git deployment replaces app.yaml, so it cannot carry a bundle target's
+ * private schema value. The boot probe uses this setter after asking Postgres
+ * which Astrolabe schema the unchanged app role already owns. Keeping the
+ * mutation here preserves one validation boundary and one exported binding.
+ */
+export function adoptAppSchema(schema: string): string {
+  const candidate = schema.trim();
+  if (!POSTGRES_IDENTIFIER.test(candidate)) {
+    throw new Error(`Refusing invalid Postgres schema identifier: ${JSON.stringify(schema)}`);
+  }
+  APP_SCHEMA = candidate;
+  return APP_SCHEMA;
+}
 
 /** Qualify a bare table name against the process's app-owned schema. */
 export function appTable(name: string): string {

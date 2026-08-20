@@ -157,6 +157,42 @@ function MarkdownBlock({ block }: { block: Block }) {
           ))}
         </ul>
       );
+    case 'table':
+      // MOSTLY UNREACHED, AND WORTH HAVING ANYWAY. `MarkdownText` below cuts a
+      // header-and-separator table out of the text before this ever sees it and
+      // draws it as a ResultGrid, which is nearly every table a step returns. What
+      // reaches here is the shape that pre-pass has no rule for: a run of pipe
+      // rows with no separator under it, which used to land in a paragraph and
+      // come out as the pipes the agent typed.
+      //
+      // Drawn in the answer card's treatment rather than in a third one. The
+      // alternative was to restate ResultGrid's markup for a block whose cells
+      // are already parsed -- and the reason not to is the bolded total row: the
+      // grid takes plain strings, so a total arrives there as `**3,914**`.
+      // Scrolls inside the panel; see `.answer-table-wrap` in answer.css.
+      return (<div className="answer-table-wrap">
+          <table className="answer-table">
+            {block.header ? (<thead>
+                <tr>
+                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]}>
+                      <InlineRuns nodes={cell.children} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            ) : null}
+            <tbody>
+              {block.rows.map((row) => (<tr key={row.start}>
+                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]}>
+                      <InlineRuns nodes={cell.children} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
     case 'paragraph':
       return (<p>
           <InlineRuns nodes={block.children} />

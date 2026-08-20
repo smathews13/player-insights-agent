@@ -1195,23 +1195,6 @@ def _failure_reason(error: Exception) -> str:
     return f"{type(error).__name__}: {detail}"[:300] if detail else type(error).__name__
 
 
-def _decline_reason(text: str) -> str:
-    """The plotting model's own account of why it drew nothing, as one short line.
-
-    `PLOT_INSTRUCTIONS` discards this prose for the answer, and rightly: it is a note
-    to the caller, not something a stakeholder asked for. Kept for the trace, because
-    the alternative already shipped and was a step that reported no chart and no
-    reason, which is unreadable. First sentence only, and capped: the trace needs the
-    reason, not the model's reasoning.
-    """
-
-    collapsed = re.sub(r"\s+", " ", text or "").strip()
-    if not collapsed:
-        return ""
-    sentence = re.split(r"(?<=[.!?])\s", collapsed, maxsplit=1)[0]
-    return sentence if len(sentence) <= 200 else sentence[:199].rstrip() + "…"
-
-
 #: What the AI Gateway says when it refuses, mapped to what a stakeholder is
 #: owed. Keyed on the `error_code` the gateway returns in its JSON body, a
 #: stable contract, unlike the prose, which is written for an operator.
@@ -3431,7 +3414,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 f"their summed duration was {summed:.2f}s"
             )
 
-        answer_text, stage = self._forced_answer(
+        answer_text, stage, completed_from_reading = self._forced_answer(
             messages,
             log,
             capped,
@@ -3439,7 +3422,16 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             parent_id=parent_id,
         )
         yield stage
-        return LoopOutcome(answer_text=answer_text, capped=capped)
+        # A ceiling says no more tools may start; it does not by itself say the
+        # assessed package is incomplete. In DSF, a successful value-returning
+        # query is the useful boundary. Optional candidate tables left unsampled
+        # after that point must not turn a usable package pink or add a misleading
+        # "stopped early" caveat. With no queryable reading, the same ceiling is
+        # still a real partial outcome.
+        return LoopOutcome(
+            answer_text=answer_text,
+            capped="" if completed_from_reading else capped,
+        )
 
     def _forced_answer(
         self,
@@ -3449,7 +3441,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         *,
         depth: int = 0,
         parent_id: str = "",
-    ) -> tuple[str, TraceStage]:
+    ) -> tuple[str, TraceStage, bool]:
         """One last model call with no tools offered, after a bound was hit.
 
         Withholding the tools is the whole mechanism: the model cannot ask for
@@ -3489,27 +3481,40 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 log.add_usage(record_llm_usage(llm_span, response))
         except Exception as error:
             text = ""
-            return text, log.stage(
+            return (
+                text,
+                log.stage(
+                    "cap",
+                    "Stopped at the step budget",
+                    "agent",
+                    started,
+                    capped,
+                    f"No closing answer could be produced ({_failure_reason(error)}).",
+                    "failed",
+                    depth=depth,
+                    parent_id=parent_id,
+                ),
+                False,
+            )
+        completed_from_reading = bool(text.strip() and log.readings)
+        return (
+            text,
+            log.stage(
                 "cap",
-                "Stopped at the step budget",
+                (
+                    "Completed from assessed sources"
+                    if completed_from_reading
+                    else "Stopped at the step budget"
+                ),
                 "agent",
                 started,
                 capped,
-                f"No closing answer could be produced ({_failure_reason(error)}).",
-                "failed",
+                text,
+                "complete" if completed_from_reading else "partial",
                 depth=depth,
                 parent_id=parent_id,
-            )
-        return text, log.stage(
-            "cap",
-            "Stopped at the step budget",
-            "agent",
-            started,
-            capped,
-            text,
-            "partial",
-            depth=depth,
-            parent_id=parent_id,
+            ),
+            completed_from_reading,
         )
 
     def _synthesize(
@@ -3682,6 +3687,7 @@ Statements run, for column names and grain:
 """
         charts: list[Chart] = []
         rejected: list[str] = []
+        limited = False
         max_charts = runtime_settings.current().answer.max_charts
         chart_types = runtime_settings.current().answer.charts_types
         plot_instructions = PLOT_INSTRUCTIONS.replace(
@@ -3724,18 +3730,31 @@ Statements run, for column names and grain:
                 calls = getattr(response.choices[0].message, "tool_calls", None) or []
             except Exception as error:
                 span.set_outputs({"error": _failure_reason(error)})
-                return [], f"No chart was produced ({_failure_reason(error)}).", "partial"
+                return (
+                    [],
+                    "Charts could not be built because the charting service was unavailable.",
+                    "partial",
+                )
 
             for call in calls:
                 if getattr(call.function, "name", "") != "new_plot":
                     continue
                 if len(charts) >= max_charts:
-                    rejected.append(f"only the first {max_charts} charts were kept")
+                    limited = True
                     break
                 try:
                     arguments = json.loads(call.function.arguments or "{}")
                 except json.JSONDecodeError as error:
                     rejected.append(f"the spec was not valid JSON ({error})")
+                    continue
+                # An explicit null is the model declining the optional outcome in
+                # tool-call form. This endpoint has produced `data: null` when the
+                # package is narrative rather than chartable, despite the brief
+                # asking it not to call the tool. Recognise that sentinel before
+                # chart validation. A missing `data` key still reaches `new_plot`
+                # below and remains a malformed response.
+                if "data" in arguments and arguments["data"] is None:
+                    empty.append("no figures were applicable")
                     continue
                 try:
                     chart = new_plot(
@@ -3768,11 +3787,13 @@ Statements run, for column names and grain:
             if charts:
                 drawn = ", ".join(f"{chart.kind}" for chart in charts)
                 note = f"Rendered {len(charts)} chart(s): {drawn}."
+                if limited:
+                    note += f" Only the first {max_charts} charts were included."
                 if rejected:
-                    note += " Rejected: " + "; ".join(rejected)
+                    note += " Some chart requests could not be completed."
                 status = "complete"
             elif rejected:
-                note = "No chart rendered. Rejected: " + "; ".join(rejected)
+                note = "Charts could not be built because the chart response was incomplete."
                 status = "partial"
             elif empty:
                 # Green, and this is the point of the whole change. The step ran, was
@@ -3788,25 +3809,23 @@ Statements run, for column names and grain:
                 # front of a reader whose answer was correct. Green with that
                 # sentence under it still reads as a breakage, because that sentence
                 # is what a breakage looked like.
-                note = f"No chart: {empty[0]}."
+                note = "Charts were not applicable for this answer."
                 status = "complete"
             else:
-                # Nothing was even attempted, so the only account of why is the prose
-                # the brief told the model to send instead of a tool call. Read back
-                # rather than replaced with a guess: this module can see that no chart
-                # was asked for, and cannot see whether that was one scalar, all zeroes,
-                # or a shape it had no room for.
-                declined = _decline_reason(
-                    getattr(response.choices[0].message, "content", "") or ""
-                )
-                note = (
-                    f"No chart: {declined}"
-                    if declined
-                    else "No chart: the plotting step drew nothing and gave no reason."
-                )
+                # No tool call is the contract's normal way to decline charting.
+                # Keep the result stable and plain rather than exposing arbitrary
+                # model narration in a status field.
+                note = "Charts were not applicable for this answer."
                 status = "complete"
             span.set_outputs(
-                {"charts": len(charts), "kinds": [c.kind for c in charts], "note": note}
+                {
+                    "charts": len(charts),
+                    "kinds": [c.kind for c in charts],
+                    "note": note,
+                    # Operator-only diagnostic detail. The stage result above is
+                    # intentionally written for the person reading Run Explorer.
+                    "rejections": rejected,
+                }
             )
             log.add_usage(record_llm_usage(span, response))
         return charts, note, status

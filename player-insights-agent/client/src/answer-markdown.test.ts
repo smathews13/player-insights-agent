@@ -17,17 +17,29 @@ const CATALOG = '<your_catalog>.<your_schema>';
 const DAILY = `${CATALOG}.gold_title_daily_summary`;
 const TRACKED = [DAILY, `${CATALOG}.silver_purchases`];
 
+/**
+ * Every inline node a block holds, whatever shape the block is.
+ *
+ * The helpers below all needed this once tables arrived: a table's inline nodes
+ * are two levels down, in the cells of its rows, and every one of these
+ * functions used to reach straight for `block.children`.
+ */
+function blockInlines(block: Block): Inline[][] {
+  if (block.kind === 'list') return block.items.map((item) => item.children);
+  if (block.kind === 'table') {
+    const rows = block.header ? [block.header, ...block.rows] : block.rows;
+    return rows.flatMap((row) => row.cells.map((cell) => cell.children));
+  }
+  return [block.children];
+}
+
 /** Every node kind in the tree, in order, blocks included. */
 function kinds(blocks: readonly Block[]): string[] {
   const inline = (nodes: readonly Inline[]): string[] =>
     nodes.flatMap((node) =>
       node.kind === 'strong' || node.kind === 'link' ? [node.kind, ...inline(node.children)] : [node.kind]
     );
-  return blocks.flatMap((block) =>
-    block.kind === 'list'
-      ? [block.kind, ...block.items.flatMap((item) => inline(item.children))]
-      : [block.kind, ...inline(block.children)]
-  );
+  return blocks.flatMap((block) => [block.kind, ...blockInlines(block).flatMap(inline)]);
 }
 
 /** The text a reader would see, with a newline wherever the tree breaks the line. */
@@ -42,11 +54,7 @@ function visible(nodes: readonly Inline[]): string {
 }
 
 function blockText(blocks: readonly Block[]): string {
-  return blocks
-    .map((block) =>
-      block.kind === 'list' ? block.items.map((item) => visible(item.children)).join('\n') : visible(block.children)
-    )
-    .join('\n');
+  return blocks.map((block) => blockInlines(block).map(visible).join('\n')).join('\n');
 }
 
 /** The linked runs anywhere in the tree, as `[text, entity]`. */
@@ -59,9 +67,7 @@ function links(blocks: readonly Block[]): [string, string][] {
       if (node.kind === 'strong' || node.kind === 'link') return inline(node.children);
       return [];
     });
-  return blocks.flatMap((block) =>
-    block.kind === 'list' ? block.items.flatMap((item) => inline(item.children)) : inline(block.children)
-  );
+  return blocks.flatMap((block) => blockInlines(block).flatMap(inline));
 }
 
 /** Every href the tree would put in the DOM. */
@@ -72,9 +78,7 @@ function hrefs(blocks: readonly Block[]): string[] {
       if (node.kind === 'strong') return inline(node.children);
       return [];
     });
-  return blocks.flatMap((block) =>
-    block.kind === 'list' ? block.items.flatMap((item) => inline(item.children)) : inline(block.children)
-  );
+  return blocks.flatMap((block) => blockInlines(block).flatMap(inline));
 }
 
 describe('the blocks the agent actually writes', () => {
@@ -166,9 +170,194 @@ describe('the blocks the agent actually writes', () => {
     for (const block of blocks) {
       if (block.kind === 'list') {
         expect(new Set(block.items.map((item) => item.start)).size).toBe(block.items.length);
-        for (const item of block.items) starts(item.children);
-      } else starts(block.children);
+      }
+      for (const nodes of blockInlines(block)) starts(nodes);
     }
+  });
+});
+
+/**
+ * The tables the agent writes, which the app used to print as pipes.
+ *
+ * Every source below is the agent's own, off the answer this was reported from:
+ * a daily aggregate with a bolded total row, a country breakdown, and the stray
+ * single row the answer left after its table. They are kept verbatim, em dash
+ * included, because the one thing a table renderer must not do is edit the cell
+ * it was given.
+ */
+describe('the tables the agent writes', () => {
+  const RAMP = [
+    '| Date | Sessions | Active Players | Launch Campaign Sessions | Avg Session (min) | Net Bookings (USD) |',
+    '| --- | --- | --- | --- | --- | --- |',
+    '| 2026-07-14 | 118 | 96 | 0 | 31.40 | $214.55 |',
+    '| 2026-08-03 | 482 | 371 | 8 | 45.15 | $1,381.16 |',
+    '| **Total** | **3,914** | **2,880** | **41** | **38.62** | **$9,204.73** |',
+  ].join('\n');
+
+  const COUNTRIES = [
+    '| Country | Sessions | Active Players |',
+    '| --- | --- | --- |',
+    '| GB | 482 | 371 |',
+    '| DE (Germany \u2014 country level) | 96 | 74 |',
+    '| FR | 61 | 48 |',
+    '| ES | 44 | 35 |',
+  ].join('\n');
+
+  /** One table's cells as text, header first when it has one. */
+  function grid(block: Block): string[][] {
+    if (block.kind !== 'table') return [];
+    const rows = block.header ? [block.header, ...block.rows] : block.rows;
+    return rows.map((row) => row.cells.map((cell) => visible(cell.children)));
+  }
+
+  function firstTable(source: string): Block {
+    const table = parseAnswerMarkdown(source).find((block) => block.kind === 'table');
+    if (!table) throw new Error('no table in that source');
+    return table;
+  }
+
+  it('reads a six-column aggregate as one table with a header and three rows', () => {
+    const table = firstTable(RAMP);
+    expect(table.kind === 'table' && table.header?.cells).toHaveLength(6);
+    expect(table.kind === 'table' && table.rows).toHaveLength(3);
+    expect(grid(table)[0]).toEqual([
+      'Date',
+      'Sessions',
+      'Active Players',
+      'Launch Campaign Sessions',
+      'Avg Session (min)',
+      'Net Bookings (USD)',
+    ]);
+  });
+
+  it('keeps not one character of a cell, currency and thousands separator included', () => {
+    // The parser is allowed to read the pipes and nothing else. A renderer that
+    // reformats `$1,381.16` is a renderer that can disagree with the figure the
+    // agent computed.
+    expect(grid(firstTable(RAMP))[2]).toEqual(['2026-08-03', '482', '371', '8', '45.15', '$1,381.16']);
+  });
+
+  it('reads the bolded total row as bold, and still as a row', () => {
+    const table = firstTable(RAMP);
+    // The last row is the total and the agent bolds every cell of it. It has to
+    // stay in the table -- a total promoted out of the body loses the columns
+    // that make it a total.
+    expect(grid(table)[3]).toEqual(['Total', '3,914', '2,880', '41', '38.62', '$9,204.73']);
+    const last = table.kind === 'table' ? table.rows[2] : undefined;
+    expect(last?.cells.every((cell) => cell.children.some((node) => node.kind === 'strong'))).toBe(true);
+  });
+
+  it('right-aligns the figures and leaves the date and the country alone', () => {
+    // The delimiter row the agent writes is plain dashes: it states the columns
+    // and says nothing about alignment. So the alignment comes from the figures,
+    // and a date is deliberately not a figure -- see NUMERIC_CELL.
+    expect(firstTable(RAMP).kind === 'table' && (firstTable(RAMP) as { align: string[] }).align).toEqual([
+      'left',
+      'right',
+      'right',
+      'right',
+      'right',
+      'right',
+    ]);
+    expect((firstTable(COUNTRIES) as { align: string[] }).align).toEqual(['left', 'right', 'right']);
+  });
+
+  it('honours a delimiter row that does state its alignment', () => {
+    const table = firstTable('| A | B | C |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |');
+    expect((table as { align: string[] }).align).toEqual(['left', 'center', 'right']);
+  });
+
+  it('leaves the country cells exactly as written, em dash and parentheses and all', () => {
+    // Germany is reported at country level and the agent says so in the cell.
+    // Nothing here is the place to reword that, and the em dash is one character
+    // in a cell rather than a delimiter of anything.
+    expect(grid(firstTable(COUNTRIES))).toEqual([
+      ['Country', 'Sessions', 'Active Players'],
+      ['GB', '482', '371'],
+      ['DE (Germany \u2014 country level)', '96', '74'],
+      ['FR', '61', '48'],
+      ['ES', '44', '35'],
+    ]);
+  });
+
+  it('reads the stray single row the answer leaves after its table', () => {
+    // Reported as its own defect, and it is a table with no header rather than
+    // no table: six figures in six columns, which a reader can read, against six
+    // figures in pipes, which they cannot.
+    const table = firstTable('| 2026-08-03 | 482 | 371 | 8 | 45.15 | $1,381.16 |');
+    expect(table.kind === 'table' && table.header).toBeUndefined();
+    expect(grid(table)).toEqual([['2026-08-03', '482', '371', '8', '45.15', '$1,381.16']]);
+  });
+
+  it('reads a table the agent fenced, which is the other way the pipes leak out', () => {
+    const blocks = parseAnswerMarkdown('Totals below.\n\n```\n' + RAMP + '\n```');
+    expect(blocks.map((block) => block.kind)).toEqual(['paragraph', 'table']);
+    expect(grid(blocks[1])[0][0]).toBe('Date');
+    // And with an info string on the fence, which is what a model writes when it
+    // has been told the field is Markdown.
+    expect(parseAnswerMarkdown('```markdown\n' + COUNTRIES + '\n```').map((block) => block.kind)).toEqual(['table']);
+  });
+
+  it('opens a table on the line after a sentence, with no blank line between', () => {
+    // The agent introduces its tables in a sentence and does not always leave a
+    // blank line. The paragraph used to swallow every row of the table under it.
+    const blocks = parseAnswerMarkdown('Peak day by country (2026-08-03)\n' + COUNTRIES);
+    expect(blocks.map((block) => block.kind)).toEqual(['paragraph', 'table']);
+    expect(grid(blocks[1])).toHaveLength(5);
+  });
+
+  it('reads a heading, a table, and the bullets after it as three separate blocks', () => {
+    // The reported answer's actual shape. The bullets beside the table are prose
+    // and stay prose: not everything with a number in it is a table.
+    const source =
+      '### Spike ramp \u2014 aggregated daily totals, 2026-07-14 \u2192 2026-08-03\n\n' +
+      RAMP +
+      '\n\n- Launch-campaign phase begins 2026-07-28.\n- Sessions peak on the final day.';
+    const blocks = parseAnswerMarkdown(source);
+    expect(blocks.map((block) => block.kind)).toEqual(['heading', 'table', 'list']);
+    expect(blocks[2].kind === 'list' && blocks[2].items).toHaveLength(2);
+  });
+
+  it('does not make a table out of a sentence that happens to hold a pipe', () => {
+    // The guard on the whole feature. `GB | DE | FR` in a sentence is a
+    // separator the agent used in prose, and a rule that reads any pipe as a
+    // column boundary takes the sentence away from the reader with no way back.
+    const blocks = parseAnswerMarkdown('Sessions concentrate in GB | DE | FR, in that order.');
+    expect(blocks.map((block) => block.kind)).toEqual(['paragraph']);
+    expect(blockText(blocks)).toBe('Sessions concentrate in GB | DE | FR, in that order.');
+  });
+
+  it('leaves a fenced statement exactly as it was, because a pipe in SQL is not a column', () => {
+    // Fenced blocks are unsupported here and survive as the characters the agent
+    // typed. That is the documented behaviour and this is the test that keeps the
+    // table branch from quietly taking it over.
+    const source = '```sql\nSELECT CASE WHEN a THEN 1 END, x || y FROM t\n```';
+    const blocks = parseAnswerMarkdown(source);
+    expect(blocks.some((block) => block.kind === 'table')).toBe(false);
+    expect(blockText(blocks)).toContain('SELECT CASE WHEN a THEN 1 END, x || y FROM t');
+  });
+
+  it('is not a table when the pipes are nothing but a delimiter row', () => {
+    const blocks = parseAnswerMarkdown('| --- | --- |');
+    expect(blocks.map((block) => block.kind)).toEqual(['paragraph']);
+  });
+
+  it('gives every cell a distinct key, so React can reconcile the table', () => {
+    // Same constraint as the prose tree: the answer is segmented once without the
+    // tracked table list and again with it, so a key has to be a property of the
+    // node rather than its index.
+    const table = firstTable(RAMP);
+    const cells = table.kind === 'table' ? [...(table.header?.cells ?? []), ...table.rows.flatMap((row) => row.cells)] : [];
+    expect(new Set(cells.map((cell) => cell.start)).size).toBe(cells.length);
+    const rows = table.kind === 'table' ? table.rows : [];
+    expect(new Set(rows.map((row) => row.start)).size).toBe(rows.length);
+  });
+
+  it('links a tracked table named in a cell, and nothing else in the table', () => {
+    // A cell is linked on the answer's two rules, the same as a sentence: the
+    // answer cited the table and Connections tracks it. A country is neither.
+    const source = `| Source | Rows |\n| --- | --- |\n| ${DAILY} | 3,914 |\n| GB | 482 |`;
+    expect(links(answerBlocks(source, [DAILY], TRACKED))).toEqual([[DAILY, DAILY]]);
   });
 });
 

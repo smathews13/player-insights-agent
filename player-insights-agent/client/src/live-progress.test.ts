@@ -7,8 +7,10 @@ import {
   describeStage,
   isAtBottom,
   mergeLiveStage,
+  mergeReplayedStages,
   nextFollowState,
   nextRunningSince,
+  railStagesFor,
   runningElapsed,
   runningStepNumber,
   toLiveStep,
@@ -491,6 +493,43 @@ describe('a step announced before it finishes', () => {
     expect(nextRunningSince({ stages: allDone, since: 1_000, now: 9_000 })).toBeNull();
   });
 
+  it('names the newest unfinished step rather than the envelope holding it', () => {
+    /*
+     * THE REPORTED DEFECT: the agent path showed step 01 as the step in progress
+     * at step 07, and the pill beside it read "Live · step 01" all run.
+     *
+     * A run announces its envelopes before it does anything -- `orchestrator`,
+     * then `data_source_finder` -- and reports neither until it is over, so the
+     * FIRST unfinished row is step 01 from the first event of the run to the last.
+     * The step the reader is waiting on is the NEWEST announcement, which is what
+     * this counts. Built the way a real run builds it, one event at a time.
+     */
+    let stages: TraceStage[] = [];
+    for (const [id, name] of [
+      ['orchestrator', 'Orchestrator'],
+      ['data_source_finder', 'Data Source Finder'],
+      ['step-1', 'Choosing the next step'],
+    ] as const) {
+      stages = mergeLiveStage(stages, running(id, name));
+    }
+    expect(runningStepNumber(stages)).toBe(3);
+
+    // The model turn reports, its tool is announced under it, and the count
+    // follows the tool rather than falling back to an envelope two rows up.
+    stages = mergeLiveStage(stages, stage({ id: 'step-1', name: 'Chose the next step', duration: 4120 }));
+    stages = mergeLiveStage(stages, running('step-1-1-data_genie', 'Querying governed data'));
+    expect(runningStepNumber(stages)).toBe(4);
+
+    // A parallel batch: the newest of them, and never the envelope.
+    stages = mergeLiveStage(stages, running('step-1-2-run_sql', 'Running SQL'));
+    expect(runningStepNumber(stages)).toBe(5);
+
+    // And the envelopes are still open the whole way through, which is what made
+    // the first reading wrong rather than merely imprecise.
+    expect(stages[0].status).toBe('running');
+    expect(stages[1].status).toBe('running');
+  });
+
   it('counts up once a second and stops the instant the run ends', () => {
     vi.useFakeTimers();
     try {
@@ -556,5 +595,104 @@ describe('a step announced before it finishes', () => {
     expect(PANEL).toMatch(/step\.status === 'running'/);
     expect(PANEL).toMatch(/railTiming\(\{ duration: step\.durationMs, status: step\.status \}, elapsedMs\)/);
     expect(PANEL).toMatch(/elapsedMs\?: number \| null;/);
+  });
+});
+
+/**
+ * What a browser that was not there for the run is shown when it comes back.
+ *
+ * The run outlives the connection that narrated it: the app server keeps
+ * invoking Model Serving after a reload or a closed tab ends the stream, and
+ * records each step as it arrives. So a returning browser reads the steps back
+ * rather than losing them, and these two functions are how they land.
+ */
+describe('a run replayed into a view that did not watch it', () => {
+  it('reproduces the whole path for a browser holding nothing', () => {
+    const replayed = mergeReplayedStages([], [
+      stage({ id: 'step-1' }),
+      stage({ id: 'step-1-1-data_genie', kind: 'tool', name: 'Asked the data Genie space' }),
+      stage({ id: 'step-2', status: 'running', duration: 0 }),
+    ]);
+
+    expect(replayed.map((entry) => entry.id)).toEqual(['step-1', 'step-1-1-data_genie', 'step-2']);
+    // In the order the run reported them, which is the order the server stored
+    // them in. A path drawn out of order is a path of a run that never happened.
+    expect(replayed[2].status).toBe('running');
+  });
+
+  it('does not duplicate a step the view already watched arrive', () => {
+    // The ordinary case a second after asking: this browser holds the stream AND
+    // polls the durable state, so every step arrives twice. Folding by id is what
+    // keeps one step to one row.
+    const held = [stage({ id: 'step-1' }), stage({ id: 'step-2', status: 'running', duration: 0 })];
+
+    const merged = mergeReplayedStages(held, [
+      stage({ id: 'step-1' }),
+      stage({ id: 'step-2', status: 'running', duration: 0 }),
+      stage({ id: 'step-3' }),
+    ]);
+
+    expect(merged.map((entry) => entry.id)).toEqual(['step-1', 'step-2', 'step-3']);
+  });
+
+  it('lets a replayed completion resolve a step the view still has running', () => {
+    // The run finished the step while the reader was away. The row stays where it
+    // was and stops being unresolved, rather than a second row appearing under it.
+    const merged = mergeReplayedStages([stage({ id: 'step-2', status: 'running', duration: 0 })], [
+      stage({ id: 'step-2', status: 'complete', duration: 4_120 }),
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].status).toBe('complete');
+    expect(merged[0].duration).toBe(4_120);
+  });
+
+  it('changes nothing when there is nothing to replay', () => {
+    // A turn that answers with a plan takes no steps, a run polled before its
+    // first step has none yet, and a run older than the narration being stored
+    // has none at all. None of the three may blank what is on screen.
+    const held = [stage({ id: 'step-1' })];
+    expect(mergeReplayedStages(held, [])).toEqual(held);
+  });
+});
+
+describe('which run the agent path draws', () => {
+  const live = [stage({ id: 'step-2', status: 'running', duration: 0 })];
+  const answered = [stage({ id: 'step-1' }), stage({ id: 'step-2' })];
+
+  it('draws the run in flight rather than the one that answered before it', () => {
+    expect(
+      railStagesFor({ loading: true, runStopped: false, liveStages: live, answeredStages: answered, clarificationStages: [] })
+    ).toEqual(live);
+  });
+
+  it('draws nothing at all for a run in flight that has reported no step', () => {
+    // THE BUG. This used to fall back to the last answer's trace whenever the
+    // live list was empty, and a reader who left a running question and came
+    // back arrives in exactly that state -- so the rail narrated the PREVIOUS
+    // question's run under a pill saying this one was live. The empty list is
+    // what puts the honest "working on your question" row on screen instead.
+    expect(
+      railStagesFor({ loading: true, runStopped: false, liveStages: [], answeredStages: answered, clarificationStages: [] })
+    ).toEqual([]);
+  });
+
+  it('settles a run that died into the steps it did finish', () => {
+    expect(
+      railStagesFor({ loading: false, runStopped: true, liveStages: live, answeredStages: [], clarificationStages: [] })
+    ).toEqual(live);
+  });
+
+  it('draws the stored trace once the conversation is not running', () => {
+    expect(
+      railStagesFor({ loading: false, runStopped: false, liveStages: [], answeredStages: answered, clarificationStages: [] })
+    ).toEqual(answered);
+  });
+
+  it('draws a clarification’s own trace when that is all the turn produced', () => {
+    const asked = [stage({ id: 'step-1-clarify' })];
+    expect(
+      railStagesFor({ loading: false, runStopped: false, liveStages: [], answeredStages: [], clarificationStages: asked })
+    ).toEqual(asked);
   });
 });

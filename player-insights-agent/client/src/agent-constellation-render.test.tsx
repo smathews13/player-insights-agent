@@ -6,6 +6,7 @@ import { AgentMapConstellation, AgentPathConstellation } from './AgentConstellat
 import { partial } from './styles/stylesheet';
 import { BRAND_PRODUCT_NAMES } from './brand-icons';
 import type { TraceStage } from './answer-shape';
+import { mergeLiveStage } from './live-progress';
 
 /**
  * What the two constellation bands are to a reader who is not looking at them.
@@ -55,6 +56,11 @@ const finished: TraceStage[] = [
   stage({ id: 'step-3-1-data_genie', name: 'Queried governed data', kind: 'tool', duration: 11390 }),
 ];
 
+/** A run of any length, for the claims that are about a path still growing. */
+function runOf(count: number): TraceStage[] {
+  return Array.from({ length: count }, (_, index) => stage({ id: `step-${index + 1}` }));
+}
+
 /** The same run with its last step still going. */
 const inFlight: TraceStage[] = [
   ...finished.slice(0, 5),
@@ -72,7 +78,91 @@ function attrs(markup: string, name: string): string[] {
   return [...markup.matchAll(new RegExp(`${name}="([^"]*)"`, 'g'))].map((found) => found[1]);
 }
 
+/**
+ * Which star carries the selected marking, zero-based, or -1 when none does.
+ *
+ * Read off the star groups in the order they are drawn, which is the order of the
+ * stages: the class is what `.ast-star-select.selected` paints, so this is the
+ * node a reader sees marked.
+ */
+function selectedStar(markup: string): number {
+  return [...markup.matchAll(/class="ast-star-select ?([^"]*)"/g)].findIndex(
+    (found) => found[1].trim() === 'selected'
+  );
+}
+
+/** The one sentence on the band's status line. */
+function statusLine(markup: string): string {
+  return /<span class="ast-sky-status-text">([^<]*)<\/span>/.exec(markup)?.[1] ?? '';
+}
+
 describe('the bands expose only the controls they own (§5)', () => {
+  it('adds a star when the approved continuation reports its next step', () => {
+    // This is the state transition the approval regression froze: the stream's
+    // stage is merged into the live run and that new array must produce a larger
+    // constellation immediately, without waiting for the final answer.
+    const first = [stage({ id: 'orchestrator', name: 'Orchestrator', status: 'running', duration: 0 })];
+    const next = mergeLiveStage(
+      first,
+      stage({ id: 'step-1', name: 'Choosing the next step', status: 'running', duration: 0 }),
+    );
+
+    expect(attrs(path(first, 0), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(1);
+    expect(attrs(path(next, 1), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(2);
+    expect(path(next, 1)).toContain('Step 02 · Choosing the next step');
+  });
+
+  it('marks the step the run is on, at whatever step count the run has reached', () => {
+    /*
+     * THE REPORTED DEFECT, as the reader met it: six stars on the band, the run
+     * around step seven, and the ring and the status line both still on
+     * "Step 01 · Orchestrator".
+     *
+     * The band follows the caller's `activeIndex`, so this is the claim that
+     * nothing here pins step 01 -- and it is asserted at every length of the run
+     * rather than at one, because the fault it forecloses was invisible on the
+     * first step and wrong on every step after it.
+     */
+    const run: TraceStage[] = [stage({ id: 'orchestrator', name: 'Orchestrator', status: 'running', duration: 0 })];
+    for (const [id, name] of [
+      ['data_source_finder', 'Data Source Finder'],
+      ['step-1', 'Choosing the next step'],
+      ['step-1-1-data_genie', 'Querying governed data'],
+      ['step-2', 'Chose the next step'],
+      ['synthesis', 'Preparing the findings'],
+      ['plot', 'Building the charts'],
+    ] as const) {
+      run.push(stage({ id, name, status: 'running', duration: 0 }));
+      const markup = path(run, run.length - 1, 7_000);
+      expect(selectedStar(markup)).toBe(run.length - 1);
+      expect(statusLine(markup)).toBe(`Step 0${run.length} · ${name}`);
+    }
+    // Seven steps in, which is the state in the report, and not one of them is 01.
+    expect(run).toHaveLength(7);
+    expect(statusLine(path(run, 6, 7_000))).toBe('Step 07 · Building the charts');
+    expect(statusLine(path(run, 6, 7_000))).not.toContain('Orchestrator');
+  });
+
+  it('marks the newest step even in the gap where none is running', () => {
+    /*
+     * Between one step reporting and the next being announced the frontier is a
+     * COMPLETED step, and it keeps the ring: the newest step is worth marking, and
+     * marking it is not the same as claiming it is happening. So the beat and the
+     * elapsed figure go and the ring stays, rather than the mark jumping back to
+     * whichever envelope is still open two rows up.
+     */
+    const gap: TraceStage[] = [
+      stage({ id: 'orchestrator', name: 'Orchestrator', status: 'running', duration: 0 }),
+      stage({ id: 'step-1', name: 'Chose the next step' }),
+      stage({ id: 'step-1-1-data_genie', name: 'Queried governed data', kind: 'tool' }),
+    ];
+    const markup = path(gap, 2, 7_000);
+    expect(selectedStar(markup)).toBe(2);
+    expect(statusLine(markup)).toBe('Step 03 · Queried governed data');
+    expect(markup).not.toContain('ast-anim-star-pulse');
+    expect(markup).not.toMatch(/ast-sky-status-elapsed/);
+  });
+
   it('hides the finished map, whose cards own selection', () => {
     const markup = map(finished, 'step-2');
     expect(markup).toContain('<svg aria-hidden="true"');
@@ -213,6 +303,80 @@ describe('the elapsed figure is a measurement (§5, §3)', () => {
     expect(path(finished, 5, 99_000)).not.toContain('99s');
   });
 
+  it('moves not one coordinate on the band when only the clock has ticked', () => {
+    /*
+     * THE OTHER HALF OF THE SHAKE. The caller ticks `elapsedMs` once a second for
+     * as long as a step is in flight, so the whole band is redrawn every second
+     * of a run that can last a minute. Everything above the status line has to be
+     * byte-identical across that tick: the geometry is derived from the stages
+     * alone, and the second this stops being true the band twitches once a second
+     * on a surface whose whole job is to be watched.
+     */
+    const early = path(inFlight, 5, 3_000);
+    const late = path(inFlight, 5, 41_000);
+    const geometry = (markup: string) => [
+      ...attrs(markup, 'd'),
+      ...attrs(markup, 'cx'),
+      ...attrs(markup, 'cy'),
+      ...attrs(markup, 'x'),
+      ...attrs(markup, 'y'),
+      ...attrs(markup, 'viewBox'),
+      ...attrs(markup, 'style'),
+    ];
+    expect(geometry(late)).toEqual(geometry(early));
+    // And the tick did land, so this is not two identical renders of nothing.
+    expect(late).toContain('41s');
+    expect(early).toContain('3s');
+  });
+
+  it('grows the band downward without disturbing the stars already on it', () => {
+    /*
+     * The reported defect: the steps shook and jittered while the constellation
+     * built out. Every star was re-placed each time a step was announced, because
+     * the pitch was the panel's body divided by the step count. The arithmetic is
+     * held in agent-constellation.test.ts; this is the same claim about the markup
+     * a reader is actually looking at.
+     */
+    const eight = path(runOf(8), 7, 12_000);
+    const nine = path(runOf(9), 8, 12_000);
+    // The connectors only. The stars are drawn after them and the newest run has
+    // one more of each, so a flat list of every `d` on the band would not line up.
+    const hops = (markup: string) => {
+      const open = markup.indexOf('<g class="ast-links">');
+      return attrs(markup.slice(open, markup.indexOf('</g>', open)), 'd');
+    };
+    expect(hops(eight)).toHaveLength(7);
+    expect(hops(nine).slice(0, 7)).toEqual(hops(eight));
+    // The panel got taller rather than being rescaled around its contents.
+    const box = (markup: string) => attrs(markup, 'viewBox')[0].split(' ').map(Number);
+    expect(box(nine)[2]).toBe(box(eight)[2]);
+    expect(box(nine)[3]).toBeGreaterThan(box(eight)[3]);
+  });
+
+  it('refuses to be squashed by the column it sits in', () => {
+    /*
+     * The other way a growing band shakes, and the one that moves stars sideways.
+     *
+     * `.trace-inspector` is a flex column with a definite height and
+     * `overflow-y: auto`, and `.ast-sky` sets `overflow: clip` -- which resolves a
+     * flex item's automatic minimum size to zero. So the band could be squashed
+     * instead of the column being scrolled, and a squashed band rescales: the SVG
+     * is `xMidYMin meet`, so its scale becomes a function of the room left in the
+     * column, and every reported step changes it.
+     *
+     * `flex: none` on both boxes is what makes the drawing keep its own height.
+     * It is asserted here because nothing on screen distinguishes a band that is
+     * scaled to fit from one that is not until a step lands and the sky slides.
+     */
+    const rule = (selector: string) => {
+      const open = CONSTELLATION_CSS.indexOf(`${selector} {`);
+      expect(open, `${selector} is in the stylesheet`).toBeGreaterThan(-1);
+      return CONSTELLATION_CSS.slice(open, CONSTELLATION_CSS.indexOf('}', open));
+    };
+    expect(rule('.ast-sky')).toMatch(/flex:\s*none/);
+    expect(rule('.ast-sky-canvas')).toMatch(/flex:\s*none/);
+  });
+
   it('prints no elapsed when the caller has no clock to offer', () => {
     expect(path(inFlight, 5, null)).not.toMatch(/ast-sky-status-elapsed/);
   });
@@ -281,6 +445,55 @@ describe('the status line of a run that has stopped', () => {
 
   it('claims a clean run only when every step of it completed', () => {
     expect(status(finished)).toBe('Every step recorded');
+  });
+});
+
+describe('a step the reader pinned outranks the step the run is on', () => {
+  /*
+   * Read as source rather than driven, in the pattern live-progress.test.ts
+   * already uses for the same reason: the suite runs on `node`, so a press cannot
+   * be dispatched here, and the wiring is the half of this behaviour that has
+   * actually broken. The other half -- which node is marked for a given
+   * `activeIndex` -- is rendered above.
+   */
+  it('pins by the step’s own id, so a run opened later cannot inherit the pin', () => {
+    // By id and not by position, for the reason the tiles under the band are: the
+    // stage list is replaced under this component when another run is opened, and
+    // an index would pin whatever step had moved into that slot.
+    expect(PATH_SOURCE).toContain('useState<string | null>(null)');
+    expect(PATH_SOURCE).toContain('stages.findIndex((stage) => stage.id === pinnedId)');
+    expect(PATH_SOURCE).toContain('onClick={() => pin(stages[index].id)}');
+  });
+
+  it('keeps the pin when the agent announces its next step', () => {
+    /*
+     * THE REPORTED DEFECT'S OTHER HALF. The pin used to be recorded alongside the
+     * `activeIndex` it was made at and honoured only while that index held, so the
+     * next step the run announced -- a second or two later -- dropped it and moved
+     * the reader out of the step they had just opened.
+     */
+    expect(PATH_SOURCE).not.toContain('setSelection');
+    expect(PATH_SOURCE).not.toContain('selection?.activeIndex === activeIndex');
+    expect(PATH_SOURCE).toContain('const shownIndex = pinnedIndex !== -1 ? pinnedIndex : current ? activeIndex : -1;');
+  });
+
+  it('releases the pin on a second press, which is the toggle the tiles take', () => {
+    // One way to stop inspecting a step on this surface rather than two: the same
+    // press that opened it hands the band back to the run. See `openId` in
+    // TraceDag.tsx, which is the list under this band.
+    expect(PATH_SOURCE).toContain('setPinnedId((held) => (held === id ? null : id))');
+  });
+
+  it('drops a pin whose step is not in the run on screen, rather than ignoring it', () => {
+    // Ignoring it is what the render-time lookup does on its own, and it is not
+    // enough: a new run repeats the ids of the old one, so a pin left in state
+    // would go dormant while the list was short and reattach itself the moment the
+    // new run reached a step with the same id.
+    // Corrected while rendering rather than in an effect, which is React's own
+    // "adjusting state when a prop changes": in an effect it would be a second
+    // render after a first one that drew the wrong star.
+    expect(PATH_SOURCE).toContain('if (pinnedId !== null && pinnedIndex === -1) setPinnedId(null);');
+    expect(PATH_SOURCE).not.toContain('useEffect');
   });
 });
 

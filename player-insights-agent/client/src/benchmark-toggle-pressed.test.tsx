@@ -33,8 +33,9 @@ const SETTINGS = partial('settings.css');
 /**
  * The page as an administrator meets it, with the egress switch in one state.
  *
- * The Benchmark Lab toggle is gone; egress is the experimental switch this
- * stylesheet still styles. The role is in the context because the page reads
+ * Egress is the switch this file drives, and Benchmarking is held off in the
+ * context beside it so the two rows are told apart by name rather than by
+ * position on the card. The role is in the context because the page reads
  * it, not because anything below asks about it: the settings page decides
  * whether to draw the roster from `useRole()`, which is the outlet's own
  * `role`, so a context without one makes the page throw before a switch is

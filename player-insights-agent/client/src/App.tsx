@@ -6,8 +6,8 @@ import { RouteError } from './RouteError';
 import { AdminOnly } from './GatePanel';
 import { HomePage } from './HomePage';
 import { Layout } from './Layout';
-import { BENCHMARK_LAB_ENABLED } from './nav-reveal';
 import { SettingsPage } from './SettingsPage';
+import { BenchmarkingVisibility } from './BenchmarkingVisibility';
 
 /**
  * The five pages that are fetched when somebody opens them, not when the app
@@ -102,15 +102,12 @@ const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { path: '/', element: <HomePage />, errorElement: <RouteError /> },
-      // When `BENCHMARK_LAB_ENABLED` is off the lab is unfinished, so a bookmark
-      // or pasted `/benchmarks` link is sent to Ask rather than the empty page.
-      // When the flag is on again this restores the lab itself. Components and
-      // server routes stay in the tree either way.
+      // Wrapped rather than branched here, so a pasted `/benchmarks` link reads
+      // the same live setting the tab does and is sent to Ask while Benchmarking
+      // is off. Components and server routes stay in the tree either way.
       {
         path: '/benchmarks',
-        element: BENCHMARK_LAB_ENABLED
-          ? <LazyRoute><BenchmarkLab /></LazyRoute>
-          : <Navigate to="/" replace />,
+        element: <BenchmarkingVisibility><LazyRoute><BenchmarkLab /></LazyRoute></BenchmarkingVisibility>,
         errorElement: <RouteError />,
       },
       { path: '/runs', element: <LazyRoute><RunExplorer /></LazyRoute>, errorElement: <RouteError /> },

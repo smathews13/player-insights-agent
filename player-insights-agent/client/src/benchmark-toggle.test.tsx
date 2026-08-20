@@ -21,14 +21,14 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
- * WITH THE REVIEW FLAG OFF AND THE BENCHMARK LAB KILL SWITCH OFF, because this
+ * WITH THE REVIEW FLAG OFF AND THE BENCHMARK LAB KILL SWITCH ON, because this
  * file's subject is the switch geometry on Settings, not the review posture.
  *
  * `SHOW_EVERY_TAB_TO_EVERYONE` and `BENCHMARK_LAB_ENABLED` both live in
  * `nav-reveal.ts`. Mocking them keeps the nav assertions below testing the kill
  * switch rather than the review flag standing in front of it.
  */
-vi.mock('./nav-reveal', () => ({ SHOW_EVERY_TAB_TO_EVERYONE: false, BENCHMARK_LAB_ENABLED: false }));
+vi.mock('./nav-reveal', () => ({ SHOW_EVERY_TAB_TO_EVERYONE: false, BENCHMARK_LAB_ENABLED: true }));
 
 import { NavLinks } from './Layout';
 import { mobileNavLinkClass } from './layout-view';
@@ -158,16 +158,14 @@ describe('flipping it is wired to something', () => {
     );
   }
 
-  it('keeps the Benchmark Lab out of the navigation while the kill switch is off', () => {
-    // The unfinished lab is gated by `BENCHMARK_LAB_ENABLED`, not by the leftover
-    // preference key. Both on and off preferences must leave the tab absent.
-    expect(nav(on)).not.toContain('/benchmarks');
+  it('adds and removes the Benchmarking tab with the setting', () => {
+    expect(nav(on)).toContain('/benchmarks');
     expect(nav(off)).not.toContain('/benchmarks');
   });
 
-  it('stays absent for an administrator even when the leftover preference is on', () => {
+  it('uses the same setting for the navigation calculation', () => {
     expect(navEntries('admin', off).some((entry) => entry.to === '/benchmarks')).toBe(false);
-    expect(navEntries('admin', on).some((entry) => entry.to === '/benchmarks')).toBe(false);
+    expect(navEntries('admin', on).some((entry) => entry.to === '/benchmarks')).toBe(true);
   });
 
   it('survives a reload, by writing what a later read recognises', () => {
@@ -182,16 +180,14 @@ describe('flipping it is wired to something', () => {
     expect(readExperimentalFeatures(store)).toEqual(off);
   });
 
-  it('no longer draws a Benchmark Lab switch on App settings', () => {
-    // The Settings toggle was removed when the lab became a normal tab, and it
-    // stays gone while the kill switch hides the surface. Egress is the only
-    // experimental switch left on the page.
+  it('draws the Benchmarking switch beside the egress switch', () => {
     const source = readFileSync(new URL('SettingsPage.tsx', import.meta.url), 'utf8').replace(
       /\/\*[\s\S]*?\*\/|\{\/\*[\s\S]*?\*\/\}/g,
       ' '
     );
-    expect(source).not.toMatch(/showsBenchmarkLab/);
-    expect(source).not.toMatch(/setFeature\('benchmarkLab'/);
+    expect(source).toMatch(/showsBenchmarkLab/);
+    expect(source).toMatch(/setFeature\('benchmarkLab'/);
     expect(source).toMatch(/setFeature\('egressControls'/);
+    expect(source.indexOf("setFeature('benchmarkLab'")).toBeLessThan(source.indexOf("setFeature('egressControls'"));
   });
 });

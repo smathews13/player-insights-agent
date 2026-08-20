@@ -3798,6 +3798,122 @@ describe('the run ledger under POST /api/insights/ask', () => {
     }
   });
 
+  it('replays the steps a reader walked away from, and the ones taken while they were gone', async () => {
+    /**
+     * The reported bug, end to end. A reader leaves a running question; their
+     * response body is gone and the run carries on. Coming back they used to be
+     * told only that a run was in flight -- question on screen, composer shut,
+     * agent path empty for the rest of the run -- because the steps only ever
+     * existed on the socket that closed.
+     */
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    let announceStarted: () => void = () => {};
+    let releaseAnswer: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      announceStarted = resolve;
+    });
+    const answerGate = new Promise<void>((resolve) => {
+      releaseAnswer = resolve;
+    });
+    /** Held in an object so the assignment inside the transport is visible below. */
+    const laterStep: { narrate: () => void } = { narrate: () => {} };
+    const transport: ServingTransport = async ({ onStage }) => {
+      onStage?.({ id: 'step-1', name: 'Chose the next step', kind: 'agent', status: 'complete', start: 0, duration: 9, calls: 1 });
+      // Announced but unfinished, which is the row a reader is watching when
+      // they navigate away.
+      onStage?.({ id: 'step-2', name: 'Querying governed data', kind: 'tool', status: 'running', start: 9, duration: 0, calls: 0 });
+      laterStep.narrate = () => {
+        onStage?.({ id: 'step-2', name: 'Queried governed data', kind: 'tool', status: 'complete', start: 9, duration: 40, calls: 1 });
+      };
+      announceStarted();
+      await answerGate;
+      return servingResponses.liveAnswerResponse;
+    };
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const app = await startInsightsApp(transport, lakebase);
+
+    try {
+      const request = app.askAndDisconnect({
+        conversationId: 'conv-replay-steps',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      await started;
+      await vi.waitFor(() => expect(ledger.stageEvents).toHaveLength(2));
+
+      // The reader leaves. Their socket is gone; the run is not.
+      request.abort();
+      await request.finished;
+
+      const whileAway = await app.conversationRun('conv-replay-steps');
+      expect((whileAway?.stages as { id: string; status: string }[]).map((stage) => [stage.id, stage.status])).toEqual([
+        ['step-1', 'complete'],
+        ['step-2', 'running'],
+      ]);
+
+      // The run keeps narrating into a table rather than into a closed socket,
+      // so the path a returning reader is shown goes on growing.
+      laterStep.narrate();
+      await vi.waitFor(() => expect(ledger.stageEvents).toHaveLength(3));
+      const later = await app.conversationRun('conv-replay-steps');
+      const replayed = later?.stages as { id: string; status: string; name: string }[];
+      // The completion arrives as its own row under the same id, which is how
+      // the browser learns the step it was waiting on has landed. Collapsing
+      // them here would need the write path to update rows in place, and a
+      // dense append-only sequence is what makes the order the run's order.
+      expect(replayed).toHaveLength(3);
+      expect(replayed[2]).toMatchObject({ id: 'step-2', status: 'complete', name: 'Queried governed data' });
+
+      releaseAnswer();
+      await vi.waitFor(() => expect(ledger.runs[0].state).toBe('SUCCEEDED'));
+    } finally {
+      releaseAnswer();
+      await app.close();
+    }
+  });
+
+  it('keeps the tool result out of the replayed steps', async () => {
+    // The replay is read by the same browser that renders the rail, so it is a
+    // response body a reader's own step arguments reach. Row data must not: the
+    // authoritative trace carries results, and this table's own schema comment
+    // rules them out.
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const transport: ServingTransport = ({ onStage }) => {
+      onStage?.({
+        id: 'step-1-1-data_genie',
+        name: 'Queried governed data',
+        kind: 'tool',
+        status: 'complete',
+        start: 0,
+        duration: 40,
+        calls: 1,
+        input: '{"question": "which titles lost the most active players"}',
+        output: '[{"title_id": 4471, "hours_viewed": 91827364}]',
+      });
+      return Promise.resolve(servingResponses.liveAnswerResponse);
+    };
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const app = await startInsightsApp(transport, lakebase);
+
+    try {
+      const request = app.askAndDisconnect({
+        conversationId: 'conv-replay-redaction',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      await request.finished;
+      await vi.waitFor(() => expect(ledger.stageEvents).toHaveLength(1));
+
+      const replayed = (await app.conversationRun('conv-replay-redaction'))?.stages as Record<string, unknown>[];
+      expect(replayed[0]).not.toHaveProperty('output');
+      expect(replayed[0].input).toContain('which titles lost the most active players');
+    } finally {
+      await app.close();
+    }
+  });
+
   it('parks a run behind a plan rather than finishing it, and lets go of the lease', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const store = memoryLakebase();

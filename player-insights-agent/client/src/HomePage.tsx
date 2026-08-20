@@ -66,13 +66,22 @@ import { railDuration, type RailRunSummary } from './rail-run-summary';
 import { slowestStageName } from './progress-labels';
 import { AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
 import { LiveProgress } from './LiveProgress';
-import { mergeLiveStage, nextRunningSince, runningElapsed, runningStepNumber } from './live-progress';
+import { railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
+import {
+  beginLiveAsk,
+  endLiveAsk,
+  hydrateLiveAsk,
+  openLiveAsk,
+  recordLiveStage,
+  useLiveAsk,
+} from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
 import { RunStatusPill } from './RunStatusPill';
 import {
   isWorkingConversationRun,
   readConversationRun,
+  replayedStages,
   type ConversationRunStatus,
 } from './conversation-run';
 import { AstrolabeMark } from './AstrolabeMark';
@@ -108,6 +117,15 @@ import type {
 const ATTACHMENT_ACCEPT = '.pdf,.md,.json,.txt,.csv';
 /** Mirrors MAX_ATTACHMENT_BYTES on the server so oversized files fail before upload. */
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+
+/**
+ * The empty step list, allocated once.
+ *
+ * A fresh `[]` per render would be a new prop for the constellation and the live
+ * panel on every tick of the one-second clock, which is what the memoization
+ * around them exists to avoid.
+ */
+const NO_LIVE_STAGES: TraceStage[] = [];
 
 function isPdfAttachment(filename: string) {
   return /\.pdf$/i.test(filename.trim());
@@ -334,55 +352,18 @@ export function HomePage() {
    */
   const [askStartedAt, setAskStartedAt] = useState<number | null>(null);
   /**
-   * The steps of the run in flight, in the order the agent reported them.
+   * When a run this view did not start was found already going, per its durable
+   * row's `created_at`.
    *
-   * Every entry is a `TraceStage` the agent emitted, the same rows, with the same
-   * names and durations, that the finished "How it worked" panel draws. Nothing
-   * is added here that the run did not report.
-   *
-   * Several entries can be `running` at once: the endpoint announces a step when
-   * it starts as well as when it finishes, the two carry the same id so the
-   * second replaces the first in place, and a parallel batch of tools is
-   * announced in full before any of it starts. See `mergeLiveStage`, which is
-   * also what makes this list an append-only list of completions again against a
-   * model version that announces nothing.
+   * The fallback for the one case no stream can cover: a run whose stream was
+   * opened by a page load that is gone, or by another browser tab. Its STEPS are
+   * recovered -- the app server records each one as the run reports it, and the
+   * durable poll replays them into `live-ask.ts` -- but the instant its stream
+   * opened is not something this browser ever observed, so the row's own start
+   * stands in for it. A run this browser IS still streaming reports its own
+   * instant, and that one wins below.
    */
-  const [liveStages, setLiveStages] = useState<TraceStage[]>([]);
-  /**
-   * The same list, readable synchronously.
-   *
-   * The stream hands steps over faster than a render, so the merge reads this
-   * rather than the state it just set: deciding whether anything is still in
-   * progress off a stale copy is what stopped the clock while two tools of a
-   * batch were still going.
-   */
-  const liveStagesRef = useRef<TraceStage[]>([]);
-  /**
-   * When the step in progress was announced, on this machine's clock.
-   *
-   * The reader's counter cannot be derived from the stage's own `start`: that is
-   * an offset into the agent's run, measured by `perf_counter` inside a serving
-   * container, and it shares no epoch with the browser. What is knowable here is
-   * when the announcement arrived, which is within the delivery delay of when the
-   * step began.
-   *
-   * Null whenever nothing is in progress, which is what stops the count: the run
-   * ending clears it, and so does the completion of the LAST step still going.
-   * Not the completion of any one step: a batch of tools runs together, and the
-   * first of them reporting is not the run pausing.
-   */
-  const [runningSince, setRunningSince] = useState<number | null>(null);
-  /**
-   * When the route opened the stream, and when the newest step arrived.
-   *
-   * Both are instants recorded as they happened, because both are things the
-   * live panel states as fact. The first is what lets it distinguish "still
-   * asking" from "the run has started" in the seconds before any step exists,
-   * measured at about half a second, against a first step that can be twenty
-   * away. See live-progress.ts.
-   */
-  const [streamOpenedAt, setStreamOpenedAt] = useState<number | null>(null);
-  const [lastStageAt, setLastStageAt] = useState<number | null>(null);
+  const [durableRunOpenedAt, setDurableRunOpenedAt] = useState<number | null>(null);
   /** The question in flight, so the live panel can avoid echoing it back. */
   const [askedQuestion, setAskedQuestion] = useState('');
   /**
@@ -445,6 +426,52 @@ export function HomePage() {
    * The conversation on screen, readable from inside a run that is still going.
    */
   const activeConversationRef = useRef(conversationId);
+  /**
+   * The run this conversation has going, read from outside this component.
+   *
+   * THE FIX FOR THE FROZEN CARD. These four values used to be this component's
+   * own state, so leaving Ask -- another tab, another conversation, anything that
+   * unmounts this page -- threw away every step the run had reported while the
+   * run itself carried on. Coming back mounted a page with an empty list, and the
+   * durable poll below could only say that something was still working: the
+   * question stayed on screen above a "Working on your question" row and a bar,
+   * for the rest of a run that was streaming steps the whole time.
+   *
+   * They now live in `live-ask.ts`, keyed by conversation, which is where a run
+   * that outlives a view belongs. Mounting subscribes and reads; unmounting
+   * unsubscribes and does nothing else. A stage arriving while nobody is looking
+   * is still recorded, so returning shows the path as it is now and it keeps
+   * growing from there.
+   *
+   * Every value below is still only what the run reported. Nothing is
+   * reconstructed, and a run whose stream this browser is not holding -- one
+   * started before a reload, or in another tab -- has no stages here and is not
+   * given any.
+   */
+  const liveAsk = useLiveAsk(conversationId);
+  const liveStages = liveAsk?.stages ?? NO_LIVE_STAGES;
+  /**
+   * When the step in progress was announced, on this machine's clock.
+   *
+   * The reader's counter cannot be derived from the stage's own `start`: that is
+   * an offset into the agent's run, measured by `perf_counter` inside a serving
+   * container, and it shares no epoch with the browser. What is knowable is when
+   * the announcement arrived, which is within the delivery delay of when the step
+   * began. Null whenever nothing is in progress, which is what stops the count.
+   */
+  const runningSince = liveAsk?.runningSince ?? null;
+  /**
+   * When the route opened the stream, and when the newest step arrived.
+   *
+   * Both are instants recorded as they happened, because both are things the live
+   * panel states as fact. The first is what lets it distinguish "still asking"
+   * from "the run has started" in the seconds before any step exists, measured at
+   * about half a second against a first step that can be twenty away. See
+   * live-progress.ts. The durable instant stands in only for a run this browser
+   * is not streaming.
+   */
+  const streamOpenedAt = liveAsk?.streamOpenedAt ?? durableRunOpenedAt;
+  const lastStageAt = liveAsk?.lastStageAt ?? null;
   const [now, setNow] = useState(() => Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -484,15 +511,18 @@ export function HomePage() {
   // flight, or an empty prompt.
   const canAsk = draft.trim().length > 0 && !loading && !conversationLoading && !parsing;
   // The rail draws the run that happened, or the one happening, or nothing. No
-  // reference stages stand in. While a question is in flight the live steps are
-  // preferred over the previous answer's, so the panel is never narrating the
-  // last run while this one is going; once the answer lands, `liveStages` is
-  // cleared and the same rail is drawn from the authoritative trace.
-  const railStages = (loading || runStopped) && liveStages.length > 0
-    ? liveStages
-    : answer?.trace.stages.length
-      ? answer.trace.stages
-      : (asked?.trace.stages ?? []);
+  // reference stages stand in, and a run in flight draws its OWN steps or none:
+  // the fallback to the last answer's trace used to apply whenever the live list
+  // was empty, which is exactly the state a reader returning to a working
+  // conversation arrives in, so the rail narrated the previous question's run
+  // under a pill saying this one was live. See `railStagesFor`.
+  const railStages = railStagesFor({
+    loading,
+    runStopped: Boolean(runStopped),
+    liveStages,
+    answeredStages: answer?.trace.stages ?? [],
+    clarificationStages: asked?.trace.stages ?? [],
+  });
   /**
    * Which step is in progress, one-based, or 0 when the run has not said so.
    *
@@ -505,21 +535,28 @@ export function HomePage() {
   /**
    * The card the rail rings, and only while a run is actually in flight.
    *
-   * THE STEP IN PROGRESS WHEN THE RUN SAYS WHICH, THE FRONTIER WHEN IT DOES NOT,
-   * and the difference is why this is derived here rather than in the rail. An
-   * endpoint that announces a step when it starts names the step the reader is
-   * waiting on, which is what the ring is for. One that reports only completions
-   * cannot: the step it is inside has no name, no number and no duration, so the
-   * ring goes on the last thing the run said instead -- true, and what this pane
-   * did before the announcements existed. Nothing is drawn that the run did not
-   * report either way.
+   * THE NEWEST STEP THE RUN HAS ANNOUNCED, which is the step the reader is
+   * waiting on in every state that has one and the last step it reported in the
+   * gap between two of them. It used to prefer `runningStep`, on the reading that
+   * the step in progress is a better answer than the frontier -- and it is, when
+   * they differ by being the same row. They stopped being the same row: the run
+   * announces `orchestrator` and `data_source_finder` before any step of it
+   * starts and reports neither until the end, so "the step in progress" resolved
+   * to one of those envelopes and the ring sat on step 01 for the whole run.
+   *
+   * `runningStep` is still the number the pill's failure label needs -- the step
+   * a run DIED inside is a different claim from how far it got -- but it is not
+   * the frontier, and it cannot be: it moves backwards to an open envelope every
+   * time a step finishes before the next one is announced.
+   *
+   * Whether the run is INSIDE this step is the band's own reading, off the
+   * stage's status, so nothing here has to say it twice.
    *
    * Guarded on `liveStages`, not just on `loading`: with no live steps yet the
    * rail falls back to the PREVIOUS answer's trace, and marking a card there
    * would light up a step of a finished run as though this one were inside it.
    */
-  const railActiveIndex =
-    loading && liveStages.length > 0 ? (runningStep || railStages.length) - 1 : -1;
+  const railActiveIndex = loading && liveStages.length > 0 ? railStages.length - 1 : -1;
   /**
    * How long the step in progress has been going, for the one row that ticks.
    *
@@ -588,14 +625,15 @@ export function HomePage() {
     setError(null);
     setFeedback({});
     // The run that stopped belongs to the conversation it stopped in. Left
-    // standing, its badge and its steps narrate whichever conversation is
-    // opened next, which is a run that never happened there. The counter goes
-    // with them: a reopened conversation that inherited a start instant would
-    // draw a ticking row for a step that finished, or failed, minutes ago.
+    // standing, its badge narrates whichever conversation is opened next, which
+    // is a run that never happened there.
     setRunStopped(null);
-    setLiveStages([]);
-    liveStagesRef.current = [];
-    setRunningSince(null);
+    // The steps are NOT cleared here any more, and that is the point: they are
+    // filed under the conversation they belong to rather than held by this view,
+    // so opening a conversation reads that conversation's run and opening another
+    // one reads another. Clearing was what made switching away from a running
+    // question -- and switching back to it -- lose everything it had reported.
+    setDurableRunOpenedAt(null);
     try {
       const [messageResponse, attachmentResponse, durableRun] = await Promise.all([
         fetch(`/api/conversations/${encodeURIComponent(id)}/messages`),
@@ -630,8 +668,25 @@ export function HomePage() {
         setLoading(true);
         const started = Date.parse(durableRun.created_at);
         setAskStartedAt(Number.isFinite(started) ? started : Date.now());
-        setStreamOpenedAt(Number.isFinite(started) ? started : Date.now());
-        setAskedQuestion([...stored].reverse().find((message) => message.role === 'user')?.content ?? '');
+        // Only as the fallback. A run this browser is still streaming reports its
+        // own opening instant, and that one is preferred where it exists, so a
+        // reopened conversation does not have the durable row's timestamp
+        // overwrite the live one.
+        setDurableRunOpenedAt(Number.isFinite(started) ? started : Date.now());
+        const question = [...stored].reverse().find((message) => message.role === 'user')?.content ?? '';
+        setAskedQuestion(question);
+        // The steps it has taken, for the case the stream cannot answer: this
+        // browser was not the one holding it. Without this, everything above is
+        // true and useless -- the question comes back, the composer stays shut
+        // because a run is in flight, and the agent path is empty for as long as
+        // the run lasts. Folded into the same record the stream writes to, so a
+        // browser that has both gets one path rather than two.
+        hydrateLiveAsk({
+          conversationId: id,
+          stages: replayedStages(durableRun),
+          question,
+          startedAt: Number.isFinite(started) ? started : Date.now(),
+        });
       }
     } catch {
       setDraft('');
@@ -735,12 +790,20 @@ export function HomePage() {
         }
         if (isWorkingConversationRun(status)) {
           setActiveConversationRun({ ...status, conversationId: activeConversationRun.conversationId });
+          // The steps the run has taken since the last poll. This is what makes a
+          // reconnected path GROW rather than sit at whatever the first read
+          // caught: a browser that is not holding the stream learns about each
+          // step from here. Merged by id, so a view that is holding the stream as
+          // well is unaffected -- it already has these rows and keeps them.
+          hydrateLiveAsk({
+            conversationId: activeConversationRun.conversationId,
+            stages: replayedStages(status),
+          });
           schedule();
           return;
         }
         setActiveConversationRun(null);
         setLoading(false);
-        setRunningSince(null);
         loadRunSummaries();
       } catch {
         // A transient status-read failure is not evidence that the server work
@@ -897,11 +960,11 @@ export function HomePage() {
     setDraft('');
     setLoading(true);
     setAskStartedAt(Date.now());
-    setLiveStages([]);
-    liveStagesRef.current = [];
-    setRunningSince(null);
-    setStreamOpenedAt(null);
-    setLastStageAt(null);
+    setDurableRunOpenedAt(null);
+    // Filed under the conversation rather than held here, so the run survives
+    // this view. A new question replaces whatever this conversation had on
+    // record, which is what clearing the step list used to mean.
+    beginLiveAsk({ conversationId: runConversationId, question });
     setAskedQuestion(question);
     setRunStopped(null);
     setError(null);
@@ -917,29 +980,28 @@ export function HomePage() {
         // the list is the run so far. A turn that answers with a plan sends
         // none at all, because the agent proposes before it runs anything.
         {
+          // Recorded whatever is on screen, and this is the second half of the
+          // frozen-card fix. These callbacks used to return early unless the
+          // reader was still looking at the conversation the run started in, so a
+          // step that arrived while they were on another conversation, or another
+          // tab, was dropped on the floor and never came back. The stage belongs
+          // to a conversation, so it is filed under one; which conversation is
+          // being drawn is the view's business and it reads its own key.
+          //
+          // The merge, the announcement bookkeeping and the instant the counter
+          // runs from are all in `live-ask.ts` now, over a list it can read
+          // synchronously -- the stream hands stages over faster than a render,
+          // and deciding whether anything is still in progress off a stale copy
+          // is what used to stop the clock while two tools of a batch were going.
           onStage: (stage) => {
-            if (!stillInThisConversation()) return;
-            const merged = mergeLiveStage(liveStagesRef.current, stage);
-            liveStagesRef.current = merged;
-            setLiveStages(merged);
-            setLastStageAt(Date.now());
-            // The instant the counter runs from, taken here because this is the
-            // only place that knows when the announcement arrived. It is HELD
-            // while anything is still in progress and cleared only when the last
-            // of them reports: a completion used to clear it outright, which
-            // stopped the clock on the first tool of a parallel batch to finish
-            // while the rest of the batch was still running.
-            setRunningSince((since) =>
-              nextRunningSince({ stages: merged, since, now: Date.now() })
-            );
+            recordLiveStage(runConversationId, stage);
           },
           // The run is under way and the request passed every check. Recorded
           // as an instant because the panel says so on screen, and because the
           // interval between this and the first step is the wait this whole
           // change is about.
           onOpen: () => {
-            if (!stillInThisConversation()) return;
-            setStreamOpenedAt(Date.now());
+            openLiveAsk(runConversationId);
           },
         }
       );
@@ -1069,18 +1131,19 @@ export function HomePage() {
         })
       );
     } finally {
-      // Not unconditionally: leaving this conversation already cleared the flag,
-      // and a question asked in the new one would have its "Working…" state
-      // switched off by the abandoned run finishing behind it.
+      // Unconditional, because it is about the run rather than about the view.
+      // Every way a run can end passes through here -- answered, refused, stopped
+      // mid-step -- and the record has to stop counting even if the reader is
+      // somewhere else, or they would come back to a step that has been "running"
+      // since the run ended. The steps it did report are kept: a run that died
+      // after four of them is shown as those four.
+      endLiveAsk(runConversationId);
+      // This half is still conditional. Leaving this conversation already cleared
+      // the flag, and a question asked in the new one would have its "Working…"
+      // state switched off by the abandoned run finishing behind it.
       if (stillInThisConversation()) {
         setActiveConversationRun(null);
         setLoading(false);
-        // Every way a run can end passes through here -- answered, refused,
-        // stopped mid-step -- which is why the counter is stopped here rather
-        // than on each of them. A run that died inside a step leaves that row
-        // standing, unresolved and named by the badge, and with nothing counting
-        // against it.
-        setRunningSince(null);
       }
     }
   }
@@ -1103,9 +1166,9 @@ export function HomePage() {
     setError(null);
     setFeedback({});
     setRunStopped(null);
-    setLiveStages([]);
-    liveStagesRef.current = [];
-    setRunningSince(null);
+    setDurableRunOpenedAt(null);
+    // Nothing to clear: a conversation this new has no run on record, and the one
+    // it was started from keeps its own under its own id.
     setConversationLoading(false);
     // An empty conversation has nothing stored to reload, so it is marked as
     // already loaded and the URL is cleared without pushing a history entry,
@@ -1693,7 +1756,12 @@ export function HomePage() {
                 response={response}
                 asker={asker}
                 loading={loading}
-                resolved={index !== lastAssistantIndex}
+                // A plan is answered by the user's approval, before the agent has
+                // produced its next assistant message. Comparing only with the
+                // last ASSISTANT row left the approved card interactive for the
+                // entire continuation run: the approval row was below it, but
+                // `lastAssistantIndex` still pointed at the plan itself.
+                resolved={index < messages.length - 1}
                 // The turn this answered, for the timeline's envelope row. Read
                 // from the transcript rather than the trace, which does not
                 // carry the prompt.
@@ -1757,6 +1825,16 @@ export function HomePage() {
                     ) : null}
                   </div>
                 </>
+              ) : liveStages.length > 0 ? (
+                /* Once the continuation reports its first real step, the growing
+                   run replaces the three-star waiting fragment in the card body.
+                   The same liveStages array drives the harness at right, so both
+                   surfaces advance from the same events after plan approval. */
+                <AgentPathConstellation
+                  stages={liveStages}
+                  activeIndex={railActiveIndex}
+                  elapsedMs={railElapsedMs}
+                />
               ) : (
                 <WorkingConstellation seat="card" elapsed={elapsed} />
               )}

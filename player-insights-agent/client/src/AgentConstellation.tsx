@@ -167,13 +167,43 @@ export function AgentPathConstellation({
   /** How long that step has been going, from the caller's one clock. */
   elapsedMs: number | null;
 }) {
-  const [selection, setSelection] = useState<{ index: number; activeIndex: number } | null>(null);
+  /*
+   * The step the reader pinned, BY ID and toggled off by a second press, which is
+   * the selection the tiles under this band already use (`openId` in TraceDag).
+   * Two behaviours in one piece of state, and both were reported as faults:
+   *
+   * Nothing pinned is the band FOLLOWING THE RUN -- the ring and the status line
+   * name the step the agent is on, and they move as it moves.
+   *
+   * Something pinned STAYS pinned while the run goes on around it. This used to be
+   * keyed on the caller's `activeIndex`, so the next step the agent announced
+   * dropped the pin and yanked the reader out of the step they had opened, a
+   * second or two after they opened it.
+   *
+   * By id rather than by position for the reason the tiles are: the stage list is
+   * replaced under this component when another run is opened, and an index would
+   * pin whatever step moved into that slot.
+   */
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const pinnedIndex = pinnedId === null ? -1 : stages.findIndex((stage) => stage.id === pinnedId);
+  /*
+   * A pin whose step is not in this run is DROPPED rather than merely ignored, and
+   * dropped while rendering rather than in an effect.
+   *
+   * Ignoring it is not enough: a new run repeats the ids of the old one, so a pin
+   * left in state would go dormant while the new list was short and then reattach
+   * itself the moment that run reached a step with the same id -- the reader
+   * hauled into a step of a run they never opened.
+   *
+   * This is React's own "adjusting state when a prop changes": the run on screen
+   * changed, so the state derived from it is corrected here and the component
+   * re-renders before anything is painted. In an effect it would be a second
+   * render after a first one that drew the wrong star.
+   */
+  if (pinnedId !== null && pinnedIndex === -1) setPinnedId(null);
   if (stages.length === 0) return null;
   const current = activeIndex >= 0 && activeIndex < stages.length ? stages[activeIndex] : null;
-  // Follow the live frontier. A manual selection remains useful only until the
-  // agent reports its next current step.
-  const selectedIndex = selection?.activeIndex === activeIndex ? selection.index : null;
-  const shownIndex = selectedIndex ?? (current ? activeIndex : -1);
+  const shownIndex = pinnedIndex !== -1 ? pinnedIndex : current ? activeIndex : -1;
   const shown = shownIndex >= 0 ? stages[shownIndex] : null;
   /*
    * WHETHER THE RUN IS ACTUALLY INSIDE THAT STEP, which is not the same question as
@@ -211,6 +241,12 @@ export function AgentPathConstellation({
    */
   const endedAt = current ? -1 : lastUnfinished(stages);
   const ended = endedAt === -1 ? null : stages[endedAt];
+  /*
+   * A press pins the step, and a second press on the step already pinned releases
+   * it and hands the band back to the run. The same toggle the tiles take, so
+   * there is one way to stop inspecting a step on this surface rather than two.
+   */
+  const pin = (id: string) => setPinnedId((held) => (held === id ? null : id));
   return (
     <div className="ast-sky ast-sky-path">
       <svg
@@ -233,9 +269,9 @@ export function AgentPathConstellation({
             role="button"
             tabIndex={0}
             aria-label={`Select step ${path.numbers[index].label}: ${stages[index].name}`}
-            onClick={() => setSelection({ index, activeIndex })}
+            onClick={() => pin(stages[index].id)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') setSelection({ index, activeIndex });
+              if (event.key === 'Enter' || event.key === ' ') pin(stages[index].id);
             }}
           >
             <Star star={star} tone="dark" />

@@ -444,6 +444,27 @@ describe('the owner filter chips are the one control that may not move when pres
 });
 
 describe('the inspector while a run is still going', () => {
+  it('replaces the waiting fragment in the answer card with the same growing path', () => {
+    // The compact constellation is only the before-first-event state. Leaving it
+    // mounted for the whole request produced the reported empty dark card even
+    // while liveStages was filling the harness beside it.
+    expect(HOME_PAGE).toMatch(
+      /liveStages\.length > 0 \? \([\s\S]{0,420}<AgentPathConstellation[\s\S]{0,180}stages=\{liveStages\}/,
+    );
+    expect(HOME_PAGE).toMatch(
+      /<AgentPathConstellation[\s\S]{0,240}elapsedMs=\{railElapsedMs\}[\s\S]{0,180}<WorkingConstellation seat="card"/,
+    );
+  });
+
+  it('marks a plan resolved as soon as its approval row is appended', () => {
+    // Approval is a user row. `index !== lastAssistantIndex` therefore stayed
+    // false until the final answer arrived and left Approve and run clickable
+    // throughout the entire continuation.
+    expect(HOME_PAGE).toContain('resolved={index < messages.length - 1}');
+    expect(HOME_PAGE).not.toContain('resolved={index !== lastAssistantIndex}');
+    expect(HOME_PAGE).toContain("label: 'Approved the proposed analysis plan.'");
+  });
+
   it('uses the constellation as its only run view before and after completion', () => {
     // The Ask rail keeps one representation across the run boundary. It mounts
     // the live path directly, so setting activeIndex to -1 after the answer lands
@@ -460,18 +481,29 @@ describe('the inspector while a run is still going', () => {
     expect(HOME_PAGE).toContain('<h3 className="trace-title">Agent path</h3>');
   });
 
-  it('rings the step in progress, falling back to the newest one reported', () => {
-    // Two readings in one expression, and both are needed. An endpoint that
-    // announces a step when it starts names the step the reader is waiting on,
-    // which is what the ring is for; one that reports only completions cannot, and
-    // the ring goes on the frontier instead, which is what this pane did before
-    // the announcements existed. The `liveStages` guard is the third: with no live
-    // steps yet the rail falls back to the PREVIOUS answer's trace, so a mark
-    // keyed on `loading` alone would light a card of a run that ended.
-    expect(HOME_PAGE).toMatch(
-      /loading && liveStages\.length > 0 \? \(runningStep \|\| railStages\.length\) - 1 : -1;/,
-    );
+  it('rings the newest step the run has announced, and never an envelope of it', () => {
+    /*
+     * THE REPORTED DEFECT: the ring and the band's status line sat on
+     * "Step 01 · Orchestrator" while the run was around step seven.
+     *
+     * This used to prefer `runningStep`, on the reading that the step in progress
+     * is a better answer than the frontier. They were the same row when that was
+     * written. They are not: the run announces `orchestrator` and
+     * `data_source_finder` before any step of it starts and reports neither until
+     * the end, so "the step in progress" resolved to an envelope that is open from
+     * the first event to the last. The frontier is the newest announcement, and it
+     * is the only one of the two readings that moves.
+     *
+     * The `liveStages` guard is unchanged and still load-bearing: with no live
+     * steps yet the rail falls back to the PREVIOUS answer's trace, so a mark
+     * keyed on `loading` alone would light a card of a run that ended.
+     */
+    expect(HOME_PAGE).toMatch(/const railActiveIndex = loading && liveStages\.length > 0 \? railStages\.length - 1 : -1;/);
+    expect(HOME_PAGE).not.toMatch(/\(runningStep \|\| railStages\.length\) - 1/);
+    // Still read, and still the number the pill's failure label needs: the step a
+    // run DIED inside is a different claim from how far it got.
     expect(HOME_PAGE).toMatch(/const runningStep = runningStepNumber\(liveStages\);/);
+    expect(HOME_PAGE).toMatch(/runningStep,/);
   });
 
   it('counts the step in progress off one clock, and stops it when the run ends', () => {
@@ -485,34 +517,48 @@ describe('the inspector while a run is still going', () => {
     );
     expect(HOME_PAGE).toMatch(/window\.setInterval\(\(\) => setNow\(Date\.now\(\)\), 1000\)/);
     expect(HOME_PAGE).toMatch(/if \(!parsing && !loading\) return;/);
-    // Cleared on every exit from a run, including the durable-run poll completing,
-    // and on leaving the conversation, opening another or asking again -- the five
-    // ways a ticking row could outlive the run it belongs to.
-    expect(HOME_PAGE.match(/setRunningSince\(null\)/g)).toHaveLength(5);
+    // THE INSTANT IS NOT THIS COMPONENT'S ANY MORE, and that is what makes the
+    // clock survive leaving the page. It used to be cleared in five places here,
+    // one of which was unmounting -- so a reader who came back to a run still in
+    // flight got a counter that had been reset to nothing and a path to match.
+    // The run is held in `live-ask.ts` now, which starts the count off the newest
+    // announcement and stops it in `endLiveAsk`, so there is exactly one rule and
+    // it is not tied to a mounted view. See live-ask-replay.test.ts.
+    expect(HOME_PAGE).not.toMatch(/setRunningSince/);
+    expect(HOME_PAGE).toMatch(/const runningSince = liveAsk\?\.runningSince \?\? null;/);
+    // Every way a run can end passes through here, and unconditionally: a run
+    // that ended while the reader was elsewhere must not still be counting when
+    // they return.
+    expect(HOME_PAGE).toMatch(/endLiveAsk\(runConversationId\);/);
     // Both surfaces read the same number, so they cannot disagree about how long
     // the reader has been waiting.
     expect(HOME_PAGE).toMatch(/<AgentPathConstellation[\s\S]{0,160}elapsedMs=\{railElapsedMs\}/);
     expect(HOME_PAGE).toMatch(/<LiveProgress[\s\S]{0,320}elapsedMs=\{railElapsedMs\}/);
   });
 
-  it('replaces an announced step with its own completion rather than listing both', () => {
-    // The pair share an id, so one step stays one row. Appending both would put
-    // "Querying governed data" above "Queried governed data" and count the step
-    // twice in the badge.
-    //
-    // MERGED OFF A REF, not off a state updater. The merged list is read again two
-    // lines down to decide whether anything is still in progress, and the stream
-    // hands steps over faster than a render, so an updater's copy would be a
-    // version behind -- which is what stopped the clock while the rest of a
-    // parallel batch was still going.
-    expect(HOME_PAGE).toMatch(/const merged = mergeLiveStage\(liveStagesRef\.current, stage\);/);
-    expect(HOME_PAGE).toMatch(/liveStagesRef\.current = merged;[\s\S]{0,40}setLiveStages\(merged\);/);
-    expect(HOME_PAGE).toMatch(
-      /setRunningSince\(\(since\) =>[\s\S]{0,80}nextRunningSince\(\{ stages: merged, since, now: Date\.now\(\) \}\)/,
-    );
-    // Cleared with the list every time a run is started or abandoned, or the next
-    // merge would fold a new run's first step into the last run's steps.
-    expect(HOME_PAGE.match(/liveStagesRef\.current = \[\];/g)).toHaveLength(3);
+  it('hands every step to the registry rather than holding the run in its own state', () => {
+    // THE RUN OUTLIVES THIS PAGE, so it is not kept here. Every value the live
+    // path is drawn from used to be `useState` in this component: leaving Ask --
+    // another tab, another conversation, anything that unmounts it -- threw the
+    // steps away while the stream went on reporting them, and coming back showed
+    // the question above a shut composer and a "Working on your question" row for
+    // the rest of the run. The list, the merge and the clock are in `live-ask.ts`
+    // now, keyed by conversation, and this page subscribes to the key it draws.
+    expect(HOME_PAGE).toMatch(/const liveAsk = useLiveAsk\(conversationId\);/);
+    expect(HOME_PAGE).toMatch(/const liveStages = liveAsk\?\.stages \?\? NO_LIVE_STAGES;/);
+    expect(HOME_PAGE).not.toMatch(/useState<TraceStage\[\]>/);
+    expect(HOME_PAGE).not.toMatch(/liveStagesRef/);
+    expect(HOME_PAGE).not.toMatch(/setLiveStages/);
+    // Recorded whatever is on screen. Both callbacks used to return early unless
+    // the reader was still in the conversation the run started in, which dropped
+    // every step that arrived after they moved -- including the ones they came
+    // back for.
+    expect(HOME_PAGE).toMatch(/onStage: \(stage\) => \{[\s\S]{0,40}recordLiveStage\(runConversationId, stage\);/);
+    expect(HOME_PAGE).toMatch(/onOpen: \(\) => \{[\s\S]{0,40}openLiveAsk\(runConversationId\);/);
+    // A new question replaces what the conversation had on record, which is what
+    // clearing the list used to mean. The merge itself, and the one-row-per-id
+    // guarantee behind it, are asserted in live-ask-replay.test.ts.
+    expect(HOME_PAGE).toMatch(/beginLiveAsk\(\{ conversationId: runConversationId, question \}\);/);
   });
 
   it('promises no more steps under a band that is already drawing them', () => {

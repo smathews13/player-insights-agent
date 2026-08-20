@@ -224,6 +224,10 @@
    rather than the card, so the buttons and links inside keep their pointer. */
 .answer-card p,
 .answer-prose li,
+/* A figure in a table is as copyable as a sentence is, and a reader who wants
+   one column out of a daily table selects it by dragging down the cells. */
+.answer-prose th,
+.answer-prose td,
 .answer-heading,
 .answer-takeaway {
   cursor: text;

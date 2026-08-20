@@ -19,7 +19,7 @@
  * GatePanel.tsx are markup and ARIA.
  */
 import { useOutletContext } from 'react-router';
-import type { ExperimentalFeatures } from './experimental-features';
+import { showsBenchmarkLab, type ExperimentalFeatures } from './experimental-features';
 import { BENCHMARK_LAB_ENABLED, SHOW_EVERY_TAB_TO_EVERYONE } from './nav-reveal';
 import { IDENTITY_RESOLVING } from './user-initials';
 import { isRole, ROLE_WORD, type Role } from '../../shared/user-roster-contract';
@@ -205,9 +205,9 @@ const CONSUMER_NAV: readonly NavEntry[] = [
  * The admin set. Monitoring and Ops sit third and fourth because they are the
  * reason an admin opens the app.
  *
- * BENCHMARK LAB IS NOT IN EITHER LIST. When `BENCHMARK_LAB_ENABLED` is on,
- * `navEntries` appends it to whichever base list applies rather than either
- * list carrying it. While that flag is off, nobody sees it.
+ * BENCHMARKING IS NOT IN EITHER LIST. `navEntries` appends it to whichever base
+ * list applies, once the operator setting on Settings is on, rather than either
+ * list carrying it. Off is the default, so normally nobody sees it.
  */
 const ADMIN_NAV: readonly NavEntry[] = [
   { to: '/', label: 'Ask' },
@@ -220,21 +220,22 @@ const ADMIN_NAV: readonly NavEntry[] = [
   { to: '/architecture', label: 'Architecture' },
 ];
 
-/** The Benchmark Lab entry, appended for every signed-in role when enabled. */
-export const BENCHMARK_NAV_ENTRY: NavEntry = { to: '/benchmarks', label: 'Benchmark Lab' };
+/** The Benchmarking entry, appended for every signed-in role when enabled. */
+export const BENCHMARK_NAV_ENTRY: NavEntry = { to: '/benchmarks', label: 'Benchmarking' };
 
 /**
  * The whole navigation, in order, for one role.
  *
  * The single answer for the header row and the mobile sheet both. They used to
  * be two lists, and an entry added to one was an entry missing from the other
- * for however long it took somebody to open a narrow window. Benchmark Lab is
- * gated by `BENCHMARK_LAB_ENABLED` only: when that flag is on it is a normal
- * tab for every role, and when it is off it is absent for everyone.
+ * for however long it took somebody to open a narrow window. Benchmarking has
+ * two gates: the operator setting, which defaults off and is what an operator
+ * turns on for themselves, and `BENCHMARK_LAB_ENABLED`, which withdraws the
+ * surface from every browser at once. Either one off means absent.
  */
-export function navEntries(state: RoleState, _features: ExperimentalFeatures): NavEntry[] {
+export function navEntries(state: RoleState, features: ExperimentalFeatures): NavEntry[] {
   const base = showsAdminSurfaces(state) || SHOW_EVERY_TAB_TO_EVERYONE ? ADMIN_NAV : CONSUMER_NAV;
-  if (!BENCHMARK_LAB_ENABLED) return [...base];
+  if (!BENCHMARK_LAB_ENABLED || !showsBenchmarkLab(features)) return [...base];
   return [...base, BENCHMARK_NAV_ENTRY];
 }
 

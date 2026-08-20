@@ -2736,7 +2736,7 @@ def test_more_charts_than_the_ceiling_are_dropped_and_the_trace_says_so():
 
     assert len(response.custom_outputs["answer"]["charts"]) == MAX_CHARTS
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
-    assert f"only the first {MAX_CHARTS}" in plot_stage["output"]
+    assert f"Only the first {MAX_CHARTS} charts were included." in plot_stage["output"]
 
 
 def test_request_chart_cap_is_enforced_on_the_next_answer():
@@ -2799,7 +2799,10 @@ def test_request_chart_type_reaches_the_plotter_and_is_enforced():
     )
     assert "produce bar charts only" in plot_call["messages"][0]["content"]
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
-    assert "outside the runtime chart type setting" in plot_stage["output"]
+    assert plot_stage["status"] == "partial"
+    assert plot_stage["output"] == (
+        "Charts could not be built because the chart response was incomplete."
+    )
 
 
 def test_an_unrenderable_spec_costs_the_chart_and_not_the_answer():
@@ -2821,9 +2824,9 @@ def test_an_unrenderable_spec_costs_the_chart_and_not_the_answer():
     assert answer["charts"] == []
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "partial"
-    # The reason is recorded rather than swallowed, so a run that stops charting is
-    # diagnosable from the trace instead of only from a missing panel.
-    assert "surface" in plot_stage["output"]
+    assert plot_stage["output"] == (
+        "Charts could not be built because the chart response was incomplete."
+    )
 
 
 def test_declining_to_chart_a_scalar_is_a_finished_step_that_says_why():
@@ -2853,8 +2856,7 @@ def test_declining_to_chart_a_scalar_is_a_finished_step_that_says_why():
     assert answer["charts"] == []
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "complete"
-    assert "single scalar" in plot_stage["output"]
-    assert "No chart applied." not in plot_stage["output"]
+    assert plot_stage["output"] == "Charts were not applicable for this answer."
 
 
 def _plotter(arguments: str) -> type[ScriptedLlm]:
@@ -2895,10 +2897,7 @@ def test_an_empty_chart_spec_is_a_decline_and_not_a_rejection():
     assert answer["charts"] == []
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "complete"
-    assert "nothing to draw" in plot_stage["output"]
-    assert "Rejected" not in plot_stage["output"]
-    # The validator's demand, which is what a reader recognised as a broken chart.
-    assert "must be" not in plot_stage["output"]
+    assert plot_stage["output"] == "Charts were not applicable for this answer."
 
 
 def test_a_spec_whose_traces_hold_no_points_is_also_a_decline():
@@ -2912,7 +2911,24 @@ def test_a_spec_whose_traces_hold_no_points_is_also_a_decline():
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "complete"
-    assert "no trace carried any data points" in plot_stage["output"]
+    assert plot_stage["output"] == "Charts were not applicable for this answer."
+
+
+def test_an_explicit_null_chart_is_the_no_figures_outcome():
+    """The live endpoint uses null when it decides this answer needs no chart."""
+
+    llm = _plotter('{"data": null}')(
+        [Call("data_genie", {"question": "figures"})], "Done."
+    )
+
+    response = ask(build(llm))
+    answer = response.custom_outputs["answer"]
+
+    assert answer["takeaway"], "an answer was lost with the chart"
+    assert answer["charts"] == []
+    plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
+    assert plot_stage["status"] == "complete"
+    assert plot_stage["output"] == "Charts were not applicable for this answer."
 
 
 def test_a_data_argument_of_the_wrong_shape_stays_a_rejection():
@@ -2932,8 +2948,24 @@ def test_a_data_argument_of_the_wrong_shape_stays_a_rejection():
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "partial"
-    assert "must be a list" in plot_stage["output"]
-    assert "dict" in plot_stage["output"]
+    assert plot_stage["output"] == (
+        "Charts could not be built because the chart response was incomplete."
+    )
+    assert "Plotly" not in plot_stage["output"]
+    assert "must be" not in plot_stage["output"]
+    assert "dict" not in plot_stage["output"]
+
+
+def test_a_missing_data_argument_stays_a_plain_english_failure():
+    llm = _plotter("{}")([Call("data_genie", {"question": "figures"})], "Done.")
+
+    response = ask(build(llm))
+
+    plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
+    assert plot_stage["status"] == "partial"
+    assert plot_stage["output"] == (
+        "Charts could not be built because the chart response was incomplete."
+    )
 
 
 def test_a_chart_declined_without_a_reason_still_says_that_much():
@@ -2945,7 +2977,7 @@ def test_a_chart_declined_without_a_reason_still_says_that_much():
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "complete"
-    assert plot_stage["output"] == "No chart: the plotting step drew nothing and gave no reason."
+    assert plot_stage["output"] == "Charts were not applicable for this answer."
 
 
 def test_the_plot_step_records_how_much_it_was_handed():
@@ -2969,10 +3001,16 @@ def test_a_plotting_endpoint_failure_is_survivable():
 
     llm = BrokenPlotter([Call("data_genie", {"question": "figures"})], "Done.")
 
-    answer = ask(build(llm)).custom_outputs["answer"]
+    response = ask(build(llm))
+    answer = response.custom_outputs["answer"]
 
     assert answer["charts"] == []
     assert answer["narrative"]
+    plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
+    assert plot_stage["status"] == "partial"
+    assert plot_stage["output"] == (
+        "Charts could not be built because the charting service was unavailable."
+    )
 
 
 def test_no_retrieved_data_means_no_chart_at_all():

@@ -60,12 +60,36 @@
      scrollbar on a container nothing announced as scrollable -- cannot come back
      through this declaration. */
   overflow: clip;
+  /*
+   * AND NEVER SHRUNK TO FIT THE COLUMN IT IS IN.
+   *
+   * The live band's seating is `.trace-inspector`, which is a flex column with a
+   * definite height -- the viewport less the header -- and `overflow-y: auto`. A
+   * flex item's automatic minimum size is its content's only while its overflow
+   * is visible, and the line above sets `clip`, so this element's minimum
+   * resolved to zero and the flex algorithm was free to squash the band rather
+   * than let the column scroll.
+   *
+   * A squashed band is not merely a short one. The SVG is `xMidYMin meet`, so it
+   * scales to whatever height it is handed, and that scale is then a function of
+   * how much room the column has left over. Report a step, the drawing is a
+   * viewBox unit taller, the scale changes, and every star moves SIDEWAYS as
+   * well as up -- on a surface whose whole job is to be watched while it builds.
+   *
+   * `flex: none` makes the band ask for its drawing's own height and keep it.
+   * The column then has something to scroll, which is what its `overflow-y` is
+   * for, and nothing rescales when a star is added.
+   */
+  flex: none;
 }
 
 .ast-sky-canvas {
   display: block;
   width: 100%;
   height: auto;
+  /* Same reason one level down: the path's band is a flex column of the canvas
+     and its status line, and the canvas is the item that would give way. */
+  flex: none;
 }
 .ast-star-select {
   cursor: pointer;

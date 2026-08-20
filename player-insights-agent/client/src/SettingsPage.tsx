@@ -9,7 +9,7 @@
 import { useOutletContext } from 'react-router';
 import { AdminListEditor } from './AdminListEditor';
 import { UserRoleEditor } from './UserRoleEditor';
-import { showsEgressControls } from './experimental-features';
+import { showsBenchmarkLab, showsEgressControls } from './experimental-features';
 import { EgressPanel } from './EgressPanel';
 import { showsAdminSurfaces, showsUserRoster, useRole } from './role';
 import { Card, CardDescription, CardContent, CardHeader, CardTitle, Switch } from './ui';
@@ -78,6 +78,22 @@ export function SettingsPage() {
           <CardDescription>Unfinished or internal surfaces, off by default.</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="settings-row">
+            <div>
+              <p className="settings-row-label">
+                Benchmarking · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
+              </p>
+              <p className="settings-row-note">
+                Shows the Benchmarking tab, scorers and judge details.
+              </p>
+            </div>
+            <Switch
+              checked={showsBenchmarkLab(features)}
+              onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
+              aria-label="Show Benchmarking, scorers and judge details"
+            />
+          </div>
+
           <div className="settings-row">
             <div>
               <p className="settings-row-label">Egress controls</p>

@@ -12,6 +12,7 @@ import {
   mapRows,
   pathHeight,
   pathPitch,
+  pathStarY,
   starBox,
   starLabel,
   starMeta,
@@ -478,6 +479,85 @@ describe('the live agent path, as a box nothing can leave (#18a)', () => {
   it('is one panel wide whatever the run did, so there is no sideways to overflow in', () => {
     for (const count of COUNTS) {
       expect(buildPathConstellation(runOf(count)).width).toBe(PATH_WIDTH);
+    }
+  });
+});
+
+describe('a path that is still being built (#18a)', () => {
+  /*
+   * THE SHAKE, AS ARITHMETIC.
+   *
+   * The live band is redrawn on every announced step of a run that is happening,
+   * and it used to place its stars at `PATH_PAD_TOP + index * (PATH_BODY / (count
+   * - 1))` -- one pitch for the whole path, derived from how many steps had been
+   * reported so far. So each new step moved every star already on screen: step 07
+   * sat at y=362 while the run had eight steps, 326 at nine, 290 at ten. The
+   * panel's foot moved too, and the rounding made it move BOTH WAYS -- 472 units
+   * at eight steps, 478 at nine, 472 again at ten -- so the band grew, shrank and
+   * grew while the reader watched the chain arrive.
+   *
+   * These are the invariants that make that impossible rather than unlikely.
+   */
+  it('leaves every placed star exactly where it was when the next step arrives', () => {
+    for (let count = 1; count < 40; count += 1) {
+      const before = buildPathConstellation(runOf(count), count - 1);
+      const after = buildPathConstellation(runOf(count + 1), count);
+      for (const star of before.stars) {
+        const grown = after.stars.find((one) => one.step === star.step);
+        expect(grown, `step ${star.step} of ${count}`).toBeDefined();
+        expect(grown?.x, `step ${star.step} x at ${count} steps`).toBe(star.x);
+        expect(grown?.y, `step ${star.step} y at ${count} steps`).toBe(star.y);
+      }
+    }
+  });
+
+  it('leaves the path string of every drawn hop untouched when the next step arrives', () => {
+    // The connectors are the thing a reader is watching arrive, so a hop whose
+    // `d` is rewritten is a line that jumps rather than one that extends.
+    for (let count = 2; count < 40; count += 1) {
+      const before = buildPathConstellation(runOf(count), count - 1);
+      const after = buildPathConstellation(runOf(count + 1), count);
+      for (const link of before.links) {
+        const grown = after.links.find((one) => one.from === link.from && one.to === link.to);
+        expect(grown?.d, `hop ${link.from}-${link.to} at ${count} steps`).toBe(link.d);
+      }
+    }
+  });
+
+  it('only ever adds to the foot of the panel, never takes off it', () => {
+    for (let count = 1; count < 64; count += 1) {
+      expect(pathHeight(count + 1), `${count} steps to ${count + 1}`).toBeGreaterThanOrEqual(pathHeight(count));
+    }
+  });
+
+  it('places a star by its index alone, with no reading of how long the run is', () => {
+    // `pathStarY` is the claim and the builder is the thing on screen. Two
+    // agreeing functions is the point: a position that is stable in one and
+    // recomputed in the other is the same defect wearing a different hat.
+    for (const count of COUNTS) {
+      const path = buildPathConstellation(runOf(count));
+      path.stars.forEach((star, index) => {
+        expect(star.y, `${count} steps, star ${star.step}`).toBe(pathStarY(index));
+      });
+    }
+  });
+
+  it('still tightens as the run goes on, forwards rather than retrospectively', () => {
+    // The compression the old arithmetic existed for. It is spent on hops that
+    // have not been drawn yet, which is what makes it free of the shake.
+    expect(pathPitch(7)).toBe(PATH_MAX_PITCH);
+    expect(pathPitch(8)).toBeLessThan(PATH_MAX_PITCH);
+    expect(pathPitch(20)).toBe(PATH_MIN_PITCH);
+    for (let step = 2; step < 64; step += 1) {
+      expect(pathPitch(step + 1), `hop into ${step + 1}`).toBeLessThanOrEqual(pathPitch(step));
+    }
+  });
+
+  it('draws the reference run of seven at the panel it was drawn in', () => {
+    // #18a is a seven-step drawing. Whatever the tail does, that one is unchanged.
+    expect(pathHeight(7)).toBe(430);
+    for (const star of buildPathConstellation(runOf(7)).stars) {
+      expect(star.y).toBe(38 + (star.step - 1) * PATH_MAX_PITCH);
     }
   });
 });

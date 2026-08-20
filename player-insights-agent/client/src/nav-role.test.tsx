@@ -42,7 +42,7 @@ import { describe, expect, it, vi } from 'vitest';
  * The flag's own behaviour is asserted in `nav-reveal.test.tsx`, against the
  * real value, so neither position is left unexercised.
  */
-vi.mock('./nav-reveal', () => ({ SHOW_EVERY_TAB_TO_EVERYONE: false, BENCHMARK_LAB_ENABLED: false }));
+vi.mock('./nav-reveal', () => ({ SHOW_EVERY_TAB_TO_EVERYONE: false, BENCHMARK_LAB_ENABLED: true }));
 
 import { NavLinks } from './Layout';
 import { mobileNavLinkClass } from './layout-view';
@@ -191,21 +191,14 @@ describe('the settings gear is drawn for an administrator and absent for everyon
   });
 });
 
-describe('Benchmark Lab is hidden for every role', () => {
-  it('is absent for an administrator, with or without the leftover preference', () => {
-    // Unfinished and non-functional: the kill switch hides it from everyone,
-    // including administrators. The experimental preference key can still be
-    // true in an old browser and must not bring the tab back.
-    expect(labels(render('admin'))).not.toContain('Benchmark Lab');
-    expect(labels(render('admin', { features: features({ benchmarkLab: true }) }))).not.toContain(
-      'Benchmark Lab'
-    );
+describe('Benchmarking follows its setting', () => {
+  it('is hidden by default and shown for an administrator who turns it on', () => {
+    expect(labels(render('admin'))).not.toContain('Benchmarking');
+    expect(labels(render('admin', { features: features({ benchmarkLab: true }) }))).toContain('Benchmarking');
   });
 
-  it('is absent for a consumer even when the leftover preference is on', () => {
-    expect(labels(render('consumer', { features: features({ benchmarkLab: true }) }))).not.toContain(
-      'Benchmark Lab'
-    );
+  it('uses the same setting for a consumer rail', () => {
+    expect(labels(render('consumer', { features: features({ benchmarkLab: true }) }))).toContain('Benchmarking');
   });
 });
 

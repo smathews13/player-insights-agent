@@ -25,9 +25,11 @@
 /** Every experiment, by the name the app refers to it by. */
 export interface ExperimentalFeatures {
   /**
-   * The Benchmark Lab: a workbench for scoring the agent against a suite, which
-   * is an internal evaluation tool rather than part of the product a customer is
-   * shown. Off by default, so it is there for whoever went looking for it.
+   * Benchmarking: the tab, the scorers and the judge details, which together are
+   * an internal evaluation workbench rather than part of the product a customer
+   * is shown. OFF BY DEFAULT AND DELIBERATELY SO: a customer who never asked for
+   * Benchmarking must not meet it after an upgrade, and an operator who wants it
+   * turns it on for their own browser on Settings.
    */
   benchmarkLab: boolean;
   /**
@@ -146,12 +148,12 @@ export function persistExperimentalFeatures(
 }
 
 /**
- * Whether the Benchmark Lab is offered in the navigation.
+ * Whether Benchmarking, its scorers and its judge details are offered.
  *
- * Governs what is ADVERTISED when `BENCHMARK_LAB_ENABLED` is on. While that
- * kill switch is off, `navEntries` ignores this preference entirely. When the
- * lab is re-enabled, `/benchmarks` renders again and this preference is the
- * leftover per-browser key (no Settings toggle currently writes it).
+ * Read by the navigation and by the `/benchmarks` route, so a pasted URL and the
+ * tab cannot disagree about whether the surface exists. `BENCHMARK_LAB_ENABLED`
+ * stands in front of it as the way to withdraw the surface from every browser at
+ * once; this is the per-browser answer an operator sets on Settings.
  */
 export function showsBenchmarkLab(features: ExperimentalFeatures): boolean {
   return features.benchmarkLab;

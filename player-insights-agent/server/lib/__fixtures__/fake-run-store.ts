@@ -63,6 +63,15 @@ export class FakeStore implements LakebaseReader {
   events: { run_id: string; from: string; to: string }[] = [];
   /** Stored answers, with the owner the real read reaches through a join. */
   messages: { id: string; user_email: string; response_json: unknown }[] = [];
+  /**
+   * The narration of a run, which is what a returning browser replays.
+   *
+   * Modelled because the property worth pinning is the primary key: `(run_id,
+   * seq)` is what turns a repeated append into a no-op rather than a second row
+   * numbered the same, and what makes `ORDER BY seq` the order the run went in.
+   */
+  stageEvents: { run_id: string; seq: number; event_id: string; event_type: string; stage: string | null; payload: unknown }[] =
+    [];
   now = 1_000_000;
   /** Rows committed after the current statement's snapshot, see the note below. */
   private hidden: Row[] = [];
@@ -110,6 +119,8 @@ export class FakeStore implements LakebaseReader {
     if (/FROM player_insights\.messages m/i.test(text)) return { rows: this.readMessage(params) };
     if (/INSERT INTO player_insights\.run_attempts/i.test(text)) return { rows: this.insertAttempt(params) };
     if (/UPDATE player_insights\.run_attempts/i.test(text)) return { rows: this.finishAttempt(params) };
+    if (/INSERT INTO player_insights\.run_events/i.test(text)) return { rows: this.insertStageEvent(params) };
+    if (/FROM player_insights\.run_events/i.test(text)) return { rows: this.readStageEvents(params) };
     throw new Error(`The fake store does not know this statement: ${text.slice(0, 80)}`);
   }
 
@@ -254,6 +265,41 @@ export class FakeStore implements LakebaseReader {
       completed_at: null,
     });
     return [{ attempt_id: attemptId }];
+  }
+
+  /**
+   * `ON CONFLICT (run_id, seq) DO NOTHING`, which is the whole reason this is
+   * modelled: an append reissued after a connection failure must not become a
+   * second row, and it must not be reported as a fresh write either.
+   */
+  private insertStageEvent(params: unknown[]): Record<string, unknown>[] {
+    const [runId, seq, eventId, eventType, stage, payload] = params as [
+      string,
+      number,
+      string,
+      string,
+      string | null,
+      string,
+    ];
+    if (this.stageEvents.some((row) => row.run_id === runId && row.seq === Number(seq))) return [];
+    this.stageEvents.push({
+      run_id: runId,
+      seq: Number(seq),
+      event_id: eventId,
+      event_type: eventType,
+      stage,
+      // Stored parsed, the way a `jsonb` column hands it back.
+      payload: JSON.parse(payload),
+    });
+    return [{ seq: Number(seq) }];
+  }
+
+  private readStageEvents(params: unknown[]): Record<string, unknown>[] {
+    const [runId, eventType] = params as [string, string];
+    return this.stageEvents
+      .filter((row) => row.run_id === runId && row.event_type === eventType)
+      .sort((a, b) => a.seq - b.seq)
+      .map((row) => ({ payload: row.payload }));
   }
 
   private finishAttempt(params: unknown[]): Record<string, unknown>[] {

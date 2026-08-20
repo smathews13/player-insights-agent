@@ -213,6 +213,66 @@ export function mergeLiveStage(stages: TraceStage[], incoming: TraceStage): Trac
 }
 
 /**
+ * The live step list with a whole replayed run folded into it.
+ *
+ * WHAT A RETURNING READER IS SHOWN. A browser that reopens a conversation with
+ * a run still in flight has no steps of its own -- it was not there for them --
+ * and reads them back from the server instead. Folded through
+ * {@link mergeLiveStage} one at a time rather than replacing the list, and that
+ * matters in both directions: a step this view already watched arrive is not
+ * duplicated by the replay of the same step, and a step the replay knows about
+ * and this view does not is appended in the order the run reported it.
+ *
+ * ORDER IS THE REPLAY'S, then whatever this view has seen since. The server
+ * stores steps in the order the run announced them, so replaying into an empty
+ * list reproduces the path exactly; replaying into a list that has moved on
+ * leaves the rows where the reader has been watching them.
+ *
+ * A replay that carries nothing changes nothing, which is the case for a turn
+ * answering with a plan, for a run that has not reached its first step, and for
+ * any run older than the narration being stored at all.
+ */
+export function mergeReplayedStages(stages: TraceStage[], replayed: TraceStage[]): TraceStage[] {
+  return replayed.reduce(mergeLiveStage, stages);
+}
+
+/**
+ * Which run the agent path draws: the one happening, the one that answered, or
+ * nothing at all.
+ *
+ * OUT HERE BECAUSE THE "NOTHING AT ALL" CASE WAS WRONG AND UNTESTABLE. Written
+ * inside the page, this fell back to the last answer's trace whenever the live
+ * list was empty -- including while a run was in flight, which is precisely the
+ * state a reader who navigates back into a working conversation arrives in. So
+ * the rail narrated the PREVIOUS question's run under a pill saying this one
+ * was working, and in a conversation whose first question was still running it
+ * showed nothing while claiming to be live.
+ *
+ * A run in flight draws its own steps or none. That is what the empty state is
+ * for: it says a run is going and has not reported a step yet, which is true,
+ * where a finished run's path presented as this one's is not.
+ */
+export function railStagesFor({
+  loading,
+  runStopped,
+  liveStages,
+  answeredStages,
+  clarificationStages,
+}: {
+  loading: boolean;
+  /** Whether the run in view died mid-flight, which keeps its steps on screen. */
+  runStopped: boolean;
+  liveStages: TraceStage[];
+  /** The newest stored answer's trace, for a conversation that is not running. */
+  answeredStages: TraceStage[];
+  clarificationStages: TraceStage[];
+}): TraceStage[] {
+  if (loading || runStopped) return liveStages;
+  if (answeredStages.length > 0) return answeredStages;
+  return clarificationStages;
+}
+
+/**
  * When the counter should be running from, given everything announced so far.
  *
  * Out here with `runningElapsed` for the same reason: it is the rule that STARTS
@@ -275,10 +335,25 @@ export function runningElapsed({
  * Zero rather than null so the badge can read it as "no step number to give":
  * a run against a model that does not announce its steps has no step in
  * progress at any point, and neither does one that has ended.
+ *
+ * THE NEWEST UNFINISHED ANNOUNCEMENT, not the first one, and that is the whole
+ * defect this line used to carry. A run announces its envelopes before any work
+ * happens -- `orchestrator`, then `data_source_finder` -- and neither of them
+ * reports until the run is over, so the FIRST `running` row is step 01 from the
+ * first event to the last. Everything keyed on this number was therefore stuck
+ * on step 01 for the whole run: the ring and the status line on the agent path,
+ * and "Live · step 01" on the pill beside it, while the reader watched step 07
+ * go by underneath.
+ *
+ * Announcements arrive in the order the run makes them, so the newest one is the
+ * step the reader is actually waiting on -- the deepest tool of a parallel batch
+ * rather than the envelope holding it.
  */
 export function runningStepNumber(stages: TraceStage[]): number {
-  const at = stages.findIndex((stage) => stage.status === 'running');
-  return at === -1 ? 0 : at + 1;
+  for (let at = stages.length - 1; at >= 0; at -= 1) {
+    if (stages[at].status === 'running') return at + 1;
+  }
+  return 0;
 }
 
 export function toLiveStep(stage: TraceStage, question = ''): LiveStep {

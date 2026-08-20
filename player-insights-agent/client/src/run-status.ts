@@ -112,12 +112,17 @@ export function runStatusFor({
   // the same `stepNumber` the cards use, so the badge and the card it is counting
   // are written the same way -- "Live · step 07" over a card numbered 07.
   //
-  // The step in progress when there is one, and the newest reported step when
-  // there is not, which is the same number in both cases: the announced row is
-  // the last row in the list. Written as a preference rather than as one or the
-  // other so that a run whose announcements never arrive still counts.
+  // The FURTHEST of the two readings, because they are no longer the same row.
+  // The announced row used to be the last row in the list, so "the step in
+  // progress" and "the newest step reported" were one number; a run that
+  // announces `orchestrator` before any step of it starts and reports it only at
+  // the end broke that, and preferring the step in progress pinned this badge to
+  // "Live · step 01". Taking the later of the two names the newest step in both
+  // directions: the announcement while it is open, the completion in the gap
+  // before the next announcement, and the frontier against a model that
+  // announces nothing at all.
   if (loading) {
-    const step = runningStep || liveSteps;
+    const step = Math.max(runningStep, liveSteps);
     return {
       label: step > 0 ? `Live · step ${stepNumber(step)}` : 'Live',
       tone: 'is-live',

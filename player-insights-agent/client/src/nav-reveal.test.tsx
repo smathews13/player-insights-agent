@@ -28,6 +28,7 @@ import { NO_EXPERIMENTS } from './experimental-features';
 import { BENCHMARK_LAB_ENABLED, SHOW_EVERY_TAB_TO_EVERYONE } from './nav-reveal';
 
 const APP_SOURCE = readFileSync(new URL('App.tsx', import.meta.url), 'utf8');
+const BENCHMARK_VISIBILITY_SOURCE = readFileSync(new URL('BenchmarkingVisibility.tsx', import.meta.url), 'utf8');
 
 function resolution(state: RoleState): RoleResolution {
   return { state, addedAdminsReadable: true };
@@ -82,31 +83,30 @@ describe('every reader is shown every tab', () => {
   });
 });
 
-describe('the Benchmark Lab is hidden for everyone', () => {
-  it('is off at the kill switch, which every assertion below depends on', () => {
-    expect(BENCHMARK_LAB_ENABLED).toBe(false);
+describe('Benchmarking follows the operator setting', () => {
+  it('allows the operator setting to reveal the surface', () => {
+    expect(BENCHMARK_LAB_ENABLED).toBe(true);
   });
 
-  it('appears nowhere in the navigation, for any role', () => {
+  it('is hidden by default for every role', () => {
     for (const state of ['consumer', 'admin', 'super_admin', 'failed', 'resolving'] as const) {
       const entries = navEntries(state, NO_EXPERIMENTS).map((entry) => entry.to);
       expect(entries, state).not.toContain('/benchmarks');
-      expect(labels(render(state)), state).not.toContain('Benchmark Lab');
+      expect(labels(render(state)), state).not.toContain('Benchmarking');
     }
   });
 
-  it('stays absent even when the leftover experimental preference is on', () => {
-    // The Settings toggle for Benchmark Lab was removed; the preference key can
-    // still be true in an old browser. The kill switch must win either way.
+  it('appears when the operator turns the setting on', () => {
     const withToggle = navEntries('admin', { ...NO_EXPERIMENTS, benchmarkLab: true });
-    expect(withToggle.some((entry) => entry.to === '/benchmarks')).toBe(false);
+    expect(withToggle.some((entry) => entry.to === '/benchmarks')).toBe(true);
   });
 
-  it('redirects /benchmarks to Ask rather than rendering the unfinished lab', () => {
-    expect(APP_SOURCE).toMatch(/BENCHMARK_LAB_ENABLED/);
+  it('gates a direct Benchmarking URL with the same live setting', () => {
     expect(APP_SOURCE).toMatch(/path: '\/benchmarks'/);
-    expect(APP_SOURCE).toMatch(/<Navigate to="\/" replace \/>/);
-    expect(APP_SOURCE).not.toMatch(/path: '\/benchmarks',\s*element: <LazyRoute><BenchmarkLab/);
+    expect(APP_SOURCE).toMatch(/<BenchmarkingVisibility>/);
+    expect(BENCHMARK_VISIBILITY_SOURCE).toMatch(/BENCHMARK_LAB_ENABLED/);
+    expect(BENCHMARK_VISIBILITY_SOURCE).toMatch(/showsBenchmarkLab\(features\)/);
+    expect(BENCHMARK_VISIBILITY_SOURCE).toMatch(/<Navigate to="\/" replace \/>/);
   });
 });
 
