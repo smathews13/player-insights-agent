@@ -33,7 +33,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Search, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, Skeleton } from './ui';
+import { Button, Input, Skeleton } from './ui';
+import { AppSelect } from './AppSelect';
 import { PageHeading } from './page-chrome';
 import { RefreshControl } from './RefreshControl';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -208,47 +209,21 @@ function FilterChip({
   onChange: (value: string) => void;
 }) {
   const active = value !== '';
-  const chosen = options.find((option) => option.value === value) ?? options[0];
+  const selectOptions = options.map((option) => ({
+    value: option.value || NO_FILTER,
+    label: option.label,
+  }));
   return (
     <span className={active ? 'monitoring-chip monitoring-chip-active' : 'monitoring-chip'}>
-      <Select value={active ? value : NO_FILTER} onValueChange={(next) => onChange(next === NO_FILTER ? '' : next)}>
-        {/* The utility overrides undo the shadcn trigger's own box, because the
-            border, the fill and the radius belong to the chip around it: the
-            Table chip holds a clear button inside the same border, which cannot
-            sit inside the trigger's own. */}
-        <SelectTrigger className="monitoring-chip-trigger border-0 rounded-none bg-transparent px-0 py-0 shadow-none focus-visible:ring-0">
-          {/*
-            The current value is written here rather than through `SelectValue`,
-            which resolves it from the open menu's items and so is empty until
-            Radix has mounted. That left the chip reading "Person ·" with nothing
-            after it on first paint. The value is already known from `options`,
-            so there is no reason to wait for a round trip through the menu.
-
-            THE ACCESSIBLE NAME IS THIS TEXT, deliberately, and there is no
-            `aria-label`. An `aria-label` of "Person" would replace the name and
-            take the value out of what gets announced, which is a worse control
-            than the native select it replaced. As content, "Person" and "All"
-            both reach the name and a reader hears "Person All, combobox". The
-            separator is decoration and is hidden, so it is not read as "middle
-            dot".
-          */}
-          <span className="monitoring-chip-name">{label}</span>
-          <span className="monitoring-chip-separator" aria-hidden="true">
-            ·
-          </span>
-          <span className="monitoring-chip-value">{chosen?.label ?? ''}</span>
-        </SelectTrigger>
-        {/* Anchored under the trigger and no narrower than it, which is the
-            "connected to the thing I clicked" half. `align="start"` keeps the
-            left edges flush rather than centring a wide menu over a narrow chip. */}
-        <SelectContent className="monitoring-chip-menu" position="popper" align="start" sideOffset={4}>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value || NO_FILTER}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <AppSelect
+        label={label}
+        ariaLabel={label}
+        value={active ? value : NO_FILTER}
+        options={selectOptions}
+        onValueChange={(next) => onChange(next === NO_FILTER ? '' : next)}
+        className="monitoring-chip-trigger"
+        contentClassName="monitoring-chip-menu"
+      />
       {/* Only when set, and outside the trigger: a button inside a button is not
           a thing, and the trigger is a button. */}
       {active ? (
@@ -731,10 +706,7 @@ export function QuestionDrawer({
       <div className="monitoring-drawer-meta-row">
         <UserIdentityChip identity={detail.askedBy} label="Asked by" compact />
         <p className="monitoring-drawer-meta">
-          {[
-            askedAtLabel(detail.askedAt),
-            askerGrantsLine(detail.execution, identityName(detail.askedBy)),
-          ]
+          {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
             .filter((segment): segment is string => Boolean(segment))
             .join(' · ')}
         </p>
@@ -910,14 +882,14 @@ export function PersonPanel({
       <div className="monitoring-drawer-head">
         <div className="monitoring-panel-who">
           <div className="min-w-0">
-          <h3 className="monitoring-panel-name">
-            <UserIdentityChip identity={panel.email} />
-          </h3>
-          <p className="monitoring-drawer-meta">
-            {panel.firstSeen ? `First seen ${whenLabel(panel.firstSeen, now)}` : 'First seen not recorded'}
-            {' · '}
-            {panel.lastSeen ? `Last seen ${whenLabel(panel.lastSeen, now)}` : 'Last seen not recorded'}
-          </p>
+            <h3 className="monitoring-panel-name">
+              <UserIdentityChip identity={panel.email} />
+            </h3>
+            <p className="monitoring-drawer-meta">
+              {panel.firstSeen ? `First seen ${whenLabel(panel.firstSeen, now)}` : 'First seen not recorded'}
+              {' · '}
+              {panel.lastSeen ? `Last seen ${whenLabel(panel.lastSeen, now)}` : 'Last seen not recorded'}
+            </p>
           </div>
         </div>
         <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
@@ -995,38 +967,38 @@ export function PersonPanel({
           panel.grants.map((grant) => {
             const badge = grantBadge(grant);
             return (
-            <div className="monitoring-grant-row" key={grant.table}>
-              <p className="monitoring-grant-line">
-                {/* Unity Catalog's mark before each table name, at the handoff's
+              <div className="monitoring-grant-row" key={grant.table}>
+                <p className="monitoring-grant-line">
+                  {/* Unity Catalog's mark before each table name, at the handoff's
                     14px. Every row here is a UC table and the heading says so,
                     so this is decorative: the name is the next element. */}
-                <BrandIcon product="unity-catalog" size={14} />
-                {/* `title` carries the whole name, because the span truncates
+                  <BrandIcon product="unity-catalog" size={14} />
+                  {/* `title` carries the whole name, because the span truncates
                     with an ellipsis rather than letting the row's own clipping
                     slice a three-part name mid-word. */}
-                <span className="monitoring-mono monitoring-grant-table" title={grant.table}>
-                  {grant.table}
-                </span>
-                <span className={astPill(PILL_FAMILY[badge.tone], 'monitoring-pill')}>{badge.label}</span>
-                {/* The privilege that was found missing. Not printed where the
+                  <span className="monitoring-mono monitoring-grant-table" title={grant.table}>
+                    {grant.table}
+                  </span>
+                  <span className={astPill(PILL_FAMILY[badge.tone], 'monitoring-pill')}>{badge.label}</span>
+                  {/* The privilege that was found missing. Not printed where the
                     badge is already the words "Not checked". */}
-                {grant.missing && grant.missing !== badge.label ? (
-                  <span className="monitoring-grant-missing">{grant.missing}</span>
-                ) : null}
-              </p>
-              {/* What a filter or a mask IS, never what it did to a run. A
+                  {grant.missing && grant.missing !== badge.label ? (
+                    <span className="monitoring-grant-missing">{grant.missing}</span>
+                  ) : null}
+                </p>
+                {/* What a filter or a mask IS, never what it did to a run. A
                   filtered query succeeds and returns fewer rows, and nothing in
                   the result says a filter ran. */}
-              {grant.rowFilter ? (
-                <p className="monitoring-grant-note">
-                  Row filter applied. Two people with different group membership will see different totals from this
-                  table.
-                </p>
-              ) : null}
-              {grant.maskedColumns && grant.maskedColumns.length > 0 ? (
-                <p className="monitoring-grant-note">{`Column mask on ${grant.maskedColumns.join(', ')}.`}</p>
-              ) : null}
-            </div>
+                {grant.rowFilter ? (
+                  <p className="monitoring-grant-note">
+                    Row filter applied. Two people with different group membership will see different totals from this
+                    table.
+                  </p>
+                ) : null}
+                {grant.maskedColumns && grant.maskedColumns.length > 0 ? (
+                  <p className="monitoring-grant-note">{`Column mask on ${grant.maskedColumns.join(', ')}.`}</p>
+                ) : null}
+              </div>
             );
           })
         )}
@@ -1393,7 +1365,9 @@ export function MonitoringPage() {
       {detail && drawer.question ? (
         <QuestionDrawer detail={detail} onClose={close} onOpenPerson={openPersonPanel} />
       ) : null}
-      {panel && drawer.person ? <PersonPanel panel={panel} now={now} rangeLabel={window_.label} onClose={close} onOpenQuestion={open} /> : null}
+      {panel && drawer.person ? (
+        <PersonPanel panel={panel} now={now} rangeLabel={window_.label} onClose={close} onOpenQuestion={open} />
+      ) : null}
     </div>
   );
 }

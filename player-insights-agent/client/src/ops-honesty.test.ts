@@ -276,7 +276,7 @@ describe('an empty cost block', () => {
     expect(noGrant?.body).toMatch(/statement below/);
   });
 
-/**
+  /**
    * AND SAYS NOTHING ELSE. The paragraph behind the "Why" explained that spend
    * is read as the reader rather than as the app, which is true, which nobody
    * opened, and which changes nothing about what they do next: run the statement
@@ -285,7 +285,11 @@ describe('an empty cost block', () => {
   it('offers the remedy without a paragraph behind it', () => {
     const noGrant = costAbsence(costPayload({ state: 'no-grant' }));
     expect(said(noGrant)).not.toMatch(/as you, not as the app/);
-    expect(said(noGrant).split('.').filter((clause) => clause.trim()).length).toBe(1);
+    expect(
+      said(noGrant)
+        .split('.')
+        .filter((clause) => clause.trim()).length
+    ).toBe(1);
   });
 
   /**
@@ -506,11 +510,8 @@ describe('the framing over recorded error lines', () => {
     expect(errorFraming({ errorCount: 0, dependencies: ['answered'] })).toBeNull();
   });
 
-  it('calls them history when every dependency answered its last check', () => {
-    const framing = errorFraming({ errorCount: 2, dependencies: ['answered', 'answered', 'not-checked'] });
-    expect(framing?.live).toBe(false);
-    expect(framing?.headline).toBe('2 error lines recorded in this range');
-    expect(framing?.note).toMatch(/not a live failure/);
+  it('hides historical errors when no dependency is failing now', () => {
+    expect(errorFraming({ errorCount: 2, dependencies: ['answered', 'answered', 'not-checked'] })).toBeNull();
   });
 
   it('does not reassure when a dependency is not answering now', () => {
@@ -521,11 +522,10 @@ describe('the framing over recorded error lines', () => {
     expect(framing?.note).toMatch(/Result column/);
   });
 
-  it('treats a not-checked dependency as neither an outage nor a pass', () => {
+  it('does not use historical errors to fill an unchecked state', () => {
     // A probe that did not run has said nothing about the dependency, so it must
     // not tip the note into the live-failure wording.
-    const framing = errorFraming({ errorCount: 1, dependencies: ['not-checked'] });
-    expect(framing?.live).toBe(false);
+    expect(errorFraming({ errorCount: 1, dependencies: ['not-checked'] })).toBeNull();
   });
 });
 
@@ -587,7 +587,8 @@ describe('splitting a span name into method and path', () => {
 /* ── The shared-facts strip ──────────────────────────────────────────────── */
 
 describe('the latency shared-facts line', () => {
-  const thin = (over: Partial<RouteLatency> = {}): RouteLatency => route({ spans: 8, p95Ms: null, p99Ms: null, ...over });
+  const thin = (over: Partial<RouteLatency> = {}): RouteLatency =>
+    route({ spans: 8, p95Ms: null, p99Ms: null, ...over });
 
   it('says the whole window is thin when no route crosses the floor', () => {
     const facts = latencySharedFacts([thin(), thin({ route: 'GET /api/ops/cost' })]);

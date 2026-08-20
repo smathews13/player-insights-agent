@@ -22,7 +22,7 @@
  * removal still offers "Put back", and adding still grants nobody anything.
  */
 import { useState } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger } from './ui';
+import { AppSelect } from './AppSelect';
 import {
   ADDABLE_KINDS,
   CONNECTION_LIST_TITLE,
@@ -192,18 +192,14 @@ export function DeclaredConnectionsCard({
                   combobox whose accessible name is "Kind" and whose value is the
                   chosen label, so a reader hears the same thing the native
                   control said. */}
-              <Select value={kindChoice} onValueChange={setKindChoice}>
-                <SelectTrigger className="plane-field plane-field-select" aria-label="Kind">
-                  <span>{chosenKind.label}</span>
-                </SelectTrigger>
-                <SelectContent position="popper" align="start" sideOffset={4}>
-                  {ADDABLE_KINDS.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
-                      {entry.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <AppSelect
+                label="Kind"
+                ariaLabel="Kind"
+                value={kindChoice}
+                onValueChange={setKindChoice}
+                options={ADDABLE_KINDS.map((entry) => ({ value: entry.id, label: entry.label }))}
+                className="plane-field-select"
+              />
             </div>
             {picker ? (
               <AssetPicker

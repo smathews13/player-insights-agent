@@ -585,12 +585,14 @@ export function requireSuperAdmin(store: AdminStore, readEmail: (req: Request) =
 /**
  * The actions worth a row.
  *
- * `access-granted` and `access-revoked` are separate from `admin-added` and
- * `admin-removed` even though one action produces both, and that separation is
- * the point: the two halves can disagree. An add whose grant was refused writes
- * `admin-added` and `access-refused`, and a reader of this table can see that the
- * person holds the role and not the access. One combined row would have to pick
- * one of those to be true.
+ * `access-revoked` is separate from `admin-removed` even though one action can
+ * produce both, and that separation is the point: taking somebody off the list is
+ * a decision about a role, and handing back a Unity Catalog privilege an earlier
+ * version of this app granted them is a change to what they can read. One combined
+ * row would have to pick which of those it meant.
+ *
+ * THERE IS NO `access-granted`. Nothing in this app grants Unity Catalog
+ * privileges; see admin-access.ts for why the add path stopped.
  */
 export type AdminAction =
   | 'admin-added'
@@ -609,10 +611,7 @@ export type AdminAction =
   /** A person taken off the roster entirely, whatever role they held. */
   | 'user-removed'
   | 'conversation-read'
-  | 'access-granted'
-  | 'access-refused'
   | 'access-revoked'
-  | 'access-reconciled'
   | 'runtime-settings-updated'
   /** An admin recorded or cleared a Connections setting intention (or live value). */
   | 'connection-setting-saved'

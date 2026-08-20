@@ -198,7 +198,7 @@ describe('the caveats an answer arrives with', () => {
       ])
     );
 
-    expect(panel).toContain('<span class="entity-mark font-semibold">active_players</span>');
+    expect(panel).toContain('<span class="entity-mark entity-column font-semibold">active_players</span>');
     // The plain English around it is left alone, which is the whole reason the
     // candidate set requires an underscore.
     expect(panel).not.toContain('>additive<');

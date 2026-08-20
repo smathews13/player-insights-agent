@@ -905,6 +905,12 @@
 .deployment-fact-aside {
   color: var(--muted-foreground);
 }
+/* The "by" chip sits inline after the release time with no whitespace between
+   them, so give it a little air off the value it qualifies -- otherwise the
+   chip border butts straight against "PM". */
+.deployment-fact-text .identity-chip {
+  margin-left: 6px;
+}
 /* The app's tags, one neutral chip each. Slate rather than any of the three
    verdict tints: a tag is a label somebody applied, not a state anything
    measured, and tinting it would put a fourth meaning on this page's palette. */
@@ -1099,6 +1105,15 @@
   border-radius: var(--ast-radius-card);
   overflow: hidden;
 }
+.configuration-plane-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.configuration-plane-row > .plane-card {
+  min-width: 0;
+}
 .plane-card-head {
   display: flex;
   align-items: center;
@@ -1156,6 +1171,10 @@
   margin: 0;
   padding: 8px 12px 0 28px;
   font-size: var(--ast-fs-13);
+}
+.plane-apply-steps {
+  display: grid;
+  gap: 2px;
 }
 .plane-muted {
   color: var(--ast-text-secondary);
@@ -1282,6 +1301,10 @@
   border-top: 1px solid var(--border-subtle);
   padding-top: var(--space-3);
 }
+.notebook-path-editor > [data-slot='button'] {
+  width: auto;
+  justify-self: start;
+}
 .plane-form-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1294,18 +1317,9 @@
   border-radius: var(--ast-radius-control);
   font-size: var(--ast-fs-13);
 }
-/* The kind picker is a Select trigger wearing the field's box, so it lines up with
-   the two inputs beside it. `height: auto` undoes the trigger's own fixed height,
-   which is a control height and not a field one. */
+/* The kind picker fills its half of the paired add form. */
 .plane-field-select {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  height: auto;
-  background: var(--ast-white);
-  color: var(--ast-text);
-  text-align: left;
+  width: 100%;
 }
 /* The listed / removed tally beside the heading. Secondary and 400, because the
    heading is the 700 in this band and two bold things in one row compete. */

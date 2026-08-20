@@ -40,10 +40,11 @@ import { useFirstOpen } from './FirstOpenGate';
 import { LANDED_ANNOUNCEMENT, drawsAppShell, isArriving } from './login-transition';
 import { Disclosure } from './page-chrome';
 import { formatCheckedAt } from './preflight';
-import { useIdentity, useStorageHealth } from './app-state';
+import { useDeployment, useIdentity, useStorageHealth } from './app-state';
 import type { Identity } from './app-types';
 import { AstrolabeLockup } from './AstrolabeMark';
 import { BuiltOnDatabricks } from './BuiltOnDatabricks';
+import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
 import { RoleLostNotice } from './GatePanel';
 import { UserIdentityChip } from './UserIdentityChip';
@@ -244,11 +245,55 @@ export function NavLinks({
  * reader could expand. The chip shows the local part again; the full address
  * stays on `title` for hover and for when the chip truncates.
  *
- * ORDER IS role.ts's HEADER_CLUSTER_ORDER: role badge, this chip, gear, then
- * the Built on Databricks attribution past the chrome rule.
+ * ORDER IS role.ts's HEADER_CLUSTER_ORDER: role badge, this chip, deployment
+ * time, gear, then the Built on Databricks attribution past the chrome rule.
  */
 export function IdentityChip({ identity }: { identity: Identity }) {
   return <UserIdentityChip identity={identity.signedInAs} label="Signed in" testId="identity-chip" />;
+}
+
+/**
+ * The header's first column: the lockup, the release date beside it, and the
+ * divider that separates the column from the tab row.
+ *
+ * THE RELEASE CHIP IS SEATED HERE RATHER THAN AT THE FAR RIGHT, and the move is
+ * the point of this component existing. It used to be the second-to-last member
+ * of the right-hand cluster, which is the part of the header that gives when the
+ * row is tight, so on an ordinary window it truncated mid-timestamp -- and the
+ * clause it lost was the precise one. Beside the wordmark it is reading the
+ * app's own identity rather than the reader's badges, which is what it is: the
+ * date names the build somebody is looking at.
+ *
+ * IT FITS INSIDE THE COLUMN THE TABS ARE ALIGNED TO, and that is a constraint
+ * rather than a coincidence. `.brand-lockup`'s width is what lands the first tab
+ * clear of the conversation rail's hairline, so the chip goes in the slack that
+ * column already holds between the wordmark and the divider. It must stay small
+ * enough to live there: widen it and the wordmark truncates, or the column grows
+ * and the tab row comes unstuck from the rail below it.
+ */
+export function HeaderBrand({
+  deployedAt,
+  deployedBy,
+  buildSha,
+  arriving,
+}: {
+  deployedAt?: string;
+  deployedBy?: string;
+  buildSha?: string;
+  arriving?: boolean;
+}) {
+  return (<div className="brand-lockup">
+      {/* The lockup pops in at the exact point the stars converged on
+          (`login-transition.md` phase 5). The class is on the lockup rather than
+          on the column so neither the chip nor the divider beside it pops with
+          it, and it is only ever carried for the 1.2s of the transition -- an app
+          identity that animates every time the header re-renders is an identity
+          in motion, which is the opposite of what an identity is for. */}
+      <AstrolabeLockup as="h1" seat="bar" className={arriving ? 'ast-anim-x-mark' : undefined} />
+      {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
+      <span className="app-chrome-rule" aria-hidden="true" />
+    </div>
+  );
 }
 
 /**
@@ -269,21 +314,35 @@ export function IdentityChip({ identity }: { identity: Identity }) {
  *
  * THE OAUTH BADGE IS NO LONGER HERE, and that is a move rather than a deletion.
  * The login gate and the Connections identity card still state it.
+ *
+ * THE RELEASE CHIP IS ONLY EVER THE SHEET'S NOW. In the header it is seated in
+ * the lockup column by `HeaderBrand`, so the header's copy of this cluster is
+ * handed no `deployedAt` -- passing one would draw the chip twice on one page.
+ * The sheet keeps it because the lockup truncates at those widths and the column
+ * has no room for it there, and a phone still has to be able to see which build
+ * it is on.
  */
 export function IdentityChips({
   identity,
   role,
+  deployedAt,
+  deployedBy,
+  buildSha,
   className,
   gear,
 }: {
   identity: Identity;
   role: RoleResolution;
+  deployedAt?: string;
+  deployedBy?: string;
+  buildSha?: string;
   className?: string;
   gear?: ReactNode;
 }) {
   return (<div className={`identity-chips ${className ?? ''}`}>
       <RoleBadge state={role.state} />
       <IdentityChip identity={identity} />
+      {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       {gear}
       <span className="app-chrome-rule" aria-hidden="true" />
       <BuiltOnDatabricks />
@@ -294,6 +353,7 @@ export function IdentityChips({
 export function Layout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const identity = useIdentity();
+  const deployment = useDeployment();
   /*
    * The gate, and whether this frame is allowed to draw the app at all.
    *
@@ -357,25 +417,21 @@ export function Layout() {
           measured by its tallest child is a header that changes height the next
           time somebody adjusts a font size. */}
       <header className="app-header border-b bg-background flex items-center sticky top-0 z-30">
-        {/* The lockup, and then the divider §1 puts between it and the tabs.
-            The column's width is what aligns the first tab with the conversation
-            rail below it, so the divider sits inside the column rather than
-            after it -- placed after, it would land on the rail's own hairline
-            and read as one crooked line rather than as two.
+        {/* The lockup, the release date, and then the divider §1 puts between
+            the column and the tabs. The column's width is what aligns the first
+            tab with the conversation rail below it, so the divider sits inside
+            the column rather than after it -- placed after, it would land on the
+            rail's own hairline and read as one crooked line rather than as two.
             The wordmark IS the app's name, so it is the page's h1. The partner
             plate and the "Player Intelligence" kicker that used to be here are
             gone: the app has its own identity now, and the plate reserved a
             position for a trademark this repository must not carry. */}
-        {/* The lockup pops in at the exact point the stars converged on
-            (`login-transition.md` phase 5). The class is on the lockup rather than
-            on the column so the divider beside it does not pop with it, and it is
-            only ever carried for the 1.2s of the transition -- an app identity that
-            animates every time the header re-renders is an identity in motion,
-            which is the opposite of what an identity is for. */}
-        <div className="brand-lockup">
-          <AstrolabeLockup as="h1" seat="bar" className={arriving ? 'ast-anim-x-mark' : undefined} />
-          <span className="app-chrome-rule" aria-hidden="true" />
-        </div>
+        <HeaderBrand
+          deployedAt={deployment.deployedAt}
+          deployedBy={deployment.deployedBy}
+          buildSha={deployment.buildSha}
+          arriving={arriving}
+        />
         {/* Four links for a consumer, six for an admin, and one more than either
             with the Benchmark Lab experiment on -- seven for everybody while
             `SHOW_EVERY_TAB_TO_EVERYONE` is on. The breakpoint stays whatever
@@ -474,9 +530,19 @@ export function Layout() {
                 features={features}
                 onClick={() => setMobileNavOpen(false)}
               />
-              {/* Only drawn at the widths where the header cannot carry the chip
-                  itself, which responsive.css decides for both copies at once. */}
-              <IdentityChips identity={identity} role={role} className="mobile-identity" />
+              {/* The release chip's only seat below 800px. The lockup column is
+                  what gives at those widths -- the wordmark truncates so the menu
+                  button stays on screen -- so there is no slack beside the
+                  wordmark to seat it in, and responsive.css hides the header's
+                  copy there. */}
+              <IdentityChips
+                identity={identity}
+                role={role}
+                deployedAt={deployment.deployedAt}
+                deployedBy={deployment.deployedBy}
+                buildSha={deployment.buildSha}
+                className="mobile-identity"
+              />
             </SheetContent>
           </Sheet>
         </div>

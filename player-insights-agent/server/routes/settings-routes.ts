@@ -272,6 +272,23 @@ export async function readOrchestratorReport(appkit: InsightsAppKit): Promise<Or
 export function setupSettingsRoutes(appkit: InsightsAppKit) {
   appkit.server.extend((app) => {
     /**
+     * The deployment facts needed by the global header.
+     *
+     * This is the same Apps API read as the Connections Build card, kept on a
+     * small route so opening any page does not also invoke the orchestrator,
+     * dependency probes, notebook read and connection reads in `/api/settings`.
+     *
+     * `buildSha` is the SAME stamp the Build card's App row prints, read from
+     * the one function that owns it rather than re-derived here. The header
+     * names the release and the card names the release, and two readings of one
+     * fact is how a reader ends up comparing this app against itself.
+     */
+    app.get('/api/deployment', async (_req, res) => {
+      const facts = await readAppFacts();
+      res.json({ deployedAt: facts.deployedAt, deployedBy: facts.deployedBy, buildSha: appBuildSha() });
+    });
+
+    /**
      * Every connection, with what it was configured as, what the running system
      * used, and what somebody intends it to be.
      *

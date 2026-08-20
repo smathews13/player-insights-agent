@@ -19,22 +19,12 @@ import {
   controllablePaths,
   egressAllowed,
   type EgressChannel,
-  type EgressClassificationPayload,
   type EgressControls,
   type EgressControlsPayload,
   type EgressPath,
 } from '../../shared/egress-contract';
 import { adoptEgressControls, egressControlsSnapshot } from './egress-policy';
-import {
-  classificationFacts,
-  classificationPill,
-  CLASSIFICATION_CAPTION,
-  controlAccessibleName,
-  CONTROL_WRITE_FAILED,
-  enforcementPill,
-  pathMeta,
-  type Pill,
-} from './egress-panel';
+import { controlAccessibleName, CONTROL_WRITE_FAILED, enforcementPill, pathMeta, type Pill } from './egress-panel';
 
 /** The separator, written once. The design allows this one and no em dash. */
 function Facts({ facts }: { facts: readonly string[] }) {
@@ -59,7 +49,8 @@ function ControlRow({
   failed: boolean;
   onChange: (allowed: boolean) => void;
 }) {
-  return (<div className="settings-row egress-row">
+  return (
+    <div className="settings-row egress-row">
       <div className="egress-row-body">
         <p className="settings-row-label">
           {path.label} <PillChip pill={enforcementPill(path)} />
@@ -67,11 +58,7 @@ function ControlRow({
         </p>
         <Facts facts={pathMeta(path)} />
       </div>
-      <Switch
-        checked={allowed}
-        onCheckedChange={onChange}
-        aria-label={controlAccessibleName(path)}
-      />
+      <Switch checked={allowed} onCheckedChange={onChange} aria-label={controlAccessibleName(path)} />
     </div>
   );
 }
@@ -82,7 +69,6 @@ export function EgressPanel() {
   const [controls, setControls] = useState<EgressControls>(() => egressControlsSnapshot());
   const [stored, setStored] = useState(false);
   const [failed, setFailed] = useState<EgressChannel | null>(null);
-  const [classification, setClassification] = useState<EgressClassificationPayload | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -105,103 +91,57 @@ export function EgressPanel() {
     };
   }, []);
 
-  useEffect(() => {
-    let live = true;
-    void (async () => {
+  const move = useCallback(
+    async (channel: EgressChannel, allowed: boolean) => {
+      // Moved on screen first. A switch that waits for a round trip before it moves
+      // reads as an unresponsive control, and the failure is reported beside it.
+      const optimistic = { ...controls, [channel]: allowed };
+      setControls(optimistic);
+      setFailed(null);
       try {
-        const response = await fetch('/api/egress/admin/classification', {
-          headers: { Accept: 'application/json' },
+        const response = await fetch('/api/egress/admin/controls', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel, allowed }),
         });
-        if (!response.ok || !live) return;
-        const payload = (await response.json()) as EgressClassificationPayload;
-        if (live) setClassification(payload);
+        if (!response.ok) {
+          setControls(controls);
+          setFailed(channel);
+          return;
+        }
+        const payload = (await response.json()) as EgressControlsPayload;
+        if (payload?.controls) {
+          setControls(payload.controls);
+          setStored(Boolean(payload.stored));
+          adoptEgressControls(payload.controls);
+        }
       } catch {
-        // Left null. The card renders nothing rather than claiming the catalog is
-        // silent, which is the distinction the whole classification design turns on.
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  const move = useCallback(async (channel: EgressChannel, allowed: boolean) => {
-    // Moved on screen first. A switch that waits for a round trip before it moves
-    // reads as an unresponsive control, and the failure is reported beside it.
-    const optimistic = { ...controls, [channel]: allowed };
-    setControls(optimistic);
-    setFailed(null);
-    try {
-      const response = await fetch('/api/egress/admin/controls', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel, allowed }),
-      });
-      if (!response.ok) {
         setControls(controls);
         setFailed(channel);
-        return;
       }
-      const payload = (await response.json()) as EgressControlsPayload;
-      if (payload?.controls) {
-        setControls(payload.controls);
-        setStored(Boolean(payload.stored));
-        adoptEgressControls(payload.controls);
-      }
-    } catch {
-      setControls(controls);
-      setFailed(channel);
-    }
-  }, [controls]);
+    },
+    [controls]
+  );
 
   const paths = controllablePaths();
 
-  return (<>
-      <Card>
-        <CardHeader>
-          <CardTitle>What may leave</CardTitle>
-          <CardDescription>
-            {stored ? 'This deployment' : 'Build defaults'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {paths.map((path) => (
-            <ControlRow
-              key={path.channel}
-              path={path}
-              allowed={egressAllowed(controls, path.channel)}
-              failed={failed === path.channel}
-              onChange={(allowed) => void move(path.channel, allowed)}
-            />
-          ))}
-        </CardContent>
-      </Card>
-
-      {classification ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>What the catalog says</CardTitle>
-            <CardDescription>{CLASSIFICATION_CAPTION}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {classification.blocked ? (
-              <p className="egress-facts">{classification.blocked}</p>
-            ) : (
-              classification.tables.map((table) => (
-                <div key={table.table} className="settings-row egress-row">
-                  <div className="egress-row-body">
-                    <p className="settings-row-label">
-                      <span className="ast-mono">{table.table}</span>{' '}
-                      <PillChip pill={classificationPill(table)} />
-                    </p>
-                    <Facts facts={classificationFacts(table)} />
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
-    </>
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>What may leave</CardTitle>
+        <CardDescription>{stored ? 'This deployment' : 'Build defaults'}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {paths.map((path) => (
+          <ControlRow
+            key={path.channel}
+            path={path}
+            allowed={egressAllowed(controls, path.channel)}
+            failed={failed === path.channel}
+            onChange={(allowed) => void move(path.channel, allowed)}
+          />
+        ))}
+      </CardContent>
+    </Card>
   );
 }

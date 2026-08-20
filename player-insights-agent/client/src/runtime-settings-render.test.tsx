@@ -17,11 +17,10 @@ describe('Runtime settings in the Settings gear', () => {
     const roles = page.indexOf('showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />');
     const runtime = page.indexOf('<RuntimeSettingsPanel />');
     const experimental = page.indexOf('<CardTitle>Experimental features</CardTitle>');
-    const deployment = page.indexOf('<CardTitle>Deployment and resources</CardTitle>');
     expect(roles).toBeGreaterThan(-1);
     expect(roles).toBeLessThan(runtime);
     expect(runtime).toBeLessThan(experimental);
-    expect(experimental).toBeLessThan(deployment);
+    expect(page).not.toContain('Deployment and resources');
   });
 
   it('keeps consumer controls read-only and names every answer variable', () => {
@@ -58,6 +57,7 @@ describe('Runtime settings in the Settings gear', () => {
     expect(source).toContain('chartsTypes');
     expect(source).toContain('As the agent ranks them');
     expect(source).toContain('Auto from the data shape');
+    expect(source.match(/<AppSelect/g)).toHaveLength(2);
     expect(source).toContain('aria-label="Timezone (IANA name)"');
     expect(source).toContain('placeholder="Example: America/Los_Angeles"');
     expect(source).toContain('Changes how the agent writes the takeaway.');

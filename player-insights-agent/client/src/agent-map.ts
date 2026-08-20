@@ -31,15 +31,25 @@ export function stepNumber(step: number): string {
 }
 
 /**
- * The card's right-pinned figure: how long the stage took, and how many calls it
- * was if it was more than one.
+ * The card's duration badge, formatted exactly like the Timeline.
  *
- * The count is appended only above one because every stage the agent records is
- * at least one call, so "· 1" on twelve cards is a column of the same digit
- * saying nothing. It is not dropped when it is interesting.
+ * Calls are deliberately separate. Combining unlike measures into one string
+ * made the duration jump horizontally as the count grew and left neither value
+ * looking like the compact badge it is.
  */
-export function cardTiming(stage: Pick<TraceStage, 'duration' | 'calls'>): string {
-  return stage.calls > 1 ? `${formatMs(stage.duration)} · ${stage.calls}` : formatMs(stage.duration);
+export function cardTiming(stage: Pick<TraceStage, 'duration'>): string {
+  return formatMs(stage.duration);
+}
+
+/** The card's call-count badge, with its unit always explicit. */
+export function cardCalls(stage: Pick<TraceStage, 'calls'>, toolCalls = false): string {
+  const unit = toolCalls ? 'tool call' : 'call';
+  return `${stage.calls} ${unit}${stage.calls === 1 ? '' : 's'}`;
+}
+
+/** The model turn that hands work to tools is an Orchestrator step. */
+export function isOrchestratorStep(stage: Pick<TraceStage, 'id' | 'name'>): boolean {
+  return /^step-\d+$/.test(stage.id) && stage.name === 'Chose the next step';
 }
 
 /**

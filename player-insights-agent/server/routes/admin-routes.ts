@@ -7,35 +7,30 @@
  * 403 by the time a handler runs, and a second check here would be a second
  * place for the answer to be wrong.
  *
- * ADDING AN ADMIN IS TWO ACTIONS IN ONE, and this file is where they are kept
- * together. The role is a row in Lakebase. The access is a Unity Catalog grant on
- * the telemetry schema and the billing tables, made under the acting admin's own
- * forwarded token, because those are what the Monitoring and Ops tabs read and a
- * role without them opens two empty pages. See admin-access.ts for who runs the
- * grant and why it is not the app.
+ * ADDING AN ADMIN IS ONE ACTION: A ROW IN LAKEBASE. It used to be two, because the
+ * add also granted Unity Catalog read on the telemetry schema and the
+ * `system.billing` tables, which is what the Ops tab reads. That is gone. Granting
+ * on `system` needs an account admin who is also a metastore admin, so the ordinary
+ * outcome was PERMISSION_DENIED on a catalog the operator has no authority over,
+ * printed beside the name of the colleague they had just appointed. It made a
+ * working action look broken and made a system table a prerequisite for a role that
+ * never needed one.
  *
- * THE TWO HALVES CAN DISAGREE, AND THE ANSWER IS NEVER TO HIDE IT. An admin
- * without authority over those objects can still add another admin: the role lands
- * and the grant is refused. Every response here therefore carries the access state
- * beside the list, the audit trail records the halves separately, and the editor
- * prints the statement somebody with authority can run. A 201 from this route means
- * "the role was granted", never "everything asked for happened".
+ * So no route here grants anything. A removal still hands back what earlier
+ * versions of this app granted, best effort, under the acting admin's own token;
+ * see admin-access.ts. That never refuses the removal.
  *
- * WHAT THE ROLE STILL DOES NOT GRANT is anybody's data. The two objects granted
- * here are records of the app's own operation. A question still runs under the
- * asker's own grants, and the app's data schema is untouched.
+ * WHAT THE ROLE GRANTS is no data at all. It opens tabs. A question runs under the
+ * asker's own Unity Catalog grants, and somebody who needs to read billing gets
+ * that from a metastore admin, not from this screen.
  */
 import { z } from 'zod';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import {
   accessRunner,
-  applyAccess,
-  reconcileAccess,
-  telemetryDestination,
   withdrawAccess,
   NO_TOKEN_REASON,
   NO_WAREHOUSE_REASON,
-  type AccessResult,
   type SqlRunner,
 } from '../lib/admin-access';
 import {
@@ -50,10 +45,9 @@ import {
   REMOVAL_REFUSAL_DETAIL,
   seedAdminEmails,
   type AddedAdmin,
-  type AdminAction,
   type AdminStore,
 } from '../lib/admin-roles';
-import type { AdminEditorPayload } from '../../shared/admin-contract';
+import type { AdminListPayload } from '../../shared/admin-contract';
 import { forwardedUserToken } from './access-verification';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request } from 'express';
@@ -81,10 +75,11 @@ async function readAdded(store: AdminStore): Promise<{ added: AddedAdmin[]; read
  * A statement runner for this request, or the reason there is none.
  *
  * THE TOKEN IS THE SIGNED-IN ADMIN'S, never the app's. Absent, this returns no
- * runner rather than falling back to the app's own credential, and the editor
- * reports the access as not checked. That fallback is the one thing this file must
- * not do: it would make the app itself the grantor, which is the escalation
- * admin-access.ts exists to avoid.
+ * runner rather than falling back to the app's own credential. That fallback is the
+ * one thing this file must not do: it would make the app itself the authority over
+ * Unity Catalog privileges, which is the escalation admin-access.ts exists to
+ * avoid. Nothing is granted either way; what is at stake is the revoke a removal
+ * attempts.
  */
 export function runnerFor(req: Request): { run: SqlRunner | null; unavailable: string } {
   const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
@@ -103,13 +98,6 @@ export function runnerFor(req: Request): { run: SqlRunner | null; unavailable: s
   return { run: accessRunner({ host, token, warehouseId }), unavailable: '' };
 }
 
-/** The audit action one access result deserves. */
-export function actionFor(result: AccessResult): AdminAction | null {
-  if (result.state === 'granted') return 'access-granted';
-  if (result.state === 'refused') return 'access-refused';
-  return null;
-}
-
 export function setupAdminRoutes(appkit: InsightsAppKit) {
   appkit.server.extend((app) => {
     /**
@@ -118,87 +106,38 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
      * because the seed rows are still true and still the deployment's
      * administrators, and a 503 would hide them behind the outage they survive.
      *
-     * A PURE READ. It runs no `GRANT` and no `SHOW GRANTS`, so the list appears
-     * without waiting on a warehouse that may be cold. The editor asks for the
-     * access state separately, on the route below.
+     * A PURE READ. It runs no statement at all, so the list appears without
+     * waiting on a warehouse that may be cold.
      */
     app.get('/api/admins', async (req, res) => {
-      const { added, readable } = await readAdded(appkit.lakebase);
-      const payload: AdminEditorPayload = {
-        ...adminListPayload({
-          seed: seedAdminEmails(),
-          added,
-          addedAdminsReadable: readable,
-          reader: userEmail(req),
-        }),
-        access: [],
-      };
+      const payload: AdminListPayload = await listPayload(userEmail(req));
       res.json(payload);
     });
 
-    /**
-     * Bring every administrator's access up to date with their role.
-     *
-     * A POST rather than part of the GET above, and that is not decoration: this
-     * makes Unity Catalog grants. A read that quietly changed permissions would be
-     * a surprising thing for a page load to do and an unpleasant thing to find in
-     * an audit trail with no request of its own to point at.
-     *
-     * The editor calls it on load, which is the answer to "seed admins never pass
-     * through the Add button". Idempotent, so calling it on every load costs a few
-     * `SHOW GRANTS` reads and changes nothing once everybody is reconciled.
-     */
-    app.post('/api/admins/access', async (req, res) => {
-      const actor = userEmail(req);
+    /** The list as the store now holds it, for whoever is reading the screen. */
+    async function listPayload(reader: string): Promise<AdminListPayload> {
       const { added, readable } = await readAdded(appkit.lakebase);
-      const list = adminListPayload({
+      return adminListPayload({
         seed: seedAdminEmails(),
         added,
         addedAdminsReadable: readable,
-        reader: actor,
+        reader,
       });
-      const { run, unavailable } = runnerFor(req);
-      const reports = await reconcileAccess({
-        run,
-        store: appkit.lakebase,
-        emails: list.entries.map((entry) => entry.email),
-        actor,
-        telemetry: telemetryDestination(),
-        unavailable,
-      });
-      // One row for the reconciliation as a whole rather than one per person per
-      // target, which would fill the table on every page load. The per-person
-      // rows are written when the grant is made, by applyAccess's callers.
-      const changed = reports.filter((report) => report.results.some((result) => result.state === 'granted'));
-      if (changed.length > 0) {
-        await recordAdminAction(appkit.lakebase, {
-          actor,
-          action: 'access-reconciled',
-          subject: changed.map((report) => report.email).join(', '),
-          detail:
-            `${actor} opened the administrator settings, and ${changed.length} administrator` +
-            `${changed.length === 1 ? '' : 's'} were missing access the role needs. It was granted under ` +
-            `${actor}'s own authority.`,
-        });
-      }
-      const payload: AdminEditorPayload = { ...list, access: reports };
-      res.json(payload);
-    });
+    }
 
     /**
-     * Add one administrator, and grant them the access the role needs.
+     * Add one administrator.
      *
      * 409 rather than 400 on an address already on the list: the request was
      * well formed and the address exists, what cannot be done is the thing
      * asked for. The same distinction the settings write route draws.
      *
-     * THE ROLE IS WRITTEN FIRST AND KEPT EVEN IF THE GRANT IS REFUSED. The other
-     * order was considered and is worse: an add that rolled back on a refused
-     * grant would mean an admin without Unity Catalog authority could never
-     * appoint anybody, on a deployment where appointing people is the one thing
-     * the screen is for. So the role lands, the refusal is reported in the same
-     * response, and the statement to fix it is on screen. 201 here means the role
-     * was granted. It does not mean the access was.
+     * ONE WRITE, AND UNITY CATALOG IS NOT CONSULTED. The role is a row in
+     * Lakebase. This route used to follow the write with grants on the telemetry
+     * schema and the `system.billing` tables, which meant an operator who is not a
+     * metastore admin saw PERMISSION_DENIED on `system` every time they appointed
+     * a colleague, for read access the role never required. A 201 here now means
+     * exactly what it says: this address is an administrator.
      */
     app.post('/api/admins', async (req, res) => {
       const parsed = AddBody.safeParse(req.body);
@@ -234,39 +173,7 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
           subject: email,
           detail: `${actor} added ${email} as an administrator of this deployment.`,
         });
-        const { run, unavailable } = runnerFor(req);
-        const results = await applyAccess({
-          run,
-          store: appkit.lakebase,
-          email,
-          actor,
-          telemetry: telemetryDestination(),
-          unavailable,
-        });
-        for (const result of results) {
-          const action = actionFor(result);
-          if (!action) continue;
-          await recordAdminAction(appkit.lakebase, {
-            actor,
-            action,
-            subject: email,
-            detail:
-              action === 'access-granted'
-                ? `${actor} granted ${email} read access to ${result.label.toLowerCase()} for this deployment.`
-                : `${actor} could not grant ${email} read access to ${result.label.toLowerCase()}: ${result.summary}`,
-          });
-        }
-        const readBack = await readAdded(appkit.lakebase);
-        const payload: AdminEditorPayload = {
-          ...adminListPayload({
-            seed: seedAdminEmails(),
-            added: readBack.added,
-            addedAdminsReadable: readBack.readable,
-            reader: actor,
-          }),
-          access: [{ email, results }],
-        };
-        res.status(201).json(payload);
+        res.status(201).json(await listPayload(actor));
       } catch (error) {
         console.error(`[admin] ${email} could not be added:`, (error as Error).message);
         res.status(503).json({
@@ -291,10 +198,11 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
      * removing each other at once would otherwise both pass a check made in the
      * browser and leave the deployment with nobody.
      *
-     * THE ACCESS IS TAKEN BACK BEFORE THE ROW IS DELETED, because the record of
-     * what this app granted is keyed by the address and the removal path needs to
-     * read it. Only privileges this app can show it added are revoked; see
-     * withdrawAccess.
+     * ACCESS EARLIER VERSIONS GRANTED IS HANDED BACK BEFORE THE ROW IS DELETED,
+     * because the record of what this app granted is keyed by the address and the
+     * withdrawal path needs to read it. Only privileges this app can show it added
+     * are revoked; see withdrawAccess. It is best effort, it is recorded in the
+     * audit trail rather than on screen, and it never refuses the removal.
      */
     app.delete('/api/admins/:email', async (req, res) => {
       const email = normalizeAdminEmail(req.params.email);
@@ -324,13 +232,7 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
       }
       try {
         const { run, unavailable } = runnerFor(req);
-        const results = await withdrawAccess({
-          run,
-          store: appkit.lakebase,
-          email,
-          telemetry: telemetryDestination(),
-          unavailable,
-        });
+        const withdrawal = await withdrawAccess({ run, store: appkit.lakebase, email, unavailable });
         await removeAdmin(appkit.lakebase, email);
         await recordAdminAction(appkit.lakebase, {
           actor,
@@ -338,26 +240,17 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
           subject: email,
           detail: `${actor} removed ${email} as an administrator of this deployment.`,
         });
-        for (const result of results) {
-          if (result.state === 'not-configured') continue;
+        if (withdrawal.revoked > 0 || withdrawal.refused.length > 0) {
           await recordAdminAction(appkit.lakebase, {
             actor,
             action: 'access-revoked',
             subject: email,
-            detail: `${actor} removed ${email}, and the access this app had granted them: ${result.summary}`,
+            detail:
+              `${actor} removed ${email}, and the access an earlier version of this app had granted them: ` +
+              `${withdrawal.summary} ${withdrawal.note}`.trim(),
           });
         }
-        const readBack = await readAdded(appkit.lakebase);
-        const payload: AdminEditorPayload = {
-          ...adminListPayload({
-            seed: seedAdminEmails(),
-            added: readBack.added,
-            addedAdminsReadable: readBack.readable,
-            reader: actor,
-          }),
-          access: [{ email, results }],
-        };
-        res.json(payload);
+        res.json(await listPayload(actor));
       } catch (error) {
         console.error(`[admin] ${email} could not be removed:`, (error as Error).message);
         res.status(503).json({ error: 'admin_store_unavailable', detail: 'Nobody was removed.' });

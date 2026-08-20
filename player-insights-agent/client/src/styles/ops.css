@@ -719,6 +719,7 @@ a.ops-dependency-label:hover {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
   align-items: start;
 }
 
@@ -756,7 +757,7 @@ a.ops-dependency-label:hover {
 .ops-chart-pair {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -803,7 +804,7 @@ a.ops-dependency-label:hover {
  * how this app sets recorded values.
  */
 .ops-chart-tool .ops-bar-row {
-  grid-template-columns: minmax(0, 12rem) 1fr auto;
+  grid-template-columns: minmax(0, 110px) 1fr auto;
   align-items: start;
 }
 
@@ -981,9 +982,19 @@ a.ops-bar-count:hover {
  * of magnitude, and proportional digits put the decimal point in a different
  * place on every row. The route is the one prose column and overrides both.
  */
-.ops-latency-table {
-  table-layout: auto;
+.ops-latency-scroll {
   width: 100%;
+  overflow-x: auto;
+}
+
+.ops-latency-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 760px;
+}
+
+.ops-latency-table-expanded {
+  min-width: 1080px;
 }
 
 .ops-latency-table td {
@@ -1007,6 +1018,16 @@ a.ops-bar-count:hover {
   padding: 8px 6px;
 }
 
+.ops-latency-table th:first-child,
+.ops-latency-table td:first-child {
+  padding-left: 8px;
+}
+
+.ops-latency-table th:last-child,
+.ops-latency-table td:last-child {
+  padding-right: 8px;
+}
+
 .ops-latency-table thead th.ops-lat-method,
 .ops-latency-table thead th.ops-lat-route {
   text-align: left;
@@ -1014,8 +1035,43 @@ a.ops-bar-count:hover {
 
 /* Method chip. GET and POST get the handoff's two tints; anything else takes a
    neutral chip rather than being mistaken for one of them. */
-.ops-lat-method {
+.ops-lat-col-method {
   width: 52px;
+}
+
+.ops-lat-col-route {
+  width: auto;
+}
+
+.ops-lat-col-hit {
+  width: 70px;
+}
+
+.ops-lat-col-spans {
+  width: 56px;
+}
+
+.ops-lat-col-p50 {
+  width: 64px;
+}
+
+.ops-lat-col-bar {
+  width: 150px;
+}
+
+.ops-lat-col-slowest {
+  width: 70px;
+}
+
+.ops-lat-col-percentile {
+  width: 64px;
+}
+
+.ops-lat-col-trend {
+  width: 132px;
+}
+
+.ops-lat-method {
   text-align: left;
 }
 
@@ -1045,8 +1101,7 @@ a.ops-bar-count:hover {
 th.ops-lat-route,
 td.ops-lat-route {
   text-align: left;
-  width: 100%;
-  max-width: 0;
+  min-width: 0;
 }
 
 .ops-lat-path {
@@ -1062,21 +1117,25 @@ td.ops-lat-route {
 
 /* Last hit: relative time in the secondary face, right-aligned. */
 .ops-lat-hit {
-  width: 70px;
   font-family: var(--font-sans);
   font-size: var(--ast-fs-11);
   color: var(--ast-text-secondary);
 }
 
+.ops-lat-spans,
 .ops-lat-p50 {
-  width: 64px;
+  text-align: right;
+}
+
+.ops-lat-p50 {
   font-weight: 500;
 }
 
 /* The log-scaled bar. A track and a fill, decorative: the p50 figure to its
    left is the number a reader acts on, so the bar is aria-hidden and quiet. */
 .ops-lat-bar {
-  width: 150px;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .ops-lat-bar-track {
@@ -1086,6 +1145,10 @@ td.ops-lat-route {
   background: var(--ast-hairline);
   border-radius: 2px;
   vertical-align: middle;
+}
+
+.ops-lat-slowest {
+  text-align: right;
 }
 
 .ops-lat-bar-fill {

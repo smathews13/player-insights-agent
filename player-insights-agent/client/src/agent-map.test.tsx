@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 import { StageDetail, TraceDag } from './TraceDag';
 import {
+  cardCalls,
   cardTiming,
+  isOrchestratorStep,
   describeResult,
   detailTiming,
   nameParts,
@@ -222,6 +224,23 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(markup).toContain('78ms');
     expect(markup).not.toContain('0.1s');
   });
+
+  it('starts with the same Orchestrator run envelope as Timeline row 1', () => {
+    const markup = renderToStaticMarkup(
+      <TraceDag
+        stages={run}
+        activeIndex={-1}
+        trace={{ id: 'trace-1', totalMs: 12_340, toolCalls: 3, stages: run }}
+        question="Which source should we use?"
+      />,
+    );
+    expect(drawn(markup)[0]).toBe('Orchestrator run');
+    expect(markup.match(/class="dag-node/g)).toHaveLength(run.length + 1);
+    expect(markup).toContain('class="dag-step run-envelope"');
+    expect(markup).toContain('12.34s');
+    expect(markup).toContain('3 tool calls');
+    expect(rule('.trace-dag.map .dag-step.run-envelope')).toMatch(/grid-column: 1 \/ -1/);
+  });
 });
 
 /*
@@ -412,21 +431,34 @@ describe('a card says what kind of step, which step, and how long', () => {
     expect(stepNumber(104)).toBe('104');
   });
 
-  it('appends the call count only when it is more than one', () => {
-    // Every stage the agent records is at least one call, so "· 1" on twelve cards
-    // is a column of the same digit saying nothing. It is not dropped when it is
-    // interesting.
-    expect(cardTiming({ duration: 2510, calls: 1 })).toBe('2.51s');
-    expect(cardTiming({ duration: 2510, calls: 2 })).toBe('2.51s · 2');
-    expect(cardTiming({ duration: 467, calls: 1 })).toBe('467ms');
+  it('separates duration and call count into compact badges', () => {
+    expect(cardTiming({ duration: 2510 })).toBe('2.51s');
+    expect(cardTiming({ duration: 467 })).toBe('467ms');
+    expect(cardCalls({ calls: 1 })).toBe('1 call');
+    expect(cardCalls({ calls: 2 })).toBe('2 calls');
+    const markup = renderToStaticMarkup(
+      <TraceDag stages={[stage({ id: 'step-1', duration: 2510, calls: 2 })]} activeIndex={-1} />,
+    );
+    expect(markup).toContain('dag-duration-badge');
+    expect(markup).toContain('dag-call-badge');
+    const metricBadge = rules().find(({ selector }) => selector === '.trace-dag.map .dag-metric-badge')?.body ?? '';
+    expect(metricBadge).toMatch(/border-radius: var\(--radius-sm\)/);
   });
 
-  it('pins the duration to the far end of the top line, in tabular mono', () => {
-    const timing = rule('.trace-dag.map .dag-timing');
-    expect(timing).toMatch(/margin-left: auto/);
-    expect(timing).toMatch(/font-family: var\(--font-mono\)/);
-    expect(timing).toMatch(/font-variant-numeric: tabular-nums/);
+  it('keeps the icon in a fixed left lane and aligns every title beside it', () => {
+    const node = rule('.trace-dag.map .dag-node');
+    expect(node).toMatch(/grid-template-columns: 22px minmax\(0, 1fr\)/);
+    expect(node).toMatch(/column-gap: 10px/);
+    expect(node).not.toMatch(/padding-left: calc/);
+    expect(rule('.trace-dag.map .dag-card-body')).toMatch(/flex-direction: column/);
     expect(rule('.trace-dag.map .dag-index')).toMatch(/font-variant-numeric: tabular-nums/);
+  });
+
+  it('labels every decision turn as an Orchestrator step', () => {
+    const markup = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} />);
+    expect(markup.match(/Orchestrator step/g)).toHaveLength(3);
+    expect(isOrchestratorStep(run[0])).toBe(true);
+    expect(isOrchestratorStep(run[1])).toBe(false);
   });
 
   it('sets the name at the app’s base size and the handoff’s weight', () => {
@@ -498,14 +530,14 @@ describe('the wrapped map still reads in order', () => {
     expect(drawn(markup)).toEqual(run.map((item) => item.name));
   });
 
-  it('indents a nested stage inside its card, so the columns stay columns', () => {
+  it('keeps map icons aligned while preserving the rail’s nesting lanes', () => {
     // The indent used to be inline padding on the step, which in a grid pushes the
     // card out of the column its neighbours are in. It is the card's own padding
     // on the map and the step's in the rail, from one custom property, because the
     // two arrangements indent different boxes and a pixel value in the markup
     // could only be right for one of them.
     expect(SOURCE).toContain("'--dag-depth': depth");
-    expect(rule('.trace-dag.map .dag-node')).toMatch(/padding-left: calc\(13px \+ var\(--dag-depth, 0\) \* 16px\)/);
+    expect(rule('.trace-dag.map .dag-node')).not.toMatch(/padding-left: calc/);
     // The rail's own step, at its own figure: 26px a level rather than the map's
     // 16px, because the rail's connectors are drawn to the badge lanes that indent
     // produces and 16px would leave every elbow landing beside its card.
@@ -614,7 +646,7 @@ describe('a node opens what its stage recorded', () => {
   it('holds the open step by id, not by position', () => {
     // Selecting a different run in the Explorer replaces the stage list under this
     // component. An index would then open whichever stage had moved into the slot.
-    expect(SOURCE).toContain('stages.findIndex((item) => item.id === openId)');
+    expect(SOURCE).toContain('displayedStages.findIndex((item) => item.id === openId)');
   });
 
   it('heads the panel with the step and its three measurements on one line', () => {
@@ -848,7 +880,7 @@ describe('a node opens what its stage recorded', () => {
     // The number and the duration go to the hover rung of the same blue, which
     // marks the open card's own figures without painting its name.
     const figures = rules().filter(({ selector }) =>
-      /\.dag-node\.open \.dag-(index|timing)$/.test(selector),
+      /\.dag-node\.open \.dag-(index|metric-badge)$/.test(selector),
     );
     expect(figures).toHaveLength(2);
     expect(figures.every(({ body }) => /color: var\(--db-blue-700\)/.test(body))).toBe(true);
@@ -885,7 +917,7 @@ describe('a failed step keeps its card', () => {
     // Dropping it would leave the run's numbering with a hole in it and no
     // explanation of the hole.
     expect(rule('.dag-node.failed')).toMatch(/border-color: var\(--db-red-600\)/);
-    expect(rule('.trace-dag.map .dag-node.failed .dag-timing')).toMatch(/color: var\(--db-red-600\)/);
+    expect(rule('.trace-dag.map .dag-node.failed .dag-duration-badge')).toMatch(/color: var\(--db-red-600\)/);
     const markup = renderToStaticMarkup(<TraceDag stages={[failed]} activeIndex={-1} />);
     expect(markup).toContain('class="dag-node failed');
     expect(drawn(markup)).toEqual(['Queried governed data']);

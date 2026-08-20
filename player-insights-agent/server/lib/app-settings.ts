@@ -558,8 +558,6 @@ const ORCHESTRATOR_REPORT_RETIRED: DriftFinding = {
 export function computeDrift(input: {
   report: PreflightReport | null;
   states: ResourceState[];
-  appBuildSha: string;
-  appBuildAncestors?: readonly string[];
   /**
    * Whether the endpoint answered at all, whatever it answered with.
    *
@@ -569,7 +567,7 @@ export function computeDrift(input: {
    */
   endpointAnswered?: boolean;
 }): DriftFinding[] {
-  const { report, states, appBuildSha: appSha, endpointAnswered } = input;
+  const { report, states, endpointAnswered } = input;
   const findings: DriftFinding[] = [];
 
   // 1. No report, which is two conditions that read alike and are not alike.
@@ -718,21 +716,6 @@ export function computeDrift(input: {
   // App and orchestrator releases are independent. Their real stamps are exposed
   // in the Build and telemetry card, without turning a missing or different
   // commit into a warning that has no reliable compatibility meaning.
-  const modelSha = report.build_sha ?? '';
-
-  const dirty = [appSha, modelSha].filter((sha) => sha.endsWith('+dirty'));
-  if (dirty.length > 0) {
-    findings.push({
-      id: 'build-dirty',
-      severity: 'warning',
-      resourceId: null,
-      headline: 'Something here was built from a modified working tree',
-      detail:
-        `${dirty.join(' and ')} records uncommitted tracked changes at build time, so the artifact ` +
-        'cannot be reproduced from any commit.',
-      remedy: 'Release from a clean worktree.',
-    });
-  }
 
   return findings;
 }
@@ -792,8 +775,6 @@ export function settingsPayload(input: {
   const drift = computeDrift({
     report: input.report,
     states,
-    appBuildSha: input.appBuildSha,
-    appBuildAncestors: input.appBuildAncestors,
     endpointAnswered: input.endpointAnswered,
   });
   return {

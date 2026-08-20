@@ -22,19 +22,13 @@
  * position from the box, and its test reads them back and fails if anything lands
  * outside it at any step count.
  *
- * BOTH BANDS ARE DECORATIVE AND NEITHER IS A CONTROL. §5: everything decorative is
- * `aria-hidden`, with one `aria-live="polite"` status string carrying the meaning.
- * The map's band is `aria-hidden` entirely, because the thing a reader operates is
- * the card grid underneath it -- twelve real buttons, each opening a step panel --
- * and a second set of click targets inside an `aria-hidden` drawing would be
- * focusable content a screen reader cannot see, which is worse than a drawing that
- * is honestly just a drawing. The band shows which step is selected; the cards
- * select it.
- *
- * The live path's sky is `aria-hidden` on the same rule, and its overlay line is
- * the one live region: "Step 07 · Preparing the findings · 12s", which is a real
- * sentence about a real run rather than a description of the animation in front of
- * it. Elapsed time is the caller's measured elapsed, never a percentage.
+ * THE FINISHED MAP IS DECORATIVE; THE LIVE PATH IS INSPECTABLE. The map's band is
+ * `aria-hidden` because the card grid underneath it owns selection. The path has no
+ * duplicate card grid, so each star is a keyboard-operable step selector and the SVG
+ * is named as the "Agent steps" group. Its status line is the one
+ * `aria-live="polite"` region: "Step 07 · Preparing the findings · 12s", a sentence
+ * about the run rather than a description of the animation. Elapsed time is the
+ * caller's measured elapsed, never a percentage.
  *
  * `prefers-reduced-motion: reduce` freezes all of it, in astrolabe-animation.css,
  * through the `ast-anim-*` class names this file uses. That guard also restores the

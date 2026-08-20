@@ -2,9 +2,10 @@
  * What the roster row says, decided away from the markup.
  *
  * The panel draws facts that can disagree -- the role somebody holds, the role
- * deployment configuration guarantees them, whether the store can record a change
- * at all, and what Unity Catalog said about the access the role needs -- and every
- * function here exists to stop that disagreement being smoothed over.
+ * deployment configuration guarantees them, and whether the store can record a
+ * change at all -- and every function here exists to stop that disagreement being
+ * smoothed over. Unity Catalog is not among those facts: a role is a row, and this
+ * panel stopped granting and reporting on grants.
  *
  * NO SENTENCE HERE EXPLAINS THE HIERARCHY. A reader who has opened this panel is
  * the person who administers the deployment; they do not need to be told what an
@@ -98,25 +99,6 @@ export function stepsDownFrom(entry: RosterEntry, next: Role): string {
   return next === 'consumer'
     ? 'You will lose Monitoring, Ops and these settings.'
     : 'You will no longer be able to change roles.';
-}
-
-/**
- * The one line a new administrator's access failure gets, and the statement under it.
- *
- * A ROLE WITHOUT THE TELEMETRY GRANT OPENS THE OPS TAB ON ERRORS. The app cannot
- * make the grant itself when the acting super admin has no authority over the
- * object, so the statement goes on screen for somebody who has. Empty when there is
- * nothing owed, so the panel stays quiet on the ordinary case.
- */
-export function accessOwed(payload: { access?: { email: string; results: { state: string; grant: { statement: string } | null }[] }[] }): string[] {
-  const statements: string[] = [];
-  for (const report of payload.access ?? []) {
-    for (const result of report.results) {
-      if (result.state !== 'refused' || !result.grant) continue;
-      if (!statements.includes(result.grant.statement)) statements.push(result.grant.statement);
-    }
-  }
-  return statements;
 }
 
 /** Whether the Add button does anything yet. Kept here so the test does not render. */

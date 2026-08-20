@@ -283,7 +283,7 @@ describe('what the page refuses to call healthy', () => {
     // The most important failure mode on the page. Without this the app-side half
     // renders normally and a deployer reads a page of green rows about an
     // orchestrator that never replied.
-    const findings = computeDrift({ report: null, states: [], appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: null, states: [] });
 
     expect(findings).toHaveLength(1);
     expect(findings[0].id).toBe('orchestrator-unreachable');
@@ -301,7 +301,6 @@ describe('what the page refuses to call healthy', () => {
     const findings = computeDrift({
       report: null,
       states: [],
-      appBuildSha: 'aaaa1111',
       endpointAnswered: true,
     });
 
@@ -351,7 +350,6 @@ describe('what the page refuses to call healthy', () => {
         counts: { ok: 0, failed: 0, unverified: 0 },
       },
       states: [],
-      appBuildSha: 'aaaa1111',
       endpointAnswered: true,
     });
 
@@ -370,7 +368,6 @@ describe('what the page refuses to call healthy', () => {
         counts: { ok: 0, failed: 0, unverified: 0 },
       },
       states: [],
-      appBuildSha: 'aaaa1111',
       endpointAnswered: true,
     });
 
@@ -384,11 +381,10 @@ describe('what the page refuses to call healthy', () => {
   it('reports an unanswered endpoint as unreachable when nobody established otherwise', () => {
     // The default matters more than the explicit case: a caller that forgets to
     // say must get the cautious reading, not the quiet one.
-    const silent = computeDrift({ report: null, states: [], appBuildSha: 'aaaa1111' });
+    const silent = computeDrift({ report: null, states: [] });
     const explicit = computeDrift({
       report: null,
       states: [],
-      appBuildSha: 'aaaa1111',
       endpointAnswered: false,
     });
 
@@ -403,7 +399,6 @@ describe('what the page refuses to call healthy', () => {
     const findings = computeDrift({
       report: report({ configuration: [] }),
       states: [],
-      appBuildSha: 'aaaa1111',
     });
 
     expect(findings.map((finding) => finding.id)).toContain('configuration-unreported');
@@ -421,7 +416,7 @@ describe('what the page refuses to call healthy', () => {
       environment: {},
       stored: stored(),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     const provenance = findings.find((finding) => finding.id === 'provenance-sql-warehouse');
     expect(provenance?.severity).toBe('blocking');
@@ -449,7 +444,7 @@ describe('what the page refuses to call healthy', () => {
       environment: {},
       stored: stored(),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     expect(findings.map((finding) => finding.id)).not.toContain('provenance-llm-gateway');
     expect(driftStatus(findings)).not.toBe('blocked');
@@ -467,7 +462,7 @@ describe('what the page refuses to call healthy', () => {
       environment: {},
       stored: stored(),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     expect(findings.find((finding) => finding.id === 'provenance-llm-gateway')?.severity).toBe('blocking');
     expect(driftStatus(findings)).toBe('blocked');
@@ -491,7 +486,7 @@ describe('what the page refuses to call healthy', () => {
       environment: {},
       stored: stored(),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     // What the pane prints. '' renders as "not set"; the alternative was the
     // literal words "[object Object]" in the value column of a customer demo.
@@ -512,7 +507,7 @@ describe('what the page refuses to call healthy', () => {
       environment: {},
       stored: stored(),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     expect(findings.map((finding) => finding.id)).not.toContain('mismatch-genie-data');
     expect(driftStatus(findings)).not.toBe('blocked');
@@ -530,7 +525,7 @@ describe('what the page refuses to call healthy', () => {
       environment: {},
       stored: stored(),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     expect(state(all, 'sql-warehouse').configuredFrom).toBe('');
     expect(findings.map((finding) => finding.id)).not.toContain('provenance-sql-warehouse');
@@ -546,7 +541,7 @@ describe('what the page refuses to call healthy', () => {
       stored: stored(),
     });
 
-    expect(computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' })
+    expect(computeDrift({ report: report(), states: all })
       .map((finding) => finding.id)).not.toContain('provenance-sql-warehouse');
   });
 
@@ -561,7 +556,7 @@ describe('what the page refuses to call healthy', () => {
       environment: {},
       stored: stored(),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     const mismatch = findings.find((finding) => finding.id === 'mismatch-genie-data');
     expect(mismatch?.severity).toBe('blocking');
@@ -581,7 +576,7 @@ describe('a value somebody saved but nobody applied', () => {
       environment: {},
       stored: stored({ resourceId: 'genie-data', value: 'space-new', intent: 'intended' }),
     });
-    const findings = computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' });
+    const findings = computeDrift({ report: report(), states: all });
 
     const pending = findings.find((finding) => finding.id === 'pending-genie-data');
     expect(pending?.severity).toBe('pending');
@@ -602,7 +597,7 @@ describe('a value somebody saved but nobody applied', () => {
       stored: stored({ resourceId: 'genie-data', value: 'space-new', intent: 'intended' }),
     });
 
-    expect(computeDrift({ report: report(), states: all, appBuildSha: 'aaaa1111' })
+    expect(computeDrift({ report: report(), states: all })
       .map((finding) => finding.id)).not.toContain('pending-genie-data');
   });
 
@@ -619,8 +614,6 @@ describe('app against orchestrator', () => {
     const findings = computeDrift({
       report: report({ build_sha: 'bbbb2222', configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
-      appBuildSha: 'aaaa1111',
-      appBuildAncestors: ['aaaa1111', 'cccc3333'],
     });
 
     expect(findings.map((finding) => finding.id)).not.toContain('build-skew');
@@ -630,8 +623,6 @@ describe('app against orchestrator', () => {
     const findings = computeDrift({
       report: report({ build_sha: '11be12b', configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
-      appBuildSha: '59ff353',
-      appBuildAncestors: ['59ff353', '11be12b'],
     });
 
     expect(findings.map((finding) => finding.id)).not.toContain('build-freshness');
@@ -642,7 +633,6 @@ describe('app against orchestrator', () => {
     const findings = computeDrift({
       report: report({ configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
-      appBuildSha: '',
     });
 
     expect(findings.map((finding) => finding.id)).not.toContain('build-skew-unknown');
@@ -650,21 +640,22 @@ describe('app against orchestrator', () => {
     expect(driftStatus(findings)).toBe('ok');
   });
 
-  it('reports a build made from a modified worktree', () => {
+  it('does not turn a dirty build stamp into a Connections finding', () => {
     const findings = computeDrift({
-      report: report({ build_sha: 'aaaa1111', configuration: [configured({ key: 'catalog', value: 'c' })] }),
+      report: report({ build_sha: 'aaaa1111+dirty', configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
-      appBuildSha: 'aaaa1111+dirty',
     });
 
-    expect(findings.find((finding) => finding.id === 'build-dirty')?.severity).toBe('warning');
+    expect(findings.map((finding) => finding.id)).not.toContain('build-dirty');
+    const spoken = findings.map((finding) => `${finding.headline} ${finding.detail} ${finding.remedy}`).join(' ');
+    expect(spoken).not.toMatch(/modified working tree/i);
+    expect(spoken).not.toMatch(/clean worktree/i);
   });
 
   it('is quiet when the two agree and everything was measured', () => {
     const findings = computeDrift({
       report: report({ build_sha: 'aaaa1111', configuration: [configured({ key: 'catalog', value: 'c' })] }),
       states: [],
-      appBuildSha: 'aaaa1111',
     });
 
     expect(findings).toEqual([]);

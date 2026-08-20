@@ -167,6 +167,12 @@
   .monitoring-refusal-tiles {
     grid-template-columns: repeat(2, 1fr);
   }
+  /* The three-part runtime entity editor becomes one labelled field per row.
+     This used to invent a 640px page-specific breakpoint in settings.css; 800px
+     is the app's shared narrow-content band and leaves each value usable. */
+  .runtime-entity-row {
+    grid-template-columns: 1fr;
+  }
   /* The search box's own line is settled in the 1180px block above, which covers
      this band too. It was here, and 800px was too late: the row runs out of line
      around 1090px. Do not restate it here. */
@@ -236,6 +242,14 @@
   .brand-lockup .app-chrome-rule {
     display: none;
   }
+  /* The release chip goes to the sheet with the rest of the informational half.
+     Its seat is the slack in the lockup column, and this is the width at which
+     that column stops holding any: the wordmark is truncating here to keep the
+     menu button on screen, so a chip beside it would be taking room from the
+     app's own name. The sheet's copy of the cluster draws it instead. */
+  .brand-lockup .deployment-time-chip {
+    display: none;
+  }
   .conversation-main {
     padding: 24px 16px 140px;
   }
@@ -270,6 +284,9 @@
      stacking a little early costs a reader some scrolling and stacking a little
      late costs them the identifiers. */
   .connection-pair {
+    grid-template-columns: 1fr;
+  }
+  .configuration-plane-row {
     grid-template-columns: 1fr;
   }
   /* A 220px label column, a value and a padlock do not fit beside each other on
@@ -392,4 +409,3 @@
    * a rule that reads as a second arrangement nobody can find.
    */
 }
-

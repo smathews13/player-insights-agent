@@ -91,6 +91,52 @@ export function useIdentity(deadlineMs = IDENTITY_DEADLINE_MS) {
   return identity;
 }
 
+/** When the app version serving this page was deployed, and what it was built from. */
+export interface DeploymentStamp {
+  /** The active deployment's creation time, ISO, or '' where nothing answered. */
+  deployedAt: string;
+  /** The active deployment's creator, exactly as the Apps API reported it. */
+  deployedBy: string;
+  /** The app build's commit, or '' where the deploy tree carries no stamp. */
+  buildSha: string;
+}
+
+/**
+ * When the app version serving this page was deployed, and which commit it is.
+ *
+ * Read independently of identity so an unavailable Apps API never delays the
+ * login gate. The endpoint uses the same Apps API reader as Connections, and
+ * an absent answer leaves the header quiet rather than inventing a timestamp.
+ *
+ * BOTH FIELDS MAY BE EMPTY AND EITHER MAY BE EMPTY ALONE. A workspace that does
+ * not report a deployment time still knows which commit it is running, and a
+ * deploy tree built without a git stamp still has a time. The header's chip
+ * treats the commit as the optional half, so an unstamped build shows the date
+ * and its time and says nothing about a commit it cannot name.
+ */
+export function useDeployment(): DeploymentStamp {
+  const [stamp, setStamp] = useState<DeploymentStamp>({ deployedAt: '', deployedBy: '', buildSha: '' });
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/deployment', { signal: controller.signal })
+      .then((response) =>
+        response.ok
+          ? (response.json() as Promise<{ deployedAt?: unknown; deployedBy?: unknown; buildSha?: unknown }>)
+          : Promise.reject(new Error('Deployment time unavailable'))
+      )
+      .then((body) => {
+        setStamp({
+          deployedAt: typeof body.deployedAt === 'string' ? body.deployedAt : '',
+          deployedBy: typeof body.deployedBy === 'string' ? body.deployedBy : '',
+          buildSha: typeof body.buildSha === 'string' ? body.buildSha : '',
+        });
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+  return stamp;
+}
+
 /**
  * Whether the numbers on screen are stored records or seeded ones.
  *

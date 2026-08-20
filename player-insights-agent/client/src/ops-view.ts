@@ -435,33 +435,29 @@ export function telemetryNotice(
  * questions, and a reader who reads two-day-old "cache fell back to in-memory"
  * lines as the current state of a dependency has been handed the wrong one.
  *
- * So when every dependency answered its most recent check, this says so in
- * words: the lines below are recorded history, not a live failure, and each one
- * says when it was written. It never HIDES a line — a real, current fault still
- * shows in the Result column and this note steps aside for it when a dependency
- * is not answering. Returns null at zero, because a count of zero is not a
- * count and the block draws nothing.
+ * When every current dependency answers, historical lines do not render. A real
+ * current fault still shows in the Result column and allows the matching log
+ * lines through. Returns null at zero or when there is no live fault.
  */
 export interface ErrorFraming {
   /** Count line, never zero: e.g. "2 error lines recorded in this range". */
   headline: string;
-  /** Body sentence distinguishing recorded history from a live failure. */
+  /** Body sentence tying these recorded lines to the current failed check. */
   note: string;
   /** True only when a dependency is not answering its check right now. */
   live: boolean;
 }
 
-export function errorFraming(input: {
-  errorCount: number;
-  dependencies: DependencyResult[];
-}): ErrorFraming | null {
+export function errorFraming(input: { errorCount: number; dependencies: DependencyResult[] }): ErrorFraming | null {
   if (input.errorCount <= 0 || !Number.isFinite(input.errorCount)) return null;
+  const live = input.dependencies.some((result) => result === 'did-not-answer');
+  // Recorded log lines are history, not a health result. When every current
+  // probe is healthy (or has not run), this panel adds an alarming old error
+  // beside green checks and no useful action, so it does not render.
+  if (!live) return null;
   const noun = input.errorCount === 1 ? 'error line' : 'error lines';
   const headline = `${count(input.errorCount)} ${noun} recorded in this range`;
-  const live = input.dependencies.some((result) => result === 'did-not-answer');
-  const note = live
-    ? 'A dependency is not answering its most recent check. Read these lines against the Result column above.'
-    : 'Every dependency answered its most recent check, so these are recorded log lines from earlier in the range, not a live failure. Each line carries the time it was written.';
+  const note = 'A dependency is not answering its most recent check. Read these lines against the Result column above.';
   return { headline, note, live };
 }
 
@@ -720,8 +716,7 @@ export function latencySharedFacts(routes: RouteLatency[]): LatencySharedFacts {
 
 export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()): LatencyRouteView {
   const refusalsLabel = 'Not reported';
-  const errorsLabel =
-    route.errorCount > 0 ? `${count(route.errorCount)} of ${count(route.spans)} spans` : '';
+  const errorsLabel = route.errorCount > 0 ? `${count(route.errorCount)} of ${count(route.spans)} spans` : '';
   const freshLabel = freshAgo(route.lastSpanAt, nowMs);
 
   if (route.spans < LATENCY_BASELINE_FLOOR || route.priorSpans < LATENCY_BASELINE_FLOOR) {

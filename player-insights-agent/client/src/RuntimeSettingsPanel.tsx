@@ -4,6 +4,7 @@ import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Switch } from './ui';
 import { Lock } from 'lucide-react';
+import { AppSelect } from './AppSelect';
 
 /**
  * One answer-content section: its name and the toggle that turns it on, with the
@@ -81,7 +82,7 @@ export function RuntimeSettingsPanel() {
     value: number,
     min: number,
     max: number,
-    update: (value: number) => void,
+    update: (value: number) => void
   ) => (
     <label className="runtime-field">
       <span className="runtime-field-label">{label}</span>
@@ -104,7 +105,7 @@ export function RuntimeSettingsPanel() {
     description: string,
     example: string,
     value: string,
-    update: (value: string) => void,
+    update: (value: string) => void
   ) => (
     <label className="runtime-field runtime-field-wide">
       <span className="runtime-field-label">{label}</span>
@@ -152,9 +153,33 @@ export function RuntimeSettingsPanel() {
         <section className="runtime-section">
           <h3 className="runtime-section-label">Loop structure</h3>
           <div className="runtime-loop-row">
-            {number('Max DSF steps', 'Limits how many reasoning passes one ask may take.', 'Example: 8', settings.loop.maxSteps, 1, 20, (v) => setLoop('maxSteps', v))}
-            {number('Max tool calls', 'Limits how many data and metadata calls one ask may make.', 'Example: 12', settings.loop.maxToolCalls, 1, 40, (v) => setLoop('maxToolCalls', v))}
-            {number('Run budget (s)', 'Stops new work after this many seconds.', 'Example: 90', settings.loop.maxRunSeconds, 30, 180, (v) => setLoop('maxRunSeconds', v))}
+            {number(
+              'Max DSF steps',
+              'Limits how many reasoning passes one ask may take.',
+              'Example: 8',
+              settings.loop.maxSteps,
+              1,
+              20,
+              (v) => setLoop('maxSteps', v)
+            )}
+            {number(
+              'Max tool calls',
+              'Limits how many data and metadata calls one ask may make.',
+              'Example: 12',
+              settings.loop.maxToolCalls,
+              1,
+              40,
+              (v) => setLoop('maxToolCalls', v)
+            )}
+            {number(
+              'Run budget (s)',
+              'Stops new work after this many seconds.',
+              'Example: 90',
+              settings.loop.maxRunSeconds,
+              30,
+              180,
+              (v) => setLoop('maxRunSeconds', v)
+            )}
           </div>
           <p className="runtime-footnote">Bounds the Data Source Finder loop. The agent boundary does not change.</p>
         </section>
@@ -172,7 +197,13 @@ export function RuntimeSettingsPanel() {
             editable={editable}
             onToggle={(v) => setAnswer('takeaway', v)}
           >
-            {guidance('Guidance', 'Changes how the agent writes the takeaway.', 'Example: Lead with the recommended decision.', settings.answer.takeawayGuidance, (v) => setAnswer('takeawayGuidance', v))}
+            {guidance(
+              'Guidance',
+              'Changes how the agent writes the takeaway.',
+              'Example: Lead with the recommended decision.',
+              settings.answer.takeawayGuidance,
+              (v) => setAnswer('takeawayGuidance', v)
+            )}
           </AnswerRow>
 
           <AnswerRow
@@ -182,9 +213,21 @@ export function RuntimeSettingsPanel() {
             editable={editable}
             onToggle={(v) => setAnswer('narrative', v)}
           >
-            {guidance('Guidance', 'Changes how the agent explains its evidence.', 'Example: Name the source beside each finding.', settings.answer.narrativeGuidance, (v) => setAnswer('narrativeGuidance', v))}
-            {number('Character cap (0 = uncapped)', 'Trims only the narrative after this many characters.', 'Example: 1200', settings.answer.narrativeMaxCharacters, 0, 12_000, (v) =>
-              setAnswer('narrativeMaxCharacters', v)
+            {guidance(
+              'Guidance',
+              'Changes how the agent explains its evidence.',
+              'Example: Name the source beside each finding.',
+              settings.answer.narrativeGuidance,
+              (v) => setAnswer('narrativeGuidance', v)
+            )}
+            {number(
+              'Character cap (0 = uncapped)',
+              'Trims only the narrative after this many characters.',
+              'Example: 1200',
+              settings.answer.narrativeMaxCharacters,
+              0,
+              12_000,
+              (v) => setAnswer('narrativeMaxCharacters', v)
             )}
           </AnswerRow>
 
@@ -195,23 +238,31 @@ export function RuntimeSettingsPanel() {
             editable={editable}
             onToggle={(v) => setAnswer('figures', v)}
           >
-            {number('Max figures', 'Caps the numeric highlights returned with an answer.', 'Example: 6', settings.answer.maxFigures, 0, 12, (v) => setAnswer('maxFigures', v))}
+            {number(
+              'Max figures',
+              'Caps the numeric highlights returned with an answer.',
+              'Example: 6',
+              settings.answer.maxFigures,
+              0,
+              12,
+              (v) => setAnswer('maxFigures', v)
+            )}
             <label className="runtime-field">
               <span className="runtime-field-label">Order</span>
               <span className="runtime-control-note">Changes which numeric highlights appear first.</span>
-              <select
-                className="runtime-select"
-                aria-label="Order"
+              <AppSelect
+                label="Order"
+                ariaLabel="Order"
                 value={settings.answer.figuresOrder}
                 disabled={!editable}
-                onChange={(event) =>
-                  setAnswer('figuresOrder', event.target.value as RuntimeSettings['answer']['figuresOrder'])
-                }
-              >
-                <option value="as-ranked">As the agent ranks them</option>
-                <option value="totals-first">Totals first</option>
-                <option value="averages-first">Averages first</option>
-              </select>
+                onValueChange={(value) => setAnswer('figuresOrder', value)}
+                options={[
+                  { value: 'as-ranked', label: 'As the agent ranks them' },
+                  { value: 'totals-first', label: 'Totals first' },
+                  { value: 'averages-first', label: 'Averages first' },
+                ]}
+                className="runtime-select"
+              />
             </label>
           </AnswerRow>
 
@@ -222,23 +273,31 @@ export function RuntimeSettingsPanel() {
             editable={editable}
             onToggle={(v) => setAnswer('charts', v)}
           >
-            {number('Max charts', 'Caps the charts built for one answer.', 'Example: 2', settings.answer.maxCharts, 0, 6, (v) => setAnswer('maxCharts', v))}
+            {number(
+              'Max charts',
+              'Caps the charts built for one answer.',
+              'Example: 2',
+              settings.answer.maxCharts,
+              0,
+              6,
+              (v) => setAnswer('maxCharts', v)
+            )}
             <label className="runtime-field">
               <span className="runtime-field-label">Types</span>
               <span className="runtime-control-note">Limits which chart shapes the agent may choose.</span>
-              <select
-                className="runtime-select"
-                aria-label="Types"
+              <AppSelect
+                label="Types"
+                ariaLabel="Types"
                 value={settings.answer.chartsTypes}
                 disabled={!editable}
-                onChange={(event) =>
-                  setAnswer('chartsTypes', event.target.value as RuntimeSettings['answer']['chartsTypes'])
-                }
-              >
-                <option value="auto">Auto from the data shape</option>
-                <option value="bar">Bar only</option>
-                <option value="bar-line">Bar and line</option>
-              </select>
+                onValueChange={(value) => setAnswer('chartsTypes', value)}
+                options={[
+                  { value: 'auto', label: 'Auto from the data shape' },
+                  { value: 'bar', label: 'Bar only' },
+                  { value: 'bar-line', label: 'Bar and line' },
+                ]}
+                className="runtime-select"
+              />
             </label>
           </AnswerRow>
 
@@ -249,7 +308,15 @@ export function RuntimeSettingsPanel() {
             editable={editable}
             onToggle={(v) => setAnswer('caveats', v)}
           >
-            {number('Max caveats (0 = all)', 'Caps displayed limitations without weakening safeguards.', 'Example: 3', settings.answer.maxCaveats, 0, 20, (v) => setAnswer('maxCaveats', v))}
+            {number(
+              'Max caveats (0 = all)',
+              'Caps displayed limitations without weakening safeguards.',
+              'Example: 3',
+              settings.answer.maxCaveats,
+              0,
+              20,
+              (v) => setAnswer('maxCaveats', v)
+            )}
             <p className="runtime-footnote">Governance and outage warnings always remain.</p>
           </AnswerRow>
         </section>
@@ -279,7 +346,9 @@ export function RuntimeSettingsPanel() {
             <div className="runtime-entity-row" key={kind}>
               <div>
                 <span className="runtime-answer-name">{kind[0].toUpperCase() + kind.slice(1)}</span>
-                <span className="runtime-control-note">Changes this entity’s text and highlight colors in answers.</span>
+                <span className="runtime-control-note">
+                  Changes this entity’s text and highlight colors in answers.
+                </span>
               </div>
               {(['foreground', 'background'] as const).map((property) => (
                 <label className="runtime-field" key={property}>

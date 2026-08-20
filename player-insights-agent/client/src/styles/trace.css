@@ -97,6 +97,9 @@
   /* So the card fills the track's height rather than centring in it. */
   align-items: stretch;
 }
+.trace-dag.map .dag-step.run-envelope {
+  grid-column: 1 / -1;
+}
 /*
  * Content height, and no growing. A step in the rail is as tall as the card in
  * it, whatever the map needs a step to be.
@@ -145,9 +148,10 @@
  * the name inside it clamp rather than widening the track.
  */
 .trace-dag.map .dag-node {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
   padding: 11px 13px;
   width: 100%;
   height: 100%;
@@ -155,7 +159,7 @@
   font: inherit;
   color: inherit;
   text-align: left;
-  padding-left: calc(13px + var(--dag-depth, 0) * 16px);
+  cursor: pointer;
 }
 .trace-dag.map .dag-node:hover {
   background: var(--db-row-hover);
@@ -179,12 +183,11 @@
   border: 2px solid var(--primary);
   background: var(--db-blue-faint);
   padding: 10px 12px;
-  padding-left: calc(12px + var(--dag-depth, 0) * 16px);
 }
 /* The number and the duration go to the hover rung of the same blue, which is
    what marks the open card's own figures without painting the name. */
 .trace-dag.map .dag-node.open .dag-index,
-.trace-dag.map .dag-node.open .dag-timing {
+.trace-dag.map .dag-node.open .dag-metric-badge {
   color: var(--db-blue-700);
 }
 /*
@@ -240,11 +243,12 @@
   height: 14px;
   color: var(--db-slate-icon);
 }
-/* The card's top line: chip, number, and the duration pinned to the far end. */
-.trace-dag.map .dag-card-head {
+/* The icon keeps one left lane. Everything else starts from the same edge,
+   regardless of title length or which mark the icon contains. */
+.trace-dag.map .dag-card-body {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 7px;
   min-width: 0;
 }
 /* The stage's place in the run, which is what a wrapped map cannot say by
@@ -259,15 +263,31 @@
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
-/* How long it took, and how many calls it was when that was more than one.
-   Pinned right by the margin rather than by a spacer element. */
-.trace-dag.map .dag-timing {
-  flex: none;
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
+/* The stage metadata is a compact row of independent, named measures. */
+.trace-dag.map .dag-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+.trace-dag.map .dag-metric-badge,
+.trace-dag.map .dag-role-badge {
+  min-height: 18px;
+  padding: 1px 6px;
+  border-color: var(--db-line);
+  border-radius: var(--radius-sm);
+  background: var(--db-wash);
   color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
+  font-size: 9px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.trace-dag.map .dag-role-badge {
+  background: var(--ast-ice);
+  color: var(--db-blue-700);
+  font-family: var(--font-sans);
+  font-weight: 600;
 }
 /*
  * TWO LINES, AND AN IDENTIFIER IS NOT BROKEN ACROSS THEM.
@@ -303,8 +323,9 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
 }
-.trace-dag.map .dag-node [data-slot='badge'] {
-  align-self: flex-start;
+.trace-dag.map .dag-status-badge {
+  min-height: 18px;
+  padding: 1px 6px;
   font-size: 9px;
 }
 /* ---- The rail's tile, from live-agent-path.md: a numbered badge, a 13px mark,
@@ -462,7 +483,7 @@
 .dag-node.failed {
   border-color: var(--db-red-600);
 }
-.trace-dag.map .dag-node.failed .dag-timing {
+.trace-dag.map .dag-node.failed .dag-duration-badge {
   color: var(--db-red-600);
 }
 .trace-dag.compact .dag-node.failed .dag-elapsed {

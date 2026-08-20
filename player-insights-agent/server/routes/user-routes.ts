@@ -11,29 +11,25 @@
  * file. The role is a row in Lakebase, read on the next request by resolveRole, so
  * a person appointed here holds the role before the reply reaches the browser.
  *
- * A PROMOTION IS TWO ACTIONS IN ONE, and this file keeps them together for the
- * reason admin-routes.ts does. The role is a row. The access is a Unity Catalog
- * grant on the telemetry schema and the billing tables, made under the acting super
- * admin's own forwarded token, because those are what the Monitoring and Ops tabs
- * read and a role without them opens two pages of errors. THE TWO HALVES CAN
- * DISAGREE AND THE ANSWER IS NEVER TO HIDE IT: the role lands, the refusal is
- * reported in the same response, and the statement somebody with authority can run
- * is on screen. A 200 here means the role was set, never that everything asked for
- * happened.
+ * A PROMOTION IS ONE ACTION: A ROW IN LAKEBASE. It used to be two, because a
+ * promotion also granted Unity Catalog read on the telemetry schema and the
+ * `system.billing` tables. That is gone. Granting on `system` needs an account
+ * admin who is also a metastore admin, so the ordinary outcome was a
+ * PERMISSION_DENIED beside the name of the person just promoted, for read access
+ * the rank never required. Somebody who needs to read billing gets that from a
+ * metastore admin, not from this screen.
  *
- * WHAT THE RANK STILL DOES NOT GRANT is anybody's data. The two objects granted here
- * are records of the app's own operation. A question runs under the asker's own
+ * A DEMOTION STILL HANDS BACK what earlier versions of this app granted, best
+ * effort, under the acting super admin's own forwarded token. That is recorded in
+ * the audit trail rather than on screen, and it never refuses the role change.
+ *
+ * WHAT THE RANK GRANTS is no data at all. A question runs under the asker's own
  * grants at every rank, and a super admin reading somebody else's conversation in
  * Monitoring sees what their own grants allow -- appointing themselves does not
  * change that by one column.
  */
 import { z } from 'zod';
-import {
-  applyAccess,
-  telemetryDestination,
-  withdrawAccess,
-  type AccessReport,
-} from '../lib/admin-access';
+import { withdrawAccess } from '../lib/admin-access';
 import {
   normalizeAdminEmail,
   recordAdminAction,
@@ -57,11 +53,10 @@ import {
   opensAdminSurfaces,
   ROLE_WORD,
   type Role,
-  type RosterMutationPayload,
   type RosterPayload,
   type RosterRefusal,
 } from '../../shared/user-roster-contract';
-import { actionFor, runnerFor } from './admin-routes';
+import { runnerFor } from './admin-routes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request, Response } from 'express';
 
@@ -106,54 +101,40 @@ function refuse(res: Response, refusal: RosterRefusal) {
 }
 
 /**
- * Ask Unity Catalog for whatever the new rank needs, or hand back what it does not.
+ * Hand back the access an earlier version of this app granted, when a rank falls
+ * below the administrator line.
  *
- * ONLY WHEN THE RANK CROSSES THE ADMIN LINE. A move between super admin and admin
- * needs nothing: both read the same two objects, so asking again would run grants
- * for a change that did not alter what anybody may read. A move to consumer hands
- * back only what this app can show it granted -- see withdrawAccess, and the
- * provenance table it reads, which is the whole of why a removal does not take away
- * access somebody held for a reason we know nothing about.
+ * NOTHING IS EVER GRANTED HERE. A rise in rank writes a row and stops; see this
+ * file's header. What is left is the debt: a deployment that ran the earlier
+ * version recorded privileges this app added, and somebody who is no longer an
+ * administrator should not keep a privilege they only held because this app handed
+ * it to them.
+ *
+ * Only what the provenance table can show this app granted is revoked, which is the
+ * whole of why a demotion does not take away access somebody holds for a reason we
+ * know nothing about. Never allowed to fail the role change it follows: the role is
+ * what the caller asked for, and this is the tidying up.
  */
-async function syncAccess(input: {
+async function withdrawOnDemotion(input: {
   req: Request;
   store: AdminStore;
   email: string;
   actor: string;
   from: Role;
   to: Role;
-}): Promise<AccessReport[]> {
-  const held = opensAdminSurfaces(input.from);
-  const wants = opensAdminSurfaces(input.to);
-  if (held === wants) return [];
+}): Promise<void> {
+  if (!opensAdminSurfaces(input.from) || opensAdminSurfaces(input.to)) return;
   const { run, unavailable } = runnerFor(input.req);
-  const shared = {
-    run,
-    store: input.store,
-    email: input.email,
-    telemetry: telemetryDestination(),
-    unavailable,
-  };
-  const results = wants
-    ? await applyAccess({ ...shared, actor: input.actor })
-    : await withdrawAccess(shared);
-  for (const result of results) {
-    if (result.state === 'not-configured') continue;
-    const action = wants ? actionFor(result) : 'access-revoked';
-    if (!action) continue;
-    await recordAdminAction(input.store, {
-      actor: input.actor,
-      action,
-      subject: input.email,
-      detail: wants
-        ? action === 'access-granted'
-          ? `${input.actor} granted ${input.email} read access to ${result.label.toLowerCase()} for this deployment.`
-          : `${input.actor} could not grant ${input.email} read access to ${result.label.toLowerCase()}: ${result.summary}`
-        : `${input.actor} took ${input.email} out of the administrator ranks, and the access this app had ` +
-          `granted them: ${result.summary}`,
-    });
-  }
-  return [{ email: input.email, results }];
+  const withdrawal = await withdrawAccess({ run, store: input.store, email: input.email, unavailable });
+  if (withdrawal.revoked === 0 && withdrawal.refused.length === 0) return;
+  await recordAdminAction(input.store, {
+    actor: input.actor,
+    action: 'access-revoked',
+    subject: input.email,
+    detail:
+      `${input.actor} took ${input.email} out of the administrator ranks, and the access an earlier version ` +
+      `of this app had granted them: ${withdrawal.summary} ${withdrawal.note}`.trim(),
+  });
 }
 
 export function setupUserRoutes(appkit: InsightsAppKit) {
@@ -221,9 +202,9 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
      * Take one person off the roster entirely.
      *
      * They become a consumer, because a consumer is what anybody the roster does not
-     * name already is. The access this app granted them is handed back BEFORE the row
-     * goes, because the record of what was granted is keyed by the address and the
-     * withdrawal path has to read it.
+     * name already is. Access an earlier version of this app granted them is handed
+     * back BEFORE the row goes, because the record of what was granted is keyed by
+     * the address and the withdrawal path has to read it.
      */
     app.delete('/api/users/:email', async (req, res) => {
       const email = normalizeAdminEmail(req.params.email);
@@ -250,14 +231,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
       }
       const from = effectiveRole({ seed, stored: rows, email });
       try {
-        const access = await syncAccess({
-          req,
-          store: appkit.lakebase,
-          email,
-          actor,
-          from,
-          to: 'consumer',
-        });
+        await withdrawOnDemotion({ req, store: appkit.lakebase, email, actor, from, to: 'consumer' });
         await deleteRosterRow(appkit.lakebase, email);
         // After the write, so a row here means the change happened. Awaited, and its
         // own failure never fails the request: see recordAdminAction.
@@ -267,7 +241,7 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
           subject: email,
           detail: `${actor} removed ${email} from this deployment's roster, held as ${ROLE_WORD[from].toLowerCase()}.`,
         });
-        await replyWithRoster(res, appkit.lakebase, actor, access, roleColumnPresent);
+        await replyWithRoster(res, appkit.lakebase, actor, roleColumnPresent);
       } catch (error) {
         console.error(`[admin] ${email} could not be removed:`, (error as Error).message);
         res.status(503).json({ error: 'roster_store_unavailable', detail: 'Nobody was removed.' });
@@ -315,8 +289,8 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
           subject: email,
           detail: roleChangeSentence({ actor, email, from, to }),
         });
-        const access = await syncAccess({ req, store: appkit.lakebase, email, actor, from, to });
-        await replyWithRoster(res, appkit.lakebase, actor, access, roleColumnPresent);
+        await withdrawOnDemotion({ req, store: appkit.lakebase, email, actor, from, to });
+        await replyWithRoster(res, appkit.lakebase, actor, roleColumnPresent);
       } catch (error) {
         console.error(`[admin] ${email} could not be set to ${role}:`, (error as Error).message);
         res.status(503).json({
@@ -329,30 +303,21 @@ export function setupUserRoutes(appkit: InsightsAppKit) {
     }
 
     /**
-     * Read the roster back and answer with it, beside what Unity Catalog said.
+     * Read the roster back and answer with it.
      *
      * READ BACK RATHER THAN PATCHED IN MEMORY, so the screen shows the roster as the
      * store now holds it. A payload assembled from what the handler believed it wrote
      * is a payload that agrees with the handler rather than with the database.
      */
-    async function replyWithRoster(
-      res: Response,
-      store: AdminStore,
-      reader: string,
-      access: AccessReport[],
-      roleColumnPresent: boolean
-    ) {
+    async function replyWithRoster(res: Response, store: AdminStore, reader: string, roleColumnPresent: boolean) {
       const after = await read(store);
-      const payload: RosterMutationPayload = {
-        ...rosterPayload({
-          seed: seedRoles(),
-          stored: after.rows,
-          storedRosterReadable: after.readable,
-          roleColumnPresent: after.readable ? after.roleColumnPresent : roleColumnPresent,
-          reader,
-        }),
-        access,
-      };
+      const payload: RosterPayload = rosterPayload({
+        seed: seedRoles(),
+        stored: after.rows,
+        storedRosterReadable: after.readable,
+        roleColumnPresent: after.readable ? after.roleColumnPresent : roleColumnPresent,
+        reader,
+      });
       res.json(payload);
     }
   });

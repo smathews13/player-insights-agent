@@ -1636,13 +1636,13 @@ export function ConnectionsPage() {
   /**
    * The reading's own qualifications, and ONLY the ones that qualify it.
    *
-   * THE BUILD HASHES ARE NOT HERE ANY MORE. This line used to read `table list
-   * from resources · app build abc1234 · orchestrator build def5678 · the served
-   * model version did not report its own configuration · recorded values
-   * readable`, in 12px grey under the headline. The two hashes are a comparison,
-   * nothing in that line said so, and the comparison is the only reason to print
-   * either: they are the Build and telemetry card below, where the mismatch is
-   * the finding rather than something to spot by eye.
+   * THE BUILD HASHES ARE NOT HERE ANY MORE. This line used to also name where
+   * the table inventory came from, in 12px grey under the headline. That origin
+   * is still on the payload for callers that need it; it is not a sentence a
+   * person can act on. The two hashes are a comparison, nothing in that line
+   * said so, and the comparison is the only reason to print either: they are
+   * the Build and telemetry card below, where the mismatch is the finding
+   * rather than something to spot by eye.
    *
    * What is left is stated only in the negative, which is a change of rule. It
    * used to say "recorded values readable" as well, so that silence could not be
@@ -1651,7 +1651,6 @@ export function ConnectionsPage() {
    * that came back green IS the orchestrator having answered.
    */
   const statusMeta = [
-    report?.table_source ? `table list from ${report.table_source}` : '',
     payload && !payload.orchestratorReported ? 'the served model version did not report its own configuration' : '',
     payload && !payload.storeAvailable ? 'recorded values cannot be read or saved' : '',
   ]
@@ -1944,13 +1943,13 @@ export function ConnectionsPage() {
       {/* The notebook, and where what it published differs from what the model is
           running. Drawn from the payload rather than fetched here, so this page
           keeps its one read per session. */}
-      <NotebookCard
-        panel={payload?.notebook}
-        allowMutations={allowMutations}
-        onSaved={rereadSettings}
-      />
+      <div className="configuration-plane-row">
+        <NotebookCard panel={payload?.notebook} allowMutations={allowMutations} onSaved={rereadSettings} />
 
-      <ApplyDeclarationCard onRefresh={() => void refresh()} />
+        {/* The same panel the Notebook card reads, so the two cannot disagree
+            about whether a notebook is connected. */}
+        <ApplyDeclarationCard notebook={payload?.notebook} onRefresh={() => void refresh()} />
+      </div>
 
       {/* ONE SECTION PER VERDICT, and the verdict said once in its header. The
           list was grouped by what a dependency IS -- "Agents and models", "Genie

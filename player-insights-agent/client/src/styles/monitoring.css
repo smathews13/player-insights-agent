@@ -171,44 +171,11 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px 4px 10px;
-  border: 1px solid var(--ast-border-input);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  color: var(--ast-navy);
-  background: transparent;
+  padding: 0;
 }
-/* Set, and clearable. The border and the fill are the app's selection blue. */
-.monitoring-chip-active {
-  border-color: var(--ast-blue);
-  background: var(--db-selected-tint);
-  color: var(--ast-info-text);
-  font-weight: 500;
-}
-/*
- * Written as a descendant selector on purpose. The shadcn trigger sets its height
- * through `data-[size=default]:h-9`, which compiles to a class plus an attribute
- * and so outranks a single class here. This partial is imported after AppKit's
- * stylesheet, so matching that specificity is enough to win.
- */
 .monitoring-chip .monitoring-chip-trigger {
-  height: auto;
-  min-height: 0;
-  gap: 4px;
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
+  max-width: 38ch;
   cursor: pointer;
-}
-/* Inside the chip's border, so a focused trigger does not paint over it. */
-.monitoring-chip .monitoring-chip-trigger:focus-visible {
-  outline: 2px solid var(--ast-blue);
-  outline-offset: 1px;
-  border-radius: 2px;
-}
-.monitoring-chip-name,
-.monitoring-chip-separator {
-  flex: none;
 }
 /*
  * The value is allowed to be long. The design shows a set table filter reading
@@ -216,11 +183,8 @@
  * in the middle is a filter a reader cannot confirm. It is capped only where it
  * would push the row apart, and clipped with an ellipsis at that point.
  */
-.monitoring-chip-value {
+.monitoring-chip .app-select-value {
   max-width: 34ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 /*
  * The open menu. Anchored under the trigger by Radix and at least its width,

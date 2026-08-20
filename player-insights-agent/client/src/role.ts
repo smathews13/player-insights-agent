@@ -291,7 +291,17 @@ export function showsSettingsGear(state: RoleState): boolean {
  * (`design-spec-master.md` §8). In the header it answered a question nobody had
  * asked, in the row that has to hold the navigation.
  *
- * The mobile sheet keeps the same order, so the two widths cannot disagree.
+ * THE RELEASE CHIP HAS LEFT THIS ROW, and it left for the same reason the OAuth
+ * badge did: it is not a fact about the reader. It states which build is on
+ * screen, so it is seated beside the app's own name now, in `HeaderBrand`. It
+ * was also the member this row could least afford -- second-to-last in the half
+ * of the header that gives, which is how a timestamp came to be drawn with its
+ * time cut off.
+ *
+ * The mobile sheet keeps this order, and adds the release chip after the
+ * identity chip because below 800px the lockup column has no slack to seat it
+ * in. That is the one place the two widths differ, and it differs because at
+ * that width the header has no room rather than because anybody reordered it.
  */
 export const HEADER_CLUSTER_ORDER: readonly [
   'role-badge',

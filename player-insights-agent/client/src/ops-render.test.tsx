@@ -26,12 +26,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CostBody, HealthBody, LatencyBody, OpsPage, TrafficBody, type Block } from './OpsPage';
 import { REFRESH_LABEL } from './RefreshControl';
-import type {
-  OpsCostPayload,
-  OpsHealthPayload,
-  OpsLatencyPayload,
-  OpsTrafficPayload,
-} from '../../shared/ops-contract';
+import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
 function text(markup: string): string {
   return markup
@@ -279,9 +274,7 @@ describe('the health block', () => {
   it('counts error lines without editorialising the count', () => {
     const markup = render(
       <HealthBody
-        block={block(
-          health({ app: { ...health().app, telemetry: 'reading', errors: { count: 3, recent: [] } } })
-        )}
+        block={block(health({ app: { ...health().app, telemetry: 'reading', errors: { count: 3, recent: [] } } }))}
       />
     );
     expect(markup).toContain('3 error lines recorded in this range');
@@ -300,7 +293,7 @@ describe('the health block', () => {
    * Connection failure. When every dependency answered its last check, the note
    * says these are recorded log lines, not a live failure.
    */
-  it('frames recorded errors as history when every dependency answered', () => {
+  it('hides recorded errors when every dependency answered', () => {
     const base = health();
     const markup = render(
       <HealthBody
@@ -322,19 +315,13 @@ describe('the health block', () => {
         )}
       />
     );
-    // The count, then the distinction. Neither hides the lines themselves.
-    expect(markup).toContain('2 error lines recorded in this range');
-    expect(markup).toContain('Every dependency answered its most recent check');
-    expect(markup).toContain('not a live failure');
-    expect(markup).toContain('appkit:cache:persistent fell back to in-memory');
-    // Never dressed up as a live incident.
-    expect(markup).not.toMatch(/Connection failure/i);
+    expect(markup).not.toContain('error lines recorded in this range');
+    expect(markup).not.toContain('appkit:cache:persistent fell back to in-memory');
   });
 
   /**
-   * A GENUINELY DOWN DEPENDENCY GETS THE OTHER NOTE. The lines are never hidden,
-   * and the reassurance steps aside: the reader is pointed back at the Result
-   * column rather than told everything is history.
+   * A GENUINELY DOWN DEPENDENCY GETS THE LINES. The reader is pointed back at
+   * the Result column rather than told everything is history.
    */
   it('does not reassure when a dependency is not answering', () => {
     const base = health();
@@ -371,9 +358,7 @@ describe('the health block', () => {
   it('renders no error line at all rather than a zero', () => {
     const markup = render(
       <HealthBody
-        block={block(
-          health({ app: { ...health().app, telemetry: 'reading', errors: { count: 0, recent: [] } } })
-        )}
+        block={block(health({ app: { ...health().app, telemetry: 'reading', errors: { count: 0, recent: [] } } }))}
       />
     );
     expect(markup).not.toContain('0 error lines');
@@ -382,7 +367,11 @@ describe('the health block', () => {
   });
 
   it('links out to the platform record instead of paraphrasing it', () => {
-    const markup = renderToStaticMarkup(<MemoryRouter><HealthBody block={block(health())} /></MemoryRouter>);
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <HealthBody block={block(health())} />
+      </MemoryRouter>
+    );
     expect(markup).toContain('https://example.test/apps/pia/insights');
   });
 
@@ -461,6 +450,12 @@ describe('the health block', () => {
     );
   });
 
+  it('labels the final health column Notes', () => {
+    const markup = markupOf(<HealthBody block={block(health())} />);
+    expect(markup).toMatch(/<th scope="col">Notes<\/th>/);
+    expect(markup).not.toContain('Reason, when it did not answer');
+  });
+
   it('says a check that did not run is neither, rather than leaving the cell blank', () => {
     // A blank beside "Not checked" reads as a result somebody has not written
     // down yet. It is a third state, and the row says so in words.
@@ -493,9 +488,7 @@ describe('the health block', () => {
     expect(middling).not.toContain('ast-pill--pos ops-pill ops-platform-pill');
 
     const unread = markupOf(
-      <HealthBody
-        block={block(health({ platform: [{ id: 'app', label: 'App', state: '', read: false }] }))}
-      />
+      <HealthBody block={block(health({ platform: [{ id: 'app', label: 'App', state: '', read: false }] }))} />
     );
     expect(unread).toContain('ast-pill--neutral-outline ops-pill ops-platform-pill');
   });
@@ -527,9 +520,7 @@ describe('the health block', () => {
   it('draws no mark for a probe kind it cannot name', () => {
     const markup = markupOf(
       <HealthBody
-        block={block(
-          health({ dependencies: [{ ...health().dependencies[0], kind: 'something-nobody-has-mapped' }] })
-        )}
+        block={block(health({ dependencies: [{ ...health().dependencies[0], kind: 'something-nobody-has-mapped' }] }))}
       />
     );
     expect(markup).toContain('SQL warehouse');
@@ -833,6 +824,16 @@ describe('the traffic block', () => {
     expect(markup).not.toContain('never this one');
   });
 
+  it('keeps both cause charts together as the middle visual group', () => {
+    const markup = markupOf(<TrafficBody block={block(traffic())} />);
+    const middle = markup.match(
+      /<div class="ops-chart-pair"[^>]*>([\s\S]*?)<\/div><div class="ops-chart ops-chart-tool">/
+    )?.[1];
+    expect(middle).toBeDefined();
+    expect(text(middle!)).toContain('Failures by cause');
+    expect(text(middle!)).toContain('Refusals by cause');
+  });
+
   /**
    * THE CHART HAS A SCALE NOW, which is the whole of what was wrong with it.
    *
@@ -849,9 +850,7 @@ describe('the traffic block', () => {
     expect(week).not.toContain('ops-daybars-peak');
 
     const month = markupOf(
-      <TrafficBody
-        block={block(traffic({ questionsPerDay: Array.from({ length: 30 }, (_, i) => day(i + 1)) }))}
-      />
+      <TrafficBody block={block(traffic({ questionsPerDay: Array.from({ length: 30 }, (_, i) => day(i + 1)) }))} />
     );
     expect(month).not.toContain('ops-daybar-value');
     expect(month).toContain('ops-daybars-peak');
@@ -915,7 +914,11 @@ describe('the traffic block', () => {
     const markup = render(
       <TrafficBody
         block={block(
-          traffic({ questionsPerDay: [], unread: 'Questions per day could not be read, so that chart is missing rather than empty: the store did not answer' })
+          traffic({
+            questionsPerDay: [],
+            unread:
+              'Questions per day could not be read, so that chart is missing rather than empty: the store did not answer',
+          })
         )}
       />
     );
@@ -928,7 +931,9 @@ describe('the traffic block', () => {
 
   it('says nothing extra when every read answered and the answer was nothing', () => {
     const markup = render(
-      <TrafficBody block={block(traffic({ questionsPerDay: [], failuresByCause: [], toolCalls: [], runsInRange: 0 }))} />
+      <TrafficBody
+        block={block(traffic({ questionsPerDay: [], failuresByCause: [], toolCalls: [], runsInRange: 0 }))}
+      />
     );
     expect(markup).not.toContain('could not be read');
   });
@@ -947,7 +952,7 @@ describe('the traffic block', () => {
     expect(markup).toContain('href="/monitoring?outcome=refused"');
   });
 
-/**
+  /**
    * THE WAY THROUGH TO THE RUNS THEMSELVES, which the handoff's footer asks for
    * and this block did not have.
    *
@@ -1091,7 +1096,7 @@ describe('the dates the figures are over', () => {
     renderToStaticMarkup(
       <MemoryRouter initialEntries={[`/ops${search}`]}>
         <OpsPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
   /** Just the line, so an assertion cannot pass on words from elsewhere on the page. */
@@ -1462,7 +1467,13 @@ describe('the latency block', () => {
     const rendered = render(
       <LatencyBody
         block={block(
-          latency({ state: 'unreadable', routes: [], coveredFrom: '', coveredTo: '', reason: 'a_table could not be read. Databricks said: TABLE_OR_VIEW_NOT_FOUND' })
+          latency({
+            state: 'unreadable',
+            routes: [],
+            coveredFrom: '',
+            coveredTo: '',
+            reason: 'a_table could not be read. Databricks said: TABLE_OR_VIEW_NOT_FOUND',
+          })
         )}
       />
     );

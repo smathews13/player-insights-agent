@@ -80,14 +80,125 @@ import { UserIdentityChip } from './UserIdentityChip';
  */
 const ABSENT = 'not set';
 
-/** Durations that belong to data work, including older traces that tagged the
- * finder or SQL wrapper as an agent stage instead of a tool stage. */
-export function toolStageDurationMs(stages: readonly TraceStage[]): number | null {
-  const measured = stages.filter((stage) =>
-    stage.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${stage.id} ${stage.name}`)
-  );
-  return measured.length ? measured.reduce((sum, stage) => sum + stage.duration, 0) : null;
+/** Stages whose time belongs to data work, including older traces that tagged
+ * the finder or SQL wrapper as an agent stage instead of a tool stage. */
+function isDataWork(stage: TraceStage): boolean {
+  return stage.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${stage.id} ${stage.name}`);
 }
+
+/**
+ * Every stage this one ran inside, nearest first.
+ *
+ * Walked through `parent_id` rather than read off `depth`, because the chain
+ * runs through stages that are not data work themselves: the finder's tool
+ * calls hang off a `step-n` model turn, which hangs off the finder. A depth
+ * comparison would miss that the finder encloses them. `seen` guards a
+ * malformed trace whose parents cycle, which would otherwise spin here.
+ */
+function enclosingIds(stage: TraceStage, byId: Map<string, TraceStage>): string[] {
+  const chain: string[] = [];
+  const seen = new Set<string>([stage.id]);
+  let above = stage.parent_id ? byId.get(stage.parent_id) : undefined;
+  while (above && !seen.has(above.id)) {
+    chain.push(above.id);
+    seen.add(above.id);
+    above = above.parent_id ? byId.get(above.parent_id) : undefined;
+  }
+  return chain;
+}
+
+/**
+ * Milliseconds the spans cover between them, counting a shared instant once.
+ *
+ * The agent dispatches a step's tool calls through a thread pool, so two calls
+ * can genuinely be in flight at the same moment. Their durations add up to more
+ * time than the run had, which is not a contradiction: it is two things
+ * happening at once, and a figure a reader compares against wall time has to
+ * say so.
+ */
+function coveredMs(spans: readonly { from: number; to: number }[]): number {
+  const ordered = [...spans].filter((span) => span.to > span.from).sort((left, right) => left.from - right.from);
+  let covered = 0;
+  let open: { from: number; to: number } | null = null;
+  for (const span of ordered) {
+    // Touching edges continue the same run of activity: one call returning at
+    // the instant the next begins is what a serial loop looks like.
+    if (!open || span.from > open.to) {
+      if (open) covered += open.to - open.from;
+      open = { from: span.from, to: span.to };
+    } else if (span.to > open.to) {
+      open.to = span.to;
+    }
+  }
+  return open ? covered + (open.to - open.from) : covered;
+}
+
+/**
+ * How much of a run was data work, as a figure that fits inside the run.
+ *
+ * This read 184.6s on a run whose wall clock was 152.3s, which is not a
+ * measurement of anything: it was the same milliseconds counted twice over. The
+ * agent records a tree, not a list. `data_source_finder` is one stage spanning
+ * the whole discovery phase, and inside it sit the `step-n` model turns and,
+ * inside those, every tool call the model asked for. Adding the parent to its
+ * own children charges the run for the finder's span plus a second copy of
+ * everything that happened during it, and the finder's name matches the pattern
+ * above, so it was always in the sum.
+ *
+ * So parents are dropped and only the innermost data stages are counted, which
+ * is also the honest reading of the label: the finder's span includes the model
+ * calls that chose the steps, and those are not data work. What is left is
+ * unioned rather than added, because a step's tool calls can run in parallel.
+ *
+ * `wallMs` is the run's own duration, the figure the tile beside this one
+ * prints. Where the union is exact the union cannot exceed it, so the bound
+ * only ever applies on the fallback path below, where starts were never
+ * recorded and there is nothing to union: a sum of parallel leaves is capped at
+ * the run it happened inside rather than published as a longer run than
+ * happened.
+ */
+export function toolStageDurationMs(stages: readonly TraceStage[], wallMs?: number | null): number | null {
+  const dataWork = stages.filter(isDataWork);
+  if (!dataWork.length) return null;
+  const byId = new Map(stages.map((stage) => [stage.id, stage]));
+  const containers = new Set(dataWork.flatMap((stage) => enclosingIds(stage, byId)));
+  const innermost = dataWork.filter((stage) => !containers.has(stage.id));
+  // Empty only if every data stage encloses another, which takes a cycle in the
+  // recorded parents. Then nothing is known about the nesting and the flat sum
+  // is the most that can be said.
+  const counted = innermost.length ? innermost : dataWork;
+  // Strictly measured, not merely present: `start` is coerced to 0 when the wire
+  // omitted it, and a union over stages that all begin at 0 returns the longest
+  // of them, which would report a fiction as an exact overlap. Where starts were
+  // not recorded the durations are added, as they always were.
+  const total = counted.every((stage) => stage.startMeasured === true)
+    ? coveredMs(counted.map((stage) => ({ from: stage.start, to: stage.start + stage.duration })))
+    : counted.reduce((sum, stage) => sum + stage.duration, 0);
+  return typeof wallMs === 'number' && wallMs > 0 && total > wallMs ? wallMs : total;
+}
+
+/**
+ * What each tile on the Overview grid is a measurement of, in one sentence.
+ *
+ * Every one of these five figures has been read as something it is not. Wall
+ * time and tool-stage time were compared as though the second were a share of
+ * the first; the call count and the tool time were compared as though one were
+ * the other's denominator, when the counter increments on stages the timing
+ * never covered. A tile that states its own definition is cheaper than the
+ * conversation that follows a reader deciding on one.
+ *
+ * Rendered as `title`, so the sentence arrives on hover without a second line
+ * of text under every figure. That is a real limitation for a reader on a
+ * keyboard or a screen reader, and the tiles are still labelled without it.
+ */
+export const KPI_HINTS = {
+  wallTime: 'How long this run took from end to end, from the question arriving to the answer being stored.',
+  toolStageTime:
+    'How much of that run was spent in data work, counting nested and parallel steps once rather than twice.',
+  agentToolCalls: 'How many external tool calls the agent recorded making while it answered this question.',
+  llmTokens: 'How many tokens the model gateway metred for this run, split into the prompt and the reply.',
+  userRating: 'What a person scored this answer out of five, or Not rated when nobody has scored it yet.',
+} as const;
 
 export function conversationRunTitle(runs: readonly Run[], selected: Run | null): string | undefined {
   if (!selected?.conversation_id) return undefined;
@@ -214,7 +325,10 @@ export function RunExplorer() {
   // `toolStages` is the subset of stages it tagged as tool work for the timeline,
   // `discover` and `synthesis` increment the counter while being tagged `agent`, so
   // the counter is routinely larger and the list is often empty on a real run.
-  const toolStageMs = toolStageDurationMs(stages);
+  // Bounded by the run's own duration, which is the figure the tile beside it
+  // prints. Two tiles read side by side are one claim, and the second cannot
+  // report more time than the first without calling the first wrong.
+  const toolStageMs = toolStageDurationMs(stages, selected?.duration_ms ?? null);
   const agentToolCalls = runTrace?.trace?.toolCalls ?? null;
   // Nothing was tagged, so the time spent in those calls is unmeasured, not zero.
   // Rendering 0.0s next to a non-zero call count reads as "the tools were free".
@@ -365,7 +479,7 @@ export function RunExplorer() {
             </TabsList>
             <TabsContent value="overview" className="space-y-4 pt-4">
               <div className="summary-grid">
-                <Card>
+                <Card title={KPI_HINTS.wallTime}>
                   <CardContent>
                     <span>Wall time</span>
                     <strong className={tileValue(!selected?.duration_ms)}>
@@ -373,7 +487,7 @@ export function RunExplorer() {
                     </strong>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card title={KPI_HINTS.toolStageTime}>
                   <CardContent>
                     <span>Tool-stage time</span>
                     {/* Absent covers both "no trace" and "a trace that tagged no
@@ -384,13 +498,13 @@ export function RunExplorer() {
                     </strong>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card title={KPI_HINTS.agentToolCalls}>
                   <CardContent>
                     <span>Agent tool calls</span>
                     <strong className={tileValue(agentToolCalls === null)}>{agentToolCalls ?? ABSENT}</strong>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card title={KPI_HINTS.llmTokens}>
                   <CardContent>
                     <span>LLM tokens</span>
                     <strong className={tileValue(totalTokens === null || totalTokens <= 0)}>
@@ -400,7 +514,7 @@ export function RunExplorer() {
                     )}
                   </CardContent>
                 </Card>
-                <Card>
+                <Card title={KPI_HINTS.userRating}>
                   <CardContent>
                     <span>User rating</span>
                     {/* In words, and with the way to supply one. A run nobody has
@@ -486,7 +600,13 @@ export function RunExplorer() {
               )}
             </TabsContent>
             <TabsContent value="map" className="pt-5">
-              {stages.length > 0 ? (<TraceDag stages={stages} activeIndex={-1} charts={runTrace?.charts} />
+              {stages.length > 0 ? (<TraceDag
+                  stages={stages}
+                  activeIndex={-1}
+                  charts={runTrace?.charts}
+                  trace={runTrace?.trace}
+                  question={runTrace?.prompt ?? ''}
+                />
               ) : (<TraceUnavailable state={traceState} />
               )}
             </TabsContent>

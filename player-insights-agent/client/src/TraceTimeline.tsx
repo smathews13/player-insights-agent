@@ -15,6 +15,7 @@ import { buildTimeline, formatMs, toolNameFromId, type RollUpRow, type TimelineR
 import { describePayload, payloadSize } from './trace-payload';
 import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
+import { Badge } from './ui';
 
 /**
  * The word on the chip.
@@ -93,7 +94,13 @@ function RollUp({ rows }: { rows: RollUpRow[] }) {
       </div>
       <div className="trace-kpis">
         {rows.map((row) => (<div key={row.type} className="trace-kpi">
-            <KindChip type={row.type} />
+            <div className="trace-kpi-head">
+              <KindChip type={row.type} />
+              <Badge variant="outline" className="trace-call-badge ast-num">
+                {row.calls} call{row.calls === 1 ? '' : 's'}
+                {row.partialCalls > 0 && ` · ${row.partialCalls} partial`}
+              </Badge>
+            </div>
             {/* `ast-num` on the tile's value and on its meta line, because §3 names
                 a stat value and a meta slot as two of the four places DM Mono is
                 binding. Both rules used to ask DM Sans for `tabular-nums`, which
@@ -105,10 +112,6 @@ function RollUp({ rows }: { rows: RollUpRow[] }) {
                   divide by. */}
               {row.sharePct !== null && (<span className="trace-kpi-share">{Math.round(row.sharePct)}% of wall clock</span>
               )}
-              <span>
-                {row.calls} call{row.calls === 1 ? '' : 's'}
-              </span>
-              {row.partialCalls > 0 && <em title="ended partial">{row.partialCalls} partial</em>}
               {row.failedCalls > 0 && (<em
                   className="trace-failed"
                   title="failed: counted in recorded activity, left out of the time above, because time spent failing is not time spent doing that work"

@@ -4,7 +4,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { ConfigurationList, ConnectionRow, ConnectionsCounts, RESOURCE_PRODUCT, configurationValue, DataCatalogsValue, CatalogDenylistValue } from './ConnectionsPage';
+import {
+  ConfigurationList,
+  ConnectionRow,
+  ConnectionsCounts,
+  RESOURCE_PRODUCT,
+  configurationValue,
+  DataCatalogsValue,
+  CatalogDenylistValue,
+} from './ConnectionsPage';
 import { BRAND_MARKS, BRAND_THEME_MARKS } from './brand-icons';
 import { buildFacts } from './connection-build';
 import { groupConnections, readConnections, type SettingsPayload } from './connection-model';
@@ -118,13 +126,15 @@ describe('the sections the rows are grouped into', () => {
   it('says each verdict once, in the header, and not again on any row', () => {
     const groups = groupsFor(
       [row('sql-warehouse', { configured: 'wh-0001' }), row('catalog', { configured: 'a_catalog' })],
-      [check('sql-warehouse', 'failed'), check('catalog', 'ok')],
+      [check('sql-warehouse', 'failed'), check('catalog', 'ok')]
     );
     expect(groups.map((group) => group.key)).toEqual(['blocked', 'reachable']);
 
     const rows = groups
       .flatMap((group) => group.readings)
-      .map((reading) => render(<ConnectionRow
+      .map((reading) =>
+        render(
+          <ConnectionRow
             reading={reading}
             tone="blocked"
             saving={false}
@@ -132,8 +142,8 @@ describe('the sections the rows are grouped into', () => {
             requested={false}
             onSave={() => Promise.resolve(true)}
             onClear={async () => {}}
-          />,
-        ),
+          />
+        )
       )
       .join('');
     // The chip's own words, which are what a per-row verdict looked like.
@@ -153,7 +163,7 @@ describe('the sections the rows are grouped into', () => {
         row('genie-data', { configured: 'space-data' }),
         row('genie-dictionary', { configured: 'space-dictionary' }),
       ],
-      [check('sql-warehouse', 'ok')],
+      [check('sql-warehouse', 'ok')]
     );
     const asides = new Map(groups.map((group) => [group.key, group.aside]));
     expect(asides.get('not-checked')).toBe('2 dependencies');
@@ -175,7 +185,15 @@ describe('the Configuration list', () => {
    */
   function configuration() {
     const group = groupsFor(CONFIG_ROWS).find((candidate) => candidate.key === 'configuration')!;
-    return render(<ConfigurationList group={group} saving="" requestedResource="" onSave={() => Promise.resolve(true)} onClear={async () => {}} />);
+    return render(
+      <ConfigurationList
+        group={group}
+        saving=""
+        requestedResource=""
+        onSave={() => Promise.resolve(true)}
+        onClear={async () => {}}
+      />
+    );
   }
 
   it('reaches no verdict about a value with nothing to reach', () => {
@@ -195,14 +213,19 @@ describe('the Configuration list', () => {
   });
 
   it('offers the pencil only where something can write the value', () => {
-    const editable = render(<ConfigurationList
-        group={groupsFor([row('max-output-tokens', { configured: '4000', editable: true })]).find((group) => group.key === 'configuration')!}
+    const editable = render(
+      <ConfigurationList
+        group={
+          groupsFor([row('max-output-tokens', { configured: '4000', editable: true })]).find(
+            (group) => group.key === 'configuration'
+          )!
+        }
         saving=""
         requestedResource=""
         allowMutations
         onSave={() => Promise.resolve(true)}
         onClear={async () => {}}
-      />,
+      />
     );
     expect(editable).toContain('data-affordance="write"');
     expect(configuration()).toContain('data-affordance="locked"');
@@ -218,13 +241,19 @@ describe('data_catalogs and catalog_denylist on the Configuration list', () => {
    */
   function listFor(...rows: ReturnType<typeof row>[]) {
     const group = groupsFor(rows).find((candidate) => candidate.key === 'configuration')!;
-    return render(<ConfigurationList group={group} saving="" requestedResource="" onSave={() => Promise.resolve(true)} onClear={async () => {}} />);
+    return render(
+      <ConfigurationList
+        group={group}
+        saving=""
+        requestedResource=""
+        onSave={() => Promise.resolve(true)}
+        onClear={async () => {}}
+      />
+    );
   }
 
   it('labels a whole-catalog entry and a single-schema entry differently', () => {
-    const markup = render(
-      <DataCatalogsValue configured="production_catalog, shared.reference_data" />,
-    );
+    const markup = render(<DataCatalogsValue configured="production_catalog, shared.reference_data" />);
     expect(markup).toContain('data-scope-form="whole-catalog"');
     expect(markup).toContain('data-scope-form="single-schema"');
     expect(markup).toContain('production_catalog');
@@ -255,7 +284,7 @@ describe('data_catalogs and catalog_denylist on the Configuration list', () => {
   it('draws both through the Configuration list rather than as dependency rows', () => {
     const rendered = listFor(
       row('catalog-allowlist', { configured: 'analytics, analytics.demo' }),
-      row('catalog-denylist', { configured: '' }),
+      row('catalog-denylist', { configured: '' })
     );
     expect(rendered).toContain('data-testid="configuration-catalog-allowlist"');
     expect(rendered).toContain('data-testid="configuration-catalog-denylist"');
@@ -281,11 +310,13 @@ describe('the product marks on the rows', () => {
   it('draws each product its own official mark', () => {
     const groups = groupsFor(
       [row('sql-warehouse', { configured: 'wh-0001' }), row('genie-data', { configured: 'space-data' })],
-      [check('sql-warehouse', 'ok'), check('genie-data', 'ok')],
+      [check('sql-warehouse', 'ok'), check('genie-data', 'ok')]
     );
     const rendered = groups
       .flatMap((group) => group.readings)
-      .map((reading) => render(<ConnectionRow
+      .map((reading) =>
+        render(
+          <ConnectionRow
             reading={reading}
             tone="reachable"
             saving={false}
@@ -293,8 +324,8 @@ describe('the product marks on the rows', () => {
             requested={false}
             onSave={() => Promise.resolve(true)}
             onClear={async () => {}}
-          />,
-        ),
+          />
+        )
       )
       .join('');
     // The recoloured cut, which is what this page draws now: official geometry
@@ -326,7 +357,15 @@ describe('the product marks on the rows', () => {
    */
   it('leaves the announcing to the label beside it', () => {
     const group = groupsFor(CONFIG_ROWS).find((candidate) => candidate.key === 'configuration')!;
-    const rendered = render(<ConfigurationList group={group} saving="" requestedResource="" onSave={() => Promise.resolve(true)} onClear={async () => {}} />);
+    const rendered = render(
+      <ConfigurationList
+        group={group}
+        saving=""
+        requestedResource=""
+        onSave={() => Promise.resolve(true)}
+        onClear={async () => {}}
+      />
+    );
     expect(rendered).toContain(BRAND_THEME_MARKS.light.apps);
     expect(rendered).not.toMatch(/title="Databricks Apps"/);
   });
@@ -356,7 +395,8 @@ describe('the value the app writes to, which the design wants green', () => {
 
   it('is green there, as the design asks, without a rule of its own', () => {
     const [reading] = groupsFor(EXPERIMENT, [check('experiment-id', 'ok')]).flatMap((group) => group.readings);
-    const rendered = render(<ConnectionRow
+    const rendered = render(
+      <ConnectionRow
         reading={reading}
         tone="reachable"
         saving={false}
@@ -364,7 +404,7 @@ describe('the value the app writes to, which the design wants green', () => {
         requested={false}
         onSave={() => Promise.resolve(true)}
         onClear={async () => {}}
-      />,
+      />
     );
     expect(rendered).toContain('data-tone="reachable"');
     expect(text(rendered)).toContain('<mlflow-experiment-id>');
@@ -376,7 +416,15 @@ describe('the value the app writes to, which the design wants green', () => {
    */
   it('tints nothing in the Configuration list', () => {
     const group = groupsFor([...EXPERIMENT, ...CONFIG_ROWS]).find((candidate) => candidate.key === 'configuration')!;
-    const rendered = render(<ConfigurationList group={group} saving="" requestedResource="" onSave={() => Promise.resolve(true)} onClear={async () => {}} />);
+    const rendered = render(
+      <ConfigurationList
+        group={group}
+        saving=""
+        requestedResource=""
+        onSave={() => Promise.resolve(true)}
+        onClear={async () => {}}
+      />
+    );
     expect(rendered).not.toMatch(/data-tone="(reachable|blocked|drifted)"/);
     expect(text(rendered)).toContain('<mlflow-experiment-id>');
   });
@@ -489,7 +537,7 @@ describe('the configuration plane survived being restyled', () => {
    */
   it('opens the app’s own menu rather than the operating system’s', () => {
     expect(component('DeclaredConnectionsCard.tsx')).not.toMatch(/<select\b/);
-    expect(component('DeclaredConnectionsCard.tsx')).toMatch(/SelectTrigger/);
+    expect(component('DeclaredConnectionsCard.tsx')).toMatch(/AppSelect/);
   });
 
   /**

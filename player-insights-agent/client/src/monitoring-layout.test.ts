@@ -130,13 +130,16 @@ function periodGroup(): number {
   );
 }
 
-/** One unset chip, which prints its name, a separator dot and the off word. */
+/**
+ * One unset chip, which is now the shared app-select trigger inside the
+ * Monitoring wrapper and prints its name, separator dot and off word.
+ */
 function chip(name: string, off: string): number {
   return (
-    borderX('.monitoring-chip') +
-    padX('.monitoring-chip') +
+    borderX('.app-select-trigger') +
+    padX('.app-select-trigger') +
     // Two gaps: name to dot, dot to value.
-    px('.monitoring-chip', 'gap') * 2 +
+    px('.app-select-trigger', 'gap') * 2 +
     textWidth(`${name}\u00b7${off}`)
   );
 }

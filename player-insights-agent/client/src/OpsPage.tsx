@@ -226,10 +226,12 @@ function BlockHead({
   control?: React.ReactNode;
   children?: React.ReactNode;
 }) {
-  return (<div className="ops-block-head">
+  return (
+    <div className="ops-block-head">
       <div className="ops-block-head-text">
         <h3 id={id}>{title}</h3>
-        {(badges ?? []).map((badge) => (<span key={badge.word} className={badge.tone}>
+        {(badges ?? []).map((badge) => (
+          <span key={badge.word} className={badge.tone}>
             {badge.word}
           </span>
         ))}
@@ -255,7 +257,8 @@ function BlockBody({ children }: { children: React.ReactNode }) {
  * would interrupt a screen reader three times before the first heading.
  */
 function BlockFailed({ title, reason, onRetry }: { title: string; reason: string; onRetry: () => void }) {
-  return (<div className="ops-block-failed" role="status" aria-live="polite">
+  return (
+    <div className="ops-block-failed" role="status" aria-live="polite">
       <p className="ops-block-failed-title">{title} could not be read</p>
       <p>{reason}</p>
       {/*
@@ -277,7 +280,8 @@ function BlockFailed({ title, reason, onRetry }: { title: string; reason: string
  * and prose that has been wrapped and smart-quoted does not run.
  */
 function Grant({ grant }: { grant: GrantRemedy }) {
-  return (<div className="ops-grant">
+  return (
+    <div className="ops-grant">
       <p className="ops-grant-label">
         Grant {grant.privilege} on {grant.object}
       </p>
@@ -296,7 +300,8 @@ function Grant({ grant }: { grant: GrantRemedy }) {
  * `ops-view.ts` no longer produces anything else for this to draw.
  */
 function Absence({ notice, children }: { notice: AbsenceCopy; children?: React.ReactNode }) {
-  return (<div className="ops-absence">
+  return (
+    <div className="ops-absence">
       <p className="ops-absence-title">{notice.title}</p>
       <p className="ops-absence-body">{notice.body}</p>
       {children}
@@ -346,8 +351,8 @@ function probeMark(kind: string) {
 }
 
 /**
- * The recorded error lines under the health table, framed so history does not
- * read as a live failure.
+ * Recorded error lines under the health table, only while a current dependency
+ * is not answering. Historical lines add no action to an all-green health view.
  *
  * The framing sentence and the count are `errorFraming`'s, so the one line a
  * reader acts on can be asserted without a browser. This component is the list
@@ -362,11 +367,14 @@ function RecordedErrors({
 }) {
   const framing = errorFraming({ errorCount: errors.count, dependencies });
   if (!framing) return null;
-  return (<div className="ops-errors">
+  return (
+    <div className="ops-errors">
       <p className="ops-errors-headline">{framing.headline}</p>
       <p className="ops-errors-note">{framing.note}</p>
-      {errors.recent.length > 0 ? (<ul className="ops-error-list">
-          {errors.recent.map((line) => (<li key={`${line.at}-${line.body}`}>
+      {errors.recent.length > 0 ? (
+        <ul className="ops-error-list">
+          {errors.recent.map((line) => (
+            <li key={`${line.at}-${line.body}`}>
               <When at={line.at} /> <span className="ops-error-body">{line.body}</span>
             </li>
           ))}
@@ -387,7 +395,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
   const payload = block.data;
 
   if (block.failed) {
-    return (<section className="ops-block" aria-labelledby="ops-health-heading">
+    return (
+      <section className="ops-block" aria-labelledby="ops-health-heading">
         <h3 id="ops-health-heading" className="sr-only">
           Health
         </h3>
@@ -406,7 +415,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
       })
     : null;
 
-  return (<section className="ops-block" aria-labelledby="ops-health-heading">
+  return (
+    <section className="ops-block" aria-labelledby="ops-health-heading">
       <BlockHead
         id="ops-health-heading"
         title="Health"
@@ -421,7 +431,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
             different way, and a reader who cannot tell them apart has been given
             one number for two questions. */}
         <span className="ops-platform">
-          {(payload?.platform ?? []).map((reading) => (<span key={reading.id} className={`${platformTone(reading)} ops-platform-pill`}>
+          {(payload?.platform ?? []).map((reading) => (
+            <span key={reading.id} className={`${platformTone(reading)} ops-platform-pill`}>
               <span className="ops-platform-pill-label">{reading.label}</span>
               <span className="ops-platform-pill-state">{reading.read ? reading.state : 'Not checked'}</span>
             </span>
@@ -430,12 +441,12 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
       </BlockHead>
 
       <BlockBody>
-        {block.busy && !payload ? (<Skeleton className="ops-skeleton" />
+        {block.busy && !payload ? (
+          <Skeleton className="ops-skeleton" />
         ) : (
           <>
-            {payload?.reason ? (<Absence
-                notice={{ title: 'The dependency checks did not run', body: payload.reason }}
-              />
+            {payload?.reason ? (
+              <Absence notice={{ title: 'The dependency checks did not run', body: payload.reason }} />
             ) : (
               <table className="ops-table">
                 <caption className="sr-only">
@@ -450,11 +461,12 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                     <th scope="col" className="ops-col-when">
                       Last check
                     </th>
-                    <th scope="col">Reason, when it did not answer</th>
+                    <th scope="col">Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(payload?.dependencies ?? []).map((row) => (<tr key={row.id}>
+                  {(payload?.dependencies ?? []).map((row) => (
+                    <tr key={row.id}>
                       <th scope="row">
                         <span className="ops-dependency">
                           {/* The product's own mark, 16px, from the module that
@@ -470,7 +482,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                               where the server said there is one: some probes have
                               no Connections row, and a link to nothing looks like
                               the page failing to find it. */}
-                          {row.connectionsId ? (<Link
+                          {row.connectionsId ? (
+                            <Link
                               className="ops-dependency-label"
                               to={`/connections?entity=${encodeURIComponent(row.connectionsId)}`}
                             >
@@ -484,7 +497,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                             not already carrying it. Most probe labels are
                             "SQL warehouse · <id>" and the second line was the
                             same string again under the first. */}
-                        {row.name && !row.label.includes(row.name) ? (<span className="ops-dependency-name">{row.name}</span>
+                        {row.name && !row.label.includes(row.name) ? (
+                          <span className="ops-dependency-name">{row.name}</span>
                         ) : null}
                       </th>
                       <td className="ops-col-result">
@@ -494,7 +508,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                         <span className={RESULT_TONE[row.result]}>{resultLabel(row.result)}</span>
                       </td>
                       <td className="ops-col-when">
-                        {row.lastCheckedAt ? (<time dateTime={row.lastCheckedAt}>{ageAgo(row.lastCheckedAt)}</time>
+                        {row.lastCheckedAt ? (
+                          <time dateTime={row.lastCheckedAt}>{ageAgo(row.lastCheckedAt)}</time>
                         ) : null}
                       </td>
                       <td className="ops-reason">{reasonCell(row)}</td>
@@ -511,22 +526,18 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                 person acts on: the way out to the platform record, when the app
                 last served anything, and the error lines themselves. */}
             <div className="ops-subsection">
-              {payload?.app.insightsHref ? (<a
-                  className="ops-external"
-                  href={payload.app.insightsHref}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+              {payload?.app.insightsHref ? (
+                <a className="ops-external" href={payload.app.insightsHref} target="_blank" rel="noreferrer">
                   App availability in Databricks
                   <ExternalLink className="size-3.5" aria-hidden="true" />
                   <span className="sr-only">(opens in a new tab)</span>
                 </a>
               ) : null}
 
-              {telemetry ? (<Absence notice={telemetry}>
-                  {payload?.app.grant ? <Grant grant={payload.app.grant} /> : null}
-                </Absence>
-              ) : payload ? (<div className="ops-telemetry-figures">
+              {telemetry ? (
+                <Absence notice={telemetry}>{payload?.app.grant ? <Grant grant={payload.app.grant} /> : null}</Absence>
+              ) : payload ? (
+                <div className="ops-telemetry-figures">
                   <p>
                     Most recent request: <When at={payload.app.lastServedAt} />
                   </p>
@@ -536,13 +547,10 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                       draws the eye to a number a reader then has to read to
                       discover is nothing.
 
-                      When there IS a count, it is framed rather than left bare:
-                      the same figure of two-day-old lines reads as a live
-                      Connection failure without the sentence saying the checks
-                      above all answered just now. See `errorFraming`. The lines
-                      themselves are never hidden, and each carries its own
-                      absolute timestamp so "when" is a fact on the row, not a
-                      guess. */}
+                      When there IS a count, it appears only beside a current
+                      failed dependency. Old lines disappear when the live checks
+                      are healthy, because they are history rather than an active
+                      health result. */}
                   <RecordedErrors
                     errors={payload.app.errors}
                     dependencies={(payload.dependencies ?? []).map((row) => row.result)}
@@ -613,7 +621,8 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
   const billingHref = databricksLink(useWorkspaceHost(), { kind: 'table', table: 'system.billing.usage' });
 
   if (block.failed) {
-    return (<section className="ops-block" aria-labelledby="ops-cost-heading">
+    return (
+      <section className="ops-block" aria-labelledby="ops-cost-heading">
         <h3 id="ops-cost-heading" className="sr-only">
           Cost
         </h3>
@@ -667,44 +676,47 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
       />
 
       <BlockBody>
-        {block.busy && !payload ? (<Skeleton className="ops-skeleton" />
-        ) : absent ? (<Absence notice={absent}>
-            {payload?.grant ? <Grant grant={payload.grant} /> : null}
-          </Absence>
-        ) : payload ? (<>
-          <div className="ops-tiles">
-            {payload.tiles.map((tile) => {
-              const view = tileView(tile, payload.currency);
-              const product = productForCostTile(tile.id);
-              return (<div key={tile.id} className="ops-tile">
-                  {/* 14px beside the label, and absent on the two tiles whose
+        {block.busy && !payload ? (
+          <Skeleton className="ops-skeleton" />
+        ) : absent ? (
+          <Absence notice={absent}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
+        ) : payload ? (
+          <>
+            <div className="ops-tiles">
+              {payload.tiles.map((tile) => {
+                const view = tileView(tile, payload.currency);
+                const product = productForCostTile(tile.id);
+                return (
+                  <div key={tile.id} className="ops-tile">
+                    {/* 14px beside the label, and absent on the two tiles whose
                       spend is not any one product's: a Lakeflow job and the
                       platform's charge for writing telemetry tables. */}
-                  <p className="ops-tile-label">
-                    {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
-                    {/* Truncated with an ellipsis rather than wrapped, and
+                    <p className="ops-tile-label">
+                      {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
+                      {/* Truncated with an ellipsis rather than wrapped, and
                         carrying its own full text on hover. An uppercase
                         letter-spaced eyebrow is the one line on this card that
                         cannot wrap without pushing the figure down a row and
                         taking the card out of step with its neighbours. */}
-                    <span className="ops-tile-label-text" title={view.label}>
-                      {view.label}
-                    </span>
-                  </p>
-                  {/* `.ast-num` on the figure and not on the basis beside it.
+                      <span className="ops-tile-label-text" title={view.label}>
+                        {view.label}
+                      </span>
+                    </p>
+                    {/* `.ast-num` on the figure and not on the basis beside it.
                       Six of these sit in a three-column grid, so a reader compares
                       them down a column, and DM Sans cannot line them up: the
                       basis is a phrase and belongs in DM Sans. */}
-                  {view.figure ? (<p className="ops-tile-figure">
-                      <span className="ast-num">{view.figure}</span>{' '}
-                      <span className="ops-tile-basis">{view.basisLabel}</span>
-                    </p>
-                  ) : (
-                    /* Not a dash and not a zero. A component nobody could
+                    {view.figure ? (
+                      <p className="ops-tile-figure">
+                        <span className="ast-num">{view.figure}</span>{' '}
+                        <span className="ops-tile-basis">{view.basisLabel}</span>
+                      </p>
+                    ) : (
+                      /* Not a dash and not a zero. A component nobody could
                        attribute and one that cost nothing are different facts. */
-                    <p className="ops-tile-absent">{view.absence}</p>
-                  )}
-                  {/*
+                      <p className="ops-tile-absent">{view.absence}</p>
+                    )}
+                    {/*
                     THE FOOT OF THE CARD, and it holds a badge or a remedy and
                     never a sentence. Six cards of prose under six numbers was a
                     grid nobody read to the end of, and the captions wrapped into
@@ -721,31 +733,34 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                     pill and not the amber one: it states what the figure covers,
                     and there is nothing about it for anybody to fix.
                   */}
-                  {view.estimate || view.sharedScope || view.remedy ? (<p className="ops-tile-foot">
-                      {view.estimate ? (<span className={astPill('warn', 'ops-pill')}>{view.qualityLabel}</span>
-                      ) : null}
-                      {view.sharedScope ? (<span className={astPill('neutral-outline', 'ops-pill')}>{view.population}</span>
-                      ) : null}
-                      {/* The one thing that would make this figure attributable,
+                    {view.estimate || view.sharedScope || view.remedy ? (
+                      <p className="ops-tile-foot">
+                        {view.estimate ? (
+                          <span className={astPill('warn', 'ops-pill')}>{view.qualityLabel}</span>
+                        ) : null}
+                        {view.sharedScope ? (
+                          <span className={astPill('neutral-outline', 'ops-pill')}>{view.population}</span>
+                        ) : null}
+                        {/* The one thing that would make this figure attributable,
                           and only where there is one. It is not description: it
                           is the single action that fills the card in. */}
-                      {view.remedy ? <span className="ops-tile-remedy">{view.remedy}</span> : null}
-                    </p>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-          {billingHref ? (
-            <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer">
-              Open system.billing.usage
-              <ExternalLink className="size-3.5" aria-hidden="true" />
-            </a>
-          ) : null}
-          <p className="ops-source-filter">
-            Filtered to <code>{"custom_tags['astrolabe']"}</code>.
-          </p>
-        </>
+                        {view.remedy ? <span className="ops-tile-remedy">{view.remedy}</span> : null}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            {billingHref ? (
+              <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer">
+                Open system.billing.usage
+                <ExternalLink className="size-3.5" aria-hidden="true" />
+              </a>
+            ) : null}
+            <p className="ops-source-filter">
+              Filtered to <code>{"custom_tags['astrolabe']"}</code>.
+            </p>
+          </>
         ) : null}
       </BlockBody>
     </section>
@@ -786,12 +801,15 @@ function BarChart({
    */
   note?: string;
 }) {
-  return (<div className={`ops-chart ops-chart-${tone}`}>
+  return (
+    <div className={`ops-chart ops-chart-${tone}`}>
       <h4>{title}</h4>
-      {series.length === 0 ? (<p className="ops-chart-empty">{caption}</p>
+      {series.length === 0 ? (
+        <p className="ops-chart-empty">{caption}</p>
       ) : (
         <ul className="ops-bars">
-          {series.map((bar) => (<li key={bar.key} className="ops-bar-row">
+          {series.map((bar) => (
+            <li key={bar.key} className="ops-bar-row">
               {/* The name in full, wrapping rather than broken through the middle
                   of a word. Cause and tool labels alike are prose the store
                   recorded, so a label clipped to one line loses the phrase that
@@ -803,7 +821,8 @@ function BarChart({
               <span className="ops-bar-track">
                 <span className="ops-bar-fill" style={{ width: `${bar.percent}%` }} aria-hidden="true" />
               </span>
-              {href ? (<Link className="ops-bar-count" to={href(bar)}>
+              {href ? (
+                <Link className="ops-bar-count" to={href(bar)}>
                   {count(bar.count)}
                 </Link>
               ) : (
@@ -865,9 +884,11 @@ function QuestionsPerDay({ days }: { days: Array<{ day: string; count: number }>
    * would push it out through the top of the chart.
    */
   const ceiling = valued ? 78 : 100;
-  return (<div className="ops-chart">
+  return (
+    <div className="ops-chart">
       <h4>Questions per day</h4>
-      {days.length === 0 ? (<p className="ops-chart-empty">No questions were asked in this range.</p>
+      {days.length === 0 ? (
+        <p className="ops-chart-empty">No questions were asked in this range.</p>
       ) : (
         <>
           {/* The scale, where the columns are too many to each carry one. On the
@@ -875,16 +896,13 @@ function QuestionsPerDay({ days }: { days: Array<{ day: string; count: number }>
               rather than as a figure belonging to the first day. */}
           {!valued && busiest > 0 ? <p className="ops-daybars-peak">{count(busiest)}</p> : null}
           <ul className="ops-daybars">
-            {days.map((day) => (<li
-                key={day.day}
-                className="ops-daybar"
-                title={`${axisDay(day.day)}: ${count(day.count)}`}
-              >
-                {valued && day.count > 0 ? (<span className="ops-daybar-value">{count(day.count)}</span>
-                ) : null}
+            {days.map((day) => (
+              <li key={day.day} className="ops-daybar" title={`${axisDay(day.day)}: ${count(day.count)}`}>
+                {valued && day.count > 0 ? <span className="ops-daybar-value">{count(day.count)}</span> : null}
                 {/* No column at all for a day nothing was asked on. A drawn bar
                     is a claim that there is something to draw. */}
-                {day.count > 0 && busiest > 0 ? (<span
+                {day.count > 0 && busiest > 0 ? (
+                  <span
                     className="ops-daybar-fill"
                     style={{ height: `${Math.max(4, Math.round((day.count / busiest) * ceiling))}%` }}
                     aria-hidden="true"
@@ -941,7 +959,8 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
   const [page, setPage] = useState(0);
 
   if (block.failed) {
-    return (<section className="ops-block" aria-labelledby="ops-latency-heading">
+    return (
+      <section className="ops-block" aria-labelledby="ops-latency-heading">
         <h3 id="ops-latency-heading" className="sr-only">
           Latency
         </h3>
@@ -974,7 +993,8 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
   // reader is looking at rather than to routes on another page of the table.
   const barWidths = p50BarWidths(shown.map((route) => route.p50Ms));
 
-  return (<section className="ops-block" aria-labelledby="ops-latency-heading">
+  return (
+    <section className="ops-block" aria-labelledby="ops-latency-heading">
       <BlockHead
         id="ops-latency-heading"
         title="Latency"
@@ -983,56 +1003,87 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
       />
 
       <BlockBody>
-        {block.busy && !payload ? (<Skeleton className="ops-skeleton" />
-        ) : absence ? (<Absence notice={absence}>
-            {payload?.grant ? <Grant grant={payload.grant} /> : null}
-          </Absence>
-        ) : payload ? (<>
+        {block.busy && !payload ? (
+          <Skeleton className="ops-skeleton" />
+        ) : absence ? (
+          <Absence notice={absence}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
+        ) : payload ? (
+          <>
             {/* THE FACT TRUE OF EVERY ROW, SAID ONCE. Replaces the columns of
                 repeated dashes p95/p99/errors/refusals/trend became on a quiet
                 window. When a route crosses the span floor the columns come
                 back and this line stops claiming there are none. */}
-            {facts.line ? (<p className="ops-latency-facts">
+            {facts.line ? (
+              <p className="ops-latency-facts">
                 <Info className="size-3.5" aria-hidden="true" />
                 <span>{facts.line}</span>
               </p>
             ) : null}
-            <table className="ops-table ops-latency-table" data-testid="ops-latency">
-              <thead>
-                <tr>
-                  <th scope="col" className="ops-lat-method">
-                    Method
-                  </th>
-                  <th scope="col" className="ops-lat-route">
-                    Route
-                  </th>
-                  <th scope="col" className="ops-lat-hit">
-                    Last hit
-                  </th>
-                  <th scope="col">Spans</th>
-                  <th scope="col">p50</th>
-                  <th scope="col" className="ops-lat-bar-head">
-                    P50 · log scale
-                  </th>
-                  <th scope="col">Slowest</th>
-                  {facts.showPercentiles ? (<>
-                      <th scope="col">p95</th>
-                      <th scope="col">p99</th>
-                      <th scope="col">Trend</th>
+            <div className="ops-latency-scroll">
+              <table
+                className={`ops-table ops-latency-table${facts.showPercentiles ? ' ops-latency-table-expanded' : ''}`}
+                data-testid="ops-latency"
+              >
+                <colgroup>
+                  <col className="ops-lat-col-method" />
+                  <col className="ops-lat-col-route" />
+                  <col className="ops-lat-col-hit" />
+                  <col className="ops-lat-col-spans" />
+                  <col className="ops-lat-col-p50" />
+                  <col className="ops-lat-col-bar" />
+                  <col className="ops-lat-col-slowest" />
+                  {facts.showPercentiles ? (
+                    <>
+                      <col className="ops-lat-col-percentile" />
+                      <col className="ops-lat-col-percentile" />
+                      <col className="ops-lat-col-trend" />
                     </>
                   ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((route, index) => (<LatencyRow
-                    key={route.route}
-                    route={route}
-                    barWidth={barWidths[index]}
-                    showPercentiles={facts.showPercentiles}
-                  />
-                ))}
-              </tbody>
-            </table>
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col" className="ops-lat-method">
+                      Method
+                    </th>
+                    <th scope="col" className="ops-lat-route">
+                      Route
+                    </th>
+                    <th scope="col" className="ops-lat-hit">
+                      Last hit
+                    </th>
+                    <th scope="col" className="ops-lat-spans">
+                      Spans
+                    </th>
+                    <th scope="col" className="ops-lat-p50">
+                      p50
+                    </th>
+                    <th scope="col" className="ops-lat-bar-head">
+                      P50 · log scale
+                    </th>
+                    <th scope="col" className="ops-lat-slowest">
+                      Slowest
+                    </th>
+                    {facts.showPercentiles ? (
+                      <>
+                        <th scope="col">p95</th>
+                        <th scope="col">p99</th>
+                        <th scope="col">Trend</th>
+                      </>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((route, index) => (
+                    <LatencyRow
+                      key={route.route}
+                      route={route}
+                      barWidth={barWidths[index]}
+                      showPercentiles={facts.showPercentiles}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         ) : null}
       </BlockBody>
@@ -1048,7 +1099,8 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
         fourth kind of thing. Nothing renders at ten routes or fewer: controls
         over a single page are chrome for a decision nobody has to make.
       */}
-      {pages > 1 ? (<div className="ops-block-foot ops-pager">
+      {pages > 1 ? (
+        <div className="ops-block-foot ops-pager">
           <span className="ops-pager-range">
             {from + 1}&ndash;{from + shown.length} of {count(routes.length)}
           </span>
@@ -1091,7 +1143,8 @@ function LatencyCaption({ from, to }: { from: string; to: string }) {
   if (!from || !to) {
     return <span className="ops-block-meta">By route, vs each route’s prior half</span>;
   }
-  return (<span className="ops-block-meta" title={`${from} to ${to}`}>
+  return (
+    <span className="ops-block-meta" title={`${from} to ${to}`}>
       By route, vs each route’s prior half · {spokenSpanTime(from)} to {spokenSpanTime(to)}
     </span>
   );
@@ -1151,8 +1204,7 @@ function LatencyRow({
   return (
     <tr className={view.verdict === 'slower' ? 'ops-latency-row-slower' : undefined}>
       <td className="ops-lat-method">
-        {method ? (<span className={`ops-lat-chip ops-lat-chip-${method.toLowerCase()}`}>{method}</span>
-        ) : null}
+        {method ? <span className={`ops-lat-chip ops-lat-chip-${method.toLowerCase()}`}>{method}</span> : null}
       </td>
       <th scope="row" className="ops-lat-route">
         <span className="ops-lat-path" title={route.route}>
@@ -1160,7 +1212,7 @@ function LatencyRow({
         </span>
       </th>
       <td className="ops-lat-hit">{view.freshLabel}</td>
-      <td>{count(route.spans)}</td>
+      <td className="ops-lat-spans">{count(route.spans)}</td>
       {/* Empty is not zero: an unmeasurable p50 says "not set" in mono rather
           than a bare 0 or a blank cell, per the tab's own rule. */}
       <td className="ops-lat-p50">{p50 || <span className="ops-when-absent">not set</span>}</td>
@@ -1168,17 +1220,22 @@ function LatencyRow({
         {/* The bar is a length that can be misread; the p50 beside it is the
             number that cannot, so the bar is decorative and aria-hidden. No
             track at all where there is no duration to draw. */}
-        {barWidth > 0 ? (<span className="ops-lat-bar-track" aria-hidden="true">
+        {barWidth > 0 ? (
+          <span className="ops-lat-bar-track" aria-hidden="true">
             <span className="ops-lat-bar-fill" style={{ width: `${barWidth}%` }} />
           </span>
         ) : null}
       </td>
-      <td>{latencyFigure(route.slowestMs) || <span className="ops-when-absent">not set</span>}</td>
-      {showPercentiles ? (<>
+      <td className="ops-lat-slowest">
+        {latencyFigure(route.slowestMs) || <span className="ops-when-absent">not set</span>}
+      </td>
+      {showPercentiles ? (
+        <>
           <PercentileCell ms={route.p95Ms} spans={route.spans} />
           <PercentileCell ms={route.p99Ms} spans={route.spans} />
           <td>
-            {view.verdict === 'slower' || view.verdict === 'within' ? (<span className={verdictTone} title={view.verdictDetail || undefined}>
+            {view.verdict === 'slower' || view.verdict === 'within' ? (
+              <span className={verdictTone} title={view.verdictDetail || undefined}>
                 {view.verdictLabel}
               </span>
             ) : (
@@ -1206,7 +1263,8 @@ export function TrafficBody({
   const payload = block.data;
 
   if (block.failed) {
-    return (<section className="ops-block" aria-labelledby="ops-traffic-heading">
+    return (
+      <section className="ops-block" aria-labelledby="ops-traffic-heading">
         <h3 id="ops-traffic-heading" className="sr-only">
           Traffic
         </h3>
@@ -1217,7 +1275,8 @@ export function TrafficBody({
     );
   }
 
-  return (<section className="ops-block" aria-labelledby="ops-traffic-heading">
+  return (
+    <section className="ops-block" aria-labelledby="ops-traffic-heading">
       <BlockHead
         id="ops-traffic-heading"
         title="Traffic"
@@ -1231,23 +1290,25 @@ export function TrafficBody({
       />
 
       <BlockBody>
-        {block.busy && !payload ? (<Skeleton className="ops-skeleton" />
-        ) : payload?.reason ? (<Absence
-            notice={{ title: 'Traffic could not be read', body: payload.reason }}
-          />
-        ) : payload ? (<>
+        {block.busy && !payload ? (
+          <Skeleton className="ops-skeleton" />
+        ) : payload?.reason ? (
+          <Absence notice={{ title: 'Traffic could not be read', body: payload.reason }} />
+        ) : payload ? (
+          <>
             {/* A read that was cut off, standing BESIDE the charts that
                 answered rather than replacing them. An empty chart is a
                 population of nobody, and a read that never came back did not
                 measure a population at all. `reason` above substitutes the
                 whole block; this one does not, because two charts out of three
                 are still worth looking at. */}
-            {payload.unread ? (<Absence notice={{ title: 'Part of this could not be read', body: payload.unread }} />
+            {payload.unread ? (
+              <Absence notice={{ title: 'Part of this could not be read', body: payload.unread }} />
             ) : null}
             <div className="ops-charts">
-            <QuestionsPerDay days={payload.questionsPerDay} />
+              <QuestionsPerDay days={payload.questionsPerDay} />
 
-            {/* TWO CHARTS, NEVER ONE SERIES AND NEVER A TOTAL. A refusal is the
+              {/* TWO CHARTS, NEVER ONE SERIES AND NEVER A TOTAL. A refusal is the
                 app working correctly and telling somebody they may not read
                 something; a failure is the app not working. Drawn together they
                 make a "problems" figure an operator will chase, and most of it
@@ -1257,38 +1318,38 @@ export function TrafficBody({
                 the next chart, never this one". It was the design narrating its
                 own layout to a reader who can see two headings, and it is the
                 comment above rather than words on the page. */}
-            <div className="ops-chart-pair">
-              <BarChart
-                title="Failures by cause"
-                caption={trafficCaption(payload.failuresByCause, 'failure', 'failures', payload.runsInRange)}
-                series={bars(payload.failuresByCause)}
-                tone="failure"
-                href={() => monitoringHref('failed')}
-              />
-              <BarChart
-                title="Refusals by cause"
-                caption={trafficCaption(payload.refusalsByCause, 'refusal', 'refusals', payload.runsInRange)}
-                series={bars(payload.refusalsByCause)}
-                tone="refusal"
-                href={() => monitoringHref('refused')}
-              />
-            </div>
+              <div className="ops-chart-pair" data-testid="ops-traffic-causes">
+                <BarChart
+                  title="Failures by cause"
+                  caption={trafficCaption(payload.failuresByCause, 'failure', 'failures', payload.runsInRange)}
+                  series={bars(payload.failuresByCause)}
+                  tone="failure"
+                  href={() => monitoringHref('failed')}
+                />
+                <BarChart
+                  title="Refusals by cause"
+                  caption={trafficCaption(payload.refusalsByCause, 'refusal', 'refusals', payload.runsInRange)}
+                  series={bars(payload.refusalsByCause)}
+                  tone="refusal"
+                  href={() => monitoringHref('refused')}
+                />
+              </div>
 
-            <BarChart
-              title="Tool calls by tool"
-              // Three words where there was a sentence, and no denominator: the
-              // run count is in the band above, once, and the three charts under
-              // it were each repeating it back in a full sentence about nothing
-              // having happened.
-              caption="No tool calls"
-              series={bars(payload.toolCalls)}
-              tone="tool"
-              // The reason this chart earns its column, said on the chart. It is
-              // the one whose shape an operator reads for release drift, so the
-              // sentence that tells them that stands under it rather than in a
-              // doc they will not have open.
-              note="A change in this shape is usually the first sign a release changed the agent's behaviour."
-            />
+              <BarChart
+                title="Tool calls by tool"
+                // Three words where there was a sentence, and no denominator: the
+                // run count is in the band above, once, and the three charts under
+                // it were each repeating it back in a full sentence about nothing
+                // having happened.
+                caption="No tool calls"
+                series={bars(payload.toolCalls)}
+                tone="tool"
+                // The reason this chart earns its column, said on the chart. It is
+                // the one whose shape an operator reads for release drift, so the
+                // sentence that tells them that stands under it rather than in a
+                // doc they will not have open.
+                note="A change in this shape is usually the first sign a release changed the agent's behaviour."
+              />
             </div>
           </>
         ) : null}
@@ -1304,7 +1365,8 @@ export function TrafficBody({
         Explorer's default would show them a different population than the one
         they clicked out of.
       */}
-      {payload && !payload.reason ? (<p className="ops-block-foot">
+      {payload && !payload.reason ? (
+        <p className="ops-block-foot">
           <Link className="ops-foot-link" to={runsHref()}>
             Answer times in Run Explorer
           </Link>
@@ -1396,7 +1458,8 @@ export function OpsPage() {
     return query ? `/runs?${query}` : '/runs';
   };
 
-  return (<div className="page-shell ops-page">
+  return (
+    <div className="page-shell ops-page">
       <PageHeading title="Ops" actions={<TimeRangeControl page="Ops" />} />
 
       {/*
@@ -1419,7 +1482,8 @@ export function OpsPage() {
           Silently falling back is how somebody reads last week's spend as the
           answer to a question about March.
         */}
-        {window_.customIncomplete ? (<span className="ops-range-dates-note">
+        {window_.customIncomplete ? (
+          <span className="ops-range-dates-note">
             The custom range was incomplete, so this is the default window rather than the one asked for.
           </span>
         ) : null}

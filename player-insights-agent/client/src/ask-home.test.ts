@@ -485,10 +485,10 @@ describe('the inspector while a run is still going', () => {
     );
     expect(HOME_PAGE).toMatch(/window\.setInterval\(\(\) => setNow\(Date\.now\(\)\), 1000\)/);
     expect(HOME_PAGE).toMatch(/if \(!parsing && !loading\) return;/);
-    // Cleared on every exit from a run, on leaving the conversation, on opening
-    // another and on asking again -- the four ways a ticking row could outlive the
-    // run it belongs to.
-    expect(HOME_PAGE.match(/setRunningSince\(null\)/g)).toHaveLength(4);
+    // Cleared on every exit from a run, including the durable-run poll completing,
+    // and on leaving the conversation, opening another or asking again -- the five
+    // ways a ticking row could outlive the run it belongs to.
+    expect(HOME_PAGE.match(/setRunningSince\(null\)/g)).toHaveLength(5);
     // Both surfaces read the same number, so they cannot disagree about how long
     // the reader has been waiting.
     expect(HOME_PAGE).toMatch(/<AgentPathConstellation[\s\S]{0,160}elapsedMs=\{railElapsedMs\}/);

@@ -83,6 +83,7 @@ function answerWith(stageTrace: typeof trace) {
     figures: [],
     sources: [{ name: 'a_catalog.a_schema.a_table', freshness: 'today' }],
     caveats: [],
+    document_snippets: [],
     sql: 'SELECT 1',
     trace: stageTrace,
   };

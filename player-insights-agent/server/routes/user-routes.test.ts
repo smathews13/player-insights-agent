@@ -17,23 +17,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setupUserRoutes } from './user-routes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { announceSeedAdmins, requireAdmin, requireSuperAdmin, type AdminStore } from '../lib/admin-roles';
-import { TELEMETRY_SCHEMA_ENV } from '../lib/admin-access';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE, ADMIN_GRANTS_TABLE } from '../lib/admin-roles-schema';
-import type { RosterMutationPayload, RosterPayload } from '../../shared/user-roster-contract';
+import type { RosterPayload } from '../../shared/user-roster-contract';
 
 const LEAD = 'lead@example.invalid';
 const DEPUTY = 'deputy@example.invalid';
 const ANALYST = 'analyst@example.invalid';
 const STRANGER = 'stranger@example.invalid';
+/** A schema an earlier version of this app granted on. Invented, as every name here is. */
 const TELEMETRY = 'example_catalog.player_insights_telemetry';
-/**
- * The schema half of the name above, on its own.
- *
- * A statement quotes each part of a name separately, so the dotted form never
- * appears in one. Asserting on the dotted form is the mistake that made these tests
- * pass while checking nothing.
- */
-const TELEMETRY_SCHEMA = 'player_insights_telemetry';
 
 interface Rows {
   roster: { email: string; role: string; added_by: string; added_at: string }[];
@@ -172,7 +164,6 @@ async function startApp(store: AdminStore) {
 beforeEach(() => {
   process.env.DATABRICKS_HOST = 'https://workspace.example.com';
   process.env.DATABRICKS_SQL_WAREHOUSE_ID = 'wh-1';
-  process.env[TELEMETRY_SCHEMA_ENV] = TELEMETRY;
   // One seeded super admin and one seeded plain admin, which is the shape a
   // customer deployment has: the marker names the person who runs it.
   announceSeedAdmins(`super:${LEAD}, ${DEPUTY}`);
@@ -182,7 +173,6 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete process.env.DATABRICKS_SQL_WAREHOUSE_ID;
-  delete process.env[TELEMETRY_SCHEMA_ENV];
   server?.closeAllConnections();
   await new Promise((resolve) => server?.close(resolve));
   server = undefined;
@@ -250,7 +240,7 @@ describe('the super admin reads the roster', () => {
 });
 
 describe('appointing an administrator', () => {
-  it('stores the role and grants the telemetry access the role needs', async () => {
+  it('stores the role and asks Unity Catalog for nothing', async () => {
     const calls = stubStatements(() => SUCCEEDED);
     const store = fakeLakebase();
     const app = await startApp(store);
@@ -260,33 +250,32 @@ describe('appointing an administrator', () => {
     expect(store.rows.roster).toEqual([
       { email: ANALYST, role: 'admin', added_by: LEAD, added_at: '2026-08-17T00:00:00.000Z' },
     ]);
-    // The telemetry schema is the one the Ops health block reads, and a new admin
-    // without it gets errors instead of data.
-    const granted = calls.filter((call) => call.statement.startsWith('GRANT'));
-    expect(granted.some((call) => call.statement.includes(TELEMETRY_SCHEMA))).toBe(true);
-    // Under the acting super admin's own token. Never the app's.
-    expect(granted.every((call) => call.token === 'Bearer forwarded-user-token')).toBe(true);
+    // A promotion used to grant read on the telemetry schema and the
+    // `system.billing` tables. Read access to billing needs a metastore admin, so
+    // the ordinary promotion reported a refusal for access the rank never required.
+    expect(calls).toHaveLength(0);
   });
 
-  it('keeps the role and prints the statement when the grant is refused', async () => {
-    const calls = stubStatements((statement) => (statement.startsWith('GRANT') ? REFUSED : SUCCEEDED));
+  /**
+   * The operator is not a metastore admin, so Unity Catalog refuses everything. A
+   * promotion still has to work: nothing about the rank depends on it.
+   */
+  it('promotes somebody even when Unity Catalog would refuse every statement', async () => {
+    const calls = stubStatements(() => REFUSED);
     const store = fakeLakebase();
     const app = await startApp(store);
-    const payload = (await (await app.add(LEAD, ANALYST, 'admin')).json()) as RosterMutationPayload;
 
-    // The role landed. An add that rolled back on a refused grant would mean a
-    // super admin without Unity Catalog authority could never appoint anybody.
+    const response = await app.add(LEAD, ANALYST, 'admin');
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
     expect(store.rows.roster[0].role).toBe('admin');
-    const refused = payload.access[0].results.filter((result) => result.state === 'refused');
-    expect(refused.length).toBeGreaterThan(0);
-    // The exact statement somebody with authority runs, on screen, rather than a
-    // new admin left with a broken Ops tab and nothing saying why.
-    expect(refused[0].grant?.statement).toContain('GRANT');
-    expect(refused.some((result) => result.grant?.statement.includes(TELEMETRY_SCHEMA))).toBe(true);
-    // And the row names the object, so the reader knows which grant is the reason
-    // their Ops health block is empty.
-    expect(refused.some((result) => result.objects.some((object) => object.name === TELEMETRY))).toBe(true);
-    expect(calls.length).toBeGreaterThan(0);
+    expect(calls).toHaveLength(0);
+    // Nothing on the response for the panel to draw as a failure, and no grant
+    // state at all: this screen is people and roles.
+    expect(payload).not.toHaveProperty('access');
+    expect(JSON.stringify(payload)).not.toContain('PERMISSION_DENIED');
+    expect(JSON.stringify(payload)).not.toContain('billing');
   });
 
   it('records who changed whose role, and to what', async () => {
@@ -326,27 +315,43 @@ describe('appointing an administrator', () => {
 });
 
 describe('changing and removing', () => {
-  it('hands back the access this app granted when somebody stops being an admin', async () => {
-    const calls = stubStatements(() => SUCCEEDED);
-    const store = fakeLakebase();
+  it('hands back the access an earlier version granted when somebody stops being an admin', async () => {
+    const store = fakeLakebase([{ email: ANALYST, role: 'admin', added_by: LEAD, added_at: '' }]);
+    // The record an earlier version of this app wrote when it still granted.
+    store.rows.grants.push({ email: ANALYST, object: TELEMETRY, privilege: 'SELECT', provenance: 'app-granted' });
     const app = await startApp(store);
-    await app.add(LEAD, ANALYST, 'admin');
-    calls.length = 0;
+    const calls = stubStatements(() => SUCCEEDED);
+
     await app.change(LEAD, ANALYST, 'consumer');
 
     expect(store.rows.roster[0].role).toBe('consumer');
-    expect(calls.some((call) => call.statement.startsWith('REVOKE'))).toBe(true);
+    const revokes = calls.filter((call) => call.statement.startsWith('REVOKE'));
+    expect(revokes).toHaveLength(1);
+    // Under the acting super admin's own token. Never the app's.
+    expect(revokes.every((call) => call.token === 'Bearer forwarded-user-token')).toBe(true);
     expect(store.rows.audit.some((row) => row.action === 'access-revoked')).toBe(true);
   });
 
-  it('asks Unity Catalog for nothing when the rank does not cross the admin line', async () => {
-    const calls = stubStatements(() => SUCCEEDED);
+  it('asks Unity Catalog for nothing when there is nothing recorded to hand back', async () => {
     const store = fakeLakebase([{ email: ANALYST, role: 'admin', added_by: LEAD, added_at: '' }]);
     const app = await startApp(store);
-    calls.length = 0;
+    const calls = stubStatements(() => SUCCEEDED);
+
+    await app.change(LEAD, ANALYST, 'consumer');
+
+    expect(store.rows.roster[0].role).toBe('consumer');
+    expect(calls).toEqual([]);
+  });
+
+  it('asks Unity Catalog for nothing when the rank does not cross the admin line', async () => {
+    const store = fakeLakebase([{ email: ANALYST, role: 'admin', added_by: LEAD, added_at: '' }]);
+    const app = await startApp(store);
+    const calls = stubStatements(() => SUCCEEDED);
+
     await app.change(LEAD, ANALYST, 'super_admin');
-    // Both ranks read the same two objects, so a grant here would run statements
-    // for a change that altered nothing about what anybody may read.
+
+    // A rise in rank grants nothing, and this one does not lose the admin surfaces
+    // either, so there is nothing to take back.
     expect(calls).toEqual([]);
   });
 

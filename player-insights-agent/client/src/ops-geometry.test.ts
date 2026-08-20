@@ -68,7 +68,7 @@ describe('the figures line up', () => {
     expect(claiming.length).toBeGreaterThan(0);
     for (const body of claiming) {
       expect(body, `a rule asks for tabular figures without a mono family: ${body.trim()}`).toMatch(
-        /font-family:\s*var\(--font-mono\)/,
+        /font-family:\s*var\(--font-mono\)/
       );
     }
   });
@@ -76,6 +76,27 @@ describe('the figures line up', () => {
   /** The stat value is not one of them any more: the class is in the markup. */
   it('stops the tile figure asking DM Sans for the feature', () => {
     expect(rule('.ops-tile-figure')).not.toMatch(/font-variant-numeric/);
+  });
+
+  it('reserves readable widths for every latency figure column', () => {
+    expect(rule('.ops-latency-table')).toMatch(/table-layout:\s*fixed/);
+    expect(rule('.ops-latency-table')).toMatch(/min-width:\s*760px/);
+    expect(rule('.ops-lat-col-hit')).toMatch(/width:\s*70px/);
+    expect(rule('.ops-lat-col-spans')).toMatch(/width:\s*56px/);
+    expect(rule('.ops-lat-col-p50')).toMatch(/width:\s*64px/);
+    expect(rule('.ops-lat-col-bar')).toMatch(/width:\s*150px/);
+    expect(rule('.ops-lat-col-slowest')).toMatch(/width:\s*70px/);
+  });
+});
+
+describe('the traffic groups share the row', () => {
+  it('keeps the questions, causes, and tools in three equal columns', () => {
+    expect(rule('.ops-charts')).toMatch(/grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    expect(rule('.ops-charts')).toMatch(/gap:\s*16px/);
+  });
+
+  it('uses the specified label width without crowding tool bars', () => {
+    expect(rule('.ops-chart-tool .ops-bar-row')).toMatch(/minmax\(0,\s*110px\)\s+1fr\s+auto/);
   });
 });
 
@@ -151,10 +172,10 @@ describe('the type scale and the two radii', () => {
     const radii = [...RULES.matchAll(/border-radius:\s*([^;]+);/g)].map((match) => match[1].trim());
     const stray = radii.filter(
       (value) =>
-        !/^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card))\)$/.test(value)
+        !/^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card))\)$/.test(value) &&
         // A 2px bar and a 2px bar top. Both are 8px tall and 4px would round them
         // into lozenges, which is the same exception timeline.css carries.
-        && !['2px', '2px 2px 0 0', '50%', '999px', '0'].includes(value),
+        !['2px', '2px 2px 0 0', '50%', '999px', '0'].includes(value)
     );
     expect(stray).toEqual([]);
   });

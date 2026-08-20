@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApplyPlan } from '../../shared/apply-declaration';
 import type { ModelReleaseRequest } from '../../shared/model-release';
+import type { NotebookPanel } from './connection-model';
+import { notebookPathView } from './NotebookCard';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button } from './ui';
 
@@ -31,7 +33,45 @@ export function releaseVersionLine(release: ModelReleaseRequest): string {
   return `version ${release.vFrom ?? 'unknown'} → ${release.vTo ?? 'pending'}`;
 }
 
-export function ApplyDeclarationCard({ onRefresh }: { onRefresh?: () => void }) {
+/** The precondition, stated where the action is refused. */
+export const NOTEBOOK_REQUIRED_REASON =
+  'Select a notebook first. The model version is logged from the connected notebook.';
+
+/** Where to select one. Names the control on the Notebook card verbatim. */
+export const NOTEBOOK_REQUIRED_ACTION = 'Use Browse workspace notebooks on the Notebook card.';
+
+/**
+ * Whether Approve is live, and the reason when it is not.
+ *
+ * The reason is returned rather than only the flag because a disabled button
+ * that says nothing leaves the reader guessing at a precondition the page
+ * already knows.
+ *
+ * AN ABSENT PANEL IS NOT AN UNCONNECTED NOTEBOOK. A build serving an older
+ * payload knows nothing about notebooks, and refusing there would be a claim
+ * about a deployment this page cannot see.
+ */
+export function applyActionState(input: {
+  notebook?: NotebookPanel;
+  busy?: boolean;
+  knobCount: number;
+  releaseStatus?: ModelReleaseRequest['status'];
+}): { disabled: boolean; reason: string } {
+  const noNotebook = input.notebook ? notebookPathView(input.notebook).shown === '' : false;
+  const releasing = input.releaseStatus === 'approved' || input.releaseStatus === 'running';
+  return {
+    disabled: noNotebook || Boolean(input.busy) || input.knobCount === 0 || releasing,
+    reason: noNotebook ? NOTEBOOK_REQUIRED_REASON : '',
+  };
+}
+
+export function ApplyDeclarationCard({
+  notebook,
+  onRefresh,
+}: {
+  notebook?: NotebookPanel;
+  onRefresh?: () => void;
+}) {
   const role = useRole();
   const isAdmin = showsAdminSurfaces(role.state);
   const [plan, setPlan] = useState<ApplyResponse | null>(null);
@@ -123,6 +163,12 @@ export function ApplyDeclarationCard({ onRefresh }: { onRefresh?: () => void }) 
   const knobs = plan?.plan.knobs ?? [];
   const notes = plan?.plan.notes ?? [];
   const notebookSnippet = release ? modelReleaseNotebookSnippet(release, window.location.origin) : '';
+  const action = applyActionState({
+    notebook,
+    busy,
+    knobCount: knobs.length,
+    releaseStatus: release?.status,
+  });
 
   return (
     <section className="plane-card" aria-label="Apply model settings" data-testid="apply-declaration">
@@ -135,11 +181,12 @@ export function ApplyDeclarationCard({ onRefresh }: { onRefresh?: () => void }) 
         </span>
       </div>
 
-      <p className="plane-card-note">
-        Genie spaces, the SQL warehouse, catalogs and related settings are baked into the agent when it is logged.
-        Staging a value here or publishing from a notebook records intent only. Apply creates a new model version from
-        those staged values — it does not change the live agent silently.
-      </p>
+      <ol className="plane-list plane-apply-steps">
+        <li>Review the staged settings below.</li>
+        <li>Approve the release request.</li>
+        <li>Run the copied notebook cell.</li>
+      </ol>
+      <p className="plane-card-note">Outcome: a new model version with these settings, ready for deployment.</p>
 
       {error ? <p className="plane-card-error">{error}</p> : null}
 
@@ -160,20 +207,10 @@ export function ApplyDeclarationCard({ onRefresh }: { onRefresh?: () => void }) 
         </ul>
       )}
 
-      {notes.length > 0 && knobs.length > 0
-        ? notes.map((note) => (
-            <p key={note} className="plane-card-note">
-              {note}
-            </p>
-          ))
-        : null}
-
-      {plan?.detail ? <p className="plane-card-note">{plan.detail}</p> : null}
-
       {release ? (
         <div className="plane-card-actions" data-testid="model-release-status">
           <p>
-            Approved request <code>{release.id}</code>
+            Release request <code>{release.id}</code>
           </p>
           <p className="plane-card-note">
             Status: <strong>{release.status}</strong>
@@ -186,7 +223,7 @@ export function ApplyDeclarationCard({ onRefresh }: { onRefresh?: () => void }) 
             </p>
           ) : null}
           {release.errorSummary ? <p className="plane-card-error">{release.errorSummary}</p> : null}
-          <p className="plane-card-note">Run from notebook:</p>
+          <p className="plane-card-note">Run this notebook cell to create the model version:</p>
           <code className="plane-command" data-testid="apply-notebook-snippet">
             {notebookSnippet}
           </code>
@@ -196,22 +233,28 @@ export function ApplyDeclarationCard({ onRefresh }: { onRefresh?: () => void }) 
         </div>
       ) : null}
 
+      {/* The reason sits above the control it disables, so the refusal and its
+          cause are read together. Grey rather than red: no notebook connected
+          yet is an ordinary starting state, not a fault. */}
+      {action.reason ? (
+        <p className="plane-card-note" id="apply-notebook-required" data-testid="apply-notebook-required">
+          {action.reason} {NOTEBOOK_REQUIRED_ACTION}
+        </p>
+      ) : null}
+
       {plan?.plan.command ? (
         <div className="plane-card-actions">
           <div className="plane-card-action-row">
             <Button
               type="button"
               size="sm"
-              disabled={busy || knobs.length === 0 || release?.status === 'approved' || release?.status === 'running'}
+              disabled={action.disabled}
+              aria-describedby={action.reason ? 'apply-notebook-required' : undefined}
               onClick={() => void requestApply()}
             >
-              Apply → approve release request
+              Approve new model version
             </Button>
           </div>
-          <p className="plane-card-note">
-            Apply records the immutable approval. The notebook helper claims it and runs the release under the
-            deployer&apos;s own credentials.
-          </p>
         </div>
       ) : null}
     </section>

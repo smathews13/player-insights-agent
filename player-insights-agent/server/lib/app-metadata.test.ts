@@ -24,6 +24,7 @@ const ANSWERED: AppRead = {
       create_time: '2026-08-02T07:41:00Z',
       creator: 'someone@example.com',
     },
+    current_user: { user_name: 'current.viewer@example.com' },
     update_time: '2026-07-01T00:00:00Z',
     updater: 'someone-else@example.com',
   },
@@ -38,6 +39,8 @@ describe('what one read establishes', () => {
     expect(facts.description).toBe('Asks governed questions.');
     expect(facts.deployedAt).toBe('2026-08-02T07:41:00Z');
     expect(facts.deployedBy).toBe('someone@example.com');
+    expect(facts.deployedBy).not.toBe('current.viewer@example.com');
+    expect(facts.deployedBy).not.toBe('someone-else@example.com');
   });
 
   /**

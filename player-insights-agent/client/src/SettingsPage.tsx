@@ -6,14 +6,13 @@
  * the header renders itself: the header and this page are then looking at one
  * object and a toggle moves both in the same render.
  */
-import { Link, useOutletContext } from 'react-router';
+import { useOutletContext } from 'react-router';
 import { AdminListEditor } from './AdminListEditor';
 import { UserRoleEditor } from './UserRoleEditor';
 import { showsEgressControls } from './experimental-features';
 import { EgressPanel } from './EgressPanel';
 import { showsAdminSurfaces, showsUserRoster, useRole } from './role';
-import { Button, Card, CardDescription, CardContent, CardHeader, CardTitle, Switch } from './ui';
-import { PlugZap } from 'lucide-react';
+import { Card, CardDescription, CardContent, CardHeader, CardTitle, Switch } from './ui';
 import { PageHeading } from './page-chrome';
 import type { ExperimentalFeaturesHandle } from './app-types';
 import { RuntimeSettingsPanel } from './RuntimeSettingsPanel';
@@ -101,20 +100,6 @@ export function SettingsPage() {
           uses are refused for anybody else on the server whatever is drawn
           here, so this is about not offering dead cards. */}
       {showsEgressControls(features) && showsAdminSurfaces(role.state) ? <EgressPanel /> : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Deployment and resources</CardTitle>
-          <CardDescription>Deployment settings are in Connections.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild variant="outline">
-            <Link to="/connections">
-              <PlugZap /> Open Connections
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }

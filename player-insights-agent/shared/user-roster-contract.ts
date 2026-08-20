@@ -139,23 +139,6 @@ export interface RosterPayload {
   recoveryStatement: string;
 }
 
-/**
- * The roster, and what the change just made did to somebody's Unity Catalog access.
- *
- * ONE PAYLOAD BECAUSE THE TWO HALVES CAN DISAGREE AND THE SCREEN MUST SHOW BOTH.
- * A promotion to admin writes a role and asks Unity Catalog for the grants the
- * admin tabs read, and the second half can be refused while the first succeeds.
- * A response that carried only the roster would leave a new admin holding the role
- * with an Ops tab full of errors and nothing on screen saying why.
- *
- * `access` is EMPTY ON A PLAIN READ, and that is not "no access": it is "this call
- * did not look". It is also empty for a change that moved somebody between two
- * ranks that need the same grants, because nothing was asked of Unity Catalog.
- */
-export interface RosterMutationPayload extends RosterPayload {
-  access: import('./admin-contract').AccessReport[];
-}
-
 /** A refusal the roster routes make, named so the route and its test read one string. */
 export type RosterRefusal =
   | 'seed-floor'

@@ -94,18 +94,33 @@ function filesUnder(dir: string): string[] {
 const CLIENT = fileURLToPath(new URL('..', import.meta.url));
 
 describe('the header leads with the lockup, which is the app’s own mark and name', () => {
-  it('draws the lockup and nothing else in the brand column, then the nav', () => {
-    // Bounded by the nav that follows the lockup rather than by a closing tag: the
-    // lockup nests, so counting </div>s here would mean writing a parser to make one
-    // assertion.
-    const lockup = LAYOUT.match(/<div className="brand-lockup">([\s\S]*?)<NavLinks/)?.[1] ?? '';
-    expect(lockup, 'the header still has a brand lockup followed by the nav').not.toEqual('');
-    expect(lockup).toContain('<AstrolabeLockup');
+  it('draws the lockup, the release chip and the divider in the brand column', () => {
+    // The column holds three things and they are all small. The release chip
+    // joined it when it was moved out of the right-hand cluster, where it was in
+    // the half of the header that gives and had its label cut off; it lives in
+    // the slack this column already held between the wordmark and the divider.
+    const column = LAYOUT.match(/<div className="brand-lockup">([\s\S]*?)<\/div>/)?.[1] ?? '';
+    expect(column, 'the header still has a brand lockup column').not.toEqual('');
+    expect(column).toContain('<AstrolabeLockup');
+    expect(column).toContain('<DeploymentTimeChip');
+    expect(column).toContain('app-chrome-rule');
     // The partner plate and the "PLAYER INTELLIGENCE" kicker are gone, not merely
     // restyled. The plate reserved a position for a customer trademark this
     // repository must not carry, and the kicker was a second name under the first.
-    expect(lockup).not.toMatch(/brand-mark|brand-full|brand-name/);
-    expect(lockup).not.toMatch(/<img/);
+    expect(column).not.toMatch(/brand-mark|brand-full|brand-name/);
+    expect(column).not.toMatch(/<img/);
+  });
+
+  it('puts that column before the nav in the header, and the chip inside it', () => {
+    // The chip must be a child of the column and not a sibling of it. Placed
+    // between the column and the nav it would push the tab row off the
+    // conversation rail's hairline, which is the alignment the second half of
+    // this file exists to protect.
+    const header = LAYOUT.match(/<header[\s\S]*?<\/header>/)?.[0] ?? '';
+    expect(header, 'the header is still rendered here').not.toEqual('');
+    expect(header.indexOf('<HeaderBrand')).toBeGreaterThan(-1);
+    expect(header.indexOf('<HeaderBrand')).toBeLessThan(header.indexOf('<NavLinks'));
+    expect(header).not.toContain('<DeploymentTimeChip');
   });
 
   it('takes the top bar’s pair of sizes rather than a size of its own', () => {

@@ -139,6 +139,25 @@
   --ast-info-text: #0e538b;
   --ast-info-fill: #ddeaf4;
 
+  /*
+   * Entity marks use the same five palette roles as the rest of the answer.
+   * Keeping the mapping here means the prose renderer can distinguish catalogs,
+   * schemas, tables, columns and quoted values without inventing a second set of
+   * near-neutral colours inside answer.css.
+   */
+  --ast-entity-catalog-fg: var(--ast-white);
+  --ast-entity-catalog-bg: var(--ast-info-text);
+  --ast-entity-schema-fg: var(--ast-navy);
+  --ast-entity-schema-bg: var(--ast-info-fill);
+  --ast-entity-table-fg: var(--ast-text-long);
+  --ast-entity-table-bg: var(--ast-hairline);
+  --ast-entity-column-fg: var(--ast-text-long);
+  --ast-entity-column-bg: var(--ast-neutral-fill);
+  --ast-entity-quote-fg: var(--ast-neutral-text);
+  --ast-entity-quote-bg: var(--ast-fill-band);
+  --ast-entity-tag-fg: var(--ast-white);
+  --ast-entity-tag-bg: var(--ast-navy);
+
   /* ---- Type scale (§3) ---- */
   --ast-fs-11: 11px;
   --ast-fs-12: 12px;

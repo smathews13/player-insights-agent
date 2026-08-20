@@ -439,8 +439,8 @@ describe('focus is one thing everywhere', () => {
     // was faint enough to lose. A focus ring that is sometimes visible is worse than
     // one that is always ugly.
     const base = partial('base.css');
-    const rule = base.match(/:focus-visible\s*\{([^}]*)\}/)?.[1] ?? '';
-    expect(rule).toMatch(/outline:\s*2px solid var\(--db-blue-600\)/);
+    const rule = base.match(/(?:^|\n):focus-visible\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(rule).toMatch(/outline:\s*2px solid var\(--ast-blue\)/);
     expect(rule).toMatch(/outline-offset:\s*2px/);
   });
 });

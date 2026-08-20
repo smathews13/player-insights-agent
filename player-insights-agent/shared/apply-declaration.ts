@@ -140,12 +140,6 @@ export function resolveApplyPlan(input: {
       'Values come from the notebook declaration. Intended settings on Connections override the notebook when both name the same key.'
     );
   }
-  if (knobs.length === 0) {
-    notes.push(
-      'Nothing is waiting on a new model version from Connections or the notebook. Soft settings that apply immediately are not listed here.'
-    );
-  }
-
   const target = text(input.target) || '<your-target>';
   return {
     knobs,

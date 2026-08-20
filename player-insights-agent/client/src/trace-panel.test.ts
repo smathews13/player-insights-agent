@@ -76,6 +76,16 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
     expect(rollUp).toContain('<KindChip type={row.type} />');
   });
 
+  it('keeps the call count and any partial count in one compact badge', () => {
+    const rollUp = functionSource(TIMELINE, 'RollUp');
+    expect(rollUp).toContain('className="trace-call-badge ast-num"');
+    expect(rollUp).toContain("row.partialCalls > 0 && ` · ${row.partialCalls} partial`");
+    const badge = TIMELINE_CSS.match(/\.trace-call-badge \{([^}]*)\}/)?.[1] ?? '';
+    expect(badge).toMatch(/border-radius: var\(--radius-sm\)/);
+    expect(badge).toMatch(/white-space: nowrap/);
+    expect(badge).toMatch(/font-size: 9px/);
+  });
+
   it('names every type a tile can be, in a word rather than in a hue', () => {
     // This used to assert the opposite: a `--kind-<type>` colour and a coloured dot
     // per type, so that no kind fell through with nothing to distinguish it. The

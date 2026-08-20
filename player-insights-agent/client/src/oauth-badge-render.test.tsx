@@ -238,12 +238,17 @@ describe('where it sits, which is no longer the top bar', () => {
     // from the far right. It used to sit past "Built on Databricks", which put a
     // control belonging to the reader on the far side of the divider whose job
     // (§1) is to separate the reader from who built the app.
+    //
+    // The release chip is no longer a member. It states which build is on screen
+    // rather than anything about the reader, so it is seated beside the app's own
+    // name; see the header brand tests in deployment-time-chip.test.tsx.
     expect(HEADER_CLUSTER_ORDER).toEqual([
       'role-badge',
       'identity-chip',
       'settings-gear',
       'built-on-databricks',
     ]);
+    expect(HEADER_CLUSTER_ORDER).not.toContain('deployment-time');
   });
 
   it('is not flipped back by the stylesheet', () => {

@@ -12,13 +12,14 @@ import type { TraceStage } from './answer-shape';
  *
  * The geometry is checked next door, in `agent-constellation.test.ts`, and that
  * file is about a box nothing can leave. This one is about the other half of §5:
- * everything decorative is `aria-hidden`, there is ONE `aria-live="polite"` status
- * string, and `prefers-reduced-motion: reduce` freezes all of it.
+ * the finished map is `aria-hidden`, the live path exposes its step selectors,
+ * there is ONE `aria-live="polite"` status string, and
+ * `prefers-reduced-motion: reduce` freezes all animation.
  *
  * The reason those are tests rather than review notes is that they are invisible
  * on the surface they govern. A band that is animating for a reader who asked the
  * operating system for no animation looks completely correct to everybody else,
- * and so does a drawing that has quietly become a second set of tab stops.
+ * and so does a selector that has quietly disappeared from the tab order.
  *
  * A rule in a stylesheet cannot see whether its element carries `aria-hidden`, so
  * the split is: astrolabe-animation.css owns the guard and is tested for it there,
@@ -71,12 +72,22 @@ function attrs(markup: string, name: string): string[] {
   return [...markup.matchAll(new RegExp(`${name}="([^"]*)"`, 'g'))].map((found) => found[1]);
 }
 
-describe('the bands are decorative, and say so (§5)', () => {
-  it('hides the drawing from assistive technology on both bands', () => {
-    for (const markup of [path(inFlight, 5, 12_000), map(finished, 'step-2')]) {
-      expect(markup).toContain('<svg aria-hidden="true"');
-      expect(attrs(markup, 'focusable')).toContain('false');
-    }
+describe('the bands expose only the controls they own (§5)', () => {
+  it('hides the finished map, whose cards own selection', () => {
+    const markup = map(finished, 'step-2');
+    expect(markup).toContain('<svg aria-hidden="true"');
+    expect(attrs(markup, 'focusable')).toContain('false');
+  });
+
+  it('names the live path and makes every step keyboard operable', () => {
+    const markup = path(inFlight, 5, 12_000);
+    expect(markup).toContain('<svg role="group" aria-label="Agent steps"');
+    expect(markup).not.toContain('<svg aria-hidden="true"');
+    expect(attrs(markup, 'role').filter((role) => role === 'button')).toHaveLength(inFlight.length);
+    expect(attrs(markup, 'tabindex').filter((value) => value === '0')).toHaveLength(inFlight.length);
+    expect(attrs(markup, 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(
+      inFlight.length
+    );
   });
 
   it('carries exactly one live region, on the band that has something to report', () => {
@@ -90,21 +101,19 @@ describe('the bands are decorative, and say so (§5)', () => {
     expect(attrs(map(finished, 'step-2'), 'aria-live')).toEqual([]);
   });
 
-  it('puts no control inside either drawing', () => {
+  it('puts no duplicate control inside the finished map', () => {
     /*
      * The regression this forecloses. The cards under the map are the thing a
-     * reader operates -- real buttons, each opening a step panel -- and a second
+     * reader operates -- real buttons, each opening a step panel -- so a second
      * set of click targets inside an `aria-hidden` drawing would be focusable
-     * content a screen reader cannot see, which is worse than a drawing that is
-     * honestly just a drawing.
+     * content a screen reader cannot see.
      */
-    for (const markup of [path(inFlight, 5, 12_000), map(finished, 'step-2')]) {
-      expect(markup).not.toContain('<button');
-      expect(markup).not.toContain('tabindex');
-      expect(markup).not.toContain('<a ');
-      expect(markup).not.toContain('onclick');
-      expect(markup).not.toContain('role="button"');
-    }
+    const markup = map(finished, 'step-2');
+    expect(markup).not.toContain('<button');
+    expect(markup).not.toContain('tabindex');
+    expect(markup).not.toContain('<a ');
+    expect(markup).not.toContain('onclick');
+    expect(markup).not.toContain('role="button"');
   });
 
   it('names the step in words rather than describing the animation in front of it', () => {

@@ -18,19 +18,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { RosterRows } from './UserRoleEditor';
-import {
-  accessOwed,
-  canSubmit,
-  originLabel,
-  roleWord,
-  rosterSummary,
-  rowLocked,
-  setOn,
-  stepsDownFrom,
-} from './user-roster';
+import { roleOptions, RosterRows } from './UserRoleEditor';
+import { canSubmit, originLabel, roleWord, rosterSummary, rowLocked, setOn, stepsDownFrom } from './user-roster';
 import { badgeAnnouncement, badgeLabel, badgeTitle, roleFrom, showsAdminSurfaces, showsUserRoster } from './role';
-import type { Role, RosterEntry, RosterMutationPayload } from '../../shared/user-roster-contract';
+import type { Role, RosterEntry, RosterPayload } from '../../shared/user-roster-contract';
 import { partial } from './styles/stylesheet';
 
 const LEAD = 'lead@example.invalid';
@@ -60,19 +51,16 @@ function entry(over: Partial<RosterEntry> & { email: string; role: Role }): Rost
   };
 }
 
-function rows(over: Partial<RosterMutationPayload> & { entries: RosterEntry[] }): string {
-  const full: RosterMutationPayload = {
+function rows(over: Partial<RosterPayload> & { entries: RosterEntry[] }): string {
+  const full: RosterPayload = {
     entries: over.entries,
     storedRosterReadable: over.storedRosterReadable ?? true,
     roleColumnPresent: over.roleColumnPresent ?? true,
     pendingSchemaStatement: over.pendingSchemaStatement ?? '',
     superAdminCount: over.superAdminCount ?? over.entries.filter((row) => row.role === 'super_admin').length,
     recoveryStatement: over.recoveryStatement ?? '',
-    access: over.access ?? [],
   };
-  return renderToStaticMarkup(
-    <RosterRows payload={full} access={full.access} busy={false} onChange={() => {}} onRemove={() => {}} />
-  );
+  return renderToStaticMarkup(<RosterRows payload={full} busy={false} onChange={() => {}} onRemove={() => {}} />);
 }
 
 describe('the row offers only what the server allows', () => {
@@ -80,7 +68,7 @@ describe('the row offers only what the server allows', () => {
     // A seeded row. The environment would restore the role on the next request, so a
     // control here would appear to work and would not.
     const markup = rows({ entries: [entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' })] });
-    expect(markup).not.toContain('<select');
+    expect(markup).not.toContain('role="combobox"');
     expect(text(markup)).toContain('Super admin');
   });
 
@@ -90,14 +78,13 @@ describe('the row offers only what the server allows', () => {
   });
 
   it('offers exactly the roles the server named, and the one held', () => {
+    const analyst = entry({ email: ANALYST, role: 'consumer', assignable: ['admin'] });
     const markup = rows({
-      entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'] })],
+      entries: [analyst],
     });
-    expect(markup).toContain('<select');
-    expect(markup).toContain('value="admin"');
-    expect(markup).toContain('value="consumer"');
-    // Not offered, because the server did not offer it.
-    expect(markup).not.toContain('value="super_admin"');
+    expect(markup).toContain('role="combobox"');
+    expect(text(markup)).toContain('Role · Consumer');
+    expect(roleOptions(analyst).map((option) => option.value)).toEqual(['consumer', 'admin']);
   });
 
   it('names the row in the control, so a screen reader is not given a bare menu', () => {
@@ -127,45 +114,32 @@ describe('the #24a roster row', () => {
     expect(markup).toContain('roster-row-lock');
   });
 
-  it('draws granted access as labelled Unity Catalog rows with full values and state chips', () => {
+  /**
+   * SAM'S REPORT, AS A TEST. Every administrator's row used to carry a block naming
+   * the app's telemetry schema and the two `system.billing` tables, with a state
+   * word each. Granting on `system` needs a metastore admin, so the usual state was
+   * "Not granted" and PERMISSION_DENIED under the name of somebody who had in fact
+   * been appointed. This panel is people and roles.
+   */
+  it('names no Unity Catalog object and shows no grant state, at any role', () => {
     const markup = rows({
-      entries: [entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' })],
-      access: [
-        {
-          email: LEAD,
-          results: [
-            {
-              target: 'telemetry',
-              label: 'Telemetry schema',
-              state: 'already-held',
-              objects: [{ name: 'example_catalog.telemetry', kind: 'schema' }],
-              purpose: 'What the Ops health block reads.',
-              summary: '',
-              grant: null,
-              note: '',
-            },
-            {
-              target: 'billing',
-              label: 'Billing tables',
-              state: 'already-held',
-              objects: [
-                { name: 'system.billing.usage', kind: 'table' },
-                { name: 'system.billing.list_prices', kind: 'table' },
-              ],
-              purpose: 'What the Ops cost block reads.',
-              summary: '',
-              grant: null,
-              note: '',
-            },
-          ],
-        },
+      entries: [
+        entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' }),
+        entry({ email: DEPUTY, role: 'admin', assignable: ['consumer'] }),
+        entry({ email: ANALYST, role: 'consumer', assignable: ['admin'] }),
       ],
     });
-    expect(markup).toContain('brand-icon');
-    expect(markup).toContain('title="example_catalog.telemetry"');
-    expect(markup).toContain('system.billing.usage');
-    expect(text(markup)).toContain('system.billing.usage · system.billing.list_prices');
-    expect(markup.match(/admin-access-state-already-held/g) ?? []).toHaveLength(2);
+    const rendered = text(markup);
+
+    expect(rendered).not.toContain('Telemetry schema');
+    expect(rendered).not.toContain('Billing tables');
+    expect(rendered).not.toContain('system.billing');
+    expect(rendered).not.toContain('Already held');
+    expect(rendered).not.toContain('Not granted');
+    expect(rendered).not.toContain('PERMISSION_DENIED');
+    expect(rendered).not.toContain('GRANT');
+    expect(markup).not.toContain('admin-row-access');
+    expect(markup).not.toContain('admin-access');
   });
 });
 
@@ -181,25 +155,49 @@ describe('the #24a Roles geometry', () => {
     expect(css).toMatch(/\.admin-row-email \{[^}]*font-family:\s*var\(--font-mono\)/);
   });
 
-  it('locks the grant anatomy to label, UC icon, value, and state columns', () => {
-    expect(css).toMatch(
-      /\.admin-access-head \{[^}]*grid-template-columns:\s*118px 13px minmax\(0, 1fr\) auto/
-    );
-    expect(css).toMatch(/\.admin-row-access \{[^}]*padding:\s*8px/);
-    expect(css).toMatch(/\.admin-row-access \{[^}]*background:\s*#f7f7f7/);
-    expect(css).toMatch(/\.admin-access-object-name \{[^}]*text-overflow:\s*ellipsis/);
+  it('carries no grant anatomy at all, because no row draws one', () => {
+    expect(css).not.toContain('.admin-row-access');
+    expect(css).not.toContain('.admin-access');
   });
 
-  it('uses the positive recipe for Already held and 32px add controls', () => {
-    expect(css).toMatch(/\.admin-access-state-already-held \{[^}]*border-color:\s*#c5ddd9/);
-    expect(css).toMatch(/\.admin-access-state-already-held \{[^}]*background:\s*#f4f9f8/);
+  it('keeps the add controls at 32px', () => {
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*height:\s*32px/);
     expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*height:\s*32px/);
+  });
+
+  /**
+   * SAM'S REPORT, AS A TEST. "Role · Admin" was clipped to "Role · A..." and Add sat
+   * against the card's right edge nearly on top of the dropdown. The three controls
+   * shared one flex line and the two fixed-width ones were shrinking, so the fix is
+   * about which control gives way: the address field, which is the only one whose
+   * content is not a fixed label.
+   */
+  it('shrinks the address field rather than the role dropdown or the Add button', () => {
+    // The dropdown is never narrower than "Role · Super admin", in the add row or
+    // in a row's own controls.
+    expect(css).toMatch(/\.roster-role-select \{[^}]*flex:\s*0 0 auto/);
+    expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*flex:\s*none/);
+    // The one control with room to give, and it may give all of it.
+    expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*flex:\s*1 1 14rem/);
+    expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
+    // Too narrow for all three and the row wraps, rather than overlapping.
+    expect(css).toMatch(/\.admin-add \{[^}]*flex-wrap:\s*wrap/);
+    // Inside the card's own 16px, with the same gap between all three.
+    expect(css).toMatch(/\.admin-add \{[^}]*gap:\s*8px/);
+    expect(css).toMatch(/\.settings-page \[data-slot='card-content'\] \{[^}]*padding-inline:\s*16px/);
+  });
+
+  /** The value in the trigger, so the closed control reads "Role · Admin" whole. */
+  it('keeps the gold-standard dropdown, label and value in one field', () => {
+    expect(text(rows({ entries: [entry({ email: ANALYST, role: 'admin', assignable: ['consumer'] })] }))).toContain(
+      'Role · Admin'
+    );
+    expect(partial('base.css')).toMatch(/\.app-select-label,\s*\.app-select-separator \{\s*flex: none/);
   });
 });
 
 describe('why a row is locked', () => {
-  const locked = (over: Partial<RosterEntry> & { email: string; role: Role }, payload: Partial<RosterMutationPayload>) =>
+  const locked = (over: Partial<RosterEntry> & { email: string; role: Role }, payload: Partial<RosterPayload>) =>
     rowLocked(entry(over), {
       entries: [],
       storedRosterReadable: true,
@@ -207,7 +205,6 @@ describe('why a row is locked', () => {
       pendingSchemaStatement: '',
       superAdminCount: 1,
       recoveryStatement: '',
-      access: [],
       ...payload,
     });
 
@@ -234,7 +231,8 @@ describe('why a row is locked', () => {
 
 describe('the way back into a deployment nobody can administer', () => {
   it('prints the statement when the server sent one', () => {
-    const statement = "INSERT INTO player_insights.admin_emails (email, role, added_by) VALUES ('<address>', 'super_admin', '<who>')";
+    const statement =
+      "INSERT INTO player_insights.admin_emails (email, role, added_by) VALUES ('<address>', 'super_admin', '<who>')";
     const markup = rows({ entries: [], recoveryStatement: statement });
     expect(text(markup)).toContain('super_admin');
     expect(markup).toContain('Appoint a super admin');
@@ -255,18 +253,19 @@ describe('the way back into a deployment nobody can administer', () => {
 });
 
 describe('the line above the roster', () => {
-  const payload = (over: Partial<RosterMutationPayload> & { entries: RosterEntry[] }): RosterMutationPayload => ({
+  const payload = (over: Partial<RosterPayload> & { entries: RosterEntry[] }): RosterPayload => ({
     storedRosterReadable: true,
     roleColumnPresent: true,
     pendingSchemaStatement: '',
     superAdminCount: over.entries.filter((row) => row.role === 'super_admin').length,
     recoveryStatement: '',
-    access: [],
     ...over,
   });
 
   it('says the stored half could not be read rather than drawing it empty', () => {
-    const summary = rosterSummary(payload({ entries: [entry({ email: LEAD, role: 'super_admin' })], storedRosterReadable: false }));
+    const summary = rosterSummary(
+      payload({ entries: [entry({ email: LEAD, role: 'super_admin' })], storedRosterReadable: false })
+    );
     expect(summary).toContain('could not be read');
     expect(summary).toContain('Nobody has lost a role.');
   });
@@ -301,30 +300,25 @@ describe('the line above the roster', () => {
   });
 });
 
-describe('the telemetry grant a new administrator needs', () => {
-  const refused = {
-    access: [
-      {
-        email: ANALYST,
-        results: [
-          { state: 'refused', grant: { statement: 'GRANT SELECT ON SCHEMA `c`.`s` TO `analyst@example.invalid`;' } },
-          { state: 'already-held', grant: null },
+describe('the statements this panel still prints', () => {
+  /**
+   * Two, and both are about the panel itself rather than about anybody's data
+   * access: appointing a super admin when nobody can, and adding the roster's role
+   * column. The third one, a GRANT on the telemetry schema or the billing tables for
+   * a person who had just been promoted, is gone with the grants.
+   */
+  it('prints no GRANT for a person, at any role', () => {
+    const rendered = text(
+      rows({
+        entries: [
+          entry({ email: DEPUTY, role: 'admin', assignable: ['consumer'] }),
+          entry({ email: ANALYST, role: 'super_admin', assignable: ['admin'] }),
         ],
-      },
-    ],
-  };
+      })
+    );
 
-  it('collects the statement somebody with authority runs', () => {
-    expect(accessOwed(refused)).toEqual(['GRANT SELECT ON SCHEMA `c`.`s` TO `analyst@example.invalid`;']);
-  });
-
-  it('collects nothing when nothing was refused', () => {
-    expect(accessOwed({ access: [{ email: ANALYST, results: [{ state: 'granted', grant: null }] }] })).toEqual([]);
-  });
-
-  it('does not print one statement twice', () => {
-    const twice = { access: [refused.access[0], refused.access[0]] };
-    expect(accessOwed(twice)).toHaveLength(1);
+    expect(rendered).not.toContain('GRANT SELECT');
+    expect(rendered).not.toContain('metastore');
   });
 });
 
@@ -406,10 +400,11 @@ describe('the badge and the layout', () => {
   });
 });
 
-describe('the controls are the app\'s own', () => {
-  it('gives the role select the app\'s control radius and hairline', () => {
-    expect(partial('settings.css')).toMatch(/\.roster-role-select \{[^}]*border-radius: var\(--radius-sm\)/);
-    expect(partial('settings.css')).toMatch(/\.roster-role-select \{[^}]*border: 1px solid var\(--border\)/);
+describe("the controls are the app's own", () => {
+  it('uses the shared app dropdown recipe for roles', () => {
+    const base = partial('base.css');
+    expect(base).toMatch(/\.app-select-trigger \{[^}]*border-radius: var\(--radius-sm\)/);
+    expect(base).toMatch(/\.app-select-trigger \{[^}]*border: 1px solid var\(--ast-border-input\)/);
   });
 
   it('holds the locked line in the column the select would occupy', () => {

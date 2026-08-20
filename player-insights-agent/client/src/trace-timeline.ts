@@ -290,7 +290,7 @@ export function buildTimeline(trace: TraceSummary | null | undefined, question =
     rows.push({
       id: '__run__',
       step: 1,
-      name: 'run, [orchestrator]',
+      name: 'Orchestrator run',
       type: 'run',
       status: 'complete',
       input: question,

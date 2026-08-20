@@ -67,9 +67,9 @@ import { AnswerCharts, type Chart } from './AnswerCharts';
 import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { reportEgress } from './egress-policy';
-import type { TraceStage } from './answer-shape';
+import type { TraceStage, TraceSummary } from './answer-shape';
 import { describePayload, payloadSize, type Payload } from './trace-payload';
-import { runOrigin, toolNameFromId } from './trace-timeline';
+import { buildTimeline, runOrigin, toolNameFromId } from './trace-timeline';
 import { AgentReport, ChipText, EntityName, GenieCard, MarkdownText, ResultSource, SemanticCard } from './StepResult';
 import {
   argumentLabel,
@@ -81,7 +81,9 @@ import {
 } from './step-results';
 import { astPill } from './run-header';
 import {
+  cardCalls,
   cardTiming,
+  isOrchestratorStep,
   describeResult,
   detailTiming,
   nameParts,
@@ -666,6 +668,8 @@ export function TraceDag({
   compact = false,
   elapsedMs = null,
   charts,
+  trace = null,
+  question = '',
 }: {
   stages: TraceStage[];
   activeIndex: number;
@@ -682,15 +686,36 @@ export function TraceDag({
   elapsedMs?: number | null;
   /** The answer's canonical Plotly payload, shown only by its chart-building stage. */
   charts?: Chart[];
+  /** The measured run envelope, shown as map row 1 when available. */
+  trace?: TraceSummary | null;
+  /** The run prompt carried by the envelope's detail panel. */
+  question?: string;
 }) {
+  const envelope = !compact && trace ? buildTimeline(trace, question).rows.find((row) => row.container) : undefined;
+  const envelopeStage: TraceStage | null = envelope
+    ? {
+        id: envelope.id,
+        name: envelope.name,
+        kind: 'agent',
+        start: envelope.startMs ?? 0,
+        duration: envelope.durationMs,
+        status: envelope.status,
+        calls: trace?.toolCalls ?? 0,
+        input: envelope.input,
+        output: envelope.output,
+        startMeasured: true,
+      }
+    : null;
+  const displayedStages = envelopeStage ? [envelopeStage, ...stages] : stages;
+  const displayedActiveIndex = envelopeStage && activeIndex >= 0 ? activeIndex + 1 : activeIndex;
   // The step the reader opened, by id rather than by position, and looked up in
   // the current stages rather than trusted: selecting a different run in the
   // Explorer replaces this list under the component, and an index would then
   // open whatever stage had moved into that slot.
   const [openId, setOpenId] = useState<string | null>(null);
   const panelId = `${useId()}detail`;
-  const openIndex = stages.findIndex((item) => item.id === openId);
-  const open = openIndex === -1 ? null : stages[openIndex];
+  const openIndex = displayedStages.findIndex((item) => item.id === openId);
+  const open = openIndex === -1 ? null : displayedStages[openIndex];
   // The instant the panel's offsets are measured from, decided in one place for
   // the whole app. See runOrigin: `start` is milliseconds since the run's own
   // origin today, and an absolute clock if the agent's convention ever changes.
@@ -703,7 +728,7 @@ export function TraceDag({
   // question the moment they were numbered, which is the usual way round -- the
   // numbering did not break the pane, it published what the pane had been doing.
   const steps = (<div className={`trace-dag ${compact ? 'compact' : 'map'}`}>
-      {stages.map((item, index) => {
+      {displayedStages.map((item, index) => {
         // Capped, because the indent is a reading aid and a deep run should not
         // push its last stages off the side of the rail. Handed to the stylesheet
         // as a custom property rather than as an inline padding, which is how the
@@ -714,12 +739,13 @@ export function TraceDag({
         // one of them. The rail's 26px is `RAIL_INDENT`, and the connectors are
         // drawn from the same figure, which is why they land on the badges.
         const depth = Math.min(item.depth ?? 0, 3);
-        const next = stages[index + 1];
+        const next = displayedStages[index + 1];
         const isOpen = open?.id === item.id;
-        const nodeClass = `dag-node ${item.status} ${activeIndex === index ? 'active' : ''}`;
+        const runEnvelope = item.id === '__run__';
+        const nodeClass = `dag-node ${item.status} ${displayedActiveIndex === index ? 'active' : ''}`;
         return (<div
             key={item.id}
-            className="dag-step"
+            className={`dag-step ${runEnvelope ? 'run-envelope' : ''}`.trim()}
             style={depth ? ({ '--dag-depth': depth } as CSSProperties) : undefined}
           >
             {compact ? (<button
@@ -776,21 +802,27 @@ export function TraceDag({
                 aria-controls={isOpen ? panelId : undefined}
                 onClick={() => setOpenId((current) => (current === item.id ? null : item.id))}
               >
-                {/* The design's top line: what kind of step, which step, and how
-                    long it took. The number is two digits so a column of them
-                    lines up, and the count is appended to the duration only
-                    above one -- every stage is at least one call, so "· 1" on
-                    twelve cards is a column of the same digit. */}
-                <span className="dag-card-head">
-                  <KindChip stage={item} />
-                  <span className="dag-index ast-num">{stepNumber(index + 1)}</span>
-                  <span className="dag-timing ast-num">{cardTiming(item)}</span>
+                <KindChip stage={item} />
+                <span className="dag-card-body">
+                  <StageName stage={item} mono clamp />
+                  <span className="dag-card-meta">
+                    <span className="dag-index ast-num">{stepNumber(index + 1)}</span>
+                    {isOrchestratorStep(item) && (<Badge variant="outline" className="dag-role-badge">
+                        Orchestrator step
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="dag-metric-badge dag-duration-badge ast-num">
+                      {cardTiming(item)}
+                    </Badge>
+                    <Badge variant="outline" className="dag-metric-badge dag-call-badge ast-num">
+                      {cardCalls(item, runEnvelope)}
+                    </Badge>
+                    {item.status !== 'complete' && (<Badge variant="outline" className={`dag-status-badge ${astPill(item.status)}`}>
+                        {item.status}
+                      </Badge>
+                    )}
+                  </span>
                 </span>
-                <StageName stage={item} mono clamp />
-                {item.status !== 'complete' && (<Badge variant="outline" className={astPill(item.status)}>
-                    {item.status}
-                  </Badge>
-                )}
               </button>
             )}
             {next &&
