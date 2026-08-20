@@ -1,4 +1,4 @@
-"""The customer's stateless Data Source Finder boundary.
+"""Acme's stateless Data Source Finder boundary.
 
 The notebook models the finder as a logical sub-agent in the same process.  It
 is deliberately not a second ResponsesAgent or serving endpoint: each call gets

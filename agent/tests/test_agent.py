@@ -3087,7 +3087,7 @@ def test_shortening_the_answer_is_not_allowed_to_cost_a_caveat():
     assert "Do not\nfold them into the narrative" in SYNTHESIS_INSTRUCTIONS
 
 
-def test_every_structured_answer_requests_the_garrecht_sections():
+def test_every_structured_answer_requests_the_acme_sections():
     for section in ("narrative", "takeaway", "content", "figures"):
         assert section in SYNTHESIS_INSTRUCTIONS
 

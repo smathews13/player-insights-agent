@@ -316,7 +316,7 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # agent.py imports it at module scope, so a version logged without it
             # fails to LOAD rather than serving untagged traces.
             str(ROOT / "correlation.py"),
-            # The customer's stateless Data Source Finder boundary. agent.py imports
+            # Acme's stateless Data Source Finder boundary. agent.py imports
             # it at module scope, so a version logged without it fails to LOAD.
             str(ROOT / "data_source_finder.py"),
             # agent.py imports this at module scope and calls it before every

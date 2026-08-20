@@ -86,11 +86,11 @@ describe('Runtime settings in the Settings gear', () => {
   });
 
   /**
-   * The stray build-time name that used to sit in the loop copy ("The customer") is
+   * The stray build-time name that used to sit in the loop copy ("Acme") is
    * gone. It is a person's name in a repo that publishes to a customer, and the
    * handoff copy that replaced it names no one.
    */
   it('names no person in the loop copy', () => {
-    expect(source).not.toMatch(/The customer/i);
+    expect(source).not.toMatch(/Acme/i);
   });
 });

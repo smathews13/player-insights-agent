@@ -1,4 +1,4 @@
-"""The customer's finder is a boundary, not an orchestrator prompt section."""
+"""Acme's finder is a boundary, not an orchestrator prompt section."""
 
 from __future__ import annotations
 

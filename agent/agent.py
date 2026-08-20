@@ -240,7 +240,7 @@ Use only the supplied assessed data package. Never invent a value. Keep labels
 separate, never expose identifiers or emails,
 {SYNTHESIS_PROVENANCE_RULE}
 If the package lacks a requested value, say so and return no figure for it.
-Every answer must carry all four The customer notebook sections: narrative, takeaway,
+Every answer must carry all four Acme notebook sections: narrative, takeaway,
 content, and figures. Never pad narrative, content, figures, result breakdowns, or
 trace text with actions that were not taken. Omit absent filters, exclusions, skipped
 steps, and other non-falsifiable negative filler instead of listing them.
@@ -383,7 +383,7 @@ REQUEST_CLARIFICATION_TOOL = {
     },
 }
 
-#: The tools The customer assigns to the finder, in the order its model sees them.
+#: The tools Acme assigns to the finder, in the order its model sees them.
 #: The orchestrator never receives this list; it invokes the finder boundary.
 DATA_SOURCE_FINDER_TOOLS = [
     data_genie_tool(_SETTINGS.data_genie_space_title),
@@ -2860,7 +2860,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             system = f"{system}\n\n{runtime_prompt}"
 
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
-        # The customer's finder gets exactly one self-contained user message. The
+        # Acme's finder gets exactly one self-contained user message. The
         # component always calls this loop with no role-bearing history and no
         # separately injected attachment message.
         messages.append({"role": "user", "content": question})
