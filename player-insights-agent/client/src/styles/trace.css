@@ -781,6 +781,17 @@
   font-weight: 500;
   color: var(--ast-text-secondary);
 }
+.trace-dag.map .dag-args {
+  display: grid;
+  gap: 6px;
+}
+.trace-dag.map .dag-arg {
+  min-width: 0;
+}
+.trace-dag.map .dag-arg > b {
+  display: block;
+  margin-bottom: 2px;
+}
 /* What answered, and the control that says how to draw what it said. */
 .trace-dag.map .dag-result-meta {
   display: flex;
@@ -886,6 +897,22 @@
 .trace-dag.map .dag-md-head {
   display: block;
   margin-bottom: 4px;
+}
+.trace-dag.map .dag-md-rule {
+  border: 0;
+  border-top: 1px solid var(--ast-hairline);
+  margin: 8px 0;
+}
+.trace-dag.map .dag-md-code {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: var(--font-mono);
+  font-size: var(--ast-fs-12);
+  line-height: 1.5;
+  background: var(--ast-fill-band);
+  border-radius: 6px;
 }
 /* A table or column name wherever one appears in a sentence. The info family,
    which is what every other surface in the app sets an identifier in, and the two

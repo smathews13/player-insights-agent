@@ -265,15 +265,24 @@ export const FLICKER_REST: MarkConcept = 'dpad';
 /**
  * Where a flicker slot is seated, and how big the mark is there.
  *
- * The four `loading-suite.md` seatings, as data rather than as four numbers
- * typed into four components: the splash's 72px, the inline row's 20px, the
- * 14px inside the blue primary button, and the 18px on a navy strip.
+ * The `loading-suite.md` seatings, as data rather than as numbers typed into
+ * that many components: the splash's 72px, the inline row's 20px, the 14px
+ * inside the blue primary button, and the 18px on a navy strip.
+ *
+ * `status` is the agent path's own foot -- the ringed slot beside "Step 07 ·
+ * Preparing the findings" -- and it is the one seating `loading-suite.md` does
+ * not name, because the band outliving its run is later than that document. Its
+ * 11px IS NOT AN INVENTED SIZE: `.ast-sky-status-mark svg` has painted that slot
+ * at 11px since the band was drawn, and the static mark it stands in for asks
+ * for the same 11. A seat's number has to be the number it is painted at, or the
+ * seat gets a cut of the mark drawn for one size stretched to another.
  */
-export type FlickerSeat = 'splash' | 'inline' | 'button' | 'strip';
+export type FlickerSeat = 'splash' | 'inline' | 'button' | 'strip' | 'status';
 
 export const FLICKER_SIZES: Readonly<Record<FlickerSeat, number>> = {
   splash: 72,
   inline: 20,
   button: 14,
   strip: 18,
+  status: 11,
 };

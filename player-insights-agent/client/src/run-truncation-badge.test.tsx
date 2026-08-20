@@ -28,6 +28,7 @@ const RUN: Run = {
   stakeholder: 'analyst@example.com',
   status: 'complete',
   duration_ms: 43_740,
+  tool_calls: 7,
   rating: null,
   created_at: '2026-08-14T09:12:00.000Z',
 };
@@ -66,12 +67,19 @@ describe('the Truncated badge on a row of the runs list', () => {
     expect(markup).toContain('complete');
     expect(markup).toContain('Truncated');
   });
+
+  it('keeps the tool-call count and rating state in the same badge row', () => {
+    const markup = rowMarkup(RUN);
+    expect(markup).toMatch(/run-item-pills[\s\S]*Tools · <span class="ast-num">7<\/span>/);
+    expect(markup).toMatch(/run-item-pills[\s\S]*Not rated/);
+    expect(rowMarkup({ ...RUN, rating: 4 })).toMatch(/run-item-pills[\s\S]*Rated/);
+  });
 });
 
-function headerMarkup(run: Run): string {
+function headerMarkup(run: Run, toolCalls: number | null = run.tool_calls ?? null): string {
   return renderToStaticMarkup(
     <MemoryRouter>
-      <RunHeader run={run} toolCalls={null} reference={false} groundedness={null} />
+      <RunHeader run={run} toolCalls={toolCalls} reference={false} groundedness={null} />
     </MemoryRouter>
   );
 }
@@ -95,5 +103,12 @@ describe('the same badge on the run the reader opened', () => {
     const markup = headerMarkup({ ...RUN, truncated: true });
     expect(markup).toContain('complete');
     expect(markup).toContain('Truncated');
+  });
+
+  it('keeps the tool-call count and rating state beside the id, user, and status', () => {
+    const markup = headerMarkup(RUN);
+    expect(markup).toMatch(/run-detail-ident[\s\S]*Tools · <span class="ast-num">7<\/span>/);
+    expect(markup).toMatch(/run-detail-ident[\s\S]*Not rated/);
+    expect(headerMarkup({ ...RUN, rating: 4 })).toMatch(/run-detail-ident[\s\S]*Rated/);
   });
 });

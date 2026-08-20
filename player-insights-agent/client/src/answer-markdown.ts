@@ -16,8 +16,8 @@ import { linkifyEntities, type ProseSegment } from './data-entities';
  *    endpoint, and lands in a customer's browser. The usual pipeline renders
  *    Markdown to an HTML string and then sanitises it, which is safe only for
  *    as long as the sanitiser's denylist keeps pace. There is no HTML string
- *    anywhere in this module. The tree below has five inline shapes and three
- *    block shapes, none of which carries markup, so a `<script>` in the source
+ *    anywhere in this module. The tree below has five inline shapes and a small
+ *    family of block shapes, none of which carries markup, so a `<script>` in the source
  *    has nowhere to go but a text run, and React escapes text runs. Raw HTML is
  *    not sanitised here, it is unrepresentable.
  *
@@ -25,14 +25,14 @@ import { linkifyEntities, type ProseSegment } from './data-entities';
  *    string; over a tree it has to run over the text inside the tree, or a
  *    table named in a heading or in bold silently stops linking. A library
  *    hands back rendered output, and reaching into it to re-segment its text
- *    nodes is more code than parsing the eight constructs we support, with the
+ *    nodes is more code than parsing the constructs we support, with the
  *    library's whole surface still shipping to the customer.
  *
  * WHAT IS DELIBERATELY NOT SUPPORTED. Underscore emphasis, above all: every
  * table this app links has underscores in it, and `_`-delimited emphasis would
  * eat `gold_title_daily_summary` and hand back a half-italic fragment that no
- * longer matches anything. Also absent: block quotes, thematic breaks, images
- * and backslash escapes. Anything unsupported survives as the characters the
+ * longer matches anything. Also absent: block quotes, images and backslash
+ * escapes. Anything unsupported survives as the characters the
  * agent wrote, which is what the app did with all of it before this module
  * existed.
  *
@@ -81,6 +81,8 @@ export type Block =
   | { kind: 'paragraph'; start: number; children: Inline[] }
   | { kind: 'heading'; start: number; level: 2 | 3; children: Inline[] }
   | { kind: 'list'; start: number; ordered: boolean; items: ListItem[] }
+  | { kind: 'rule'; start: number }
+  | { kind: 'code'; start: number; language: string; text: string }
   | {
       kind: 'table';
       start: number;
@@ -427,14 +429,14 @@ function tableBlock(raw: readonly RawRow[]): Block | undefined {
 
 /** A fence line: three or more backticks or tildes, whatever follows them. */
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const THEMATIC_BREAK = /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 
 /**
  * The table inside a fenced block, when that is all the block holds.
  *
- * WHY A FENCE IS OPENED AT ALL. Fenced blocks are otherwise unsupported here and
- * survive as the characters the agent typed, which is the documented behaviour
- * for everything this parser does not read. It is the wrong behaviour for a
- * table, and a fenced table is not a rare accident: a model asked for a table
+ * WHY THIS RUNS BEFORE THE CODE BRANCH. Fenced blocks are code unless this
+ * stricter branch proves that the whole fence is a table. A fenced table is not
+ * a rare accident: a model asked for a table
  * inside a JSON field very often fences it, and the reader then gets the pipes
  * AND three backticks above them. The pipes leaking through a fence is one of
  * the two ways this defect reaches a screen and it has the same cause and the
@@ -461,6 +463,26 @@ function fencedTable(lines: readonly SourceLine[], from: number): { block: Block
   }
   const block = tableBlock(raw);
   return block ? { block, next: close + 1 } : undefined;
+}
+
+/** A fenced block that is code rather than a table. */
+function fencedCode(lines: readonly SourceLine[], from: number): { block: Block; next: number } | undefined {
+  const opening = FENCE.exec(lines[from].text);
+  const fence = opening?.[1];
+  if (!fence) return undefined;
+  let close = from + 1;
+  while (close < lines.length && !lines[close].text.trim().startsWith(fence)) close += 1;
+  if (close >= lines.length) return undefined;
+  const language = lines[from].text.slice(opening[0].length).trim().split(/\s+/, 1)[0] ?? '';
+  return {
+    block: {
+      kind: 'code',
+      start: lines[from].start,
+      language,
+      text: lines.slice(from + 1, close).map((line) => line.text).join('\n'),
+    },
+    next: close + 1,
+  };
 }
 
 /**
@@ -492,6 +514,12 @@ export function parseAnswerMarkdown(source: string): Block[] {
       index = fenced.next;
       continue;
     }
+    const code = fencedCode(lines, index);
+    if (code) {
+      blocks.push(code.block);
+      index = code.next;
+      continue;
+    }
 
     const heading = HEADING.exec(line.text);
     if (heading) {
@@ -501,6 +529,12 @@ export function parseAnswerMarkdown(source: string): Block[] {
       // inside one chat bubble would be a document, not an answer.
       const level = heading[1].length <= 2 ? 2 : 3;
       blocks.push({ kind: 'heading', start: line.start, level, children: parseInline(content.text, content.start) });
+      index += 1;
+      continue;
+    }
+
+    if (THEMATIC_BREAK.test(line.text)) {
+      blocks.push({ kind: 'rule', start: line.start });
       index += 1;
       continue;
     }
@@ -548,7 +582,7 @@ export function parseAnswerMarkdown(source: string): Block[] {
     for (; index < lines.length; index += 1) {
       const current = lines[index];
       if (!current.text.trim()) break;
-      if (HEADING.test(current.text) || BULLET.test(current.text) || NUMBERED.test(current.text)) break;
+      if (HEADING.test(current.text) || BULLET.test(current.text) || NUMBERED.test(current.text) || THEMATIC_BREAK.test(current.text) || FENCE.test(current.text)) break;
       // A table that opens on the line after a sentence, with no blank line
       // between them, is still a table. Without this the paragraph swallowed it
       // and every row of it came out as pipes inside a run of prose -- which is
@@ -664,6 +698,9 @@ export function answerBlocks(source: string,
         return { ...block, children: linkifyInline(block.children, declared, tracked, columns) };
       case 'paragraph':
         return { ...block, children: linkifyInline(block.children, declared, tracked, columns) };
+      case 'rule':
+      case 'code':
+        return block;
     }
   });
 }

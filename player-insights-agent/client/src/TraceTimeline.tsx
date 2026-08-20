@@ -16,6 +16,7 @@ import { describePayload, payloadSize } from './trace-payload';
 import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { Badge } from './ui';
+import { MarkdownText } from './StepResult';
 
 /**
  * The word on the chip.
@@ -130,7 +131,8 @@ function RollUp({ rows }: { rows: RollUpRow[] }) {
 /**
  * A recorded argument or result, laid out according to what it turned out to be.
  */
-function PayloadView({ text }: { text: string }) {
+export function PayloadView({ text }: { text: string }) {
+  const [raw, setRaw] = useState(false);
   const payload = describePayload(text);
   if (payload.empty) return <span className="trace-empty">(none recorded)</span>;
 
@@ -145,15 +147,24 @@ function PayloadView({ text }: { text: string }) {
             clipped by the agent
           </strong>
         )}
+        <span className="trace-payload-seg" role="group" aria-label="How to show this payload">
+          <button type="button" aria-pressed={!raw} onClick={() => setRaw(false)}>Rendered</button>
+          <button type="button" aria-pressed={raw} onClick={() => setRaw(true)}>Raw</button>
+        </span>
       </div>
-      {payload.fields ? (<ul className="trace-payload-fields">
+      {raw ? (<pre>{payload.body}</pre>
+      ) : payload.fields ? (<ul className="trace-payload-fields">
           {payload.fields.map((field) => (<li key={field.key} className={field.block ? 'block' : ''}>
               <span className="trace-payload-key">{field.key}</span>
-              {field.block ? <pre>{field.value}</pre> : <span className="trace-payload-value">{field.value}</span>}
+              {field.block
+                ? field.key === 'sql' || field.key === 'query'
+                  ? <pre>{field.value}</pre>
+                  : <MarkdownText text={field.value} />
+                : <span className="trace-payload-value">{field.value}</span>}
             </li>
           ))}
         </ul>
-      ) : (<pre>{payload.body}</pre>
+      ) : (<MarkdownText text={payload.body} />
       )}
     </div>
   );

@@ -143,6 +143,8 @@ export interface Run {
    */
   genie_spaces?: { id: string; title: string }[] | null;
   duration_ms: number | null;
+  /** The agent's own external-call counter, when this run records one. */
+  tool_calls?: number | null;
   rating: number | null;
   created_at: string;
 }

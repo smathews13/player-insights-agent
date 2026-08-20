@@ -35,8 +35,10 @@ import {
   SPAN_PERCENTILE_FLOOR,
   type CostTile,
   type DependencyResult,
+  type HealthDependency,
   type OpsCostPayload,
   type OpsLatencyPayload,
+  type PlatformReading,
   type RouteLatency,
   type TelemetryState,
   type TrafficBar,
@@ -290,10 +292,10 @@ export function costAbsence(payload: OpsCostPayload): Absence | null {
 /**
  * The words for a dependency result, and the tone class beside them.
  *
- * THE WORD IS THE STATE AND THE COLOUR IS DECORATION. Every row says
- * "Answered", "Did not answer" or "Not checked" in text, so the block reads the
- * same to somebody who cannot distinguish the colours, on a monochrome print,
- * and to a screen reader. The class only paints what the word already said.
+ * THE WORD IS THE STATE AND THE COLOUR IS DECORATION. Every row states its
+ * result in text, so the block reads the same to somebody who cannot distinguish
+ * the colours, on a monochrome print, and to a screen reader. The class only
+ * paints what the word already said.
  *
  * `not-checked` is a third state rather than a shade of failure. A probe that
  * did not run has said nothing about the dependency, and drawing that as a fault
@@ -307,6 +309,162 @@ export const RESULT_TONE: Record<DependencyResult, string> = {
 
 export function resultLabel(result: DependencyResult): string {
   return DEPENDENCY_RESULT_LABEL[result];
+}
+
+/**
+ * The words a platform reading is painted green for.
+ *
+ * GREEN ONLY FOR THE WORDS THAT MEAN IT. The handoff drew these green because on
+ * the deployment it was drawn from everything was up. A pill painted green
+ * whatever the platform said would be the one element on this page whose colour
+ * is not a second copy of its word, and the word it contradicted would be the
+ * one somebody needed.
+ */
+const PLATFORM_GOOD = /^(ready|running|available|online|connected)$/i;
+
+export function platformTone(reading: PlatformReading): string {
+  if (!reading.read || !reading.state) return astPill('neutral-outline', 'ops-pill');
+  return PLATFORM_GOOD.test(reading.state.trim()) ? astPill('pos', 'ops-pill') : astPill('warn', 'ops-pill');
+}
+
+/**
+ * What a resource is, in one short noun phrase, for the left half of its Result
+ * pill.
+ *
+ * KEYED ON `kind` FOR THE REASON `productForProbe` IS. A probe's own `label`
+ * carries the configured identifier -- "Orchestrator serving endpoint ·
+ * a-model-name" -- which is the right thing in the first column and far too long
+ * to be half of a pill. The kind is the stable property, and a kind nobody has
+ * named here falls back to the label's own leading phrase rather than to a blank
+ * or to an invented word.
+ */
+const KIND_LABEL: Record<string, string> = {
+  'serving-endpoint': 'Serving endpoint',
+  'sql-warehouse': 'SQL warehouse',
+  'genie-space': 'Genie space',
+  'vector-index': 'Vector Search index',
+  'vector-endpoint': 'Vector Search endpoint',
+  catalog: 'Catalog',
+  schema: 'Schema',
+  table: 'Table',
+  lakebase: 'Lakebase',
+  app: 'App',
+};
+
+export function resourceWord(row: { kind: string; label: string }): string {
+  const named = KIND_LABEL[row.kind];
+  if (named) return named;
+  const leading = row.label.split('\u00b7')[0].trim();
+  return leading || row.label;
+}
+
+/** One row of the health table, and the pill that states its result. */
+export interface HealthRow {
+  /** The row's own key, which is the probe id or the reading's. */
+  id: string;
+  kind: string;
+  /** What the first column shows: the probe's own words, or the reading's label. */
+  label: string;
+  /** The configured identifier, where the label is not already carrying it. */
+  name: string;
+  /** The Connections row to link to, or '' for none. */
+  connectionsId: string;
+  lastCheckedAt: string;
+  /** The Notes cell, already quoted or already the sentence for a check that did not run. */
+  notes: string;
+  /** The Result cell: what the resource is, what it said, and the tone painting it. */
+  pill: { label: string; value: string; tone: string };
+}
+
+/**
+ * The Notes cell, which is empty for most rows and is the whole finding on the
+ * rest.
+ *
+ * The probe's own words, verbatim and in quotes so a reader can see where the app
+ * stops speaking and the platform starts. Rewriting them here would produce two
+ * accounts of one failure that a reader has to reconcile, and the probe's is the
+ * one that matches the logs.
+ */
+function noteFor(reason: string, result: DependencyResult): string {
+  if (reason) return `\u201c${reason}\u201d`;
+  // A check that did not run has said nothing about the dependency, and a blank
+  // cell beside "Not checked" reads as a result nobody has written down yet.
+  return result === 'not-checked' ? 'Not an error, not a pass.' : '';
+}
+
+/**
+ * Every row of the health table, one per resource, each stating its result as a
+ * pill that names the resource it is about.
+ *
+ * ONE PLACE TO LOOK, WHICH IS WHY THIS FUNCTION EXISTS. The platform's readings
+ * used to be a cluster of pills in the block's head, above a table whose Result
+ * column said "Answered" about the same serving endpoint the pill beside it
+ * called "Ready". Two badges for one question, in two places, in two
+ * vocabularies. The readings are now rows: the ones taken FROM probe rows land in
+ * those rows' Result cells, and the ones taken from something else -- the app,
+ * which is running because this handler answered, and Lakebase, which was read --
+ * get a row each.
+ *
+ * NOTHING IS DRAWN TWICE. A reading only reaches a row the server said it was
+ * taken from, and a reading that names no row is the only kind that gets one of
+ * its own, so no resource can appear both as a probe row and as a synthesised
+ * one.
+ */
+export function healthRows(payload: {
+  dependencies?: readonly HealthDependency[];
+  platform?: readonly PlatformReading[];
+  checkedAt?: string;
+} | null): HealthRow[] {
+  if (!payload) return [];
+  const readings = payload.platform ?? [];
+  const spokenFor = new Map<string, PlatformReading>();
+  for (const reading of readings) {
+    for (const id of reading.rows ?? []) spokenFor.set(id, reading);
+  }
+
+  const probed = (payload.dependencies ?? []).map((row): HealthRow => {
+    const reading = spokenFor.get(row.id);
+    return {
+      id: row.id,
+      kind: row.kind,
+      label: row.label,
+      name: row.name,
+      connectionsId: row.connectionsId,
+      lastCheckedAt: row.lastCheckedAt,
+      notes: noteFor(row.reason, row.result),
+      pill: reading
+        ? {
+            // The platform's own word wins where the platform gave one. It is a
+            // reading of the endpoint's state rather than of whether a GET came
+            // back, and it is the more specific of the two.
+            label: reading.label,
+            value: reading.read && reading.state ? reading.state : 'Not checked',
+            tone: platformTone(reading),
+          }
+        : { label: resourceWord(row), value: resultLabel(row.result), tone: RESULT_TONE[row.result] },
+    };
+  });
+
+  const ownRows = readings
+    .filter((reading) => (reading.rows ?? []).length === 0)
+    .map((reading): HealthRow => ({
+      id: reading.id,
+      kind: reading.id,
+      label: reading.label,
+      name: '',
+      connectionsId: '',
+      // The reading was taken on the same pass as the probes, so it is as old as
+      // the check the band is dated by. Nothing here invents a fresher time.
+      lastCheckedAt: payload.checkedAt ?? '',
+      notes: noteFor(reading.reason ?? '', reading.read ? 'answered' : 'not-checked'),
+      pill: {
+        label: reading.label,
+        value: reading.read && reading.state ? reading.state : 'Not checked',
+        tone: platformTone(reading),
+      },
+    }));
+
+  return [...probed, ...ownRows];
 }
 
 /* ── Which product a row or a tile is about ──────────────────────────────── */
@@ -332,6 +490,11 @@ export function productForProbe(kind: string): BrandProduct | null {
 const PROBE_PRODUCTS: Record<string, BrandProduct> = {
   'sql-warehouse': 'databricks-sql',
   'genie-space': 'genie',
+  // The two rows the platform speaks for rather than the probes: the app itself,
+  // and the store it writes to. Keyed the same way as everything else, so the
+  // synthesised rows carry a mark like their neighbours instead of a blank.
+  app: 'apps',
+  lakebase: 'lakebase',
   // The served model and the semantic index are both Mosaic AI, which is the
   // handoff's pairing and the console's.
   'serving-endpoint': 'mosaic-ai',

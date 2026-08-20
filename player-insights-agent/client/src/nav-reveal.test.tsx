@@ -44,7 +44,7 @@ function render(state: RoleState): string {
 
 /** The labels, in the order they are drawn. */
 function labels(markup: string): string[] {
-  return [...markup.matchAll(/<\/svg>\s*([^<]+?)\s*<\/a>/g)].map((match) => match[1].trim());
+  return [...markup.matchAll(/<\/svg>\s*([^<]+?)\s*<\/(?:a|button)>/g)].map((match) => match[1].trim());
 }
 
 const EVERY_TAB = [
@@ -54,6 +54,7 @@ const EVERY_TAB = [
   'Ops',
   'Connections',
   'Architecture',
+  'Settings',
 ];
 
 describe('the review flag is on', () => {

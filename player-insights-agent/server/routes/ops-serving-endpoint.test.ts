@@ -153,6 +153,11 @@ describe('what the pill then reports', () => {
       label: 'Serving endpoint',
       state: '',
       read: false,
+      // The row it looked at, even though the row had nothing to report: the
+      // table draws the reading in that row's Result cell either way, and a
+      // reading that named no row would be drawn as a resource of its own.
+      rows: [answerPath],
+      reason: '',
     });
   });
 });

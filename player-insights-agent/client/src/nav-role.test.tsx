@@ -46,7 +46,7 @@ vi.mock('./nav-reveal', () => ({ SHOW_EVERY_TAB_TO_EVERYONE: false, BENCHMARK_LA
 
 import { NavLinks } from './Layout';
 import { mobileNavLinkClass } from './layout-view';
-import { showsSettingsGear, type RoleResolution, type RoleState } from './role';
+import { type RoleResolution, type RoleState } from './role';
 import { NO_EXPERIMENTS, type ExperimentalFeatures } from './experimental-features';
 import { partial } from './styles/stylesheet';
 
@@ -86,7 +86,7 @@ function render(
 
 /** The labels, in the order they are drawn. */
 function labels(markup: string): string[] {
-  return [...markup.matchAll(/<\/svg>\s*([^<]+?)\s*<\/a>/g)].map((match) => match[1].trim());
+  return [...markup.matchAll(/<\/svg>\s*([^<]+?)\s*<\/(?:a|button)>/g)].map((match) => match[1].trim());
 }
 
 /** The hrefs, in the order they are drawn. */
@@ -94,7 +94,7 @@ function hrefs(markup: string): string[] {
   return [...markup.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
 }
 
-const ADMIN_ORDER = ['Ask', 'Run Explorer', 'Monitoring', 'Ops', 'Connections', 'Architecture'];
+const ADMIN_ORDER = ['Ask', 'Run Explorer', 'Monitoring', 'Ops', 'Connections', 'Architecture', 'Settings'];
 const CONSUMER_ORDER = ['Ask', 'Run Explorer', 'Connections', 'Architecture'];
 
 describe('an administrator can reach Monitoring and Ops by clicking', () => {
@@ -174,20 +174,17 @@ describe('a consumer is not shown a door that will be shut in their face', () =>
   });
 });
 
-describe('the settings gear is drawn for an administrator and absent for everyone else', () => {
-  it('is admin-only, and not merely disabled for the rest', () => {
-    expect(showsSettingsGear('admin')).toBe(true);
-    expect(showsSettingsGear('consumer')).toBe(false);
-    expect(showsSettingsGear('resolving')).toBe(false);
-    expect(showsSettingsGear('failed')).toBe(false);
+describe('Settings stays in the tab rail and opens a modal', () => {
+  it('renders Settings as a button rather than a route link', () => {
+    const markup = render('admin');
+    expect(markup).toContain('<button');
+    expect(markup).toContain('Settings</button>');
+    expect(hrefs(markup)).not.toContain('/settings');
   });
 
-  it('is behind that decision in the header rather than always rendered', () => {
-    // Asserted against the source because the gear lives in Layout, which reads
-    // the identity through a hook this file cannot drive without a browser. The
-    // page behind it is the admin-list editor and its endpoints refuse a
-    // consumer, so a drawn-but-dead gear would be a button that cannot work.
-    expect(LAYOUT).toMatch(/showsSettingsGear\(role\.state\)\s*&&[\s\S]{0,400}?aria-label="App settings"/);
+  it('mounts the modal from Layout instead of the route outlet', () => {
+    expect(LAYOUT).toContain('<SettingsPage onClose={closeSettings} />');
+    expect(LAYOUT).toContain('settingsVisible ?');
   });
 });
 

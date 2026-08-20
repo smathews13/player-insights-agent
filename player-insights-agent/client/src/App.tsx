@@ -6,7 +6,6 @@ import { RouteError } from './RouteError';
 import { AdminOnly } from './GatePanel';
 import { HomePage } from './HomePage';
 import { Layout } from './Layout';
-import { SettingsPage } from './SettingsPage';
 import { BenchmarkingVisibility } from './BenchmarkingVisibility';
 
 /**
@@ -130,7 +129,7 @@ const router = createBrowserRouter([
       // paths.
       { path: '/monitoring', element: <AdminOnly><LazyRoute><MonitoringPage /></LazyRoute></AdminOnly>, errorElement: <RouteError /> },
       { path: '/ops', element: <AdminOnly><LazyRoute><OpsPage /></LazyRoute></AdminOnly>, errorElement: <RouteError /> },
-      { path: '/settings', element: <AdminOnly><SettingsPage /></AdminOnly>, errorElement: <RouteError /> },
+      { path: '/settings', element: <AdminOnly><HomePage /></AdminOnly>, errorElement: <RouteError /> },
       { path: '/connections', element: <ConnectionsPage />, errorElement: <RouteError /> },
       // The same connections as a diagram. Registered before the nav advertises
       // it, for the reason /benchmarks is: a URL that works is not contingent on

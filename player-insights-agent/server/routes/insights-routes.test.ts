@@ -2164,6 +2164,14 @@ describe('an answered conversation is a run', () => {
     expect(sql.match(/AS truncated/g)).toHaveLength(2);
   });
 
+  it('carries the agent tool-call count used by the Run Explorer badge', () => {
+    const sql = RUNS_QUERY.replace(/\s+/g, ' ');
+
+    expect(sql).toContain("(a.trace->>'toolCalls')::int AS tool_calls");
+    expect(sql).toContain('NULL::int AS tool_calls');
+    expect(sql.match(/AS tool_calls/g)).toHaveLength(2);
+  });
+
   it('carries which Genie space answered each run', () => {
     // Nothing recorded this. The space is chosen at request time from settings
     // baked into the model artifact, so the app cannot look it up and no stored

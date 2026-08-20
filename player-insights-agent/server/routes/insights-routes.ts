@@ -82,6 +82,7 @@ import {
 } from '../lib/identity-binding';
 import { consumeServingStream, TruncatedStreamError, type StageSink } from '../lib/serving-stream';
 import { createAskResponder } from '../lib/ask-responder';
+import { allowRequiredUserApiScopes } from '../lib/app-user-api-scopes';
 import {
   accessDecisionFor,
   accessModeFor,
@@ -594,6 +595,7 @@ export const RUNS_QUERY = `
          -- empty array is the claim that the run asked no Genie space at all.
          a.trace->'genie_spaces' AS genie_spaces,
          ROUND((a.trace->>'totalMs')::numeric)::int AS duration_ms,
+         (a.trace->>'toolCalls')::int AS tool_calls,
          -- The caller's own rating. The feedback route accepts any message id,
          -- so without the user_email predicate this would show whatever score
          -- anyone else submitted against the same answer.
@@ -614,6 +616,10 @@ export const RUNS_QUERY = `
          -- array claiming a suite of Genie cases never opened a space.
          NULL::jsonb AS genie_spaces,
          (b.metrics_json->>'duration_ms')::int AS duration_ms,
+         -- A suite contains several agent runs and stores no suite-level call
+         -- count. NULL keeps that absence honest instead of adding unlike runs
+         -- into a number the suite never recorded.
+         NULL::int AS tool_calls,
          -- The caller's own rating, from the same table the conversation half
          -- reads. feedback.message_id carries no foreign key and the feedback
          -- route accepts any id, so a run id works here unchanged.
@@ -2800,6 +2806,56 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     app.get('/api/identity', async (req, res) => {
       const role = await rolePayload(appkit.lakebase, userEmail(req));
       res.json({ ...identityPayload(req), ...role });
+    });
+
+    /**
+     * Add the four load-bearing OAuth scopes to this app as the signed-in user.
+     *
+     * This is intentionally beside the identity route rather than under an
+     * Astrolabe admin prefix. CAN MANAGE on the Databricks App is the authority
+     * that matters, and the Apps API evaluates it from the forwarded token.
+     */
+    app.post('/api/app-user-api-scopes', async (req, res) => {
+      const userToken = forwardedUserToken(req);
+      if (!userToken) {
+        res.status(409).json({
+          error: 'user_token_unavailable',
+          message: 'Sign in to Databricks again, then reopen this app.',
+        });
+        return;
+      }
+      const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
+      const host = workspaceHost();
+      if (!appName || !host) {
+        res.status(503).json({
+          error: 'app_identity_unavailable',
+          message: 'This running app could not identify its Databricks App resource.',
+        });
+        return;
+      }
+
+      const outcome = await allowRequiredUserApiScopes({
+        host,
+        appName,
+        userToken,
+      });
+      if (outcome.kind === 'refused') {
+        res.status(403).json({ error: 'app_manage_required', message: outcome.message });
+        return;
+      }
+      if (outcome.kind === 'failed') {
+        res.status(outcome.status).json({ error: 'scope_update_failed', message: outcome.message });
+        return;
+      }
+      res.json({
+        updated: outcome.kind === 'updated',
+        scopes: outcome.scopes,
+        signInAgain: true,
+        message:
+          outcome.kind === 'updated'
+            ? 'Access was added. Sign in again so the new access takes effect.'
+            : 'This app already allows serving, SQL, and Genie. Sign in again so the access takes effect.',
+      });
     });
 
     /**

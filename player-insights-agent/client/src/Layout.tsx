@@ -5,7 +5,7 @@
  * Split out of App.tsx so each page could become its own module. What is left in
  * App.tsx is the router, and this is the element it wraps every route in.
  */
-import { NavLink, Outlet, Link, useLocation, useSearchParams } from 'react-router';
+import { NavLink, Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useCallback, useState } from 'react';
 import { storageBannerNotice } from './storage-banner-copy';
 import {
@@ -46,13 +46,13 @@ import { AstrolabeLockup } from './AstrolabeMark';
 import { BuiltOnDatabricks } from './BuiltOnDatabricks';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
-import { RoleLostNotice } from './GatePanel';
+import { AdminOnly, RoleLostNotice } from './GatePanel';
+import { SettingsPage } from './SettingsPage';
 import { UserIdentityChip } from './UserIdentityChip';
 import { mobileNavLinkClass } from './layout-view';
 import {
   navEntries,
   roleFrom,
-  showsSettingsGear,
   type AppOutletContext,
   type RoleResolution,
 } from './role';
@@ -193,12 +193,16 @@ export function NavLinks({
   role,
   features,
   onClick,
+  onSettingsOpen,
+  settingsOpen = false,
 }: {
   className?: string;
   linkClass: NavLinkClassFn;
   role: RoleResolution;
   features: ExperimentalFeatures;
   onClick?: () => void;
+  onSettingsOpen?: () => void;
+  settingsOpen?: boolean;
 }) {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -214,6 +218,22 @@ export function NavLinks({
   return (<nav className={className}>
       {navEntries(role.state, features).map((entry) => {
         const Icon = NAV_ICONS[entry.to];
+        if (entry.to === '/settings') {
+          return (
+            <button
+              key={entry.to}
+              type="button"
+              className={linkClass({ isActive: settingsOpen })}
+              aria-current={settingsOpen ? 'page' : undefined}
+              onClick={() => {
+                onClick?.();
+                onSettingsOpen?.();
+              }}
+            >
+              <Settings className="size-4" /> {entry.label}
+            </button>
+          );
+        }
         return (<NavLink
             key={entry.to}
             to={entry.to === '/runs' ? runsTo : entry.to}
@@ -346,6 +366,9 @@ export function IdentityChips({
 
 export function Layout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
   const identity = useIdentity();
   const deployment = useDeployment();
   /*
@@ -373,6 +396,12 @@ export function Layout() {
   // layout is what is drawn: under-offering costs a reader some tabs, and
   // over-offering sends them to a page the server refuses.
   const role = roleFrom(identity);
+  const settingsDeepLink = location.pathname === '/settings';
+  const settingsVisible = settingsOpen || settingsDeepLink;
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    if (settingsDeepLink) navigate('/', { replace: true });
+  }, [navigate, settingsDeepLink]);
   // Read once, when the app opens, and held here. `useState(fn)` rather than
   // `useState(readExperimentalFeatures())` so the read happens on mount instead
   // of on every render of the header.
@@ -448,7 +477,15 @@ export function Layout() {
             at the hand-written 1180, so there was a 100px band in which the header
             was full and the page had lost a column. One set of breakpoints now --
             480, 800, 1180, 1366 -- and the nav goes at 1180 with the inspector. */}
-        <NavLinks className="app-nav" linkClass={navLinkClass} role={role} features={features} />
+        <NavLinks
+          className="app-nav"
+          linkClass={navLinkClass}
+          role={role}
+          features={features}
+          settingsOpen={settingsVisible}
+          onSettingsOpen={() => setSettingsOpen(true)}
+          onClick={() => setSettingsOpen(false)}
+        />
         {/* The way into settings, and now into settings rather than towards them.
             
             This pointed at `/connections` for as long as the gear existed, on
@@ -496,12 +533,6 @@ export function Layout() {
         <IdentityChips
           identity={identity}
           role={role}
-          gear={showsSettingsGear(role.state) && (<Button asChild variant="ghost" size="icon" className="header-settings text-muted-foreground hover:text-foreground">
-              <NavLink to="/settings" aria-label="App settings" title="App settings">
-                <Settings className="size-5" />
-              </NavLink>
-            </Button>
-          )}
         />
         {/* Mobile nav, drawn only below the width at which the desktop nav is
             hidden. Both sides of that switch are in responsive.css, so they cannot
@@ -523,6 +554,8 @@ export function Layout() {
                 role={role}
                 features={features}
                 onClick={() => setMobileNavOpen(false)}
+                settingsOpen={settingsVisible}
+                onSettingsOpen={() => setSettingsOpen(true)}
               />
               {/* The release chip's only seat below 800px. The lockup column is
                   what gives at those widths -- the wordmark truncates so the menu
@@ -582,6 +615,11 @@ export function Layout() {
             which set of tabs the reader is entitled to. */}
         <Outlet context={{ features, setFeature, role } satisfies AppOutletContext} />
       </main>
+      {settingsVisible ? (
+        <AdminOnly>
+          <SettingsPage onClose={closeSettings} />
+        </AdminOnly>
+      ) : null}
     </div>
   );
 }

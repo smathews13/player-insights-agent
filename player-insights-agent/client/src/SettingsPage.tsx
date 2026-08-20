@@ -1,121 +1,150 @@
-/**
- * App settings: the page the gear in the header opens.
- *
- * Split out of App.tsx when the pages became modules. The flags it edits reach
- * it through the router outlet, which is why it is a page rather than something
- * the header renders itself: the header and this page are then looking at one
- * object and a toggle moves both in the same render.
- */
+import { useEffect, useState } from 'react';
+import { Lock, X } from 'lucide-react';
 import { useOutletContext } from 'react-router';
-import { AdminListEditor } from './AdminListEditor';
-import { UserRoleEditor } from './UserRoleEditor';
-import { showsBenchmarkLab, showsEgressControls } from './experimental-features';
-import { EgressPanel } from './EgressPanel';
-import { showsAdminSurfaces, showsUserRoster, useRole } from './role';
-import { Card, CardDescription, CardContent, CardHeader, CardTitle, Switch } from './ui';
-import { PageHeading } from './page-chrome';
 import type { ExperimentalFeaturesHandle } from './app-types';
-import { RuntimeSettingsPanel } from './RuntimeSettingsPanel';
+import { AdminListEditor } from './AdminListEditor';
+import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
+import { showsBenchmarkLab, showsEgressControls } from './experimental-features';
+import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
+import { showsUserRoster, useRole } from './role';
+import { UserRoleEditor } from './UserRoleEditor';
+import { Button, Switch } from './ui';
 
-/**
- * What the gear opens: preferences that belong to the reader and to this browser.
- *
- * The split from Connections is the whole design of this page, so it is worth
- * saying where the line is. Here: choices one person makes about what the app
- * shows THEM, held in their own browser, costing nobody else anything.
- * Connections: what this deployment IS -- its catalogs, warehouses, serving and
- * judge endpoints, the preflight report and the identity record -- which is
- * server-side, shared by everybody using the app, and where a wrong value is a
- * broken deployment rather than a hidden tab.
- *
- * Those are different kinds of change, and the editor for the second is entangled
- * with the reporting beside it: it reads and writes `/api/settings` and
- * `/api/settings/values/:id` and shows the preflight those values produced. It
- * has not been moved here, and should not be moved here just to make the gear
- * feel complete. The link below is the join, and it is a link rather than an
- * embed for the same reason the pages are separate.
- *
- * That reasoning stays in this comment and does not appear on the page. A
- * paragraph arguing why deployment configuration is somewhere else was on screen
- * and was cut: it explained a design decision to a reader who had come to flip a
- * switch. Each card says what its controls do and where the other ones are, and
- * nothing here argues for how the app was built.
- *
- * THE ADMINISTRATORS CARD IS THE ONE EXCEPTION to the line above, and it is worth
- * being explicit about why it is not in Connections. It is not a per-browser
- * preference: it changes who can open Monitoring and Ops for everybody. But it is
- * also not a deployment resource. It appoints a PERSON, and it belongs beside the
- * gear that only administrators can see, rather than in a page about catalogs and
- * endpoints. It is first because it is the most consequential control here, and
- * the page's own description is written so that it does not claim otherwise.
- */
-export function SettingsPage() {
+type SettingsSection = 'roles' | 'runtime' | 'appearance' | 'egress' | 'experimental';
+
+const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
+  { id: 'roles', label: 'Roles' },
+  { id: 'runtime', label: 'Runtime' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'egress', label: 'Egress controls' },
+  { id: 'experimental', label: 'Experimental' },
+];
+
+export function SettingsPage({
+  onClose,
+  initialSection = 'runtime',
+}: {
+  onClose?: () => void;
+  initialSection?: SettingsSection;
+}) {
   const { features, setFeature } = useOutletContext<ExperimentalFeaturesHandle>();
   const role = useRole();
+  const [active, setActive] = useState<SettingsSection>(initialSection);
+  const close = onClose ?? (() => {});
+  const sections = BASE_SECTIONS.filter((section) => section.id !== 'egress' || showsEgressControls(features));
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [close]);
+
+  const form =
+    active === 'runtime' || active === 'appearance'
+      ? RUNTIME_SETTINGS_FORM_ID
+      : active === 'egress'
+        ? EGRESS_SETTINGS_FORM_ID
+        : undefined;
 
   return (
-    <div className="page-shell settings-page">
-      <PageHeading title="Settings" />
-
-      {/* The one fact a reader needs before they touch this page: nothing here is
-          a lock. The controls decide who administers the deployment and how the
-          agent answers, and the server enforces those whether or not this page is
-          reachable. Hiding the gear is not a security boundary and the subhead
-          says so, per the #24a handoff. */}
-      <p className="settings-subhead">Admin only. Enforced on the server, not by hiding this page.</p>
-
-      {/* One Roles card, never the old roster card followed by a second
-          Administrators card. A super admin gets the full roster editor; a plain
-          administrator gets the server-authorized administrator view. The routes,
-          not this branch, remain the permission boundary. */}
-      {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
-
-      <RuntimeSettingsPanel />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Experimental features</CardTitle>
-          <CardDescription>Unfinished or internal surfaces, off by default.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="settings-row">
-            <div>
-              <p className="settings-row-label">
-                Benchmarking · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
-              </p>
-              <p className="settings-row-note">
-                Shows the Benchmarking tab, scorers and judge details.
-              </p>
-            </div>
-            <Switch
-              checked={showsBenchmarkLab(features)}
-              onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
-              aria-label="Show Benchmarking, scorers and judge details"
-            />
+    <div className="settings-overlay" data-testid="settings-modal-overlay" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) close();
+    }}>
+      <section className="settings-modal settings-page" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header className="settings-modal-header">
+          <div>
+            <h2 id="settings-title">Settings</h2>
+            <p>Admin only. Enforced on the server.</p>
           </div>
+          <button className="settings-close" type="button" onClick={close} aria-label="Close settings">
+            <X aria-hidden="true" />
+          </button>
+        </header>
 
-          <div className="settings-row">
-            <div>
-              <p className="settings-row-label">Egress controls</p>
-              <p className="settings-row-note">
-                Shows which egress paths can be turned off on this deployment. Hiding it does not change what is
-                permitted.
-              </p>
-            </div>
-            <Switch
-              checked={showsEgressControls(features)}
-              onCheckedChange={(enabled) => setFeature('egressControls', enabled)}
-              aria-label="Show the egress controls on this page"
-            />
+        <div className="settings-modal-body">
+          <nav className="settings-rail" aria-label="Settings sections">
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                className={active === section.id ? 'active' : ''}
+                aria-current={active === section.id ? 'page' : undefined}
+                onClick={() => setActive(section.id)}
+              >
+                {section.label}
+              </button>
+            ))}
+          </nav>
+          <div className="settings-modal-content">
+            {active === 'roles' ? (
+              <div className="settings-pane settings-roles">
+                <div className="settings-pane-heading">
+                  <h3>Roles</h3>
+                  <p>Identity and deployment roles. Changes save immediately.</p>
+                </div>
+                {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
+              </div>
+            ) : null}
+            {active === 'runtime' || active === 'appearance' ? <RuntimeSettingsPanel section={active} /> : null}
+            {active === 'egress' ? <EgressPanel /> : null}
+            {active === 'experimental' ? (
+              <div className="settings-pane">
+                <div className="settings-pane-heading">
+                  <h3>Experimental</h3>
+                  <p>Unfinished or internal surfaces, off by default.</p>
+                </div>
+                <div className="settings-row">
+                  <div>
+                    <p className="settings-row-label">
+                      Benchmarking, scorers and judge · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
+                    </p>
+                    <p className="settings-row-note">Shows the Benchmarking tab, scorers and judge details.</p>
+                  </div>
+                  <Switch
+                    checked={showsBenchmarkLab(features)}
+                    onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
+                    aria-label="Show Benchmarking, scorers and judge details"
+                  />
+                </div>
+                <div className="settings-row">
+                  <div>
+                    <p className="settings-row-label">
+                      PII egress judge · {showsEgressControls(features) ? 'Shown' : 'Hidden'}
+                    </p>
+                    <p className="settings-row-note">
+                      Shows the Egress controls section. Hiding it does not change what is permitted.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={showsEgressControls(features)}
+                    onCheckedChange={(enabled) => {
+                      setFeature('egressControls', enabled);
+                    }}
+                    aria-label="Show the egress controls on this page"
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Below the toggle that reveals it, so turning it on does not move the
-          switch the reader just used. Administrators only: the admin routes it
-          uses are refused for anybody else on the server whatever is drawn
-          here, so this is about not offering dead cards. */}
-      {showsEgressControls(features) && showsAdminSurfaces(role.state) ? <EgressPanel /> : null}
+        <footer className="settings-modal-footer">
+          <div className="settings-footer-note">
+            {active === 'runtime' ? (
+              <>
+                <Lock aria-hidden="true" />
+                <span>Dictionary-first field binding and never-invent-figures are mandatory safeguards, not switches.</span>
+              </>
+            ) : null}
+          </div>
+          <div className="settings-footer-actions">
+            <Button variant="outline" type="button" onClick={close}>Cancel</Button>
+            {form ? <Button type="submit" form={form}>Save</Button> : null}
+          </div>
+        </footer>
+      </section>
     </div>
   );
 }

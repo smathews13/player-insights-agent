@@ -132,15 +132,25 @@ export interface OpsCostPayload {
  * A dependency's result, in three states.
  *
  * `not-checked` is its own state and must never be rendered as either of the
- * others. Nothing here is ever drawn as pass or fail: the design's words are
- * answered, did not answer, not checked, and they are the words because a probe
- * that did not run has not said anything about the dependency.
+ * others. Nothing here is ever drawn as pass or fail: a probe that did not run
+ * has not said anything about the dependency, and a probe that ran established
+ * one narrow thing rather than that a service works.
+ *
+ * THE WORDS ARE THE CHECK'S, NOT A CONVERSATION'S. They were answered, did not
+ * answer and not checked, which is the vocabulary of the app's own question and
+ * answer path -- on a table of resource health, beside pills reading "Ready" and
+ * "Running", "Answered" read as something a person had asked the warehouse. What
+ * each probe does is a metadata GET as the signed-in user, so the word for one
+ * that came back is the word Connections has always used for the same call:
+ * reachable. `not-answering` keeps the failing case about the probe rather than
+ * about the network, because a refusal is one of the ways a probe does not come
+ * back and the Notes cell carries the platform's own words for which it was.
  */
 export type DependencyResult = 'answered' | 'did-not-answer' | 'not-checked';
 
 export const DEPENDENCY_RESULT_LABEL: Record<DependencyResult, string> = {
-  answered: 'Answered',
-  'did-not-answer': 'Did not answer',
+  answered: 'Reachable',
+  'did-not-answer': 'Not answering',
   'not-checked': 'Not checked',
 };
 
@@ -182,18 +192,50 @@ export interface HealthDependency {
 /**
  * One thing the platform says about itself, as opposed to something PIA probed.
  *
- * `state` is the platform's own word where there is one. `evidence` says how
- * this was established, because the two pills on this block are established
- * differently and a reader who cannot tell them apart has been given one
- * number for two questions, which is what section 7.2 forbids.
+ * `state` is the platform's own word where there is one.
+ *
+ * A ROW OF THE HEALTH TABLE RATHER THAN A PILL OVER IT. These used to sit in the
+ * block's head as a cluster of their own, apart from the table, so a reader could
+ * not mistake a platform reading for a probe result. What that produced was two
+ * places to look for one question -- is this deployment's serving endpoint up --
+ * and a table whose own Result column said "Answered" beside a pill saying
+ * "Ready" about the same endpoint. The distinction is now carried where it costs
+ * nothing: each row's Result pill NAMES the resource and states its word, so
+ * "Serving endpoint · Ready" is visibly the platform's sentence and
+ * "SQL warehouse · Reachable" is visibly this app's.
  */
 export interface PlatformReading {
-  id: 'endpoint' | 'app';
+  id: 'endpoint' | 'app' | 'lakebase';
   label: string;
   /** The platform's word, or '' where it could not be read. */
   state: string;
   /** Whether this was read at all. False renders 'Not checked', never a failure. */
   read: boolean;
+  /**
+   * The `HealthDependency` ids this reading speaks for, and the field that keeps
+   * one badge from being drawn twice.
+   *
+   * SET BY THE SERVER, WHICH IS THE ONLY SIDE THAT KNOWS WHICH ROWS IT READ. The
+   * endpoint reading is taken from the answer-path endpoints only, so it may not
+   * speak for a judge endpoint row that happens to share its kind, and a client
+   * matching on kind would put "Serving endpoint · Ready" on a row the reading
+   * never looked at.
+   *
+   * EMPTY MEANS THE READING IS ITS OWN ROW. The app and Lakebase are not probed
+   * as dependencies -- one is true by construction because the handler answered,
+   * the other is a read of the app's own store -- so the table synthesises a row
+   * for each rather than dropping the reading on the floor.
+   */
+  rows: string[];
+  /**
+   * The platform's own words about a reading that is not the good one, or ''.
+   *
+   * Only a reading that is its own row can carry this, and only Lakebase has one
+   * to carry: a dependency row's note is the probe's, and this app never rewrites
+   * either. It is the difference between "the store is not answering" and knowing
+   * whether that was the pool or a revoked grant.
+   */
+  reason: string;
 }
 
 /**

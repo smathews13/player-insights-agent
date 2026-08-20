@@ -51,6 +51,7 @@ import {
   type CheckSession,
 } from './check-session';
 import type { SettingsPayload } from './connection-model';
+import { fetchWithTimeout } from './fetch-timeout';
 import { isPreflightReport, type PreflightReport } from './preflight';
 
 type Listener = () => void;
@@ -71,6 +72,9 @@ let running = false;
  */
 let completed = 0;
 
+/** Longer than a healthy preflight, but never an unbounded screen wait. */
+export const SESSION_CHECK_TIMEOUT_MS = 25_000;
+
 function announce(): void {
   // Over a copy: a listener that unsubscribes while being notified would
   // otherwise mutate the set being iterated.
@@ -90,7 +94,7 @@ export function resetSessionChecks(): void {
 }
 
 async function readSettings(): Promise<SettingsPayload> {
-  const response = await fetch('/api/settings');
+  const response = await fetchWithTimeout('/api/settings', {}, SESSION_CHECK_TIMEOUT_MS);
   if (!response.ok) throw new Error(`the settings endpoint answered ${response.status}`);
   return (await response.json()) as SettingsPayload;
 }
@@ -103,7 +107,7 @@ async function readSettings(): Promise<SettingsPayload> {
  * report at all is a failure of this read.
  */
 async function readPreflight(): Promise<PreflightReport> {
-  const response = await fetch('/api/preflight');
+  const response = await fetchWithTimeout('/api/preflight', {}, SESSION_CHECK_TIMEOUT_MS);
   const body: unknown = await response.json();
   if (isPreflightReport(body)) return body;
   throw new Error(`the preflight route answered ${response.status} but not with a dependency report`);

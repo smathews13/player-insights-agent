@@ -2,13 +2,15 @@
  * The run's steps as a night sky, in the two arrangements the design draws.
  *
  * `AgentPathConstellation` is `#18a`: the rail's run, vertical, connecting as it
- * happens. The line into the step in progress draws on a 2.2s loop and that step's
- * star pulses; every other line is at rest. IT STAYS UP AFTER THE RUN, at rest and
- * with the ending named on its status line, because the reader asked to keep
- * looking at the drawing of the run they just watched rather than have it
- * substituted for a list the moment the answer lands. Nothing about it animates
- * then: `activeIndex` is the caller's statement that a step is in progress, and
- * -1 is the same caller saying none is.
+ * happens. The line into the step in progress draws on a 2.2s loop, that step's
+ * star pulses, and the mark on the foot's status line flickers through the four
+ * concepts the app's other loaders flicker through; every other line is at rest.
+ * IT STAYS UP AFTER THE RUN, at rest and with the ending named on its status
+ * line, because the reader asked to keep looking at the drawing of the run they
+ * just watched rather than have it substituted for a list the moment the answer
+ * lands. Nothing about it animates then, the foot's mark included: `activeIndex`
+ * is the caller's statement that a step is in progress, and -1 is the same caller
+ * saying none is.
  *
  * `AgentMapConstellation` is `#18b`: the finished run, horizontal and scattered,
  * with each step's name and figures set opposite the line flow and the selected
@@ -52,8 +54,11 @@ import {
   type BrandProduct,
   type BrandTone,
 } from './brand-icons';
+import { BrandIcon } from './BrandIcon';
+import { ConceptFlicker } from './ConceptFlicker';
 import { useState } from 'react';
 import type { TraceStage } from './answer-shape';
+import { formatDuration } from './benchmark-summary';
 
 /**
  * A recoloured mark as a data URL, for the one seating that cannot inline it.
@@ -116,15 +121,23 @@ function sparkle(x: number, y: number, reach: number): string {
  * lookalike as one and is then wrong about which product ran, which is the defect
  * `brand-icons.ts` was written to end.
  */
-function Star({ star, tone }: { star: ConstellationStar; tone: BrandTone }) {
+function Star({ star, tone, path = false }: { star: ConstellationStar; tone: BrandTone; path?: boolean }) {
   if (star.decision) {
-    return <path className="ast-star-decision" d={sparkle(star.x, star.y, 7)} />;
+    return <path className="ast-star-decision" d={sparkle(star.x, star.y, path ? 11 : 7)} />;
   }
   const product = star.tool === '' ? null : starProduct(star.tool);
   if (product === null) {
     return <circle className="ast-star-plain" cx={star.x} cy={star.y} r="4" />;
   }
-  return <image href={markUrl(tone, product)} x={star.x - 8} y={star.y - 8} width="16" height="16" />;
+  if (!path) {
+    return <image href={markUrl(tone, product)} x={star.x - 8} y={star.y - 8} width="16" height="16" />;
+  }
+  return (
+    <>
+      <circle className="ast-star-tool-halo" cx={star.x} cy={star.y} r="16" />
+      <image href={markUrl(tone, product)} x={star.x - 11} y={star.y - 11} width="22" height="22" />
+    </>
+  );
 }
 
 /** A connector, at rest or drawing itself. */
@@ -160,12 +173,15 @@ export function AgentPathConstellation({
   stages,
   activeIndex,
   elapsedMs,
+  totalMs = null,
 }: {
   stages: TraceStage[];
   /** The step in progress, or -1. The caller's decision, not this file's. */
   activeIndex: number;
   /** How long that step has been going, from the caller's one clock. */
   elapsedMs: number | null;
+  /** The settled run's wall time, when the trace recorded one. */
+  totalMs?: number | null;
 }) {
   /*
    * The step the reader pinned, BY ID and toggled off by a second press, which is
@@ -203,8 +219,8 @@ export function AgentPathConstellation({
   if (pinnedId !== null && pinnedIndex === -1) setPinnedId(null);
   if (stages.length === 0) return null;
   const current = activeIndex >= 0 && activeIndex < stages.length ? stages[activeIndex] : null;
-  const shownIndex = pinnedIndex !== -1 ? pinnedIndex : current ? activeIndex : -1;
-  const shown = shownIndex >= 0 ? stages[shownIndex] : null;
+  const shownIndex = pinnedIndex !== -1 ? pinnedIndex : current ? activeIndex : stages.length - 1;
+  const shown = stages[shownIndex];
   /*
    * WHETHER THE RUN IS ACTUALLY INSIDE THAT STEP, which is not the same question as
    * which step is the frontier.
@@ -223,6 +239,13 @@ export function AgentPathConstellation({
   // into the last step of a finished run is the panel saying the run is still going.
   const path = buildPathConstellation(stages, inFlight ? activeIndex : -1);
   const currentStar = current ? path.stars[activeIndex] : null;
+  const shownProduct = shownIndex >= 0 ? starProduct(path.stars[shownIndex]?.tool ?? '') : null;
+  const statusDuration =
+    inFlight && elapsedMs !== null
+      ? `${Math.max(0, Math.floor(elapsedMs / 1000))}s`
+      : activeIndex === -1 && totalMs !== null
+        ? formatDuration(totalMs)
+        : null;
   /*
    * WHERE A SETTLED RUN ENDED, when it did not end cleanly. The band stays up
    * after the run now, so the one line on it has to survive a run that died: over
@@ -247,6 +270,13 @@ export function AgentPathConstellation({
    * there is one way to stop inspecting a step on this surface rather than two.
    */
   const pin = (id: string) => setPinnedId((held) => (held === id ? null : id));
+  /*
+   * Whether the foot's mark is a loader: the run is inside a step AND the line is
+   * following it. Derived here beside the rest of the band's state rather than
+   * inline in the markup, so the one condition is readable next to `inFlight`,
+   * which is the thing it narrows.
+   */
+  const flickering = inFlight && pinnedIndex === -1;
   return (
     <div className="ast-sky ast-sky-path">
       <svg
@@ -257,6 +287,20 @@ export function AgentPathConstellation({
         preserveAspectRatio="xMidYMin meet"
         fill="none"
       >
+        <g className="ast-sky-dust" aria-hidden="true">
+          {[
+            [36, 0.16],
+            [274, 0.23],
+            [65, 0.34],
+            [293, 0.45],
+            [29, 0.58],
+            [263, 0.66],
+            [77, 0.78],
+            [286, 0.88],
+          ].map(([x, fraction]) => (
+            <circle key={`${x}-${fraction}`} cx={x} cy={Math.round(path.height * fraction)} r="1.5" />
+          ))}
+        </g>
         <g className="ast-links">
           {path.links.map((link) => (
             <Link key={`${link.from}-${link.to}`} link={link} />
@@ -274,23 +318,24 @@ export function AgentPathConstellation({
               if (event.key === 'Enter' || event.key === ' ') pin(stages[index].id);
             }}
           >
-            <Star star={star} tone="dark" />
+            {inFlight && activeIndex === index ? (
+              <g className="ast-anim-center-pulse" style={{ transformOrigin: `${star.x}px ${star.y}px` }}>
+                <Star star={star} tone="dark" path />
+              </g>
+            ) : (
+              <Star star={star} tone="dark" path />
+            )}
           </g>
         ))}
-        {/* The step in progress, marked twice: the glyph beats and a ring breathes
-            around it. Two marks rather than one, because a reader who cannot see
-            the opacity dip still sees the ring, and because the ring is what
-            survives at the small end of this band's rendered width.
+        {/* The step in progress is marked twice: its existing glyph beats and a
+            ring breathes around it. Two marks rather than one, because a reader
+            who cannot see the scale change still sees the ring, and because the
+            ring is what survives at the small end of this band's rendered width.
             On a run that has stopped the frontier keeps the ring and loses both the
             beat and the larger glyph -- the newest step is still worth marking, and
             marking it is not the same as claiming it is happening. */}
         {currentStar && (
           <>
-            {inFlight && (
-              <g className="ast-anim-center-pulse" style={{ transformOrigin: `${currentStar.x}px ${currentStar.y}px` }}>
-                <path className="ast-star-current" d={sparkle(currentStar.x, currentStar.y, 9)} />
-              </g>
-            )}
             <circle
               className={`ast-star-ring ${inFlight ? 'ast-anim-star-pulse' : ''}`.trim()}
               cx={currentStar.x}
@@ -316,20 +361,50 @@ export function AgentPathConstellation({
         because it is a figure in a right-aligned meta slot.
       */}
       <p className="ast-sky-status" aria-live="polite">
+        {/*
+          THE SLOT FLICKERS WHILE THE STEP IT NAMES IS THE ONE BEING WORKED ON,
+          and holds the step's real mark the rest of the time.
+
+          It was static in both states, which made the one glyph on the foot of a
+          running band the only thing on the surface not saying the run was going:
+          lines drawing, star beating, ring breathing, and a still mark under them.
+
+          `ConceptFlicker` rather than a fifth thing that cycles: it is the app's
+          working loader, `ast-anim-flick` and the four concepts, and the reader
+          has already met it on the splash and in the strip. A second cycle
+          written here would drift from that one the first time either is retuned.
+
+          `flickering` is not `inFlight` alone, because the line does not always
+          name the step the run is on. A pinned step is a settled step the reader
+          opened, and a loader beside its name would be this band claiming that
+          step is happening -- the same substitution the ring refuses two comments
+          up. Pinned, or run over: the real mark.
+        */}
         <span className="ast-sky-status-mark" aria-hidden="true">
-          <AstrolabeMark size={18} ink="dark" />
+          {flickering ? (
+            <ConceptFlicker seat="status" />
+          ) : shownProduct ? (
+            <BrandIcon product={shownProduct} size={12} tone="dark" />
+          ) : (
+            <AstrolabeMark size={11} ink="dark" />
+          )}
         </span>
         <span className="ast-sky-status-text">
-          {shown
+          {pinnedIndex !== -1 || current
             ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
             : ended === null
-              ? 'Every step recorded'
+              ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
               : `Step ${path.numbers[endedAt].label} · ${ended.name} · ${
                   ended.status === 'running' ? 'never reported' : ended.status
                 }`}
         </span>
-        {inFlight && elapsedMs !== null && (
-          <span className="ast-num ast-sky-status-elapsed">{`${Math.max(0, Math.floor(elapsedMs / 1000))}s`}</span>
+        {statusDuration && (
+          <span
+            className="ast-num ast-sky-status-elapsed"
+            title={activeIndex === -1 && totalMs !== null ? `${totalMs.toLocaleString()} milliseconds` : undefined}
+          >
+            {statusDuration}
+          </span>
         )}
       </p>
     </div>
@@ -388,9 +463,7 @@ export function AgentMapConstellation({ stages, selectedId }: { stages: TraceSta
             §5's ring and tint on the selected star, and nothing else changes -- the
             glyph is the same glyph, because what is selected is not a different
             kind of step. */}
-        {selected && (
-          <circle className="ast-star-selected" cx={selected.x} cy={selected.y} r={SELECTED_RING} />
-        )}
+        {selected && <circle className="ast-star-selected" cx={selected.x} cy={selected.y} r={SELECTED_RING} />}
         {map.stars.map((star) => (
           <Star key={star.id} star={star} tone="dark" />
         ))}

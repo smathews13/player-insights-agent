@@ -35,7 +35,7 @@
  * dependency; where the reference this was modelled on prints a number, this
  * prints what it is waiting for.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';
@@ -76,6 +76,7 @@ import {
 import { DRIFT_MARKER_LABEL } from './connection-status';
 import { checkedAtOf, restoredNotice } from './check-session';
 import { useSessionChecks } from './session-checks';
+import { fetchWithTimeout } from './fetch-timeout';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
 import { entityHref } from './data-entities';
 
@@ -102,6 +103,40 @@ interface ArchitecturePayload {
    */
   semanticIndex: { decidedBy: string; reason: string };
   readAt: string;
+}
+
+const ARCHITECTURE_DESCRIPTION_TIMEOUT_MS = 5_000;
+
+/** Keep a diagram exception from replacing the whole Architecture tab. */
+class ArchitectureDiagramBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Architecture diagram could not be rendered:', error);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (<div data-testid="architecture-diagram-fallback">
+        <Alert>
+          <CircleAlert />
+          <AlertDescription>
+            The interactive diagram could not be drawn. The architecture map remains available below.
+          </AlertDescription>
+        </Alert>
+        <ul className="arch-equivalent">
+          {ARCHITECTURE_NODES.map((node) => (<li key={node.id}>
+              <strong>{node.label}</strong>: status unavailable. {node.role}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 }
 
 /**
@@ -354,7 +389,7 @@ export function ArchitectureCanvas({
     if (!element || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 0;
-      setPanelWidth(width);
+      setPanelWidth((current) => current === width ? current : width);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -588,7 +623,7 @@ export function ArchitecturePage() {
     let live = true;
     void (async () => {
       try {
-        const response = await fetch('/api/architecture');
+        const response = await fetchWithTimeout('/api/architecture', {}, ARCHITECTURE_DESCRIPTION_TIMEOUT_MS);
         if (!response.ok) throw new Error(`the architecture endpoint answered ${response.status}`);
         const body = (await response.json()) as ArchitecturePayload;
         if (live) setPayload(body);
@@ -699,7 +734,9 @@ export function ArchitecturePage() {
             Live data flow
           </h3>
         </div>
-        <ArchitectureCanvas byResource={byResource} now={now} payload={payload} />
+        <ArchitectureDiagramBoundary key={`${checkedAt}:${payload?.readAt ?? ''}`}>
+          <ArchitectureCanvas byResource={byResource} now={now} payload={payload} />
+        </ArchitectureDiagramBoundary>
       </section>
 
       <div className="arch-rails">

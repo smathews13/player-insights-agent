@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { KPI_HINTS, conversationFilterOptions, conversationRunTitle, toolStageDurationMs } from './run-explorer-state';
+import {
+  KPI_HINTS,
+  conversationFilterOptions,
+  conversationRunTitle,
+  conversationSummary,
+  toolStageDurationMs,
+} from './run-explorer-state';
 import type { Run } from './app-types';
 import type { TraceStage } from './answer-shape';
 
@@ -116,7 +122,7 @@ describe('Run Explorer feedback', () => {
     }
   });
 
-  it('numbers a run inside its conversation', () => {
+  it('names a conversation by its stable id and numbers only its runs', () => {
     const run = (id: string, conversation_id: string, created_at: string): Run => ({
       id, conversation_id, created_at, kind: 'conversation', prompt: id,
       stakeholder: 'sam@example.com', status: 'complete', duration_ms: 1, rating: null,
@@ -126,10 +132,34 @@ describe('Run Explorer feedback', () => {
       run('c1-r2', 'c1', '2026-08-19T02:00:00Z'),
       run('c1-r1', 'c1', '2026-08-19T01:00:00Z'),
     ];
-    expect(conversationRunTitle(runs, runs[1])).toBe('Conversation 1, Run 2');
+    expect(conversationRunTitle(runs, runs[1])).toBe('Conversation c1, Run 2');
     expect(conversationFilterOptions(runs)).toEqual([
-      { id: 'c1', label: 'Conversation 1' },
-      { id: 'c2', label: 'Conversation 2' },
+      { id: 'c1', label: 'c1-r1' },
+      { id: 'c2', label: 'c2-r1' },
     ]);
+  });
+
+  it('uses the first prompt as the readable, truncated conversation filter label', () => {
+    const run = (id: string, prompt: string): Run => ({
+      id,
+      conversation_id: 'conv-player-comparison',
+      created_at: '2026-08-19T01:00:00Z',
+      kind: 'conversation',
+      prompt,
+      stakeholder: 'sam@example.com',
+      status: 'complete',
+      duration_ms: 1,
+      rating: null,
+    });
+    const first = run(
+      'msg-first',
+      'Compare active players by title over the last 30 days and explain every material change in the results.'
+    );
+    const later = { ...run('msg-later', 'Now break that down by label.'), created_at: '2026-08-19T02:00:00Z' };
+
+    expect(conversationFilterOptions([later, first])).toEqual([
+      { id: 'conv-player-comparison', label: conversationSummary(first) },
+    ]);
+    expect(conversationSummary(first)).toBe('Compare active players by title over the last 30 days…');
   });
 });

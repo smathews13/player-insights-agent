@@ -29,15 +29,17 @@ import {
 /**
  * Which ink each seating hands the marks.
  *
- * The splash and the inline row are on white; the strip inside a navy panel is
- * on dark; the in-button mark is all white, because #6FAEDD on the blue primary
- * button is 1.6:1 and the accent dots would vanish.
+ * The splash and the inline row are on white; the strip inside a navy panel and
+ * the agent path's status slot are on dark; the in-button mark is all white,
+ * because #6FAEDD on the blue primary button is 1.6:1 and the accent dots would
+ * vanish.
  */
 const SEAT_INK: Readonly<Record<FlickerSeat, MarkInk>> = {
   splash: 'light',
   inline: 'light',
   button: 'mono',
   strip: 'dark',
+  status: 'dark',
 };
 
 export function ConceptFlicker({ seat, className }: { seat: FlickerSeat; className?: string }) {

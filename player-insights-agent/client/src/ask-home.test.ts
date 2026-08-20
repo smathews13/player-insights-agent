@@ -191,7 +191,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // numbers do not have to be read together to know what either one means.
     expect(partial('tokens.css')).toMatch(/--conversation-measure:\s*\d+px/);
     expect(body('.conversation-main')).toMatch(
-      /max-width:\s*calc\(var\(--conversation-measure\) \+ var\(--conversation-inset\) \* 2\)/,
+      /max-width:\s*calc\(var\(--conversation-measure\) \+ var\(--conversation-inset\) \* 2\)/
     );
     // Without this the cap is a left-aligned column with all the slack on one side,
     // which is worse than no cap: the hero and the composer stay centred in the
@@ -203,10 +203,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // An answer carries tables, charts and a source list; a prompt is one line of
     // somebody's question. Capping them together at 720px would have been the
     // tidier-looking rule and it would have taken width off the thing being read.
-    const measure = Number.parseInt(
-      partial('tokens.css').match(/--conversation-measure:\s*(\d+)px/)?.[1] ?? '0',
-      10,
-    );
+    const measure = Number.parseInt(partial('tokens.css').match(/--conversation-measure:\s*(\d+)px/)?.[1] ?? '0', 10);
     expect(measure).toBeGreaterThan(720);
     // And short enough that a line of body copy is still a line rather than a
     // paragraph's worth of tracking across a monitor.
@@ -274,7 +271,28 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(body('.trace-head')).toMatch(/align-items:\s*baseline/);
     // The heading kept its size when it left the head row. A descendant selector
     // would have stopped matching it and taken the 16px with it silently.
-    expect(body('.trace-title')).toMatch(/font-size:\s*16px/);
+    expect(body('.trace-title')).toMatch(/font-size:\s*18px/);
+  });
+
+  it('uses the entire harness rail as one navy panel', () => {
+    const inspector = body('.trace-inspector');
+    expect(inspector).toMatch(/background:\s*var\(--ast-navy\)/);
+    expect(inspector).toMatch(/padding:\s*20px/);
+    expect(inspector).toMatch(/gap:\s*14px/);
+    expect(inspector).not.toMatch(/background:\s*var\(--background\)/);
+
+    const sky = body('.trace-inspector .ast-sky');
+    expect(sky).toMatch(/background:\s*transparent/);
+    expect(sky).toMatch(/border-radius:\s*0/);
+  });
+
+  it('keeps the completed run controls on the navy surface', () => {
+    expect(body('.trace-inspector .metric-row')).toMatch(/grid-template-columns:\s*repeat\(2/);
+    for (const label of ['Total time', 'Tool calls', 'Tokens', 'Slowest', 'Explore full run']) {
+      expect(HOME_PAGE).toContain(label);
+    }
+    expect(HOME_PAGE).toContain('className="trace-explore w-full"');
+    expect(HOME_PAGE).toContain('<ExternalLink aria-hidden="true" />');
   });
 
   it('separates what you type from what you press', () => {
@@ -323,7 +341,7 @@ describe('the run says which of four things it is doing', () => {
     // most of why seating it beats restating it.
     for (const [tone, selector] of PAINTED) {
       expect(body(selector), `${tone} paints only colour`).not.toMatch(
-        /padding|border-width|font-size|line-height|border:\s/,
+        /padding|border-width|font-size|line-height|border:\s/
       );
     }
   });
@@ -429,8 +447,14 @@ describe('the owner filter chips are the one control that may not move when pres
     // border or type size fails this instead of quietly clipping again.
     const chip = body('.conversation-filter-chip');
     const px = (property: string) => Number(chip.match(new RegExp(`${property}:\\s*([\\d.]+)px`))![1]);
-    const [padding] = chip.match(/padding:\s*([\d.]+)px/)!.slice(1).map(Number);
-    const [border] = chip.match(/border:\s*([\d.]+)px/)!.slice(1).map(Number);
+    const [padding] = chip
+      .match(/padding:\s*([\d.]+)px/)!
+      .slice(1)
+      .map(Number);
+    const [border] = chip
+      .match(/border:\s*([\d.]+)px/)!
+      .slice(1)
+      .map(Number);
     const lineHeight = Number(chip.match(/line-height:\s*([\d.]+)/)![1]);
     const chipHeight = padding * 2 + border * 2 + px('font-size') * lineHeight;
     expect(chipHeight).toBe(26);
@@ -449,10 +473,10 @@ describe('the inspector while a run is still going', () => {
     // mounted for the whole request produced the reported empty dark card even
     // while liveStages was filling the harness beside it.
     expect(HOME_PAGE).toMatch(
-      /liveStages\.length > 0 \? \([\s\S]{0,420}<AgentPathConstellation[\s\S]{0,180}stages=\{liveStages\}/,
+      /liveStages\.length > 0 \? \([\s\S]{0,420}<AgentPathConstellation[\s\S]{0,180}stages=\{liveStages\}/
     );
     expect(HOME_PAGE).toMatch(
-      /<AgentPathConstellation[\s\S]{0,240}elapsedMs=\{railElapsedMs\}[\s\S]{0,180}<WorkingConstellation seat="card"/,
+      /<AgentPathConstellation[\s\S]{0,240}elapsedMs=\{railElapsedMs\}[\s\S]{0,180}<WorkingConstellation seat="card"/
     );
   });
 
@@ -475,7 +499,7 @@ describe('the inspector while a run is still going', () => {
     expect(HOME_PAGE).not.toMatch(/<TraceDag/);
     const view = HOME_PAGE.slice(
       HOME_PAGE.indexOf('<AgentPathConstellation'),
-      HOME_PAGE.indexOf('/>', HOME_PAGE.indexOf('<AgentPathConstellation')),
+      HOME_PAGE.indexOf('/>', HOME_PAGE.indexOf('<AgentPathConstellation'))
     );
     expect(view).not.toContain('compact');
     expect(HOME_PAGE).toContain('<h3 className="trace-title">Agent path</h3>');
@@ -498,7 +522,9 @@ describe('the inspector while a run is still going', () => {
      * steps yet the rail falls back to the PREVIOUS answer's trace, so a mark
      * keyed on `loading` alone would light a card of a run that ended.
      */
-    expect(HOME_PAGE).toMatch(/const railActiveIndex = loading && liveStages\.length > 0 \? railStages\.length - 1 : -1;/);
+    expect(HOME_PAGE).toMatch(
+      /const railActiveIndex = loading && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
+    );
     expect(HOME_PAGE).not.toMatch(/\(runningStep \|\| railStages\.length\) - 1/);
     // Still read, and still the number the pill's failure label needs: the step a
     // run DIED inside is a different claim from how far it got.
@@ -512,9 +538,7 @@ describe('the inspector while a run is still going', () => {
     // is going, so a finished run cannot be left counting by a component that kept
     // its own. The `loading` half of the guard is what makes that true of a run
     // that died mid-step, and `runningSince` is what makes it true between steps.
-    expect(HOME_PAGE).toMatch(
-      /const railElapsedMs = runningElapsed\(\{ loading, runningSince, now \}\);/,
-    );
+    expect(HOME_PAGE).toMatch(/const railElapsedMs = runningElapsed\(\{ loading, runningSince, now \}\);/);
     expect(HOME_PAGE).toMatch(/window\.setInterval\(\(\) => setNow\(Date\.now\(\)\), 1000\)/);
     expect(HOME_PAGE).toMatch(/if \(!parsing && !loading\) return;/);
     // THE INSTANT IS NOT THIS COMPONENT'S ANY MORE, and that is what makes the
@@ -689,14 +713,14 @@ describe('there is one set of breakpoints, and this is it', () => {
     // page, and the nav collapsed 100px after it. A fifth width appearing here is
     // how that starts again.
     const widths = [...withoutComments(RESPONSIVE).matchAll(/@media \(max-width: (\d+)px\)/g)].map((match) =>
-      Number(match[1]),
+      Number(match[1])
     );
     expect([...new Set(widths)].sort((a, b) => a - b)).toEqual([480, 800, 1180, 1365]);
   });
 
   it('states them largest first, so a narrower rule always overrides the wider one', () => {
     const widths = [...withoutComments(RESPONSIVE).matchAll(/@media \(max-width: (\d+)px\)/g)].map((match) =>
-      Number(match[1]),
+      Number(match[1])
     );
     expect(widths).toEqual([...widths].sort((a, b) => b - a));
   });

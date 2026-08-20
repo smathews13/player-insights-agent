@@ -90,12 +90,14 @@
 /* 8px, because the inspector's head is a title with a pill beside it and then the
    run: three things that belong to each other, unlike the rail's three blocks. */
 .trace-inspector {
-  border-left: 1px solid var(--db-line);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 20px 16px;
+  gap: 14px;
+  padding: 20px;
   overflow-y: auto;
+  background: var(--ast-navy);
+  color: var(--ast-white);
 }
 /*
  * The inspector's head: what this column is, and what the run is doing.
@@ -121,10 +123,27 @@
  * separates it from the run below, and the eyebrow it follows belongs to it.
  */
 .trace-title {
-  margin-top: 2px;
-  font-size: 16px;
+  margin: 0;
+  color: var(--ast-white);
+  font-size: 18px;
   font-weight: 700;
   line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.trace-inspector .ast-eyebrow {
+  color: #8a9aa3;
+}
+
+.trace-inspector .ast-sky {
+  background: transparent;
+  border-radius: 0;
+}
+
+.trace-inspector .ast-sky-status {
+  padding-right: 0;
+  padding-bottom: 0;
+  padding-left: 0;
 }
 /*
  * The run's status, as a pill with a dot.
@@ -200,6 +219,30 @@
   border-color: transparent;
   background: var(--ast-blue);
   color: var(--ast-white);
+}
+
+.trace-inspector .run-status--dark.ast-pill--pos {
+  border-color: rgba(59, 166, 94, 0.45);
+  background: rgba(59, 166, 94, 0.12);
+  color: #7bd89b;
+}
+
+.trace-inspector .run-status--dark.is-live {
+  border-color: rgba(111, 174, 221, 0.45);
+  background: rgba(111, 174, 221, 0.12);
+  color: #9cc9e8;
+}
+
+.trace-inspector .run-status--dark.ast-pill--neg {
+  border-color: rgba(224, 91, 117, 0.45);
+  background: rgba(224, 91, 117, 0.12);
+  color: #f2a1b2;
+}
+
+.trace-inspector .run-status--dark.ast-pill--neutral-outline {
+  border-color: rgba(169, 182, 190, 0.38);
+  background: rgba(169, 182, 190, 0.08);
+  color: #a9b6be;
 }
 /*
  * The dot breathes while something is actually happening, and the pill behind it
@@ -305,8 +348,9 @@
   width: 44px;
   height: 44px;
   border-radius: var(--radius-md);
-  background: var(--db-wash);
-  color: var(--db-grey-blue);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(111, 174, 221, 0.12);
+  color: var(--ast-blue-on-dark);
 }
 .trace-empty-mark svg {
   width: 20px;
@@ -319,7 +363,65 @@
 .trace-empty p {
   font-size: 12px;
   line-height: 1.5;
-  color: var(--db-slate);
+  color: #8a9aa3;
+}
+
+.trace-inspector .ast-flick-row {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: transparent;
+}
+
+.trace-inspector .ast-flick-row-say {
+  color: var(--ast-white);
+}
+
+.trace-inspector .ast-flick-row-count {
+  color: #8a9aa3;
+}
+
+.trace-inspector .trace-divider {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.trace-inspector .metric-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 10px;
+}
+
+.trace-inspector .metric-row span {
+  color: #8a9aa3;
+  font-size: 11px;
+}
+
+.trace-inspector .metric-row strong {
+  margin-top: 3px;
+  color: var(--ast-white);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.trace-inspector .trace-explore {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ast-white);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.trace-inspector .trace-explore:hover {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ast-white);
+}
+
+.trace-inspector .trace-explore svg {
+  width: 13px;
+  height: 13px;
 }
 /*
  * The button that opens the rail as a sheet, drawn only below 800px.

@@ -29,6 +29,7 @@ import { resetLakebaseHealth } from '../lib/lakebase-store';
 const HOST = 'https://fake-workspace.cloud.databricks.com';
 const STATEMENTS = `${HOST}/api/2.0/sql/statements`;
 const GENIE = `${HOST}/api/2.0/genie/spaces/`;
+const APP = `${HOST}/api/2.0/apps/astrolabe`;
 const USER = 'reviewer@example.com';
 const WAREHOUSE = 'wh-000000000000000';
 const TABLES = ['cat.sch.gold_player_180d_summary', 'cat.sch.silver_purchases'] as const;
@@ -362,6 +363,7 @@ function asUser(token?: string) {
 let host: string | undefined;
 let endpoint: string | undefined;
 let warehouse: string | undefined;
+let appName: string | undefined;
 
 beforeEach(() => {
   genieCalls = [];
@@ -371,6 +373,7 @@ beforeEach(() => {
   host = process.env.DATABRICKS_HOST;
   endpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
   warehouse = process.env.DATABRICKS_SQL_WAREHOUSE_ID;
+  appName = process.env.DATABRICKS_APP_NAME;
   process.env.DATABRICKS_HOST = HOST;
   // The app's own warehouse, from its `sql-warehouse` app resource. This is the
   // route's only source for it now, so an unset variable is the "cannot check"
@@ -380,6 +383,7 @@ beforeEach(() => {
   // representative data, and every case below would pass or fail for the wrong
   // reason.
   process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+  process.env.DATABRICKS_APP_NAME = 'astrolabe';
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -391,7 +395,77 @@ afterEach(() => {
   else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = endpoint;
   if (warehouse === undefined) delete process.env.DATABRICKS_SQL_WAREHOUSE_ID;
   else process.env.DATABRICKS_SQL_WAREHOUSE_ID = warehouse;
+  if (appName === undefined) delete process.env.DATABRICKS_APP_NAME;
+  else process.env.DATABRICKS_APP_NAME = appName;
   vi.restoreAllMocks();
+});
+
+describe('POST /api/app-user-api-scopes', () => {
+  it('updates this app with the forwarded user token and preserves extra scopes', async () => {
+    const calls: { method: string; authorization: string; body: unknown }[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (requestedUrl(input) !== APP) return real(input, init);
+      calls.push({
+        method: init?.method ?? 'GET',
+        authorization: authorizationOn(init),
+        body: typeof init?.body === 'string' ? JSON.parse(init.body) : null,
+      });
+      return Promise.resolve(
+        calls.length === 1
+          ? new Response(JSON.stringify({ user_api_scopes: ['catalog.tables:read'] }))
+          : new Response('{}'),
+      );
+    });
+    const app = await startApp(retiredWithoutConfiguration());
+    let response: Response;
+    try {
+      response = await fetch(app.url('/api/app-user-api-scopes'), asUser('user-token'));
+    } finally {
+      await app.close();
+    }
+
+    expect(response.status).toBe(200);
+    expect(calls.map((call) => call.authorization)).toEqual([
+      'Bearer user-token',
+      'Bearer user-token',
+    ]);
+    expect(calls[1].body).toEqual({
+      user_api_scopes: [
+        'catalog.tables:read',
+        'serving.serving-endpoints',
+        'model-serving',
+        'sql',
+        'dashboards.genie',
+      ],
+    });
+  });
+
+  it('returns a clear refusal when the user cannot manage the app', async () => {
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) =>
+      requestedUrl(input) === APP
+        ? Promise.resolve(
+            new Response(JSON.stringify({ message: 'No CAN MANAGE' }), {
+              status: 403,
+              headers: { 'content-type': 'application/json' },
+            }),
+          )
+        : real(input, init),
+    );
+    const app = await startApp(retiredWithoutConfiguration());
+    let response: Response;
+    let body: { message?: string };
+    try {
+      response = await fetch(app.url('/api/app-user-api-scopes'), asUser('user-token'));
+      body = (await response.json()) as { message?: string };
+    } finally {
+      await app.close();
+    }
+
+    expect(response.status).toBe(403);
+    expect(body.message).toContain('Ask someone who can manage this app to open it once');
+  });
 });
 
 describe('POST /api/access-verification when no user token arrives', () => {

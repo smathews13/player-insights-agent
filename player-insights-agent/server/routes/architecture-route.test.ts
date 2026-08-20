@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { architecturePayload, semanticIndexReport } from './architecture-routes';
+import {
+  ARCHITECTURE_EXPERIMENT_TIMEOUT_MS,
+  architecturePayload,
+  semanticIndexReport,
+} from './architecture-routes';
 import type { InsightsAppKit } from './insights-routes';
 
 /**
@@ -19,6 +23,7 @@ const VARIABLES = [
   'DATABRICKS_SERVING_ENDPOINT_NAME',
   'DATABRICKS_SQL_WAREHOUSE_ID',
   'PLAYER_INSIGHTS_EXPERIMENT_ID',
+  'PLAYER_INSIGHTS_EXPERIMENT_PATH',
   'PLAYER_INSIGHTS_BUILD_SHA',
   'DATABRICKS_CLIENT_ID',
 ];
@@ -34,6 +39,7 @@ describe('architecturePayload', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     for (const [variable, value] of saved) {
       if (value === undefined) delete process.env[variable];
       else process.env[variable] = value;
@@ -96,6 +102,20 @@ describe('architecturePayload', () => {
   // The page explains a degraded deployment, so it must not fail with it.
   it('still answers when the store is down', async () => {
     const payload = await architecturePayload(appkitWith(new Error('lakebase is not answering')));
+    expect(payload.experimentId).toBe('');
+    expect(payload.readAt).toBeTruthy();
+  });
+
+  it('still answers when the experiment lookup never settles', async () => {
+    vi.useFakeTimers();
+    const appkit = {
+      lakebase: { query: vi.fn(() => new Promise(() => undefined)) },
+    } as unknown as InsightsAppKit;
+
+    const pending = architecturePayload(appkit);
+    await vi.advanceTimersByTimeAsync(ARCHITECTURE_EXPERIMENT_TIMEOUT_MS);
+    const payload = await pending;
+
     expect(payload.experimentId).toBe('');
     expect(payload.readAt).toBeTruthy();
   });

@@ -416,6 +416,21 @@ ol.answer-list {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.answer-rule {
+  border: 0;
+  border-top: 1px solid var(--ast-hairline);
+}
+.answer-code-block {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--ast-fs-12);
+  line-height: 1.5;
+  background: var(--ast-fill-band);
+  border-radius: 6px;
+}
 /*
  * ── The agent's tables ─────────────────────────────────────────────────────
  *

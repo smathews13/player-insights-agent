@@ -237,15 +237,14 @@ describe('the house style the design asks for', () => {
     }
   });
 
-  it('joins facts with the separator the tokens declare and no other', () => {
-    expect(PANEL_SOURCE).toContain("join(' · ')");
-    // A hyphen or a pipe between facts is the habit this is written against.
-    expect(PANEL_SOURCE).not.toMatch(/join\('\s*\|\s*'\)/);
+  it('appends the blocked state with the specified middle dot', () => {
+    expect(PANEL_SOURCE).toContain("' · Blocked by the server'");
+    expect(PANEL_SOURCE).not.toMatch(/—|–/);
   });
 
-  it('draws its chips with the astrolabe pill recipe', () => {
-    expect(PANEL_SOURCE).toContain('ast-pill');
-    expect(PANEL_SOURCE).toContain('ast-pill--');
+  it('draws distinct enforced and recorded-only mode chips', () => {
+    expect(PANEL_SOURCE).toContain('egress-mode');
+    expect(PANEL_SOURCE).toContain('egress-mode-${path.enforcement}');
   });
 
   it('never claims the data is synthetic', () => {

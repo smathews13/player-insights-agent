@@ -22,15 +22,16 @@
 import { Check } from 'lucide-react';
 import { RUN_TONE_FAMILY, type RunStatus } from './run-status';
 
-export function RunStatusPill({ status }: { status: RunStatus }) {
+export function RunStatusPill({ status, onDark = false }: { status: RunStatus; onDark?: boolean }) {
   // `ast-pill` is the recipe, the family is the colour, and `run-status` is what
   // this seating adds to both: a dot in a fixed lane, a check in the same lane,
   // and the one animation the app runs on a chip. The tone class rides along
   // because two rules key off the state rather than off the family -- the solid
   // blue live pill, which no family draws, and the green dot's own hue.
   const family = RUN_TONE_FAMILY[status.tone];
-  return (<span
-      className={`ast-pill run-status ${family ? `${family} ` : ''}${status.tone}${status.alive ? ' is-alive' : ''}`}
+  return (
+    <span
+      className={`ast-pill run-status ${onDark ? 'run-status--dark ' : ''}${family ? `${family} ` : ''}${status.tone}${status.alive ? ' is-alive' : ''}`}
       role="status"
       aria-atomic="true"
     >
@@ -38,8 +39,10 @@ export function RunStatusPill({ status }: { status: RunStatus }) {
           design's distinction and cannot be read off the tone: "Complete" and
           "Ready" are the same green. Both are decoration -- the word carries the
           state -- so neither is ever spoken. */}
-      {status.finished ? (<Check className="run-status-check" aria-hidden="true" />
-      ) : (<span className="run-status-dot" aria-hidden="true" />
+      {status.finished && !onDark ? (
+        <Check className="run-status-check" aria-hidden="true" />
+      ) : (
+        <span className="run-status-dot" aria-hidden="true" />
       )}
       {status.label}
     </span>

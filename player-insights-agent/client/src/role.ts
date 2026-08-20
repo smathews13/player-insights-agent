@@ -218,6 +218,7 @@ const ADMIN_NAV: readonly NavEntry[] = [
   { to: '/ops', label: 'Ops' },
   { to: '/connections', label: 'Connections' },
   { to: '/architecture', label: 'Architecture' },
+  { to: '/settings', label: 'Settings' },
 ];
 
 /** The Benchmarking entry, appended for every signed-in role when enabled. */

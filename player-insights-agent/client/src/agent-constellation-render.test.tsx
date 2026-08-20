@@ -67,8 +67,15 @@ const inFlight: TraceStage[] = [
   stage({ id: 'step-3-1-data_genie', name: 'Queried governed data', kind: 'tool', status: 'running', duration: 0 }),
 ];
 
-const path = (stages: TraceStage[], activeIndex: number, elapsedMs: number | null = null) =>
-  renderToStaticMarkup(<AgentPathConstellation stages={stages} activeIndex={activeIndex} elapsedMs={elapsedMs} />);
+const path = (
+  stages: TraceStage[],
+  activeIndex: number,
+  elapsedMs: number | null = null,
+  totalMs: number | null = null
+) =>
+  renderToStaticMarkup(
+    <AgentPathConstellation stages={stages} activeIndex={activeIndex} elapsedMs={elapsedMs} totalMs={totalMs} />
+  );
 
 const map = (stages: TraceStage[], selectedId: string | null = null) =>
   renderToStaticMarkup(<AgentMapConstellation stages={stages} selectedId={selectedId} />);
@@ -86,9 +93,7 @@ function attrs(markup: string, name: string): string[] {
  * node a reader sees marked.
  */
 function selectedStar(markup: string): number {
-  return [...markup.matchAll(/class="ast-star-select ?([^"]*)"/g)].findIndex(
-    (found) => found[1].trim() === 'selected'
-  );
+  return [...markup.matchAll(/class="ast-star-select ?([^"]*)"/g)].findIndex((found) => found[1].trim() === 'selected');
 }
 
 /** The one sentence on the band's status line. */
@@ -104,7 +109,7 @@ describe('the bands expose only the controls they own (§5)', () => {
     const first = [stage({ id: 'orchestrator', name: 'Orchestrator', status: 'running', duration: 0 })];
     const next = mergeLiveStage(
       first,
-      stage({ id: 'step-1', name: 'Choosing the next step', status: 'running', duration: 0 }),
+      stage({ id: 'step-1', name: 'Choosing the next step', status: 'running', duration: 0 })
     );
 
     expect(attrs(path(first, 0), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(1);
@@ -209,10 +214,23 @@ describe('the bands expose only the controls they own (§5)', () => {
   it('names the step in words rather than describing the animation in front of it', () => {
     const markup = path(inFlight, 5, 12_000);
     expect(markup).toContain('Step 06 · Queried governed data');
-    // Not "connecting", not "drawing", not "loading". The sentence is about the run.
-    expect(markup.toLowerCase()).not.toContain('animat');
-    expect(markup.toLowerCase()).not.toContain('sparkle');
-    expect(markup.toLowerCase()).not.toContain('constellation');
+    /*
+     * Not "connecting", not "drawing", not "loading". The sentence is about the
+     * run.
+     *
+     * READ OFF THE VISIBLE TEXT rather than off the markup, which is what the
+     * claim was always about: the words a reader reads. It was the raw markup as
+     * a cheap proxy for them, and the proxy broke when the foot's mark became the
+     * app's loader -- `ConceptFlicker` carries its cycle timing as an inline
+     * `animation-duration`, on this surface exactly as on the splash and the
+     * strip, so "animat" is now in an attribute on every running band. An
+     * attribute is not a description of the animation; it is the animation.
+     */
+    const words = markup.replace(/<[^>]*>/g, ' ').toLowerCase();
+    expect(words).not.toContain('animat');
+    expect(words).not.toContain('sparkle');
+    expect(words).not.toContain('constellation');
+    expect(words).not.toContain('loading');
   });
 
   it('prints the whole name, over as many lines as it takes', () => {
@@ -240,13 +258,29 @@ describe('what moves, and what stops moving (§5)', () => {
     /*
      * The guard is an attribute selector on `ast-anim-`, so it covers a class the
      * day it is written rather than the day somebody remembers to add it to a
-     * list. That only holds if the animation arrives as one of those classes and
-     * never as an inline `animation` style, which is what this checks.
+     * list. That only holds if the WHICH-ANIMATION arrives as one of those
+     * classes, which is what this checks.
+     *
+     * Timing may arrive inline and does: a duration and a delay are properties of
+     * a seating, and `ConceptFlicker` hands each of its four stacked marks the
+     * same `ast-anim-flick` with a different `animation-delay` -- that stagger is
+     * the whole mechanism, and it cannot live in a stylesheet that does not know
+     * how many marks a slot holds. The guard still wins over both, because
+     * `animation: none !important` is the shorthand and resets every longhand it
+     * has. What must never arrive inline is a NAME, because a name with no
+     * `ast-anim-` class on the element is an animation the guard cannot see.
      */
     const markup = path(inFlight, 5, 12_000);
     expect(markup).toContain('ast-anim-draw');
     expect(markup).toMatch(/ast-anim-(star|center)-pulse/);
-    expect(markup).not.toMatch(/style="[^"]*animation/);
+    expect(markup).not.toMatch(/style="[^"]*animation-name/);
+    expect(markup).not.toMatch(/style="[^"]*animation:/);
+    // Every inline animation property on the band is timing, and every element
+    // carrying one is also carrying a class the guard covers.
+    for (const [, declaration, element] of markup.matchAll(/style="([^"]*animation[^"]*)"|(<[^>]*animation[^>]*>)/g)) {
+      if (declaration) expect(declaration).toMatch(/^(animation-(duration|delay):[^;]*;?)+$/);
+      if (element) expect(element).toMatch(/class="[^"]*ast-anim-/);
+    }
     expect(ANIMATION_CSS).toMatch(/\[class\*='ast-anim-'\] \{\n\s*animation: none !important;/);
   });
 
@@ -301,6 +335,13 @@ describe('the elapsed figure is a measurement (§5, §3)', () => {
     // The browser's own count printed beside a step that finished and reported its
     // own duration is a moving number on a settled measurement.
     expect(path(finished, 5, 99_000)).not.toContain('99s');
+  });
+
+  it('prints the recorded total beside the final step', () => {
+    const markup = path(finished, -1, null, 193_000);
+    expect(markup).toContain('Step 06 · Queried governed data');
+    expect(markup).toContain('3m 13s');
+    expect(markup).toContain('193,000 milliseconds');
   });
 
   it('moves not one coordinate on the band when only the clock has ticked', () => {
@@ -381,9 +422,9 @@ describe('the elapsed figure is a measurement (§5, §3)', () => {
     expect(path(inFlight, 5, null)).not.toMatch(/ast-sky-status-elapsed/);
   });
 
-  it('says the run is over rather than leaving a step described as happening', () => {
+  it('names the final step after the run settles', () => {
     expect(path([], -1, null)).toBe('');
-    expect(path(finished, -1, null)).toContain('Every step recorded');
+    expect(path(finished, -1, null)).toContain('Step 06 · Queried governed data');
   });
 });
 
@@ -444,7 +485,7 @@ describe('the status line of a run that has stopped', () => {
   });
 
   it('claims a clean run only when every step of it completed', () => {
-    expect(status(finished)).toBe('Every step recorded');
+    expect(status(finished)).toBe('Step 06 · Queried governed data');
   });
 });
 
@@ -474,7 +515,9 @@ describe('a step the reader pinned outranks the step the run is on', () => {
      */
     expect(PATH_SOURCE).not.toContain('setSelection');
     expect(PATH_SOURCE).not.toContain('selection?.activeIndex === activeIndex');
-    expect(PATH_SOURCE).toContain('const shownIndex = pinnedIndex !== -1 ? pinnedIndex : current ? activeIndex : -1;');
+    expect(PATH_SOURCE).toContain(
+      'const shownIndex = pinnedIndex !== -1 ? pinnedIndex : current ? activeIndex : stages.length - 1;'
+    );
   });
 
   it('releases the pin on a second press, which is the toggle the tiles take', () => {
@@ -583,17 +626,68 @@ describe('no orange, and no oat (§2)', () => {
 describe('the mark is the agent, and there is one of it (§1)', () => {
   it('draws the status mark from the shared file rather than from a second copy', () => {
     expect(PATH_SOURCE).toContain("import { AstrolabeMark } from './AstrolabeMark'");
-    // 18 twice, on purpose: `size` picks the drawing as well as the box, and
-    // `.ast-sky-status-mark svg` paints 18px. A seat that asks for one number
+    // 11 twice, on purpose: `size` picks the drawing as well as the box, and
+    // `.ast-sky-status-mark svg` paints 11px. A seat that asks for one number
     // and is painted another gets the wrong cut of the mark stretched to the
     // right size -- nothing looks broken, the graduations are just missing or
     // crowded at a size they were not drawn for.
-    expect(PATH_SOURCE).toContain('<AstrolabeMark size={18} ink="dark" />');
-    expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark svg \{[^}]*width: 18px/);
-    // Optical: same first-line family as live-step / compact dag marks.
-    expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \{[^}]*margin-top: 1px/);
+    expect(PATH_SOURCE).toContain('<AstrolabeMark size={11} ink="dark" />');
+    expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \.brand-icon,[\s\S]*?width: 11px/);
+    expect(CONSTELLATION_CSS).toMatch(/\.ast-sky-status-mark \{[^}]*border: 1px solid/);
     // `dark` because the status line is on the navy band. The light cut's
     // #2272B4 is 1.9:1 there and the accent dots read as a texture (§2).
+  });
+
+  it('flickers the foot’s mark while the run is inside the step the line names', () => {
+    /*
+     * THE REPORTED DEFECT: the one glyph on the foot of a running band was the
+     * only thing on the surface not saying the run was going -- lines drawing,
+     * star beating, ring breathing, and a still mark under all three.
+     *
+     * Asserted as the shared loader rather than as four `<svg>`s: what makes this
+     * fixed is that the foot cycles THE SAME four concepts on THE SAME keyframes
+     * the splash and the strip cycle, so a retune of `ast-flick` moves all three.
+     * A second cycle written into this file would pass a test that counted marks.
+     */
+    const running = path(inFlight, 5, 12_000);
+    expect(running).toContain('ast-flick-slot--status');
+    // Four stacked concepts, one class, four staggered delays -- ConceptFlicker's
+    // contract, checked here because this seat supplies the size it renders at.
+    expect([...running.matchAll(/ast-anim-flick/g)]).toHaveLength(4);
+    expect(running).toMatch(/animation-duration:\s*3\.2s/);
+    // The seat's own number, painted at the number the slot has always painted.
+    expect(running).toMatch(/class="ast-flick-slot ast-flick-slot--status"[^>]*width:\s*11px/);
+  });
+
+  it('freezes on the finished step’s real mark once the run stops', () => {
+    /*
+     * The other half, and the half that would rot first: a loader still cycling
+     * over a settled run is the band saying the agent is still working, which is
+     * exactly the claim `inFlight` exists to stop the ring and the lines making.
+     *
+     * `activeIndex` of -1 is the caller saying no step is in progress. A run whose
+     * last step is `running` but which the caller has stopped reporting on is the
+     * same state and is checked too: the flicker follows the caller's statement,
+     * not the stage's own leftover status.
+     */
+    for (const markup of [path(finished, -1, null, 27_400), path(inFlight, -1)]) {
+      expect(markup).not.toContain('ast-flick-slot');
+      expect(markup).not.toContain('ast-anim-flick');
+    }
+    // And what it freezes on is the real thing: the last step of `finished` is a
+    // Genie tool call, so the foot holds that product's mark rather than the
+    // app's, which is the fallback for a step no product is behind.
+    expect(path(finished, -1, null, 27_400)).toContain('brand-icon');
+  });
+
+  it('holds the real mark for a step the reader pinned, mid-run', () => {
+    // A pin is the reader opening a settled step while the run goes on past it.
+    // The line then names THAT step, so a loader beside it would be this band
+    // claiming a finished step is happening -- the same substitution the ring
+    // refuses. Read as source: the suite runs on `node` and a press cannot be
+    // dispatched here, and the condition is the half that breaks.
+    expect(PATH_SOURCE).toContain('const flickering = inFlight && pinnedIndex === -1;');
+    expect(PATH_SOURCE).toContain('{flickering ? (');
   });
 
   it('leaves no robot anywhere on either band', () => {

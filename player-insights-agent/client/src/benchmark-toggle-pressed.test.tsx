@@ -57,7 +57,7 @@ function settingsMarkup(egressControls: boolean): string {
             />
           }
         >
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings" element={<SettingsPage initialSection="experimental" />} />
         </Route>
       </Routes>
     </MemoryRouter>

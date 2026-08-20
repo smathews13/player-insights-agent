@@ -305,16 +305,15 @@
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
 
-.ops-platform {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
 /*
- * The platform's own readings. They answer a different question from the probe
- * rows below, established a different way, and they sit in the band rather than
- * in the table so a reader cannot take them for two more probe results.
+ * A result pill, which names the resource and then states its word.
+ *
+ * `.ops-platform` WAS HERE, and it was the flex row that held the band's cluster
+ * of platform readings above the table. The readings are rows now -- one badge
+ * per resource, in that resource's own Result cell -- so there is no cluster to
+ * lay out. The two-part pill itself stays exactly as it was drawn: this shape is
+ * the one the handoff established for "label, separator, state", and the probe
+ * rows now take it too.
  */
 .ops-platform-pill-label {
   color: inherit;
@@ -362,9 +361,20 @@
 
 /* The handoff's two fixed columns. Fixed rather than shrink-to-fit because the
    pills and the ages are the same size on every row, and a column that resizes
-   with its longest value makes the table jump between reads. */
+   with its longest value makes the table jump between reads.
+
+   Wider than the 150px a one-word result needed: the pill now carries the
+   resource's name as well as its state. */
 .ops-col-result {
-  width: 150px;
+  width: 190px;
+}
+
+/* The one place a pill on this tab may wrap. `.ops-pill` forbids it because a
+   state word broken across two lines is unreadable; a pill carrying two phrases
+   in a fixed column has to break BETWEEN them, or a long resource name pushes the
+   Notes column off the table. */
+td.ops-col-result .ops-platform-pill {
+  white-space: normal;
 }
 
 .ops-col-when {

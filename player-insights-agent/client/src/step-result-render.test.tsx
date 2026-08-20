@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { StageDetail } from './TraceDag';
+import { PayloadView } from './TraceTimeline';
 import { partial } from './styles/stylesheet';
 import type { TraceStage } from './answer-shape';
 
@@ -261,13 +262,17 @@ describe('rendered markdown results', () => {
       id: 'synthesis',
       kind: 'agent',
       name: 'Prepared the answer',
-      output: '# DSF Result\n\n| catalog.schema.table | players |\n| --- | ---: |\n| catalog.schema.players | 12,000 |\n\n**Prepared the answer.**',
+      output: '## DATA PACKAGE\n\n---\n\n| catalog.schema.table | players |\n| --- | ---: |\n| catalog.schema.players | 12,000 |\n\n**Prepared the answer.**\n\n```sql\nSELECT * FROM catalog.schema.players\n```',
     }));
     expect(markup).toContain('class="dag-md-head"');
+    expect(markup).toContain('>DATA PACKAGE</strong>');
+    expect(markup).toContain('class="dag-md-rule"');
     expect(markup).toContain('<table>');
     expect(markup).toContain('<strong>Prepared the answer.</strong>');
+    expect(markup).toContain('<pre class="dag-md-code"><code data-language="sql">SELECT * FROM catalog.schema.players</code></pre>');
     expect(markup).not.toContain('| --- |');
     expect(markup).not.toContain('**Prepared');
+    expect(markup).not.toContain('## DATA PACKAGE');
   });
 
   it('does not turn a whole prose block into one blue identifier chip', () => {
@@ -275,6 +280,36 @@ describe('rendered markdown results', () => {
     const markup = result(panel({ id: 'synthesis', kind: 'agent', output: long }));
     expect(markup).toContain('class="dag-inline-code"');
     expect(markup).not.toContain('class="dag-name-chip"');
+  });
+
+  it('uses the same rendered-first reading in the Run Explorer timeline', () => {
+    const markup = renderToStaticMarkup(
+      <PayloadView text={'## DATA PACKAGE\n\n**Prepared.**\n\n```sql\nSELECT 1\n```'} />,
+    );
+    expect(markup).toContain('aria-label="How to show this payload"');
+    expect(markup).toMatch(/aria-pressed="true">Rendered<\/button>/);
+    expect(markup).toContain('class="dag-md-head"');
+    expect(markup).toContain('<strong>Prepared.</strong>');
+    expect(markup).toContain('<pre class="dag-md-code"><code data-language="sql">SELECT 1</code></pre>');
+    expect(markup).not.toContain('## DATA PACKAGE');
+  });
+
+  it('renders markdown arguments while leaving generated SQL as code', () => {
+    const markup = panel({
+      id: 'step-4-agent',
+      kind: 'agent',
+      input: JSON.stringify({
+        context: '## Evidence\n\n**Governed** source',
+        sql: 'SELECT * FROM governed.players',
+      }),
+      output: 'done',
+    });
+    expect(markup).toContain('class="dag-md-head"');
+    expect(markup).toContain('<strong>Governed</strong>');
+    expect(markup).not.toContain('## Evidence');
+    expect(markup).toContain('class="dag-sql open"');
+    expect(markup).toContain('<b>SELECT</b>');
+    expect(markup).toContain('governed.players');
   });
 });
 

@@ -353,16 +353,14 @@ function ArgumentBlock({ payload, skipKey }: { payload: Payload; skipKey: string
           ))}
         </div>
       )}
-      {rest === null ? (<pre className="dag-block">{payload.body}</pre>
-      ) : rest.length === 0 ? null : (<pre className="dag-block">
-          {rest.map((field) => (<span className="dag-arg" key={field.key}>
+      {rest === null ? (<MarkdownText text={payload.body} />
+      ) : rest.length === 0 ? null : (<div className="dag-args">
+          {rest.map((field) => (<div className="dag-arg" key={field.key}>
               <b>{field.key}</b>
-              {field.block ? '\n' : ' '}
-              {field.value}
-              {'\n'}
-            </span>
+              {field.block ? <MarkdownText text={field.value} /> : <span>{field.value}</span>}
+            </div>
           ))}
-        </pre>
+        </div>
       )}
     </>
   );

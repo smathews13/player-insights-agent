@@ -1,5 +1,6 @@
 import type { TraceStage } from './answer-shape';
 import type { Run } from './app-types';
+import { runLabel } from './run-label';
 
 function isDataWork(stage: TraceStage): boolean {
   return stage.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${stage.id} ${stage.name}`);
@@ -57,14 +58,27 @@ export const KPI_HINTS = {
 export function conversationRunTitle(runs: readonly Run[], selected: Run | null): string | undefined {
   if (!selected?.conversation_id) return undefined;
   const chronological = [...runs].reverse();
-  const conversations = [...new Set(chronological.map((run) => run.conversation_id).filter(Boolean))];
-  const conversation = conversations.indexOf(selected.conversation_id) + 1;
   const inConversation = chronological.filter((run) => run.conversation_id === selected.conversation_id);
   const run = inConversation.findIndex((item) => item.id === selected.id) + 1;
-  return conversation > 0 && run > 0 ? `Conversation ${conversation}, Run ${run}` : undefined;
+  return run > 0 ? `Conversation ${selected.conversation_id}, Run ${run}` : undefined;
+}
+
+const CONVERSATION_SUMMARY_LIMIT = 56;
+
+export function conversationSummary(run: Run): string {
+  const summary = runLabel(run).replace(/\s+/g, ' ').trim();
+  if (summary.length <= CONVERSATION_SUMMARY_LIMIT) return summary;
+  const clipped = summary.slice(0, CONVERSATION_SUMMARY_LIMIT + 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return `${clipped.slice(0, lastSpace > 0 ? lastSpace : CONVERSATION_SUMMARY_LIMIT).trimEnd()}…`;
 }
 
 export function conversationFilterOptions(runs: readonly Run[]): Array<{ id: string; label: string }> {
-  const ids = [...new Set([...runs].reverse().map((run) => run.conversation_id).filter((id): id is string => Boolean(id)))];
-  return ids.map((id, index) => ({ id, label: `Conversation ${index + 1}` }));
+  const firstRunByConversation = new Map<string, Run>();
+  for (const run of [...runs].reverse()) {
+    if (run.conversation_id && !firstRunByConversation.has(run.conversation_id)) {
+      firstRunByConversation.set(run.conversation_id, run);
+    }
+  }
+  return [...firstRunByConversation].map(([id, run]) => ({ id, label: conversationSummary(run) }));
 }

@@ -63,6 +63,7 @@ import {
   costAbsence,
   count,
   errorFraming,
+  healthRows,
   latencyAbsence,
   latencyFigure,
   latencyRouteView,
@@ -70,8 +71,6 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
-  resultLabel,
-  RESULT_TONE,
   splitMethod,
   telemetryNotice,
   WITHHELD,
@@ -79,17 +78,16 @@ import {
   tileView,
   trafficCaption,
   type Absence as AbsenceCopy,
+  type HealthRow,
 } from './ops-view';
 import { opsDayRange, opsRangeDates } from '../../shared/ops-contract';
 import type {
   DependencyResult,
   GrantRemedy,
-  HealthDependency,
   OpsCostPayload,
   OpsHealthPayload,
   OpsLatencyPayload,
   OpsTrafficPayload,
-  PlatformReading,
   RouteLatency,
 } from '../../shared/ops-contract';
 
@@ -320,31 +318,6 @@ function When({ at }: { at: string }) {
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
 
-/**
- * The platform's own reading of one thing, as a pill.
- *
- * GREEN ONLY FOR THE WORDS THAT MEAN IT. The handoff draws both of these green,
- * because on the deployment it was drawn from both were ready. A pill painted
- * green whatever the platform said would be the one element on this page whose
- * colour is not a second copy of its word, and the word it contradicted would be
- * the one somebody needed.
- */
-function platformTone(reading: PlatformReading): string {
-  if (!reading.read || !reading.state) return astPill('neutral-outline', 'ops-pill');
-  return /^(ready|running|available|online)$/i.test(reading.state.trim())
-    ? astPill('pos', 'ops-pill')
-    : astPill('warn', 'ops-pill');
-}
-
-/**
- * The reason cell, which is empty for most rows and is the whole finding on the
- * rest.
- *
- * The probe's own words, verbatim and in quotes so a reader can see where the
- * app stops speaking and the platform starts. Rewriting them here would produce
- * two accounts of one failure that a reader has to reconcile, and the probe's is
- * the one that matches the logs.
- */
 /** A dependency's product mark at table-row size, or nothing at all. */
 function probeMark(kind: string) {
   const product = productForProbe(kind);
@@ -385,11 +358,23 @@ function RecordedErrors({
   );
 }
 
-function reasonCell(row: HealthDependency): string {
-  if (row.reason) return `\u201c${row.reason}\u201d`;
-  // A check that did not run has said nothing about the dependency, and a blank
-  // cell beside "Not checked" reads as a result nobody has written down yet.
-  return row.result === 'not-checked' ? 'Not an error, not a pass.' : '';
+/**
+ * One resource's result: what the resource is, and the word for its state.
+ *
+ * THE PILL NAMES ITS OWN SUBJECT, which is what lets the platform's readings and
+ * this app's probes share a column. "Serving endpoint · Ready" is the endpoint's
+ * own state and "SQL warehouse · Reachable" is what a metadata GET established,
+ * and a reader can tell which is which from the pill rather than from where on
+ * the page it was drawn. The separator is drawn in CSS, so the text is the two
+ * phrases and nothing a substring match has to step over.
+ */
+function ResultPill({ pill }: { pill: HealthRow['pill'] }) {
+  return (
+    <span className={`${pill.tone} ops-platform-pill`}>
+      <span className="ops-platform-pill-label">{pill.label}</span>
+      <span className="ops-platform-pill-state">{pill.value}</span>
+    </span>
+  );
 }
 
 export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
@@ -415,6 +400,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
         reason: payload.app.reason,
       })
     : null;
+  const rows = healthRows(payload);
 
   return (
     <section className="ops-block" aria-labelledby="ops-health-heading">
@@ -426,20 +412,11 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
         // Both wordings and the one rounding are the Refresh control's.
         meta={checkedAgoLine(payload?.checkedAt ?? '')}
         control={<RefreshButton busy={block.busy} onRefresh={block.refresh} />}
-      >
-        {/* The platform's own readings, kept visibly apart from the probe table
-            below. They answer a different question and are established a
-            different way, and a reader who cannot tell them apart has been given
-            one number for two questions. */}
-        <span className="ops-platform">
-          {(payload?.platform ?? []).map((reading) => (
-            <span key={reading.id} className={`${platformTone(reading)} ops-platform-pill`}>
-              <span className="ops-platform-pill-label">{reading.label}</span>
-              <span className="ops-platform-pill-state">{reading.read ? reading.state : 'Not checked'}</span>
-            </span>
-          ))}
-        </span>
-      </BlockHead>
+      />
+      {/* NO PILLS IN THIS BAND. The platform's readings used to sit here as a
+          cluster of their own, above a table that reported the same serving
+          endpoint in its own Result column and in different words. One badge per
+          resource, in the row for that resource: see `healthRows`. */}
 
       <BlockBody>
         {block.busy && !payload ? (
@@ -448,14 +425,24 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
           <>
             {payload?.reason ? (
               <Absence notice={{ title: 'The dependency checks did not run', body: payload.reason }} />
-            ) : (
+            ) : null}
+
+            {/* BESIDE THAT SENTENCE RATHER THAN INSTEAD OF THE TABLE. The probes
+                failing says nothing about the readings that are not probes: the
+                app answered this request and the store was read on the same pass.
+                Replacing the whole table with the sentence threw away the two
+                rows that were established. */}
+            {rows.length > 0 ? (
               <table className="ops-table">
                 <caption className="sr-only">
-                  Each dependency this deployment needs, and whether it answered when it was last checked.
+                  Every resource this deployment runs on, and the state each was in when it was last checked.
                 </caption>
                 <thead>
                   <tr>
-                    <th scope="col">Dependency</th>
+                    {/* Resource rather than Dependency. The app itself and the
+                        store it writes to are on this list now, and neither is
+                        something the deployment depends ON from outside. */}
+                    <th scope="col">Resource</th>
                     <th scope="col" className="ops-col-result">
                       Result
                     </th>
@@ -466,7 +453,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(payload?.dependencies ?? []).map((row) => (
+                  {rows.map((row) => (
                     <tr key={row.id}>
                       <th scope="row">
                         <span className="ops-dependency">
@@ -503,22 +490,23 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                         ) : null}
                       </th>
                       <td className="ops-col-result">
-                        {/* The word is the state. The class only paints what the
-                            word already said, so this reads the same in
-                            monochrome and to a screen reader. */}
-                        <span className={RESULT_TONE[row.result]}>{resultLabel(row.result)}</span>
+                        {/* The badge that used to sit in the band above, in the
+                            row it is about. The words are the state; the class
+                            only paints what they already said, so this reads the
+                            same in monochrome and to a screen reader. */}
+                        <ResultPill pill={row.pill} />
                       </td>
                       <td className="ops-col-when">
                         {row.lastCheckedAt ? (
                           <time dateTime={row.lastCheckedAt}>{ageAgo(row.lastCheckedAt)}</time>
                         ) : null}
                       </td>
-                      <td className="ops-reason">{reasonCell(row)}</td>
+                      <td className="ops-reason">{row.notes}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            )}
+            ) : null}
 
             {/* NO HEADING OVER THIS, and no section naming itself. The handoff's
                 Health block is a band, a table and a footer; "Platform record and

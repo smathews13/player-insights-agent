@@ -165,13 +165,18 @@ describe('the concept flicker’s timing', () => {
     expect(FLICKER_ORDER[FLICKER_ORDER.length - 1]).toBe('dpad');
   });
 
-  it('seats the four sizes loading-suite.md names, and no others', () => {
-    expect(FLICKER_SIZES).toEqual({ splash: 72, inline: 20, button: 14, strip: 18 });
+  it('seats the sizes the loaders are actually painted at, and no others', () => {
+    // The four `loading-suite.md` names, plus the agent path's status slot. That
+    // fifth one is later than the document -- the band outliving its run is -- and
+    // its 11px is read off the slot rather than chosen: `.ast-sky-status-mark svg`
+    // has painted that mark at 11px since the band was drawn. The guard is against
+    // a size that exists only in this record, which is why it stays an equality.
+    expect(FLICKER_SIZES).toEqual({ splash: 72, inline: 20, button: 14, strip: 18, status: 11 });
   });
 
   it('draws the small cut in every seating but the splash', () => {
-    // Three of the four seatings are under 32px, so three of them get the cut
-    // and the ring is only ever drawn where it can be seen.
+    // Every seating but the splash is under 32px, so every one of them gets the
+    // cut and the ring is only ever drawn where it can be seen.
     const graduated = Object.values(FLICKER_SIZES).filter((size) => size >= GRADUATION_FLOOR);
     expect(graduated).toEqual([FLICKER_SIZES.splash]);
   });

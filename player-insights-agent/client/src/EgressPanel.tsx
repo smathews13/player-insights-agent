@@ -1,20 +1,4 @@
-/**
- * What an administrator may turn off, and what the catalog says about the
- * tables behind it.
- *
- * Two cards on the Settings page, behind the experimental toggle, and mounted
- * only for an administrator. The server refuses the admin routes whatever is
- * drawn here, so hiding the panel is about not offering dead controls rather than
- * about the permission itself.
- *
- * Paths the app cannot stop (selection, screenshots, figures already on screen)
- * are not listed here. Listing them as status rows read as a monitoring surface
- * without adding a control; they remain in the shared registry so the contract
- * stays honest about what the build cannot enforce.
- */
-
-import { useCallback, useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Switch } from './ui';
+import { useEffect, useState } from 'react';
 import {
   controllablePaths,
   egressAllowed,
@@ -24,66 +8,58 @@ import {
   type EgressPath,
 } from '../../shared/egress-contract';
 import { adoptEgressControls, egressControlsSnapshot } from './egress-policy';
-import { controlAccessibleName, CONTROL_WRITE_FAILED, enforcementPill, pathMeta, type Pill } from './egress-panel';
+import { controlAccessibleName, enforcementPill } from './egress-panel';
+import { Switch } from './ui';
 
-/** The separator, written once. The design allows this one and no em dash. */
-function Facts({ facts }: { facts: readonly string[] }) {
-  if (facts.length === 0) return null;
-  return <p className="egress-facts">{facts.join(' · ')}</p>;
-}
-
-function PillChip({ pill }: { pill: Pill }) {
-  return <span className={`ast-pill ast-pill--${pill.tone}`}>{pill.label}</span>;
-}
-
-/* ── Controls ──────────────────────────────────────────────────────────────── */
+export const EGRESS_SETTINGS_FORM_ID = 'settings-egress-form';
 
 function ControlRow({
   path,
   allowed,
-  failed,
   onChange,
 }: {
   path: EgressPath;
   allowed: boolean;
-  failed: boolean;
   onChange: (allowed: boolean) => void;
 }) {
+  const pill = enforcementPill(path);
+  const blocked = path.enforcement === 'enforced' && !allowed ? ' · Blocked by the server' : '';
   return (
-    <div className="settings-row egress-row">
-      <div className="egress-row-body">
-        <p className="settings-row-label">
-          {path.label} <PillChip pill={enforcementPill(path)} />
-          {failed ? <span className="ast-pill ast-pill--neg">{CONTROL_WRITE_FAILED}</span> : null}
+    <div className="egress-row">
+      <div className="egress-row-head">
+        <p>
+          {path.label}
+          <span className={`egress-mode egress-mode-${path.enforcement}`}>{pill.label}</span>
         </p>
-        <Facts facts={pathMeta(path)} />
+        <Switch checked={allowed} onCheckedChange={onChange} aria-label={controlAccessibleName(path)} />
       </div>
-      <Switch checked={allowed} onCheckedChange={onChange} aria-label={controlAccessibleName(path)} />
+      <p className="egress-facts">{path.where}{blocked}</p>
     </div>
   );
 }
 
-/* ── The panel ─────────────────────────────────────────────────────────────── */
-
 export function EgressPanel() {
   const [controls, setControls] = useState<EgressControls>(() => egressControlsSnapshot());
-  const [stored, setStored] = useState(false);
-  const [failed, setFailed] = useState<EgressChannel | null>(null);
+  const [savedControls, setSavedControls] = useState<EgressControls>(() => egressControlsSnapshot());
+  const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
         const response = await fetch('/api/egress/controls', { headers: { Accept: 'application/json' } });
-        if (!response.ok || !live) return;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = (await response.json()) as EgressControlsPayload;
         if (!live || !payload?.controls) return;
         setControls(payload.controls);
-        setStored(Boolean(payload.stored));
+        setSavedControls(payload.controls);
         adoptEgressControls(payload.controls);
-      } catch {
-        // The snapshot the panel opened with stands. It is the build's defaults,
-        // and `stored` stays false, which is what the card says.
+        setState('ready');
+      } catch (caught) {
+        if (!live) return;
+        setError((caught as Error).message);
+        setState('failed');
       }
     })();
     return () => {
@@ -91,57 +67,63 @@ export function EgressPanel() {
     };
   }, []);
 
-  const move = useCallback(
-    async (channel: EgressChannel, allowed: boolean) => {
-      // Moved on screen first. A switch that waits for a round trip before it moves
-      // reads as an unresponsive control, and the failure is reported beside it.
-      const optimistic = { ...controls, [channel]: allowed };
-      setControls(optimistic);
-      setFailed(null);
-      try {
+  async function save() {
+    setState('saving');
+    setError('');
+    let latest = savedControls;
+    try {
+      for (const path of controllablePaths()) {
+        const channel: EgressChannel = path.channel;
+        if (controls[channel] === savedControls[channel]) continue;
         const response = await fetch('/api/egress/admin/controls', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ channel, allowed }),
+          body: JSON.stringify({ channel, allowed: controls[channel] }),
         });
-        if (!response.ok) {
-          setControls(controls);
-          setFailed(channel);
-          return;
-        }
+        if (!response.ok) throw new Error(`Could not save ${path.label.toLowerCase()}. HTTP ${response.status}`);
         const payload = (await response.json()) as EgressControlsPayload;
-        if (payload?.controls) {
-          setControls(payload.controls);
-          setStored(Boolean(payload.stored));
-          adoptEgressControls(payload.controls);
-        }
-      } catch {
-        setControls(controls);
-        setFailed(channel);
+        if (payload?.controls) latest = payload.controls;
       }
-    },
-    [controls]
-  );
-
-  const paths = controllablePaths();
+      setControls(latest);
+      setSavedControls(latest);
+      adoptEgressControls(latest);
+      setState('saved');
+    } catch (caught) {
+      setError((caught as Error).message);
+      setState('failed');
+    }
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>What may leave</CardTitle>
-        <CardDescription>{stored ? 'This deployment' : 'Build defaults'}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {paths.map((path) => (
+    <form
+      id={EGRESS_SETTINGS_FORM_ID}
+      className="settings-pane"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
+    >
+      <div className="settings-pane-heading">
+        <h3>Egress controls</h3>
+        <p>
+          What can leave this deployment: downloads, copies, and outbound links. Enforced paths are blocked by the
+          server when off; Recorded only paths log each use.
+        </p>
+      </div>
+      <div className="egress-list">
+        {controllablePaths().map((path) => (
           <ControlRow
             key={path.channel}
             path={path}
             allowed={egressAllowed(controls, path.channel)}
-            failed={failed === path.channel}
-            onChange={(allowed) => void move(path.channel, allowed)}
+            onChange={(allowed) => setControls((current) => ({ ...current, [path.channel]: allowed }))}
           />
         ))}
-      </CardContent>
-    </Card>
+      </div>
+      {state === 'loading' ? <p className="settings-status">Loading controls.</p> : null}
+      {state === 'saving' ? <p className="settings-status">Saving controls.</p> : null}
+      {state === 'saved' ? <p className="settings-status" role="status">Egress controls saved.</p> : null}
+      {error ? <p className="settings-status settings-error" role="alert">{error}</p> : null}
+    </form>
   );
 }

@@ -30,6 +30,7 @@ function blockInlines(block: Block): Inline[][] {
     const rows = block.header ? [block.header, ...block.rows] : block.rows;
     return rows.flatMap((row) => row.cells.map((cell) => cell.children));
   }
+  if (block.kind === 'rule' || block.kind === 'code') return [];
   return [block.children];
 }
 
@@ -327,14 +328,20 @@ describe('the tables the agent writes', () => {
     expect(blockText(blocks)).toBe('Sessions concentrate in GB | DE | FR, in that order.');
   });
 
-  it('leaves a fenced statement exactly as it was, because a pipe in SQL is not a column', () => {
-    // Fenced blocks are unsupported here and survive as the characters the agent
-    // typed. That is the documented behaviour and this is the test that keeps the
-    // table branch from quietly taking it over.
+  it('keeps a fenced SQL statement as code, because its pipe is not a table', () => {
     const source = '```sql\nSELECT CASE WHEN a THEN 1 END, x || y FROM t\n```';
     const blocks = parseAnswerMarkdown(source);
-    expect(blocks.some((block) => block.kind === 'table')).toBe(false);
-    expect(blockText(blocks)).toContain('SELECT CASE WHEN a THEN 1 END, x || y FROM t');
+    expect(blocks).toEqual([{
+      kind: 'code',
+      start: 0,
+      language: 'sql',
+      text: 'SELECT CASE WHEN a THEN 1 END, x || y FROM t',
+    }]);
+  });
+
+  it('renders the separator in a data package as a thematic break', () => {
+    expect(parseAnswerMarkdown('## DATA PACKAGE\n\n---\n\n**Interpretation:** ready').map((block) => block.kind))
+      .toEqual(['heading', 'rule', 'paragraph']);
   });
 
   it('is not a table when the pipes are nothing but a delimiter row', () => {

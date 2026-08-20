@@ -88,14 +88,20 @@ describe('which seating the loader takes', () => {
     expect(seatForTranscript([])).toBe('splash');
   });
 
-  it('seats all four of the flicker seatings somewhere in the app', () => {
+  it('seats every one of the flicker seatings somewhere in the app', () => {
     // `loading-suite.md` gives four (72px splash, 20px inline row, 14px in-button,
-    // 18-24px on a dark strip) and the suite is not implemented until each one is
-    // on a real surface. Two of them sat in FLICKER_SIZES unreferenced for a
-    // while, which is the failure this test is for: a seating that exists only as
-    // a number in a record is a seating nobody has drawn.
-    const seated = [HOME, INLINE_ROW, readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8')].join('\n');
-    for (const seat of ['splash', 'inline', 'button', 'strip'] satisfies FlickerSeat[]) {
+    // 18-24px on a dark strip) and the agent path's foot is a fifth; the suite is
+    // not implemented until each one is on a real surface. Two of them sat in
+    // FLICKER_SIZES unreferenced for a while, which is the failure this test is
+    // for: a seating that exists only as a number in a record is a seating nobody
+    // has drawn.
+    const seated = [
+      HOME,
+      INLINE_ROW,
+      readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8'),
+      readFileSync(new URL('AgentConstellation.tsx', HERE), 'utf8'),
+    ].join('\n');
+    for (const seat of ['splash', 'inline', 'button', 'strip', 'status'] satisfies FlickerSeat[]) {
       expect(seated, `the ${seat} seating is drawn somewhere`).toContain(`seat="${seat}"`);
     }
   });

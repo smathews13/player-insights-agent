@@ -289,6 +289,13 @@ function ProseBlock({ block }: { block: Block }) {
           </table>
         </div>
       );
+    case 'rule':
+      return <hr className="answer-rule" />;
+    case 'code':
+      return (<pre className="answer-code-block">
+          <code data-language={block.language || undefined}>{block.text}</code>
+        </pre>
+      );
     case 'paragraph':
       return (<p>
           <InlineNodes nodes={block.children} />

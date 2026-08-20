@@ -5,13 +5,9 @@
  * Built to `login-gate.md`. Three departures from it, each deliberate and each
  * noted where it happens:
  *
- *   1. CONTINUE IS NEVER DISABLED. The spec renders it disabled beside Refresh
- *      whenever a scope is missing. The standing instruction for this screen is
- *      that a missing scope warns and does not lock the reader out, and a gate
- *      whose only control is dead is a dead end for a reader whose admin is in
- *      another timezone. Refresh is added exactly as the spec asks -- second
- *      control, app-wide style -- so the reader gains the spec's recheck without
- *      losing the way past.
+ *   1. REQUIRED SHORTFALLS HAVE A REPAIR, NOT A SKIP. The signed-in user's
+ *      forwarded token updates this App resource without replacing any scopes
+ *      already granted. Optional or unread checks may still be skipped.
  *   2. THE TWO CORPORATE MARKS ARE HERE NOW, and this note used to say they
  *      could not be. `assets/brand/` held seven PRODUCT marks and no corporate
  *      mark, so the card carried its heading alone rather than substitute a
@@ -30,9 +26,9 @@
  *      Singular is handled there too, because "1 scopes" is the likeliest case
  *      and the spec only wrote the plural.
  *
- * SKIP DISMISSES THE CARD AND CHANGES NOTHING ELSE. The spec predates it. It is
- * the way past a failing check, named for what it does, and its entire effect is
- * to close this card and record that the checks were SKIPPED rather than passed.
+ * SKIP DISMISSES THE CARD AND CHANGES NOTHING ELSE. It remains available only
+ * when no required shortfall can be repaired here, and records that the checks
+ * were SKIPPED rather than passed.
  * It grants no scope, re-runs no comparison, sends no request, and selects no
  * fallback: after taking it the app still reads governed data as the signed-in
  * person, still gets refused whatever their grants refuse, and still surfaces
@@ -218,6 +214,9 @@ export function FirstOpenPanel({
   onContinue,
   onRefresh,
   onSkip,
+  onAllowRequiredScopes,
+  allowingRequiredScopes = false,
+  scopeUpdateMessage = null,
   onSky = false,
   rising = false,
   leaving = false,
@@ -231,6 +230,10 @@ export function FirstOpenPanel({
    * is the one the customer commitment turns on -- see `FirstOpenOutcome`.
    */
   onSkip: () => void;
+  /** Adds the four required scopes through the signed-in user's Databricks token. */
+  onAllowRequiredScopes?: () => void;
+  allowingRequiredScopes?: boolean;
+  scopeUpdateMessage?: { kind: 'success' | 'error'; text: string } | null;
   /**
    * Whether the opening sequence is drawing underneath. The backdrop goes
    * transparent so the constellation shows through it, which `loading-suite.md`
@@ -254,6 +257,7 @@ export function FirstOpenPanel({
   const { before, emphasis, after } = disclaimerParts();
   const showRefresh = offersRefresh(report);
   const showSkip = offersSkip(report);
+  const canApplyRequiredScopes = report.verdict === 'missing' && Boolean(onAllowRequiredScopes);
   return (
     <div
       className={`first-open${onSky ? ' on-sky' : ''}${leaving ? ' fo-leaving' : ''}`}
@@ -346,22 +350,26 @@ export function FirstOpenPanel({
         <div className="fo-foot">
           <div className={showRefresh ? 'fo-actions fo-actions-pair' : 'fo-actions'}>
             {/*
-             * LIVE IN EVERY STATE. See the note at the top of this file: the spec
-             * disables this whenever a scope is missing, and the standing decision
-             * for this screen is that it warns without locking the reader out.
-             *
-             * One control, named for what taking it means on this verdict. Where
-             * a check is failing it says so and records `skipped`; where every row
-             * says Granted there is nothing to skip and it is plain Continue. Two
-             * buttons that both dismiss the card would leave the reader choosing
-             * between synonyms.
+             * One primary action. Required shortfalls are repaired with the
+             * reader's token; an unread check may be skipped; and a complete
+             * check continues into the app.
              */}
-            <Button
-              className={`fo-continue${leaving ? ' ast-anim-x-click' : ''}`}
-              onClick={showSkip ? onSkip : onContinue}
-            >
-              {showSkip ? SKIP_LABEL : CONTINUE_LABEL}
-            </Button>
+            {canApplyRequiredScopes ? (
+              <Button
+                className="fo-continue"
+                onClick={onAllowRequiredScopes}
+                disabled={allowingRequiredScopes || scopeUpdateMessage?.kind === 'success'}
+              >
+                {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, and Genie'}
+              </Button>
+            ) : (
+              <Button
+                className={`fo-continue${leaving ? ' ast-anim-x-click' : ''}`}
+                onClick={showSkip ? onSkip : onContinue}
+              >
+                {showSkip ? SKIP_LABEL : CONTINUE_LABEL}
+              </Button>
+            )}
             {showRefresh ? <RefreshButton onRefresh={onRefresh} className="fo-refresh" /> : null}
           </div>
           {/*
@@ -369,7 +377,15 @@ export function FirstOpenPanel({
            * the reader must not leave believing the app will now work around the
            * shortfall.
            */}
-          {showSkip ? <p className="fo-skip-note">{SKIP_NOTE}</p> : null}
+          {scopeUpdateMessage ? (
+            <p
+              className="fo-skip-note"
+              role={scopeUpdateMessage.kind === 'error' ? 'alert' : 'status'}
+            >
+              {scopeUpdateMessage.text}
+            </p>
+          ) : null}
+          {showSkip && !canApplyRequiredScopes ? <p className="fo-skip-note">{SKIP_NOTE}</p> : null}
         </div>
       </div>
     </div>
@@ -463,6 +479,11 @@ export function useFirstOpen(identity: Identity): FirstOpen {
    */
   const [animates] = useState(() => transitionRuns({ reducedMotion: prefersReducedMotion() }));
   const [leaving, setLeaving] = useState(false);
+  const [allowingRequiredScopes, setAllowingRequiredScopes] = useState(false);
+  const [scopeUpdateMessage, setScopeUpdateMessage] = useState<{
+    kind: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   /*
    * The intro's clock, and the two ways out of it.
@@ -573,6 +594,27 @@ export function useFirstOpen(identity: Identity): FirstOpen {
     else setDismissed(true);
   };
 
+  const allowRequiredScopes = async () => {
+    setAllowingRequiredScopes(true);
+    setScopeUpdateMessage(null);
+    try {
+      const response = await fetch('/api/app-user-api-scopes', { method: 'POST' });
+      const body = (await response.json().catch(() => ({}))) as { message?: unknown };
+      const message = typeof body.message === 'string' ? body.message : '';
+      if (!response.ok) {
+        throw new Error(message || 'The app could not add access.');
+      }
+      setScopeUpdateMessage({
+        kind: 'success',
+        text: message || 'Access was added. Sign in again so the new access takes effect.',
+      });
+    } catch (error) {
+      setScopeUpdateMessage({ kind: 'error', text: (error as Error).message });
+    } finally {
+      setAllowingRequiredScopes(false);
+    }
+  };
+
   if (stage === 'open') return { stage, gate: null };
   if (stage === 'pending') {
     return { stage, gate: sequence ? <OpeningSequence intro={intro} /> : <FirstOpenHold /> };
@@ -594,6 +636,9 @@ export function useFirstOpen(identity: Identity): FirstOpen {
       rising={rising}
       leaving={leaving}
       onContinue={leave(acknowledgeFirstOpen)}
+      onAllowRequiredScopes={() => void allowRequiredScopes()}
+      allowingRequiredScopes={allowingRequiredScopes}
+      scopeUpdateMessage={scopeUpdateMessage}
       /*
        * Identical in effect to Continue, and that is the requirement rather than
        * a shortcut: the only difference between them is which outcome is filed.

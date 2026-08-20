@@ -47,6 +47,7 @@ import {
 } from './ui';
 import {
   CircleAlert,
+  ExternalLink,
   FileText,
   Loader2,
   MessagesSquare,
@@ -67,14 +68,7 @@ import { slowestStageName } from './progress-labels';
 import { AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
 import { LiveProgress } from './LiveProgress';
 import { railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
-import {
-  beginLiveAsk,
-  endLiveAsk,
-  hydrateLiveAsk,
-  openLiveAsk,
-  recordLiveStage,
-  useLiveAsk,
-} from './live-ask';
+import { beginLiveAsk, endLiveAsk, hydrateLiveAsk, openLiveAsk, recordLiveStage, useLiveAsk } from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
 import { RunStatusPill } from './RunStatusPill';
@@ -213,8 +207,7 @@ function dedupeByTitle(items: Conversation[], keepId: string) {
       seen.set(key, item);
     }
   }
-  return Array.from(seen.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-  );
+  return Array.from(seen.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 }
 
 /**
@@ -495,9 +488,7 @@ export function HomePage() {
   // `type` is absent on answers stored before it was added, so an answer is what
   // is left after the two types that name themselves, not what carries 'answer'.
   const answer =
-    latestResponse && latestResponse.type !== 'plan' && latestResponse.type !== 'clarification'
-      ? latestResponse
-      : null;
+    latestResponse && latestResponse.type !== 'plan' && latestResponse.type !== 'clarification' ? latestResponse : null;
   const asked = latestResponse?.type === 'clarification' ? latestResponse.clarification : null;
   const lastAssistantIndex = messages.map((message) => message.role).lastIndexOf('assistant');
   const parsing = attachments.some((attachment) => attachment.status === 'parsing');
@@ -655,7 +646,8 @@ export function HomePage() {
       // question, so a user looking at an empty chip row would conclude the
       // opposite of what is true. The route says which of the two happened.
       setAttachmentsUnreadable(!attachmentResponse.ok);
-      setAttachments(attachmentResponse.ok
+      setAttachments(
+        attachmentResponse.ok
           ? ((await attachmentResponse.json()) as Omit<Attachment, 'status'>[]).map((attachment) => ({
               ...attachment,
               status: 'ready',
@@ -725,9 +717,7 @@ export function HomePage() {
   const askRow = useCallback((question: string, approval?: { planId: string; label: string }) => {
     void latest.current.ask(question, approval);
   }, []);
-  const rateRow = useCallback((answerId: string, rating: number) => latest.current.saveFeedback(answerId, rating),
-    []
-  );
+  const rateRow = useCallback((answerId: string, rating: number) => latest.current.saveFeedback(answerId, rating), []);
   const changeFeedback = useCallback((answerId: string, changes: Partial<FeedbackEntry>) => {
     setFeedback((current) => ({
       ...current,
@@ -925,9 +915,7 @@ export function HomePage() {
     return () => window.clearInterval(timer);
   }, [parsing, loading]);
 
-  async function ask(question = draft,
-    approval?: { planId: string; label: string }
-  ) {
+  async function ask(question = draft, approval?: { planId: string; label: string }) {
     if (!question.trim() || loading) return;
     // Everything below writes into the conversation this run started in. Once
     // the user is somewhere else, none of it is theirs to write: an answer, a
@@ -970,7 +958,8 @@ export function HomePage() {
     setError(null);
     setAskUnavailable(null);
     try {
-      const { body } = await askStreaming({
+      const { body } = await askStreaming(
+        {
           conversationId: runConversationId,
           prompt: question,
           approvedPlanId: approval?.planId,
@@ -1034,7 +1023,9 @@ export function HomePage() {
         },
       ]);
       if (approval && result.type === 'plan') {
-        setError('The agent proposed a revised plan instead of running the approved one. Review and approve it to continue.');
+        setError(
+          'The agent proposed a revised plan instead of running the approved one. Review and approve it to continue.'
+        );
       }
       // The row was named and moved to the top when the question was sent; this
       // only carries the store's own "just now" onto it. Same helper, so the
@@ -1249,17 +1240,15 @@ export function HomePage() {
           continue;
         }
         try {
-          const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/attachments`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/octet-stream',
-                'X-File-Name': encodeURIComponent(file.name),
-                'X-File-Type': file.type || 'application/octet-stream',
-              },
-              body: file,
-            }
-          );
+          const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/attachments`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'X-File-Name': encodeURIComponent(file.name),
+              'X-File-Type': file.type || 'application/octet-stream',
+            },
+            body: file,
+          });
           // A proxy or body-size rejection can answer with HTML, so never let a JSON
           // parse failure surface to the user as the reason the upload failed.
           const payload = (await response.json().catch(() => null)) as Attachment | null;
@@ -1287,7 +1276,8 @@ export function HomePage() {
   async function removeAttachment(attachment: Attachment) {
     setAttachments((items) => items.filter((item) => item.id !== attachment.id));
     if (attachment.status === 'ready') {
-      await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/attachments/${encodeURIComponent(attachment.id)}`,
+      await fetch(
+        `/api/conversations/${encodeURIComponent(conversationId)}/attachments/${encodeURIComponent(attachment.id)}`,
         { method: 'DELETE' }
       ).catch(() => undefined);
     }
@@ -1355,7 +1345,8 @@ export function HomePage() {
   /**
    * The rail as it is actually drawn, collapsed once.
    */
-  const railConversations = useMemo(() => dedupeByTitle(conversations, conversationId),
+  const railConversations = useMemo(
+    () => dedupeByTitle(conversations, conversationId),
     [conversations, conversationId]
   );
 
@@ -1375,7 +1366,8 @@ export function HomePage() {
    * One reader asking five questions saw "All 5 · You 3" and two anonymous rows,
    * which reads as a colleague having quietly used their rail.
    */
-  const rail = useMemo(() => railOwnership(railConversations, identity.signedInAs),
+  const rail = useMemo(
+    () => railOwnership(railConversations, identity.signedInAs),
     [railConversations, identity.signedInAs]
   );
 
@@ -1401,8 +1393,7 @@ export function HomePage() {
   const visibleEntries = useMemo(() => {
     if (activeOwnerFilters.length === 0) return rail.entries;
     const selected = new Set(activeOwnerFilters);
-    const matching = rail.entries.filter((entry) => entry.ownerKey !== null && selected.has(entry.ownerKey)
-    );
+    const matching = rail.entries.filter((entry) => entry.ownerKey !== null && selected.has(entry.ownerKey));
     // Belt and braces. `activeOwnerFilters` only holds people counted off these
     // same conversations, so each of them has at least one and this cannot fire
     // today, but an empty rail caused by a filter is the failure worth two
@@ -1426,7 +1417,8 @@ export function HomePage() {
    * are the ones that should dismiss it, and calling it on the aside's copy,
    * where it is already closed, does nothing.
    */
-  const renderRail = (scope: RailScope) => (<>
+  const renderRail = (scope: RailScope) => (
+    <>
       <Button
         className="w-full justify-center"
         onClick={() => {
@@ -1438,98 +1430,107 @@ export function HomePage() {
         <Plus /> New conversation
       </Button>
       <div>
-          <p className="section-label">
-            Recent
-            {identity.sharedConversationRail && (// A rail carrying other people's conversations says so on the
-              // page. The scope is a deployment setting, so without this the
-              // only way to know which one is running is to read the app's
-              // startup log, and a widened scope nobody can see is the kind
-              // that surprises somebody later.
-              <span className="section-label-scope" title="This deployment shows everyone's conversations">
-                {' '}
-                · all users
-              </span>
-            )}
-          </p>
-          {rail.owners.length > 0 && (// Whenever the rail names anybody at all, one person included. Who
-            // asked is worth showing on a rail of one as well: it is the answer
-            // to "is this everything, or only mine", and a filter that appears
-            // the moment a second person arrives is a control nobody knew was
-            // there. Still derived from the rows on screen rather than from the
-            // flag or a lookup, so it cannot name somebody the rail is not
-            // showing, and `> 0` rather than unconditional because with no
-            // identified owner there are no chips and the group is furniture.
-            // Toggles rather than a dropdown, because the question a shared
-            // rail gets asked is "these two people", and a single select can
-            // only ask it one person at a time. Chips rather than a column of
-            // checkboxes for the same reason the row shows initials rather than
-            // an address: this is a 240px rail, and a list of nine names would
-            // push the conversations it is meant to be filtering off the screen.
-            <div
-              className="conversation-filter"
-              role="group"
-              // Names the group so the toggles inside it are read as a filter
-              // rather than as nine unexplained buttons.
-              aria-label="Show conversations from"
-            >
-              {/* "Everyone" IS the empty selection rather than a fourth state
+        <p className="section-label">
+          Recent
+          {identity.sharedConversationRail && ( // A rail carrying other people's conversations says so on the
+            // page. The scope is a deployment setting, so without this the
+            // only way to know which one is running is to read the app's
+            // startup log, and a widened scope nobody can see is the kind
+            // that surprises somebody later.
+            <span className="section-label-scope" title="This deployment shows everyone's conversations">
+              {' '}
+              · all users
+            </span>
+          )}
+        </p>
+        {rail.owners.length > 0 && ( // Whenever the rail names anybody at all, one person included. Who
+          // asked is worth showing on a rail of one as well: it is the answer
+          // to "is this everything, or only mine", and a filter that appears
+          // the moment a second person arrives is a control nobody knew was
+          // there. Still derived from the rows on screen rather than from the
+          // flag or a lookup, so it cannot name somebody the rail is not
+          // showing, and `> 0` rather than unconditional because with no
+          // identified owner there are no chips and the group is furniture.
+          // Toggles rather than a dropdown, because the question a shared
+          // rail gets asked is "these two people", and a single select can
+          // only ask it one person at a time. Chips rather than a column of
+          // checkboxes for the same reason the row shows initials rather than
+          // an address: this is a 240px rail, and a list of nine names would
+          // push the conversations it is meant to be filtering off the screen.
+          <div
+            className="conversation-filter"
+            role="group"
+            // Names the group so the toggles inside it are read as a filter
+            // rather than as nine unexplained buttons.
+            aria-label="Show conversations from"
+          >
+            {/* "Everyone" IS the empty selection rather than a fourth state
                   layered over it, so there is one thing to reason about and no
                   way to reach a rail that is filtered to nobody. It is still a
                   button, because "unselect the ones you selected" is a worse
                   way to ask for everyone than pressing everyone. */}
-              <button
-                type="button"
-                className="conversation-filter-chip is-all"
-                aria-pressed={activeOwnerFilters.length === 0}
-                onClick={() => setOwnerFilters([])}
-              >
-                All <span className="conversation-filter-count">{rail.entries.length}</span>
-              </button>
-              {rail.owners.map(({ key, email, count, you }) => {
-                return (<button
-                    key={key}
-                    type="button"
-                    className="conversation-filter-chip"
-                    aria-pressed={activeOwnerFilters.includes(key)}
-                    // The address, not the initials: two letters read aloud are
-                    // not an answer to "whose". Distinct from every conversation
-                    // title too, so it cannot shadow one the way the delete
-                    // control once did.
-                    aria-label={`${you ? 'You' : email} (${count})`}
-                    title={`${email} \u00b7 ${count} conversation${count === 1 ? '' : 's'}`}
-                    onClick={() => toggleOwnerFilter(key)}
-                  >
-                    <UserIdentityChip
-                      identity={email}
-                      label={you ? 'You' : undefined}
-                      compact
-                      suffix={<span className="identity-chip-suffix" aria-hidden="true">{count}</span>}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {conversationLoading && conversations.length === 0 ? (<div className="space-y-2">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : railAvailability?.origin === 'unavailable' ? (/* Checked before the empty state, and the order is the whole point.
+            <button
+              type="button"
+              className="conversation-filter-chip is-all"
+              aria-pressed={activeOwnerFilters.length === 0}
+              onClick={() => setOwnerFilters([])}
+            >
+              All <span className="conversation-filter-count">{rail.entries.length}</span>
+            </button>
+            {rail.owners.map(({ key, email, count, you }) => {
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className="conversation-filter-chip"
+                  aria-pressed={activeOwnerFilters.includes(key)}
+                  // The address, not the initials: two letters read aloud are
+                  // not an answer to "whose". Distinct from every conversation
+                  // title too, so it cannot shadow one the way the delete
+                  // control once did.
+                  aria-label={`${you ? 'You' : email} (${count})`}
+                  title={`${email} \u00b7 ${count} conversation${count === 1 ? '' : 's'}`}
+                  onClick={() => toggleOwnerFilter(key)}
+                >
+                  <UserIdentityChip
+                    identity={email}
+                    label={you ? 'You' : undefined}
+                    compact
+                    suffix={
+                      <span className="identity-chip-suffix" aria-hidden="true">
+                        {count}
+                      </span>
+                    }
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {conversationLoading && conversations.length === 0 ? (
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : railAvailability?.origin ===
+          'unavailable' /* Checked before the empty state, and the order is the whole point.
                  Both arrive here with no rows. `role="status"` because nobody
                  is waiting on this the way they wait on an answer, but a reader
-                 who has just been told the rail is empty needs the correction. */
-            <p className="conversation-empty" role="status">
-              {railUnreadableNotice.heading}. {railUnreadableNotice.consequence}
-            </p>
-          ) : conversations.length === 0 ? (<p className="conversation-empty">No saved conversations yet.</p>
-          ) : (visibleEntries.map(({ conversation, owner }) => {
-              // What this conversation's latest answered turn recorded, or null
-              // when nothing is known about it. Absent is the normal state for a
-              // conversation nobody has asked anything yet.
-              const summary = runSummaries.get(conversation.id) ?? null;
-              const duration = summary ? railDuration(summary.durationMs) : null;
-              return (
+                 who has just been told the rail is empty needs the correction. */ ? (
+          <p className="conversation-empty" role="status">
+            {railUnreadableNotice.heading}. {railUnreadableNotice.consequence}
+          </p>
+        ) : conversations.length === 0 ? (
+          <p className="conversation-empty">No saved conversations yet.</p>
+        ) : (
+          visibleEntries.map(({ conversation, owner }) => {
+            // What this conversation's latest answered turn recorded, or null
+            // when nothing is known about it. Absent is the normal state for a
+            // conversation nobody has asked anything yet.
+            const summary = runSummaries.get(conversation.id) ?? null;
+            const duration = summary ? railDuration(summary.durationMs) : null;
+            return (
               // Drawn from the entry rather than from the conversation, so the
               // watermark below is the same answer to "whose is this" that the
               // chips above were counted from. Reading `conversation.user_email`
@@ -1538,7 +1539,8 @@ export function HomePage() {
               // a second button and one cannot be nested inside the other.
               // Selecting the conversation is still the whole of the first
               // button, so the click target for the common action is unchanged.
-              conversation.id === pendingDelete ? (<div
+              conversation.id === pendingDelete ? (
+                <div
                   key={conversation.id}
                   className="conversation-row confirming"
                   role="group"
@@ -1567,7 +1569,8 @@ export function HomePage() {
                     </button>
                   </div>
                 </div>
-              ) : (<div
+              ) : (
+                <div
                   key={conversation.id}
                   className={`conversation-row ${conversation.id === conversationId ? 'active' : ''}`}
                 >
@@ -1595,7 +1598,8 @@ export function HomePage() {
                         sent to this browser, both have no status to report, and the
                         line is then the date alone. */}
                     <span className="conversation-item-head">
-                      {summary && (<span
+                      {summary && (
+                        <span
                           className={`ast-pill conversation-status ${summary.tone}`}
                           // The store's own word is short and unqualified. The
                           // tooltip says what it is the status OF, which the pill
@@ -1609,7 +1613,8 @@ export function HomePage() {
                           Explorer's card draws it: a turn cut short can still
                           have completed, and replacing the word would leave a
                           truncated turn's outcome unreadable. */}
-                      {summary?.truncated === true && (<span
+                      {summary?.truncated === true && (
+                        <span
                           className="ast-pill ast-pill--warn conversation-status"
                           title="This turn stopped before it had finished"
                         >
@@ -1629,17 +1634,17 @@ export function HomePage() {
                       {conversation.title}
                     </span>
                     <span className="conversation-meta">
-                      {owner && <UserIdentityChip identity={owner} label="Asked by" compact className="conversation-owner" />}
+                      {owner && (
+                        <UserIdentityChip identity={owner} label="Asked by" compact className="conversation-owner" />
+                      )}
                       {/* Wall time of that latest turn, when the trace recorded one.
                           Absent rather than zero for a turn stored before it did. */}
                       {duration && <span className="conversation-duration ast-num">{duration}</span>}
                       {/* And the reader's own rating, with its scale, because a star
                           beside a bare number does not say what it is out of. Only
                           when somebody rated it: an empty star is a claim of zero. */}
-                      {summary?.rating !== null && summary?.rating !== undefined && (<span
-                          className="conversation-rating ast-num"
-                          title={`Rated ${ratingOutOf(summary.rating)}`}
-                        >
+                      {summary?.rating !== null && summary?.rating !== undefined && (
+                        <span className="conversation-rating ast-num" title={`Rated ${ratingOutOf(summary.rating)}`}>
                           <Star aria-hidden="true" /> {ratingOutOf(summary.rating)}
                         </span>
                       )}
@@ -1668,14 +1673,15 @@ export function HomePage() {
                   </button>
                 </div>
               )
-              );
-            })
-          )}
+            );
+          })
+        )}
       </div>
     </>
   );
 
-  return (<div className="ask-layout">
+  return (
+    <div className="ask-layout">
       <aside className="conversation-rail">{renderRail('rail')}</aside>
 
       {/* The sheet's trigger, drawn only below 800px, where the aside is not.
@@ -1694,8 +1700,7 @@ export function HomePage() {
           {/* The count, because the button replaces a rail whose length was
               visible, and "Conversations" alone does not say whether there are
               any. */}
-          {rail.entries.length > 0 && (<span className="rail-sheet-count">{rail.entries.length}</span>
-          )}
+          {rail.entries.length > 0 && <span className="rail-sheet-count">{rail.entries.length}</span>}
         </Button>
         <SheetContent side="left" className="rail-sheet">
           <SheetHeader>
@@ -1706,7 +1711,8 @@ export function HomePage() {
       </Sheet>
 
       <section className="conversation-main">
-        {messages.length === 0 && !loading && !conversationLoading && (<div className="ask-hero">
+        {messages.length === 0 && !loading && !conversationLoading && (
+          <div className="ask-hero">
             {/* The chip that introduces the agent, carrying the small cut of the
                 mark on Ice. THE MARK IS THE AGENT (§1): the orange robot is
                 retired, and the figure a reader meets on an empty transcript is
@@ -1727,7 +1733,8 @@ export function HomePage() {
                 'Show the Hoops 26 season launch engagement spike.',
                 'Check null ratios in the latest player activity data.',
                 'Compare recurrent consumer spending with full-game net bookings by title.',
-              ].map((suggestion) => (<button key={suggestion} onClick={() => void ask(suggestion)}>
+              ].map((suggestion) => (
+                <button key={suggestion} onClick={() => void ask(suggestion)}>
                   {suggestion}
                   <span>Ask →</span>
                 </button>
@@ -1746,11 +1753,13 @@ export function HomePage() {
             // other answer's rating, comment or saved flag can appear here.
             // Only an answer has one: a plan and a clarification are not turns
             // anybody rates, and the two carry no id to rate them by.
-            const rated = response && response.type !== 'plan' && response.type !== 'clarification'
-              ? feedback[response.id]
-              : undefined;
+            const rated =
+              response && response.type !== 'plan' && response.type !== 'clarification'
+                ? feedback[response.id]
+                : undefined;
             const entry = rated ?? emptyFeedback;
-            return (<MessageItem
+            return (
+              <MessageItem
                 key={message.id}
                 message={message}
                 response={response}
@@ -1781,7 +1790,8 @@ export function HomePage() {
             );
           })}
 
-        {(loading || conversationLoading) && (<Card className="answer-card">
+        {(loading || conversationLoading) && (
+          <Card className="answer-card">
             <CardContent className={workingSeat === 'splash' ? 'ast-splash' : 'pt-6 space-y-5'}>
               {/* The working animation is for a run that is actually running.
                   Restoring a saved conversation from Lakebase is not the agent
@@ -1789,18 +1799,18 @@ export function HomePage() {
                   so that case keeps the still mark it always had. Miming a run
                   over a database read is the same invention as a progress bar
                   that fills on a timer. */}
-              {conversationLoading ? (<div className="flex items-center gap-3">
+              {conversationLoading ? (
+                <div className="flex items-center gap-3">
                   <div className="ask-loading-mark">
                     <AstrolabeMark size={26} />
                   </div>
                   <div>
                     <p className="font-medium">Loading conversation</p>
-                    <p className="text-sm text-muted-foreground">
-                      Restoring the saved answer and trace from Lakebase.
-                    </p>
+                    <p className="text-sm text-muted-foreground">Restoring the saved answer and trace from Lakebase.</p>
                   </div>
                 </div>
-              ) : workingSeat === 'splash' ? (<>
+              ) : workingSeat === 'splash' ? (
+                <>
                   {/* `#17a`'s splash seating: 72px, centred, alone. It is the
                       splash's whole drawing rather than the narrow window's
                       alternative to `#5ar`'s panel, because the panel is a
@@ -1818,7 +1828,8 @@ export function HomePage() {
                       same figure on screen twice a few pixels apart. */}
                   <div className="ast-splash-copy">
                     <strong>{WORKING_LABEL}</strong>
-                    {elapsed ? (<>
+                    {elapsed ? (
+                      <>
                         <span className="ast-sep" />
                         <strong className="ast-num">{elapsed}</strong>
                       </>
@@ -1830,11 +1841,7 @@ export function HomePage() {
                    run replaces the three-star waiting fragment in the card body.
                    The same liveStages array drives the harness at right, so both
                    surfaces advance from the same events after plan approval. */
-                <AgentPathConstellation
-                  stages={liveStages}
-                  activeIndex={railActiveIndex}
-                  elapsedMs={railElapsedMs}
-                />
+                <AgentPathConstellation stages={liveStages} activeIndex={railActiveIndex} elapsedMs={railElapsedMs} />
               ) : (
                 <WorkingConstellation seat="card" elapsed={elapsed} />
               )}
@@ -1851,11 +1858,13 @@ export function HomePage() {
                   was fourteen seconds away, under a sentence promising each
                   step "as it finishes" -- which is not what the endpoint does.
                   See live-progress.ts. */}
-              {conversationLoading ? (<>
+              {conversationLoading ? (
+                <>
                   <Skeleton className="h-6 w-3/4" />
                   <Skeleton className="h-20 w-full" />
                 </>
-              ) : (<div className={workingSeat === 'splash' ? 'ast-splash-run' : undefined}>
+              ) : (
+                <div className={workingSeat === 'splash' ? 'ast-splash-run' : undefined}>
                   <LiveProgress
                     stages={liveStages}
                     openedAt={streamOpenedAt}
@@ -1871,7 +1880,8 @@ export function HomePage() {
         )}
 
         {askUnavailable && <UnavailablePanel notice={askUnavailable} />}
-        {error && (<Alert>
+        {error && (
+          <Alert>
             <CircleAlert />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -1902,28 +1912,36 @@ export function HomePage() {
           <div className="trace-summary">
             <RunStatusPill status={runStatus} />
             {answer &&
-              (answer.runStored === false ? (<span className="trace-summary-note" role="status">
+              (answer.runStored === false ? (
+                <span className="trace-summary-note" role="status">
                   {RUN_NOT_STORED}
                 </span>
-              ) : (<Link className="trace-summary-link" to={`/runs?run=${encodeURIComponent(answer.id)}`}>
+              ) : (
+                <Link className="trace-summary-link" to={`/runs?run=${encodeURIComponent(answer.id)}`}>
                   Explore full run <Workflow aria-hidden="true" />
                 </Link>
               ))}
           </div>
-          {attachmentsUnreadable && (<p className="composer-notice" role="status">
-              Any documents attached to this conversation could not be read just now, so none are
-              listed. Whatever was attached is still attached, and still reaches the agent.
+          {attachmentsUnreadable && (
+            <p className="composer-notice" role="status">
+              Any documents attached to this conversation could not be read just now, so none are listed. Whatever was
+              attached is still attached, and still reaches the agent.
             </p>
           )}
-          {attachments.length > 0 && (<div className="attachment-list" aria-label="Attached context">
-              {attachments.map((attachment) => (<div
+          {attachments.length > 0 && (
+            <div className="attachment-list" aria-label="Attached context">
+              {attachments.map((attachment) => (
+                <div
                   className={`attachment-chip ${attachment.status}`}
                   key={attachment.id}
                   role={attachment.status === 'error' ? 'alert' : undefined}
                 >
-                  {attachment.status === 'parsing' ? (<Loader2 className="size-4 animate-spin" />
-                  ) : attachment.status === 'error' ? (<CircleAlert className="size-4" />
-                  ) : (<FileText className="size-4" />
+                  {attachment.status === 'parsing' ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : attachment.status === 'error' ? (
+                    <CircleAlert className="size-4" />
+                  ) : (
+                    <FileText className="size-4" />
                   )}
                   <span>
                     <strong title={attachment.filename}>{attachment.filename}</strong>
@@ -1991,7 +2009,7 @@ export function HomePage() {
             >
               {attachControl.pending ? <Loader2 className="animate-spin" /> : <Paperclip />} {attachControl.label}
             </Button>
-            {attachments.length > 0 && (// Separate from New conversation on purpose: dropping the documents
+            {attachments.length > 0 && ( // Separate from New conversation on purpose: dropping the documents
               // and dropping the thread are different intentions, and coupling them
               // costs the user the conversation to get rid of one stale PDF.
               <Button
@@ -2016,7 +2034,8 @@ export function HomePage() {
                 carried is gone with the rest of the glyphs that stood in for the
                 agent -- the mark is the agent. */}
             <Button type="submit" disabled={!canAsk}>
-              {loading ? (<>
+              {loading ? (
+                <>
                   <ConceptFlicker seat="button" />
                   Running
                 </>
@@ -2038,7 +2057,7 @@ export function HomePage() {
             harness rather than on the list, so it belongs beside the eyebrow. */}
         <div className="trace-head">
           <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
-          <RunStatusPill status={runStatus} />
+          <RunStatusPill status={runStatus} onDark />
         </div>
         <h3 className="trace-title">Agent path</h3>
         {/* A clarification has a trace too, and it is the one that explains why the
@@ -2046,23 +2065,24 @@ export function HomePage() {
             rail used to show a completed four-stage run, including a red "partial"
             failure, before anyone had asked anything, and then animate a highlight
             through those invented stages while the real agent worked. */}
-        {railStages.length > 0 ? (/* The band, or the settled list, and nothing under either of them. The
+        {railStages.length > 0 /* The band, or the settled list, and nothing under either of them. The
              line that used to follow -- "Steps appear here as each one
              completes." -- explained the surface to the reader rather than
              reporting on the run, and it sat under a constellation that shows
              the chain arriving. There is deliberately no counter of the pause
-             since the newest step either; see live-progress.ts. */
+             since the newest step either; see live-progress.ts. */ ? (
           <AgentPathConstellation
             stages={railStages}
             activeIndex={railActiveIndex}
             elapsedMs={railElapsedMs}
+            totalMs={answer?.trace.totalMs ?? asked?.trace.totalMs ?? null}
           />
-        ) : (/* Nothing to draw, which is two different states: a run is going and
+        ) : /* Nothing to draw, which is two different states: a run is going and
                  has not reported a step yet, or nothing has been asked at all. They
                  used to share one panel and a `loading ?` inside every line of it,
                  so a reader waiting on their first step got an empty-state heading. */
-          loading ? (
-            /* A run is in flight and no step has landed yet, which is `#17a`'s
+        loading ? (
+          /* A run is in flight and no step has landed yet, which is `#17a`'s
                inline seating: 20px mark, "Working on your question", the real
                count pinned right. It was a lucide spinner in a washed tile over
                "No steps yet" and a sentence explaining that each step would
@@ -2072,55 +2092,68 @@ export function HomePage() {
                There is no empty-state heading with it. The row says a run is
                going and the pill above says the same; a third line naming the
                absence of steps is the list apologising for being empty. */
-            <div className="trace-working">
-              <WorkingInlineRow elapsed={elapsed} />
-            </div>
-          ) : (
-            /* Not AppKit's Empty, which centres itself in the box it is given: the
+          <div className="trace-working">
+            <WorkingInlineRow elapsed={elapsed} />
+          </div>
+        ) : (
+          /* Not AppKit's Empty, which centres itself in the box it is given: the
                inspector is a full-height sticky column, so the glyph and the
                sentence landed halfway down the viewport, level with the middle of
                the transcript rather than under the head they belong to. The design
                places them a third of the way down, which trace-empty does with a
                top margin. */
-            <div className="trace-empty">
-              <span className="trace-empty-mark" aria-hidden="true">
-                <Workflow />
-              </span>
-              <strong>No run yet</strong>
-              <p>Ask a question and the steps the agent took will appear here.</p>
-            </div>
-          )
+          <div className="trace-empty">
+            <span className="trace-empty-mark" aria-hidden="true">
+              <Workflow />
+            </span>
+            <strong>No run yet</strong>
+            <p>Ask a question and the steps the agent took will appear here.</p>
+          </div>
         )}
-        {answer && (<>
-            <Separator />
+        {answer && (
+          <>
+            <Separator className="trace-divider" />
             <div className="metric-row">
               {/* A trace the answer did not carry reports nothing, rather than 0.0s
                   and 0 calls, which read as a run that was measured and took no
                   time, instead of a run whose trace never arrived. */}
               <span>
                 Total time
-                <strong>{answer.trace.stages.length > 0 ? formatDuration(answer.trace.totalMs) : 'Not recorded'}</strong>
+                <strong
+                  title={
+                    answer.trace.stages.length > 0
+                      ? `${answer.trace.totalMs.toLocaleString()} milliseconds`
+                      : 'Not recorded'
+                  }
+                >
+                  {answer.trace.stages.length > 0 ? formatDuration(answer.trace.totalMs) : 'Not recorded'}
+                </strong>
               </span>
               <span>
                 Tool calls
                 <strong>{answer.trace.stages.length > 0 ? answer.trace.toolCalls : 'Not recorded'}</strong>
               </span>
-              {typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0 && (
-                <span>
-                  Tokens
-                  <strong>
-                    {/* The split only when both halves were metred. `?? 0` here read
-                        a gateway that reports a total alone as a model that read
-                        nothing and wrote nothing, printing "0/0 (12,431)". The
-                        neighbours above already say "Not recorded" for an unmeasured
-                        value, so an unmetred split shows the total by itself. */}
-                    {typeof answer.trace.prompt_tokens === 'number' &&
-                    typeof answer.trace.completion_tokens === 'number'
-                      ? `${answer.trace.prompt_tokens.toLocaleString()}/${answer.trace.completion_tokens.toLocaleString()} (${answer.trace.total_tokens.toLocaleString()})`
-                      : answer.trace.total_tokens.toLocaleString()}
-                  </strong>
-                </span>
-              )}
+              <span>
+                Tokens
+                <strong
+                  title={
+                    typeof answer.trace.prompt_tokens === 'number' && typeof answer.trace.completion_tokens === 'number'
+                      ? `${answer.trace.prompt_tokens.toLocaleString()} input tokens / ${answer.trace.completion_tokens.toLocaleString()} output tokens`
+                      : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
+                        ? `${answer.trace.total_tokens.toLocaleString()} total tokens`
+                        : 'Not recorded'
+                  }
+                >
+                  {/* The split only when both halves were metred. A gateway that
+                      reports only a total prints that total rather than inventing
+                      a zero input/output split. */}
+                  {typeof answer.trace.prompt_tokens === 'number' && typeof answer.trace.completion_tokens === 'number'
+                    ? `${answer.trace.prompt_tokens.toLocaleString()} / ${answer.trace.completion_tokens.toLocaleString()}`
+                    : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
+                      ? answer.trace.total_tokens.toLocaleString()
+                      : 'Not recorded'}
+                </strong>
+              </span>
               <span>
                 Slowest<strong>{slowestStageName(answer.trace.stages) ?? 'Not recorded'}</strong>
               </span>
@@ -2131,13 +2164,15 @@ export function HomePage() {
                 true if it was stored. When the write was lost the id names
                 nothing, and offering the link sent people to a Run Explorer that
                 could not find it, so say what happened instead. */}
-            {answer.runStored === false ? (<Alert variant="destructive">
+            {answer.runStored === false ? (
+              <Alert variant="destructive">
                 <CircleAlert />
                 <AlertDescription>{RUN_NOT_STORED}</AlertDescription>
               </Alert>
-            ) : (<Button variant="outline" className="w-full" asChild>
+            ) : (
+              <Button variant="outline" className="trace-explore w-full" asChild>
                 <Link to={`/runs?run=${encodeURIComponent(answer.id)}`}>
-                  Explore full run <Workflow />
+                  Explore full run <ExternalLink aria-hidden="true" />
                 </Link>
               </Button>
             )}
@@ -2201,7 +2236,8 @@ const MessageItem = memo(function MessageItem({
   onSaveFeedback: (answerId: string, rating: number) => Promise<void>;
 }) {
   if (message.role === 'user') {
-    return (<div className="user-message">
+    return (
+      <div className="user-message">
         <div className="user-bubble">{message.content}</div>
         <UserIdentityChip identity={asker} label="Asked by" compact className="user-avatar" />
       </div>
@@ -2212,7 +2248,8 @@ const MessageItem = memo(function MessageItem({
     // not parse, so it is rendered as Markdown. No sources to link
     // against: the list that would have declared them is the part of
     // the response the app could not read.
-    return (<Card className="answer-card">
+    return (
+      <Card className="answer-card">
         <CardContent className="pt-6">
           <AnswerProse text={message.content} sources={[]} />
         </CardContent>
@@ -2220,7 +2257,8 @@ const MessageItem = memo(function MessageItem({
     );
   }
   if (response.type === 'clarification') {
-    return (<ClarificationCard
+    return (
+      <ClarificationCard
         clarification={response.clarification}
         loading={loading}
         resolved={resolved}
@@ -2229,7 +2267,8 @@ const MessageItem = memo(function MessageItem({
     );
   }
   if (response.type === 'plan') {
-    return (<PlanCard
+    return (
+      <PlanCard
         plan={response.plan}
         loading={loading}
         resolved={resolved}
@@ -2243,7 +2282,8 @@ const MessageItem = memo(function MessageItem({
       />
     );
   }
-  return (<AnswerCard
+  return (
+    <AnswerCard
       // The message id reaches the DOM as well as being React's key one level
       // up. React needs the key to tell the rows apart between renders; the
       // document needs an id so a link from a trace can name one answer and
@@ -2274,7 +2314,8 @@ function ClarificationCard({
   onAnswer: (reply: string) => void;
 }) {
   const options = clarification.options ?? [];
-  return (<Card className={`plan-card ${resolved ? 'resolved' : ''}`}>
+  return (
+    <Card className={`plan-card ${resolved ? 'resolved' : ''}`}>
       <CardHeader>
         <div className="flex items-start gap-3">
           {/* The agent's mark, not a question mark: the same reasoning as the plan
@@ -2288,7 +2329,8 @@ function ClarificationCard({
           <div className="space-y-1">
             <Badge variant="outline">{resolved ? 'Question answered' : 'Needs one detail'}</Badge>
             <CardTitle className="answer-takeaway">{clarification.question}</CardTitle>
-            {clarification.reason && (<CardDescription>
+            {clarification.reason && (
+              <CardDescription>
                 <EntityText text={clarification.reason} sources={[]} />
               </CardDescription>
             )}
@@ -2296,8 +2338,10 @@ function ClarificationCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {options.length > 0 && (<div className="plan-steps">
-            {options.map((option, index) => (<button
+        {options.length > 0 && (
+          <div className="plan-steps">
+            {options.map((option, index) => (
+              <button
                 type="button"
                 className="plan-step"
                 key={option}
@@ -2315,9 +2359,7 @@ function ClarificationCard({
         <Alert>
           <ShieldCheck />
           <AlertDescription>
-            {resolved
-              ? 'The analysis below continued from your reply.'
-              : 'Nothing was queried for this turn.'}
+            {resolved ? 'The analysis below continued from your reply.' : 'Nothing was queried for this turn.'}
           </AlertDescription>
         </Alert>
       </CardContent>

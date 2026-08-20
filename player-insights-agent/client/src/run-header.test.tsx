@@ -117,8 +117,11 @@ describe('the run header names the run without spelling it out', () => {
 });
 
 describe('the run header sums the run up in one line', () => {
-  it('prints the wall time, the calls and the rating, in that order', () => {
-    expect(header()).toContain('73.2s · 12 tool calls · rated 5/5');
+  it('keeps wall time at the edge and puts calls and rating in the identity badges', () => {
+    const markup = header();
+    expect(markup).toContain('run-detail-meta ast-num">73.2s');
+    expect(markup).toContain('Tools · <span class="ast-num">12</span>');
+    expect(markup).toContain('Rated');
   });
 
   it('takes the rating’s scale from the one place that knows it', () => {
@@ -135,7 +138,7 @@ describe('the run header sums the run up in one line', () => {
   it('says a run is unrated rather than showing an empty scale', () => {
     // Nobody rating a run is the normal state -- the agent never rates itself --
     // so the header says so. An absent line reads as an oversight instead.
-    expect(header({ run: run({ rating: null }) })).toContain('Not rated yet');
+    expect(header({ run: run({ rating: null }) })).toContain('Not rated');
     expect(runHeadline({ rating: null })).toBe('Not rated yet');
   });
 
@@ -147,7 +150,7 @@ describe('the run header sums the run up in one line', () => {
     const markup = header({ run: run({ duration_ms: null, rating: null }), toolCalls: null });
     expect(markup).not.toContain('0.0s');
     expect(markup).not.toContain('0 tool calls');
-    expect(markup).toContain('Not rated yet');
+    expect(markup).toContain('Not rated');
     expect(runHeadline({ durationMs: null, toolCalls: null, rating: null })).toBe('Not rated yet');
     expect(runHeadline({ durationMs: 400 })).toBe('0.4s · Not rated yet');
     expect(runHeadline({ toolCalls: 0 })).toBe('0 tool calls · Not rated yet');
@@ -157,7 +160,7 @@ describe('the run header sums the run up in one line', () => {
     // The row carries no call count; the agent's own counter is on the trace. The
     // Overview tile beside this line reads the same number, so a header that
     // derived its own would be the second opinion this page keeps deleting.
-    expect(header({ toolCalls: 3 })).toContain('3 tool calls');
+    expect(header({ toolCalls: 3 })).toContain('Tools · <span class="ast-num">3</span>');
   });
 });
 

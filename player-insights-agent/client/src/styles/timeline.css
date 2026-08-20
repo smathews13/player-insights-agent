@@ -513,6 +513,24 @@
   font-size: var(--text-xs);
   color: var(--muted-foreground);
 }
+.trace-payload-seg {
+  display: inline-flex;
+  margin-left: auto;
+  overflow: hidden;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--ast-radius-control);
+}
+.trace-payload-seg button {
+  border: 0;
+  padding: 2px 8px;
+  font: inherit;
+  background: transparent;
+  color: var(--ast-text-secondary);
+}
+.trace-payload-seg button[aria-pressed='true'] {
+  background: var(--ast-blue);
+  color: var(--ast-white);
+}
 /* The agent's own ceiling, surfaced. A cap the reader does not notice is worse
    than no cap, because they would take the box for the whole value. */
 .trace-payload-clipped {
@@ -561,5 +579,37 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   overflow-wrap: anywhere;
+}
+.trace-payload .dag-md p,
+.trace-payload .dag-md ul,
+.trace-payload .dag-md ol {
+  margin: 0 0 6px;
+}
+.trace-payload .dag-md > :last-child {
+  margin-bottom: 0;
+}
+.trace-payload .dag-md ul,
+.trace-payload .dag-md ol {
+  padding-left: 18px;
+}
+.trace-payload .dag-md-head {
+  display: block;
+  margin-bottom: 4px;
+}
+.trace-payload .dag-md-rule {
+  border: 0;
+  border-top: 1px solid var(--ast-hairline);
+  margin: 8px 0;
+}
+.trace-payload .dag-md-code {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  background: var(--ast-fill-band);
+  border-radius: 6px;
 }
 

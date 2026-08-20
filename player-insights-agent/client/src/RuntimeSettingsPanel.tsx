@@ -1,53 +1,43 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
-import { showsAdminSurfaces, useRole } from './role';
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Switch } from './ui';
-import { Lock } from 'lucide-react';
 import { AppSelect } from './AppSelect';
+import { Input, Switch } from './ui';
 
-/**
- * One answer-content section: its name and the toggle that turns it on, with the
- * section's own controls beneath the name only while it is on.
- *
- * NO per-row description (the handoff cut it): the name carries the meaning and
- * the controls that appear when it is on say the rest. When the section is off
- * its controls are hidden, but the VALUES are not discarded -- they stay in the
- * settings object in state and are written back on Save, so turning a section
- * back on restores what was set rather than resetting it.
- */
+export const RUNTIME_SETTINGS_FORM_ID = 'settings-runtime-form';
+
 function AnswerRow({
   label,
-  description,
   checked,
-  editable,
   onToggle,
   children,
 }: {
   label: string;
-  description: string;
   checked: boolean;
-  editable: boolean;
   onToggle: (checked: boolean) => void;
   children?: ReactNode;
 }) {
   return (
     <div className="runtime-answer-row">
       <div className="runtime-answer-head">
-        <span>
-          <span className="runtime-answer-name">{label}</span>
-          <span className="runtime-control-note">{description}</span>
-        </span>
-        <Switch checked={checked} disabled={!editable} onCheckedChange={onToggle} aria-label={label} />
+        <span className="runtime-answer-name">{label}</span>
+        <Switch checked={checked} onCheckedChange={onToggle} aria-label={label} />
       </div>
       {checked && children ? <div className="runtime-answer-body">{children}</div> : null}
     </div>
   );
 }
 
-export function RuntimeSettingsPanel() {
-  const role = useRole();
-  const editable = showsAdminSurfaces(role.state);
+const ENTITY_SAMPLES = {
+  catalog: 'analytics',
+  schema: 'sales',
+  table: 'orders',
+  column: 'revenue',
+  quote: '"Q3 grew"',
+  tag: 'certified',
+} as const;
+
+export function RuntimeSettingsPanel({ section }: { section: 'runtime' | 'appearance' }) {
   const [settings, setSettings] = useState<RuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
@@ -57,8 +47,7 @@ export function RuntimeSettingsPanel() {
     setFailure(null);
     try {
       const response = await fetch('/api/runtime-settings');
-      const value = await runtimeSettingsFromResponse(response, 'loaded');
-      setSettings(value);
+      setSettings(await runtimeSettingsFromResponse(response, 'loaded'));
       setState('ready');
     } catch (caught) {
       setState('failed');
@@ -67,65 +56,14 @@ export function RuntimeSettingsPanel() {
   }, []);
 
   useEffect(() => {
-    const start = window.setTimeout(() => {
-      void load();
-    }, 0);
-    return () => window.clearTimeout(start);
+    void load();
   }, [load]);
 
-  const setLoop = (key: keyof RuntimeSettings['loop'], value: number) =>
-    setSettings((current) => ({ ...current, loop: { ...current.loop, [key]: value } }));
-  const setAnswer = <K extends keyof RuntimeSettings['answer']>(key: K, value: RuntimeSettings['answer'][K]) =>
-    setSettings((current) => ({ ...current, answer: { ...current.answer, [key]: value } }));
-
-  const number = (
-    label: string,
-    description: string,
-    example: string,
-    value: number,
-    min: number,
-    max: number,
-    update: (value: number) => void
-  ) => (
-    <label className="runtime-field">
-      <span className="runtime-field-label">{label}</span>
-      <span className="runtime-control-note">{description}</span>
-      <Input
-        type="number"
-        aria-label={label}
-        value={value}
-        placeholder={example}
-        min={min}
-        max={max}
-        disabled={!editable}
-        onChange={(event) => update(Number(event.target.value))}
-      />
-    </label>
-  );
-
-  const guidance = (
-    label: string,
-    description: string,
-    example: string,
-    value: string,
-    update: (value: string) => void
-  ) => (
-    <label className="runtime-field runtime-field-wide">
-      <span className="runtime-field-label">{label}</span>
-      <span className="runtime-control-note">{description}</span>
-      <textarea
-        className="runtime-guidance"
-        aria-label={label}
-        rows={2}
-        value={value}
-        placeholder={example}
-        disabled={!editable}
-        onChange={(event) => update(event.target.value)}
-      />
-    </label>
-  );
-
   const save = async () => {
+    if (failure?.operation === 'load') {
+      await load();
+      return;
+    }
     setState('saving');
     setFailure(null);
     try {
@@ -134,8 +72,7 @@ export function RuntimeSettingsPanel() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(settings),
       });
-      const saved = await runtimeSettingsFromResponse(response, 'saved');
-      setSettings(saved);
+      setSettings(await runtimeSettingsFromResponse(response, 'saved'));
       setState('saved');
     } catch (caught) {
       setState('failed');
@@ -143,267 +80,230 @@ export function RuntimeSettingsPanel() {
     }
   };
 
+  const setLoop = (key: keyof RuntimeSettings['loop'], value: number) =>
+    setSettings((current) => ({ ...current, loop: { ...current.loop, [key]: value } }));
+  const setAnswer = <K extends keyof RuntimeSettings['answer']>(key: K, value: RuntimeSettings['answer'][K]) =>
+    setSettings((current) => ({ ...current, answer: { ...current.answer, [key]: value } }));
+
+  const number = (
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    update: (value: number) => void,
+    className = ''
+  ) => (
+    <label className={`runtime-field ${className}`}>
+      <span className="runtime-field-label">{label}</span>
+      <Input
+        type="number"
+        aria-label={label}
+        value={value}
+        min={min}
+        max={max}
+        onChange={(event) => update(Number(event.target.value))}
+      />
+    </label>
+  );
+
+  const guidance = (label: string, value: string, update: (value: string) => void) => (
+    <label className="runtime-field runtime-field-wide">
+      <span className="runtime-field-label">{label}</span>
+      <textarea
+        className="runtime-guidance"
+        aria-label={label}
+        value={value}
+        onChange={(event) => update(event.target.value)}
+      />
+    </label>
+  );
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Runtime settings</CardTitle>
-        <CardDescription>
-          Live behavior for the next ask. Model, warehouse, Genie and data access stay fixed; change those on
-          Connections.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="runtime-settings">
-        <section className="runtime-section">
-          <h3 className="runtime-section-label">Loop structure</h3>
-          <div className="runtime-loop-row">
-            {number(
-              'Max DSF steps',
-              'Limits how many reasoning passes one ask may take.',
-              'Example: 8',
-              settings.loop.maxSteps,
-              1,
-              20,
-              (v) => setLoop('maxSteps', v)
-            )}
-            {number(
-              'Max tool calls',
-              'Limits how many data and metadata calls one ask may make.',
-              'Example: 12',
-              settings.loop.maxToolCalls,
-              1,
-              40,
-              (v) => setLoop('maxToolCalls', v)
-            )}
-            {number(
-              'Run budget (s)',
-              'Stops new work after this many seconds.',
-              'Example: 90',
-              settings.loop.maxRunSeconds,
-              30,
-              180,
-              (v) => setLoop('maxRunSeconds', v)
-            )}
-          </div>
-          <p className="runtime-footnote">Bounds the Data Source Finder loop. The agent boundary does not change.</p>
-        </section>
-
-        <section className="runtime-section">
-          <div className="runtime-answer-header">
-            <h3 className="runtime-section-label">Answer content</h3>
-            <span className="runtime-answer-header-note">Guidance goes to the agent with every ask.</span>
+    <form
+      id={RUNTIME_SETTINGS_FORM_ID}
+      className="settings-pane"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
+    >
+      {section === 'runtime' ? (
+        <>
+          <div className="settings-pane-heading">
+            <h3>Runtime</h3>
+            <p>Live behavior for the next ask. Model, warehouse, Genie and data access are set on Connections.</p>
           </div>
 
-          <AnswerRow
-            label="Takeaway"
-            description="Shows or hides the decision-ready lead sentence."
-            checked={settings.answer.takeaway}
-            editable={editable}
-            onToggle={(v) => setAnswer('takeaway', v)}
-          >
-            {guidance(
-              'Guidance',
-              'Changes how the agent writes the takeaway.',
-              'Example: Lead with the recommended decision.',
-              settings.answer.takeawayGuidance,
-              (v) => setAnswer('takeawayGuidance', v)
-            )}
-          </AnswerRow>
+          <section className="runtime-section">
+            <h4 className="runtime-section-label">Loop structure</h4>
+            <div className="runtime-loop-row">
+              {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value))}
+              {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) =>
+                setLoop('maxToolCalls', value)
+              )}
+              {number('Run budget (s)', settings.loop.maxRunSeconds, 30, 180, (value) =>
+                setLoop('maxRunSeconds', value)
+              )}
+            </div>
+          </section>
 
-          <AnswerRow
-            label="Narrative"
-            description="Shows or hides the explanatory story behind the result."
-            checked={settings.answer.narrative}
-            editable={editable}
-            onToggle={(v) => setAnswer('narrative', v)}
-          >
-            {guidance(
-              'Guidance',
-              'Changes how the agent explains its evidence.',
-              'Example: Name the source beside each finding.',
-              settings.answer.narrativeGuidance,
-              (v) => setAnswer('narrativeGuidance', v)
-            )}
-            {number(
-              'Character cap (0 = uncapped)',
-              'Trims only the narrative after this many characters.',
-              'Example: 1200',
-              settings.answer.narrativeMaxCharacters,
-              0,
-              12_000,
-              (v) => setAnswer('narrativeMaxCharacters', v)
-            )}
-          </AnswerRow>
+          <section className="runtime-section">
+            <div className="runtime-answer-header">
+              <h4 className="runtime-section-label">Answer content</h4>
+              <span>Guidance goes to the agent with every ask.</span>
+            </div>
+            <AnswerRow
+              label="Takeaway"
+              checked={settings.answer.takeaway}
+              onToggle={(value) => setAnswer('takeaway', value)}
+            >
+              {guidance('Guidance', settings.answer.takeawayGuidance, (value) =>
+                setAnswer('takeawayGuidance', value)
+              )}
+            </AnswerRow>
+            <AnswerRow
+              label="Narrative"
+              checked={settings.answer.narrative}
+              onToggle={(value) => setAnswer('narrative', value)}
+            >
+              {guidance('Guidance', settings.answer.narrativeGuidance, (value) =>
+                setAnswer('narrativeGuidance', value)
+              )}
+              {number(
+                'Character cap',
+                settings.answer.narrativeMaxCharacters,
+                0,
+                12_000,
+                (value) => setAnswer('narrativeMaxCharacters', value),
+                'runtime-field-short'
+              )}
+              <span className="runtime-inline-note">0 = uncapped</span>
+            </AnswerRow>
+            <AnswerRow
+              label="Figures"
+              checked={settings.answer.figures}
+              onToggle={(value) => setAnswer('figures', value)}
+            >
+              {number('Max figures', settings.answer.maxFigures, 0, 12, (value) =>
+                setAnswer('maxFigures', value)
+              )}
+              <label className="runtime-field">
+                <span className="runtime-field-label">Order</span>
+                <AppSelect
+                  label="Order"
+                  ariaLabel="Order"
+                  value={settings.answer.figuresOrder}
+                  onValueChange={(value) => setAnswer('figuresOrder', value)}
+                  options={[
+                    { value: 'as-ranked', label: 'As the agent ranks them' },
+                    { value: 'totals-first', label: 'Totals first' },
+                    { value: 'averages-first', label: 'Averages first' },
+                  ]}
+                />
+              </label>
+            </AnswerRow>
+            <AnswerRow
+              label="Charts"
+              checked={settings.answer.charts}
+              onToggle={(value) => setAnswer('charts', value)}
+            >
+              {number('Max charts', settings.answer.maxCharts, 0, 6, (value) => setAnswer('maxCharts', value))}
+              <label className="runtime-field">
+                <span className="runtime-field-label">Types</span>
+                <AppSelect
+                  label="Types"
+                  ariaLabel="Types"
+                  value={settings.answer.chartsTypes}
+                  onValueChange={(value) => setAnswer('chartsTypes', value)}
+                  options={[
+                    { value: 'auto', label: 'Auto from the data shape' },
+                    { value: 'bar', label: 'Bar only' },
+                    { value: 'bar-line', label: 'Bar and line' },
+                  ]}
+                />
+              </label>
+            </AnswerRow>
+            <AnswerRow
+              label="Analyst caveats"
+              checked={settings.answer.caveats}
+              onToggle={(value) => setAnswer('caveats', value)}
+            >
+              {number('Max caveats', settings.answer.maxCaveats, 0, 20, (value) =>
+                setAnswer('maxCaveats', value)
+              )}
+              <span className="runtime-inline-note">0 = all. Governance and outage warnings always remain.</span>
+            </AnswerRow>
+          </section>
 
-          <AnswerRow
-            label="Figures"
-            description="Shows or hides the numeric result breakdown."
-            checked={settings.answer.figures}
-            editable={editable}
-            onToggle={(v) => setAnswer('figures', v)}
-          >
-            {number(
-              'Max figures',
-              'Caps the numeric highlights returned with an answer.',
-              'Example: 6',
-              settings.answer.maxFigures,
-              0,
-              12,
-              (v) => setAnswer('maxFigures', v)
-            )}
-            <label className="runtime-field">
-              <span className="runtime-field-label">Order</span>
-              <span className="runtime-control-note">Changes which numeric highlights appear first.</span>
-              <AppSelect
-                label="Order"
-                ariaLabel="Order"
-                value={settings.answer.figuresOrder}
-                disabled={!editable}
-                onValueChange={(value) => setAnswer('figuresOrder', value)}
-                options={[
-                  { value: 'as-ranked', label: 'As the agent ranks them' },
-                  { value: 'totals-first', label: 'Totals first' },
-                  { value: 'averages-first', label: 'Averages first' },
-                ]}
-                className="runtime-select"
+          <section className="runtime-section runtime-section-last">
+            <label className="runtime-field runtime-timezone-field">
+              <span className="runtime-section-label">Timezone (IANA name)</span>
+              <Input
+                className="runtime-timezone"
+                aria-label="Timezone (IANA name)"
+                value={settings.behavior.timezone}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    behavior: { ...current.behavior, timezone: event.target.value },
+                  }))
+                }
               />
             </label>
-          </AnswerRow>
-
-          <AnswerRow
-            label="Charts"
-            description="Shows or hides visualizations built from returned data."
-            checked={settings.answer.charts}
-            editable={editable}
-            onToggle={(v) => setAnswer('charts', v)}
-          >
-            {number(
-              'Max charts',
-              'Caps the charts built for one answer.',
-              'Example: 2',
-              settings.answer.maxCharts,
-              0,
-              6,
-              (v) => setAnswer('maxCharts', v)
-            )}
-            <label className="runtime-field">
-              <span className="runtime-field-label">Types</span>
-              <span className="runtime-control-note">Limits which chart shapes the agent may choose.</span>
-              <AppSelect
-                label="Types"
-                ariaLabel="Types"
-                value={settings.answer.chartsTypes}
-                disabled={!editable}
-                onValueChange={(value) => setAnswer('chartsTypes', value)}
-                options={[
-                  { value: 'auto', label: 'Auto from the data shape' },
-                  { value: 'bar', label: 'Bar only' },
-                  { value: 'bar-line', label: 'Bar and line' },
-                ]}
-                className="runtime-select"
-              />
-            </label>
-          </AnswerRow>
-
-          <AnswerRow
-            label="Analyst caveats"
-            description="Shows or hides concise limitations that affect interpretation."
-            checked={settings.answer.caveats}
-            editable={editable}
-            onToggle={(v) => setAnswer('caveats', v)}
-          >
-            {number(
-              'Max caveats (0 = all)',
-              'Caps displayed limitations without weakening safeguards.',
-              'Example: 3',
-              settings.answer.maxCaveats,
-              0,
-              20,
-              (v) => setAnswer('maxCaveats', v)
-            )}
-            <p className="runtime-footnote">Governance and outage warnings always remain.</p>
-          </AnswerRow>
-        </section>
-
-        <section className="runtime-section">
-          <h3 className="runtime-section-label">Timezone (IANA name)</h3>
-          <Input
-            className="runtime-timezone"
-            aria-label="Timezone (IANA name)"
-            value={settings.behavior.timezone}
-            placeholder="Example: America/Los_Angeles"
-            disabled={!editable}
-            onChange={(event) =>
-              setSettings((current) => ({
-                ...current,
-                behavior: { ...current.behavior, timezone: event.target.value },
-              }))
-            }
-          />
-          <p className="runtime-control-note">Changes how relative dates such as “yesterday” are resolved.</p>
-        </section>
-
-        <section className="runtime-section runtime-section-last runtime-entity-section">
-          <h3 className="runtime-section-label">Answer entity styling</h3>
-          <p className="runtime-footnote">These colors become shared CSS variables used by Ask and Run Explorer.</p>
-          {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => (
-            <div className="runtime-entity-row" key={kind}>
-              <div>
-                <span className="runtime-answer-name">{kind[0].toUpperCase() + kind.slice(1)}</span>
-                <span className="runtime-control-note">
-                  Changes this entity’s text and highlight colors in answers.
+          </section>
+        </>
+      ) : (
+        <>
+          <div className="settings-pane-heading">
+            <h3>Appearance</h3>
+            <p>Answer entity colors, shared by Ask and Run Explorer.</p>
+          </div>
+          <div className="appearance-grid" role="table" aria-label="Answer entity colors">
+            <div className="appearance-grid-head" role="row">
+              <span>Entity</span>
+              <span>Text</span>
+              <span>Highlight</span>
+              <span>Sample</span>
+            </div>
+            {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => (
+              <div className="appearance-grid-row" role="row" key={kind}>
+                <strong>{kind[0].toUpperCase() + kind.slice(1)}</strong>
+                {(['foreground', 'background'] as const).map((property) => (
+                  <label className="appearance-color" key={property}>
+                    <span style={{ background: settings.entityStyles[kind][property] }} aria-hidden="true" />
+                    <Input
+                      aria-label={`${kind} ${property}`}
+                      value={settings.entityStyles[kind][property]}
+                      onChange={(event) =>
+                        setSettings((current) => ({
+                          ...current,
+                          entityStyles: {
+                            ...current.entityStyles,
+                            [kind]: { ...current.entityStyles[kind], [property]: event.target.value },
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
+                <span
+                  className="appearance-sample"
+                  style={{
+                    color: settings.entityStyles[kind].foreground,
+                    background: settings.entityStyles[kind].background,
+                  }}
+                >
+                  {ENTITY_SAMPLES[kind]}
                 </span>
               </div>
-              {(['foreground', 'background'] as const).map((property) => (
-                <label className="runtime-field" key={property}>
-                  <span className="runtime-field-label">{property === 'foreground' ? 'Text' : 'Highlight'}</span>
-                  <span className="runtime-control-note">Six-digit hex color.</span>
-                  <Input
-                    aria-label={`${kind} ${property}`}
-                    value={settings.entityStyles[kind][property]}
-                    placeholder={property === 'foreground' ? 'Example: #ffffff' : 'Example: #0e538b'}
-                    disabled={!editable}
-                    onChange={(event) =>
-                      setSettings((current) => ({
-                        ...current,
-                        entityStyles: {
-                          ...current.entityStyles,
-                          [kind]: { ...current.entityStyles[kind], [property]: event.target.value },
-                        },
-                      }))
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-          ))}
-        </section>
-
-        <div className="runtime-foot">
-          <p className="runtime-foot-safeguards">
-            <Lock aria-hidden="true" className="runtime-foot-lock" />
-            Dictionary-first field binding and never-invent-figures are mandatory safeguards, not switches.
-          </p>
-          {editable ? (
-            <Button
-              className="runtime-save"
-              onClick={() => void (failure?.operation === 'load' ? load() : save())}
-              disabled={state === 'loading' || state === 'saving'}
-            >
-              {state === 'saving'
-                ? 'Saving…'
-                : state === 'loading'
-                  ? 'Loading…'
-                  : failure?.operation === 'load'
-                    ? 'Retry runtime settings'
-                    : 'Save runtime settings'}
-            </Button>
-          ) : null}
-        </div>
-
-        {!editable ? <p className="settings-row-note">Read-only. An administrator can change these values.</p> : null}
-        {state === 'saved' ? <p role="status">Saved. The next ask uses these settings.</p> : null}
-        {failure ? <p role="alert">{failure.message}</p> : null}
-      </CardContent>
-    </Card>
+            ))}
+          </div>
+        </>
+      )}
+      {state === 'loading' ? <p className="settings-status">Loading settings.</p> : null}
+      {state === 'saving' ? <p className="settings-status">Saving settings.</p> : null}
+      {state === 'saved' ? <p className="settings-status" role="status">Saved. The next ask uses these settings.</p> : null}
+      {failure ? <p className="settings-status settings-error" role="alert">{failure.message}</p> : null}
+    </form>
   );
 }

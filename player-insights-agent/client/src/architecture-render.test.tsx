@@ -240,7 +240,8 @@ describe('the page makes one cheap read of its own and delegates the expensive p
    * trip to the workspace, so it was never the half worth gating.
    */
   it('fetches only the cheap description of the deployment itself', () => {
-    expect(PAGE_SOURCE).toContain("fetch('/api/architecture')");
+    expect(PAGE_SOURCE).toContain('fetchWithTimeout(');
+    expect(PAGE_SOURCE).toContain("'/api/architecture'");
     expect(PAGE_SOURCE).not.toContain("fetch('/api/settings')");
     expect(PAGE_SOURCE).not.toContain("fetch('/api/preflight')");
   });
@@ -346,6 +347,35 @@ describe('every card on the drawing reports the live reading and not a literal',
     // drift case: the warehouse answered under an id nobody configured.
     expect(text(card(markup, 'sql-warehouse'))).toContain('a-different-warehouse');
     expect(text(card(markup, 'sql-warehouse'))).not.toContain('configured-warehouse');
+  });
+
+  it('labels the answer model accurately and keeps it distinct from the benchmark judge', () => {
+    const payload: SettingsPayload = {
+      resources: [row('llm-endpoint', {
+        configured: 'databricks-claude-sonnet-4-6',
+        actual: 'databricks-claude-sonnet-4-6',
+        actualObserved: true,
+      })],
+      drift: [],
+      status: 'ok',
+      appBuildSha: '',
+      modelBuildSha: '',
+      orchestratorReported: true,
+      storeAvailable: true,
+      checkedAt: '',
+    };
+    const byResource = readingsById(readConnections(
+      payload,
+      [check('llm-endpoint', 'ok', 'databricks-claude-sonnet-4-6')],
+    ));
+    const model = card(canvasMarkup(byResource), 'llm-endpoint');
+
+    expect(text(model)).toContain(
+      'Foundation model Reachable databricks-claude-sonnet-4-6 Reasons over prompts and writes answer prose.',
+    );
+    expect(text(model)).not.toContain('Judge');
+    expect(model).toContain('Open in Databricks');
+    expect(connectedResource('judge-endpoint')?.label).toBe('Benchmark judge model');
   });
 
   it('marks the drifted dependency as drifted and still as reachable', () => {

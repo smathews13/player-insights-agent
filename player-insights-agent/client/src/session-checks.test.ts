@@ -28,7 +28,12 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { autoCheckClaimed, claimAutoCheck, forgetChecks, recallChecks } from './check-session';
-import { reloadSessionSettings, resetSessionChecks, runSessionChecks } from './session-checks';
+import {
+  reloadSessionSettings,
+  resetSessionChecks,
+  runSessionChecks,
+  SESSION_CHECK_TIMEOUT_MS,
+} from './session-checks';
 
 /** A settings payload with just enough on it to be stored and read back. */
 function settingsBody(checkedAt = '2026-08-16T01:00:00.000Z') {
@@ -53,6 +58,8 @@ interface Route {
   body?: unknown;
   /** Reject the fetch itself, as an unreachable server does. */
   throws?: boolean;
+  /** Accept the request but never produce a response. */
+  hangs?: boolean;
 }
 
 /**
@@ -68,6 +75,7 @@ function stubFetch(routes: Record<string, Route> = {}) {
     paths.push(input);
     const route = routes[input] ?? {};
     if (route.throws) return Promise.reject(new Error('the server is not answering'));
+    if (route.hangs) return new Promise<Response>(() => undefined);
     const body =
       route.body ?? (input === '/api/settings' ? settingsBody() : reportBody());
     return Promise.resolve({
@@ -91,6 +99,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -208,6 +217,20 @@ describe('what one run reads, and what it keeps', () => {
     expect(said).toContain('still unchecked');
     expect(said).not.toMatch(/unreachable|nothing is reachable/i);
   });
+
+  it('finishes when both routes accept the request and never answer', async () => {
+    vi.useFakeTimers();
+    stubFetch({
+      '/api/settings': { hangs: true },
+      '/api/preflight': { hangs: true },
+    });
+
+    const run = runSessionChecks();
+    await vi.advanceTimersByTimeAsync(SESSION_CHECK_TIMEOUT_MS);
+    await run;
+
+    expect(recallChecks()?.error).toContain(`within ${SESSION_CHECK_TIMEOUT_MS} ms`);
+  });
 });
 
 describe('a write re-reads the configuration and nothing else', () => {
@@ -268,7 +291,9 @@ describe('neither page kept a fetch of its own', () => {
     // `/api/architecture` costs the app container's own configuration and no
     // round trip to the workspace. It was never the expensive half and is not
     // what this module governs.
-    expect(source('ArchitecturePage.tsx')).toContain("fetch('/api/architecture')");
+    const architecture = source('ArchitecturePage.tsx');
+    expect(architecture).toContain('fetchWithTimeout(');
+    expect(architecture).toContain("'/api/architecture'");
   });
 
   it('no longer wires Connections to usePreflight, which fetched on every mount', () => {

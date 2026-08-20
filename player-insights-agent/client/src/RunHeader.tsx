@@ -25,7 +25,7 @@
 import { Badge } from './ui';
 import { Check, Copy } from 'lucide-react';
 import { ratingLabel } from './benchmark-summary';
-import { astPill, runHeadline, shortRunId, statusFamily } from './run-header';
+import { astPill, shortRunId, statusFamily } from './run-header';
 import { runLabel } from './run-label';
 import { reportEgress } from './egress-policy';
 import type { Run } from './app-types';
@@ -91,6 +91,16 @@ export function RunHeader({
                 Truncated
               </Badge>
             )}
+            {typeof toolCalls === 'number' && Number.isFinite(toolCalls) && (<Badge
+                variant="outline"
+                className="ast-pill ast-pill--neutral-outline"
+              >
+                Tools · <span className="ast-num">{toolCalls.toLocaleString()}</span>
+              </Badge>
+            )}
+            <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+              {rating.rated ? 'Rated' : 'Not rated'}
+            </Badge>
           </div>
         )}
       </div>
@@ -99,11 +109,9 @@ export function RunHeader({
             is §3's own description of where DM Mono is binding. The rule it
             replaces asked DM Sans for tabular numerals, which that font declares
             no feature for: the declaration read as done and did nothing. */}
-        {run && <p className="run-detail-meta ast-num">{runHeadline({
-          durationMs: run.duration_ms,
-          toolCalls,
-          rating: rating.rated ? rating.value : null,
-        })}</p>}
+        {run && typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) && (
+          <p className="run-detail-meta ast-num">{(run.duration_ms / 1000).toFixed(1)}s</p>
+        )}
         {(reference || groundedness !== null) && (<div className="run-detail-flags">
             {reference && (<Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
                 Reference trace

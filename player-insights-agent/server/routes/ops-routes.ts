@@ -365,43 +365,89 @@ export function resultFor(status: string): DependencyResult {
 export function servingEndpointReading(rows: readonly HealthDependency[]): {
   endpointState: string;
   endpointRead: boolean;
+  /**
+   * The rows this reading was actually taken from.
+   *
+   * Carried so the table can put the reading in those rows' Result column and
+   * nowhere else. Matching on kind at the far end would hand the answer path's
+   * verdict to a judge endpoint the reading never looked at.
+   */
+  endpointRows: string[];
 } {
   const endpoints = rows.filter(
     (row) => row.kind === SERVING_ENDPOINT_KIND && ANSWER_PATH_ENDPOINT_IDS.includes(row.id)
   );
+  const endpointRows = endpoints.map((row) => row.id);
   if (endpoints.some((row) => row.result === 'did-not-answer')) {
-    return { endpointState: 'Did not answer', endpointRead: true };
+    return { endpointState: 'Did not answer', endpointRead: true, endpointRows };
   }
   if (endpoints.some((row) => row.result === 'answered')) {
-    return { endpointState: 'Ready', endpointRead: true };
+    return { endpointState: 'Ready', endpointRead: true, endpointRows };
   }
-  return { endpointState: '', endpointRead: false };
+  return { endpointState: '', endpointRead: false, endpointRows };
+}
+
+/**
+ * Whether the app can read its own store, as one platform reading.
+ *
+ * A READ THROUGH THE APP'S OWN SCHEMA rather than a bare connection probe, which
+ * is the same choice `/api/settings` makes for the same reason: the failure that
+ * matters here is a lost grant on `player_insights`, and a connection-level check
+ * passes straight through one.
+ *
+ * "Connected" is what a successful read establishes. A failure is reported as not
+ * answering rather than as disconnected, because this one statement cannot tell a
+ * dropped pool from a revoked grant, and the row's note carries the database's own
+ * words for which it was.
+ */
+export async function lakebaseReading(appkit: InsightsAppKit): Promise<PlatformReading> {
+  const base: Omit<PlatformReading, 'state' | 'reason'> = {
+    id: 'lakebase',
+    label: 'Lakebase',
+    read: true,
+    rows: [],
+  };
+  try {
+    await appkit.lakebase.query(`SELECT 1 FROM ${APP_SCHEMA}.deployment_settings LIMIT 1`);
+    return { ...base, state: 'Connected', reason: '' };
+  } catch (error) {
+    return { ...base, state: 'Not answering', reason: (error as Error).message };
+  }
 }
 
 /**
  * What the platform says about itself, which is not what PIA probed.
  *
- * Two readings, established differently, and the difference is the point of
- * having both. "The endpoint is ready" is the serving endpoint's own state.
- * "The app is running" is true by construction: this handler is answering, so
- * the container is up.
+ * Readings established differently, and the difference is the point of having
+ * them at all. "The endpoint is ready" is the serving endpoint's own state. "The
+ * app is running" is true by construction: this handler is answering, so the
+ * container is up. Lakebase's is a read, and it arrives here already taken.
  *
  * A state and nothing else. Each of these carried a sentence of its own
  * provenance, and the pills are three words wide: the sentence was longer than
  * the reading it qualified, it said the same thing on every check, and the one
- * for an unread endpoint was on screen for weeks explaining a bug. Neither is an
+ * for an unread endpoint was on screen for weeks explaining a bug. None is an
  * availability percentage and the link below the block goes to the platform
  * record, which is what a reader wanting one should read instead.
  */
-export function platformReadings(input: { endpointState: string; endpointRead: boolean }): PlatformReading[] {
+export function platformReadings(
+  input: { endpointState: string; endpointRead: boolean; endpointRows?: readonly string[] },
+  extra: readonly PlatformReading[] = []
+): PlatformReading[] {
   return [
     {
       id: 'endpoint',
       label: 'Serving endpoint',
       state: input.endpointRead ? input.endpointState : '',
       read: input.endpointRead,
+      rows: [...(input.endpointRows ?? [])],
+      reason: '',
     },
-    { id: 'app', label: 'App', state: 'Running', read: true },
+    // No rows: the app is not one of the dependencies this deployment probes, so
+    // the table gives this reading a line of its own rather than leaving the one
+    // resource every reader is standing in off the list.
+    { id: 'app', label: 'App', state: 'Running', read: true, rows: [], reason: '' },
+    ...extra,
   ];
 }
 
@@ -760,16 +806,17 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       try {
         // Independent of each other as well as of the other blocks: a telemetry
         // grant nobody has made must not stop the dependency rows rendering.
-        const [dependencies, appMeasurement] = await Promise.all([
+        const [dependencies, appMeasurement, lakebase] = await Promise.all([
           readDependencies(appkit, req),
           readAppMeasurement(req, range, insightsHref).catch((error: Error) =>
             uncheckedMeasurement(insightsHref, `reading it threw: ${error.message}.`)
           ),
+          lakebaseReading(appkit),
         ]);
         const payload: OpsHealthPayload = {
           checkedAt: dependencies.checkedAt,
           dependencies: dependencies.rows,
-          platform: platformReadings(servingEndpointReading(dependencies.rows)),
+          platform: platformReadings(servingEndpointReading(dependencies.rows), [lakebase]),
           app: appMeasurement,
           reason: dependencies.reason,
         };

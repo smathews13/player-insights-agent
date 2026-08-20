@@ -238,7 +238,7 @@ export function RunExplorer() {
   // prints. Two tiles read side by side are one claim, and the second cannot
   // report more time than the first without calling the first wrong.
   const toolStageMs = toolStageDurationMs(stages, selected?.duration_ms ?? null);
-  const agentToolCalls = runTrace?.trace?.toolCalls ?? null;
+  const agentToolCalls = runTrace?.trace?.toolCalls ?? selected?.tool_calls ?? null;
   // Nothing was tagged, so the time spent in those calls is unmeasured, not zero.
   // Rendering 0.0s next to a non-zero call count reads as "the tools were free".
   // Which is also why no sentence under the grid reconciles them any more. A
@@ -577,6 +577,13 @@ export function RunListItem({ run, active, onSelect }: {
               Truncated
             </Badge>
           )}
+          {typeof run.tool_calls === 'number' && (<Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+              Tools · <span className="ast-num">{run.tool_calls.toLocaleString()}</span>
+            </Badge>
+          )}
+          <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+            {runRating.rated ? 'Rated' : 'Not rated'}
+          </Badge>
         </span>
         {/* The one figure in the row that stacks into a real column: the head is
             a space-between row, so every date in the list sits on the same right

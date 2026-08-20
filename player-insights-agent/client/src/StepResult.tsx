@@ -193,6 +193,13 @@ function MarkdownBlock({ block }: { block: Block }) {
           </table>
         </div>
       );
+    case 'rule':
+      return <hr className="dag-md-rule" />;
+    case 'code':
+      return (<pre className="dag-md-code">
+          <code data-language={block.language || undefined}>{block.text}</code>
+        </pre>
+      );
     case 'paragraph':
       return (<p>
           <InlineRuns nodes={block.children} />

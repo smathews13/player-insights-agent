@@ -126,6 +126,14 @@
   opacity: 0.55;
 }
 
+.ast-sky-path .ast-links {
+  stroke-width: 1.4;
+}
+
+.ast-sky-path .ast-link {
+  opacity: 0.55;
+}
+
 /*
  * The 2.2s loop the design gives the line into the current step.
  *
@@ -160,6 +168,10 @@
   opacity: 0.85;
 }
 
+.ast-sky-path .ast-star-decision {
+  opacity: 0.95;
+}
+
 /* The step in progress, at full weight. It is the one star a reader is looking
    for, and the pulse it carries is only legible from a solid glyph. */
 .ast-star-current {
@@ -184,6 +196,17 @@
  */
 .ast-star-plain {
   fill: var(--ast-text-on-dark-secondary);
+}
+
+.ast-star-tool-halo {
+  fill: color-mix(in srgb, var(--ast-blue-on-dark) 14%, transparent);
+  stroke: color-mix(in srgb, var(--ast-blue-on-dark) 40%, transparent);
+  stroke-width: 1;
+}
+
+.ast-sky-dust {
+  fill: var(--ast-white);
+  opacity: 0.3;
 }
 
 /*
@@ -244,6 +267,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ast-sky-path .ast-sky-num text {
+  font-size: 10px;
+}
+
 /* The legend names products, which are words rather than figures. */
 .ast-sky-legend text {
   font-family: var(--font-sans);
@@ -278,28 +305,30 @@
   gap: 8px;
   margin: 0;
   /* No top padding: the SVG already reserves room under its last star. */
-  padding: 0 14px 12px;
+  padding: 0 20px 14px;
 }
 
 .ast-sky-status-mark {
   flex: none;
-  display: inline-flex;
-  width: 18px;
-  height: 18px;
-  /* Optical: on-navy step mark sat a hair high against the status sentence. */
-  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid color-mix(in srgb, var(--ast-white) 72%, transparent);
+  border-radius: 50%;
 }
 
+.ast-sky-status-mark .brand-icon,
 .ast-sky-status-mark svg {
-  width: 18px;
-  height: 18px;
+  width: 11px;
+  height: 11px;
 }
 
 .ast-sky-status-text {
   min-width: 0;
   flex: 1;
   color: var(--ast-white);
-  font-size: var(--ast-fs-12);
+  font-size: 12.5px;
   font-weight: 500;
   /*
    * AS MANY LINES AS THE STEP'S NAME NEEDS.

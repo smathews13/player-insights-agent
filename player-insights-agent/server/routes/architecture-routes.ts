@@ -23,6 +23,7 @@
  */
 import { appServicePrincipal } from './execution-identity';
 import { resolveExperimentId } from '../lib/app-settings';
+import { withDeadline } from '../lib/deadline';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import type { InsightsAppKit } from './insights-routes';
 
@@ -91,6 +92,20 @@ export interface SemanticIndexReport {
 }
 
 const SEMANTIC_INDEX_VARIABLE = 'PLAYER_INSIGHTS_SEMANTIC_INDEX';
+export const ARCHITECTURE_EXPERIMENT_TIMEOUT_MS = 2_000;
+
+async function architectureExperimentId(appkit: InsightsAppKit): Promise<string> {
+  try {
+    return await withDeadline(
+      resolveExperimentId(appkit),
+      ARCHITECTURE_EXPERIMENT_TIMEOUT_MS,
+      `Experiment lookup did not answer within ${ARCHITECTURE_EXPERIMENT_TIMEOUT_MS} ms.`,
+    );
+  } catch {
+    // This diagnostic route must still draw the map when Lakebase or MLflow is unavailable.
+    return process.env.PLAYER_INSIGHTS_EXPERIMENT_ID?.trim() ?? '';
+  }
+}
 
 export function semanticIndexReport(): SemanticIndexReport {
   return {
@@ -118,7 +133,7 @@ export async function architecturePayload(appkit: InsightsAppKit): Promise<Archi
     appWarehouse: fromEnvironment('DATABRICKS_SQL_WAREHOUSE_ID'),
     // Through the same resolver the trace links use, so a saved override that
     // fixed a link there is the value named here too.
-    experimentId: await resolveExperimentId(appkit),
+    experimentId: await architectureExperimentId(appkit),
     appServicePrincipal: appServicePrincipal() ?? '',
     appBuildSha: process.env.PLAYER_INSIGHTS_BUILD_SHA?.trim() ?? '',
     semanticIndex: semanticIndexReport(),

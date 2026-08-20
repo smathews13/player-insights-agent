@@ -99,6 +99,7 @@ function draw(over: Partial<Identity> = {}): string {
       onContinue={() => {}}
       onRefresh={() => {}}
       onSkip={() => {}}
+      onAllowRequiredScopes={() => {}}
     />
   );
 }
@@ -249,17 +250,15 @@ describe('a scope is missing', () => {
    * standing decision for this screen is that a missing scope warns and does not
    * lock the reader out, so Continue stays live and Refresh is added beside it.
    */
-  it('warns without locking the reader out, and offers the recheck', () => {
-    // Named for what taking it means on this verdict, which is the whole change:
-    // the way past was always live here, and nothing on the card said so.
-    expect(markup).toContain('Skip checks and continue');
+  it('offers one-click access and the recheck without a required-scope skip', () => {
+    expect(markup).toContain('Allow serving, SQL, and Genie');
     expect(markup).toContain('Refresh');
     expect(markup).not.toContain('disabled=""');
+    expect(markup).not.toContain('Skip checks and continue');
   });
 
-  /* The reader must not leave believing the app will now work around the gap. */
-  it('says in one line that skipping fixes nothing', () => {
-    expect(text(markup)).toContain('Skipping grants nothing. Whatever needs a missing scope still fails.');
+  it('does not offer the optional-scope skip for a required shortfall', () => {
+    expect(text(markup)).not.toContain('Skipping grants nothing');
   });
 });
 
@@ -430,10 +429,11 @@ describe('skipping the checks does not change whose identity the app uses', () =
       expect(source).not.toContain('/api/access-verification');
       expect(source).not.toContain('service-principal');
       expect(source).not.toContain('app_service_principal');
-      // Not a narrower assertion about which endpoint: Skip's whole effect is
-      // local to this browser, so NOTHING is requested when it is taken.
-      expect(source).not.toContain('fetch(');
     }
+    // The scope-update button has a fetch; the skip recorder remains entirely
+    // local and is still wired directly to the skip handler.
+    expect(code(STATE)).not.toContain('fetch(');
+    expect(GATE).toContain('onSkip={leave(skipFirstOpenChecks)}');
   });
 
   it('records that the checks were skipped, which is a different fact from passed', () => {

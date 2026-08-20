@@ -89,10 +89,23 @@ function health(overrides: Partial<OpsHealthPayload> = {}): OpsHealthPayload {
         lastCheckedAt: '',
         reason: '',
       },
+      {
+        // The row the endpoint reading is taken from, so the pairing the block
+        // now turns on is exercised rather than assumed.
+        id: 'agent-endpoint',
+        kind: 'serving-endpoint',
+        connectionsId: 'agent',
+        label: 'Orchestrator serving endpoint \u00b7 a-model',
+        name: 'a-model',
+        result: 'answered',
+        lastCheckedAt: '2026-08-15T12:00:00Z',
+        reason: '',
+      },
     ],
     platform: [
-      { id: 'endpoint', label: 'Serving endpoint', state: 'Ready', read: true },
-      { id: 'app', label: 'App', state: 'Running', read: true },
+      { id: 'endpoint', label: 'Serving endpoint', state: 'Ready', read: true, rows: ['agent-endpoint'], reason: '' },
+      { id: 'app', label: 'App', state: 'Running', read: true, rows: [], reason: '' },
+      { id: 'lakebase', label: 'Lakebase', state: 'Connected', read: true, rows: [], reason: '' },
     ],
     app: {
       telemetry: 'not-enabled',
@@ -228,9 +241,141 @@ describe('one block failing', () => {
 describe('the health block', () => {
   it('gives every dependency a result in words, not only a colour', () => {
     const markup = render(<HealthBody block={block(health())} />);
-    expect(markup).toContain('Answered');
-    expect(markup).toContain('Did not answer');
+    expect(markup).toContain('Reachable');
+    expect(markup).toContain('Not answering');
     expect(markup).toContain('Not checked');
+  });
+
+  /**
+   * THE WORDS ARE A CHECK'S, NOT A CONVERSATION'S. "Answered" was the result for
+   * every healthy row, on a table of resources, beside pills reading "Ready" and
+   * "Running" — and one column over from a Notes cell quoting the platform. It
+   * read as something a person had asked the warehouse.
+   */
+  it('states a resource check without borrowing the question-and-answer words', () => {
+    const markup = render(<HealthBody block={block(health())} />);
+    expect(markup).not.toContain('Answered');
+    expect(markup).not.toContain('Did not answer');
+  });
+
+  /**
+   * ONE BADGE PER RESOURCE, IN THAT RESOURCE'S ROW. The platform's readings used
+   * to sit in the block's band as a cluster of their own, above a table that
+   * reported the same serving endpoint in its own Result column and in different
+   * words. A reader had two places to look for one question and two vocabularies
+   * to reconcile.
+   */
+  it('states each resource once, in the Result column rather than in the band', () => {
+    const markup = markupOf(<HealthBody block={block(health())} />);
+
+    // The readings, in the Result cells of the rows they are about.
+    expect(markup).toMatch(
+      /ops-col-result[^]*?ops-platform-pill-label">Serving endpoint<\/span><span class="ops-platform-pill-state">Ready</
+    );
+    expect(markup).toMatch(
+      /ops-col-result[^]*?ops-platform-pill-label">App<\/span><span class="ops-platform-pill-state">Running</
+    );
+    expect(markup).toMatch(
+      /ops-col-result[^]*?ops-platform-pill-label">Lakebase<\/span><span class="ops-platform-pill-state">Connected</
+    );
+
+    // And nowhere else. The band's own pill cluster is gone, so each of these
+    // words appears exactly as many times as there are rows carrying it.
+    expect(markup).not.toContain('class="ops-platform"');
+    expect([...markup.matchAll(/>Running</g)]).toHaveLength(1);
+    expect([...markup.matchAll(/>Connected</g)]).toHaveLength(1);
+    expect([...markup.matchAll(/>Ready</g)]).toHaveLength(1);
+  });
+
+  /**
+   * A reading is drawn on the row the SERVER said it was taken from. The endpoint
+   * reading is taken from the answer-path endpoints only, so a client matching on
+   * kind would hand its verdict to a judge endpoint it never looked at.
+   */
+  it('puts a platform reading only on the rows it was taken from', () => {
+    const base = health();
+    const markup = markupOf(
+      <HealthBody
+        block={block(
+          health({
+            dependencies: [
+              ...base.dependencies,
+              {
+                id: 'judge-endpoint',
+                kind: 'serving-endpoint',
+                connectionsId: '',
+                label: 'Benchmark judge model \u00b7 a-judge',
+                name: 'a-judge',
+                result: 'answered',
+                lastCheckedAt: '2026-08-15T12:00:00Z',
+                reason: '',
+              },
+            ],
+          })
+        )}
+      />
+    );
+
+    // One "Ready", on the answer-path row. The judge states what its own probe
+    // established instead of borrowing the answer path's verdict.
+    expect([...markup.matchAll(/>Ready</g)]).toHaveLength(1);
+    expect(markup).toMatch(
+      /ops-platform-pill-label">Serving endpoint<\/span><span class="ops-platform-pill-state">Reachable</
+    );
+  });
+
+  /**
+   * The app and the store are resources a reader acts on, and neither is one of
+   * the dependency probes: the app is running because this handler answered, and
+   * Lakebase is a read of the app's own schema. Dropping their readings when the
+   * band's pill cluster went would have taken two rows off the list.
+   */
+  it('gives the app and Lakebase a row of their own, since no probe covers them', () => {
+    const markup = render(<HealthBody block={block(health())} />);
+    expect(markup).toContain('App Running');
+    expect(markup).toContain('Lakebase Connected');
+  });
+
+  /**
+   * The probes failing says nothing about the readings that are not probes: the
+   * app answered this very request, and the store was read on the same pass.
+   */
+  it('keeps the rows it did establish when the dependency probes could not run', () => {
+    const markup = render(
+      <HealthBody
+        block={block(
+          health({ dependencies: [], reason: 'The dependency probes could not be run, so nothing was checked: boom' })
+        )}
+      />
+    );
+    expect(markup).toContain('The dependency checks did not run');
+    expect(markup).toContain('App Running');
+    expect(markup).toContain('Lakebase Connected');
+  });
+
+  it("carries the store's own words when it is not answering", () => {
+    const markup = render(
+      <HealthBody
+        block={block(
+          health({
+            platform: [
+              {
+                id: 'lakebase',
+                label: 'Lakebase',
+                state: 'Not answering',
+                read: true,
+                rows: [],
+                reason: 'permission denied for schema player_insights',
+              },
+            ],
+          })
+        )}
+      />
+    );
+    // Not answering, and the reason a reader has to have in order to know whether
+    // to look at the pool or at a grant.
+    expect(markup).toContain('Lakebase Not answering');
+    expect(markup).toContain('permission denied for schema player_insights');
   });
 
   it('renders a check that did not run as its own state rather than as a failure', () => {
@@ -246,21 +391,23 @@ describe('the health block', () => {
   });
 
   /**
-   * The distinction that matters is that uptime is the platform's reading and the
-   * dependency table is this app's. It is carried by the platform pills standing
-   * apart from the table and by the link out to the platform record, not by
-   * sentences explaining either. Two of those sentences said the same thing on
-   * every check and the third was on screen explaining a bug.
+   * The distinction that matters is that a platform reading is the platform's word
+   * and a probe result is this app's. It is now carried by the pill NAMING its own
+   * subject and by the link out to the platform record, rather than by two pills
+   * living in a different part of the block. Never by sentences explaining either:
+   * two of those said the same thing on every check and the third was on screen
+   * explaining a bug.
    */
-  it('keeps the platform readings apart from what this app probed', () => {
+  it('says whose word each result is, in the pill rather than by its position', () => {
     const markup = render(<HealthBody block={block(health())} />);
-    // The platform's two readings, as pills and as states rather than prose.
+    // The platform's readings, as states rather than prose.
     expect(markup).toContain('Serving endpoint Ready');
     expect(markup).toContain('App Running');
-    // The app's own probe, in the table, with its three states intact.
-    expect(markup).toContain('Answered');
-    expect(markup).toContain('Did not answer');
-    expect(markup).toContain('Not checked');
+    // The app's own probes, with their three states intact and each naming the
+    // resource it is about.
+    expect(markup).toContain('SQL warehouse Reachable');
+    expect(markup).toContain('Genie space Not answering');
+    expect(markup).toContain('Vector Search index Not checked');
   });
 
   it('states a platform reading without explaining how it was taken', () => {
@@ -438,8 +585,11 @@ describe('the health block', () => {
     const markup = markupOf(<HealthBody block={block(health())} />);
     expect(markup).toContain('href="/connections?entity=warehouse"');
     expect(markup).toContain('href="/connections?entity=genie"');
-    // Two rows carry an id; the third carries none and must draw no link.
-    expect([...markup.matchAll(/\/connections\?entity=/g)]).toHaveLength(2);
+    expect(markup).toContain('href="/connections?entity=agent"');
+    // Three probe rows carry an id. The index carries none, and the app and
+    // Lakebase rows are readings rather than probes, so none of the three draws a
+    // link to a Connections row that was never there.
+    expect([...markup.matchAll(/\/connections\?entity=/g)]).toHaveLength(3);
   });
 
   it("quotes the probe's own words rather than blending them into the page", () => {
@@ -466,31 +616,47 @@ describe('the health block', () => {
    * The platform pills are painted from the platform's own word, never green by
    * position.
    *
-   * They are the one pair on this block whose colour could be decided by where
-   * they sit rather than by what they say, and a pill painted green over a word
-   * that is not "Ready" would be the only element on the tab contradicting its
-   * own text.
+   * They are the results on this block whose colour could be decided by where they
+   * sit rather than by what they say, and a pill painted green over a word that is
+   * not "Ready" would be the only element on the tab contradicting its own text.
    */
   it('paints a platform reading from its word rather than from its place', () => {
-    const ready = markupOf(<HealthBody block={block(health())} />);
-    expect(ready).toContain('ast-pill--pos ops-pill ops-platform-pill');
+    /** The tone class on the pill whose left half is this label. */
+    const toneOf = (markup: string, label: string) =>
+      new RegExp(`ast-pill--([a-z-]+) ops-pill ops-platform-pill"><span class="ops-platform-pill-label">${label}<`)
+        .exec(markup)?.[1] ?? '';
+
+    expect(toneOf(markupOf(<HealthBody block={block(health())} />), 'Serving endpoint')).toBe('pos');
 
     const middling = markupOf(
       <HealthBody
         block={block(
-          health({ platform: [{ id: 'endpoint', label: 'Serving endpoint', state: 'Updating', read: true }] })
+          health({
+            platform: [
+              {
+                id: 'endpoint',
+                label: 'Serving endpoint',
+                state: 'Updating',
+                read: true,
+                rows: ['agent-endpoint'],
+                reason: '',
+              },
+            ],
+          })
         )}
       />
     );
-    expect(middling).toContain('ast-pill--warn ops-pill ops-platform-pill');
-    // Scoped to the platform pill: the table below paints an answered dependency
-    // with the same green, and an unscoped assertion would pass on that instead.
-    expect(middling).not.toContain('ast-pill--pos ops-pill ops-platform-pill');
+    // Scoped to the pill carrying the platform's word: the rows around it paint an
+    // answered probe with the same green, and an unscoped assertion would pass on
+    // one of those instead.
+    expect(toneOf(middling, 'Serving endpoint')).toBe('warn');
 
     const unread = markupOf(
-      <HealthBody block={block(health({ platform: [{ id: 'app', label: 'App', state: '', read: false }] }))} />
+      <HealthBody
+        block={block(health({ platform: [{ id: 'app', label: 'App', state: '', read: false, rows: [], reason: '' }] }))}
+      />
     );
-    expect(unread).toContain('ast-pill--neutral-outline ops-pill ops-platform-pill');
+    expect(toneOf(unread, 'App')).toBe('neutral-outline');
   });
 
   /**
@@ -506,8 +672,10 @@ describe('the health block', () => {
     const markup = markupOf(<HealthBody block={block(health())} />);
     expect(markup).toContain('ops-dependency-mark');
     expect(markup).toContain('--brand-icon-size:16px');
-    // Three rows, three marks, and none of them speaking.
-    expect([...markup.matchAll(/ops-dependency-mark/g)]).toHaveLength(3);
+    // Six rows, six marks, and none of them speaking. Four probes and the two
+    // readings that are rows in their own right: the app and its store carry a
+    // mark like their neighbours rather than sitting on the list unnamed.
+    expect([...markup.matchAll(/ops-dependency-mark/g)]).toHaveLength(6);
     expect(markup).not.toContain('title="Databricks SQL"');
   });
 
@@ -520,7 +688,14 @@ describe('the health block', () => {
   it('draws no mark for a probe kind it cannot name', () => {
     const markup = markupOf(
       <HealthBody
-        block={block(health({ dependencies: [{ ...health().dependencies[0], kind: 'something-nobody-has-mapped' }] }))}
+        block={block(
+          health({
+            dependencies: [{ ...health().dependencies[0], kind: 'something-nobody-has-mapped' }],
+            // The one row, on its own. The app and Lakebase readings are named
+            // kinds and would each draw a mark of their own.
+            platform: [],
+          })
+        )}
       />
     );
     expect(markup).toContain('SQL warehouse');
