@@ -6,7 +6,7 @@ resources:
     player_insights_telemetry_schema:
       catalog_name: ${var.app_catalog}
       name: ${var.app_telemetry_schema}
-      comment: "Player Insights Agent: optional OpenTelemetry logs, metrics, and traces."
+      comment: "Astrolabe: optional OpenTelemetry logs, metrics, and traces."
       lifecycle:
         # Destroying this schema permanently removes telemetry history.
         prevent_destroy: true

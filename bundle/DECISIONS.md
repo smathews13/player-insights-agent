@@ -73,7 +73,7 @@ mistaken for removing it. All of these count:
   into the artifact. These are now HARDER to reach, not easier: the bundle
   attaches to spaces it does not create, so a deploy no longer pushes this text
   and the live space is the only copy that matters. `genie/*.reference.yml` holds
-  the bodies ours carry, and editing that file changes nothing by itself — the
+  the bodies ours carry, and editing that file changes nothing by itself. The
   wording has to be fixed on the space, in the Genie UI;
 - **Unity Catalog metadata**: table and column comments, schema and volume
   comments, and table properties, written when the tables are provisioned. These were
@@ -85,7 +85,7 @@ mistaken for removing it. All of these count:
   entries behind a vector index, so one comment reaches a reader by three routes.
 
 Two corollaries, because the first attempt at this got both wrong. **Removing a
-comment is not complying with this** — an empty definition is a worse dictionary,
+comment is not complying with this**: an empty definition is a worse dictionary,
 and the dictionary is a queryable table two spaces depend on; drop the provenance
 clause and keep the description. And **the claim has softer forms**: "null by
 design" and "deliberately visible" assert that someone constructed the rows.
@@ -111,7 +111,7 @@ Recorded in `databricks.yml` under `execution_identity`.
 This used to have a second half: the release also had to be run with
 `--user-authorization`, because that flag was what baked the policy into the
 artifact. On 2026-08-16 a release was run without it, version 31 was logged
-without the policy, and every question refused with `IDENTITY_REQUIRED` — the
+without the policy, and every question refused with `IDENTITY_REQUIRED`. The
 flag's only purpose had become to be forgotten. `bundle/agent-release.sh` now
 logs the policy unconditionally, so there is nothing left here to check that
 could ever differ. Certification remains the real check, because it reads what

@@ -1,4 +1,4 @@
-# Player Insights Agent Databricks Asset Bundle.
+# Astrolabe Databricks Asset Bundle.
 # Variables without defaults are required deployment inputs.
 # The serving endpoint and app source tree are deployed separately.
 

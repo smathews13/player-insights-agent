@@ -1,4 +1,4 @@
-# Astrolabe — Player Insights Agent
+# Astrolabe
 
 A Databricks App and an MLflow `ResponsesAgent` that answer analytical questions
 about players from governed data, and show their work. Every number comes from a
@@ -64,7 +64,7 @@ endpoint.** The orchestrator optionally delegates governed discovery to it, as
 one self-contained request with a fresh message list and no conversation history.
 The finder resolves the table, reads real column metadata before writing SQL,
 measures null ratios, states the grain behind every count, and returns an
-assessed data package — or a clarification. Because it is invoked rather than
+assessed data package, or a clarification. Because it is invoked rather than
 served, it has nothing to probe on the Connections page, and it reports itself as
 running in-process.
 
@@ -86,7 +86,7 @@ and which Genie space answered. It is what Run Explorer reads.
 **The semantic layer is optional and off by default.** Where a deployment has
 one, the finder searches field and metric descriptions to choose what to ask
 about. It indexes metadata, never measurements. See
-[below](#the-semantic-layer-optional-off-by-default) — it bills by the hour.
+[below](#the-semantic-layer-optional-off-by-default). It bills by the hour.
 
 ## The shape of an answer
 
@@ -108,13 +108,13 @@ sections appear on every run:
 
 A turn has three possible outcomes, not one. It can return an **answer**; it can
 return a **plan** for approval before doing analytical work; or it can return a
-**clarification** — one short, specific question, with the options it found and
+**clarification**: one short, specific question, with the options it found and
 the steps it had already taken. A clarification is deliberately not an answer
 with a caveat attached: an answer invites a reader to use its figures, and there
 are none worth using yet.
 
 Two conventions are worth knowing when reading a stored answer. An empty
-derivation field means the statement did not say — not "all time", and not
+derivation field means the statement did not say, not "all time" and not
 "unknown". And a source with no role is one recorded before roles existed, so a
 reader must say so rather than guess which it was.
 
@@ -125,16 +125,16 @@ Administrators can change how the agent runs and how answers are presented from
 Lakebase, are validated on write, and are handed to the agent as part of each
 request. No model re-log, no redeploy.
 
-- **Loop limits** — maximum steps, maximum tool calls, maximum run seconds.
-- **Answer sections** — turn takeaway, narrative, charts, figures or caveats on
+- **Loop limits**: maximum steps, maximum tool calls, maximum run seconds.
+- **Answer sections**: turn takeaway, narrative, charts, figures or caveats on
   or off, and cap how many of each. Turning a section off hides its controls but
   keeps their values, so turning it back on restores what was set.
-- **Guidance** — free text handed to the agent alongside the takeaway and the
+- **Guidance**: free text handed to the agent alongside the takeaway and the
   narrative it belongs to.
-- **Presentation** — how figure cards are ordered, which chart shapes may be
+- **Presentation**: how figure cards are ordered, which chart shapes may be
   drawn, how dense the sources list is, and the colours used for catalog, schema,
   table, column, quote and tag mentions in rendered answers.
-- **Behaviour** — how readily the agent asks for clarification, the timezone
+- **Behaviour**: how readily the agent asks for clarification, the timezone
   relative dates resolve against, and whether today's date is injected.
 
 **What runtime settings cannot do.** They cannot widen what the agent may read.
@@ -148,7 +148,7 @@ one. That boundary is the reason a settings change is safe to make live.
 | Page | Who | What it is for |
 | --- | --- | --- |
 | **Ask** (`/`) | everyone | The conversation. Answers, plans, clarifications, attachments, feedback. |
-| **Run Explorer** (`/runs`) | everyone | Every recorded run, and one run's trace read four ways — the answer, the step list, the nested call graph, and the timeline. The timeline is the same component the answer card draws, so the two cannot disagree about a measurement. |
+| **Run Explorer** (`/runs`) | everyone | Every recorded run, and one run's trace read four ways: the answer, the step list, the nested call graph, and the timeline. The timeline is the same component the answer card draws, so the two cannot disagree about a measurement. |
 | **Connections** (`/connections`) | everyone | Every dependency this deployment has, what it is configured with, what the running model reports it is actually using, and whether those two disagree. |
 | **Architecture** (`/architecture`) | everyone | The same connections as a diagram, with a text equivalent carrying every fact the drawing does. Statuses are the Connections page's own, so a node cannot grade a dependency differently from the row that grades it. |
 | **Monitoring** | admins | Usage, latency and failures over time. |
@@ -168,7 +168,7 @@ the app reads, which lets the team that owns the pipeline state what the
 deployment is *meant* to be configured with. Each key is badged **In use**,
 **Awaiting model version**, **Not applied**, or **Not checked**.
 
-Publishing changes nothing at runtime — that is the design, not a limitation. A
+Publishing changes nothing at runtime. That is the design, not a limitation. A
 document fetched over the network does not get to widen what an agent may read.
 The catalog allowlist is the one key that is permanently **Not applied**: it is
 shown for comparison and never adopted. Everything else waits for the next model
@@ -234,7 +234,7 @@ Have these before you start:
 
 - an existing Unity Catalog catalog for the app's own objects;
 - the production catalogs or schemas the agent may read;
-- **an existing Lakebase project, branch, and database** — create one in the
+- **an existing Lakebase project, branch, and database**: create one in the
   Lakebase UI or with `databricks postgres create-project`, then read the ids
   back with `databricks postgres list-projects`. No owner role is needed; that
   was an input to creating the database;
@@ -276,7 +276,7 @@ non-system schemas; `catalog.schema` limits the boundary to one schema. The app
 schema is separate and holds only app-owned objects.
 
 **You do not list the Genie spaces' tables.** With `manifest_source=genie`, the
-model's table manifest — which is what grants the serving principal `SELECT` — is
+model's table manifest, which is what grants the serving principal `SELECT`, is
 read from what the live spaces curate at the moment the model is logged. That
 same step refuses to log a model if any curated table falls outside
 `data_catalogs`, so discovering the tables rather than typing them does not widen
@@ -338,7 +338,7 @@ that is the usual path. UI, server and other TypeScript in
 `player-insights-agent/build/deploy` are pulled from this repository onto the
 live app.
 
-1. Open the **existing** app's detail page — not Create app.
+1. Open the **existing** app's detail page, not Create app.
 2. Choose **Deploy → From Git**.
 3. Confirm the Git settings. Set once; re-check them, because the UI can clear
    the path when you start a new flow.
@@ -365,7 +365,7 @@ This is the important half. A Git update is **code only**. It replaces the app's
 deployed code snapshot, including the runtime `app.yaml` in that folder, and
 nothing else. It does **not**:
 
-- rerun the asset bundle, or create, update, detach or reconnect any resource —
+- rerun the asset bundle, or create, update, detach or reconnect any resource:
   catalog, schema, Lakebase, Genie, warehouse, job, model or serving endpoint;
 - re-attach resource bindings already configured on the app;
 - re-log the model or move the serving endpoint to a new model version;
@@ -385,12 +385,12 @@ addresses, and why that absence is harmless.
 
 ### When you still need something else
 
-**A bundle redeploy** — only for resource bindings, OAuth scopes, and other
+**A bundle redeploy**: only for resource bindings, OAuth scopes, and other
 bundle-owned app configuration. Do not rerun the bundle merely to ship UI or
 server code: reconciling the app resource can also remove bindings that exist
 only as manual workspace changes.
 
-**A model release** — changes to the agent's Python, its tools, its prompts or
+**A model release**: changes to the agent's Python, its tools, its prompts or
 the model itself are not app code and are not picked up by a Git deploy. They go
 through `TARGET=<target> bundle/agent-release.sh --apply`, on its own cadence.
 
@@ -410,7 +410,7 @@ does not exist until the bundle creates the app, so `bundle/app-release.sh
 --apply` runs `bundle/app-db-grant.sh` before its own code deploy. It derives the
 app role and attached branch and database from the live app, the schema from the
 resolved target, `PGUSER` from the profile identity, and `PGHOST` only from the
-branch's direct connection — deliberately not the pooled hostname, which rejects
+branch's direct connection, deliberately not the pooled hostname, which rejects
 the operator login. A missing direct host, unreachable Postgres, or failed grant
 stops the release. The profile identity must hold `DATABRICKS_SUPERUSER` on the
 Lakebase branch.
@@ -466,8 +466,8 @@ after that, Lakebase is the only runtime authority.
 
 **`admin_emails` is required.** Bundle validation fails when it is unset, and the
 release script refuses an explicitly empty value. Without those checks the app
-would start and refuse every admin surface — including the editor that appoints
-someone — and the only way out would be another release. That self-locking
+would start and refuse every admin surface, including the editor that appoints
+someone, and the only way out would be another release. That self-locking
 configuration is rejected before deployment rather than after.
 
 ## The semantic layer (optional, off by default)
@@ -475,11 +475,11 @@ configuration is rejected before deployment rather than after.
 A governed index over your schema's metadata: table and column descriptions,
 metric and term definitions, approved joins, example questions. It helps the
 agent find the right table faster. It indexes metadata, not measurements, and the
-agent never answers from it — every number still comes from Genie and the guarded
+agent never answers from it. Every number still comes from Genie and the guarded
 SQL path, under the caller's grants. The app works fully without it.
 
 **It costs money while it exists.** Turning it on creates an AI Search endpoint,
-billed by the hour whether or not anything queries it — roughly $200 a month for
+billed by the hour whether or not anything queries it, roughly $200 a month for
 one left running. Turn it on only if better schema discovery is worth that, and
 delete the index and then the endpoint when you are done.
 

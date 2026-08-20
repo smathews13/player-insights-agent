@@ -144,7 +144,7 @@ input fails validation when skipped; Genie sharing still requires review.
   `DATABRICKS_SUPERUSER`; an unreachable branch or failed grant stops the
   release with the values it could not resolve.
 
-  The hook also drops a misowned AppKit cache schema (`appkit`) —
+  The hook also drops a misowned AppKit cache schema (`appkit`).
   `GRANT USAGE, CREATE` alone cannot fix later `CREATE INDEX` ownership
   failures. It is idempotent and leaves an app-owned cache schema alone.
 
@@ -183,7 +183,7 @@ input fails validation when skipped; Genie sharing still requires review.
 | Script | What it does |
 | --- | --- |
 | `agent-release.sh` | Log the model, deploy it to the serving endpoint, wait for the traffic switch, read back the served versions, then prune the entities the release superseded. `--no-prune` leaves them and reports what it would have removed. |
-| `prune-served-entities.py` | Remove idle served entities from the endpoint, keeping whatever holds traffic plus `var.serving_rollbacks_kept` rollbacks — which defaults to **none**, because the version a kept rollback reaches is the one released *before* the current fix. Run by `agent-release.sh`; also runnable alone. Reports by default, acts on `--apply`, exits 3 when there is something to prune and it was not asked to. Endpoint only: it has no code path that reaches the registry, so every version stays registered and can be served again with `deploy_agent.py --model-version N` — that is the rollback path, and it needs no idle entity held open for it. |
+| `prune-served-entities.py` | Remove idle served entities from the endpoint, keeping whatever holds traffic plus `var.serving_rollbacks_kept` rollbacks, which defaults to **none**, because the version a kept rollback reaches is the one released *before* the current fix. Run by `agent-release.sh`; also runnable alone. Reports by default, acts on `--apply`, exits 3 when there is something to prune and it was not asked to. Endpoint only: it has no code path that reaches the registry, so every version stays registered and can be served again with `deploy_agent.py --model-version N`. That is the rollback path, and it needs no idle entity held open for it. |
 | `app-release.sh` | Resolve the MLflow experiment id, build the dependency-free tree, gate on `app-db-grant.sh`, upload, and deploy. The only way app code is pushed; `npm run deploy` is an alias for it. `--rollback-to <workspace-path>` applies the same grant gate and re-points the app at a known-good source directory without rebuilding. |
 | `app-db-grant.sh` | Resolve the app role, direct branch host, database, operator role and app schema from the target and live resources, then run `scripts/grant-app-db-access.mjs`. Called by every app release; runnable directly after Lakebase reattach without a full release. |
 | `app-spec.sh` | Emit the complete app spec for a target, generated from `bundle validate` so it can only carry that target's own values. Prints by default; `--apply` sends it and verifies what the API kept. Recovery only: the bundle owns this resource. Refuses to write on a host mismatch, a Lakebase project absent from the workspace, a serving endpoint that does not exist, a lost load-bearing `user_api_scopes` entry, or a `sql-warehouse` resource with no id. There is no `--allow-missing-endpoint`. |
@@ -191,14 +191,14 @@ input fails validation when skipped; Genie sharing still requires review.
 
 Identity split (do not re-introduce an app-SP Unity Catalog data gate on release):
 
-- **Signed-in user** — governed UC / Genie / SQL reads (`execution_identity: user-authorization`).
-- **App service principal** — app-owned Lakebase operational storage and non-data control-plane work only. Lakebase grants are checked after app creation (`scripts/grant-app-db-access.mjs`, `/api/storage`, app-release ownership), not by asking UC what the SP can `SELECT` on customer catalogs.
+- **Signed-in user**: governed UC / Genie / SQL reads (`execution_identity: user-authorization`).
+- **App service principal**: app-owned Lakebase operational storage and non-data control-plane work only. Lakebase grants are checked after app creation (`scripts/grant-app-db-access.mjs`, `/api/storage`, app-release ownership), not by asking UC what the SP can `SELECT` on customer catalogs.
 
 ## Before a later bundle reconciliation
 
 The greenfield sequence includes one complete `bundle deploy`. For later
 resource-only reconciliation, that command can remove a resource. Two of them
-hold things that do not come back — `schemas.player_insights_schema` has the
+hold things that do not come back. `schemas.player_insights_schema` has the
 registered model and app-owned semantic assets, and
 `schemas.player_insights_telemetry_schema` has app history that does not backfill.
 Both carry `prevent_destroy`, which stops `bundle destroy` and does **not** stop a

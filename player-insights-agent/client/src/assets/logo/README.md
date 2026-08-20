@@ -4,11 +4,11 @@ Where these came from, what may be done to them, and the two things about them
 that are broken on arrival.
 
 Source: `docs/design-handoff-astrolabe/`, asset manifest in
-`astrolabe-rebuild-spec.md` §8. Nothing here is referenced by the app yet — this
+`astrolabe-rebuild-spec.md` §8. Nothing here is referenced by the app yet. This
 directory is the foundation pass putting the artwork in place, and the surfaces
 that consume it are later work.
 
-## `astrolabe-*.svg` — our own mark
+## `astrolabe-*.svg`: our own mark
 
 Ours, drawn for this app, so no third-party terms apply. Eight files: four
 concepts in two inks each. All are self-contained, `0 0 64 64`, ink `#11171C`
@@ -27,10 +27,10 @@ sentences later; `astrolabe-rebuild-spec.md` §1 and §8 settle it for the d-pad
 and that is what this table records. See `docs/design-handoff-astrolabe/AS-COMMITTED.md`.
 
 Never redraw and never restroke. The small cut for chips at 13-30px is a
-different drawing of the same mark, specified in the rebuild spec §1 — it drops
+different drawing of the same mark, specified in the rebuild spec §1. It drops
 the graduation ring and thickens the rim, and it is not one of these files.
 
-## `theme/` — Databricks product icons, recoloured
+## `theme/`: Databricks product icons, recoloured
 
 Fourteen files: the official product geometry with the colours substituted.
 `*-blue-light.svg` is `#2272B4` over `#B7D6EE`, for white surfaces.
@@ -59,7 +59,7 @@ and is the part the ruling did not touch: recolour, never redraw.
 `26dce2cb87bcadf55fe56209337e4ee138542166a8283c84645f674620ca95f9` and **neither
 declared a fill on any path**, so both rendered in the SVG default, black. The spec
 asks for an ink cut for light surfaces and a white cut for navy, and only the ink cut
-existed, twice — which meant the MLflow wordmark on a navy band was black on
+existed, twice. That meant the MLflow wordmark on a navy band was black on
 `#11171C`: present in the DOM, invisible on screen, and invisible in a way no colour
 token could fix, because there was no colour to override.
 

@@ -1,4 +1,4 @@
-# player-insights-agent
+# Astrolabe app source
 
 A Databricks App powered by [AppKit](https://www.databricks.com/devhub/docs/appkit/v0/), built with React, TypeScript and Tailwind CSS.
 
@@ -86,7 +86,7 @@ Two things catch it, and neither is a substitute for using your own branch:
 - `node scripts/check-db-ownership.mjs --app <app> --profile <profile>` reports
   every object in the **app data** schema the app cannot maintain. The release
   runs it and stops. Its printed remedy is to drop the listed misowned tables
-  one at a time, then restart — **not** `DROP SCHEMA ... CASCADE` on the app
+  one at a time, then restart, **not** `DROP SCHEMA ... CASCADE` on the app
   schema, which would destroy conversations, messages, ratings and runs.
   AppKit's separate cache schema (`appkit`) is remediated by
   `scripts/grant-app-db-access.mjs` (drop-and-recreate; cache only), not by this

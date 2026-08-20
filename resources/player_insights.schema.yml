@@ -8,7 +8,7 @@ resources:
     player_insights_schema:
       catalog_name: ${var.app_catalog}
       name: ${var.app_schema}
-      comment: "Player Insights Agent: model, semantic layer, and app-owned assets."
+      comment: "Astrolabe: model, semantic layer, and app-owned assets."
       lifecycle:
         # Destroying this schema permanently removes its tables and model.
         prevent_destroy: true
