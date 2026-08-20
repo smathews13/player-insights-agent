@@ -12,7 +12,7 @@
  * component's render is not testable without a browser.
  */
 import {
-  GRANT_SCRIPT_COMMAND,
+  GIT_GRANT_COMMAND,
   GRANT_SCRIPT_WHY,
 } from '../../shared/setup-remedies';
 
@@ -92,11 +92,11 @@ export function storageBannerNotice(health: StorageHealth | null): BannerNotice 
       detail: 'Nothing below was read and nothing you do here is being saved. This will not clear on its own.',
       reasoning:
         'Postgres is answering and refusing the reads: the app service principal has no privileges on the ' +
-        'player_insights schema, so the conversations, runs and benchmark results below are blank because ' +
+        'app-owned schema, so the conversations, runs and benchmark results below are blank because ' +
         'they could not be read, not because there are none. This is not an outage. It is the state a ' +
-        'deployment is in until the grant script has been run ' +
+        'deployment is in until database CREATE has been granted ' +
         `once${health.last_ok_at ? ', or since the grant was removed' : ''}.`,
-      remedy: GRANT_SCRIPT_COMMAND,
+      remedy: GIT_GRANT_COMMAND,
       remedyNote: GRANT_SCRIPT_WHY,
     };
   }

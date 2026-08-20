@@ -10,7 +10,7 @@ import {
   type ConnectedResource,
 } from '../../shared/deployment-config';
 import { DEFAULT_JUDGE_ENDPOINT } from '../../shared/benchmark-contract';
-import { APP_SCHEMA, DEFAULT_APP_SCHEMA } from '../../shared/app-schema';
+import { APP_SCHEMA } from '../../shared/app-schema';
 import type { AppFacts } from '../../shared/app-facts';
 import { parseAncestorList } from '../../shared/build-stamps';
 import type { LakebaseReader } from './lakebase-store';
@@ -368,10 +368,9 @@ export interface ResourceState {
 const APP_DEFAULTS: Record<string, string> = {
   'judge-endpoint': DEFAULT_JUDGE_ENDPOINT,
   'shared-conversation-rail': 'false',
-  // Same string as DEFAULT_APP_SCHEMA / var.lakebase_app_schema. Authored into
-  // app.yaml so From-Git deploys usually set the env; this fallback covers an
-  // older deploy tree that pre-dates the env and must never show "not set".
-  'lakebase-schema': DEFAULT_APP_SCHEMA,
+  // The process-resolved value, not the legacy string authored into app.yaml.
+  // A direct Git deployment maps that old value to its app-owned schema.
+  'lakebase-schema': APP_SCHEMA,
 };
 
 /**
@@ -463,6 +462,12 @@ export function resourceStates(input: {
     } else if (resource.appEnvVar) {
       configured = environment[resource.appEnvVar] ?? '';
       configuredFrom = 'app-environment';
+      if (resource.id === 'lakebase-schema') {
+        // The runtime resolver deliberately remaps the old authored Git default
+        // to `astrolabe`; showing the raw env here would make Connections name a
+        // schema no query in this process uses.
+        configured = APP_SCHEMA;
+      }
       if (!configured && resource.id in APP_DEFAULTS) {
         configured = APP_DEFAULTS[resource.id];
         configuredFrom = 'app-default';

@@ -361,8 +361,8 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     changedBy: 'app-redeploy',
     arrivesBy:
       'PLAYER_INSIGHTS_APP_SCHEMA, resolved from var.lakebase_app_schema at release time ' +
-      '(authored default player_insights in app.yaml so a From-Git deploy still shows it). ' +
-      'Created by the app on boot; Connections shows the live env value, never "not set".',
+      '(a source-only Git deploy maps the legacy authored player_insights value to the app-owned ' +
+      'astrolabe schema). Created by the app on boot; bundle targets keep their configured schema.',
     bundleVariable: 'lakebase_app_schema',
     agentKey: null,
     appEnvVar: 'PLAYER_INSIGHTS_APP_SCHEMA',

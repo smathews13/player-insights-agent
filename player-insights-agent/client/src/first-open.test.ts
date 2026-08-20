@@ -89,6 +89,18 @@ describe('firstOpenReport', () => {
     expect(offersRefresh(report)).toBe(false);
   });
 
+  it('never reports zero required scopes for a normal Astrolabe deployment', () => {
+    const report = firstOpenReport(identity());
+
+    expect(requiredScopeRows(report.scopes).map((scope) => scope.name)).toEqual(DECLARED);
+    expect(report.footer?.lead ?? '').not.toContain(
+      'This deployment does not declare any required scopes.'
+    );
+    expect(optionalScopeRows(report.scopes).map((scope) => scope.name)).toEqual([
+      ...OPTIONAL_USER_API_SCOPES,
+    ]);
+  });
+
   /*
    * Required names are read from the deployment; optional catalog scopes are
    * always appended so a customer four-scope deploy still lists them.

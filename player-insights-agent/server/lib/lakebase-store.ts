@@ -381,7 +381,7 @@ function markOk(route: string, depth: ReadDepth) {
     if (!health.connectionOkSinceFailure) {
       health.connectionOkSinceFailure = true;
       console.error(`[lakebase] STILL UNAVAILABLE, but the endpoint answers: ${route} succeeded without reading through ` +
-          `the player_insights schema, while the failing read (${health.lastError?.route}, code ` +
+          `the ${APP_SCHEMA} schema, while the failing read (${health.lastError?.route}, code ` +
           `${health.lastError?.code}) does. The connection and the credential are fine, so this is a ` +
           `privilege or schema problem and waiting will not fix it, run scripts/grant-app-db-access.mjs.`
       );
@@ -445,7 +445,7 @@ function markUnavailable(route: string, error: unknown, depth: ReadDepth) {
       console.error(`[lakebase] STORAGE UNAVAILABLE, SCHEMA GRANTS MISSING: ${route} was REFUSED by Postgres (code ${code}): ${message}. ` +
           `Previously ${healthyFor}. This is not an outage and waiting will not fix it: the endpoint ` +
           `answered and then declined the read, so the app's Postgres role has no privilege on the ` +
-          `player_insights schema. Conversation storage is therefore unavailable and every route that ` +
+          `${APP_SCHEMA} schema. Conversation storage is therefore unavailable and every route that ` +
           `reads it reports itself unavailable. ${GRANT_DENIED_LOG_REMEDY}`
       );
       return;
@@ -801,7 +801,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
         label: `Lakebase storage · ${database}`,
         status: 'failed',
         detail:
-          `Postgres is answering and REFUSING the app's reads of the player_insights schema, so ` +
+          `Postgres is answering and REFUSING the app's reads of the ${APP_SCHEMA} schema, so ` +
           `conversation storage is unavailable and the conversations, runs and benchmarks in the app ` +
           `cannot be listed at all. This is a privilege or schema ` +
           `problem, not an outage that will pass: the app's Postgres role has no grant on the schema, ` +
@@ -812,7 +812,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
             : '; no read has ever succeeded, so the grant has most likely never been made.'),
         checked_with: error ? `${error.route} (code ${error.code})` : 'app Lakebase pool',
         duration_ms: 0,
-        error: error ? error.message : 'Postgres refused a read of the player_insights schema.',
+        error: error ? error.message : `Postgres refused a read of the ${APP_SCHEMA} schema.`,
         remedy: {
           kind: 'cli',
           statement: GRANT_SCRIPT_COMMAND,
@@ -900,7 +900,7 @@ export function lakebaseStorageCheck(): PreflightCheck {
       ...base,
       detail:
         `The app reached its Postgres store successfully at ${snapshot.last_ok_at}, so the connection, the ` +
-        `credential and its privileges on the player_insights schema are all good. Nothing has read content ` +
+        `credential and its privileges on the ${APP_SCHEMA} schema are all good. Nothing has read content ` +
         `out of it yet (the watchdog probe deliberately does not count), so whether it holds any stored ` +
         `records is not known. Open Conversations or Run Explorer and this row will say which.`,
       remedy: {

@@ -19,13 +19,12 @@
  * confusion has printed a GRANT for a present scope once already.
  *
  * THE REQUIRED SET IS READ, NEVER WRITTEN DOWN HERE, which the spec asks for in
- * as many words. `declaredScopes` on the report is `PLAYER_INSIGHTS_USER_API_SCOPES`,
- * which the release resolves from `var.app_user_api_scopes` in `databricks.yml`.
- * That variable is layered per target -- the shared default a customer/T2 target
- * inherits and the example override carry different sets -- so a literal list in this
- * file would tell a reader of one deployment that they are short of permissions
- * the app never asked for on theirs. It would also drift from the platform's own spelling, and
- * the `:read` suffix is live enough to be worth naming: the app declares
+ * as many words. `declaredScopes` on the report is `PLAYER_INSIGHTS_USER_API_SCOPES`.
+ * A source-only Git artifact gets the four universal ask-path scopes from
+ * app.yaml; a bundle release replaces that fallback with the App resource's exact
+ * target-layered declaration. A literal list in this UI would drift from both.
+ * It would also drift from the platform's own spelling, and the `:read` suffix is
+ * live enough to be worth naming: the app declares
  * `vectorsearch.vector-search-indexes:read`, with the suffix, while the design
  * mockup shows it without. Reading the list is what stops this screen taking a
  * side in that.

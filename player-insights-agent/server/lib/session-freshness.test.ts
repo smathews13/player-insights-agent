@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes';
 import { auditGuidance } from '../../shared/stated-cause';
 import { DECLARED_SCOPES_VAR, declaredUserApiScopes, sessionFreshness } from './session-freshness';
 
@@ -226,10 +227,25 @@ describe('the authored app.yaml', () => {
   });
 
   /**
-   * EMPTY, ALWAYS. The list is per target, so a value here ships one deployment's
-   * scopes into every build, including the published one.
+   * THE FOUR ASK-PATH SCOPES, NOT EMPTY. A Git deploy has no bundle target, so
+   * this authored value is what the login gate uses. Empty made it claim
+   * Astrolabe needed no serving, SQL, or Genie scope. Optional browse and
+   * Postgres stay out: a bundle release can still widen the list per target.
    */
-  it('leaves its value empty, because the list belongs to a target and not to a build', () => {
-    expect(appYaml).toMatch(new RegExp(`- name: ${DECLARED_SCOPES_VAR}\\n\\s+value: ''`));
+  it('authors the four required ask-path scopes for a Git deploy', () => {
+    const value =
+      new RegExp(`- name: ${DECLARED_SCOPES_VAR}\\n\\s+value: '?([^'\\n]*)'?`).exec(appYaml)?.[1] ??
+      '';
+    const declared = value.split(',').filter(Boolean);
+
+    expect(declared).toEqual([
+      'serving.serving-endpoints',
+      'model-serving',
+      'sql',
+      'dashboards.genie',
+    ]);
+    for (const optional of OPTIONAL_USER_API_SCOPES) {
+      expect(declared).not.toContain(optional);
+    }
   });
 });

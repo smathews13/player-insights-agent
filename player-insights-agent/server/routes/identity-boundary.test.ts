@@ -574,11 +574,16 @@ describe('one signed-in user cannot write into another user\u2019s conversation'
   });
 });
 
-/**
- * The ask route used to answer confidently on context it had failed to read.
- */
-describe('an answer is refused rather than built on context that could not be read', () => {
-  beforeEach(() => void (process.env.NODE_ENV = 'production'));
+describe('an answer remains available when optional Postgres context cannot be read', () => {
+  const savedEndpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+  beforeEach(() => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'astrolabe-agent';
+  });
+  afterEach(() => {
+    if (savedEndpoint === undefined) delete process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+    else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
+  });
 
   /** Reads the caller's own conversation fine, then fails on the named table. */
   function storeFailingOn(table: 'messages' | 'attachments') {
@@ -599,11 +604,16 @@ describe('an answer is refused rather than built on context that could not be re
   it.each([
     ['messages' as const, 'conversation history'],
     ['attachments' as const, 'uploaded documents'],
-  ])('refuses when %s cannot be read, and names what was missing', async (table, missing) => {
+  ])('answers statelessly when %s cannot be read', async (table, missing) => {
     let invoked = 0;
     const app = await startApp(storeFailingOn(table), () => {
       invoked += 1;
-      return Promise.resolve({});
+      return Promise.resolve({
+        output: [{
+          type: 'message',
+          content: [{ type: 'output_text', text: `Stateless answer without ${missing}.` }],
+        }],
+      });
     });
 
     try {
@@ -615,25 +625,24 @@ describe('an answer is refused rather than built on context that could not be re
           prompt: 'Summarise the report I just attached.',
         }),
       });
-      const body = (await response.json()) as { error: string; missing: string[]; message: string };
+      const body = (await response.json()) as { type: string; narrative: string; runStored: boolean };
 
-      expect(response.status).toBe(503);
-      expect(body.error).toBe('context_unavailable');
-      expect(body.missing).toContain(missing);
-      // The endpoint is never reached, so there is no confident answer to mistake
-      // for one that read the document.
-      expect(invoked).toBe(0);
-      // And it says so on the response itself, not only in a global banner that
-      // says nothing about this particular answer.
-      expect(response.headers.get('X-PIA-Degraded-Reason')).toBe('storage_unavailable');
-      expect(response.headers.get('X-PIA-Storage')).toBe('unavailable');
+      expect(response.status, JSON.stringify(body)).toBe(200);
+      expect(body.type).toBe('answer');
+      expect(body.narrative).toContain(`Stateless answer without ${missing}`);
+      expect(invoked).toBe(1);
     } finally {
       await app.close();
     }
   });
 
-  it('says in the logs that it refused, and why', async () => {
-    const app = await startApp(storeFailingOn('attachments'));
+  it('says in the logs that it answered statelessly, and why', async () => {
+    const app = await startApp(storeFailingOn('attachments'), () => Promise.resolve({
+      output: [{
+        type: 'message',
+        content: [{ type: 'output_text', text: 'Stateless answer.' }],
+      }],
+    }));
 
     try {
       await app.fetch('/api/insights/ask', {
@@ -645,7 +654,8 @@ describe('an answer is refused rather than built on context that could not be re
       await app.close();
     }
 
-    const line = errors.find((entry) => entry.includes('Refusing to answer'));
+    const line = errors.find((entry) => entry.includes('Answering without'));
     expect(line).toContain('uploaded documents');
+    expect(line).toContain('answer will be marked not stored');
   });
 });

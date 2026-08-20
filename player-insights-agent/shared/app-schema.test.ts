@@ -3,17 +3,39 @@ import { describe, expect, it } from 'vitest';
 import {
   APP_SCHEMA,
   APP_SCHEMA_ENV,
+  APP_TARGET_ENV,
   DEFAULT_APP_SCHEMA,
+  LAKEBASE_ENDPOINT_ENV,
+  LEGACY_APP_SCHEMA,
   appTable,
   resolveAppSchema,
 } from './app-schema';
 
 describe('the Lakebase app schema', () => {
-  it('defaults to player_insights so existing installs do not silently move', () => {
-    expect(DEFAULT_APP_SCHEMA).toBe('player_insights');
+  it('uses an Astrolabe-owned schema for a direct Git deployment', () => {
+    expect(DEFAULT_APP_SCHEMA).toBe('astrolabe');
+    const gitDeploy = { [LAKEBASE_ENDPOINT_ENV]: 'projects/example/branches/production' };
+    expect(resolveAppSchema(gitDeploy)).toBe('astrolabe');
+    expect(resolveAppSchema({ ...gitDeploy, [APP_SCHEMA_ENV]: '' })).toBe('astrolabe');
+    expect(resolveAppSchema({ ...gitDeploy, [APP_SCHEMA_ENV]: '   ' })).toBe('astrolabe');
+    // Public app.yaml still carries this legacy value. With no bundle target it
+    // is a source-only deploy, not an instruction to reuse somebody else's
+    // schema.
+    expect(resolveAppSchema({
+      ...gitDeploy,
+      [APP_SCHEMA_ENV]: LEGACY_APP_SCHEMA,
+    })).toBe('astrolabe');
+  });
+
+  it('does not move an existing bundle deployment or its stored roles', () => {
+    expect(resolveAppSchema({
+      [APP_SCHEMA_ENV]: LEGACY_APP_SCHEMA,
+      [APP_TARGET_ENV]: 'customer',
+    })).toBe('player_insights');
+  });
+
+  it('keeps local development and source fixtures on the legacy schema', () => {
     expect(resolveAppSchema({})).toBe('player_insights');
-    expect(resolveAppSchema({ [APP_SCHEMA_ENV]: '' })).toBe('player_insights');
-    expect(resolveAppSchema({ [APP_SCHEMA_ENV]: '   ' })).toBe('player_insights');
   });
 
   it('honours PLAYER_INSIGHTS_APP_SCHEMA when set', () => {

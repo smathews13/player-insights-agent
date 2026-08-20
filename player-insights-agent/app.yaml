@@ -124,12 +124,18 @@ env:
   # whose sign-in predates a declaration what to do, instead of leaving them with
   # red rows and a 403.
   #
-  # EMPTY IS THE AUTHORED VALUE AND MUST STAY EMPTY. The list is per target: the
-  # customer target takes the default and the demo target adds to it. A literal
-  # here would ship one deployment's list into every build and tell users of the
-  # shorter deployment that their sign-in is missing permissions their app never
-  # asked for. bundle/app-release.sh reads the resolved `user_api_scopes` off the
-  # app resource for the target being released.
+  # THE FOUR ASK-PATH SCOPES ARE THE AUTHORED FALLBACK. A plain build is the
+  # artifact customers deploy from Git, and that path has no bundle target from
+  # which to resolve this value. Leaving it empty made a normal Git deployment
+  # claim it needed no serving, SQL, or Genie scope at all. These four are not
+  # target-specific: every Astrolabe question needs them. Optional browse scopes
+  # stay out of this fallback and remain optional on the gate.
+  #
+  # bundle/app-release.sh still replaces this value with the exact resolved
+  # `user_api_scopes` from the App resource for a bundle target. That is how a
+  # target which opts into catalog, workspace, Vector Search, or Postgres browse
+  # reports the larger list without making any optional scope universally
+  # required here.
   #
   # No counts here on purpose. This comment gave three of them -- the default's
   # length, the demo target's, and the difference -- and two had gone stale by
@@ -139,9 +145,5 @@ env:
   # authority is `bundle summary -t <target>`, and the app reports the resolved
   # list on its own Connections page.
   #
-  # Unset or empty means this build does not know what it asks for, and the app
-  # reports that as undetermined and says nothing to anybody. It never fills the
-  # gap with the scopes it happens to need, which would fire on every reader of a
-  # deployment that deliberately declares fewer.
   - name: PLAYER_INSIGHTS_USER_API_SCOPES
-    value: ''
+    value: 'serving.serving-endpoints,model-serving,sql,dashboards.genie'

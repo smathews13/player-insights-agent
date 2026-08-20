@@ -351,10 +351,9 @@ async function main() {
 
   // The user API scopes the released target declares. Passed through rather than
   // interpreted, like the shared-rail flag above: the app decides what to do with
-  // them. Absent leaves the authored empty value standing, and the app then
-  // reports that it cannot tell whether a sign-in is current rather than guessing
-  // from the scopes it happens to need. A bare `npm run build:deploy` has no
-  // target to read them from, so absent is the normal local case.
+  // them. A bundle release replaces the authored value with the target's exact
+  // App-resource declaration. A bare `npm run build:deploy` has no target to read,
+  // so it preserves app.yaml's four ask-path scopes: the safe Git-deploy contract.
   const declaredScopes = (process.env.PLAYER_INSIGHTS_USER_API_SCOPES ?? '').trim();
   // The target is execution metadata, not a user-editable app setting. Empty in
   // source and filled only by bundle/app-release.sh for the generated deploy
@@ -413,9 +412,9 @@ async function main() {
       // genuinely empty roster gets no first row; an existing Lakebase roster is
       // untouched. Neither default ships one workspace's values into another.
       ...(telemetrySchema ? [{ name: 'PLAYER_INSIGHTS_TELEMETRY_SCHEMA', value: `'${telemetrySchema}'` }] : []),
-      // Per-target, and correctly empty when unresolved: a build that cannot say
-      // which permissions it asks for must not claim any, because the claim is
-      // what a reader's sign-in gets compared against.
+      // Per-target when resolved. Otherwise keep the authored four-scope
+      // Git-deploy contract; renderDeployAppYaml replaces this entry only when a
+      // release supplies the App resource's exact declaration.
       ...(declaredScopes ? [{ name: 'PLAYER_INSIGHTS_USER_API_SCOPES', value: `'${declaredScopes}'` }] : []),
       ...(adminEmails ? [{ name: 'PLAYER_INSIGHTS_ADMIN_EMAILS', value: `'${adminEmails}'` }] : []),
     ],

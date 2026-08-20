@@ -13,6 +13,27 @@ const DEPLOY_OVERRIDES = {
   command: "['node', 'server.mjs']",
   env: [{ name: 'NODE_ENV', value: 'production' }],
 };
+const REQUIRED_ASK_SCOPES = [
+  'serving.serving-endpoints',
+  'model-serving',
+  'sql',
+  'dashboards.genie',
+];
+const OPTIONAL_BROWSE_SCOPES = [
+  'catalog.catalogs:read',
+  'catalog.schemas:read',
+  'catalog.tables:read',
+  'workspace.workspace:read',
+  'vectorsearch.vector-search-indexes:read',
+  'vectorsearch.vector-search-endpoints:read',
+  'postgres',
+];
+
+function declaredScopes(yaml: string): string[] {
+  const value =
+    /- name: PLAYER_INSIGHTS_USER_API_SCOPES\n\s+value: '?([^'\n]*)'?/.exec(yaml)?.[1] ?? '';
+  return value.split(',').filter(Boolean);
+}
 
 /**
  * The regression this file exists for.
@@ -56,6 +77,36 @@ describe('every authored variable reaches the deploy target', () => {
     const experimentId = /- name: PLAYER_INSIGHTS_EXPERIMENT_ID\n\s+value: '?(\d+)'?/.exec(generated);
 
     expect(experimentId?.[1], 'the MLflow deep link needs the id the release resolved').toBe('424242');
+  });
+
+  it('ships every Git deploy with the non-empty ask-path scope contract', () => {
+    const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
+
+    expect(declaredScopes(generated),
+      'A plain build produces build/deploy/app.yaml, which Deploy from Git runs. Leaving this ' +
+        'empty makes the login gate say Astrolabe needs no serving, SQL, or Genie scopes.'
+    ).toEqual(REQUIRED_ASK_SCOPES);
+  });
+
+  it('does not turn optional browsing or Lakebase scopes into Git-deploy requirements', () => {
+    const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
+    const declared = declaredScopes(generated);
+
+    for (const optional of OPTIONAL_BROWSE_SCOPES) expect(declared).not.toContain(optional);
+  });
+
+  it('lets a bundle release replace the Git fallback with its exact App declaration', () => {
+    const resolved = [...REQUIRED_ASK_SCOPES, ...OPTIONAL_BROWSE_SCOPES].join(',');
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [
+        ...DEPLOY_OVERRIDES.env,
+        { name: 'PLAYER_INSIGHTS_USER_API_SCOPES', value: `'${resolved}'` },
+      ],
+    });
+
+    expect(declaredScopes(generated)).toEqual([...REQUIRED_ASK_SCOPES, ...OPTIONAL_BROWSE_SCOPES]);
+    expect(generated.match(/name: PLAYER_INSIGHTS_USER_API_SCOPES/g)).toHaveLength(1);
   });
 
   it('ships the shared conversation rail switched off', () => {

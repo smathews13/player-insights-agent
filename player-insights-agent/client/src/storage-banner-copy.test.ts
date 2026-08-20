@@ -64,18 +64,19 @@ describe('a deployment that never ran the grant script', () => {
     expect(notice?.detail).toContain('nothing you do here is being saved');
   });
 
-  it('puts the target-aware release hook on screen', () => {
-    // On screen rather than in a doc link. The deployer who reached this banner
-    // is by definition someone who did not read the doc that says to run it,
-    // and a second pointer at the same doc is not a fix.
-    expect(notice?.remedy).toContain('bundle/app-db-grant.sh');
-    expect(notice?.remedy).toContain('TARGET=<target>');
-    expect(notice?.remedy).toContain("PROFILE='<profile>'");
+  it('puts a Git-deploy command on screen without requiring a bundle checkout', () => {
+    // Manish deployed source from Git and has no bundle/app-db-grant.sh to run.
+    // The banner has to be executable from the Databricks CLI alone.
+    expect(notice?.remedy).toContain('databricks apps get <app-name>');
+    expect(notice?.remedy).toContain('GRANT CREATE, CONNECT ON DATABASE');
+    expect(notice?.remedy).toContain('databricks psql --project');
+    expect(notice?.remedy).toContain("--profile '<profile>'");
+    expect(notice?.remedy).not.toContain('bundle/app-db-grant.sh');
   });
 
   it('explains how releases and reattaches apply it', () => {
     expect(notice?.remedyNote).toContain('does not exist until the app does');
-    expect(notice?.remedyNote).toContain('canonical app release');
+    expect(notice?.remedyNote).toContain('canonical bundle release');
     expect(notice?.remedyNote).toContain('detach/reattach');
   });
 });

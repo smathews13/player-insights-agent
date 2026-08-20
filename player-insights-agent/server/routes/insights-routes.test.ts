@@ -2461,6 +2461,37 @@ describe('an answer the store did not keep', () => {
     }
   }
 
+  it('answers statelessly when the app role cannot use the Postgres schema', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const captured: CapturedInvocation[] = [];
+    const denied = new Error('permission denied for schema player_insights') as Error & { code: string };
+    denied.code = '42501';
+    const app = await startInsightsApp(agentContractTransport(captured), {
+      query: () => Promise.reject(denied),
+    });
+
+    try {
+      const planned = await app.ask({ conversationId: 'conv-no-storage', prompt: NONTRIVIAL_QUESTION });
+      const answered = await app.ask({
+        conversationId: 'conv-no-storage',
+        prompt: NONTRIVIAL_QUESTION,
+        approvedPlanId: planned.plan?.id,
+        executePlan: true,
+      });
+
+      expect(answered.type).toBe('answer');
+      expect(answered.takeaway).toBeTruthy();
+      expect(answered.runStored).toBe(false);
+      expect(captured).toHaveLength(2);
+      // No unread history or attachment is represented as empty stored data.
+      // The current question still reaches the endpoint as a stateless turn.
+      expect(captured[1]?.payload.input).toEqual([{ role: 'user', content: NONTRIVIAL_QUESTION }]);
+      expect(captured[1]?.payload.custom_inputs).not.toHaveProperty('attachment_text');
+    } finally {
+      await app.close();
+    }
+  });
+
   it('still answers, and says the run behind the answer was not stored', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const store = lakebaseThatDropsAnswers();

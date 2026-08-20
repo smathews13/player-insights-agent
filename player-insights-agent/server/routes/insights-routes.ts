@@ -3555,28 +3555,6 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
         ]
       );
 
-      // Not `safeQuery`. Its own contract is that a failure does not change the
-      // response, and these two change it entirely: zero rows from a failed read
-      // are indistinguishable from a conversation with no history and no
-      // attachments, so the question went to the agent stripped of both and came
-      // back as `type: 'answer'`, `mode: 'live'`, with no degradation header on
-      // it. Someone uploads a PDF, watches the chip appear, asks what it says,
-      // and is answered confidently about something else.
-      const refuseWithout = (missing: string) => {
-        console.error(`[serving] Refusing to answer: ${missing} could not be read, so the agent would have been ` +
-            'asked this question without the context it depends on.'
-        );
-        markResponse(res, noSubstitution('storage_unavailable'));
-        reply.status(503).json({
-          error: 'context_unavailable',
-          missing: [missing],
-          message:
-            `Your ${missing} could not be read just now, so this question was not sent to the ` +
-            'agent: an answer without it could be confidently wrong. Storage is degraded; try ' +
-            'again shortly.',
-        });
-      };
-
       const historyRead = await readStored(appkit,
         'POST /api/insights/ask (history)',
         `SELECT role, content, response_json FROM (SELECT m.role, m.content, m.response_json, m.created_at
@@ -3587,22 +3565,32 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
          ) recent ORDER BY created_at`,
         [conversationId, email]
       );
-      if (!historyRead.available) {
-        refuseWithout('conversation history');
-        return;
-      }
       const attachmentRead = await readStored(appkit,
         'POST /api/insights/ask (attachments)',
         `SELECT filename, extracted_text FROM ${APP_SCHEMA}.attachments
          WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
         [conversationId, email]
       );
-      if (!attachmentRead.available) {
-        refuseWithout('uploaded documents');
-        return;
+      const missingContext = [
+        ...(historyRead.available ? [] : ['conversation history']),
+        ...(attachmentRead.available ? [] : ['uploaded documents']),
+      ];
+      if (missingContext.length > 0) {
+        // Lakebase persistence is not the product's execution dependency. A
+        // Git-deployed app whose SP cannot use the old authored schema can still
+        // invoke the governed agent safely as a stateless turn: no unread history
+        // or attachment is forwarded, and no row from another user can leak.
+        // The response's runStored=false warning tells the reader that this turn
+        // will not survive; the app-wide storage banner owns the one remediation.
+        console.error(
+          `[serving] Answering without ${missingContext.join(' or ')} because Lakebase storage is unavailable. ` +
+            'Only the current prompt is sent, and the answer will be marked not stored.'
+        );
       }
-      const historyResult = { rows: historyRead.rows };
-      const attachmentText = attachmentRead.rows
+      const historyRows = historyRead.available ? historyRead.rows : [];
+      const attachmentRows = attachmentRead.available ? attachmentRead.rows : [];
+      const historyResult = { rows: historyRows };
+      const attachmentText = attachmentRows
         .map((row) => `## ${String(row.filename)}\n${String(row.extracted_text)}`)
         .join('\n\n')
         .slice(0, MAX_CONVERSATION_ATTACHMENT_TEXT);
@@ -3629,11 +3617,11 @@ export async function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ sto
           userEmail: email,
           conversationId,
           prompt,
-          history: historyRead.rows.map((row) => ({
+          history: historyRows.map((row) => ({
             role: String(row.role),
             content: String(row.content),
           })),
-          attachments: attachmentRead.rows.map((row) => ({
+          attachments: attachmentRows.map((row) => ({
             filename: String(row.filename),
             text: String(row.extracted_text),
           })),

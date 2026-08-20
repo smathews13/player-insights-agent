@@ -376,14 +376,30 @@ Do not run `databricks bundle deploy`, `bundle/agent-release.sh`, or
 `bundle/app-release.sh` as part of a Git update. None of them is part of it.
 
 If Astrolabe is created directly from Git instead of updating a bundle-bootstrapped
-app, bind an existing Lakebase database first. The app uses one Postgres schema
-inside that database for conversations, settings, and roles; this is not a Unity
-Catalog schema, and it does not have to be named `player_insights`. A new schema
-can be created by the app service principal, while an existing schema owned by
-another role needs the app service principal's schema and table privileges applied
-after the app exists. A Git deploy applies no such grant. Until the binding and
-access are correct, Astrolabe stays up and reports storage unavailable on
-Connections instead of inventing an empty writable store.
+app, configure the App resource's `user_api_scopes` as well as its bindings.
+`app.yaml` tells Astrolabe which scopes to check; it cannot change the App
+resource or cause Databricks to mint those scopes into a user's token. Every
+Astrolabe App needs these four scopes:
+
+- `serving.serving-endpoints`
+- `model-serving`
+- `sql`
+- `dashboards.genie`
+
+Catalog, schema, table, workspace, and Vector Search read scopes are optional
+Connections browsing capabilities. `postgres` is optional Lakebase browsing.
+Do not make any of those a prerequisite for asking questions, and do not add
+`postgres` merely because the app has a Lakebase resource binding.
+
+Bind an existing Lakebase database too. The app uses one Postgres schema inside
+that database for conversations, settings, and roles; this is not a Unity
+Catalog schema. A source-only Git deployment creates and owns `astrolabe`; it
+does not require a schema named `player_insights`. The bound database normally
+grants the app service principal `CREATE`. If it does not, copy the CLI/SQL block
+from the red storage banner: it resolves the app principal, grants
+`CREATE, CONNECT` on the Postgres database, and restarts the app. Do not grant
+or drop roles, and do not grant a Unity Catalog schema. Until storage is fixed,
+questions still run as stateless turns and say that their history was not saved.
 
 **Roles survive every code deploy.** Lakebase is the runtime source of truth for
 super-admin, admin and consumer roles. Deployment configuration can seed the
