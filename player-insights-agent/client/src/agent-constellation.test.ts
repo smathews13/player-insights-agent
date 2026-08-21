@@ -12,7 +12,9 @@ import {
   mapRows,
   pathHeight,
   pathPitch,
+  pathStarX,
   pathStarY,
+  pathVariant,
   starBox,
   starLabel,
   starMeta,
@@ -21,15 +23,18 @@ import {
   MAP_ROW_GAP,
   MAP_STAR_BAND,
   MAP_WIDTH,
+  MIN_PATH_SWING,
   MIN_STAR_GAP,
   PATH_BAND_LEFT,
   PATH_BAND_RIGHT,
   PATH_MAX_PITCH,
   PATH_MIN_PITCH,
+  PATH_SCATTERS,
   PATH_WIDTH,
   SELECTED_RING,
   STAR_REACH,
   type LabelBox,
+  type PathNumber,
 } from './agent-constellation';
 import type { TraceStage } from './answer-shape';
 
@@ -115,6 +120,25 @@ function inside(box: LabelBox, width: number, height: number): boolean {
 function describeBox(box: LabelBox): string {
   return `x ${box.x0.toFixed(1)}..${box.x1.toFixed(1)} y ${box.y0.toFixed(1)}..${box.y1.toFixed(1)}`;
 }
+
+/**
+ * The rectangle a step number occupies beside its star.
+ *
+ * The anchor is which END of the text is pinned to `x`, so an `end`-anchored
+ * number runs left off that point and a `start`-anchored one runs right off it.
+ * Reconstructed here rather than reported by the module because the module
+ * places a point and the renderer turns it into a run of glyphs; this is the
+ * test's own reading of what that run covers.
+ */
+function numberBox(number: PathNumber): LabelBox {
+  const width = labelWidth(number.label, true);
+  return number.anchor === 'end'
+    ? { x0: number.x - width, x1: number.x, y0: number.y - 7, y1: number.y + 2.5 }
+    : { x0: number.x, x1: number.x + width, y0: number.y - 7, y1: number.y + 2.5 };
+}
+
+/** Every sky, by index, for the sweeps that must hold on all of them. */
+const SKIES = PATH_SCATTERS.map((_, variant) => variant);
 
 describe('the agent map, as a box nothing can leave (#18b)', () => {
   it('keeps every star inside the panel at every step count', () => {
@@ -432,11 +456,7 @@ describe('the live agent path, as a box nothing can leave (#18a)', () => {
         const star = path.stars.find((one) => one.step === number.step);
         expect(star).toBeDefined();
         if (star === undefined) continue;
-        const width = labelWidth(number.label, true);
-        const box: LabelBox =
-          number.anchor === 'end'
-            ? { x0: number.x - width, x1: number.x, y0: number.y - 7, y1: number.y + 2.5 }
-            : { x0: number.x, x1: number.x + width, y0: number.y - 7, y1: number.y + 2.5 };
+        const box = numberBox(number);
         expect(inside(box, path.width, path.height), `${count} steps, number ${number.label}`).toBe(true);
         expect(boxesOverlap(box, starBox(star)), `number ${number.label} over its own star`).toBe(false);
       }
@@ -480,6 +500,181 @@ describe('the live agent path, as a box nothing can leave (#18a)', () => {
     for (const count of COUNTS) {
       expect(buildPathConstellation(runOf(count)).width).toBe(PATH_WIDTH);
     }
+  });
+});
+
+describe('the sky a run is drawn on (#18a)', () => {
+  /*
+   * WHY THERE IS MORE THAN ONE SKY, AND WHY ADDING ONE IS SAFE.
+   *
+   * Every run drew the same seven-point chain, so a reader who had watched two
+   * questions had seen the drawing twice and stopped reading it. The fix is a
+   * short list of hand-placed alternatives rather than a random walk -- but a
+   * list is a thing the next person will add a row to, and the row they add is
+   * where the panel starts overflowing again unless the range is held here
+   * rather than in their head.
+   *
+   * So these run over EVERY sky at EVERY count. The first three are the
+   * arithmetic that makes overflow impossible rather than unobserved; the rest
+   * are the properties that make a new row a drawing rather than a scribble.
+   */
+  it('scatters every sky inside the band and nowhere else', () => {
+    // THE ROOT OF THE WHOLE OVERFLOW CLAIM. A star's x is the band's left edge
+    // plus a fraction of its width, so a fraction in [0, 1] cannot place a star
+    // outside the band, and a star inside the band cannot put its glyph, its
+    // ring or its step number outside the panel -- which the two tests below
+    // then read back rather than assume.
+    for (const sky of PATH_SCATTERS) {
+      for (const value of sky) {
+        expect(value).toBeGreaterThanOrEqual(0);
+        expect(value).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('keeps every star, its ring and its step number inside the panel on every sky', () => {
+    for (const variant of SKIES) {
+      for (const count of COUNTS) {
+        const path = buildPathConstellation(runOf(count), 0, variant);
+        for (const star of path.stars) {
+          expect(star.x, `sky ${variant}, ${count} steps, star ${star.step}`).toBeGreaterThanOrEqual(PATH_BAND_LEFT);
+          expect(star.x, `sky ${variant}, ${count} steps, star ${star.step}`).toBeLessThanOrEqual(PATH_BAND_RIGHT);
+          expect(inside(starBox(star), path.width, path.height), `sky ${variant}, star ${star.step}`).toBe(true);
+          expect(
+            inside(starBox(star, SELECTED_RING), path.width, path.height),
+            `sky ${variant}, ring ${star.step}`,
+          ).toBe(true);
+        }
+        for (const number of path.numbers) {
+          const box = numberBox(number);
+          expect(inside(box, path.width, path.height), `sky ${variant}, number ${number.label}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('never draws a hop so shallow it reads as a missing one, at any length', () => {
+    /*
+     * The chain has to look like a chain. Two near-equal positions in a row draw
+     * a vertical stub between two stars a reader takes for one step reported
+     * twice, and the reference sky had exactly that where its seventh value
+     * wrapped onto its first: 0.08 of the band, which is what every eight-step
+     * run drew.
+     *
+     * Checked around the wrap as well as through the row, because a run longer
+     * than a sky repeats it -- `index % length` and nothing cleverer -- so the
+     * wrap is an ordinary hop of a long run rather than a seam. That is what
+     * makes this hold at ANY count rather than at the counts listed above: if
+     * every cyclic pair clears the floor, so does every hop of every run, for
+     * ever.
+     */
+    for (const [variant, sky] of PATH_SCATTERS.entries()) {
+      for (const [at, value] of sky.entries()) {
+        const next = sky[(at + 1) % sky.length];
+        expect(Math.abs(next - value), `sky ${variant}, hop ${at} to ${(at + 1) % sky.length}`).toBeGreaterThanOrEqual(
+          MIN_PATH_SWING,
+        );
+      }
+    }
+  });
+
+  it('draws a different chain on each sky, which is the whole point of having four', () => {
+    // A list of rows that happen to agree is a list with one row in it. Compared
+    // on a run long enough to use every value, so two skies that differ only in
+    // their tail still count as different.
+    const chains = SKIES.map((variant) =>
+      buildPathConstellation(runOf(11), 0, variant)
+        .stars.map((star) => star.x)
+        .join(','),
+    );
+    expect(new Set(chains).size).toBe(SKIES.length);
+  });
+
+  it('hands one run one sky, however many times it is asked for', () => {
+    // The band is rebuilt on every step the agent announces and every second the
+    // caller's clock ticks, so a run whose sky were not a pure function of its
+    // name would re-shuffle under a reader watching the chain arrive.
+    for (const thread of ['conv-a', 'conv-b', '']) {
+      for (let turn = 0; turn < 6; turn += 1) {
+        expect(pathVariant(thread, turn)).toBe(pathVariant(thread, turn));
+        expect(pathVariant(thread, turn)).toBeGreaterThanOrEqual(0);
+        expect(pathVariant(thread, turn)).toBeLessThan(PATH_SCATTERS.length);
+      }
+    }
+  });
+
+  it('never draws two consecutive questions of one conversation the same way', () => {
+    /*
+     * THE DEFECT THE SKIES WERE ADDED TO FIX, stated as arithmetic rather than
+     * as a sample. Hashing the thread and the turn together would spread runs
+     * across the four skies on average and still repeat one time in four -- and
+     * two questions in a row is precisely when a reader is looking for the
+     * difference. Adding the turn makes the repeat impossible instead.
+     */
+    for (const thread of ['conv-a', 'conv-b', 'conv-9f3a24b1-7c05-4e88-b0d2-1e6f5a9c3d70', '']) {
+      for (let turn = 0; turn < 40; turn += 1) {
+        expect(pathVariant(thread, turn + 1), `${thread} turn ${turn}`).not.toBe(pathVariant(thread, turn));
+      }
+    }
+  });
+
+  it('draws the reference sky for a caller that cannot name its run', () => {
+    // Not an arbitrary one. A surface that cannot identify the run it is drawing
+    // should not imply, by picking a shape, that the shape means something.
+    expect(pathVariant('')).toBe(0);
+    expect(buildPathConstellation(runOf(7)).variant).toBe(0);
+  });
+
+  it('starts two different conversations somewhere different in the cycle', () => {
+    // The turn moves a thread along the skies; the thread is what decides where
+    // it starts, so two readers asking their first question do not both watch the
+    // reference chain draw.
+    const starts = new Set(
+      ['conv-1a2b', 'conv-3c4d', 'conv-5e6f', 'conv-7a8b', 'conv-9c0d', 'conv-1e2f'].map((thread) =>
+        pathVariant(thread, 1),
+      ),
+    );
+    expect(starts.size).toBeGreaterThan(1);
+  });
+
+  it('places a star by its index and its sky, and reads back the same way', () => {
+    // `pathStarX` is the claim and the builder is the thing on screen, the same
+    // split `pathStarY` is held to: a position that is stable in one and
+    // recomputed in the other is the same defect wearing a different hat.
+    for (const variant of SKIES) {
+      const path = buildPathConstellation(runOf(40), -1, variant);
+      path.stars.forEach((star, index) => {
+        expect(star.x, `sky ${variant}, star ${star.step}`).toBe(pathStarX(index, variant));
+      });
+      expect(path.variant).toBe(variant);
+    }
+  });
+
+  it('leaves every placed star where it was when the next step arrives, on every sky', () => {
+    // The append-only invariant, which is what stops the chain concertinaing
+    // while a run is going. It has to survive the sky being a second input.
+    for (const variant of SKIES) {
+      for (let count = 1; count < 24; count += 1) {
+        const before = buildPathConstellation(runOf(count), count - 1, variant);
+        const after = buildPathConstellation(runOf(count + 1), count, variant);
+        for (const star of before.stars) {
+          const grown = after.stars.find((one) => one.step === star.step);
+          expect(grown?.x, `sky ${variant}, step ${star.step} x at ${count} steps`).toBe(star.x);
+          expect(grown?.y, `sky ${variant}, step ${star.step} y at ${count} steps`).toBe(star.y);
+        }
+      }
+    }
+  });
+
+  it('leaves the reference run of seven exactly where the design placed it', () => {
+    // #18a is a seven-step drawing on the first sky, and that sky opens on its
+    // own seven positions. Whatever the other three do, and whatever the tail of
+    // this one does past step seven, that drawing is unchanged.
+    const band = PATH_BAND_RIGHT - PATH_BAND_LEFT;
+    const reference = [0.42, 1, 0.78, 0, 0.22, 0.98, 0.5];
+    buildPathConstellation(runOf(7), -1, 0).stars.forEach((star, index) => {
+      expect(star.x, `star ${star.step}`).toBe(PATH_BAND_LEFT + reference[index] * band);
+    });
   });
 });
 

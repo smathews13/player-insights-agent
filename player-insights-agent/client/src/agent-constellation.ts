@@ -552,8 +552,111 @@ const PATH_FULL_PITCH_HOPS = 6;
 /** What each hop past that one gives up, until it reaches the floor. */
 const PATH_PITCH_DECAY = 6;
 
-/** The scatter, as fractions of the band. The reference's own seven x positions. */
-const PATH_SCATTER = [0.42, 1, 0.78, 0, 0.22, 0.98, 0.5];
+/**
+ * The skies a run can be drawn on, as fractions of the band.
+ *
+ * The first row OPENS on the design reference's own seven x positions, so a run
+ * of seven or fewer draws exactly what `#18a` draws. Its last four values are
+ * the continuation the reference never had to specify, and the three rows under
+ * it are whole alternative skies.
+ *
+ * WHY THERE IS MORE THAN ONE. Every run drew the same chain, so the band read as
+ * a decoration of the app rather than a drawing of the run: a reader who had
+ * watched two questions had seen the same seven-point zig-zag twice and stopped
+ * reading it. Four skies is enough that consecutive runs differ and few enough
+ * that each one is a shape somebody placed rather than noise -- which is the
+ * whole distinction the design asks for, and the reason this is a short list of
+ * hand-tuned rows and not a random walk.
+ *
+ * WHICH ROW A RUN GETS IS DECIDED BY ITS SEED AND NOTHING ELSE; see
+ * `pathVariant`. It is emphatically not decided by the step count, the clock or
+ * a render counter: the band is redrawn on every tick of the caller's clock and
+ * on every step the agent announces, so a sky that were a function of any of
+ * those would re-shuffle itself under a reader watching the chain arrive.
+ *
+ * EVERY VALUE IS IN [0, 1], which is what makes the overflow claim survive a new
+ * row: a star's x is `PATH_BAND_LEFT + value * band`, so a value in range cannot
+ * place a star outside the band, and a star inside the band cannot put its glyph,
+ * its ring or its step number outside the panel. `agent-constellation.test.ts`
+ * reads the rows back rather than trusting the next person to hold the range in
+ * their head.
+ *
+ * EACH ROW IS CYCLICALLY WELL SPACED: no two adjacent values, INCLUDING the last
+ * beside the first, are closer than `MIN_PATH_SWING`. Adjacency is checked
+ * around the wrap because a run longer than a row repeats it -- `index % length`
+ * and nothing cleverer -- so the wrap is an ordinary hop of a long run rather
+ * than a seam. That property is what makes the chain a chain at any length: two
+ * near-equal values in a row draw a vertical stub a reader reads as a missing
+ * hop. The reference's own seventh value ran into its first at 0.08, which is
+ * the stub an eight-step run used to draw, and extending the row past seven is
+ * what removed it.
+ */
+export const PATH_SCATTERS: readonly (readonly number[])[] = [
+  [0.42, 1, 0.78, 0, 0.22, 0.98, 0.5, 0.06, 0.68, 0.14, 0.9],
+  [0.9, 0.12, 0.62, 0.04, 0.84, 0.3, 1, 0.46, 0.08, 0.72, 0.26],
+  [0.2, 0.72, 0.02, 0.5, 0.96, 0.34, 0.66, 0.1, 0.88, 0.4, 0.76],
+  [0.56, 0.04, 0.8, 0.24, 1, 0.44, 0.14, 0.7, 0.32, 0.94, 0.06],
+];
+
+/**
+ * The narrowest hop any sky may draw, as a fraction of the band.
+ *
+ * A fifth of the band is 20 units against a pitch of at least 30, so the
+ * shallowest hop still leaves the vertical clearly. Below that the two stars read
+ * as one column and the connector between them as a tick rather than a hop.
+ */
+export const MIN_PATH_SWING = 0.2;
+
+/**
+ * Which sky this run is drawn on: the thread it belongs to, and its place in it.
+ *
+ * TWO INPUTS RATHER THAN ONE HASHED STRING, and the second one is the whole
+ * reason this reads the way it does. Hashing "thread and turn" together spreads
+ * runs across the four skies on average, and on average is not the claim worth
+ * making: with four skies it still hands a reader the same chain twice in a row
+ * one time in four, and two questions in a row is exactly when they are looking
+ * for the difference. Adding the turn instead makes consecutive runs in one
+ * thread draw different skies ALWAYS, because consecutive turns differ by one
+ * and there is more than one sky. That is the same kind of guarantee the rest of
+ * this module trades in: a property of the arithmetic rather than of the sample
+ * somebody happened to try.
+ *
+ * The thread decides where in the cycle a conversation starts, so two threads
+ * asking their first question usually differ too -- FNV-1a, which is four lines
+ * and carries no dependency behind it. Nothing here is defending against
+ * anything, so a spread is the only property being asked of it.
+ *
+ * NEITHER INPUT MAY MOVE WHILE A RUN IS GOING. See `AgentPathConstellation`,
+ * which is where they come from and where that is argued.
+ *
+ * No thread and no turn is a caller with no name for this run, and draws the
+ * design reference's own sky rather than an arbitrary one.
+ */
+export function pathVariant(thread: string, turn = 0): number {
+  let hash = 0;
+  if (thread !== '') {
+    hash = 0x811c9dc5;
+    for (let at = 0; at < thread.length; at += 1) {
+      hash ^= thread.charCodeAt(at);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    hash >>>= 0;
+  }
+  return (hash + Math.max(0, turn)) % PATH_SCATTERS.length;
+}
+
+/**
+ * Where the star at this index sits across the band, on this sky.
+ *
+ * A function of the index and the sky, and of nothing else, for the same reason
+ * `pathStarY` is: the band is rebuilt from scratch every time the run reports a
+ * step, so a star already on screen must land back on the x it was placed at.
+ * `agent-constellation.test.ts` reads this back against the builder.
+ */
+export function pathStarX(index: number, variant = 0): number {
+  const sky = PATH_SCATTERS[variant] ?? PATH_SCATTERS[0];
+  return PATH_BAND_LEFT + sky[index % sky.length] * (PATH_BAND_RIGHT - PATH_BAND_LEFT);
+}
 
 /** The whole placed path. */
 export interface PathConstellation {
@@ -569,6 +672,8 @@ export interface PathConstellation {
    * the only hop a caller could want a figure for.
    */
   pitch: number;
+  /** Which row of `PATH_SCATTERS` this run was drawn on. */
+  variant: number;
 }
 
 /** A step number beside its star. */
@@ -649,15 +754,20 @@ export function pathHeight(count: number): number {
  * A step number sits on the side of its star away from the panel's centre, so it
  * runs outward into the margin rather than back across the chain.
  *
- * APPEND-ONLY. Every position here is a function of a star's INDEX and nothing
- * else -- `PATH_SCATTER` for the x, `pathStarY` for the y -- so appending a step
- * cannot move a star that is already on screen. That is a property of this
- * function rather than of the component, which is why it is asserted here: the
- * band is redrawn on every tick of the caller's clock, and a layout that only
- * happened to be stable would shake on a surface nobody would think to check.
+ * `variant` is which sky the run is drawn on, and it is the caller's decision
+ * because a run's identity is the caller's to know -- see `pathVariant`. It
+ * changes WHERE the stars are and nothing about what they mean, so every
+ * invariant below holds on every sky and the test runs them over all of them.
+ *
+ * APPEND-ONLY. Every position here is a function of a star's INDEX and the sky,
+ * and of nothing else -- `pathStarX` for the x, `pathStarY` for the y -- so
+ * appending a step cannot move a star that is already on screen. That is a
+ * property of this function rather than of the component, which is why it is
+ * asserted here: the band is redrawn on every tick of the caller's clock, and a
+ * layout that only happened to be stable would shake on a surface nobody would
+ * think to check.
  */
-export function buildPathConstellation(stages: TraceStage[], activeIndex = -1): PathConstellation {
-  const band = PATH_BAND_RIGHT - PATH_BAND_LEFT;
+export function buildPathConstellation(stages: TraceStage[], activeIndex = -1, variant = 0): PathConstellation {
   const centre = PATH_WIDTH / 2;
 
   /* Accumulated rather than `pathStarY` per star, so the walk is one pass; the
@@ -668,7 +778,7 @@ export function buildPathConstellation(stages: TraceStage[], activeIndex = -1): 
     return {
       id: stage.id,
       step: index + 1,
-      x: PATH_BAND_LEFT + PATH_SCATTER[index % PATH_SCATTER.length] * band,
+      x: pathStarX(index, variant),
       y,
       decision: stage.kind === 'agent',
       tool: toolNameFromId(stage.id),
@@ -705,6 +815,7 @@ export function buildPathConstellation(stages: TraceStage[], activeIndex = -1): 
     links,
     numbers,
     pitch: pathPitch(stages.length),
+    variant,
   };
 }
 

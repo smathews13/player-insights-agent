@@ -43,6 +43,7 @@ import {
   buildMapConstellation,
   buildPathConstellation,
   pathStarY,
+  pathVariant,
   PATH_WIDTH,
   SELECTED_RING,
   type ConstellationLabel,
@@ -235,6 +236,8 @@ export function AgentPathConstellation({
   activeIndex,
   elapsedMs,
   totalMs = null,
+  thread = '',
+  turn = 0,
 }: {
   stages: TraceStage[];
   /** The step in progress, or -1. The caller's decision, not this file's. */
@@ -243,6 +246,32 @@ export function AgentPathConstellation({
   elapsedMs: number | null;
   /** The settled run's wall time, when the trace recorded one. */
   totalMs?: number | null;
+  /**
+   * The series of runs this one belongs to, and its place in that series.
+   *
+   * Together they name the run, and `pathVariant` turns them into one of four
+   * hand-placed skies. Every run used to draw the identical chain: a reader who
+   * had watched two questions had seen the drawing twice, so the band stopped
+   * being read as a picture of THIS run and became furniture.
+   *
+   * NEITHER MAY MOVE WHILE THE RUN IS GOING. The stars are re-placed from
+   * scratch every time the agent announces a step and every second the caller's
+   * clock ticks, so an input that drifted mid-run -- the step count, the elapsed
+   * time, a render counter, the answer's id, which does not exist until the run
+   * lands -- would re-shuffle the chain under a reader watching it arrive. That
+   * is the shake `pathPitch` was rewritten to end, and it would be back on the x
+   * axis.
+   *
+   * BOTH MUST SURVIVE A RELOAD, or a run a reader comes back to is drawn on a
+   * different sky from the one they left it on.
+   *
+   * The defaults are a caller with no name for the run, and draw the design
+   * reference's own sky. That is the honest default rather than an arbitrary
+   * one: a surface that cannot identify its run should not imply, by picking a
+   * shape, that the shape means something.
+   */
+  thread?: string;
+  turn?: number;
 }) {
   /*
    * The step the reader pinned, BY ID and toggled off by a second press, which is
@@ -366,7 +395,7 @@ export function AgentPathConstellation({
   const inFlight = current?.status === 'running';
   // Nothing draws and nothing pulses on a run that has stopped. A line animating
   // into the last step of a finished run is the panel saying the run is still going.
-  const path = buildPathConstellation(stages, inFlight ? activeIndex : -1);
+  const path = buildPathConstellation(stages, inFlight ? activeIndex : -1, pathVariant(thread, turn));
   const currentStar = current ? path.stars[activeIndex] : null;
   const shownProduct = shownIndex >= 0 ? starProduct(path.stars[shownIndex]?.tool ?? '') : null;
   const statusDuration =

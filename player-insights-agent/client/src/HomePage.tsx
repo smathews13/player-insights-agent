@@ -553,6 +553,28 @@ export function HomePage() {
    * rather than a figure that looks live.
    */
   const railElapsedMs = runningElapsed({ loading, runningSince, now });
+  /**
+   * Which question of this conversation the agent path is drawing, which is what
+   * decides the shape of the chain it draws.
+   *
+   * The band used to draw the identical seven-point chain for every question
+   * anybody ever asked, so it stopped being read as a drawing of THIS run and
+   * became part of the furniture. The conversation decides where in the four
+   * skies this thread starts and the turn moves it on by one each question, so a
+   * follow-up cannot repeat the chain of the question above it.
+   *
+   * The count of questions asked, because that is the one number that names a
+   * run and does not move while the run is going: the user's message is appended
+   * before the first step is announced and nothing after that changes it. NOT
+   * THE STEP COUNT OR THE ELAPSED TIME, which move under a reader watching the
+   * chain arrive, and not the answer's id, which does not exist until the run
+   * lands and would therefore change the drawing at the moment the answer did.
+   *
+   * Both come back unchanged on a reload -- the id is in the URL and the
+   * questions are in the stored transcript -- so a run reopened is drawn on the
+   * sky it was left on.
+   */
+  const railTurn = messages.filter((message) => message.role === 'user').length;
   /*
    * Which seating the working animation takes: the full panel while the answer
    * column has nothing in it, the compact strip once there is an answer above to
@@ -2052,6 +2074,8 @@ export function HomePage() {
             activeIndex={railActiveIndex}
             elapsedMs={railElapsedMs}
             totalMs={answer?.trace.totalMs ?? asked?.trace.totalMs ?? null}
+            thread={conversationId}
+            turn={railTurn}
           />
         ) : /* Nothing to draw, which is two different states: a run is going and
                  has not reported a step yet, or nothing has been asked at all. They
