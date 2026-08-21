@@ -51,8 +51,6 @@ import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
 import { withDeadline } from '../lib/deadline';
 import {
-  REQUEST_LATENCY_DDL,
-  REQUEST_LATENCY_INDEX_DDL,
   requestLatencyRecorder,
 } from '../lib/request-latency';
 import {
@@ -233,11 +231,6 @@ export const schemaStatements = [
   // one direction of the same walk.
   `CREATE INDEX IF NOT EXISTS messages_created_at_idx
      ON ${APP_SCHEMA}.messages (created_at DESC)`,
-  // App-owned route timings. This is deliberately Lakebase rather than OTEL:
-  // customer deployments leave billed telemetry off, while Ops still needs to
-  // report the API routes this server actually handled.
-  REQUEST_LATENCY_DDL,
-  REQUEST_LATENCY_INDEX_DDL,
   `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.attachments (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, user_email TEXT NOT NULL,
     filename TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,
     extracted_text TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -289,7 +289,7 @@ function Absence({ notice, children }: { notice: AbsenceCopy; children?: React.R
   return (
     <div className="ops-absence">
       <p className="ops-absence-title">{notice.title}</p>
-      <p className="ops-absence-body">{notice.body}</p>
+      {notice.body ? <p className="ops-absence-body">{notice.body}</p> : null}
       {children}
     </div>
   );

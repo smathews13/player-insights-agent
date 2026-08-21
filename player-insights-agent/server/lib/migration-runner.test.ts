@@ -239,6 +239,16 @@ describe('the model release audit migration', () => {
   });
 });
 
+describe('the app request timing migration', () => {
+  it('creates the Lakebase destination on existing versioned schemas', () => {
+    const migration = MIGRATIONS.find((entry) => entry.name === 'app request timings');
+    expect(migration?.version).toBe(8);
+    expect(migration?.statements.join('\n')).toContain('CREATE TABLE IF NOT EXISTS');
+    expect(migration?.statements.join('\n')).toContain('request_latencies');
+    expect(MIGRATIONS[0].statements.join('\n')).not.toContain('request_latencies');
+  });
+});
+
 describe('a fresh database', () => {
   it('applies every version in order and records each one', async () => {
     const store = fakeStore();

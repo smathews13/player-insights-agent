@@ -558,7 +558,9 @@ export function telemetryNotice(
   if (state === 'not-enabled') {
     return {
       title: 'App telemetry is off',
-      body: `Nothing sets ${input.variable}, so nothing is written and nothing is charged for it.`,
+      // Status only. The configuration variable and billing narrative are
+      // deployment details, not useful copy for somebody reading Ops.
+      body: '',
     };
   }
   if (state === 'no-grant') {

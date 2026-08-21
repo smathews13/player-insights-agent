@@ -328,12 +328,10 @@ describe('an empty cost block', () => {
 describe('the telemetry notice', () => {
   const input = { variable: 'PLAYER_INSIGHTS_TELEMETRY_SCHEMA', table: 'a_catalog.a_schema.otel_logs', reason: '' };
 
-  it('treats being switched off as a configuration rather than a fault', () => {
+  it('reports being switched off without configuration or billing narrative', () => {
     const notice = telemetryNotice('not-enabled', input);
     expect(notice?.title).toMatch(/off/);
-    expect(notice?.body).toContain(input.variable);
-    // Ingestion is billed, so a deployment that opted out is correct.
-    expect(notice?.body).toMatch(/nothing is charged/);
+    expect(notice?.body).toBe('');
   });
 
   it('tells a missing grant apart from a table with no rows yet', () => {

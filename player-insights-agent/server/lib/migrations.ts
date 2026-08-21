@@ -1,4 +1,5 @@
 import { APP_SCHEMA } from '../../shared/app-schema';
+import { REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL } from './request-latency';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -380,6 +381,18 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
        )`,
     ],
     down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.runtime_settings`],
+  },
+  {
+    version: 8,
+    name: 'app request timings',
+    // A numbered migration, not an edit to the recorded baseline. Existing
+    // deployments already have version 1, so adding these statements there
+    // caused the writer to start without ever creating its destination.
+    statements: [REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL],
+    down: [
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.request_latencies_recorded_route_idx`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.request_latencies`,
+    ],
   },
 ];
 

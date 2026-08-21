@@ -522,10 +522,11 @@ describe('the health block', () => {
     expect(markup).toContain('https://example.test/apps/pia/insights');
   });
 
-  it('explains telemetry being off rather than drawing an empty chart', () => {
+  it('shows telemetry being off without deployment-variable narrative', () => {
     const markup = render(<HealthBody block={block(health())} />);
     expect(markup).toContain('App telemetry is off');
-    expect(markup).toContain('PLAYER_INSIGHTS_TELEMETRY_SCHEMA');
+    expect(markup).not.toContain('PLAYER_INSIGHTS_TELEMETRY_SCHEMA');
+    expect(markup).not.toContain('ops-absence-body');
   });
 
   it('offers a statement to run when the telemetry table cannot be read', () => {
