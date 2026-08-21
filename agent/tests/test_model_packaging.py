@@ -29,6 +29,28 @@ from pathlib import Path
 AGENT = Path(__file__).parents[1]
 ENTRY = "agent"
 
+#: Operator-side programs that must never enter the served artifact.
+#:
+#: This is a boundary rather than an inventory of everything currently omitted.
+#: Each file below either writes workspace state, resolves release-time
+#: configuration, or builds an artifact. Shipping one would give the serving
+#: container release machinery it neither imports nor needs, and would make the
+#: artifact's contents depend on what happened to be beside agent.py at log time.
+#:
+#: Kept explicit even though `test_nothing_is_logged_that_the_agent_does_not_import`
+#: also catches today's list. That derivation answers "is this imported?" This
+#: list answers the stronger question from the model-update contract: "may this
+#: category of file ever ship?", including after an accidental runtime import.
+RELEASE_ONLY = {
+    "apply_from_declaration",
+    "apply_model_version",
+    "deploy_agent",
+    "host_metadata_probe",
+    "log_model",
+    "manifest_dryrun",
+    "semantic_layer_build",
+}
+
 #: Import name to the distribution that provides it, for the few that differ.
 #: Only what the agent actually imports; this is not a general mapping.
 DISTRIBUTIONS = {"databricks": "databricks-sdk"}
@@ -91,6 +113,15 @@ def test_nothing_is_logged_that_the_agent_does_not_import():
     # before the next person trusts the list as an inventory.
     extra = sorted(_declared() - _reachable())
     assert not extra, f"{', '.join(extra)} is logged with the model and imported by nothing"
+
+
+def test_release_programs_never_ship_inside_the_served_model():
+    shipped = {ENTRY, *_declared()}
+    leaked = sorted(RELEASE_ONLY & shipped)
+    assert not leaked, (
+        f"{', '.join(leaked)} is release machinery, not runtime agent code. "
+        "Keep it out of python_model and code_paths."
+    )
 
 
 def _declared_requirements() -> set[str]:
