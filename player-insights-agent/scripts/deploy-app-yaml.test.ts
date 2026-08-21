@@ -201,11 +201,6 @@ describe('every authored variable reaches the deploy target', () => {
 
     expect(generated).toContain('valueFrom: postgres');
     expect(generated).toContain('valueFrom: serving-endpoint');
-    expect(generated).toContain('name: ASTROLABE_SLACK_BOT_TOKEN\n    valueFrom: slack-bot-token');
-    expect(generated).toContain('name: ASTROLABE_SLACK_FEEDBACK_USER_ID\n    valueFrom: slack-feedback-user-id');
-    expect(generated).toContain(
-      'name: ASTROLABE_SLACK_SUPER_ADMIN_USER_ID\n    valueFrom: slack-super-admin-user-id'
-    );
   });
 
   it('preserves the comments explaining why a variable is there', () => {

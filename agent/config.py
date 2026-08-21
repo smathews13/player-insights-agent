@@ -211,7 +211,7 @@ def _missing_message(missing: list[str], profile_name: str) -> str:
         else ""
     )
     return (
-        f"Missing required Player Insights configuration: {', '.join(missing)}."
+        f"Missing required Astrolabe configuration: {', '.join(missing)}."
         f"{asked_for}\n\n"
         "Inside the serving endpoint these arrive in the model artifact: "
         "bundle/agent-release.sh resolves the bundle target's variables and "

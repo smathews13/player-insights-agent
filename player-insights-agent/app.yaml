@@ -17,14 +17,6 @@ env:
   # reports that it could not check rather than that access was refused.
   - name: DATABRICKS_SQL_WAREHOUSE_ID
     valueFrom: sql-warehouse
-  # Slack account-menu actions use App secret resources. The bundle binds each
-  # resource to a Databricks secret; this file contains no token or recipient ID.
-  - name: ASTROLABE_SLACK_BOT_TOKEN
-    valueFrom: slack-bot-token
-  - name: ASTROLABE_SLACK_FEEDBACK_USER_ID
-    valueFrom: slack-feedback-user-id
-  - name: ASTROLABE_SLACK_SUPER_ADMIN_USER_ID
-    valueFrom: slack-super-admin-user-id
   # The experiment the serving endpoint traces into, which lets Run Explorer
   # deep-link a stored MLflow trace id. Supplied two ways, and the app prefers the
   # more specific: a numeric id here wins; empty (the authored default) falls

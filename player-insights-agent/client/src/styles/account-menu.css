@@ -106,7 +106,7 @@
   outline: none;
 }
 
-.account-menu-group:not(.account-menu-leave) > button > :last-child {
+.account-menu-group:not(.account-menu-leave) > :is(button, a) > :last-child {
   width: 14px;
   height: 14px;
   margin-left: auto;

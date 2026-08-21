@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Identity } from './app-types';
-import { AccountMenuPanel, SlackComposer } from './AccountMenu';
+import { AccountMenuPanel } from './AccountMenu';
+import { accountSlackHref } from './account-slack-links';
 import { FIRST_OPEN_KEY, FIRST_OPEN_OUTCOME_KEY, signOutOfAstrolabe } from './first-open';
 
 const IDENTITY: Identity = {
@@ -14,7 +15,7 @@ const IDENTITY: Identity = {
 describe('account menu', () => {
   it('opens with the live identity and the fixed menu order', () => {
     const markup = renderToStaticMarkup(
-      <AccountMenuPanel identity={IDENTITY} onCompose={() => {}} onSignOut={() => {}} />
+      <AccountMenuPanel identity={IDENTITY} onSignOut={() => {}} />
     );
     const labels = [
       'jordan.lee',
@@ -33,26 +34,24 @@ describe('account menu', () => {
     expect(markup).not.toMatch(/Slack[^<]*astrolabe|astrolabe[^<]*Slack/);
   });
 
-  it('renders the shared Slack composer for escalation', () => {
-    const markup = renderToStaticMarkup(<SlackComposer action="escalation" identity={IDENTITY} onClose={() => {}} />);
-    expect(markup).toContain('role="dialog"');
-    expect(markup).toContain('aria-modal="true"');
-    expect(markup).toContain('Escalate to Super Admin');
-    expect(markup).toContain('Super Admin');
-    expect(markup).toContain('Slack');
-    expect(markup).toContain('What do you need from the Super Admin?');
-    expect(markup).toContain('Sends your name and a link to this page.');
-    expect(markup).toContain('Send on Slack');
+  it('opens Slack DMs addressed to Sam for feedback and Garrett for escalation', () => {
+    const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} onSignOut={() => {}} />);
+    expect(accountSlackHref('feedback')).toBe(
+      'https://slack.com/app_redirect?team=T02EPKPG3&channel=U04H3555WMB'
+    );
+    expect(accountSlackHref('escalation')).toBe(
+      'https://slack.com/app_redirect?team=T02EPKPG3&channel=U06BV72N4KY'
+    );
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain('rel="noopener noreferrer"');
   });
 
-  it('posts the message, page URL, and live user to the server', () => {
+  it('does not send Slack messages through the Astrolabe server', () => {
     const source = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
-    expect(source).toContain("fetch('/api/account/slack-message'");
-    expect(source).toContain('message: text');
-    expect(source).toContain('pageUrl: window.location.href');
-    expect(source).toContain('user: identity.signedInAs');
+    expect(source).not.toContain('/api/account/slack-message');
+    expect(source).not.toContain('chat.postMessage');
     expect(source).toContain("window.addEventListener('keydown', onKeyDown)");
-    expect(source).toContain("event.key === 'Escape'");
+    expect(source).toContain("event.key !== 'Escape'");
   });
 
   it('ends only the Astrolabe tab session', () => {
