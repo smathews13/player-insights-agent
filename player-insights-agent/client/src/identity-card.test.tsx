@@ -143,7 +143,8 @@ describe('IdentityCard', () => {
         }}
       />
     );
-    expect(markup).toMatch(/dashboards\.genie — this sign-in does not carry it/);
+    expect(markup).toMatch(/dashboards\.genie\. This sign-in does not carry it\./);
+    expect(markup).not.toMatch(/[—–]/);
     expect(markup).toMatch(/data-absent="true"/);
   });
 

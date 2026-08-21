@@ -267,12 +267,40 @@ describe('rendered markdown results', () => {
     expect(markup).toContain('class="dag-md-head"');
     expect(markup).toContain('>DATA PACKAGE</strong>');
     expect(markup).toContain('class="dag-md-rule"');
-    expect(markup).toContain('<table>');
+    expect(markup).toContain('<table class="answer-table">');
     expect(markup).toContain('<strong>Prepared the answer.</strong>');
     expect(markup).toContain('<pre class="dag-md-code"><code data-language="sql">SELECT * FROM catalog.schema.players</code></pre>');
     expect(markup).not.toContain('| --- |');
     expect(markup).not.toContain('**Prepared');
     expect(markup).not.toContain('## DATA PACKAGE');
+  });
+
+  it('renders the reported DATA PACKAGE columns table in Run Explorer', () => {
+    const output = [
+      '## DATA PACKAGE',
+      '',
+      '- **Interpretation:** inspect the governed player fields.',
+      '',
+      '### Columns',
+      '',
+      '| Table | Column | Type | Description | Rows |',
+      '|---|---|---|---|---:|',
+      '| `player_profiles` | `player_id` | `STRING` | Stable identifier \u2014 not a display name | 14,421,932 |',
+      '',
+      '- **Sources:** `catalog.schema.player_profiles`.',
+    ].join('\n');
+    const markup = result(panel({
+      id: 'data_source_finder',
+      kind: 'agent',
+      name: 'Prepared the data package',
+      output,
+    }));
+    expect(markup).toContain('<table class="answer-table">');
+    expect(markup).toContain('<th scope="col" data-align="left">Table</th>');
+    expect(markup).toContain('<code class="dag-name-chip" title="player_profiles">player_profiles</code>');
+    expect(markup).toContain('<td data-align="right">14,421,932</td>');
+    expect(markup).not.toContain('|---|');
+    expect(markup).not.toContain('`player_id`');
   });
 
   it('does not turn a whole prose block into one blue identifier chip', () => {

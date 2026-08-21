@@ -321,7 +321,7 @@ export async function applyAstrolabeTags(input: {
   }
 
   return {
-    tagged: results.filter((result) => result.status === 'tagged' || result.status === 'already-tagged').length,
+    tagged: results.filter((result) => result.status === 'tagged').length,
     alreadyTagged: results.filter((result) => result.status === 'already-tagged').length,
     skipped: results.filter((result) => result.status === 'skipped').length,
     failed: results.filter((result) => result.status === 'failed').length,

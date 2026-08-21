@@ -134,7 +134,7 @@ CHART_ARGUMENTS = json.dumps(
 #: a planning call from the loop, the synthesis and the plot. It matches the way
 #: the real client tells them apart (by what the request is) rather than by
 #: counting calls, which would silently mis-route the moment an extra one is made.
-PLANNER_PREFIX = "You are the Player Insights Agent's planner"
+PLANNER_PREFIX = "You are Astrolabe's planner"
 PLANNER_SELECTION_MARKER = "chooses which tables"
 
 

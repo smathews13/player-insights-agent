@@ -86,10 +86,25 @@ describe('applying Astrolabe resource tags', () => {
       platform: fake,
     });
 
-    expect(summary).toMatchObject({ tagged: 1, alreadyTagged: 1, skipped: 0, failed: 0 });
+    expect(summary).toMatchObject({ tagged: 0, alreadyTagged: 1, skipped: 0, failed: 0 });
     expect(summary.results[0].status).toBe('already-tagged');
     expect(createAppTag).not.toHaveBeenCalled();
     expect(updateAppTag).not.toHaveBeenCalled();
+  });
+
+  it('keeps newly tagged and already-tagged resources in separate counts', async () => {
+    const summary = await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_APP_NAME: 'astrolabe',
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'astrolabe-agent',
+      },
+      report: null,
+      platform: platform({
+        getAppTag: vi.fn(() => Promise.resolve('true')),
+      }),
+    });
+
+    expect(summary).toMatchObject({ tagged: 1, alreadyTagged: 1, skipped: 0, failed: 0 });
   });
 
   it('skips a Vector Search index explicitly and tags only its endpoint', async () => {

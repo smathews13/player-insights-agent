@@ -26,7 +26,7 @@
  * carry one, for the reason `answer-markdown.ts` spells out: this is model
  * output, and the tree it parses into has no branch that holds markup.
  */
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 import { parseAnswerMarkdown, type Block, type Inline } from './answer-markdown';
@@ -158,17 +158,14 @@ function MarkdownBlock({ block }: { block: Block }) {
         </ul>
       );
     case 'table':
-      // MOSTLY UNREACHED, AND WORTH HAVING ANYWAY. `MarkdownText` below cuts a
-      // header-and-separator table out of the text before this ever sees it and
-      // draws it as a ResultGrid, which is nearly every table a step returns. What
-      // reaches here is the shape that pre-pass has no rule for: a run of pipe
-      // rows with no separator under it, which used to land in a paragraph and
-      // come out as the pipes the agent typed.
+      // Drawn from the same parsed block as the Ask transcript. Run Explorer
+      // previously cut header-and-separator tables out first and sent their raw
+      // strings to ResultGrid, while every other Markdown block came through
+      // this shared parser. That second parser was a separate answer to the same
+      // question and dropped inline Markdown inside cells. Keeping every table
+      // here means a stored answer and its live transcript cannot disagree about
+      // whether backticks, bold totals, or the table itself are markup.
       //
-      // Drawn in the answer card's treatment rather than in a third one. The
-      // alternative was to restate ResultGrid's markup for a block whose cells
-      // are already parsed -- and the reason not to is the bolded total row: the
-      // grid takes plain strings, so a total arrives there as `**3,914**`.
       // Scrolls inside the panel; see `.answer-table-wrap` in answer.css.
       return (<div className="answer-table-wrap">
           <table className="answer-table">
@@ -210,37 +207,8 @@ function MarkdownBlock({ block }: { block: Block }) {
 
 /** Markdown, where every shape that would not parse lands. */
 export function MarkdownText({ text }: { text: string }) {
-  const lines = text.split('\n');
-  const rendered: ReactNode[] = [];
-  let prose: string[] = [];
-  const flushProse = () => {
-    if (prose.some((line) => line.trim())) {
-      rendered.push(...parseAnswerMarkdown(prose.join('\n')).map((block) => <MarkdownBlock block={block} key={`p-${block.start}-${rendered.length}`} />));
-    }
-    prose = [];
-  };
-  for (let at = 0; at < lines.length;) {
-    const isTableStart = lines[at].includes('|') && /^\s*\|?\s*:?-{2,}/.test(lines[at + 1] ?? '');
-    if (!isTableStart) {
-      prose.push(lines[at]);
-      at += 1;
-      continue;
-    }
-    flushProse();
-    const tableLines: string[] = [lines[at]];
-    at += 2; // the separator is layout, not a data row
-    while (at < lines.length && lines[at].includes('|') && lines[at].trim()) {
-      tableLines.push(lines[at]);
-      at += 1;
-    }
-    const cells = (line: string) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
-    const head = cells(tableLines[0]);
-    const rows = tableLines.slice(1).map(cells).filter((row) => row.length === head.length);
-    rendered.push(<ResultGrid key={`t-${at}`} table={{ head, rows, note: null }} />);
-  }
-  flushProse();
   return (<div className="dag-md">
-      {rendered}
+      {parseAnswerMarkdown(text).map((block) => <MarkdownBlock block={block} key={block.start} />)}
     </div>
   );
 }

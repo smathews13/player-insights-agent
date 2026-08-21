@@ -48,6 +48,21 @@ const COUNTRIES = [
   '| ES | 44 | 35 |',
 ].join('\n');
 
+/** The DATA PACKAGE shape reported from Run Explorer, including cell Markdown. */
+const DATA_PACKAGE = [
+  '## DATA PACKAGE',
+  '',
+  '- **Interpretation:** inspect the governed player fields.',
+  '',
+  '### Columns',
+  '',
+  '| Table | Column | Type | Description | Rows |',
+  '|---|---|---|---|---:|',
+  '| `player_profiles` | `player_id` | `STRING` | Stable identifier \u2014 not a display name | 14,421,932 |',
+  '',
+  '- **Sources:** `catalog.schema.player_profiles`.',
+].join('\n');
+
 function render(text: string): string {
   return renderToStaticMarkup(<AnswerProse text={text} sources={[]} />);
 }
@@ -91,6 +106,20 @@ describe('a table the agent wrote is drawn as a table', () => {
     const shown = readable(render(RAMP));
     expect(shown).not.toContain('|');
     expect(shown).not.toContain('---');
+  });
+
+  it('renders the Run Explorer DATA PACKAGE shape in the Ask transcript', () => {
+    const markup = render(DATA_PACKAGE);
+    expect(cells(markup, 'th')).toEqual(['Table', 'Column', 'Type', 'Description', 'Rows']);
+    expect(cells(markup, 'td')).toEqual([
+      'player_profiles',
+      'player_id',
+      'STRING',
+      'Stable identifier \u2014 not a display name',
+      '14,421,932',
+    ]);
+    expect(markup).toContain('<code class="answer-code entity-quote">player_profiles</code>');
+    expect(readable(markup)).not.toContain('|---|');
   });
 
   it('associates every figure with the column it is in, for a reader who cannot see the grid', () => {

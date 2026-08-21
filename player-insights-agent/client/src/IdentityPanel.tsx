@@ -146,9 +146,9 @@ function ScopeList({
       {scopes.map((scope) => {
         const absent = missing?.has(scope) ?? false;
         const title = absent
-          ? `${scope} — this sign-in does not carry it`
+          ? `${scope}. This sign-in does not carry it.`
           : optional
-            ? `${scope} — optional (Connections / Ops catalog probes)`
+            ? `${scope}. Optional for Connections and Ops catalog probes.`
             : scope;
         return (
           <span
