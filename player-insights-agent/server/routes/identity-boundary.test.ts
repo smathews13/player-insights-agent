@@ -216,7 +216,13 @@ describe('a deployed app with a forwarded identity', () => {
     }
 
     // The whole defect was that these collapsed into one bucket.
-    expect(store.queries.map((entry) => entry.params[0])).toEqual(['first@example.example', 'second@example.example']);
+    // Latency telemetry also writes on every /api/ response, with GET as $1;
+    // that is not a tenancy key and must not be counted as one.
+    expect(
+      store.queries
+        .filter((entry) => !entry.sql.includes('request_latencies'))
+        .map((entry) => entry.params[0])
+    ).toEqual(['first@example.example', 'second@example.example']);
   });
 
   it('reports the caller as signed in, not the app owner', async () => {
@@ -525,7 +531,9 @@ describe('one signed-in user cannot write into another user\u2019s conversation'
       // exists but belongs to someone else is itself a disclosure.
       expect(response.status).toBe(404);
       expect(await response.json()).toMatchObject({ error: 'conversation_not_found' });
-      expect(statements.filter((sql) => sql.startsWith('INSERT'))).toEqual([]);
+      expect(
+        statements.filter((sql) => sql.startsWith('INSERT') && !sql.includes('request_latencies'))
+      ).toEqual([]);
     } finally {
       await app.close();
     }

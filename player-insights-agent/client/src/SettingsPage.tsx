@@ -13,6 +13,8 @@ import { Button, Switch } from './ui';
 
 type SettingsSection = 'roles' | 'runtime' | 'appearance' | 'egress' | 'experimental';
 
+const noopClose = () => {};
+
 const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'roles', label: 'Roles' },
   { id: 'runtime', label: 'Runtime' },
@@ -31,7 +33,7 @@ export function SettingsPage({
   const { features, setFeature } = useOutletContext<ExperimentalFeaturesHandle>();
   const role = useRole();
   const [active, setActive] = useState<SettingsSection>(initialSection);
-  const close = onClose ?? (() => {});
+  const close = onClose ?? noopClose;
   const sections = BASE_SECTIONS.filter((section) => section.id !== 'egress' || showsEgressControls(features));
 
   useEffect(() => {

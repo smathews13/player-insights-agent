@@ -222,21 +222,21 @@
 }
 
 .trace-inspector .run-status--dark.ast-pill--pos {
-  border-color: rgba(59, 166, 94, 0.45);
-  background: rgba(59, 166, 94, 0.12);
-  color: #7bd89b;
+  border-color: color-mix(in oklab, var(--ast-pos-text) 45%, transparent);
+  background: color-mix(in oklab, var(--ast-pos-text) 12%, transparent);
+  color: color-mix(in oklab, var(--ast-pos-text) 45%, var(--ast-white));
 }
 
 .trace-inspector .run-status--dark.is-live {
-  border-color: rgba(111, 174, 221, 0.45);
-  background: rgba(111, 174, 221, 0.12);
-  color: #9cc9e8;
+  border-color: color-mix(in oklab, var(--ast-blue-on-dark) 45%, transparent);
+  background: color-mix(in oklab, var(--ast-blue-on-dark) 12%, transparent);
+  color: var(--ast-blue-on-dark);
 }
 
 .trace-inspector .run-status--dark.ast-pill--neg {
-  border-color: rgba(224, 91, 117, 0.45);
-  background: rgba(224, 91, 117, 0.12);
-  color: #f2a1b2;
+  border-color: color-mix(in oklab, var(--ast-neg-text) 45%, transparent);
+  background: color-mix(in oklab, var(--ast-neg-text) 12%, transparent);
+  color: color-mix(in oklab, var(--ast-neg-text) 45%, var(--ast-white));
 }
 
 .trace-inspector .run-status--dark.ast-pill--neutral-outline {
@@ -406,7 +406,7 @@
 .trace-inspector .trace-explore {
   min-height: 34px;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ast-white);
   font-size: 13px;

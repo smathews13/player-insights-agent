@@ -402,7 +402,7 @@ export function Layout() {
   const settingsVisible = settingsOpen || settingsDeepLink;
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
-    if (settingsDeepLink) navigate('/', { replace: true });
+    if (settingsDeepLink) void navigate('/', { replace: true });
   }, [navigate, settingsDeepLink]);
   // Read once, when the app opens, and held here. `useState(fn)` rather than
   // `useState(readExperimentalFeatures())` so the read happens on mount instead

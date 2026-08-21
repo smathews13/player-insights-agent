@@ -62,7 +62,7 @@ function resolution(state: RoleState): RoleResolution {
 function identity(signedInAs = '<your-username>'): Identity {
   return {
     signedInAs,
-    executionIdentity: 'Player Insights service principal',
+    executionIdentity: 'Astrolabe service principal',
     executionMode: 'service-principal',
   };
 }

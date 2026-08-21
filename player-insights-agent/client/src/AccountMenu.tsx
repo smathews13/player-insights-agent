@@ -1,11 +1,21 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react';
 import { Link2, LogOut, Send, ShieldPlus, UserRound, X } from 'lucide-react';
 import type { Identity } from './app-types';
+import { AstrolabeMark } from './AstrolabeMark';
+import { BrandIcon } from './BrandIcon';
+import { DATABRICKS_SYMBOL } from './brand-icons';
 import { signOutOfAstrolabe } from './first-open';
 import { identityName } from './user-identity';
-import appsIcon from './assets/logo/theme/apps-blue-light.svg';
-import astrolabeIcon from './assets/logo/astrolabe-dpad.svg';
-import databricksSymbol from './assets/brand/databricks-symbol-color.svg';
+
+function DatabricksSymbol({ className }: { className?: string }) {
+  return (
+    <span
+      className={className}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: DATABRICKS_SYMBOL }}
+    />
+  );
+}
 
 export type SlackAction = 'feedback' | 'escalation';
 
@@ -136,7 +146,7 @@ export function SlackComposer({
             <label>To</label>
             <div className="account-composer-recipient" aria-readonly="true">
               {action === 'feedback' ? (
-                <img src={databricksSymbol} alt="" aria-hidden="true" />
+                <DatabricksSymbol className="account-menu-databricks" />
               ) : (
                 <ShieldPlus aria-hidden="true" />
               )}
@@ -197,7 +207,7 @@ export function AccountMenuPanel({
       <div className="account-menu-group">
         <button type="button" role="menuitem" onClick={() => onCompose('feedback')}>
           <span>Report feedback</span>
-          <img className="account-menu-databricks" src={databricksSymbol} alt="" aria-hidden="true" />
+          <DatabricksSymbol className="account-menu-databricks" />
         </button>
         <button type="button" role="menuitem" onClick={() => onCompose('escalation')}>
           <span>Escalate to Super Admin</span>
@@ -206,13 +216,13 @@ export function AccountMenuPanel({
       </div>
       <div className="account-menu-group account-menu-leave">
         <a href="/api/account/apps" role="menuitem">
-          <img src={appsIcon} alt="" aria-hidden="true" />
+          <BrandIcon product="apps" size={14} />
           <span>Back to Databricks Apps</span>
         </a>
         <button type="button" role="menuitem" onClick={onSignOut}>
           <LogOut aria-hidden="true" />
           <span>Sign out of</span>
-          <img className="account-menu-astrolabe" src={astrolabeIcon} alt="" aria-hidden="true" />
+          <AstrolabeMark size={13} className="account-menu-astrolabe" />
           <span>astrolabe</span>
         </button>
       </div>

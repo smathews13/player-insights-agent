@@ -610,6 +610,6 @@
   font-size: var(--text-xs);
   line-height: 1.5;
   background: var(--ast-fill-band);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 

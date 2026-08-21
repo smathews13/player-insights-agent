@@ -142,7 +142,7 @@ variables:
     default: player-insights-agent
   app_description:
     description: App description shown in the workspace.
-    default: Player insights, multi-agent traces, and repeatable benchmarking
+    default: Astrolabe, governed player intelligence and repeatable benchmarking
   shared_conversation_rail:
     description: >-
       Whether users can see shared conversations in the rail. Defaults to
@@ -155,6 +155,22 @@ variables:
       in the git-ignored
       `.databricks/bundle/<target>/variable-overrides.json`. Do not put addresses
       in this tracked file or in a target block.
+  slack_secret_scope:
+    description: >-
+      Databricks secret scope holding Astrolabe's Slack bot token and recipient
+      IDs. The scope must exist before the App resource is deployed.
+    default: astrolabe
+  slack_bot_token_secret_key:
+    description: Secret key containing the Slack bot token.
+    default: slack-bot-token
+  slack_feedback_user_id_secret_key:
+    description: Secret key containing the Slack user ID that receives feedback.
+    default: slack-feedback-user-id
+  slack_super_admin_user_id_secret_key:
+    description: >-
+      Secret key containing the Slack user ID that receives super-admin
+      escalations.
+    default: slack-super-admin-user-id
   allow_unattributed_figures:
     description: >-
       Whether the agent may return figures it cannot trace to a governed read.

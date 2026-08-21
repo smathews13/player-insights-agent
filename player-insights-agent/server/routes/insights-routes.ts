@@ -1980,7 +1980,7 @@ export function identityPayload(req: Request) {
     // rendering "You are signed in as …" over an address nobody is signed in as.
     identitySource:
       signedInAs === DEVELOPMENT_IDENTITY ? ('development-fallback' as const) : ('databricks-apps' as const),
-    executionIdentity: appServicePrincipal() ?? 'Player Insights service principal',
+    executionIdentity: appServicePrincipal() ?? 'Astrolabe service principal',
     // Was a literal, which was true of every deployment right up until the gate
     // gave a user something else to choose. It is now whatever this server last
     // established for this user, and established is the operative word: see

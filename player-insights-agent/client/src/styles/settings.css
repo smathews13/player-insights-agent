@@ -568,7 +568,7 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(17, 23, 28, 0.5);
+  background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
 }
 
 .settings-page.settings-modal {
@@ -624,7 +624,7 @@
   flex: none;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: #525252;
   cursor: pointer;
@@ -656,7 +656,7 @@
   width: 100%;
   padding: 7px 12px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: #525252;
   font: inherit;
@@ -890,7 +890,7 @@
   max-width: 150px;
   padding: 3px 7px;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 12px;
   text-overflow: ellipsis;
@@ -924,21 +924,21 @@
 .egress-mode {
   padding: 1px 5px;
   border: 1px solid;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 500;
 }
 
 .egress-mode-enforced {
-  border-color: #c9d9e8;
-  background: #eef4f9;
-  color: #3d5a73;
+  border-color: var(--ast-info-fill);
+  background: var(--ast-info-fill);
+  color: var(--ast-info-text);
 }
 
 .egress-mode-stored {
-  border-color: #e3d9c6;
-  background: #f9f5ec;
-  color: #7a6a45;
+  border-color: var(--ast-warn-border);
+  background: var(--ast-warn-fill);
+  color: var(--ast-warn-text);
 }
 
 .settings-status {
@@ -987,37 +987,4 @@
   background-color: transparent;
   font-family: inherit;
   cursor: pointer;
-}
-
-@media (max-width: 800px) {
-  .settings-overlay {
-    padding: 12px;
-  }
-
-  .settings-page.settings-modal {
-    width: calc(100vw - 24px);
-    max-height: calc(100vh - 24px);
-  }
-
-  .settings-modal-body {
-    grid-template-columns: 138px minmax(0, 1fr);
-  }
-
-  .appearance-grid-head,
-  .appearance-grid-row {
-    grid-template-columns: 70px 1fr;
-  }
-
-  .appearance-grid-head span:nth-child(3),
-  .appearance-grid-head span:nth-child(4) {
-    display: none;
-  }
-
-  .appearance-grid-row {
-    align-items: start;
-  }
-
-  .appearance-sample {
-    justify-self: start;
-  }
 }

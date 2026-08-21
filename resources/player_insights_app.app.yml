@@ -68,6 +68,24 @@ resources:
           sql_warehouse:
             id: ${var.warehouse_id}
             permission: CAN_USE
+        # Slack credentials and deployment-specific recipient IDs are resolved
+        # from Databricks secrets at runtime. No value enters source or bundle
+        # state.
+        - name: slack-bot-token
+          secret:
+            scope: ${var.slack_secret_scope}
+            key: ${var.slack_bot_token_secret_key}
+            permission: READ
+        - name: slack-feedback-user-id
+          secret:
+            scope: ${var.slack_secret_scope}
+            key: ${var.slack_feedback_user_id_secret_key}
+            permission: READ
+        - name: slack-super-admin-user-id
+          secret:
+            scope: ${var.slack_secret_scope}
+            key: ${var.slack_super_admin_user_id_secret_key}
+            permission: READ
 
       lifecycle:
         # Destroying the app also removes its service principal and grants.

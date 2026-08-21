@@ -61,7 +61,7 @@ export function useIdentity(deadlineMs = IDENTITY_DEADLINE_MS) {
     // Both placeholders are named in user-initials.ts, which has to recognise
     // them: they are sentences, and an avatar built from one reads "RS".
     signedInAs: IDENTITY_RESOLVING,
-    executionIdentity: 'Player Insights service principal',
+    executionIdentity: 'Astrolabe service principal',
     executionMode: 'service-principal',
   });
   useEffect(() => {

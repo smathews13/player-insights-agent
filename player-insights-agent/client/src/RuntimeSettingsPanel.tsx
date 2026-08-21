@@ -56,6 +56,8 @@ export function RuntimeSettingsPanel({ section }: { section: 'runtime' | 'appear
   }, []);
 
   useEffect(() => {
+    // Mount fetch: the first paint has to come from the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load() writes the fetched settings
     void load();
   }, [load]);
 

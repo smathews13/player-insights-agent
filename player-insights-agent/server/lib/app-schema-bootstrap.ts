@@ -43,7 +43,7 @@ export async function preserveOwnedAppSchema(
       HAVING count(DISTINCT c.relname) >= 2
       ORDER BY n.oid ASC`);
     const existing = result.rows
-      ?.map((row) => String(row.nspname ?? '').trim())
+      ?.map((row) => (typeof row.nspname === 'string' ? row.nspname.trim() : ''))
       .find(Boolean);
     if (existing) {
       const adopted = adoptAppSchema(existing);

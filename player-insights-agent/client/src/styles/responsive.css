@@ -370,6 +370,30 @@
   .fo-scope-row:nth-child(even) {
     border-left: none;
   }
+  .settings-overlay {
+    padding: 12px;
+  }
+  .settings-page.settings-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+  }
+  .settings-modal-body {
+    grid-template-columns: 138px minmax(0, 1fr);
+  }
+  .appearance-grid-head,
+  .appearance-grid-row {
+    grid-template-columns: 70px 1fr;
+  }
+  .appearance-grid-head span:nth-child(3),
+  .appearance-grid-head span:nth-child(4) {
+    display: none;
+  }
+  .appearance-grid-row {
+    align-items: start;
+  }
+  .appearance-sample {
+    justify-self: start;
+  }
 }
 /* On a phone the MARK is what identifies the app and the wordmark is what gives.
    That is the opposite of what this block used to do, and the reversal is the
@@ -398,6 +422,14 @@
      live in this file; see breakpoints.test.ts. */
   .trace-dag.map {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .account-composer-overlay {
+    padding: 12px;
+  }
+  .account-composer-body,
+  .account-composer-footer {
+    padding-right: 18px;
+    padding-left: 18px;
   }
   /*
    * THE SPLASH PAIR IS NOT HERE ANY MORE, and the deletion is the point rather

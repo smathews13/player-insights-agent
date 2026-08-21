@@ -2007,7 +2007,7 @@ describe('identity and benchmark records', () => {
 
   it('falls back to a readable execution identity when the client id is absent', () => {
     delete process.env.DATABRICKS_CLIENT_ID;
-    expect(identityPayload(request()).executionIdentity).toBe('Player Insights service principal');
+    expect(identityPayload(request()).executionIdentity).toBe('Astrolabe service principal');
   });
 });
 

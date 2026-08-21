@@ -243,7 +243,9 @@ Have these before you start:
   `genie/*.reference.yml` holds optional reference instructions;
 - an existing SQL warehouse;
 - a workspace source path for the committed deploy tree;
-- one or more initial app administrator email addresses.
+- one or more initial app administrator email addresses;
+- a Databricks secret scope containing a Slack bot token plus the Slack user IDs
+  that receive feedback and super-admin escalations.
 
 ### Configure
 
@@ -270,6 +272,14 @@ which is git-ignored:
 `player-insights-agent` and `experiment_path` to `/Shared/player-insights-agent`.
 The `super:` prefix lets the first administrator appoint a second one before any
 later update.
+
+Slack account-menu actions use three App secret resources. The defaults expect
+scope `astrolabe` with keys `slack-bot-token`, `slack-feedback-user-id`, and
+`slack-super-admin-user-id`. Override the four `slack_*` bundle variables when a
+workspace uses different names. Store the values with `databricks secrets
+put-secret`; never put the token or recipient IDs in source, bundle variables, or
+plain app environment values. The bot needs Slack `chat:write` and `im:write`
+scopes so it can open each configured DM and post the message.
 
 `data_catalogs` is the complete read boundary. A catalog name includes all of its
 non-system schemas; `catalog.schema` limits the boundary to one schema. The app
