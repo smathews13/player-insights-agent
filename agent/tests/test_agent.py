@@ -37,6 +37,7 @@ from charts import BLUE, MAX_CHARTS, PLOT_INSTRUCTIONS
 from config import Settings
 from evidence import EvidenceGateway
 from tools import (
+    GENIE_WAREHOUSE_STARTING_GUIDANCE,
     SqlRefused,
     ToolResult,
     fully_qualified_tables,
@@ -1038,6 +1039,92 @@ def test_an_answer_a_surviving_surface_grounded_keeps_its_figures():
     assert "the data dictionary Genie space" in answer["caveats"][0]
 
 
+# ---------------------------------------------------------------------------
+# A dependency that was still warming up
+#
+# A cold customer warehouse used to end the step as `dictionary_genie failed:
+# TimeoutError`, which is the loop's outage path: red in the trace, counted
+# against the repeat brake, and reported to the model as something to relay to
+# the reader. The tool now returns instead of raising, and these pin what the
+# loop is then obliged to do with that: show it as a step that produced nothing,
+# keep going, and not file it as a finding.
+# ---------------------------------------------------------------------------
+
+
+def warehouse_starting() -> ToolResult:
+    """What a Genie tool returns when the warehouse behind it had not started."""
+
+    return ToolResult(
+        text=(
+            "Asking Genie space dictionary.\n\n"
+            f"GENIE UNAVAILABLE ({failures.DEPENDENCY_UNAVAILABLE}): The SQL warehouse "
+            "behind this Genie space was still starting after 62s, so the question was "
+            f"not answered. {GENIE_WAREHOUSE_STARTING_GUIDANCE}"
+        )
+    )
+
+
+def test_a_warehouse_that_was_still_starting_is_a_partial_step_not_a_failed_one():
+    """The customer's screenshot, and the whole point of returning rather than raising.
+
+    A warm demo warehouse never produced this, so the failure path was never the
+    one anybody watched. On a cold one it painted the finder's first step red for
+    infrastructure that was on its way up.
+    """
+
+    tools = FakeTools(
+        dictionary_genie=warehouse_starting(),
+        run_sql=ToolResult(
+            text="label | active_players_30d\nNorthwind | 8413",
+            sql=f"SELECT label, count(*) FROM {ACTIVITY} GROUP BY label",
+            sources=[ACTIVITY],
+        ),
+    )
+    llm = ScriptedLlm(
+        [Call("dictionary_genie", {"question": "what is an active player"})],
+        [Call("run_sql", {"sql": f"SELECT label, count(*) FROM {ACTIVITY} GROUP BY label"})],
+        "8,413 active players for Northwind.",
+    )
+
+    response = ask(build(llm, tools))
+    dictionary = next(
+        stage for stage in stages(response) if stage["id"].endswith("dictionary_genie")
+    )
+
+    assert dictionary["status"] == "partial", "nothing failed; nothing was learned either"
+    assert "still starting" in dictionary["output"]
+    # The run carried on, which is the behaviour the finder needed.
+    assert tools.named("run_sql")
+    answer = response.custom_outputs["answer"]
+    assert [source["name"] for source in answer["sources"]] == [ACTIVITY]
+    assert "degraded" not in " ".join(answer["caveats"])
+
+
+def test_an_unavailable_dependency_is_not_memoised_as_the_answer_to_the_question():
+    """The failure this would have caused if the step were filed as complete.
+
+    A completed dictionary call is remembered under the question it answered, so
+    a later step asking the same thing is handed the earlier reply instead of
+    spending a call. Remembering "the warehouse was starting" that way would mean
+    the one call that could have succeeded -- the later one, on a warm warehouse
+    -- never happens.
+    """
+
+    tools = FakeTools(dictionary_genie=warehouse_starting())
+    question = {"question": "what is an active player"}
+    llm = ScriptedLlm(
+        [Call("dictionary_genie", question)],
+        [Call("dictionary_genie", question)],
+        "Answering from what was gathered.",
+    )
+
+    ask(build(llm, tools))
+
+    assert len(tools.named("dictionary_genie")) == 2, (
+        "the second call has to reach the space; the first one learned nothing"
+    )
+
+
 def test_a_governance_refusal_on_its_own_does_not_suppress_the_answer():
     """A refused run also read nothing, and is still not a failed one.
 
@@ -1577,7 +1664,7 @@ def test_the_wall_clock_budget_stops_a_turn_of_slow_calls():
     response = ask(
         runtime,
         runtime_settings={
-            "loop": {"maxSteps": 8, "maxToolCalls": 12, "maxRunSeconds": 30}
+            "loop": {"maxSteps": 12, "maxToolCalls": 12, "maxRunSeconds": 30}
         },
     )
 

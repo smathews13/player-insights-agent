@@ -69,6 +69,41 @@ describe('workspacePath', () => {
     expect(workspacePath({ kind: 'serving-endpoint', name: 'a/b' })).toBe('/ml/endpoints/a%2Fb');
     expect(workspacePath({ kind: 'catalog', catalog: 'a b' })).toBe('/explore/data/a%20b');
   });
+
+  /**
+   * A model is browsed under a `models/` segment, not at the bare three-level
+   * path a table uses. Without it the link resolves to a table of that name --
+   * usually nothing, occasionally somebody else's table.
+   */
+  it('opens a registered model under the models segment', () => {
+    expect(workspacePath({ kind: 'registered-model', model: 'a_catalog.a_schema.an_agent' })).toBe(
+      '/explore/data/models/a_catalog/a_schema/an_agent'
+    );
+  });
+
+  it('opens the served version of a model, which is where its artifacts are', () => {
+    expect(workspacePath({ kind: 'model-version', model: 'a_catalog.a_schema.an_agent', version: '3' })).toBe(
+      '/explore/data/models/a_catalog/a_schema/an_agent/version/3'
+    );
+  });
+
+  // `/version/` with nothing after it is a 404 dressed as a link. The model page
+  // lists every version, so it is the honest destination for an unknown one.
+  it('falls back to the model when no version is known', () => {
+    expect(workspacePath({ kind: 'model-version', model: 'a_catalog.a_schema.an_agent', version: '' })).toBe(
+      '/explore/data/models/a_catalog/a_schema/an_agent'
+    );
+    expect(workspacePath({ kind: 'model-version', model: 'a_catalog.a_schema.an_agent', version: '  ' })).toBe(
+      '/explore/data/models/a_catalog/a_schema/an_agent'
+    );
+  });
+
+  it('refuses a model name that is not three levels', () => {
+    expect(workspacePath({ kind: 'registered-model', model: 'a_schema.an_agent' })).toBeNull();
+    expect(workspacePath({ kind: 'registered-model', model: 'an_agent' })).toBeNull();
+    expect(workspacePath({ kind: 'registered-model', model: '' })).toBeNull();
+    expect(workspacePath({ kind: 'model-version', model: 'an_agent', version: '3' })).toBeNull();
+  });
 });
 
 describe('databricksLink', () => {

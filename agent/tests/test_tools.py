@@ -10,6 +10,7 @@ can act on, rather than failing at the warehouse two steps later.
 
 import dataclasses
 import itertools
+from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -63,13 +64,15 @@ class FakeWarehouse:
         self,
         columns: list[str],
         rows: list[list],
-        state: str = "SUCCEEDED",
+        state: str | Sequence[str] = "SUCCEEDED",
         chunk_size: int | None = None,
         total_row_count: int | None = None,
     ):
         self.columns = columns
         self.rows = rows
-        self.state = state
+        #: A sequence when a test is about what the SECOND attempt returns. The
+        #: last entry repeats, so one state still means "always this".
+        self.states = [state] if isinstance(state, str) else list(state)
         self.chunk_size = chunk_size or max(len(rows), 1)
         self.total_row_count = total_row_count
         self.statements: list[str] = []
@@ -93,10 +96,11 @@ class FakeWarehouse:
     def _execute(self, warehouse_id: str, statement: str, wait_timeout: str, on_wait_timeout=None):
         self.statements.append(statement)
         self.wait_timeouts.append((wait_timeout, on_wait_timeout))
+        state = self.states.pop(0) if len(self.states) > 1 else self.states[0]
         return SimpleNamespace(
             statement_id="statement-1",
             status=SimpleNamespace(
-                state=SimpleNamespace(value=self.state),
+                state=SimpleNamespace(value=state),
                 error=SimpleNamespace(message="TABLE_OR_VIEW_NOT_FOUND"),
             ),
             result=self._page(0),
@@ -454,6 +458,134 @@ def test_unreadable_tag_views_degrade_to_guidance_rather_than_failing_the_turn()
     assert "not tell the user their tables are untagged" in result.text
     assert result.sources == []
     assert result.sql == ""
+
+
+# ---------------------------------------------------------------------------
+# The tag search against a COLD warehouse
+#
+# The second half of the same customer report. `SQL CANCELED: the statement was
+# still running after 30s` on a small `information_schema` scan is not a slow
+# query -- it is the first statement of the turn paying for the warehouse to
+# start. Our own demo warehouse is already up, so the read costs two seconds and
+# nobody ever saw this.
+# ---------------------------------------------------------------------------
+
+
+def budget(monkeypatch, seconds: float) -> None:
+    """Pin what the turn has left, which is what gates the retry."""
+
+    monkeypatch.setattr(
+        tools_module.runtime_settings, "remaining_seconds", lambda: float(seconds)
+    )
+
+
+def test_the_tag_read_waits_the_apis_full_allowance_rather_than_thirty_seconds():
+    """The read is small; the wait is for the warehouse, so buy all of it.
+
+    Fifty seconds is the Statement Execution API's ceiling for a synchronous
+    wait, and a discovery result is the one the turn can most afford to lose,
+    which is what makes it the right read to spend the whole of it on.
+    """
+
+    tools, warehouse = tagged([tag_row(PROFILES, "pii", "true")])
+
+    tools.search_tagged_assets()
+
+    assert warehouse.wait_timeouts == [
+        (f"{tools_module.DISCOVERY_WAIT_SECONDS}s", ExecuteStatementRequestOnWaitTimeout.CANCEL)
+    ]
+    assert tools_module.DISCOVERY_WAIT_SECONDS > tools_module.SQL_WAIT_SECONDS
+
+
+def test_a_cancelled_tag_read_is_tried_once_more_and_the_second_attempt_can_succeed(monkeypatch):
+    """The first statement is what starts the warehouse; the second finds it warm."""
+
+    budget(monkeypatch, 90)
+    tools, warehouse = tagged(
+        [tag_row(PROFILES, "pii", "true")], state=["CANCELED", "SUCCEEDED"]
+    )
+
+    text = tools.search_tagged_assets().text
+
+    assert len(warehouse.statements) == 2, "cancelled for slowness is worth one more try"
+    assert PROFILES in text and "pii=true" in text
+
+
+def test_a_rejected_tag_read_is_not_tried_a_second_time(monkeypatch):
+    """A statement the warehouse refused is refused identically on the retry.
+
+    Only slowness is worth repeating. Retrying a rejection spends the turn to
+    learn what it already knew.
+    """
+
+    budget(monkeypatch, 90)
+    tools, warehouse = tagged([], state="FAILED")
+
+    tools.search_tagged_assets()
+
+    assert len(warehouse.statements) == 1
+
+
+def test_the_retry_is_skipped_when_the_turn_can_no_longer_afford_it(monkeypatch):
+    """A second wait that leaves no budget has spent the run on a discovery hint."""
+
+    budget(monkeypatch, tools_module.SQL_RETRY_MIN_REMAINING_SECONDS - 1)
+    tools, warehouse = tagged([], state="CANCELED")
+
+    tools.search_tagged_assets()
+
+    assert len(warehouse.statements) == 1
+
+
+def test_a_tag_read_the_warehouse_never_got_to_reads_as_skippable_not_as_a_failure(monkeypatch):
+    """What the customer saw, in words a person can act on.
+
+    The old line was `the tag views could not be read: SQL CANCELED: the
+    statement was still running after 30s`, which reads as a fact about their
+    tags. It is a fact about their warehouse.
+    """
+
+    budget(monkeypatch, 10)
+    tools, _ = tagged([], state="CANCELED")
+
+    result = tools.search_tagged_assets("pii")
+
+    assert failures.DEPENDENCY_UNAVAILABLE in result.text
+    assert tools_module.reports_dependency_unavailable(result.text)
+    assert "still starting" in result.text
+    assert "list_data_assets" in result.text
+    # Slowness is not a missing grant, so the standing "do not retry it" advice
+    # would be advice against the one thing that works once the warehouse is up.
+    assert "do not retry it" not in result.text
+    assert "one later attempt is reasonable" in result.text
+    assert result.sources == [] and result.sql == ""
+
+
+def test_an_ungranted_tag_read_still_says_not_to_retry():
+    """The opposite cause, and the opposite next step. Both must survive."""
+
+    tools, _ = tagged([], state="FAILED")
+
+    text = tools.search_tagged_assets("pii").text
+
+    assert "do not retry it" in text
+    assert "one later attempt is reasonable" not in text
+
+
+def test_a_wait_is_never_asked_for_below_the_apis_own_floor(monkeypatch):
+    """`wait_timeout=1s` is an argument error, not a short wait.
+
+    The old clamp was `min(30, remaining)` with a floor of one second, so a turn
+    down to its last few seconds sent the warehouse a value it rejects, and the
+    caller got an API error where it had arranged for a cancelled statement.
+    """
+
+    budget(monkeypatch, 2)
+    tools, warehouse = tagged([tag_row(PROFILES, "pii", "true")])
+
+    tools.search_tagged_assets()
+
+    assert warehouse.wait_timeouts[0][0] == f"{tools_module.SQL_WAIT_FLOOR_SECONDS}s"
 
 
 def test_no_matching_tag_is_not_reported_as_missing_data():
@@ -1735,29 +1867,178 @@ def test_a_cancelled_message_ends_the_wait_instead_of_being_polled_until_the_tim
         assert genie.polls == 1, f"{status} should be terminal on the first poll"
 
 
-def test_a_warehouse_that_never_starts_gives_up_inside_the_turns_budget(monkeypatch):
-    """The 90-second run budget could not enforce itself while a call was in flight.
-
-    It is consulted between tool calls, and nothing interrupted one that had
-    already started, so a space stuck in PENDING_WAREHOUSE spent the SDK's twenty
-    minutes regardless of what the budget said.
-    """
-
-    monkeypatch.setattr(tools_module, "GENIE_POLL_SECONDS", 0.0)
-    monkeypatch.setattr(tools_module, "GENIE_TIMEOUT_SECONDS", 0.05)
-    genie = FakeGenie(MessageStatus.PENDING_WAREHOUSE)
-
-    with pytest.raises(TimeoutError) as timeout:
-        build(genie).data_genie("q")
-
-    assert "PENDING_WAREHOUSE" in str(timeout.value)
-    assert "warehouse was still starting" in str(timeout.value)
-
-
 def test_the_genie_budget_fits_inside_the_turn():
     """Two Genie calls at the ceiling must still leave the turn answerable."""
 
     assert tools_module.GENIE_TIMEOUT_SECONDS * 2 <= 90.0
+
+
+# ---------------------------------------------------------------------------
+# A warehouse that is STARTING is not a Genie space that FAILED
+#
+# The customer report these cover. Our demo warehouse is warm before anybody
+# asks it anything, so the dictionary space answers in a couple of seconds and
+# the 45 second deadline is never approached. A customer workspace starts its
+# warehouse on the first question of the day, sat in PENDING_WAREHOUSE past 45
+# seconds, and the step was reported as `dictionary_genie failed: TimeoutError`
+# -- an outage that was not one, on a run that then had nothing to say.
+#
+# So there are two waits with two deadlines, and the properties below are the
+# ones that make the difference real: a starting warehouse gets much longer, the
+# answer allowance survives the warmup rather than being eaten by it, the turn
+# still stops the wait with budget left for other tools, and running out that
+# way is a skippable result rather than a failed step.
+# ---------------------------------------------------------------------------
+
+
+class Clock:
+    """A monotonic clock the test drives, so a deadline can be reached in 0ms.
+
+    `_await_genie` reads `time.perf_counter` and `time.sleep` off the module, so
+    patching `tools.time` with this gives the test the whole of the timeline
+    without the suite sleeping through any of it.
+    """
+
+    def __init__(self, start: float = 1_000.0):
+        self.now = start
+
+    def perf_counter(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += max(0.0, seconds)
+
+
+def on_the_clock(monkeypatch, per_poll: float, *statuses, **kwargs) -> tuple[Clock, "FakeGenie"]:
+    """A Genie space where every status check costs `per_poll` seconds."""
+
+    clock = Clock()
+    monkeypatch.setattr(tools_module, "time", clock)
+    genie = FakeGenie(*statuses, **kwargs)
+    checked = genie.genie.get_message
+
+    def get_message(*args):
+        clock.now += per_poll
+        return checked(*args)
+
+    genie.genie.get_message = get_message
+    return clock, genie
+
+
+#: What the wait allows on the default 90 second turn, which is what these run
+#: on: `remaining_seconds()` with no request deadline set returns `max_run_seconds`.
+WARMUP_ALLOWED = 90.0 - tools_module.GENIE_BUDGET_RESERVE_SECONDS
+
+
+def test_a_starting_warehouse_is_waited_out_well_past_the_answer_deadline(monkeypatch):
+    """The 45 second answer budget must not be the bound on warehouse warmup.
+
+    This is the customer's failure exactly: PENDING_WAREHOUSE at 50 seconds, warm
+    at 55, and an answer a few seconds later. The old single deadline threw it
+    away five seconds before the warehouse came up.
+    """
+
+    clock, genie = on_the_clock(
+        monkeypatch,
+        10.0,
+        *[MessageStatus.PENDING_WAREHOUSE] * 5,
+        MessageStatus.EXECUTING_QUERY,
+        MessageStatus.COMPLETED,
+        sql=f"SELECT count(*) FROM {ACTIVITY}",
+    )
+
+    result = build(genie).data_genie("how many active players")
+
+    assert "8,413" in result.text
+    assert clock.now - 1_000.0 > tools_module.GENIE_TIMEOUT_SECONDS, (
+        "the wait has to outlast the answer budget for this test to mean anything"
+    )
+
+
+def test_the_answer_allowance_survives_the_warmup_rather_than_being_spent_by_it(monkeypatch):
+    """A warehouse that took 40 seconds must not leave 5 seconds to answer in.
+
+    Warmup and answering are different waits. Charging the warmup to the answer
+    budget makes a space that came up late look like a space that answers slowly,
+    and fails the call for the wrong reason.
+    """
+
+    clock, genie = on_the_clock(
+        monkeypatch,
+        10.0,
+        *[MessageStatus.PENDING_WAREHOUSE] * 4,
+        *[MessageStatus.EXECUTING_QUERY] * 3,
+        MessageStatus.COMPLETED,
+        sql=f"SELECT count(*) FROM {ACTIVITY}",
+    )
+
+    result = build(genie).data_genie("q")
+
+    assert "8,413" in result.text
+    assert clock.now - 1_000.0 == 80.0, "40s warming then 40s answering, and both were allowed"
+
+
+def test_a_warehouse_that_never_starts_stops_with_budget_left_for_the_other_tools(monkeypatch):
+    """The wait ends early enough that the finder can still do something else.
+
+    Waiting until the turn is gone is worse than not waiting: `search_tagged_assets`
+    and `list_data_assets` do not need this warehouse, and a run that spent all of
+    itself on one Genie call cannot reach them.
+    """
+
+    clock, genie = on_the_clock(monkeypatch, 5.0, MessageStatus.PENDING_WAREHOUSE)
+
+    with pytest.raises(tools_module.WarehouseStarting) as starting:
+        build(genie)._await_genie("space", "q")
+
+    waited = clock.now - 1_000.0
+    assert waited >= tools_module.GENIE_TIMEOUT_SECONDS, "it waited far longer than 45s"
+    assert waited <= WARMUP_ALLOWED + 5.0, "and it stopped with the reserve intact"
+    assert "warehouse" in str(starting.value) and "still starting" in str(starting.value)
+
+
+def test_a_starting_warehouse_returns_a_skippable_result_instead_of_failing_the_step(monkeypatch):
+    """The fix the finder actually needs: not raising.
+
+    Raising puts the step on the loop's failure path -- red in the trace, counted
+    against the repeat brake, reported to the model as an outage to relay. A
+    warehouse coming up is none of those, and the run has other tools.
+    """
+
+    _, genie = on_the_clock(monkeypatch, 5.0, MessageStatus.PENDING_WAREHOUSE)
+
+    result = build(genie).dictionary_genie("what does active player mean")
+
+    assert tools_module.reports_dependency_unavailable(result.text)
+    assert "still starting" in result.text
+    assert "search_tagged_assets" in result.text and "list_data_assets" in result.text
+    assert result.sources == [] and result.sql == ""
+
+
+def test_a_slow_answer_is_still_a_hard_timeout_at_the_answer_deadline(monkeypatch):
+    """Only the WAREHOUSE is forgiven. A query that will not finish is a failure.
+
+    The longer allowance is for infrastructure coming up, not for a question too
+    big for the turn, and blurring the two would let one Genie call quietly spend
+    two thirds of every run.
+    """
+
+    clock, genie = on_the_clock(monkeypatch, 5.0, MessageStatus.EXECUTING_QUERY)
+
+    with pytest.raises(TimeoutError) as timeout:
+        build(genie).data_genie("q")
+
+    assert not isinstance(timeout.value, tools_module.WarehouseStarting)
+    assert clock.now - 1_000.0 <= tools_module.GENIE_TIMEOUT_SECONDS + 5.0
+    # The plain reason first: this string is read in the trace, usually clipped.
+    assert str(timeout.value).startswith("Its query was still running.")
+
+
+def test_the_warehouse_allowance_is_generous_but_cannot_swallow_the_turn():
+    assert tools_module.GENIE_WAREHOUSE_START_SECONDS >= 120.0, "cold starts take minutes"
+    assert tools_module.GENIE_BUDGET_RESERVE_SECONDS >= 20.0, (
+        "a wait that leaves nothing behind has failed the finder either way"
+    )
 
 
 # ---------------------------------------------------------------------------

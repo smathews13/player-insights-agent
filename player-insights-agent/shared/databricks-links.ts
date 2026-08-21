@@ -53,24 +53,32 @@ export type DatabricksObject =
   | { kind: 'schema'; catalog: string; schema: string }
   | { kind: 'experiment'; experimentId: string }
   | { kind: 'vector-index'; index: string }
-  | { kind: 'table'; table: string };
+  | { kind: 'table'; table: string }
+  | { kind: 'registered-model'; model: string }
+  | { kind: 'model-version'; model: string; version: string };
 
 /**
  * The Explore path for a three-level name, or null for anything else.
  *
- * Shared by the two Unity Catalog objects below because they are the same
+ * Shared by the Unity Catalog objects below because they are nearly the same
  * object to the browser: an index and a table are both browsed at
- * `/explore/data/<catalog>/<schema>/<name>`, and a rule written twice is a rule
- * that gets fixed once. A partial name is refused rather than truncated, since
- * `catalog.schema` resolves to the SCHEMA page, which looks like a link that
- * worked and is a link to the wrong object.
+ * `/explore/data/<catalog>/<schema>/<name>`, a model at the same path under a
+ * `models/` segment, and a rule written once is a rule that gets fixed once. A
+ * partial name is refused rather than truncated, since `catalog.schema`
+ * resolves to the SCHEMA page, which looks like a link that worked and is a
+ * link to the wrong object.
+ *
+ * `segment` is the object-kind prefix the workspace routes on. Tables take
+ * none; models, functions and volumes each take their own. It is not a guess:
+ * `models/` is the route Databricks' own VS Code extension opens a registered
+ * model at, which is the same address the workspace UI puts in the bar.
  */
-function unityCatalogPath(name: string, part: (value: string) => string): string | null {
+function unityCatalogPath(name: string, part: (value: string) => string, segment = ''): string | null {
   const parts = name
     .trim()
     .split('.')
-    .filter((segment) => segment.length > 0);
-  return parts.length === 3 ? `/explore/data/${parts.map(part).join('/')}` : null;
+    .filter((piece) => piece.length > 0);
+  return parts.length === 3 ? `/explore/data/${segment}${parts.map(part).join('/')}` : null;
 }
 
 /**
@@ -107,6 +115,21 @@ export function workspacePath(object: DatabricksObject): string | null {
       // -- it is the tail of one -- so it produces no link, and the surface that
       // asked for it renders the identifier without one. See DataEntityLinks.tsx.
       return unityCatalogPath(object.table, part);
+    case 'registered-model':
+      return unityCatalogPath(object.model, part, 'models/');
+    case 'model-version': {
+      // The version page, which is where the Artifacts tab -- and so `agent.py`
+      // -- lives. THE TAB ITSELF IS NOT ADDRESSABLE as far as this app can
+      // establish, so the link stops at the version and the surface says which
+      // tab to open rather than inventing a query parameter that would be
+      // ignored on a good day and wrong on a bad one.
+      //
+      // A version with no number falls back to the registered model rather than
+      // to `/version/` with nothing after it, which is a 404 dressed as a link.
+      const model = unityCatalogPath(object.model, part, 'models/');
+      const version = object.version.trim();
+      return model && version ? `${model}/version/${part(version)}` : model;
+    }
   }
 }
 

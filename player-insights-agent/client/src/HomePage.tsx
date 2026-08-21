@@ -19,7 +19,18 @@ import { submitsOnEnter } from './submit-on-enter';
 import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
 import { UserIdentityChip } from './UserIdentityChip';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
-import { claimConversationTitle, railOwnership, signedInOwner, unaskedConversation } from './conversation-rail';
+import {
+  claimConversationTitle,
+  railEmptyNotice,
+  railOwnership,
+  signedInOwner,
+  unaskedConversation,
+} from './conversation-rail';
+import {
+  clearSelectedConversation,
+  readSelectedConversation,
+  rememberSelectedConversation,
+} from './selected-conversation';
 import {
   Alert,
   AlertDescription,
@@ -104,6 +115,13 @@ import type {
 const ATTACHMENT_ACCEPT = '.pdf,.md,.json,.txt,.csv';
 /** Mirrors MAX_ATTACHMENT_BYTES on the server so oversized files fail before upload. */
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+/**
+ * The user turn an approval writes, and the one the transcript is read back for
+ * when a plan card asks whether it was approved or revised away. Mirrors
+ * `PLAN_APPROVAL_MESSAGE` on the server, which writes the same sentence for a
+ * conversation loaded from the store.
+ */
+const PLAN_APPROVAL_LABEL = 'Approved the proposed analysis plan.';
 
 /**
  * The empty step list, allocated once.
@@ -380,11 +398,14 @@ export function HomePage() {
     );
   }, []);
   /**
-   * The open conversation is in the URL, so the browser's Back button moves
-   * between conversations instead of leaving the application.
+   * The URL wins for deep links and Back/Forward. When Ask is mounted without
+   * one after visiting another top-level tab, the browser-session selection
+   * wins next. Only a genuinely new session mints a blank draft.
    */
   const [searchParams, setSearchParams] = useSearchParams();
-  const [conversationId, setConversationId] = useState(() => searchParams.get('c') ?? `conv-${crypto.randomUUID()}`);
+  const [conversationId, setConversationId] = useState(
+    () => searchParams.get(CONVERSATION_PARAM) ?? readSelectedConversation() ?? `conv-${crypto.randomUUID()}`
+  );
   /**
    * The conversation on screen, readable from inside a run that is still going.
    */
@@ -578,6 +599,9 @@ export function HomePage() {
   });
 
   const selectConversation = useCallback(async (id: string) => {
+    // Before any await: leaving Ask immediately after clicking a row must still
+    // restore that row when the route mounts again.
+    rememberSelectedConversation(id);
     setConversationId(id);
     activeConversationRef.current = id;
     setConversationLoading(true);
@@ -663,7 +687,7 @@ export function HomePage() {
   }, []);
 
   /**
-   * The four things a transcript row can ask this page to do, as callbacks whose
+   * The three things a transcript row can ask this page to do, as callbacks whose
    * identity never changes.
    *
    * THIS EXISTS SO `MessageItem` CAN BE MEMOIZED AT ALL. `ask` and `saveFeedback`
@@ -694,14 +718,6 @@ export function HomePage() {
       [answerId]: { ...(current[answerId] ?? emptyFeedback), ...changes },
     }));
   }, []);
-  // Revising a plan puts its question back in the composer and moves the cursor
-  // there, which is a reach into the DOM and stays exactly that. Lifted out of
-  // the row only so the row takes a stable prop.
-  const reviseRow = useCallback((question: string) => {
-    setDraft(question);
-    document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus();
-  }, []);
-
   /**
    * Re-reads the run list and collapses it to one summary per conversation.
    *
@@ -823,18 +839,21 @@ export function HomePage() {
   /**
    * Follows the URL, which is what makes Back and Forward work.
    *
-   * Every conversation change goes through the address bar: a click pushes a
-   * history entry, and this loads whatever the entry names, whether the user got
-   * there by clicking, by going back, or by opening a link. Guarded on the id
-   * already loaded, so it does not re-fetch on unrelated renders.
+   * Every conversation change goes through the address bar. A click, Back, and
+   * a deep link name the thread there. Returning from another top-level tab has
+   * no Ask query string, so it falls back to the browser-session selection,
+   * restores that thread, and puts it back in the URL. Guarded on the id already
+   * loaded, so it does not re-fetch on unrelated renders.
    */
   const loadedConversationRef = useRef<string | null>(null);
   useEffect(() => {
-    const target = searchParams.get(CONVERSATION_PARAM);
+    const requested = searchParams.get(CONVERSATION_PARAM);
+    const target = requested ?? readSelectedConversation();
     if (!target || target === loadedConversationRef.current) return;
     loadedConversationRef.current = target;
+    if (!requested) setSearchParams({ [CONVERSATION_PARAM]: target }, { replace: true });
     void selectConversation(target);
-  }, [searchParams, selectConversation]);
+  }, [searchParams, selectConversation, setSearchParams]);
 
   /**
    * The answer a link asked for, when one did.
@@ -892,6 +911,10 @@ export function HomePage() {
     // step, an error banner or a URL change landing in the conversation they
     // moved to describes a question that was never asked there.
     const runConversationId = conversationId;
+    // A blank draft becomes a selected conversation the instant it is used.
+    // Persist before the request starts, so leaving Ask while the run is active
+    // returns to this thread rather than to another starter.
+    rememberSelectedConversation(runConversationId);
     const stillInThisConversation = () => activeConversationRef.current === runConversationId;
     const userMessage: ConversationMessage = {
       id: `local-${crypto.randomUUID()}`,
@@ -1110,6 +1133,9 @@ export function HomePage() {
   }
 
   function startNewConversation() {
+    // The one intentional route back to the starter. Clear before minting the
+    // local draft so leaving and returning does not resurrect the old thread.
+    clearSelectedConversation();
     const id = `conv-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     setConversationId(id);
@@ -1481,7 +1507,7 @@ export function HomePage() {
             {railUnreadableNotice.heading}. {railUnreadableNotice.consequence}
           </p>
         ) : conversations.length === 0 ? (
-          <p className="conversation-empty">No saved conversations yet.</p>
+          <p className="conversation-empty">{railEmptyNotice(identity.sharedConversationRail)}</p>
         ) : (
           visibleEntries.map(({ conversation, owner }) => {
             // What this conversation's latest answered turn recorded, or null
@@ -1542,6 +1568,10 @@ export function HomePage() {
                     // returns to the conversation the user came from. The effect
                     // watching the URL does the loading.
                     onClick={() => {
+                      // Persist in the click itself, before React processes the
+                      // URL change, so an immediate tab switch cannot race the
+                      // effect that loads the thread.
+                      rememberSelectedConversation(conversation.id);
                       setRailSheetOpen(false);
                       setSearchParams({ c: conversation.id });
                     }}
@@ -1719,6 +1749,13 @@ export function HomePage() {
                 // entire continuation run: the approval row was below it, but
                 // `lastAssistantIndex` still pointed at the plan itself.
                 resolved={index < messages.length - 1}
+                // How it was settled, which the row above cannot tell from the
+                // row below being there: a plan is settled by approving it and
+                // also by revising it away, and only one of those two ran
+                // anything. The approval writes a known sentence as its user
+                // turn -- here and on the server -- so the turn under the plan
+                // is what says which happened.
+                approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}
                 // The turn this answered, for the timeline's envelope row. Read
                 // from the transcript rather than the trace, which does not
                 // carry the prompt.
@@ -1731,7 +1768,6 @@ export function HomePage() {
                 // been lost, which is what it was reported as.
                 showFeedback={(index === lastAssistantIndex && !loading) || Boolean(entry.saved)}
                 onAsk={askRow}
-                onRevise={reviseRow}
                 onFeedbackChange={changeFeedback}
                 onSaveFeedback={rateRow}
               />
@@ -2137,7 +2173,7 @@ export function HomePage() {
  * WHAT MAKES THE MEMO ACTUALLY WORK is that none of these props is rebuilt per
  * render. `message` and `response` come from state and a `useMemo`; `asker` is
  * the stable address string; `feedback` is either the entry from state or one
- * shared empty object; and the four callbacks are stable for the life of the page
+ * shared empty object; and the three callbacks are stable for the life of the page
  * -- see `askRow` and its neighbours, which exist for that reason alone. A single
  * inline arrow function in the list above would defeat every line of this.
  *
@@ -2151,11 +2187,11 @@ const MessageItem = memo(function MessageItem({
   asker,
   loading,
   resolved,
+  approved,
   question,
   feedback,
   showFeedback,
   onAsk,
-  onRevise,
   onFeedbackChange,
   onSaveFeedback,
 }: {
@@ -2166,12 +2202,13 @@ const MessageItem = memo(function MessageItem({
   loading: boolean;
   /** Whether a later turn has superseded this one's question or plan. */
   resolved: boolean;
+  /** Whether the turn that superseded a plan was the reader approving it. */
+  approved: boolean;
   /** The question this answered, or '' where the row above is not one. */
   question: string;
   feedback: FeedbackEntry;
   showFeedback: boolean;
   onAsk: (question: string, approval?: { planId: string; label: string }) => void;
-  onRevise: (question: string) => void;
   onFeedbackChange: (answerId: string, changes: Partial<FeedbackEntry>) => void;
   onSaveFeedback: (answerId: string, rating: number) => Promise<void>;
 }) {
@@ -2212,13 +2249,20 @@ const MessageItem = memo(function MessageItem({
         plan={response.plan}
         loading={loading}
         resolved={resolved}
+        approved={approved}
         onApprove={() =>
           onAsk(response.plan.question, {
             planId: response.plan.id,
-            label: 'Approved the proposed analysis plan.',
+            label: PLAN_APPROVAL_LABEL,
           })
         }
-        onRevise={() => onRevise(response.plan.question)}
+        // A revision is a question, so it is asked like one: no approval
+        // attached, so nothing runs and the agent comes back with a new plan.
+        // It used to drop the plan's original question into the composer and
+        // focus it, which left the reader looking at the words they had already
+        // typed with nothing to say what had happened. The editor is on the
+        // card now; see PlanCard and plan-revision.ts.
+        onRevise={(request) => onAsk(request)}
       />
     );
   }

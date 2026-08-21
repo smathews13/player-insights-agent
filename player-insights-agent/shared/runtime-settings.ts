@@ -61,7 +61,7 @@ export type RuntimeSettings = z.infer<typeof RuntimeSettingsSchema>;
 
 /** Current behavior. An empty store therefore changes no existing deployment. */
 export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
-  loop: { maxSteps: 8, maxToolCalls: 12, maxRunSeconds: 90 },
+  loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 90 },
   answer: {
     takeaway: true,
     narrative: true,

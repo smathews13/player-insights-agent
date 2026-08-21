@@ -187,7 +187,12 @@
   position: fixed;
   inset: 0;
   z-index: 59;
-  background: var(--ast-navy);
+  /* The sky surface, not the ink -- the same one the Ask page and the harness are
+     painted in, so the first screen a reader ever sees is the colour the app is.
+     No spackle here: this canvas already carries `ConstellationField`, which is
+     twenty-two real stars and their connectors. A second, fainter field behind a
+     drawing that dense would be noise. */
+  background: var(--ast-sky-fill);
   overflow: hidden;
 }
 
@@ -305,7 +310,9 @@
  */
 .ast-working {
   position: relative;
-  background: var(--ast-navy);
+  /* Same surface token as every other dark panel; the drawing on top is its own
+     constellation, so this one takes the fill and not the field. */
+  background: var(--ast-sky-fill);
   border-radius: var(--ast-radius-card);
   overflow: hidden;
 }

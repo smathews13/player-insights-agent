@@ -41,6 +41,7 @@ async function startApp(warehouseWarmup: WarehouseWarmup, transport = answersWit
   const { port } = server.address() as AddressInfo;
   return {
     open: () => fetch(`http://127.0.0.1:${port}/api/preflight`),
+    warm: () => fetch(`http://127.0.0.1:${port}/api/warehouse-warmup`, { method: 'POST' }),
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
@@ -68,6 +69,27 @@ beforeEach(() => {
 });
 
 describe('opening the app warms the warehouse', () => {
+  it('accepts the splash warm-up without waiting for warehouse control-plane calls', async () => {
+    const calls: number[] = [];
+    const app = await startApp({
+      warm: () => {
+        calls.push(Date.now());
+        return new Promise<WarmupOutcome>(() => {});
+      },
+    });
+
+    let response: Response;
+    try {
+      response = await app.warm();
+    } finally {
+      await app.close();
+    }
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ accepted: true });
+    expect(calls).toHaveLength(1);
+  });
+
   it('pings on arrival', async () => {
     const warmup = countingWarmup();
     const app = await startApp(warmup);

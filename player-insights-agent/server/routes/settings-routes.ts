@@ -39,6 +39,7 @@ import {
 } from '../lib/app-settings';
 import { resolveExperimentId, resolveNotebookDeclaration } from '../lib/app-settings';
 import { recordAdminAction, requireAdmin } from '../lib/admin-roles';
+import { readAgentModel } from '../lib/agent-model';
 import { readAppFacts } from '../lib/app-metadata';
 import { declaredTables, probeConnections } from '../lib/dependency-probes';
 import { validateNotebookPath } from '../lib/browse-assets';
@@ -284,6 +285,21 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
     app.get('/api/deployment', async (_req, res) => {
       const facts = await readAppFacts();
       res.json({ deployedAt: facts.deployedAt, deployedBy: facts.deployedBy, buildSha: appBuildSha() });
+    });
+
+    /**
+     * Where the running agent's own code can be read.
+     *
+     * Its own route rather than a field on `/api/settings`, for the reason
+     * `/api/deployment` above is: this is one endpoint description, and the
+     * Settings pane that draws it must not have to invoke the orchestrator,
+     * every dependency probe, the notebook read and the connection reads to get
+     * it. Deliberately NOT under an admin prefix -- reading which version of the
+     * agent answered is the same class of fact as `GET /api/settings`, and the
+     * people who most need to read the code are the ones evaluating the answers.
+     */
+    app.get('/api/settings/agent-model', async (_req, res) => {
+      res.json(await readAgentModel());
     });
 
     /**

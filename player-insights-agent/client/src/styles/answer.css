@@ -16,13 +16,23 @@
   border-top: 3px solid var(--ast-blue);
   border-radius: var(--ast-radius-card);
   box-shadow: none;
-  /* `--ast-white`, opaque, and the same surface as the app header, the
-     conversation rail and the reader's own question bubble. It was
-     `rgba(255, 255, 255, 0.95)`, and 5% of the sky through it was enough to
-     read as a grey pane next to the white chrome around it -- and enough to
-     swallow the hairlines inside it, which is the repair a250610 had to make
-     with a stronger edge. The sky stays behind the card. */
-  background: var(--ast-white);
+  /*
+   * 96% white, so a hint of the sky and its stars reads through the card.
+   *
+   * THIS IS THE SECOND TIME THE CARD HAS BEEN TRANSLUCENT, and the first time was
+   * reverted for reasons worth keeping: at 95% over the near-black navy the card
+   * read as a grey pane beside the white header and rail, and it swallowed its own
+   * hairlines. Both halves of that have changed. The sky is `--ast-sky-fill` now,
+   * a dark blue rather than a black, so what comes through tints rather than
+   * greys; and the alpha is 96%, which puts the surface at #F6F6F7 -- ink on it is
+   * 16.4:1 and the #EBEBEB hairlines inside it are 11 steps below it rather than
+   * 20.
+   *
+   * Eleven steps is the cost of the effect and the thing to measure if this card
+   * ever reads as flat again. The alternative Sam ruled out is the one this
+   * replaces: an opaque card with a starfield behind it that the card hides.
+   */
+  background: var(--ast-pane);
   margin-bottom: 26px;
 }
 
@@ -93,10 +103,11 @@
   background: var(--ast-ice);
   margin-bottom: 26px;
 }
-/* A resolved plan is an answer surface, so it takes the answer card's own. */
+/* A resolved plan is an answer surface, so it takes the answer card's own -- the
+   96% pane included, or the transcript would have two whites in it. */
 .plan-card.resolved {
   border: 1px solid var(--ast-hairline);
-  background: var(--ast-white);
+  background: var(--ast-pane);
 }
 /*
  * The transcript's own gutters, over AppKit's.
@@ -294,6 +305,69 @@
   line-height: 1.5;
   margin: 2px 0 0;
 }
+/*
+ * The plan with its steps opened for editing, which is what "Revise request"
+ * shows instead of the read-only list.
+ *
+ * The rows keep the step geometry -- same numeral, same card, same gutters -- so
+ * the editor reads as the plan the reader was just looking at rather than as a
+ * form that replaced it. The third column is the remove control, which the
+ * read-only row does not have.
+ */
+.plan-revision {
+  display: grid;
+  gap: 12px;
+}
+.plan-step-edit {
+  grid-template-columns: 22px 1fr 28px;
+}
+.plan-step-edit > div {
+  display: grid;
+  gap: 6px;
+}
+/* The title reads as the lead it is in the read-only row: same size, same
+   weight, so switching between the two views does not restyle the plan. */
+.plan-step-edit input {
+  font-size: var(--ast-fs-13);
+  font-weight: 700;
+}
+.plan-step-edit textarea {
+  font-size: var(--ast-fs-13);
+  line-height: 1.5;
+  resize: vertical;
+}
+/* Quiet until it is wanted: dropping a step is the rarest of the three things
+   this editor does, and it sits beside two fields a reader is typing into. */
+.plan-step-remove {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--ast-radius-control);
+  color: var(--ast-text-long);
+  background: transparent;
+  cursor: pointer;
+}
+.plan-step-remove > svg {
+  width: 14px;
+  height: 14px;
+}
+.plan-step-remove:hover:not(:disabled) {
+  background: var(--ast-neg-fill);
+  color: var(--ast-neg-text);
+}
+.plan-step-remove:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.plan-revision-note {
+  display: grid;
+  gap: 6px;
+}
+.plan-revision-note > span {
+  font-size: var(--ast-fs-13);
+  font-weight: 700;
+}
 .plan-context {
   display: flex;
   flex-wrap: wrap;
@@ -311,6 +385,16 @@
 }
 [data-slot='alert'].plan-reassurance > svg {
   color: var(--ast-pos-text);
+}
+/* A plan that was revised away, or left behind by the next question, reports
+   that nothing ran -- which is neither the reassurance of an approval nor a
+   fault, so it is the neutral surface rather than the green one. */
+[data-slot='alert'].plan-reassurance[data-state='superseded'] {
+  border-color: var(--ast-hairline);
+  background: var(--ast-fill-band);
+}
+[data-slot='alert'].plan-reassurance[data-state='superseded'] > svg {
+  color: var(--ast-text-long);
 }
 /* The decision, right-aligned: the outline "Revise request" then the primary
    "Approve and run", so the action that starts a query is the last thing under

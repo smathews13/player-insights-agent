@@ -4,12 +4,25 @@
    block narrows the rail by restating one of them. */
 .ask-layout {
   display: grid;
-  background-color: var(--ast-navy);
-  background-image:
-    radial-gradient(circle at 8% 16%, rgba(255, 255, 255, 0.32) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 31% 42%, rgba(111, 174, 221, 0.28) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 58% 12%, rgba(255, 255, 255, 0.24) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 76% 68%, rgba(111, 174, 221, 0.24) 0 1px, transparent 1.5px);
+  background-color: var(--ast-sky-fill);
+  /*
+   * THE SKY IS ONE FIELD, AND ITS RECIPE IS IN astrolabe-tokens.css.
+   *
+   * It was four fixed dots at percentages of this grid, written out here: four
+   * stars on a whole page, so the transcript sat on empty navy everywhere those
+   * four did not land, and the only spackled surface on the page was the harness
+   * band's own SVG dust -- eight circles inside `.ast-sky-canvas`, clipped to the
+   * drawing and clustered where the path is.
+   *
+   * `--ast-sky-spackle` replaces them with a repeating field, and it is a token
+   * rather than a declaration here because three surfaces need the same sky and
+   * two of them are in other files: this grid, the harness column below, and the
+   * agent map's band in constellation.css. The one that is NOT a descendant of
+   * this element is the map's, which is why the recipe is on `:root` and not on
+   * this rule.
+   */
+  background-image: var(--ast-sky-spackle);
+  background-size: var(--ast-sky-spackle-size);
   /*
    * 264 / fluid / 340, and the asymmetry is the point rather than a slip.
    *
@@ -180,7 +193,17 @@
    * the run is on, which is the opposite of holding an older step still.
    */
   overflow-anchor: none;
-  background: var(--ast-navy);
+  background: var(--ast-sky-fill);
+  /* The same sky, because this column is the same surface. The shorthand above
+     clears `background-image`, so these two follow it rather than precede it.
+     The band inside is `background: transparent` (below), so the field runs
+     behind the whole panel -- eyebrow, drawing and metrics -- rather than
+     stopping where the SVG's own dust does. THAT IS ALSO WHAT PAINTS THE IDLE
+     PANEL: `.trace-empty` is a centred column of type with no surface of its
+     own, so a harness with no run in it is this background and nothing else,
+     and before the field moved onto this element it was flat. */
+  background-image: var(--ast-sky-spackle);
+  background-size: var(--ast-sky-spackle-size);
   color: var(--ast-white);
 }
 /*
@@ -487,20 +510,43 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * The way into the run, drawn as the action it is.
+ *
+ * Filled --primary, white label: the same blue as Ask astrolabe and as the
+ * app-wide Refresh, so the one thing on this column a reader is meant to press
+ * wears the colour every other pressable thing in the app wears. It was a white
+ * hairline over transparent, which on the navy read as one more rule in a column
+ * full of them.
+ *
+ * --primary rather than --ast-blue, which is the same value: this control is
+ * being matched to Ask and Refresh, so it should follow whatever they follow if
+ * the action colour ever moves. White on #2272B4 is 5.08:1.
+ *
+ * The hover and press rungs are page-shell.css's, for the same reason stated
+ * there -- on a fill the only legible direction is down a rung, and the tints
+ * are for outline controls on white.
+ */
 .trace-inspector .trace-explore {
   min-height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--primary);
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ast-white);
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-size: 13px;
   font-weight: 500;
 }
 
 .trace-inspector .trace-explore:hover {
-  border-color: rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--ast-white);
+  border-color: var(--db-blue-700);
+  background: var(--db-blue-700);
+  color: var(--primary-foreground);
+}
+
+.trace-inspector .trace-explore:active {
+  border-color: var(--db-blue-800);
+  background: var(--db-blue-800);
+  color: var(--primary-foreground);
 }
 
 .trace-inspector .trace-explore svg {

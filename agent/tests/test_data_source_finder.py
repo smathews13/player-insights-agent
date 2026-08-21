@@ -214,7 +214,7 @@ def test_gold_query_stays_succeeded_when_optional_silver_is_left_unsampled():
         "Compare active players by title over the last 30 days.",
         custom_inputs={
             "runtime_settings": {
-                "loop": {"maxSteps": 8, "maxToolCalls": 1, "maxRunSeconds": 90}
+                "loop": {"maxSteps": 12, "maxToolCalls": 1, "maxRunSeconds": 90}
             }
         },
     )
@@ -253,7 +253,7 @@ def test_empty_catalog_hit_by_budget_remains_partial():
         "What engagement data is available?",
         custom_inputs={
             "runtime_settings": {
-                "loop": {"maxSteps": 8, "maxToolCalls": 1, "maxRunSeconds": 90}
+                "loop": {"maxSteps": 12, "maxToolCalls": 1, "maxRunSeconds": 90}
             }
         },
     )

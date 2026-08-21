@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Search } from 'lucide-react';
 import type { EnvironmentInfo, EnvironmentPackage, EnvironmentVariable } from '../../shared/environment-info';
+import { AgentCodeRow } from './AgentCodeRow';
 import { filterEnvironmentItems } from './environment-filter';
 import { environmentInfoFromResponse } from './environment-response';
 import { Badge, Button, Input } from './ui';
@@ -18,7 +19,13 @@ async function copyText(value: string): Promise<void> {
   await navigator.clipboard.writeText(value);
 }
 
-export function EnvironmentPanel({ initialData }: { initialData?: unknown }) {
+export function EnvironmentPanel({
+  initialData,
+  initialAgentModel,
+}: {
+  initialData?: unknown;
+  initialAgentModel?: unknown;
+}) {
   const normalizedInitial = initialData === undefined ? null : environmentInfoFromResponse(initialData);
   const [data, setData] = useState<EnvironmentInfo | null>(normalizedInitial);
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>(normalizedInitial ? 'ready' : 'loading');
@@ -59,6 +66,12 @@ export function EnvironmentPanel({ initialData }: { initialData?: unknown }) {
       <div className="settings-pane-heading">
         <h3>Environment</h3>
       </div>
+
+      {/* Above the variables rather than inside them. What version of the agent
+          is answering, and where its source is, is not an environment variable
+          of THIS process -- the app container is never told it -- and burying it
+          in a hundred-row table is how a fact stops being read. */}
+      <AgentCodeRow initialData={initialAgentModel} />
 
       {data ? (
         <>

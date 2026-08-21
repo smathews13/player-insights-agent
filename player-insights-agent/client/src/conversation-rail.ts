@@ -63,6 +63,30 @@ export function ownerKey(email: string | null | undefined): string {
   return (email ?? '').trim().toLowerCase();
 }
 
+/**
+ * What an empty rail is allowed to claim, which depends on what it was asked
+ * for.
+ *
+ * A SHARED rail read every conversation in the store, so no rows really does
+ * mean the store holds none. A PER-USER rail read the reader's own and knows
+ * nothing whatever about anybody else's, so "No saved conversations yet" is a
+ * claim it cannot support -- and it made exactly that claim, wrongly, the day a
+ * Deploy-from-Git narrowed a shared deployment's rail back to per-user. The
+ * store was full, Run Explorer and Monitoring both still listed it, and the rail
+ * told the reader nothing had ever been saved. The sentence now says whose
+ * conversations were counted, so an empty rail beside a populated Explorer reads
+ * as a scope rather than as lost history.
+ *
+ * `undefined` is the identity payload before it arrives, and it is treated as
+ * per-user for the same reason the server's scope fails closed: claiming the
+ * whole store is empty is the one sentence that cannot be walked back.
+ */
+export function railEmptyNotice(shared: boolean | undefined): string {
+  return shared
+    ? 'No saved conversations yet.'
+    : 'No conversations of your own yet. This rail lists only conversations you started.';
+}
+
 /** One rail row, with the ownership question already answered for it. */
 export interface RailEntry {
   conversation: Conversation;

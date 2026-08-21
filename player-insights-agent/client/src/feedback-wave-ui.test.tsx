@@ -11,6 +11,7 @@ const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const LIVE_PROGRESS = readFileSync(new URL('./LiveProgress.tsx', import.meta.url), 'utf8');
 const RAIL = partial('rail.css');
 const ASK = partial('ask.css');
+const ASTROLABE = partial('astrolabe-tokens.css');
 const TOKENS = partial('tokens.css');
 const TRACE = partial('trace.css');
 const RUNS = partial('runs.css');
@@ -34,8 +35,20 @@ const RUN: Run = {
 
 describe('Sam’s second feedback wave', () => {
   it('continues the navy sky beneath the Ask transcript but not the conversation rail', () => {
-    expect(rule(RAIL, '.ask-layout')).toContain('background-color: var(--ast-navy)');
-    expect(rule(RAIL, '.ask-layout')).toContain('radial-gradient');
+    // `--ast-sky-fill` rather than `--ast-navy`, and the two are different jobs
+    // rather than two names for one colour: navy is the ink (the wordmark, the live
+    // chip, the entity tag) and the sky is the dark SURFACE. Sam asked for the
+    // surfaces to be a dark blue rather than a near-black, and pointing them at
+    // their own token is what let the ink stay where the design put it.
+    expect(rule(RAIL, '.ask-layout')).toContain('background-color: var(--ast-sky-fill)');
+    // The star field, which is `:root`'s recipe rather than four dots written out
+    // here: the agent map's band needs the same sky and is not a descendant of this
+    // grid, so an inherited property on the page could not have reached it.
+    expect(rule(RAIL, '.ask-layout')).toContain('background-image: var(--ast-sky-spackle)');
+    expect(ASTROLABE).toMatch(/--ast-sky-spackle:[\s\S]*?radial-gradient/);
+    expect(ASTROLABE).toMatch(/--ast-sky-fill:\s*#16202e/);
+    // Six layers, because one dot per tile at one tile size is a visible lattice.
+    expect(ASTROLABE.match(/--ast-sky-spackle:([\s\S]*?);/)?.[1].match(/radial-gradient/g)).toHaveLength(6);
     expect(rule(ASK, '.conversation-main')).toContain('background: transparent');
     expect(rule(ASK, '.ask-hero h2')).toContain('color: var(--ast-white)');
     // The rail is chrome, on the header's own surface. It was navy with white ink

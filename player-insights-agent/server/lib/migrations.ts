@@ -1,4 +1,5 @@
-import { APP_SCHEMA } from '../../shared/app-schema';
+import { APP_SCHEMA, appTable } from '../../shared/app-schema';
+import { DEPLOYMENT_DECISIONS_TABLE_NAME, deploymentDecisionsDdl } from './deployment-decisions';
 import { REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL } from './request-latency';
 /**
  * The numbered schema versions, and the rules for adding one.
@@ -393,6 +394,18 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `DROP INDEX IF EXISTS ${APP_SCHEMA}.request_latencies_recorded_route_idx`,
       `DROP TABLE IF EXISTS ${APP_SCHEMA}.request_latencies`,
     ],
+  },
+  {
+    version: 9,
+    name: 'deployment decisions',
+    // Four columns holding what this deployment decided about itself, so a
+    // Deploy-from-Git — which replaces app.yaml and therefore every value a
+    // release filled in — can read the decision back instead of taking the
+    // public artifact's placeholder for an answer. See
+    // lib/deployment-decisions.ts for why a policy cannot be discovered from
+    // Postgres the way the owned schema can.
+    statements: [deploymentDecisionsDdl(appTable(DEPLOYMENT_DECISIONS_TABLE_NAME))],
+    down: [`DROP TABLE IF EXISTS ${appTable(DEPLOYMENT_DECISIONS_TABLE_NAME)}`],
   },
 ];
 

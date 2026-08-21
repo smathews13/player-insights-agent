@@ -612,15 +612,22 @@ describe('the plan card says which state it is in, in the colour that state mean
     // The hues moved with the palette rather than the meaning: DuBois amber
     // #FFAB00 could not be read as type at 11px, and astrolabe's #8A6A38 on
     // #F9F6EF is the muted family drawn for exactly this.
-    expect(PLAN).toContain("`ast-pill plan-state ast-pill--${resolved ? 'pos' : 'warn'}`");
+    expect(PLAN).toContain(
+      "`ast-pill plan-state ast-pill--${state === 'approved' ? 'pos' : state === 'review' ? 'warn' : 'neutral'}`"
+    );
     expect(ANSWER_CSS, 'no second recipe survives in the stylesheet').not.toMatch(
       /\.plan-state\[data-state='(review|approved)'\]\s*\{/
     );
   });
 
   it('drives the tint from the same flag as the label', () => {
-    expect(PLAN).toContain("data-state={resolved ? 'approved' : 'review'}");
-    expect(PLAN).toContain("{resolved ? 'Approved' : 'Review needed'}");
+    // One value for all three statements -- chip label, chip tint, and the
+    // sentence at the foot -- so the card cannot say "Approved" over copy that
+    // says nothing ran. The third state is a plan settled without being
+    // approved: revised away, or left behind by the next question.
+    expect(PLAN).toContain("const state = approved ? 'approved' : resolved ? 'superseded' : 'review';");
+    expect(PLAN).toContain('data-state={state}');
+    expect(PLAN).toContain("{state === 'approved' ? 'Approved' : state === 'review' ? 'Review needed' : 'Not run'}");
   });
 
   it('keeps the sentence that says no query has run yet', () => {
@@ -628,6 +635,9 @@ describe('the plan card says which state it is in, in the colour that state mean
     // tells the reader what approving it will do.
     expect(PLAN).toContain('No analytical query runs until you approve this plan.');
     expect(PLAN).toContain('You approved this plan. The analysis below was produced by running these steps.');
+    // And the third: claiming an approval the reader never gave is the same
+    // defect in the other direction.
+    expect(PLAN).toContain('None of these steps ran. The turn below replaced this plan.');
   });
 
   it('reassures in green, which is the reachable-or-saved colour', () => {

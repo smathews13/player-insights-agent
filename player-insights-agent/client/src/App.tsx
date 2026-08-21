@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate, useLocation } from 'react-router';
 import { AccessGate } from './AccessGate';
 import { ConnectionsPage } from './ConnectionsPage';
@@ -7,6 +7,7 @@ import { AdminOnly } from './GatePanel';
 import { HomePage } from './HomePage';
 import { Layout } from './Layout';
 import { BenchmarkingVisibility } from './BenchmarkingVisibility';
+import { kickWarehouseWarmup } from './warehouse-warmup';
 
 /**
  * The five pages that are fetched when somebody opens them, not when the app
@@ -154,6 +155,16 @@ const router = createBrowserRouter([
 ]);
 
 export default function App() {
+  // After the first paint, while the opening concepts and login gate occupy the
+  // screen, ask the server to start the SQL warehouse. This is independent of
+  // the Ask page's preflight/readiness request: that page may not mount until
+  // after a gate decision, and its agent-side dependency report is retired.
+  // `kickWarehouseWarmup` returns void and swallows the request failure, so this
+  // can neither delay nor refuse login.
+  useEffect(() => {
+    kickWarehouseWarmup();
+  }, []);
+
   // Outside the router on purpose: the choice is about the session rather than
   // about a page, and asking again on every navigation would train people to
   // dismiss it without reading, which is the opposite of what it is for.

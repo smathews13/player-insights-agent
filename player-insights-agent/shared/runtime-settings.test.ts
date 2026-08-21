@@ -5,7 +5,7 @@ describe('runtime settings contract', () => {
   it('keeps the current agent behavior as its defaults', () => {
     expect(RuntimeSettingsSchema.parse(DEFAULT_RUNTIME_SETTINGS)).toEqual(DEFAULT_RUNTIME_SETTINGS);
     expect(DEFAULT_RUNTIME_SETTINGS.loop).toEqual({
-      maxSteps: 8,
+      maxSteps: 12,
       maxToolCalls: 12,
       maxRunSeconds: 90,
     });

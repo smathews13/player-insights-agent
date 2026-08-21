@@ -172,7 +172,14 @@ describe('the plan card marks the steps that are a call on a product', () => {
 
   const markup = () =>
     renderToStaticMarkup(
-      <PlanCard plan={plan} loading={false} resolved={false} onApprove={() => {}} onRevise={() => {}} />
+      <PlanCard
+        plan={plan}
+        loading={false}
+        resolved={false}
+        approved={false}
+        onApprove={() => {}}
+        onRevise={() => {}}
+      />
     );
 
   it('draws Genie on the definitions step and Databricks SQL on the data step', () => {

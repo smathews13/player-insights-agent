@@ -927,6 +927,29 @@
   gap: 12px;
 }
 
+/* Where the running agent's own code can be opened. Ruled off below rather than
+   above, because it sits directly under the pane heading and a line there would
+   read as a second heading rule. */
+.agent-code-row {
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ebebeb;
+}
+
+/* A PLACE, NOT A VALUE, so it carries the same affordance as the two openable
+   rows on the Build card: the label, then the mark that says this leaves the
+   app. `flex-shrink: 0` because the sentence beside it is long and the link
+   wrapping onto two lines reads as two links. */
+.agent-code-open {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ast-blue);
+}
+
 .environment-runtime {
   display: flex;
   flex-wrap: wrap;

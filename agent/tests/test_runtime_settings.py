@@ -6,7 +6,7 @@ from runtime_settings import RuntimeSettings, activate, current, prompt_fragment
 
 def test_absent_settings_preserve_compiled_behavior():
     assert activate({}) == RuntimeSettings()
-    assert current().loop.max_steps == 8
+    assert current().loop.max_steps == 12
     assert current().answer.max_charts == 2
 
 
@@ -78,7 +78,7 @@ def test_invalid_direct_caller_values_fall_back_safely():
             }
         }
     )
-    assert settings.loop.max_steps == 8
+    assert settings.loop.max_steps == 12
     assert settings.loop.max_tool_calls == 12
     assert settings.behavior.timezone == ""
     assert settings.answer.takeaway_guidance == ""

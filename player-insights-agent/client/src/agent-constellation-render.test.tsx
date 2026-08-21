@@ -740,7 +740,10 @@ describe('no orange, and no oat (§2)', () => {
 
   it('reads only astrolabe tokens, so the DuBois set can be retired under it', () => {
     expect(CONSTELLATION_CSS).not.toMatch(/var\(--db-/);
-    expect(CONSTELLATION_CSS).toMatch(/var\(--ast-navy\)/);
+    // The band's own surface. It was `--ast-navy`, the ink token, and it is
+    // `--ast-sky-fill` now: the same darkness pitched as a blue rather than as a
+    // near-black, which is the one colour decision this file makes.
+    expect(CONSTELLATION_CSS).toMatch(/var\(--ast-sky-fill\)/);
   });
 
   it('writes no em dash on either band', () => {

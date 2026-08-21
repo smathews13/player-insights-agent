@@ -22,10 +22,17 @@
  * the box model; this is the same decision taken before the first attempt.
  *
  * CONTRAST. §5 forbids the theme behind body text under 4.5:1, and the two text
- * rungs drawn on these bands clear it against `#11171C`: white at 0.8 renders
- * about 9.4:1 and `--ast-text-on-dark-secondary` is 6.2:1. The connectors are not
- * text -- they are 1.2-unit lines at 0.2 opacity -- and nothing is set on top of
- * one.
+ * rungs drawn on these bands clear it. THE BAND IS `--ast-sky-fill` (#16202E) AND
+ * NO LONGER `--ast-navy` (#11171C): the surfaces were pitched up to a dark blue
+ * because the near-black read as black, and a lighter ground means less contrast
+ * for everything drawn on it. Both rungs were recomputed against the new ground
+ * rather than assumed: `--ast-text-on-dark-secondary` goes from 6.2:1 to 5.6:1,
+ * and white at 0.8 stays in double figures. Both clear 4.5, which is the only
+ * line that matters, and the secondary rung is the one with room to lose -- a
+ * further pitch-up of this surface is what would take it under.
+ *
+ * The connectors are not text -- they are 1.2-unit lines at 0.2 opacity -- and
+ * nothing is set on top of one.
  */
 
 /*
@@ -37,9 +44,11 @@
  * one figure is the thing brand-icons.test.tsx exists to stop, and a second place
  * to colour it is the same mistake one layer down.
  *
- * §2 for why there are two and not one: `--ast-blue` at 2.7:1 on `#11171C` is a
- * mark a reader has to look for, so the on-navy seating lightens the accent
- * rather than darkening the ink.
+ * §2 for why there are two and not one: `--ast-blue` on a dark band is a mark a
+ * reader has to look for, and the pitch-up to `--ast-sky-fill` moved that the
+ * wrong way rather than the right one -- a lighter ground is closer to the accent,
+ * not further from it. So the on-navy seating lightens the accent rather than
+ * darkening the ink, and it matters slightly more now than it did.
  */
 
 /* ---- The band ---- */
@@ -53,7 +62,17 @@
  * number.
  */
 .ast-sky {
-  background: var(--ast-navy);
+  /* `--ast-sky-fill`, which is the dark surface rather than the ink: see the note
+     in astrolabe-tokens.css for why those are two tokens and not one.
+     `background-color` rather than the shorthand, so the field below survives.
+     Inside the live harness this whole rule is overridden to `transparent` by
+     `.trace-inspector .ast-sky`, which is more specific -- the column paints one
+     sky for the panel and the band sits in it. This pair is therefore what the
+     AGENT MAP's band gets, where the band is the only dark thing on a white
+     page. */
+  background-color: var(--ast-sky-fill);
+  background-image: var(--ast-sky-spackle);
+  background-size: var(--ast-sky-spackle-size);
   border-radius: var(--ast-radius-card);
   /* `clip` and not `hidden`: a clip region cannot be scrolled, so the defect the
      card grid was rebuilt twice to fix -- later steps parked off-screen behind a

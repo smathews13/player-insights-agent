@@ -192,9 +192,12 @@ test('plan approval flow re-posts the approved plan and keeps the full transcrip
   await expect(page.getByText('Proposed analysis plan', { exact: true })).toBeVisible();
   await expect(page.locator('.plan-step')).toHaveCount(4);
 
-  // 2. Revise loads the plan question back into the composer draft.
+  // 2. Revise opens the plan as an editor on the card, and Cancel puts it back.
   await page.getByRole('button', { name: 'Revise request' }).click();
-  await expect(page.getByPlaceholder(/Ask about player behavior/)).toHaveValue(plan.plan.question);
+  await expect(page.getByLabel('Step 1 title')).toHaveValue('Confirm scope');
+  await expect(page.getByRole('button', { name: 'Send revised request' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('button', { name: 'Revise request' })).toBeVisible();
 
   // 3. Approve re-posts with approvedPlanId + executePlan.
   await page.getByRole('button', { name: /Approve and run/ }).click();

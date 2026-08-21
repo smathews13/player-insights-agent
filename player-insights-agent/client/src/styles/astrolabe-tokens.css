@@ -85,6 +85,75 @@
   --ast-icon-tint: #b7d6ee; /* the light tint inside the recoloured product icons */
 
   /*
+   * ---- Two values that are THIS APP'S AND NOT THE DELIVERED FILE'S ----
+   *
+   * Everything above is docs/design-handoff-astrolabe/tokens.css, value for value, and
+   * astrolabe-tokens.test.ts pins it that way. These two are Sam's, asked for on a
+   * screen rather than derived from §2, and they are declared here rather than at their
+   * call sites because palette.test.ts's rule is the one rule this file exists to serve:
+   * a saturated colour is declared in a token block or it is not written at all.
+   *
+   * --ast-sky-fill IS NOT A SECOND NAME FOR --ast-navy, which is the trap this file
+   * spends sixty lines on. Navy is INK: the wordmark, the marks' structure, the live
+   * chip, the entity tag. This is the SKY -- the full-bleed dark surfaces a reader looks
+   * at rather than reads: the Ask page behind the transcript, the live agent panel, the
+   * constellation bands, the login canvas. #11171C is 3 steps of blue off neutral and
+   * renders as black on every screen it was reviewed on; this is 24, which reads as a
+   * dark blue at the same darkness. Both stay dark: L* 8 against L* 12.
+   *
+   * The two things drawn on the sky still clear §5 against it, recomputed rather than
+   * assumed: --ast-text-on-dark-secondary goes from 6.2:1 to 5.6:1, and white at 0.8
+   * stays in double figures. Both are over 4.5. The secondary rung is the one with room
+   * to lose, so a further pitch-up of this value is what would take it under -- see the
+   * same note at the head of constellation.css, which is where those two are drawn.
+   *
+   * --ast-pane is the answer card's white, and the alpha is the whole point of it: 4% of
+   * the sky reads through the card so the starfield behind it is faintly present. This
+   * was tried once as `rgba(255, 255, 255, 0.95)` on the near-black navy and reverted --
+   * 5% of black is a grey pane, and it swallowed the card's own hairlines. It is asked
+   * for again against a sky that is blue rather than black, at 96% rather than 95%: the
+   * card surface lands at #F6F6F7, ink on it is 16.4:1, and the hairline inside it is 11
+   * steps below the surface rather than 20. That last figure is the cost, and it is the
+   * one to look at first if the card ever reads as flat again.
+   */
+  --ast-sky-fill: #16202e; /* the dark surfaces: Ask, the harness, the bands, the login canvas */
+  --ast-pane: rgba(255, 255, 255, 0.96); /* the answer card, letting 4% of the sky through */
+
+  /*
+   * ---- The star field the sky carries ----
+   *
+   * ONE RECIPE, THREE SURFACES, AND THAT IS WHY IT IS A TOKEN. The Ask grid, the live
+   * agent column and the agent map's band are all this sky, and the map's band is not a
+   * descendant of the other two, so an inherited custom property on the page would have
+   * reached two of the three. `:root` reaches all of them.
+   *
+   * Six layers, each REPEATING at its own tile size, so the dots never line up into a
+   * grid and the field is as tall and as wide as whatever paints it. The tile sizes are
+   * coprime-ish on purpose: the nearest recurrence a reader could find is thousands of
+   * pixels away in both axes. About eighty dots on a full window.
+   *
+   * THE WEIGHTS ARE THE SVG DUST'S, MEASURED RATHER THAN GUESSED, and the first attempt
+   * at this field got them wrong. `.ast-sky-dust` in constellation.css draws r=1.5 in
+   * viewBox units on a canvas about as wide as its own column, so on screen it is a 3px
+   * dot at 0.3 -- and the field was written as a 1px dot at 0.22-0.32, a third of the
+   * area at a lower alpha. The report back was that the idle harness and the main sky
+   * were still flat, and they were: the dots were painting, below the threshold of
+   * something a reader notices. These are the dust's weight instead.
+   *
+   * Not a new texture, deliberately: white and `--ast-blue-on-dark`, which are the two
+   * inks the constellation itself is drawn in. The chain of stars stays the only figure
+   * on this surface and this is the paper it is drawn on.
+   */
+  --ast-sky-spackle:
+    radial-gradient(circle at 8% 16%, rgba(255, 255, 255, 0.5) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle at 31% 42%, rgba(111, 174, 221, 0.44) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle at 58% 12%, rgba(255, 255, 255, 0.4) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle at 76% 68%, rgba(111, 174, 221, 0.38) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle at 19% 77%, rgba(255, 255, 255, 0.42) 0 1.2px, transparent 1.9px),
+    radial-gradient(circle at 88% 34%, rgba(255, 255, 255, 0.46) 0 1.2px, transparent 1.9px);
+  --ast-sky-spackle-size: 210px 240px, 280px 310px, 250px 210px, 330px 270px, 300px 340px, 360px 250px;
+
+  /*
    * ---- Text (§2) ----
    *
    * The first three are the values --db-ink, --db-body and --db-slate already carry, so

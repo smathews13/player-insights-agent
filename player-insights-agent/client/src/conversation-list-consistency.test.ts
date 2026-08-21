@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Conversation, Run } from './app-types';
-import { railOwnership } from './conversation-rail';
+import { railEmptyNotice, railOwnership } from './conversation-rail';
 import { readConversationList } from './initial-rail';
 import { conversationFilterOptions } from './run-explorer-state';
 
@@ -118,7 +118,26 @@ describe('Ask and Run Explorer use one conversation set', () => {
     expect(ASK).toMatch(/railAvailability\?\.origin ===\s*'unavailable'/);
     expect(EXPLORER).toContain("'Conversations could not be read'");
     // And an unreadable filter does not take the runs down with it: the rows
-    // below answer to their own read.
-    expect(EXPLORER).toMatch(/runsAvailability\?\.origin === 'unavailable' \? \(/);
+    // below answer to their own read. Whitespace-tolerant because this asserts
+    // a condition, not a line break: the formatter has wrapped it once already
+    // and a red test for a reflow is a test that gets deleted.
+    expect(EXPLORER).toMatch(/runsAvailability\?\.origin ===\s*'unavailable'/);
+  });
+
+  it('does not tell a per-user rail\u2019s reader that the whole store is empty', () => {
+    // The Git-deploy defect. A per-user rail with no rows has read the reader's
+    // own conversations and nothing else, so it cannot speak for the store --
+    // and Run Explorer and Monitoring were both still listing that store's
+    // history while the rail said none of it had ever been saved.
+    expect(railEmptyNotice(false)).toBe(
+      'No conversations of your own yet. This rail lists only conversations you started.'
+    );
+    // Unknown scope is treated as the narrow one: the identity payload has not
+    // arrived, and "the store is empty" is the sentence that cannot be walked
+    // back.
+    expect(railEmptyNotice(undefined)).toBe(railEmptyNotice(false));
+    // A shared rail did read every row, so here the plain sentence is true.
+    expect(railEmptyNotice(true)).toBe('No saved conversations yet.');
+    expect(ASK).toContain('railEmptyNotice(identity.sharedConversationRail)');
   });
 });

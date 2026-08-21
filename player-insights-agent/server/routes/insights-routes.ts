@@ -1,4 +1,4 @@
-import { APP_SCHEMA } from '../../shared/app-schema';
+import { APP_SCHEMA, appTable } from '../../shared/app-schema';
 import { raw, type Application, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { extractPdfText, isPdfFilename } from '../lib/pdf-text';
@@ -33,6 +33,11 @@ import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
 import { ADMIN_ROLES_DDL } from '../lib/admin-roles-schema';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
+import {
+  DEPLOYMENT_DECISIONS_TABLE_NAME,
+  SHARED_RAIL_DECISION,
+  preserveEnvDecision,
+} from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { requireAdmin, requireSuperAdmin, rolePayload } from '../lib/admin-roles';
 import {
@@ -1685,6 +1690,54 @@ function announceSharedConversationRail(resolution: SharedRailResolution) {
 }
 
 /**
+ * Settle the rail's scope against what this deployment last decided, once the
+ * store is migrated far enough to hold the answer.
+ *
+ * THE DEFECT THIS FIXES. Deploy-from-Git replaces app.yaml with the copy
+ * committed in `build/deploy/`, and that copy authors
+ * `PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL: 'false'` -- correctly, because a
+ * public artifact must not open one reader's conversations to another. A bundle
+ * release fills the same variable from `var.shared_conversation_rail`, and the
+ * example target sets it to "true" so its seeded evaluation conversations are
+ * visible to every reviewer. So a Git deploy over a released app silently
+ * narrowed the rail from everyone's conversations to the reader's own, and a
+ * reader who owned none of the stored history was told "No saved conversations
+ * yet" while Run Explorer's shared benchmark rows and Monitoring's all-user view
+ * still listed all of it. Nothing was lost and nothing said so.
+ *
+ * The schema had the same problem and is solved the same way -- see
+ * `shared/app-schema.ts` -- except that a schema can be discovered from Postgres
+ * because it is an object with an owner, and a policy cannot. So a release
+ * records the decision and a Git deploy reads it back; see
+ * `lib/deployment-decisions.ts` for why a Git deploy never records.
+ *
+ * FAILS CLOSED AT EVERY STEP. The env-derived scope is already announced by the
+ * time this runs, so no request is ever served under an unresolved one; an
+ * unreadable or unrecorded decision leaves that value standing; and the stored
+ * value goes through `resolveSharedConversationRail`, so a corrupted row widens
+ * nothing.
+ */
+async function settleSharedConversationRail(appkit: InsightsAppKit): Promise<void> {
+  const authored = process.env[SHARED_CONVERSATION_RAIL_ENV];
+  const preserved = await preserveEnvDecision({
+    store: appkit.lakebase,
+    table: appTable(DEPLOYMENT_DECISIONS_TABLE_NAME),
+    decision: SHARED_RAIL_DECISION,
+    authored,
+    env: process.env as Record<string, string | undefined>,
+    recordedBy: 'app boot',
+  });
+  if (!preserved.restored) return;
+  const resolution = resolveSharedConversationRail(preserved.value);
+  console.warn(`[rail] This deploy carried ${SHARED_CONVERSATION_RAIL_ENV}=${JSON.stringify(preserved.authored ?? '')} ` +
+      'because Deploy-from-Git replaces app.yaml with the public artifact\'s copy, which cannot state a ' +
+      `deployment's own decision. The recorded decision is ${JSON.stringify(preserved.value ?? '')}, so that is ` +
+      'what the rail uses. Release the bundle to change it; a Git deploy never records one.'
+  );
+  announceSharedConversationRail(resolution);
+}
+
+/**
  * The rail read, and the read of one conversation's messages.
  */
 function conversationListQuery(email: string) {
@@ -2714,6 +2767,12 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
     markSchemaPending(false);
   }
 
+  // After the schema pass, because the decision it reads lives in a table that
+  // pass creates, and before anything that answers a rail read. The scope in
+  // force until this resolves is the one the environment carried, which is the
+  // narrow direction.
+  await settleSharedConversationRail(appkit);
+
   // Labels stored by the version that cut them to 80 characters, read back from
   // the questions they were cut from. After the schema pass, because it reads
   // two tables that pass creates.
@@ -2748,23 +2807,20 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
  * misdiagnosed as "run the grant script" during the second it is true.
  */
 export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeReady: Promise<void> }> {
+  // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
+  // than tidy. `prepareStore` asks the store whether this deployment recorded a
+  // different rail scope (see `settleSharedConversationRail`), and the scope in
+  // force until that answer arrives has to be the narrow one the environment
+  // carried. Announced here, that is true by construction instead of true
+  // because two `await`s happen to interleave the way they do today.
+  announceSharedConversationRail(resolveSharedConversationRail(process.env[SHARED_CONVERSATION_RAIL_ENV]));
+
   const storeReady = prepareStore(appkit);
 
   // Reads are what the pages depend on, and a `CREATE TABLE IF NOT EXISTS` that
   // succeeds says nothing about whether the store still answers minutes later.
   // The watchdog dates an outage and its recovery even when nobody is looking.
   startLakebaseWatchdog(appkit);
-
-  // Said at boot rather than left to be discovered from row contents. A
-  // development session owns everything it writes as one synthetic address, so
-  // anyone reading this database later needs to know which rows came from a
-  // laptop, and anyone running the app needs to know they are not seeing a real
-  // per-user view.
-  // Resolved once, here, and announced the way the identity mode below is. The
-  // failure this guards against is a flag that never reaches the container:
-  // read at boot and logged, an app that is not sharing says so in its own
-  // startup output, so "is it on?" is answerable from the app logs alone.
-  announceSharedConversationRail(resolveSharedConversationRail(process.env[SHARED_CONVERSATION_RAIL_ENV]));
 
   if (isDeployed()) {
     console.log('[identity] Requiring x-forwarded-email on user-scoped routes; unidentified requests are refused with 401.'
@@ -2803,6 +2859,23 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     // as routes the app served, and it stores canonical Express route templates
     // rather than concrete URLs containing user or resource ids.
     app.use(requestLatencyRecorder(appkit.lakebase));
+
+    /**
+     * Wake the configured SQL warehouse while the browser is showing the
+     * opening sequence and login gate.
+     *
+     * This route is deliberately separate from `/api/preflight`. Preflight is
+     * still fetched by the Ask page, but that page can mount after the opening
+     * sequence and the agent no longer returns a dependency report. Warehouse
+     * startup is an arrival concern, not a readiness verdict.
+     *
+     * Answer before the control-plane calls settle. A hanging or refused start
+     * is logged by `warmWarehouseForArrival` and can never delay or fail login.
+     */
+    app.post('/api/warehouse-warmup', (_req, res) => {
+      warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
+      res.status(202).json({ accepted: true });
+    });
 
     /**
      * Who the caller is and what they may open, in one payload.

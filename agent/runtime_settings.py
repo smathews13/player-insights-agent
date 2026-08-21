@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 @dataclass(frozen=True)
 class LoopSettings:
-    max_steps: int = 8
+    max_steps: int = 12
     max_tool_calls: int = 12
     max_run_seconds: int = 90
 
@@ -103,7 +103,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             timezone = ""
     value = RuntimeSettings(
         loop=LoopSettings(
-            max_steps=_integer(loop.get("maxSteps"), 8, 1, 20),
+            max_steps=_integer(loop.get("maxSteps"), 12, 1, 20),
             max_tool_calls=_integer(loop.get("maxToolCalls"), 12, 1, 40),
             max_run_seconds=_integer(loop.get("maxRunSeconds"), 90, 30, 180),
         ),

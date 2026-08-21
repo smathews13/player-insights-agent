@@ -94,6 +94,7 @@ from tools import (
     data_genie_tool,
     dictionary_genie_tool,
     normalise_dictionary_question,
+    reports_dependency_unavailable,
 )
 from unattributed_figures import announce as announce_waiver
 from unattributed_figures import from_artifact as waiver_from_artifact
@@ -311,10 +312,10 @@ def _without_non_action_filler(text: str) -> str:
 # which beats spinning until the endpoint times out and returns nothing.
 # ---------------------------------------------------------------------------
 
-#: Model turns that may request tools. Eight covers the deepest useful path (
-#: definition lookup, discovery, describe, query, quality check, with slack for
-#: one recovery) while capping a loop at nine model calls.
-MAX_TOOL_STEPS = 8
+#: Model turns that may request tools. Twelve covers the deepest useful path (
+#: definition lookup, discovery, describe, query, quality check) with slack for
+#: several recoveries, while capping a loop at thirteen model calls.
+MAX_TOOL_STEPS = 12
 
 #: Tool executions across the whole run, counted separately because one turn can
 #: request several calls at once and a step cap alone would not bound them.
@@ -3268,6 +3269,21 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         # NOTHING ABOUT A REFUSED CALL IS RECORDED. Recording one
                         # publishes the tables it was refused for, above the
                         # statement, which reads as a query that succeeded.
+                        status = "partial"
+                    elif reports_dependency_unavailable(output):
+                        # A dependency the run can proceed without did not
+                        # answer: the tag views are ungranted, or the warehouse
+                        # behind a Genie space is still starting. The tool chose
+                        # to return this rather than raise, precisely so the step
+                        # is not a failure and the rest of the turn continues.
+                        #
+                        # PARTIAL RATHER THAN COMPLETE, because nothing was
+                        # learned. Filing it as complete puts a sentence about an
+                        # unavailable dependency into the evidence the answer is
+                        # written from, and -- worse on the dictionary path --
+                        # memoises it under the question it failed to answer, so
+                        # a later step asking the same thing is handed the
+                        # unavailability instead of calling the space again.
                         status = "partial"
                     else:
                         log.record(result)

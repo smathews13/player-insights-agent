@@ -270,12 +270,22 @@ describe('the ask home is the geometry the mockup gives it', () => {
 
   it('uses the entire harness rail as one navy panel', () => {
     const inspector = body('.trace-inspector');
-    expect(inspector).toMatch(/background:\s*var\(--ast-navy\)/);
+    // `--ast-sky-fill`: the dark SURFACE token, which is a slightly lighter and
+    // bluer dark than `--ast-navy`, the ink. Sam asked for the dark chrome to stop
+    // reading as black; the ink stayed where the design handoff put it.
+    expect(inspector).toMatch(/background:\s*var\(--ast-sky-fill\)/);
     expect(inspector).toMatch(/padding:\s*20px/);
     expect(inspector).toMatch(/gap:\s*14px/);
     expect(inspector).not.toMatch(/background:\s*var\(--background\)/);
+    // AND THE STAR FIELD, WHICH IS WHAT PAINTS THE IDLE PANEL. `.trace-empty` has
+    // no surface of its own, so a harness with no run in it is this element's
+    // background and nothing else -- it was flat while the field lived only on the
+    // page grid this column paints over.
+    expect(inspector).toMatch(/background-image:\s*var\(--ast-sky-spackle\)/);
 
     const sky = body('.trace-inspector .ast-sky');
+    // Transparent, so the column's one field runs behind the band rather than the
+    // band tiling a second one of its own on top of it.
     expect(sky).toMatch(/background:\s*transparent/);
     expect(sky).toMatch(/border-radius:\s*0/);
   });
@@ -491,7 +501,11 @@ describe('the inspector while a run is still going', () => {
     // throughout the entire continuation.
     expect(HOME_PAGE).toContain('resolved={index < messages.length - 1}');
     expect(HOME_PAGE).not.toContain('resolved={index !== lastAssistantIndex}');
-    expect(HOME_PAGE).toContain("label: 'Approved the proposed analysis plan.'");
+    // The approval's own user row, written once as a constant now: the card
+    // reads the same sentence back to tell an approved plan from one that was
+    // revised away. See plan-revision.test.ts.
+    expect(HOME_PAGE).toContain("const PLAN_APPROVAL_LABEL = 'Approved the proposed analysis plan.';");
+    expect(HOME_PAGE).toContain('label: PLAN_APPROVAL_LABEL,');
   });
 
   it('uses the constellation as its only run view before and after completion', () => {

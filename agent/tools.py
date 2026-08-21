@@ -109,6 +109,37 @@ DESCRIBE_STOP_MARKERS = ("# Detailed Table Information", "# Partition Informatio
 #: already dead), so it is not a timeout, only a way to return nothing.
 GENIE_TIMEOUT_SECONDS = 45.0
 
+#: How long a call may wait for a warehouse that HAS NOT STARTED YET, which is a
+#: different wait from the one above and is why it has its own number.
+#:
+#: `GENIE_TIMEOUT_SECONDS` is sized against how long a space takes to ANSWER, and
+#: as a bound on that it is right. It was also, until this change, the bound on
+#: getting a warehouse up, and as a bound on that it is simply wrong: our own demo
+#: warehouse is warm before anybody asks it anything, so the question is answered
+#: in a couple of seconds and the deadline is never approached, while a customer
+#: workspace starts its warehouse on the first question of the day and routinely
+#: needs longer than forty-five seconds to do it. The step was then reported as a
+#: Genie failure -- to the model, to the trace, and to the person watching -- for
+#: an outage that was not one.
+#:
+#: WARMING UP IS NOT THE SAME EVENT AS BEING SLOW TO ANSWER, so the two are timed
+#: separately: the answer budget above starts when the warehouse is up, and this
+#: is what may be spent before that. Generous, because the thing being waited for
+#: takes minutes in the worst case and nothing else in the turn can proceed
+#: without it either.
+GENIE_WAREHOUSE_START_SECONDS = 150.0
+
+#: What one warehouse wait must LEAVE BEHIND for the rest of the turn.
+#:
+#: The cap above is the ceiling; this is the constraint that usually binds. On the
+#: default ninety-second turn there is no version of waiting two and a half
+#: minutes, and waiting until the budget is gone is worse than not waiting: the
+#: finder has other tools that do not need the dictionary space, and a turn that
+#: spent all of itself on one wait cannot call them. So the wait stops with this
+#: much left, reports the warehouse as still starting, and lets the finder carry
+#: on with `search_tagged_assets` and `list_data_assets`.
+GENIE_BUDGET_RESERVE_SECONDS = 25.0
+
 #: The LONGEST gap between two checks. The wait starts at
 #: `GENIE_FIRST_POLL_SECONDS` and doubles up to this, so a question Genie answers
 #: in 1.5s is noticed at 1.5s instead of waiting out a full fixed cycle, while a
@@ -133,18 +164,58 @@ _GENIE_TERMINAL_FAILURES = {
     MessageStatus.QUERY_RESULT_EXPIRED: "produced a result that has since expired",
 }
 
+#: Statuses that mean the warehouse behind the space has not started yet. Held as
+#: a set rather than tested against the one member, because this is the property
+#: the wait branches on and a second status meaning the same thing should join it
+#: here rather than add a branch somewhere else.
+_GENIE_WAREHOUSE_STARTING = frozenset({MessageStatus.PENDING_WAREHOUSE})
+
 #: What a non-terminal status means when the deadline arrives, so the model gets a
-#: next step rather than a stopwatch reading.
+#: next step rather than a stopwatch reading. Written to be read FIRST, before any
+#: number: the sentence a person needs is "the warehouse was still starting", and
+#: a stopwatch reading in front of it is what turned this into a wall of stack in
+#: the trace.
 _GENIE_STALL_HINTS = {
-    MessageStatus.PENDING_WAREHOUSE: (
-        "The SQL warehouse was still starting. Retrying once usually finds it warm, "
-        "or use run_sql against the declared tables."
-    ),
     MessageStatus.EXECUTING_QUERY: (
         "Its query was still running. Ask for a narrower slice: fewer dimensions or "
         "a shorter window."
     ),
 }
+
+#: Said when the wait ended with the warehouse still starting.
+#:
+#: NOT AN ERROR SENTENCE, and the difference is the point of this whole path.
+#: Nothing failed, nothing was refused, and the question may well be answerable
+#: on the next call; what happened is that the turn could not afford to keep
+#: waiting. So the model is told what is missing, told it is not a blocker on its
+#: own, and pointed at the tools that do not need this warehouse.
+GENIE_WAREHOUSE_STARTING_GUIDANCE = (
+    "This is a cold warehouse, not an outage and not a refusal, so do not report the "
+    "space as broken or the data as unavailable. Carry on with the tools that do not "
+    "need it -- search_tagged_assets, list_data_assets and describe_table -- and note "
+    "the definition as one this run could not look up rather than guessing at it."
+)
+
+
+class WarehouseStarting(TimeoutError):
+    """The warehouse behind a dependency had not started before the turn's limit.
+
+    A distinct type because it takes a distinct path: every other way a Genie
+    wait can end is an error the step reports as a failure, and this one is a
+    step that produced nothing while nothing went wrong. Subclasses `TimeoutError`
+    so a caller that has not been taught the difference still treats it as the
+    wait running out rather than as something unrecognised.
+
+    Carries the seconds waited rather than baking them into a sentence, because
+    the caller knows which space was asked and this does not.
+    """
+
+    def __init__(self, waited: float):
+        self.waited = waited
+        super().__init__(
+            f"the SQL warehouse behind it was still starting after {waited:.0f}s"
+        )
+
 
 # ---------------------------------------------------------------------------
 # What the dictionary space is asked
@@ -345,19 +416,90 @@ def dictionary_scope_note(dropped: Sequence[str]) -> str:
 #: with `on_wait_timeout=CANCEL` so that reaching it means "too slow", which the
 #: model can act on, rather than leaving a statement running whose response says
 #: RUNNING and used to be reported as a failure.
-SQL_WAIT_TIMEOUT = "30s"
+SQL_WAIT_SECONDS = 30
+SQL_WAIT_TIMEOUT = f"{SQL_WAIT_SECONDS}s"
+
+#: The Statement Execution API's own bounds on a synchronous wait. Values outside
+#: them are rejected by the platform rather than clamped, so the clamp is ours: a
+#: turn with four seconds left used to send `wait_timeout=1s` and get an argument
+#: error back where it expected a cancelled statement.
+SQL_WAIT_CEILING_SECONDS = 50
+SQL_WAIT_FLOOR_SECONDS = 5
+
+#: What a DISCOVERY read waits, as against a read whose rows are the answer.
+#:
+#: WHY IT IS LONGER. The first statement of a turn pays for the warehouse to
+#: start, and in a customer workspace that is routinely more than thirty seconds
+#: where our own demo warehouse is already warm and answers in two. The read
+#: itself is a small `information_schema` scan; what the extra twenty seconds buy
+#: is the warmup, not the query. Sized at the API ceiling because that is the
+#: longest a single synchronous statement may wait, and a discovery result the
+#: turn can skip is exactly the read worth spending the whole of it on.
+DISCOVERY_WAIT_SECONDS = SQL_WAIT_CEILING_SECONDS
+
+#: A statement cancelled for slowness is retried ONCE, and only while the turn
+#: could still do something with the answer. The first attempt is usually what
+#: started the warehouse, so the second one often lands on a warm one -- but a
+#: retry that leaves no budget for the rest of the run has spent the turn to
+#: produce a discovery hint nobody gets to use.
+SQL_RETRY_MIN_REMAINING_SECONDS = 40
+SQL_RETRY_RESERVE_SECONDS = 20
+
+#: States that mean the statement was too slow or had not begun, as against being
+#: REJECTED. Only these are worth running a second time: a rejected statement is
+#: rejected identically on the retry, and a denial is about who is asking.
+_SQL_TOO_SLOW_STATES = frozenset({"CANCELED", "PENDING", "RUNNING"})
 
 #: What each non-success state means for the model's next move.
+#:
+#: The cancellation text names no number. The wait is no longer one constant --
+#: a discovery read waits longer than a data read, and both are clamped by what
+#: is left of the turn -- so a sentence claiming "after 30s" would be wrong on
+#: most of the paths that produce it, and wrong in the direction that matters:
+#: it reads as a statement about the query when the cause is often a warehouse
+#: that had not finished starting.
 _SQL_STATE_MEANINGS = {
     "CANCELED": (
-        f"the statement was still running after {SQL_WAIT_TIMEOUT} and was cancelled, so it "
-        "did not fail: narrow it (fewer rows, fewer joins, a shorter window) and try again"
+        "the statement was still running when its wait timeout was reached and was "
+        "cancelled, so it did not fail: the warehouse may still have been starting, or the "
+        "statement may be too broad -- narrow it (fewer rows, fewer joins, a shorter "
+        "window) and try again"
     ),
     "PENDING": "the warehouse had not started the statement yet; try again in a moment",
     "RUNNING": "the statement is still running rather than failed; narrow it and try again",
     "FAILED": "the warehouse rejected the statement",
     "CLOSED": "the result was closed before it could be read",
 }
+
+#: How `statement_failure` opens every sentence it writes. Read back so a caller
+#: holding the message can recover which state produced it without a second
+#: channel carrying the same fact alongside it.
+_SQL_STATE_PREFIX = re.compile(r"^SQL ([A-Z_]+):")
+
+
+def _was_too_slow(detail: str) -> bool:
+    """Whether this failure text says the statement was SLOW, not rejected."""
+
+    match = _SQL_STATE_PREFIX.match(detail or "")
+    return bool(match) and match.group(1) in _SQL_TOO_SLOW_STATES
+
+
+def reports_dependency_unavailable(text: str) -> bool:
+    """Whether a tool result is a dependency being unavailable, not a finding.
+
+    Two tools return one of these instead of raising -- the tag search when the
+    tag views cannot be read, and a Genie call when the warehouse behind it is
+    still starting -- because in both cases the run can carry on without them.
+    The loop still has to tell the two apart from a result it can use: a call
+    that returned nothing to learn must not be filed as evidence, memoised as a
+    definition, or shown as a step that went fine.
+
+    Keyed on the shared failure code, which both texts carry in parentheses and
+    nothing else in a tool result does.
+    """
+
+    return f"({failures.DEPENDENCY_UNAVAILABLE})" in (text or "")
+
 
 #: Appended to the table listing when the run executes as the endpoint's invoker.
 #:
@@ -418,12 +560,28 @@ MAX_TAG_ROWS = 2_000
 #: That is a reason to degrade, not to fail: the tables are still in the manifest
 #: and still readable, and a turn that dies here loses a question that the older
 #: discovery path answers perfectly well.
-TAGS_UNAVAILABLE_GUIDANCE = (
+_TAGS_ALTERNATIVES = (
     "This is discovery, not data, so the question can still be answered: use "
     "list_data_assets and describe_table to find the tables, or search_semantics "
     "where this deployment has a semantic layer. Do not tell the user their tables "
-    "are untagged on the strength of this, and do not retry it: reading tags needs a "
+    "are untagged on the strength of this."
+)
+
+TAGS_UNAVAILABLE_GUIDANCE = (
+    _TAGS_ALTERNATIVES + " And do not retry it: reading tags needs a "
     "grant on information_schema that a read of the tables themselves does not."
+)
+
+#: The same tool being unavailable for the OPPOSITE reason, and the difference
+#: changes what the model should do next. A missing grant will be missing on
+#: every attempt, so retrying spends the turn to learn nothing. A warehouse that
+#: had not finished starting will very likely be up by the next call, and the
+#: attempt that just timed out is usually what started it. Telling the model "do
+#: not retry" in that case is advice against the one thing that would work.
+TAGS_SLOW_GUIDANCE = (
+    _TAGS_ALTERNATIVES + " Nothing was refused here, so the tags may well be "
+    "readable once the warehouse is up: one later attempt is reasonable if the turn has "
+    "room, but do not spend the run waiting on it."
 )
 
 
@@ -567,6 +725,18 @@ class SqlDenied(RuntimeError):
         self.sql_state = sql_state
 
 
+def statement_state(response: Any) -> str:
+    """The warehouse's own word for what happened to this statement.
+
+    Read once and shared, because two callers now need it for different reasons:
+    `statement_failure` turns it into a sentence, and the executor asks whether a
+    non-success was SLOW (worth one retry) or REJECTED (not).
+    """
+
+    status = getattr(response, "status", None)
+    return getattr(getattr(status, "state", None), "value", None) or "UNKNOWN"
+
+
 def statement_failure(response: Any) -> str:
     """Why this statement's rows cannot be read, or "" when they can.
 
@@ -585,8 +755,8 @@ def statement_failure(response: Any) -> str:
     is the second reading this function exists to prevent.
     """
 
+    state = statement_state(response)
     status = getattr(response, "status", None)
-    state = getattr(getattr(status, "state", None), "value", None) or "UNKNOWN"
     if state == "SUCCEEDED":
         return ""
     detail = getattr(getattr(status, "error", None), "message", "") or ""
@@ -798,6 +968,23 @@ class PlayerInsightTools:
         status treated as terminal, and a message that says which one it was:
         "the warehouse was still starting" is actionable, "timed out" is not.
 
+        THERE ARE TWO DEADLINES, not one, because there are two different waits
+        happening and one number could only ever be right for one of them. A
+        space that is ANSWERING gets `GENIE_TIMEOUT_SECONDS`, unchanged, and it
+        is the right bound: past that the question is too big for this turn. A
+        warehouse that is STARTING gets `GENIE_WAREHOUSE_START_SECONDS`, because
+        nothing about the question is wrong and the wait is for infrastructure
+        that takes as long as it takes. Time spent starting is then given back to
+        the answer budget, so a warehouse that comes up at forty seconds still
+        gets its full allowance to answer rather than arriving to find the
+        deadline already behind it.
+
+        Both are bounded by the turn, and the warehouse one is bounded by the
+        turn LESS a reserve: it ends early enough that the finder still has
+        budget for the tools that do not need this warehouse. Ending that way
+        raises `WarehouseStarting` rather than `TimeoutError`, which is what
+        stops a cold start being reported as a failed Genie call.
+
         THE GAP BETWEEN CHECKS GROWS, from 0.5s up to `GENIE_POLL_SECONDS`. It
         used to be that interval flat, so a question Genie finished in 0.3s was
         reported at 2s: the answer sat done while the turn slept out a cycle it
@@ -817,37 +1004,71 @@ class PlayerInsightTools:
         """
 
         started = time.perf_counter()
-        deadline = started + min(GENIE_TIMEOUT_SECONDS, runtime_settings.remaining_seconds())
+        turn = runtime_settings.remaining_seconds()
+        # The turn is the hard bound on everything below. Nothing here may run
+        # past it, whatever the per-phase caps say.
+        turn_deadline = started + turn
+        answering_budget = min(GENIE_TIMEOUT_SECONDS, turn)
+        # `max` against the answer budget so this can only ever LENGTHEN the wait
+        # for a starting warehouse. On a short turn the reserve can exceed what
+        # is left, and a warehouse allowance shorter than the answer allowance
+        # would make a cold start fail sooner than it used to.
+        starting_budget = max(
+            answering_budget,
+            min(GENIE_WAREHOUSE_START_SECONDS, max(0.0, turn - GENIE_BUDGET_RESERVE_SECONDS)),
+        )
         wait = self.workspace.genie.start_conversation(space_id, question)
         status: Any = None
         poll = GENIE_FIRST_POLL_SECONDS
+        #: Seconds already observed with the warehouse down, closed off each time
+        #: the status moves on. Added to the answer deadline so a space that spent
+        #: forty seconds warming up is not then asked to answer in five.
+        warming = 0.0
+        warming_since: float | None = None
         while True:
             message = self.workspace.genie.get_message(
                 space_id, wait.conversation_id, wait.message_id
             )
             status = getattr(message, "status", None)
+            now = time.perf_counter()
+            if status in _GENIE_WAREHOUSE_STARTING:
+                if warming_since is None:
+                    warming_since = now
+            elif warming_since is not None:
+                warming += now - warming_since
+                warming_since = None
             if status == MessageStatus.COMPLETED:
                 return message
             if status in _GENIE_TERMINAL_FAILURES:
                 raise RuntimeError(
                     f"Genie {_GENIE_TERMINAL_FAILURES[status]} after "
-                    f"{time.perf_counter() - started:.0f}s: "
+                    f"{now - started:.0f}s: "
                     f"{getattr(message, 'error', None) or 'no detail was returned'}."
                 )
-            if time.perf_counter() >= deadline:
+            if warming_since is not None:
+                deadline = min(started + starting_budget, turn_deadline)
+            else:
+                deadline = min(started + warming + answering_budget, turn_deadline)
+            if now >= deadline:
+                waited = now - started
+                if warming_since is not None:
+                    # NOT an error. The turn ran out of affordable waiting; the
+                    # space is fine and the warehouse is on its way up.
+                    raise WarehouseStarting(waited)
                 name = getattr(status, "value", status)
-                allowed = max(0.0, deadline - started)
+                # The plain reason FIRST, the stopwatch after it: this string is
+                # what a reader sees in the trace, usually clipped, and a clipped
+                # sentence should still say what went wrong.
+                hint = _GENIE_STALL_HINTS.get(status, "Try a narrower question or run SQL.")
                 raise TimeoutError(
-                    f"Genie did not answer within the {allowed:.0f}s remaining turn budget; "
-                    "it was still "
-                    f"{name or 'working'}. "
-                    + _GENIE_STALL_HINTS.get(status, "Try a narrower question or run SQL.")
+                    f"{hint} Genie did not answer within the {waited:.0f}s this turn could "
+                    f"give it; it was still {name or 'working'}."
                 )
             # Read from the module each time, so a test that pins the cap to zero
             # to stop the suite sleeping zeroes every gap rather than only the
             # ones that had already grown past it.
             cap = GENIE_POLL_SECONDS
-            elapsed = time.perf_counter() - started
+            elapsed = now - started
             # When the flat interval would next have checked. Used as a CEILING,
             # which is what keeps the new schedule a refinement of the old one
             # rather than a different one that is sometimes worse.
@@ -1002,7 +1223,30 @@ class PlayerInsightTools:
                     "space_label": space_label,
                 }
             )
-            message = self._await_genie(space_id, question)
+            try:
+                message = self._await_genie(space_id, question)
+            except WarehouseStarting as starting:
+                # Returned, not raised, and that is the whole fix for the cold
+                # customer workspace. Raising here puts the step on the loop's
+                # failure path: red in the trace, counted against the repeat
+                # brake, and reported to the model as an outage it should relay.
+                # None of that is true of a warehouse that is coming up, and the
+                # finder has other tools it can spend the rest of the turn on.
+                #
+                # THE PLAIN REASON IS THE FIRST THING IN IT, and the "Asking
+                # Genie space ..." preamble every other result opens with is
+                # dropped here. The trace clips this line, so what survives is
+                # whatever comes first, and what a reader needs from a clipped
+                # line is why they got nothing -- not which space was asked, and
+                # certainly not the head of a stack trace.
+                unavailable = (
+                    f"GENIE UNAVAILABLE ({failures.DEPENDENCY_UNAVAILABLE}): The SQL warehouse "
+                    f"behind Genie space {space_label} was still starting after "
+                    f"{starting.waited:.0f}s, so this question was not answered. "
+                    f"{GENIE_WAREHOUSE_STARTING_GUIDANCE}"
+                )
+                span.set_outputs({"text": unavailable, "unavailable": True})
+                return ToolResult(text=unavailable)
             gate = self.gateway()
             text_parts: list[str] = []
             sql_parts: list[str] = []
@@ -1250,8 +1494,29 @@ class PlayerInsightTools:
     # SQL
     # -----------------------------------------------------------------------
 
+    def _wait_timeout(self, wait_seconds: int) -> str:
+        """What to ask the warehouse to wait, clamped to what is legal and affordable.
+
+        Three bounds, and each one has been wrong here at least once. The turn's
+        remaining time, so a statement cannot outlive the request. The API's
+        fifty-second ceiling, so a longer discovery wait is not simply rejected.
+        And the API's five-second FLOOR, which the old `min(30, remaining)` could
+        fall through at the tail of a turn: `wait_timeout=1s` is not a short wait,
+        it is an argument error where the caller expected a cancelled statement.
+        """
+
+        affordable = int(runtime_settings.remaining_seconds())
+        wanted = min(wait_seconds, SQL_WAIT_CEILING_SECONDS, max(affordable, 0))
+        return f"{max(SQL_WAIT_FLOOR_SECONDS, wanted)}s"
+
     def _execute(
-        self, sql: str, span_name: str, budget: RowBudget = SAMPLE_BUDGET
+        self,
+        sql: str,
+        span_name: str,
+        budget: RowBudget = SAMPLE_BUDGET,
+        *,
+        wait_seconds: int = SQL_WAIT_SECONDS,
+        retry_when_slow: bool = False,
     ) -> tuple[list[str], list[list[Any]], int]:
         """Run one statement on the declared warehouse. Columns, rows, and the true total.
 
@@ -1266,34 +1531,71 @@ class PlayerInsightTools:
 
         `CANCEL` makes the timeout mean what it says: the statement is stopped and
         the model is told it was too slow, which it can act on by narrowing.
+
+        `retry_when_slow` runs the statement a SECOND time when the first was
+        cancelled or never started, and only then: a rejected statement is
+        rejected identically the second time, and a denial is about who is
+        asking. It exists for the cold warehouse, where the first statement of a
+        turn is the one that pays for the warmup and the second lands on a warm
+        warehouse. Gated on the turn having enough left to use the answer, so a
+        retry cannot spend a budget the rest of the run needed.
         """
 
         with mlflow.start_span(name=span_name, span_type="TOOL") as span:
-            span.set_inputs({"sql": sql})
-            remaining = max(1, int(runtime_settings.remaining_seconds()))
-            wait_timeout = f"{min(30, remaining)}s"
-            response = self.workspace.statement_execution.execute_statement(
-                warehouse_id=self.settings.warehouse_id,
-                statement=sql,
-                wait_timeout=wait_timeout,
-                on_wait_timeout=ExecuteStatementRequestOnWaitTimeout.CANCEL,
-            )
-            failure = statement_failure(response)
-            if failure:
+            span.set_inputs({"sql": sql, "wait_seconds": wait_seconds})
+            retried = False
+            while True:
+                response = self.workspace.statement_execution.execute_statement(
+                    warehouse_id=self.settings.warehouse_id,
+                    statement=sql,
+                    wait_timeout=self._wait_timeout(wait_seconds),
+                    on_wait_timeout=ExecuteStatementRequestOnWaitTimeout.CANCEL,
+                )
+                failure = statement_failure(response)
+                if not failure:
+                    break
                 # A privilege denial leaves as its own type, so the loop
                 # classifies it by `isinstance` rather than by matching prose
                 # that `statement_failure` has already redacted. Everything else
                 # is the RuntimeError it has always been.
                 if statement_denied(response):
                     raise SqlDenied(failure, statement_sql_state(response))
-                raise RuntimeError(failure)
+                affordable = (
+                    runtime_settings.remaining_seconds() >= SQL_RETRY_MIN_REMAINING_SECONDS
+                )
+                if (
+                    retry_when_slow
+                    and not retried
+                    and statement_state(response) in _SQL_TOO_SLOW_STATES
+                    and affordable
+                ):
+                    retried = True
+                    # The second attempt gets whatever the turn can still spare
+                    # beyond its own reserve, so it cannot be the call that
+                    # leaves the run with no time to use what it found.
+                    wait_seconds = max(
+                        SQL_WAIT_FLOOR_SECONDS,
+                        min(
+                            wait_seconds,
+                            int(runtime_settings.remaining_seconds())
+                            - SQL_RETRY_RESERVE_SECONDS,
+                        ),
+                    )
+                    continue
+                raise RuntimeError(
+                    f"{failure} (tried twice; the second attempt was no faster)"
+                    if retried
+                    else failure
+                )
             columns = [column.name for column in response.manifest.schema.columns]
             rows = self._collect_rows(response, budget)
             # The manifest's own count: `result.data_array` is the FIRST CHUNK,
             # and a paged result read as a complete one under-reports.
             total = getattr(response.manifest, "total_row_count", None)
             total = int(total) if isinstance(total, int) else len(rows)
-            span.set_outputs({"row_count": len(rows), "total_row_count": total})
+            span.set_outputs(
+                {"row_count": len(rows), "total_row_count": total, "retried": retried}
+            )
             return columns, rows, max(total, len(rows))
 
     def _collect_rows(
@@ -1565,18 +1867,37 @@ class PlayerInsightTools:
         statement = _tag_search_sql(catalogs, schemas, tag=tag, value=value)
         try:
             _, rows, total = self._execute(
-                statement, "orchestrator.search_tagged_assets", ENUMERATION_BUDGET
+                statement,
+                "orchestrator.search_tagged_assets",
+                ENUMERATION_BUDGET,
+                # A cold warehouse is the ordinary first-call state of a customer
+                # workspace, and this read is a small metadata scan that only
+                # looks slow because it is the one paying for the warmup. It is
+                # also the read the turn can most afford to lose, which is what
+                # makes it the right one to spend the API's whole wait on.
+                wait_seconds=DISCOVERY_WAIT_SECONDS,
+                retry_when_slow=True,
             )
         except Exception as error:  # noqa: BLE001 - discovery failing is not the run failing
             # Including SqlDenied, which is the EXPECTED shape of "this estate did
             # not grant information_schema" rather than an anomaly. Redacted
             # already by `statement_failure`, so it is safe to relay.
             detail = re.sub(r"\s+", " ", str(error)).strip()[:300]
+            slow = _was_too_slow(detail)
+            # Lead with the plain reason when there is one. `SQL CANCELED: the
+            # statement was still running when its wait timeout...` is accurate
+            # and is not what a person reading a clipped trace line needs; "the
+            # SQL warehouse did not finish this read in time" is.
+            why = (
+                "the SQL warehouse did not finish this read in time, which usually means it "
+                f"was still starting: {detail}"
+                if slow
+                else f"the tag views could not be read: {detail}"
+            )
             return ToolResult(
                 text=(
-                    f"TAG SEARCH UNAVAILABLE ({failures.DEPENDENCY_UNAVAILABLE}): the tag views "
-                    f"could "
-                    f"not be read: {detail} {TAGS_UNAVAILABLE_GUIDANCE}"
+                    f"TAG SEARCH UNAVAILABLE ({failures.DEPENDENCY_UNAVAILABLE}): {why} "
+                    f"{TAGS_SLOW_GUIDANCE if slow else TAGS_UNAVAILABLE_GUIDANCE}"
                 )
             )
 

@@ -16,29 +16,59 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Input,
+  Textarea,
 } from './ui';
-import { useMemo } from 'react';
-import { Play, Shield, ShieldCheck } from 'lucide-react';
+import { useMemo, useReducer } from 'react';
+import { Play, Send, Shield, ShieldCheck, X } from 'lucide-react';
 import { PlanText } from './DataEntityLinks';
 import { BrandIcon } from './BrandIcon';
 import { productForPlanKind } from './brand-icons';
 import { declaredColumns } from './data-entities';
 import { AstrolabeMark } from './AstrolabeMark';
+import { canSubmitRevision, planRevisionReducer, revisedRequest } from './plan-revision';
 import type { AnalysisPlan } from './app-types';
 
 export function PlanCard({
   plan,
   loading,
   resolved,
+  approved,
   onApprove,
   onRevise,
 }: {
   plan: AnalysisPlan;
   loading: boolean;
+  /** Whether a later turn has settled this plan, whichever way it went. */
   resolved: boolean;
+  /**
+   * Whether the way it was settled was approval.
+   *
+   * Separate from `resolved`, because a plan can be settled by being revised
+   * away, and a card that says "You approved this plan" over the revision that
+   * replaced it is telling the reader something they did not do.
+   */
+  approved: boolean;
   onApprove: () => void;
-  onRevise: () => void;
+  /** The revised question to ask, composed from the editor below. */
+  onRevise: (request: string) => void;
 }) {
+  /**
+   * The editor, when it is open. `null` is the card as it arrives: the plan as
+   * the agent wrote it, with the two answers to it under it.
+   *
+   * Held here rather than on the page, because a revision is a draft of THIS
+   * card and dies with it. The transitions are in plan-revision.ts, which is
+   * where they can be read and tested.
+   */
+  const [revision, dispatch] = useReducer(planRevisionReducer, null);
+  /**
+   * The three things this card can be: waiting on the reader, approved by them,
+   * or settled some other way -- revised, or left behind by the next question.
+   * The badge, its tint and the sentence at the foot are three statements of
+   * this one fact and are read off it, so they cannot disagree.
+   */
+  const state = approved ? 'approved' : resolved ? 'superseded' : 'review';
   /**
    * The columns this plan says it will read, taken from the plan's own
    * `Columns: …` lists and applied to every line of it.
@@ -82,10 +112,10 @@ export function PlanCard({
                 recipes the astrolabe pass collapses into this one. */}
             <Badge
               variant="outline"
-              className={`ast-pill plan-state ast-pill--${resolved ? 'pos' : 'warn'}`}
-              data-state={resolved ? 'approved' : 'review'}
+              className={`ast-pill plan-state ast-pill--${state === 'approved' ? 'pos' : state === 'review' ? 'warn' : 'neutral'}`}
+              data-state={state}
             >
-              {resolved ? 'Approved' : 'Review needed'}
+              {state === 'approved' ? 'Approved' : state === 'review' ? 'Review needed' : 'Not run'}
             </Badge>
             <CardTitle className="plan-title">Proposed analysis plan</CardTitle>
             {/* Inline Markdown, not blocks. The plan is already structured --
@@ -107,7 +137,57 @@ export function PlanCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="plan-steps">
+        {revision ? (<div className="plan-revision">
+            {/* The plan's own steps, as fields. A reader who wants a different
+                analysis usually wants most of this one: the fastest way to say
+                "not that table" is to edit the line that names it, which is why
+                the editor opens on the plan rather than on an empty box. */}
+            <div className="plan-steps">
+              {revision.steps.map((step, index) => (<div className="plan-step plan-step-edit" key={step.id}>
+                  <span className="ast-num">{index + 1}</span>
+                  <div>
+                    <Input
+                      value={step.title}
+                      aria-label={`Step ${index + 1} title`}
+                      onChange={(event) => dispatch({ type: 'step', id: step.id, field: 'title', value: event.target.value })}
+                    />
+                    <Textarea
+                      value={step.description}
+                      rows={2}
+                      aria-label={`Step ${index + 1} detail`}
+                      onChange={(event) =>
+                        dispatch({ type: 'step', id: step.id, field: 'description', value: event.target.value })
+                      }
+                    />
+                  </div>
+                  {/* Disabled on the last step: a plan with no steps is not a
+                      revision the agent can act on. */}
+                  <button
+                    type="button"
+                    className="plan-step-remove"
+                    aria-label={`Remove step ${index + 1}`}
+                    disabled={revision.steps.length < 2}
+                    onClick={() => dispatch({ type: 'remove', id: step.id })}
+                  >
+                    <X />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {/* The other half, and on its own the whole of it: a reader can send
+                a revision without touching a step, because "also break this out
+                by platform" is a sentence and not an edit to one line. */}
+            <label className="plan-revision-note">
+              <span>What should change?</span>
+              <Textarea
+                value={revision.note}
+                rows={2}
+                placeholder="e.g. don’t query the churn table, and include the last 90 days"
+                onChange={(event) => dispatch({ type: 'note', note: event.target.value })}
+              />
+            </label>
+          </div>
+        ) : (<div className="plan-steps">
           {plan.steps.map((step, index) => {
             const product = productForPlanKind(step.kind);
             return (<div className="plan-step" key={step.id}>
@@ -149,6 +229,7 @@ export function PlanCard({
             );
           })}
         </div>
+        )}
         <div className="plan-context">
           {plan.uses_conversation_context && <Badge variant="secondary">Uses conversation context</Badge>}
           {plan.uses_attachment_context && <Badge variant="secondary">Uses attached reports</Badge>}
@@ -157,25 +238,49 @@ export function PlanCard({
             ran is what you approved. The check arrives with the approval, so an
             unanswered plan gets the plain shield -- a tick over "no query has
             run yet" would be claiming something had been confirmed. */}
-        <Alert className="plan-reassurance">
-          {resolved ? <ShieldCheck /> : <Shield />}
+        <Alert className="plan-reassurance" data-state={state}>
+          {state === 'approved' ? <ShieldCheck /> : <Shield />}
           <AlertDescription>
             <p>
-              {resolved
+              {state === 'approved'
                 ? 'You approved this plan. The analysis below was produced by running these steps.'
-                : 'No analytical query runs until you approve this plan. You can revise the request first.'}
+                : state === 'review'
+                  ? 'No analytical query runs until you approve this plan. You can revise the request first.'
+                  : 'None of these steps ran. The turn below replaced this plan.'}
             </p>
           </AlertDescription>
         </Alert>
-        {!resolved && (<div className="plan-actions">
-            <Button type="button" variant="outline" onClick={onRevise} disabled={loading}>
-              Revise request
-            </Button>
-            <Button type="button" onClick={onApprove} disabled={loading}>
-              <Play /> Approve and run
-            </Button>
-          </div>
-        )}
+        {!resolved &&
+          (revision ? (<div className="plan-actions">
+              {/* Cancel puts the plan back as the agent wrote it, edits and all
+                  discarded -- see planRevisionReducer for why it does not keep
+                  them. */}
+              <Button type="button" variant="outline" onClick={() => dispatch({ type: 'cancel' })} disabled={loading}>
+                Cancel
+              </Button>
+              {/* Sends the edits as a question and gets a new plan back. Off
+                  until the editor says something the plan does not already say,
+                  because an untouched revision asks for the same plan again. */}
+              <Button
+                type="button"
+                onClick={() => {
+                  onRevise(revisedRequest(plan, revision));
+                  dispatch({ type: 'cancel' });
+                }}
+                disabled={loading || !canSubmitRevision(plan, revision)}
+              >
+                <Send /> Send revised request
+              </Button>
+            </div>
+          ) : (<div className="plan-actions">
+              <Button type="button" variant="outline" onClick={() => dispatch({ type: 'open', plan })} disabled={loading}>
+                Revise request
+              </Button>
+              <Button type="button" onClick={onApprove} disabled={loading}>
+                <Play /> Approve and run
+              </Button>
+            </div>
+          ))}
       </CardContent>
     </Card>
   );
