@@ -165293,7 +165293,7 @@ var init_request_latency = __esm({
     FROM samples s
     GROUP BY s.route
     HAVING COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at) > 0
-  ),
+  )
   SELECT r.*, b.covered_from, b.covered_to
   FROM routes r CROSS JOIN bounds b
   ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;
@@ -166440,111 +166440,7 @@ var init_access_verification = __esm({
   }
 });
 
-// server/lib/scope-refusal.ts
-function declares(declared, scope) {
-  return declared.includes(scope);
-}
-function scopeRefusalDiagnosis(input) {
-  const { declarable, namedByWorkspace, declared, tokenScopes, scopeHeld } = input;
-  const scope = declarable || namedByWorkspace;
-  const alias = namedByWorkspace && namedByWorkspace !== scope ? ` The workspace calls it \`${namedByWorkspace}\`. The app declares the same permission as \`${scope}\`.` : "";
-  const carried = tokenScopes ? `The sign-in this request carried lists ${quotedScopes(tokenScopes)}.` : "The sign-in this request carried does not list its own permissions.";
-  if (!declared) {
-    return {
-      cause: UNDETERMINED,
-      evidence: `The refusal named \`${scope}\`. ${carried} This deployment was not told which permissions it declares.`,
-      // No claim about WHY the scope is absent, and none available: the two
-      // candidates need different people and the list that separates them is
-      // not in this container. Checked by the audit, which is why the sentence
-      // reports what was not established rather than filling the gap.
-      explanation: `The workspace refused this call over the \`${scope}\` permission. The call stopped there, so nothing was established about whether ${input.tokenScopes ? "you" : "this identity"} can reach the object. Whether this app asks for that permission was not established either. This deployment was not told what it declares.`,
-      // Always null here. A remedy is a claim about a cause, and the two
-      // candidate remedies contradict each other.
-      remedy: null,
-      grantIsMissing: false
-    };
-  }
-  if (declares(declared, scope)) {
-    if (scopeHeld === true) {
-      return {
-        cause: "workspace-refused-a-held-scope",
-        evidence: `The app declares ${declared.length} permissions including \`${scope}\`, and the sign-in this request carried lists it. The refusal named \`${namedByWorkspace || scope}\`.`,
-        explanation: `Your sign-in carries \`${scope}\`, and the workspace refused this call anyway.${alias} That rules the permission out and leaves a grant on the object itself, which an admin adds. A new sign-in will not move this one. ${WHERE_THE_LISTS_ARE}`,
-        // The statement names the object and the principal, neither of which is
-        // this module's to know. See `grantIsMissing`.
-        remedy: null,
-        grantIsMissing: true
-      };
-    }
-    if (scopeHeld === null) {
-      return {
-        cause: "declared-scope-refused",
-        evidence: `The app declares ${declared.length} permissions including \`${scope}\`. ${carried} The refusal named \`${namedByWorkspace || scope}\`.`,
-        explanation: `This app asks for \`${scope}\`, and the workspace refused this call over it.${alias} Whether the sign-in this request carried holds that permission was not established, so this is either a sign-in older than the permission or a grant you are missing on the object. The call stopped before it could tell. ${WHERE_THE_LISTS_ARE}`,
-        remedy: freshSignIn(),
-        grantIsMissing: false
-      };
-    }
-    return {
-      cause: "token-lacks-declared-scope",
-      evidence: `The app declares ${declared.length} permissions including \`${scope}\`. ${carried} The refusal named \`${namedByWorkspace || scope}\`.`,
-      // FOUR SHORT SENTENCES, not one that says three things and contradicts
-      // itself in the middle. The version this replaced ran "Nothing was
-      // established about whether you can reach the object: the call stopped
-      // before it got there, so this row is not a permission you are missing"
-      // together, which put a finding, its reason and a warning against a
-      // different conclusion into one clause chain and read as broken English.
-      // Every distinction in it is load-bearing and all of them survive: the
-      // call stopped, so nothing about the object was established, so nobody
-      // should read this as a grant they lack.
-      explanation: `Your sign-in to this app does not carry \`${scope}\`, which the app asks for.${alias} The call stopped there, so nothing was established about whether you can reach the object. This is not a grant you are missing. ${WHERE_THE_LISTS_ARE}`,
-      remedy: freshSignIn(),
-      grantIsMissing: false
-    };
-  }
-  return {
-    cause: "app-declares-no-such-scope",
-    evidence: `The app declares ${quotedScopes(declared)}. \`${scope}\` is not among them, and the refusal named \`${namedByWorkspace || scope}\`. ${carried}`,
-    explanation: `This app does not ask for \`${scope}\`, so no sign-in it hands out can carry it.${alias} The call stopped there, so nothing was established about whether you can reach the object. A new sign-in will not move this one, and there is nothing you can do about it from the browser. ${WHERE_THE_LISTS_ARE}`,
-    remedy: {
-      kind: "cli",
-      // The only surviving step of the four, and the only one that was ever
-      // load-bearing here. The other three were already done on this
-      // deployment; this branch is the case where they have not been.
-      statement: `# Check the Apps API accepts the NAME before declaring it. It validates against a
-# narrower list than the workspace's OAuth metadata, and one rejected name fails the
-# whole deploy. This answers without deploying and creates nothing:
-databricks api post /api/2.0/apps \\
-  --json '{"name":"<an-app-that-already-exists>","user_api_scopes":["${scope}"]}'
-# "already exists" means the name is good. "not a valid scope" means it is not.
-#
-# Then add it to app_user_api_scopes in databricks.yml, and restart. Scopes are read
-# when the app STARTS, so a redeploy on its own leaves the change inert:
-databricks apps stop <app-name>
-databricks apps start <app-name>`,
-      // ONE LINE, AND IT IS THE ONE THE RESTART DOES NOT COVER. A deployer who
-      // runs the statement above sees the app come back declaring the scope and
-      // reasonably reports it fixed; every reader already signed in still fails,
-      // because a session keeps the permissions it was minted with. Without this
-      // sentence that is a second round of the same investigation, for several
-      // people. The other half of the paragraph said no GRANT can fix this,
-      // which `run_by` below already says on the same surface.
-      guidance: "Anyone already signed in keeps their old permissions after the restart, and needs a new sign-in to pick this up.",
-      run_by: "Run by whoever deploys this app. A workspace admin cannot fix this and a GRANT will not"
-    },
-    grantIsMissing: false
-  };
-}
-var WHERE_THE_LISTS_ARE;
-var init_scope_refusal = __esm({
-  "server/lib/scope-refusal.ts"() {
-    init_stated_cause();
-    init_fresh_sign_in();
-    WHERE_THE_LISTS_ARE = "The Connected as section of the Connections page lists what your sign-in carries and what this app asks for.";
-  }
-});
-
-// server/lib/dependency-probes.ts
+// shared/token-scopes.ts
 function tokenCarriesScope(held, scope) {
   if (held.includes(ALL_APIS_SCOPE2)) return true;
   if (!scope) return false;
@@ -166558,7 +166454,10 @@ function scopeStems(scope) {
 function tokenScopeVerdict(held, scope) {
   if (tokenCarriesScope(held, scope)) return true;
   if (!scope) return null;
-  const known = /* @__PURE__ */ new Set([...Object.keys(OAUTH_FAMILY_BY_SCOPE), ...Object.values(OAUTH_FAMILY_BY_SCOPE)]);
+  const known = /* @__PURE__ */ new Set([
+    ...Object.keys(OAUTH_FAMILY_BY_SCOPE),
+    ...Object.values(OAUTH_FAMILY_BY_SCOPE)
+  ]);
   const stems = scopeStems(scope);
   const familyStems = scopeStems(OAUTH_FAMILY_BY_SCOPE[scope] ?? "");
   for (const stem of familyStems) stems.add(stem);
@@ -166570,677 +166469,9 @@ function tokenScopeVerdict(held, scope) {
   }
   return false;
 }
-function scopeForPath(path19) {
-  let best = "";
-  let longest = 0;
-  for (const [prefix, scope] of Object.entries(SCOPE_BY_API_PREFIX)) {
-    if (path19.startsWith(prefix) && prefix.length > longest) {
-      best = scope;
-      longest = prefix.length;
-    }
-  }
-  return best;
-}
-function text6(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-function list2(value) {
-  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
-}
-function setting(configuration, key2) {
-  return configuration.find((entry) => entry.key === key2)?.value;
-}
-function sql2(statement, guidance = "") {
-  return { kind: "sql", statement, guidance };
-}
-function cli(statement, guidance = "") {
-  return { kind: "cli", statement, guidance };
-}
-function granteeFor(principal) {
-  return principal ? `\`${principal}\`` : "`<the signed-in user>`";
-}
-function declaredTables(configuration) {
-  return list2(setting(configuration, "declared_manifest"));
-}
-function connectionSubjects(input) {
-  const value = (id) => (input.configured[id] ?? "").trim();
-  const subjects = [];
-  const warehouse = value("sql-warehouse");
-  if (warehouse) {
-    subjects.push({
-      id: "sql-warehouse",
-      kind: "sql-warehouse",
-      name: warehouse,
-      label: `SQL warehouse \xB7 ${warehouse}`,
-      path: `/api/2.0/sql/warehouses/${encodeURIComponent(warehouse)}`,
-      proves: "It does not prove a statement would run: CAN_USE on the warehouse and SELECT on the tables are separate grants, and a stopped warehouse still answers this call.",
-      observe: (body) => {
-        const state = text6(body.state);
-        const name2 = text6(body.name);
-        return [name2 && `named \u201C${name2}\u201D`, state && `state ${state}`].filter(Boolean).join(", ");
-      },
-      displayName: (body) => text6(body.name),
-      grant: (principal) => (
-        // No guidance. What stood here said a warehouse is a workspace object
-        // rather than a Unity Catalog one, which is why the fix is an API call
-        // rather than a GRANT. True, and it explains the statement the reader
-        // has already been given rather than telling them anything they need in
-        // order to run it.
-        cli(
-          `databricks permissions update warehouses ${warehouse} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_USE"}]}'`
-        )
-      )
-    });
-  }
-  for (const [id, label] of [
-    ["genie-data", "Data Genie space"],
-    ["genie-dictionary", "Dictionary Genie space"]
-  ]) {
-    const space = value(id);
-    if (!space) continue;
-    subjects.push({
-      id,
-      kind: "genie-space",
-      name: space,
-      label: `${label} \xB7 ${space}`,
-      path: `/api/2.0/genie/spaces/${encodeURIComponent(space)}`,
-      proves: "It does not prove a question would be answered: a space someone can open can still be backed by tables they cannot read, and CAN RUN is a separate grant from CAN VIEW.",
-      observe: (body) => {
-        const title = text6(body.title);
-        return title ? `titled \u201C${title}\u201D` : "";
-      },
-      displayName: (body) => text6(body.title),
-      grant: (principal) => (
-        // No guidance. The dropped sentence said the tables behind a space are
-        // granted separately in Unity Catalog, which is a real fact and one this
-        // page states better elsewhere: those tables are probed in their own
-        // right and get their own rows, so a reader who needs it is told by the
-        // report rather than by an aside on a different row.
-        cli(
-          `databricks permissions update genie ${space} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_RUN"}]}'`
-        )
-      )
-    });
-  }
-  const catalog = value("catalog");
-  if (catalog) {
-    subjects.push({
-      id: "catalog",
-      kind: "catalog",
-      name: catalog,
-      label: `Catalog \xB7 ${catalog}`,
-      path: `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(catalog)}`,
-      proves: "Every schema and table inside it is granted separately, so this covers the container only.",
-      observe: (body) => {
-        const owner = text6(body.owner);
-        return owner ? `owned by ${owner}` : "";
-      },
-      grant: (principal) => (
-        // No guidance. "It grants nothing on the schemas or tables inside it" is
-        // the `proves` line above, said again beside the statement.
-        sql2(`GRANT USE CATALOG ON CATALOG ${catalog} TO ${granteeFor(principal)};`)
-      )
-    });
-  }
-  const schema = value("schema");
-  if (catalog && schema) {
-    const full = `${catalog}.${schema}`;
-    subjects.push({
-      id: "schema",
-      kind: "schema",
-      name: full,
-      label: `Schema \xB7 ${full}`,
-      path: `/api/2.1/unity-catalog/schemas/${encodeURIComponent(full)}`,
-      proves: "Each table inside it is granted separately, so this covers the container only.",
-      observe: (body) => {
-        const owner = text6(body.owner);
-        return owner ? `owned by ${owner}` : "";
-      },
-      grant: (principal) => (
-        // No guidance, on the same reasoning as the catalog above.
-        sql2(`GRANT USE SCHEMA ON SCHEMA ${full} TO ${granteeFor(principal)};`)
-      )
-    });
-  }
-  for (const table of input.tables) {
-    subjects.push({
-      id: `table:${table}`,
-      kind: "table",
-      name: table,
-      label: table,
-      path: `/api/2.1/unity-catalog/tables/${encodeURIComponent(table)}`,
-      proves: "It reads the table\u2019s definition, not its rows. Row filters and column masks are applied when data is read and are invisible to this call.",
-      observe: (body) => {
-        const columns = Array.isArray(body.columns) ? body.columns.length : 0;
-        return columns ? `${columns} columns` : "";
-      },
-      grant: (principal) => (
-        // KEPT. This is the one probe grant whose statement is not sufficient on
-        // its own: Unity Catalog hides an object the caller cannot traverse, so
-        // a SELECT granted without USE CATALOG and USE SCHEMA leaves the table
-        // reading as missing and the row still red. A reader who runs the one
-        // statement has every reason to believe they are done, and finds out
-        // otherwise only by coming back. Two further grants is a real cost.
-        sql2(
-          `GRANT SELECT ON TABLE ${table} TO ${granteeFor(principal)};`,
-          "This is not enough on its own: the holder also needs USE CATALOG and USE SCHEMA on the two containers above it."
-        )
-      )
-    });
-  }
-  for (const { id, label, note } of SERVING_ENDPOINTS) {
-    const endpoint = value(id);
-    if (!endpoint || endpoint.includes("/")) continue;
-    subjects.push(servingEndpointSubject(id, label, endpoint, note));
-  }
-  const index = value("semantic-index");
-  if (index && index.includes(".")) {
-    subjects.push({
-      id: "semantic-index",
-      kind: "vector-index",
-      name: index,
-      label: `Vector Search index \xB7 ${index}`,
-      path: `/api/2.0/vector-search/indexes/${encodeURIComponent(index)}`,
-      proves: "It does not prove a search would return anything: an index that exists can still be empty or behind on its sync.",
-      observe: (body) => {
-        const endpoint = text6(body.endpoint_name);
-        const state = text6(body.status?.detailed_state);
-        return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(", ");
-      },
-      displayName: (body) => text6(body.name),
-      contentAt: (body) => indexContentAt(body),
-      // NOW A GRANT, which is what this row always claimed to be offering. What
-      // stood here was a `databricks api get` against the index -- the same call
-      // that had just been refused -- with a sentence underneath admitting it
-      // granted nothing and telling the reader to grant SELECT themselves. It
-      // was left that way because "what the right grant is for an index" was
-      // called a question about the platform rather than about this copy.
-      //
-      // The platform has now answered it, on the live index: an index is a Unity
-      // Catalog securable whose `securable_type` is TABLE and whose
-      // `securable_kind` is TABLE_ONLINE_VECTOR_INDEX_REPLICA, and
-      // effective-permissions resolves SELECT on it under the `table` securable
-      // path. So the statement is the ordinary table grant, against the index's
-      // own three-level name, and the guidance is the same one the declared
-      // tables carry -- for the same reason, which is that Unity Catalog hides
-      // an object the caller cannot traverse and a SELECT on its own leaves the
-      // row red.
-      grant: (principal) => sql2(
-        `GRANT SELECT ON TABLE ${index} TO ${granteeFor(principal)};`,
-        "This is not enough on its own: the holder also needs USE CATALOG and USE SCHEMA on the catalog and schema the index sits in."
-      )
-    });
-  }
-  return subjects;
-}
-function indexContentAt(body) {
-  const status = body.status ?? {};
-  for (const key2 of ["triggered_update_status", "continuous_update_status"]) {
-    const stamp2 = text6(status[key2]?.last_processed_commit_timestamp);
-    if (stamp2 && !Number.isNaN(new Date(stamp2).getTime())) return stamp2;
-  }
-  return "";
-}
-function servingEndpointSubject(id, label, name2, note) {
-  return {
-    id,
-    kind: SERVING_ENDPOINT_KIND,
-    name: name2,
-    label: `${label} \xB7 ${name2}`,
-    path: `/api/2.0/serving-endpoints/${encodeURIComponent(name2)}`,
-    proves: `${note} Seeing an endpoint is not being allowed to call it: CAN_VIEW and CAN_QUERY are separate grants, and this call needs only the first.`,
-    observe: (body) => {
-      const state = body.state ?? {};
-      const ready = text6(state.ready);
-      return ready ? `state ${ready}` : "";
-    },
-    // No guidance. The dropped sentence classified the object to explain why the
-    // fix is an API call; the reader is holding the API call.
-    grant: (principal) => cli(
-      `databricks permissions update serving-endpoints ${name2} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_QUERY"}]}'`
-    )
-  };
-}
-function vectorEndpointSubject(indexBody) {
-  const endpoint = text6(indexBody.endpoint_name);
-  if (!endpoint) return null;
-  const endpointId = text6(indexBody.endpoint_id);
-  return {
-    id: "semantic-index-endpoint",
-    kind: "vector-endpoint",
-    name: endpoint,
-    label: `Vector Search endpoint \xB7 ${endpoint}`,
-    path: `/api/2.0/vector-search/endpoints/${encodeURIComponent(endpoint)}`,
-    proves: "It does not prove a search would return anything; it says the endpoint serving the index exists.",
-    observe: (body) => {
-      const status = body.endpoint_status ?? {};
-      const state = text6(status.state);
-      return state ? `state ${state}` : "";
-    },
-    grant: endpointId ? (principal) => cli(
-      `databricks permissions update vector-search-endpoints ${endpointId} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_USE"}]}'`,
-      "This endpoint is not a Unity Catalog securable, so no GRANT reaches it."
-    ) : void 0
-  };
-}
-function refused(status, code) {
-  return status === 403 || code === "PERMISSION_DENIED";
-}
-function absent(status, code) {
-  return status === 404 || code.endsWith("_DOES_NOT_EXIST") || code === "NOT_FOUND";
-}
-function scopesFromRefusal(message) {
-  const named = /required scopes?:\s*([^[\]\n]+)/i.exec(message);
-  if (!named) return [];
-  return named[1].split(/[,\s]+/).map((entry) => entry.trim().replace(/[.;]+$/, "")).filter(Boolean);
-}
-function refusalCause(input) {
-  const named = scopesFromRefusal(input.message);
-  if (named.length > 0 || looksLikeMissingScope(input.message)) {
-    return {
-      kind: "scope",
-      scope: named[0] || input.scope,
-      evidence: `the workspace said so: ${input.message}`
-    };
-  }
-  if (input.scope && input.scopeHeld === false) {
-    return {
-      kind: "scope",
-      scope: input.scope,
-      evidence: `the response did not say why, but the forwarded token lists its own scopes and \`${input.scope}\` is not among them`
-    };
-  }
-  const wording = input.message.toLowerCase();
-  const saysPermission = input.code === "PERMISSION_DENIED" || GRANT_MARKERS.some((marker) => wording.includes(marker));
-  if (saysPermission) {
-    return {
-      kind: "grant",
-      evidence: input.scopeHeld ? `the workspace named a permission, and the forwarded token does carry \`${input.scope}\`, so the scope is not what was missing` : "the workspace answered in terms of a permission rather than of a scope"
-    };
-  }
-  if (input.scopeHeld === true) {
-    return {
-      kind: "grant",
-      evidence: `the workspace gave no reason, but the forwarded token carries \`${input.scope}\`, so the scope is ruled out and a grant is what is left`
-    };
-  }
-  return { kind: "undetermined" };
-}
-function check2(subject, over) {
-  const built = {
-    id: subject.id,
-    kind: subject.kind,
-    name: subject.name,
-    label: subject.label,
-    status: "unverified",
-    // NOBODY ASKED, unless the branch says otherwise. Every `unverified` return
-    // in this file states which of the three ways it got there, because "we were
-    // told no", "the call broke" and "we never ran it" need three different next
-    // moves and the status cannot tell them apart. See
-    // `shared/check-verdict.ts`.
-    stopped: "unasked",
-    detail: "",
-    checked_with: `${READS_METADATA}: ${subject.path}`,
-    duration_ms: 0,
-    error: "",
-    remedy: null,
-    ...over
-  };
-  if (built.status !== "unverified") delete built.stopped;
-  return built;
-}
-function probeVerdict(input) {
-  const { subject, outcome, principal } = input;
-  const durationMs = input.durationMs ?? 0;
-  const who = principal ? ` as ${principal}` : "";
-  if (outcome.kind === "timeout") {
-    return check2(subject, {
-      status: "unverified",
-      stopped: "unreachable",
-      duration_ms: durationMs,
-      detail: `The workspace did not answer within ${outcome.afterMs} ms, so whether this identity can reach it is unknown rather than settled. A slow answer is not a refusal.`,
-      error: `no answer within ${outcome.afterMs} ms`
-    });
-  }
-  if (outcome.kind === "unreachable") {
-    return check2(subject, {
-      status: "unverified",
-      stopped: "unreachable",
-      duration_ms: durationMs,
-      detail: "The workspace could not be asked about this one, so nothing was established either way. This says nothing about the object and everything about the call.",
-      error: outcome.message
-    });
-  }
-  const { status, body } = outcome;
-  const code = text6(body.error_code);
-  const message = text6(body.message);
-  if (status >= 200 && status < 300) {
-    const observed = subject.observe?.(body) ?? "";
-    const contentAt = subject.contentAt ? subject.contentAt(body) : "";
-    const freshness = !subject.contentAt ? "" : contentAt ? `It last took content from its source at ${contentAt}. ` : "The workspace reported no time for when it last took content from its source, so the age of what it serves is not established here. ";
-    return check2(subject, {
-      status: "ok",
-      display_name: subject.displayName?.(body) || void 0,
-      duration_ms: durationMs,
-      content_at: contentAt,
-      detail: `The workspace answered${who}${observed ? `: ${observed}` : ""}. ${freshness}That is a metadata read. ${subject.proves}`
-    });
-  }
-  if (refused(status, code)) {
-    const scope = scopeForPath(subject.path);
-    const tokenScopes = input.tokenScopes ?? null;
-    const scopeHeld = tokenScopes === null ? null : tokenScopeVerdict(tokenScopes, scope);
-    const cause = refusalCause({ message, code, scope, scopeHeld });
-    const refusal = `HTTP ${status}${code ? ` ${code}` : ""}`;
-    if (cause.kind === "scope") {
-      const declarable = scope || cause.scope;
-      const diagnosis = scopeRefusalDiagnosis({
-        declarable,
-        namedByWorkspace: cause.scope,
-        declared: input.declaredScopes ?? null,
-        tokenScopes,
-        scopeHeld
-      });
-      if (diagnosis.grantIsMissing) {
-        return check2(subject, {
-          status: "failed",
-          duration_ms: durationMs,
-          detail: `${refusal}. ${diagnosis.explanation}`,
-          error: message || refusal,
-          remedy: subject.grant?.(principal) ?? null
-        });
-      }
-      return check2(subject, {
-        status: "unverified",
-        // WE ASKED AND WERE TOLD NO, which is not the same as nobody having
-        // asked, and the row said the second for as long as the two shared a
-        // word. Still `unverified`, because the refusal landed on the scope
-        // rather than on the object and so settled nothing about whether this
-        // identity can reach it.
-        stopped: "refused",
-        // WHICH PERMISSION, carried as a value so a surface does not have to
-        // read the sentence back to find out. This is the one branch that
-        // established a scope was implicated, so it is the only one that sets
-        // it: the grant branch above has ruled the scope OUT, and the
-        // undetermined branch below established nothing. The Connections panel
-        // reads it against `shared/optional-user-api-scopes.ts` to keep a
-        // shortfall in an optional catalog read out of "What to fix".
-        scope: declarable,
-        duration_ms: durationMs,
-        // The workspace's own words first, because that is the evidence, then
-        // the verdict reached from it. A reader who disagrees with the second
-        // can still see the first.
-        detail: `${refusal}. ${diagnosis.explanation}`,
-        error: message || refusal,
-        remedy: diagnosis.remedy
-      });
-    }
-    if (cause.kind === "undetermined") {
-      return check2(subject, {
-        status: "unverified",
-        // Refused, whichever of the two reasons it was. Which one is undetermined;
-        // that the workspace answered no is not.
-        stopped: "refused",
-        duration_ms: durationMs,
-        // NAMED AS UNDETERMINED RATHER THAN RESOLVED TO THE LIKELIER ONE. The
-        // page has just spent an evening proving what a confident wrong remedy
-        // costs, and the two candidates here are fixed by different people. A
-        // row that says which two they are is worth more than one that picks.
-        detail: `The workspace refused the call${who} and did not say why: ${refusal}, with no message and no scopes readable off the token. That is one of two things and this cannot tell which: either ${principal || "the signed-in user"} lacks a grant on the object, or the app's forwarded token lacks the \`${scope || "required"}\` scope. Check the token's scopes first -- it is the cheaper of the two to rule out, and it is the one that would make every other row on this page wrong in the same way.`,
-        error: message || refusal,
-        // No remedy on purpose. Either candidate printed here would be a guess
-        // wearing the clothes of an instruction.
-        remedy: null
-      });
-    }
-    return check2(subject, {
-      status: "failed",
-      duration_ms: durationMs,
-      // Said in as many words, because the two failures have different remedies
-      // and this is the one a GRANT fixes. A reader who takes a refusal for an
-      // absence goes looking for a resource that is sitting right there.
-      detail: `The workspace refused this identity${who}: ${refusal}. The object exists as far as this call can tell; what was established is that this identity cannot reach it -- ${cause.evidence}. A grant fixes this.`,
-      error: message || refusal,
-      remedy: subject.grant?.(principal) ?? null
-    });
-  }
-  if (absent(status, code)) {
-    return check2(subject, {
-      status: "failed",
-      duration_ms: durationMs,
-      detail: `The workspace has no such object: HTTP ${status}${code ? ` ${code}` : ""}. This is missing rather than forbidden, so no grant repairs it: either the value this deployment was configured with is wrong, or the object was removed.`,
-      error: message || `HTTP ${status}${code ? ` ${code}` : ""}`,
-      // Deliberately none. Offering a GRANT for an object that does not exist
-      // sends a deployer to an admin for a permission on nothing, and a remedy
-      // that cannot work is how remedies stop being read.
-      remedy: null
-    });
-  }
-  if (status === 401) {
-    return check2(subject, {
-      status: "unverified",
-      // The workspace said no, about the sign-in rather than about the object.
-      // A retry with the same token gets the same answer, which is what puts
-      // this with the refusals rather than with the broken calls.
-      stopped: "refused",
-      duration_ms: durationMs,
-      detail: "The workspace rejected the token this call was made with, so nothing was established about this object. That is a problem with the sign-in rather than with the resource.",
-      error: message || `HTTP ${status}`
-    });
-  }
-  if (status === 429 || status >= 500) {
-    return check2(subject, {
-      status: "unverified",
-      // Answered, but not about this object. A later run may well answer, which
-      // is the difference between this and a refusal.
-      stopped: "unreachable",
-      duration_ms: durationMs,
-      detail: `The workspace answered HTTP ${status}, which is about the workspace rather than about this object. Nothing was established either way.`,
-      error: message || `HTTP ${status}`
-    });
-  }
-  return check2(subject, {
-    status: "failed",
-    duration_ms: durationMs,
-    detail: `The workspace refused the request: HTTP ${status}${code ? ` ${code}` : ""}. A malformed identifier answers this way, so the configured value is the first thing to read.`,
-    error: message || `HTTP ${status}`
-  });
-}
-function unaskedChecks(subjects, reason) {
-  return subjects.map(
-    (subject) => check2(subject, {
-      status: "unverified",
-      stopped: "unasked",
-      detail: `${reason} So this is unchecked rather than unreachable: nobody asked.`,
-      error: ""
-    })
-  );
-}
-async function runProbe(subject, options) {
-  const call = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? PROBE_TIMEOUT_MS;
-  const started = Date.now();
-  const tokenScopes = options.token ? scopesFromToken(options.token) : null;
-  const declaredScopes = options.declaredScopes === void 0 ? declaredUserApiScopes() : options.declaredScopes;
-  const finish = (outcome) => probeVerdict({
-    subject,
-    outcome,
-    principal: options.principal,
-    durationMs: Date.now() - started,
-    tokenScopes,
-    declaredScopes
-  });
-  try {
-    const response = await call(`${options.host}${subject.path}`, {
-      method: "GET",
-      headers: { authorization: `Bearer ${options.token ?? ""}` },
-      signal: AbortSignal.timeout(timeoutMs)
-    });
-    const body = await response.json().catch(() => ({}));
-    return finish({ kind: "answered", status: response.status, body: body ?? {} });
-  } catch (error48) {
-    const name2 = error48?.name;
-    if (name2 === "TimeoutError" || name2 === "AbortError") return finish({ kind: "timeout", afterMs: timeoutMs });
-    return finish({ kind: "unreachable", message: error48?.message ?? String(error48) });
-  }
-}
-async function runProbes(subjects, options) {
-  const settled = await Promise.allSettled(subjects.map((subject) => runProbe(subject, options)));
-  return settled.map(
-    (result, index) => result.status === "fulfilled" ? result.value : probeVerdict({
-      subject: subjects[index],
-      outcome: { kind: "unreachable", message: String(result.reason?.message ?? result.reason) },
-      principal: options.principal,
-      tokenScopes: options.token ? scopesFromToken(options.token) : null,
-      declaredScopes: options.declaredScopes === void 0 ? declaredUserApiScopes() : options.declaredScopes
-    })
-  );
-}
-async function probeConnections(input) {
-  const subjects = connectionSubjects(input);
-  if (subjects.length === 0) return [];
-  const settle = (checks2) => withSemanticFollowUps(withManifestRollup(checks2), input.configured);
-  if (!input.host) {
-    return settle(
-      unaskedChecks(
-        subjects,
-        "The app container was given no DATABRICKS_HOST, so it does not know which workspace to ask."
-      )
-    );
-  }
-  if (!input.token) {
-    return settle(
-      unaskedChecks(
-        subjects,
-        "This request carried no signed-in user token, and these answers are about the signed-in user\u2019s own grants rather than the app\u2019s."
-      )
-    );
-  }
-  const options = {
-    host: input.host,
-    token: input.token,
-    principal: input.principal,
-    declaredScopes: input.declaredScopes,
-    fetchImpl: input.fetchImpl,
-    timeoutMs: input.timeoutMs
-  };
-  const checks = await runProbes(subjects, options);
-  const indexCheck = checks.find((entry) => entry.id === "semantic-index");
-  if (indexCheck?.status === "ok") {
-    const indexSubject = subjects.find((subject) => subject.id === "semantic-index");
-    if (indexSubject) {
-      const body = await readIndexBody(indexSubject, options);
-      const endpointSubject = body ? vectorEndpointSubject(body) : null;
-      if (endpointSubject) checks.push(await runProbe(endpointSubject, options));
-    }
-  }
-  return settle(checks);
-}
-function withSemanticFollowUps(checks, configured) {
-  const index = (configured["semantic-index"] ?? "").trim();
-  if (!index) return checks;
-  const answered = (id) => checks.some((check3) => check3.id === id);
-  const added = [];
-  if (!index.includes(".") && !answered("semantic-index")) {
-    added.push({
-      id: "semantic-index",
-      kind: "vector-index",
-      name: "",
-      label: "Vector Search index",
-      status: "unverified",
-      // No call was made, because there was no three-level name to make one
-      // against. Nobody asked, which is exactly what the word says.
-      stopped: "unasked",
-      detail: `This release searches an index, but the served model version reports the setting as \u201C${index}\u201D rather than as the resolved three-level name, so there is no object to ask about. Re-logging the model reports the name it resolved.`,
-      checked_with: "the orchestrator\u2019s reported configuration",
-      duration_ms: 0,
-      error: "",
-      remedy: null
-    });
-  }
-  const indexVerdict = checks.find((check3) => check3.id === "semantic-index");
-  if (!answered("semantic-index-endpoint") && indexVerdict?.status !== "ok") {
-    added.push({
-      id: "semantic-index-endpoint",
-      kind: "vector-endpoint",
-      name: "",
-      label: "Vector Search endpoint",
-      status: "unverified",
-      // Whatever stopped the index stopped this, so it says what the index says
-      // rather than inventing a reason of its own. `unasked` where the index
-      // never reported one, which is the honest reading of a derivation.
-      stopped: indexVerdict?.stopped ?? "unasked",
-      detail: "Only the index names the endpoint serving it, and the index did not answer, so there was nothing to ask about. Whichever statement clears the index above clears this one with it.",
-      checked_with: "derived from the index check above",
-      duration_ms: 0,
-      error: "",
-      remedy: null
-    });
-  }
-  return added.length > 0 ? [...checks, ...added] : checks;
-}
-function withManifestRollup(checks) {
-  const tables = checks.filter((entry) => entry.kind === "table");
-  if (tables.length === 0) return checks;
-  const failed5 = tables.filter((entry) => entry.status === "failed");
-  const unverified = tables.filter((entry) => entry.status === "unverified");
-  const status = failed5.length > 0 ? "failed" : unverified.length > 0 ? "unverified" : "ok";
-  const stopped = unverified.some((entry) => entry.stopped === "refused") ? "refused" : unverified.find((entry) => entry.stopped)?.stopped ?? "unasked";
-  const refusedScopes = new Set(unverified.map((entry) => (entry.scope ?? "").trim()));
-  const scope = failed5.length === 0 && refusedScopes.size === 1 && unverified.length === tables.length ? [...refusedScopes][0] : "";
-  return [
-    ...checks,
-    {
-      id: "declared-manifest",
-      kind: "manifest",
-      // Empty on purpose. This check summarises a list rather than reaching one
-      // object, so there is no value it could report as being in use, and a
-      // name here would be read as one by everything downstream.
-      name: "",
-      label: `Declared tables \xB7 ${tables.length}`,
-      status,
-      ...status === "unverified" ? { stopped } : {},
-      ...scope ? { scope } : {},
-      detail: failed5.length > 0 ? `${failed5.length} of ${tables.length} declared tables could not be read by this identity. Each one is listed under Unity Catalog tables with what the workspace said about it.` : unverified.length > 0 ? `${tables.length - unverified.length} of ${tables.length} declared tables answered, and ${unverified.length} did not, so the manifest as a whole is unconfirmed rather than clear.` : `All ${tables.length} declared tables answered a metadata read by this identity. Row filters and column masks are applied when data is read and are not covered.`,
-      checked_with: "derived from the table checks above",
-      duration_ms: 0,
-      error: "",
-      remedy: null
-    }
-  ];
-}
-async function readIndexBody(subject, options) {
-  try {
-    const call = options.fetchImpl ?? fetch;
-    const response = await call(`${options.host}${subject.path}`, {
-      method: "GET",
-      headers: { authorization: `Bearer ${options.token ?? ""}` },
-      signal: AbortSignal.timeout(options.timeoutMs ?? PROBE_TIMEOUT_MS)
-    });
-    if (!response.ok) return null;
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-var PROBE_TIMEOUT_MS, SCOPE_BY_API_PREFIX, ALL_APIS_SCOPE2, OAUTH_FAMILY_BY_SCOPE, INERT_TOKEN_SCOPES, READS_METADATA, SERVING_ENDPOINT_KIND, SERVING_ENDPOINTS, ANSWER_PATH_ENDPOINT_IDS, GRANT_MARKERS;
-var init_dependency_probes = __esm({
-  "server/lib/dependency-probes.ts"() {
-    init_access_verification();
-    init_scope_refusal();
-    init_declared_scopes();
-    PROBE_TIMEOUT_MS = 15e3;
-    SCOPE_BY_API_PREFIX = {
-      "/api/2.1/unity-catalog/catalogs/": "catalog.catalogs:read",
-      "/api/2.1/unity-catalog/schemas/": "catalog.schemas:read",
-      "/api/2.1/unity-catalog/tables/": "catalog.tables:read",
-      "/api/2.0/vector-search/indexes/": "vectorsearch.vector-search-indexes:read",
-      "/api/2.0/vector-search/endpoints/": "vectorsearch.vector-search-endpoints:read",
-      "/api/2.0/serving-endpoints/": "serving.serving-endpoints",
-      "/api/2.0/genie/": "dashboards.genie",
-      "/api/2.0/sql/": "sql"
-    };
-    ALL_APIS_SCOPE2 = "all-apis";
+var OAUTH_FAMILY_BY_SCOPE, ALL_APIS_SCOPE2, INERT_TOKEN_SCOPES;
+var init_token_scopes = __esm({
+  "shared/token-scopes.ts"() {
     OAUTH_FAMILY_BY_SCOPE = {
       "catalog.catalogs:read": "unity-catalog",
       "catalog.schemas:read": "unity-catalog",
@@ -167253,6 +166484,7 @@ var init_dependency_probes = __esm({
       sql: "sql",
       postgres: "postgres"
     };
+    ALL_APIS_SCOPE2 = "all-apis";
     INERT_TOKEN_SCOPES = /* @__PURE__ */ new Set([
       "openid",
       "profile",
@@ -167260,45 +166492,6 @@ var init_dependency_probes = __esm({
       "offline_access",
       ALL_APIS_SCOPE2
     ]);
-    READS_METADATA = "GET, as the signed-in user";
-    SERVING_ENDPOINT_KIND = "serving-endpoint";
-    SERVING_ENDPOINTS = [
-      {
-        id: "agent-endpoint",
-        label: "Orchestrator serving endpoint",
-        onAnswerPath: true,
-        note: "Every question the app asks goes through this endpoint."
-      },
-      {
-        id: "llm-endpoint",
-        label: "Foundation model",
-        onAnswerPath: true,
-        note: "The orchestrator reasons and writes with this endpoint."
-      },
-      {
-        id: "llm-gateway",
-        label: "AI Gateway route",
-        onAnswerPath: false,
-        note: "Model calls are routed through this gateway when one is configured."
-      },
-      {
-        id: "judge-endpoint",
-        label: "Benchmark judge model",
-        onAnswerPath: false,
-        note: "The Benchmark Lab scores answers with this endpoint. It is never on the answer path."
-      }
-    ];
-    ANSWER_PATH_ENDPOINT_IDS = SERVING_ENDPOINTS.filter(
-      (endpoint) => endpoint.onAnswerPath
-    ).map((endpoint) => endpoint.id);
-    GRANT_MARKERS = [
-      "permission_denied",
-      "does not have permission",
-      "is not accessible",
-      "not authorized",
-      "insufficient privileges",
-      "insufficient_permissions"
-    ];
   }
 });
 
@@ -167382,7 +166575,7 @@ var init_session_freshness = __esm({
     init_declared_scopes();
     init_declared_scopes();
     init_access_verification();
-    init_dependency_probes();
+    init_token_scopes();
   }
 });
 
@@ -167660,13 +166853,13 @@ var init_required_user_api_scopes = __esm({
 });
 
 // server/lib/app-user-api-scopes.ts
-function text7(value) {
+function text6(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function messageFrom(body, fallback) {
   if (!body || typeof body !== "object") return fallback;
   const record2 = body;
-  return text7(record2.message) || text7(record2.error) || text7(record2.error_code) || fallback;
+  return text6(record2.message) || text6(record2.error) || text6(record2.error_code) || fallback;
 }
 function scopesFrom(body) {
   const raw2 = body && typeof body === "object" ? body.user_api_scopes : void 0;
@@ -167912,7 +167105,7 @@ function timestamp(value) {
   if (value instanceof Date) return value.toISOString();
   return typeof value === "string" ? value : (/* @__PURE__ */ new Date()).toISOString();
 }
-function text8(value) {
+function text7(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return null;
@@ -167983,10 +167176,10 @@ function conversationRunTrace(row2, experimentId) {
   const identity = {
     runId: String(row2.id),
     kind: "conversation",
-    conversationId: text8(row2.conversation_id),
+    conversationId: text7(row2.conversation_id),
     createdAt: timestamp(row2.created_at),
-    prompt: text8(row2.prompt),
-    stakeholder: text8(row2.stakeholder)
+    prompt: text7(row2.prompt),
+    stakeholder: text7(row2.stakeholder)
   };
   const payload = parseStoredJson(row2.response_json);
   if (!payload || typeof payload !== "object") {
@@ -168071,8 +167264,8 @@ function benchmarkRunTrace(row2) {
     kind: "benchmark",
     conversationId: null,
     createdAt: timestamp(row2.created_at),
-    prompt: text8(metrics2.prompt) ?? `Benchmark suite: ${text8(row2.suite_id) ?? "unknown"}`,
-    stakeholder: text8(row2.user_email)
+    prompt: text7(metrics2.prompt) ?? `Benchmark suite: ${text7(row2.suite_id) ?? "unknown"}`,
+    stakeholder: text7(row2.user_email)
   };
   return {
     ...runWithoutTrace(
@@ -168086,7 +167279,7 @@ function benchmarkRunTrace(row2) {
       // six below are then read defensively because they are the ones the panes
       // depend on.
       ...metrics2,
-      suiteId: text8(metrics2.suiteId) ?? text8(row2.suite_id),
+      suiteId: text7(metrics2.suiteId) ?? text7(row2.suite_id),
       passed: numberOrNull(metrics2.passed),
       total: numberOrNull(metrics2.total),
       groundedness: numberOrNull(metrics2.groundedness),
@@ -168674,7 +167867,7 @@ function agentEndpointEvidence(error48, context2) {
 function rejectionStatus(error48) {
   const carried = error48?.statusCode ?? error48?.status;
   if (typeof carried === "number") return carried;
-  const message = error48 instanceof Error ? error48.message : text8(error48) ?? "";
+  const message = error48 instanceof Error ? error48.message : text7(error48) ?? "";
   if (/\b403\b|permission denied|not authorized|forbidden/i.test(message)) return 403;
   if (/\b401\b|unauthenticated|unauthorized|invalid access token|expired/i.test(message)) return 401;
   return null;
@@ -171068,6 +170261,825 @@ var init_app_metadata = __esm({
         return { kind: "no-response", message };
       }
     };
+  }
+});
+
+// server/lib/scope-refusal.ts
+function declares(declared, scope) {
+  return declared.includes(scope);
+}
+function scopeRefusalDiagnosis(input) {
+  const { declarable, namedByWorkspace, declared, tokenScopes, scopeHeld } = input;
+  const scope = declarable || namedByWorkspace;
+  const alias = namedByWorkspace && namedByWorkspace !== scope ? ` The workspace calls it \`${namedByWorkspace}\`. The app declares the same permission as \`${scope}\`.` : "";
+  const carried = tokenScopes ? `The sign-in this request carried lists ${quotedScopes(tokenScopes)}.` : "The sign-in this request carried does not list its own permissions.";
+  if (!declared) {
+    return {
+      cause: UNDETERMINED,
+      evidence: `The refusal named \`${scope}\`. ${carried} This deployment was not told which permissions it declares.`,
+      // No claim about WHY the scope is absent, and none available: the two
+      // candidates need different people and the list that separates them is
+      // not in this container. Checked by the audit, which is why the sentence
+      // reports what was not established rather than filling the gap.
+      explanation: `The workspace refused this call over the \`${scope}\` permission. The call stopped there, so nothing was established about whether ${input.tokenScopes ? "you" : "this identity"} can reach the object. Whether this app asks for that permission was not established either. This deployment was not told what it declares.`,
+      // Always null here. A remedy is a claim about a cause, and the two
+      // candidate remedies contradict each other.
+      remedy: null,
+      grantIsMissing: false
+    };
+  }
+  if (declares(declared, scope)) {
+    if (scopeHeld === true) {
+      return {
+        cause: "workspace-refused-a-held-scope",
+        evidence: `The app declares ${declared.length} permissions including \`${scope}\`, and the sign-in this request carried lists it. The refusal named \`${namedByWorkspace || scope}\`.`,
+        explanation: `Your sign-in carries \`${scope}\`, and the workspace refused this call anyway.${alias} That rules the permission out and leaves a grant on the object itself, which an admin adds. A new sign-in will not move this one. ${WHERE_THE_LISTS_ARE}`,
+        // The statement names the object and the principal, neither of which is
+        // this module's to know. See `grantIsMissing`.
+        remedy: null,
+        grantIsMissing: true
+      };
+    }
+    if (scopeHeld === null) {
+      return {
+        cause: "declared-scope-refused",
+        evidence: `The app declares ${declared.length} permissions including \`${scope}\`. ${carried} The refusal named \`${namedByWorkspace || scope}\`.`,
+        explanation: `This app asks for \`${scope}\`, and the workspace refused this call over it.${alias} Whether the sign-in this request carried holds that permission was not established, so this is either a sign-in older than the permission or a grant you are missing on the object. The call stopped before it could tell. ${WHERE_THE_LISTS_ARE}`,
+        remedy: freshSignIn(),
+        grantIsMissing: false
+      };
+    }
+    return {
+      cause: "token-lacks-declared-scope",
+      evidence: `The app declares ${declared.length} permissions including \`${scope}\`. ${carried} The refusal named \`${namedByWorkspace || scope}\`.`,
+      // FOUR SHORT SENTENCES, not one that says three things and contradicts
+      // itself in the middle. The version this replaced ran "Nothing was
+      // established about whether you can reach the object: the call stopped
+      // before it got there, so this row is not a permission you are missing"
+      // together, which put a finding, its reason and a warning against a
+      // different conclusion into one clause chain and read as broken English.
+      // Every distinction in it is load-bearing and all of them survive: the
+      // call stopped, so nothing about the object was established, so nobody
+      // should read this as a grant they lack.
+      explanation: `Your sign-in to this app does not carry \`${scope}\`, which the app asks for.${alias} The call stopped there, so nothing was established about whether you can reach the object. This is not a grant you are missing. ${WHERE_THE_LISTS_ARE}`,
+      remedy: freshSignIn(),
+      grantIsMissing: false
+    };
+  }
+  return {
+    cause: "app-declares-no-such-scope",
+    evidence: `The app declares ${quotedScopes(declared)}. \`${scope}\` is not among them, and the refusal named \`${namedByWorkspace || scope}\`. ${carried}`,
+    explanation: `This app does not ask for \`${scope}\`, so no sign-in it hands out can carry it.${alias} The call stopped there, so nothing was established about whether you can reach the object. A new sign-in will not move this one, and there is nothing you can do about it from the browser. ${WHERE_THE_LISTS_ARE}`,
+    remedy: {
+      kind: "cli",
+      // The only surviving step of the four, and the only one that was ever
+      // load-bearing here. The other three were already done on this
+      // deployment; this branch is the case where they have not been.
+      statement: `# Check the Apps API accepts the NAME before declaring it. It validates against a
+# narrower list than the workspace's OAuth metadata, and one rejected name fails the
+# whole deploy. This answers without deploying and creates nothing:
+databricks api post /api/2.0/apps \\
+  --json '{"name":"<an-app-that-already-exists>","user_api_scopes":["${scope}"]}'
+# "already exists" means the name is good. "not a valid scope" means it is not.
+#
+# Then add it to app_user_api_scopes in databricks.yml, and restart. Scopes are read
+# when the app STARTS, so a redeploy on its own leaves the change inert:
+databricks apps stop <app-name>
+databricks apps start <app-name>`,
+      // ONE LINE, AND IT IS THE ONE THE RESTART DOES NOT COVER. A deployer who
+      // runs the statement above sees the app come back declaring the scope and
+      // reasonably reports it fixed; every reader already signed in still fails,
+      // because a session keeps the permissions it was minted with. Without this
+      // sentence that is a second round of the same investigation, for several
+      // people. The other half of the paragraph said no GRANT can fix this,
+      // which `run_by` below already says on the same surface.
+      guidance: "Anyone already signed in keeps their old permissions after the restart, and needs a new sign-in to pick this up.",
+      run_by: "Run by whoever deploys this app. A workspace admin cannot fix this and a GRANT will not"
+    },
+    grantIsMissing: false
+  };
+}
+var WHERE_THE_LISTS_ARE;
+var init_scope_refusal = __esm({
+  "server/lib/scope-refusal.ts"() {
+    init_stated_cause();
+    init_fresh_sign_in();
+    WHERE_THE_LISTS_ARE = "The Connected as section of the Connections page lists what your sign-in carries and what this app asks for.";
+  }
+});
+
+// server/lib/dependency-probes.ts
+function scopeForPath(path19) {
+  let best = "";
+  let longest = 0;
+  for (const [prefix, scope] of Object.entries(SCOPE_BY_API_PREFIX)) {
+    if (path19.startsWith(prefix) && prefix.length > longest) {
+      best = scope;
+      longest = prefix.length;
+    }
+  }
+  return best;
+}
+function text8(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function list2(value) {
+  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
+}
+function setting(configuration, key2) {
+  return configuration.find((entry) => entry.key === key2)?.value;
+}
+function sql2(statement, guidance = "") {
+  return { kind: "sql", statement, guidance };
+}
+function cli(statement, guidance = "") {
+  return { kind: "cli", statement, guidance };
+}
+function granteeFor(principal) {
+  return principal ? `\`${principal}\`` : "`<the signed-in user>`";
+}
+function declaredTables(configuration) {
+  return list2(setting(configuration, "declared_manifest"));
+}
+function connectionSubjects(input) {
+  const value = (id) => (input.configured[id] ?? "").trim();
+  const subjects = [];
+  const warehouse = value("sql-warehouse");
+  if (warehouse) {
+    subjects.push({
+      id: "sql-warehouse",
+      kind: "sql-warehouse",
+      name: warehouse,
+      label: `SQL warehouse \xB7 ${warehouse}`,
+      path: `/api/2.0/sql/warehouses/${encodeURIComponent(warehouse)}`,
+      proves: "It does not prove a statement would run: CAN_USE on the warehouse and SELECT on the tables are separate grants, and a stopped warehouse still answers this call.",
+      observe: (body) => {
+        const state = text8(body.state);
+        const name2 = text8(body.name);
+        return [name2 && `named \u201C${name2}\u201D`, state && `state ${state}`].filter(Boolean).join(", ");
+      },
+      displayName: (body) => text8(body.name),
+      grant: (principal) => (
+        // No guidance. What stood here said a warehouse is a workspace object
+        // rather than a Unity Catalog one, which is why the fix is an API call
+        // rather than a GRANT. True, and it explains the statement the reader
+        // has already been given rather than telling them anything they need in
+        // order to run it.
+        cli(
+          `databricks permissions update warehouses ${warehouse} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_USE"}]}'`
+        )
+      )
+    });
+  }
+  for (const [id, label] of [
+    ["genie-data", "Data Genie space"],
+    ["genie-dictionary", "Dictionary Genie space"]
+  ]) {
+    const space = value(id);
+    if (!space) continue;
+    subjects.push({
+      id,
+      kind: "genie-space",
+      name: space,
+      label: `${label} \xB7 ${space}`,
+      path: `/api/2.0/genie/spaces/${encodeURIComponent(space)}`,
+      proves: "It does not prove a question would be answered: a space someone can open can still be backed by tables they cannot read, and CAN RUN is a separate grant from CAN VIEW.",
+      observe: (body) => {
+        const title = text8(body.title);
+        return title ? `titled \u201C${title}\u201D` : "";
+      },
+      displayName: (body) => text8(body.title),
+      grant: (principal) => (
+        // No guidance. The dropped sentence said the tables behind a space are
+        // granted separately in Unity Catalog, which is a real fact and one this
+        // page states better elsewhere: those tables are probed in their own
+        // right and get their own rows, so a reader who needs it is told by the
+        // report rather than by an aside on a different row.
+        cli(
+          `databricks permissions update genie ${space} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_RUN"}]}'`
+        )
+      )
+    });
+  }
+  const catalog = value("catalog");
+  if (catalog) {
+    subjects.push({
+      id: "catalog",
+      kind: "catalog",
+      name: catalog,
+      label: `Catalog \xB7 ${catalog}`,
+      path: `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(catalog)}`,
+      proves: "Every schema and table inside it is granted separately, so this covers the container only.",
+      observe: (body) => {
+        const owner = text8(body.owner);
+        return owner ? `owned by ${owner}` : "";
+      },
+      grant: (principal) => (
+        // No guidance. "It grants nothing on the schemas or tables inside it" is
+        // the `proves` line above, said again beside the statement.
+        sql2(`GRANT USE CATALOG ON CATALOG ${catalog} TO ${granteeFor(principal)};`)
+      )
+    });
+  }
+  const schema = value("schema");
+  if (catalog && schema) {
+    const full = `${catalog}.${schema}`;
+    subjects.push({
+      id: "schema",
+      kind: "schema",
+      name: full,
+      label: `Schema \xB7 ${full}`,
+      path: `/api/2.1/unity-catalog/schemas/${encodeURIComponent(full)}`,
+      proves: "Each table inside it is granted separately, so this covers the container only.",
+      observe: (body) => {
+        const owner = text8(body.owner);
+        return owner ? `owned by ${owner}` : "";
+      },
+      grant: (principal) => (
+        // No guidance, on the same reasoning as the catalog above.
+        sql2(`GRANT USE SCHEMA ON SCHEMA ${full} TO ${granteeFor(principal)};`)
+      )
+    });
+  }
+  for (const table of input.tables) {
+    subjects.push({
+      id: `table:${table}`,
+      kind: "table",
+      name: table,
+      label: table,
+      path: `/api/2.1/unity-catalog/tables/${encodeURIComponent(table)}`,
+      proves: "It reads the table\u2019s definition, not its rows. Row filters and column masks are applied when data is read and are invisible to this call.",
+      observe: (body) => {
+        const columns = Array.isArray(body.columns) ? body.columns.length : 0;
+        return columns ? `${columns} columns` : "";
+      },
+      grant: (principal) => (
+        // KEPT. This is the one probe grant whose statement is not sufficient on
+        // its own: Unity Catalog hides an object the caller cannot traverse, so
+        // a SELECT granted without USE CATALOG and USE SCHEMA leaves the table
+        // reading as missing and the row still red. A reader who runs the one
+        // statement has every reason to believe they are done, and finds out
+        // otherwise only by coming back. Two further grants is a real cost.
+        sql2(
+          `GRANT SELECT ON TABLE ${table} TO ${granteeFor(principal)};`,
+          "This is not enough on its own: the holder also needs USE CATALOG and USE SCHEMA on the two containers above it."
+        )
+      )
+    });
+  }
+  for (const { id, label, note } of SERVING_ENDPOINTS) {
+    const endpoint = value(id);
+    if (!endpoint || endpoint.includes("/")) continue;
+    subjects.push(servingEndpointSubject(id, label, endpoint, note));
+  }
+  const index = value("semantic-index");
+  if (index && index.includes(".")) {
+    subjects.push({
+      id: "semantic-index",
+      kind: "vector-index",
+      name: index,
+      label: `Vector Search index \xB7 ${index}`,
+      path: `/api/2.0/vector-search/indexes/${encodeURIComponent(index)}`,
+      proves: "It does not prove a search would return anything: an index that exists can still be empty or behind on its sync.",
+      observe: (body) => {
+        const endpoint = text8(body.endpoint_name);
+        const state = text8(body.status?.detailed_state);
+        return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(", ");
+      },
+      displayName: (body) => text8(body.name),
+      contentAt: (body) => indexContentAt(body),
+      // NOW A GRANT, which is what this row always claimed to be offering. What
+      // stood here was a `databricks api get` against the index -- the same call
+      // that had just been refused -- with a sentence underneath admitting it
+      // granted nothing and telling the reader to grant SELECT themselves. It
+      // was left that way because "what the right grant is for an index" was
+      // called a question about the platform rather than about this copy.
+      //
+      // The platform has now answered it, on the live index: an index is a Unity
+      // Catalog securable whose `securable_type` is TABLE and whose
+      // `securable_kind` is TABLE_ONLINE_VECTOR_INDEX_REPLICA, and
+      // effective-permissions resolves SELECT on it under the `table` securable
+      // path. So the statement is the ordinary table grant, against the index's
+      // own three-level name, and the guidance is the same one the declared
+      // tables carry -- for the same reason, which is that Unity Catalog hides
+      // an object the caller cannot traverse and a SELECT on its own leaves the
+      // row red.
+      grant: (principal) => sql2(
+        `GRANT SELECT ON TABLE ${index} TO ${granteeFor(principal)};`,
+        "This is not enough on its own: the holder also needs USE CATALOG and USE SCHEMA on the catalog and schema the index sits in."
+      )
+    });
+  }
+  return subjects;
+}
+function indexContentAt(body) {
+  const status = body.status ?? {};
+  for (const key2 of ["triggered_update_status", "continuous_update_status"]) {
+    const stamp2 = text8(status[key2]?.last_processed_commit_timestamp);
+    if (stamp2 && !Number.isNaN(new Date(stamp2).getTime())) return stamp2;
+  }
+  return "";
+}
+function servingEndpointSubject(id, label, name2, note) {
+  return {
+    id,
+    kind: SERVING_ENDPOINT_KIND,
+    name: name2,
+    label: `${label} \xB7 ${name2}`,
+    path: `/api/2.0/serving-endpoints/${encodeURIComponent(name2)}`,
+    proves: `${note} Seeing an endpoint is not being allowed to call it: CAN_VIEW and CAN_QUERY are separate grants, and this call needs only the first.`,
+    observe: (body) => {
+      const state = body.state ?? {};
+      const ready = text8(state.ready);
+      return ready ? `state ${ready}` : "";
+    },
+    // No guidance. The dropped sentence classified the object to explain why the
+    // fix is an API call; the reader is holding the API call.
+    grant: (principal) => cli(
+      `databricks permissions update serving-endpoints ${name2} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_QUERY"}]}'`
+    )
+  };
+}
+function vectorEndpointSubject(indexBody) {
+  const endpoint = text8(indexBody.endpoint_name);
+  if (!endpoint) return null;
+  const endpointId = text8(indexBody.endpoint_id);
+  return {
+    id: "semantic-index-endpoint",
+    kind: "vector-endpoint",
+    name: endpoint,
+    label: `Vector Search endpoint \xB7 ${endpoint}`,
+    path: `/api/2.0/vector-search/endpoints/${encodeURIComponent(endpoint)}`,
+    proves: "It does not prove a search would return anything; it says the endpoint serving the index exists.",
+    observe: (body) => {
+      const status = body.endpoint_status ?? {};
+      const state = text8(status.state);
+      return state ? `state ${state}` : "";
+    },
+    grant: endpointId ? (principal) => cli(
+      `databricks permissions update vector-search-endpoints ${endpointId} --json '{"access_control_list":[{"user_name":"${principal || "<the signed-in user>"}","permission_level":"CAN_USE"}]}'`,
+      "This endpoint is not a Unity Catalog securable, so no GRANT reaches it."
+    ) : void 0
+  };
+}
+function refused(status, code) {
+  return status === 403 || code === "PERMISSION_DENIED";
+}
+function absent(status, code) {
+  return status === 404 || code.endsWith("_DOES_NOT_EXIST") || code === "NOT_FOUND";
+}
+function scopesFromRefusal(message) {
+  const named = /required scopes?:\s*([^[\]\n]+)/i.exec(message);
+  if (!named) return [];
+  return named[1].split(/[,\s]+/).map((entry) => entry.trim().replace(/[.;]+$/, "")).filter(Boolean);
+}
+function refusalCause(input) {
+  const named = scopesFromRefusal(input.message);
+  if (named.length > 0 || looksLikeMissingScope(input.message)) {
+    return {
+      kind: "scope",
+      scope: named[0] || input.scope,
+      evidence: `the workspace said so: ${input.message}`
+    };
+  }
+  if (input.scope && input.scopeHeld === false) {
+    return {
+      kind: "scope",
+      scope: input.scope,
+      evidence: `the response did not say why, but the forwarded token lists its own scopes and \`${input.scope}\` is not among them`
+    };
+  }
+  const wording = input.message.toLowerCase();
+  const saysPermission = input.code === "PERMISSION_DENIED" || GRANT_MARKERS.some((marker) => wording.includes(marker));
+  if (saysPermission) {
+    return {
+      kind: "grant",
+      evidence: input.scopeHeld ? `the workspace named a permission, and the forwarded token does carry \`${input.scope}\`, so the scope is not what was missing` : "the workspace answered in terms of a permission rather than of a scope"
+    };
+  }
+  if (input.scopeHeld === true) {
+    return {
+      kind: "grant",
+      evidence: `the workspace gave no reason, but the forwarded token carries \`${input.scope}\`, so the scope is ruled out and a grant is what is left`
+    };
+  }
+  return { kind: "undetermined" };
+}
+function check2(subject, over) {
+  const built = {
+    id: subject.id,
+    kind: subject.kind,
+    name: subject.name,
+    label: subject.label,
+    status: "unverified",
+    // NOBODY ASKED, unless the branch says otherwise. Every `unverified` return
+    // in this file states which of the three ways it got there, because "we were
+    // told no", "the call broke" and "we never ran it" need three different next
+    // moves and the status cannot tell them apart. See
+    // `shared/check-verdict.ts`.
+    stopped: "unasked",
+    detail: "",
+    checked_with: `${READS_METADATA}: ${subject.path}`,
+    duration_ms: 0,
+    error: "",
+    remedy: null,
+    ...over
+  };
+  if (built.status !== "unverified") delete built.stopped;
+  return built;
+}
+function probeVerdict(input) {
+  const { subject, outcome, principal } = input;
+  const durationMs = input.durationMs ?? 0;
+  const who = principal ? ` as ${principal}` : "";
+  if (outcome.kind === "timeout") {
+    return check2(subject, {
+      status: "unverified",
+      stopped: "unreachable",
+      duration_ms: durationMs,
+      detail: `The workspace did not answer within ${outcome.afterMs} ms, so whether this identity can reach it is unknown rather than settled. A slow answer is not a refusal.`,
+      error: `no answer within ${outcome.afterMs} ms`
+    });
+  }
+  if (outcome.kind === "unreachable") {
+    return check2(subject, {
+      status: "unverified",
+      stopped: "unreachable",
+      duration_ms: durationMs,
+      detail: "The workspace could not be asked about this one, so nothing was established either way. This says nothing about the object and everything about the call.",
+      error: outcome.message
+    });
+  }
+  const { status, body } = outcome;
+  const code = text8(body.error_code);
+  const message = text8(body.message);
+  if (status >= 200 && status < 300) {
+    const observed = subject.observe?.(body) ?? "";
+    const contentAt = subject.contentAt ? subject.contentAt(body) : "";
+    const freshness = !subject.contentAt ? "" : contentAt ? `It last took content from its source at ${contentAt}. ` : "The workspace reported no time for when it last took content from its source, so the age of what it serves is not established here. ";
+    return check2(subject, {
+      status: "ok",
+      display_name: subject.displayName?.(body) || void 0,
+      duration_ms: durationMs,
+      content_at: contentAt,
+      detail: `The workspace answered${who}${observed ? `: ${observed}` : ""}. ${freshness}That is a metadata read. ${subject.proves}`
+    });
+  }
+  if (refused(status, code)) {
+    const scope = scopeForPath(subject.path);
+    const tokenScopes = input.tokenScopes ?? null;
+    const scopeHeld = tokenScopes === null ? null : tokenScopeVerdict(tokenScopes, scope);
+    const cause = refusalCause({ message, code, scope, scopeHeld });
+    const refusal = `HTTP ${status}${code ? ` ${code}` : ""}`;
+    if (cause.kind === "scope") {
+      const declarable = scope || cause.scope;
+      const diagnosis = scopeRefusalDiagnosis({
+        declarable,
+        namedByWorkspace: cause.scope,
+        declared: input.declaredScopes ?? null,
+        tokenScopes,
+        scopeHeld
+      });
+      if (diagnosis.grantIsMissing) {
+        return check2(subject, {
+          status: "failed",
+          duration_ms: durationMs,
+          detail: `${refusal}. ${diagnosis.explanation}`,
+          error: message || refusal,
+          remedy: subject.grant?.(principal) ?? null
+        });
+      }
+      return check2(subject, {
+        status: "unverified",
+        // WE ASKED AND WERE TOLD NO, which is not the same as nobody having
+        // asked, and the row said the second for as long as the two shared a
+        // word. Still `unverified`, because the refusal landed on the scope
+        // rather than on the object and so settled nothing about whether this
+        // identity can reach it.
+        stopped: "refused",
+        // WHICH PERMISSION, carried as a value so a surface does not have to
+        // read the sentence back to find out. This is the one branch that
+        // established a scope was implicated, so it is the only one that sets
+        // it: the grant branch above has ruled the scope OUT, and the
+        // undetermined branch below established nothing. The Connections panel
+        // reads it against `shared/optional-user-api-scopes.ts` to keep a
+        // shortfall in an optional catalog read out of "What to fix".
+        scope: declarable,
+        duration_ms: durationMs,
+        // The workspace's own words first, because that is the evidence, then
+        // the verdict reached from it. A reader who disagrees with the second
+        // can still see the first.
+        detail: `${refusal}. ${diagnosis.explanation}`,
+        error: message || refusal,
+        remedy: diagnosis.remedy
+      });
+    }
+    if (cause.kind === "undetermined") {
+      return check2(subject, {
+        status: "unverified",
+        // Refused, whichever of the two reasons it was. Which one is undetermined;
+        // that the workspace answered no is not.
+        stopped: "refused",
+        duration_ms: durationMs,
+        // NAMED AS UNDETERMINED RATHER THAN RESOLVED TO THE LIKELIER ONE. The
+        // page has just spent an evening proving what a confident wrong remedy
+        // costs, and the two candidates here are fixed by different people. A
+        // row that says which two they are is worth more than one that picks.
+        detail: `The workspace refused the call${who} and did not say why: ${refusal}, with no message and no scopes readable off the token. That is one of two things and this cannot tell which: either ${principal || "the signed-in user"} lacks a grant on the object, or the app's forwarded token lacks the \`${scope || "required"}\` scope. Check the token's scopes first -- it is the cheaper of the two to rule out, and it is the one that would make every other row on this page wrong in the same way.`,
+        error: message || refusal,
+        // No remedy on purpose. Either candidate printed here would be a guess
+        // wearing the clothes of an instruction.
+        remedy: null
+      });
+    }
+    return check2(subject, {
+      status: "failed",
+      duration_ms: durationMs,
+      // Said in as many words, because the two failures have different remedies
+      // and this is the one a GRANT fixes. A reader who takes a refusal for an
+      // absence goes looking for a resource that is sitting right there.
+      detail: `The workspace refused this identity${who}: ${refusal}. The object exists as far as this call can tell; what was established is that this identity cannot reach it -- ${cause.evidence}. A grant fixes this.`,
+      error: message || refusal,
+      remedy: subject.grant?.(principal) ?? null
+    });
+  }
+  if (absent(status, code)) {
+    return check2(subject, {
+      status: "failed",
+      duration_ms: durationMs,
+      detail: `The workspace has no such object: HTTP ${status}${code ? ` ${code}` : ""}. This is missing rather than forbidden, so no grant repairs it: either the value this deployment was configured with is wrong, or the object was removed.`,
+      error: message || `HTTP ${status}${code ? ` ${code}` : ""}`,
+      // Deliberately none. Offering a GRANT for an object that does not exist
+      // sends a deployer to an admin for a permission on nothing, and a remedy
+      // that cannot work is how remedies stop being read.
+      remedy: null
+    });
+  }
+  if (status === 401) {
+    return check2(subject, {
+      status: "unverified",
+      // The workspace said no, about the sign-in rather than about the object.
+      // A retry with the same token gets the same answer, which is what puts
+      // this with the refusals rather than with the broken calls.
+      stopped: "refused",
+      duration_ms: durationMs,
+      detail: "The workspace rejected the token this call was made with, so nothing was established about this object. That is a problem with the sign-in rather than with the resource.",
+      error: message || `HTTP ${status}`
+    });
+  }
+  if (status === 429 || status >= 500) {
+    return check2(subject, {
+      status: "unverified",
+      // Answered, but not about this object. A later run may well answer, which
+      // is the difference between this and a refusal.
+      stopped: "unreachable",
+      duration_ms: durationMs,
+      detail: `The workspace answered HTTP ${status}, which is about the workspace rather than about this object. Nothing was established either way.`,
+      error: message || `HTTP ${status}`
+    });
+  }
+  return check2(subject, {
+    status: "failed",
+    duration_ms: durationMs,
+    detail: `The workspace refused the request: HTTP ${status}${code ? ` ${code}` : ""}. A malformed identifier answers this way, so the configured value is the first thing to read.`,
+    error: message || `HTTP ${status}`
+  });
+}
+function unaskedChecks(subjects, reason) {
+  return subjects.map(
+    (subject) => check2(subject, {
+      status: "unverified",
+      stopped: "unasked",
+      detail: `${reason} So this is unchecked rather than unreachable: nobody asked.`,
+      error: ""
+    })
+  );
+}
+async function runProbe(subject, options) {
+  const call = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? PROBE_TIMEOUT_MS;
+  const started = Date.now();
+  const tokenScopes = options.token ? scopesFromToken(options.token) : null;
+  const declaredScopes = options.declaredScopes === void 0 ? declaredUserApiScopes() : options.declaredScopes;
+  const finish = (outcome) => probeVerdict({
+    subject,
+    outcome,
+    principal: options.principal,
+    durationMs: Date.now() - started,
+    tokenScopes,
+    declaredScopes
+  });
+  try {
+    const response = await call(`${options.host}${subject.path}`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${options.token ?? ""}` },
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    const body = await response.json().catch(() => ({}));
+    return finish({ kind: "answered", status: response.status, body: body ?? {} });
+  } catch (error48) {
+    const name2 = error48?.name;
+    if (name2 === "TimeoutError" || name2 === "AbortError") return finish({ kind: "timeout", afterMs: timeoutMs });
+    return finish({ kind: "unreachable", message: error48?.message ?? String(error48) });
+  }
+}
+async function runProbes(subjects, options) {
+  const settled = await Promise.allSettled(subjects.map((subject) => runProbe(subject, options)));
+  return settled.map(
+    (result, index) => result.status === "fulfilled" ? result.value : probeVerdict({
+      subject: subjects[index],
+      outcome: { kind: "unreachable", message: String(result.reason?.message ?? result.reason) },
+      principal: options.principal,
+      tokenScopes: options.token ? scopesFromToken(options.token) : null,
+      declaredScopes: options.declaredScopes === void 0 ? declaredUserApiScopes() : options.declaredScopes
+    })
+  );
+}
+async function probeConnections(input) {
+  const subjects = connectionSubjects(input);
+  if (subjects.length === 0) return [];
+  const settle = (checks2) => withSemanticFollowUps(withManifestRollup(checks2), input.configured);
+  if (!input.host) {
+    return settle(
+      unaskedChecks(
+        subjects,
+        "The app container was given no DATABRICKS_HOST, so it does not know which workspace to ask."
+      )
+    );
+  }
+  if (!input.token) {
+    return settle(
+      unaskedChecks(
+        subjects,
+        "This request carried no signed-in user token, and these answers are about the signed-in user\u2019s own grants rather than the app\u2019s."
+      )
+    );
+  }
+  const options = {
+    host: input.host,
+    token: input.token,
+    principal: input.principal,
+    declaredScopes: input.declaredScopes,
+    fetchImpl: input.fetchImpl,
+    timeoutMs: input.timeoutMs
+  };
+  const checks = await runProbes(subjects, options);
+  const indexCheck = checks.find((entry) => entry.id === "semantic-index");
+  if (indexCheck?.status === "ok") {
+    const indexSubject = subjects.find((subject) => subject.id === "semantic-index");
+    if (indexSubject) {
+      const body = await readIndexBody(indexSubject, options);
+      const endpointSubject = body ? vectorEndpointSubject(body) : null;
+      if (endpointSubject) checks.push(await runProbe(endpointSubject, options));
+    }
+  }
+  return settle(checks);
+}
+function withSemanticFollowUps(checks, configured) {
+  const index = (configured["semantic-index"] ?? "").trim();
+  if (!index) return checks;
+  const answered = (id) => checks.some((check3) => check3.id === id);
+  const added = [];
+  if (!index.includes(".") && !answered("semantic-index")) {
+    added.push({
+      id: "semantic-index",
+      kind: "vector-index",
+      name: "",
+      label: "Vector Search index",
+      status: "unverified",
+      // No call was made, because there was no three-level name to make one
+      // against. Nobody asked, which is exactly what the word says.
+      stopped: "unasked",
+      detail: `This release searches an index, but the served model version reports the setting as \u201C${index}\u201D rather than as the resolved three-level name, so there is no object to ask about. Re-logging the model reports the name it resolved.`,
+      checked_with: "the orchestrator\u2019s reported configuration",
+      duration_ms: 0,
+      error: "",
+      remedy: null
+    });
+  }
+  const indexVerdict = checks.find((check3) => check3.id === "semantic-index");
+  if (!answered("semantic-index-endpoint") && indexVerdict?.status !== "ok") {
+    added.push({
+      id: "semantic-index-endpoint",
+      kind: "vector-endpoint",
+      name: "",
+      label: "Vector Search endpoint",
+      status: "unverified",
+      // Whatever stopped the index stopped this, so it says what the index says
+      // rather than inventing a reason of its own. `unasked` where the index
+      // never reported one, which is the honest reading of a derivation.
+      stopped: indexVerdict?.stopped ?? "unasked",
+      detail: "Only the index names the endpoint serving it, and the index did not answer, so there was nothing to ask about. Whichever statement clears the index above clears this one with it.",
+      checked_with: "derived from the index check above",
+      duration_ms: 0,
+      error: "",
+      remedy: null
+    });
+  }
+  return added.length > 0 ? [...checks, ...added] : checks;
+}
+function withManifestRollup(checks) {
+  const tables = checks.filter((entry) => entry.kind === "table");
+  if (tables.length === 0) return checks;
+  const failed5 = tables.filter((entry) => entry.status === "failed");
+  const unverified = tables.filter((entry) => entry.status === "unverified");
+  const status = failed5.length > 0 ? "failed" : unverified.length > 0 ? "unverified" : "ok";
+  const stopped = unverified.some((entry) => entry.stopped === "refused") ? "refused" : unverified.find((entry) => entry.stopped)?.stopped ?? "unasked";
+  const refusedScopes = new Set(unverified.map((entry) => (entry.scope ?? "").trim()));
+  const scope = failed5.length === 0 && refusedScopes.size === 1 && unverified.length === tables.length ? [...refusedScopes][0] : "";
+  return [
+    ...checks,
+    {
+      id: "declared-manifest",
+      kind: "manifest",
+      // Empty on purpose. This check summarises a list rather than reaching one
+      // object, so there is no value it could report as being in use, and a
+      // name here would be read as one by everything downstream.
+      name: "",
+      label: `Declared tables \xB7 ${tables.length}`,
+      status,
+      ...status === "unverified" ? { stopped } : {},
+      ...scope ? { scope } : {},
+      detail: failed5.length > 0 ? `${failed5.length} of ${tables.length} declared tables could not be read by this identity. Each one is listed under Unity Catalog tables with what the workspace said about it.` : unverified.length > 0 ? `${tables.length - unverified.length} of ${tables.length} declared tables answered, and ${unverified.length} did not, so the manifest as a whole is unconfirmed rather than clear.` : `All ${tables.length} declared tables answered a metadata read by this identity. Row filters and column masks are applied when data is read and are not covered.`,
+      checked_with: "derived from the table checks above",
+      duration_ms: 0,
+      error: "",
+      remedy: null
+    }
+  ];
+}
+async function readIndexBody(subject, options) {
+  try {
+    const call = options.fetchImpl ?? fetch;
+    const response = await call(`${options.host}${subject.path}`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${options.token ?? ""}` },
+      signal: AbortSignal.timeout(options.timeoutMs ?? PROBE_TIMEOUT_MS)
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+var PROBE_TIMEOUT_MS, SCOPE_BY_API_PREFIX, READS_METADATA, SERVING_ENDPOINT_KIND, SERVING_ENDPOINTS, ANSWER_PATH_ENDPOINT_IDS, GRANT_MARKERS;
+var init_dependency_probes = __esm({
+  "server/lib/dependency-probes.ts"() {
+    init_access_verification();
+    init_scope_refusal();
+    init_declared_scopes();
+    init_token_scopes();
+    init_token_scopes();
+    PROBE_TIMEOUT_MS = 15e3;
+    SCOPE_BY_API_PREFIX = {
+      "/api/2.1/unity-catalog/catalogs/": "catalog.catalogs:read",
+      "/api/2.1/unity-catalog/schemas/": "catalog.schemas:read",
+      "/api/2.1/unity-catalog/tables/": "catalog.tables:read",
+      "/api/2.0/vector-search/indexes/": "vectorsearch.vector-search-indexes:read",
+      "/api/2.0/vector-search/endpoints/": "vectorsearch.vector-search-endpoints:read",
+      "/api/2.0/serving-endpoints/": "serving.serving-endpoints",
+      "/api/2.0/genie/": "dashboards.genie",
+      "/api/2.0/sql/": "sql"
+    };
+    READS_METADATA = "GET, as the signed-in user";
+    SERVING_ENDPOINT_KIND = "serving-endpoint";
+    SERVING_ENDPOINTS = [
+      {
+        id: "agent-endpoint",
+        label: "Orchestrator serving endpoint",
+        onAnswerPath: true,
+        note: "Every question the app asks goes through this endpoint."
+      },
+      {
+        id: "llm-endpoint",
+        label: "Foundation model",
+        onAnswerPath: true,
+        note: "The orchestrator reasons and writes with this endpoint."
+      },
+      {
+        id: "llm-gateway",
+        label: "AI Gateway route",
+        onAnswerPath: false,
+        note: "Model calls are routed through this gateway when one is configured."
+      },
+      {
+        id: "judge-endpoint",
+        label: "Benchmark judge model",
+        onAnswerPath: false,
+        note: "The Benchmark Lab scores answers with this endpoint. It is never on the answer path."
+      }
+    ];
+    ANSWER_PATH_ENDPOINT_IDS = SERVING_ENDPOINTS.filter(
+      (endpoint) => endpoint.onAnswerPath
+    ).map((endpoint) => endpoint.id);
+    GRANT_MARKERS = [
+      "permission_denied",
+      "does not have permission",
+      "is not accessible",
+      "not authorized",
+      "insufficient privileges",
+      "insufficient_permissions"
+    ];
   }
 });
 
