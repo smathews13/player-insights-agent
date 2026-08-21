@@ -776,41 +776,46 @@
   white-space: nowrap;
 }
 
-/* A permission list runs to eight or nine names, so its row wraps and its label
-   sits at the top of the block rather than centred against three lines of it. */
+/* A long fact can still use the ordinary label/value grid above the table. */
 .identity-fact[data-wrap='true'] {
   align-items: flex-start;
 }
 .identity-fact[data-wrap='true'] .identity-fact-label {
   padding-top: 3px;
 }
-.identity-scopes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+
+/* Permissions are reference data, not tags: two explicit columns keep every
+   exact scope beside the explanation a reader needs to understand it. */
+.identity-scope-table-wrap {
+  width: 100%;
+  overflow-x: auto;
 }
-/* Mono and hairline: these are exact strings that have to be compared against a
-   bundle by eye, and one letter is the whole difference. */
-.identity-scope {
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
+.identity-scope-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+}
+.identity-scope-table th,
+.identity-scope-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.identity-scope-table th {
+  font-weight: 600;
+  color: var(--ast-text);
+}
+.identity-scope-table th:first-child,
+.identity-scope-table td:first-child {
+  width: 36%;
+}
+.identity-scope-table code {
   font-size: var(--text-sm);
-  line-height: 1.4;
-  color: var(--muted-foreground);
+  color: var(--ast-text-long);
   overflow-wrap: anywhere;
 }
-/* Declared and not carried. The amber rung, not the red one: the sign-in
-   authenticates, and the shortfall may equally be an app that was never
-   restarted after the permission was added. */
-.identity-scope[data-absent='true'] {
-  border-color: var(--ast-warn-border);
-  background: var(--ast-warn-fill);
-  color: var(--ast-warn-text);
-}
-.identity-scope[data-optional='true']:not([data-absent='true']) {
-  border-style: dashed;
+.identity-scope-default {
   color: var(--muted-foreground);
 }
 

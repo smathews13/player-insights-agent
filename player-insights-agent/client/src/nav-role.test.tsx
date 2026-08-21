@@ -69,10 +69,7 @@ function features(overrides: Partial<ExperimentalFeatures> = {}): ExperimentalFe
  * the mobile sheet, so passing it here is what makes "and the same is true on a
  * phone" a claim this file can actually make rather than assert by analogy.
  */
-function render(
-  state: RoleState,
-  options: { features?: ExperimentalFeatures; mobile?: boolean } = {}
-): string {
+function render(state: RoleState, options: { features?: ExperimentalFeatures; mobile?: boolean } = {}): string {
   return renderToStaticMarkup(
     <MemoryRouter>
       <NavLinks
@@ -94,7 +91,7 @@ function hrefs(markup: string): string[] {
   return [...markup.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
 }
 
-const ADMIN_ORDER = ['Ask', 'Run Explorer', 'Monitoring', 'Ops', 'Connections', 'Architecture', 'Settings'];
+const ADMIN_ORDER = ['Ask', 'Run Explorer', 'Monitoring', 'Ops', 'Connections', 'Architecture'];
 const CONSUMER_ORDER = ['Ask', 'Run Explorer', 'Connections', 'Architecture'];
 
 describe('an administrator can reach Monitoring and Ops by clicking', () => {
@@ -107,14 +104,7 @@ describe('an administrator can reach Monitoring and Ops by clicking', () => {
   });
 
   it('points them at the routes the router has registered', () => {
-    expect(hrefs(render('admin'))).toEqual([
-      '/',
-      '/runs',
-      '/monitoring',
-      '/ops',
-      '/connections',
-      '/architecture',
-    ]);
+    expect(hrefs(render('admin'))).toEqual(['/', '/runs', '/monitoring', '/ops', '/connections', '/architecture']);
   });
 
   it('gives every tab an icon, so none of them is a word in a row of pictures', () => {
@@ -174,17 +164,19 @@ describe('a consumer is not shown a door that will be shut in their face', () =>
   });
 });
 
-describe('Settings stays in the tab rail and opens a modal', () => {
-  it('renders Settings as a button rather than a route link', () => {
-    const markup = render('admin');
-    expect(markup).toContain('<button');
-    expect(markup).toContain('Settings</button>');
-    expect(hrefs(markup)).not.toContain('/settings');
+describe('Settings stays behind the gear', () => {
+  it('never renders Settings in either navigation rail', () => {
+    for (const mobile of [false, true]) {
+      const markup = render('admin', { mobile });
+      expect(labels(markup)).not.toContain('Settings');
+      expect(markup).not.toContain('/settings');
+    }
   });
 
-  it('mounts the modal from Layout instead of the route outlet', () => {
+  it('mounts the modal from Layout for the gear and deep link', () => {
     expect(LAYOUT).toContain('<SettingsPage onClose={closeSettings} />');
     expect(LAYOUT).toContain('settingsVisible ?');
+    expect(LAYOUT).toContain("location.pathname === '/settings'");
   });
 });
 

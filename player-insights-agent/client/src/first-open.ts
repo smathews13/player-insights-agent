@@ -38,6 +38,7 @@ import {
   isOptionalUserApiScope,
   requiredMissingScopes,
 } from '../../shared/optional-user-api-scopes';
+import { tokenScopeVerdict } from '../../shared/token-scopes';
 // Whether a shortfall is a thing the reader can fix, and the words for it. The
 // same module the Connections identity card reads, so the two screens a reader
 // can meet this on state one condition in one wording.
@@ -266,7 +267,8 @@ export function missingFooter(notice: StaleSignInNotice): ScopeFooter {
 export function scopeRows(
   declared: readonly string[] | null | undefined,
   missing: readonly string[],
-  checked: boolean
+  checked: boolean,
+  tokenScopes?: readonly string[] | null
 ): ScopeRow[] {
   const declaredList = declared ?? [];
   const declaredSet = new Set(declaredList);
@@ -281,10 +283,23 @@ export function scopeRows(
 
   for (const name of OPTIONAL_USER_API_SCOPES) {
     if (declaredSet.has(name)) continue;
+    const held = checked && tokenScopes ? tokenScopeVerdict(tokenScopes, name) : null;
     rows.push({
       name,
       optional: true,
-      status: checked ? 'not_declared' : 'unchecked',
+      // The token is the effective Databricks Apps grant. A Git deployment may
+      // omit an optional scope from its local declaration while the app's live
+      // OAuth configuration and this signed-in token still carry it. Once the
+      // token has been inspected, say what it proves instead of treating the
+      // omitted declaration as a perpetual "Not requested".
+      status:
+        held === true
+          ? 'granted'
+          : held === false
+            ? 'missing'
+            : checked && tokenScopes === undefined
+              ? 'not_declared'
+              : 'unchecked',
     });
   }
   return rows;
@@ -351,7 +366,7 @@ export function firstOpenReport(identity: Identity | null | undefined): FirstOpe
     ...base,
     oauthVerified,
     verdict: 'unchecked',
-    scopes: scopeRows(declared, [], false),
+    scopes: scopeRows(declared, [], false, session.tokenScopes),
     footer: { lead, scopes: [], tail: '' },
   });
 
@@ -360,7 +375,7 @@ export function firstOpenReport(identity: Identity | null | undefined): FirstOpe
   if (!declared || declared.length === 0) return unchecked(NOTHING_DECLARED);
 
   const allMissing = [...session.missingScopes];
-  const scopes = scopeRows(declared, allMissing, true);
+  const scopes = scopeRows(declared, allMissing, true, session.tokenScopes);
   // Catalog (optional) shortfalls do not fail the gate. Asks do not need them.
   const missing = requiredMissingScopes(allMissing);
   if (missing.length === 0) {

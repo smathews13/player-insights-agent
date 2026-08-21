@@ -13,15 +13,7 @@ import {
   readExperimentalFeatures,
   type ExperimentalFeatures,
 } from './experimental-features';
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from './ui';
+import { Alert, AlertDescription, Button, Sheet, SheetContent, SheetHeader, SheetTitle } from './ui';
 import {
   Activity,
   CircleAlert,
@@ -51,13 +43,7 @@ import { SettingsPage } from './SettingsPage';
 import { UserIdentityChip } from './UserIdentityChip';
 import { AccountMenu } from './AccountMenu';
 import { mobileNavLinkClass } from './layout-view';
-import {
-  navEntries,
-  roleFrom,
-  showsSettingsGear,
-  type AppOutletContext,
-  type RoleResolution,
-} from './role';
+import { navEntries, roleFrom, showsSettingsGear, type AppOutletContext, type RoleResolution } from './role';
 
 /**
  * The app-wide statement that stored data is not what is being shown.
@@ -70,7 +56,8 @@ function StorageBanner() {
   // different remedies, and a reader who cannot tell them apart goes looking
   // for the wrong fault. That is not hypothetical, it is how this banner came
   // to be written, and it is why the choice is now something a test pins.
-  const notice = storageBannerNotice(health && {
+  const notice = storageBannerNotice(
+    health && {
       ...health,
       since: formatCheckedAt(health.since),
       last_ok_at: health.last_ok_at ? formatCheckedAt(health.last_ok_at) : null,
@@ -90,7 +77,8 @@ function StorageBanner() {
   // neutral one comes from the app's own `[data-slot='alert']` rule, so the two
   // are painted where every other alert in the app is painted.
   const blocking = notice.tone === 'blocking';
-  return (<div className={`storage-banner ${blocking ? 'blocking' : 'neutral'}`}>
+  return (
+    <div className={`storage-banner ${blocking ? 'blocking' : 'neutral'}`}>
       <Alert variant={blocking ? 'destructive' : 'default'}>
         {blocking ? <CircleAlert /> : <Info />}
         {/* Four blocks, and the description slot stacks them, because AppKit
@@ -106,7 +94,8 @@ function StorageBanner() {
           {/* THE ERROR STAYS IN FRONT OF THE READER. It is the one line here
               that is specific to this deployment at this moment, it is what
               gets pasted into a ticket, and it is not reasoning. */}
-          {health?.last_error ? (<span className="storage-banner-note">
+          {health?.last_error ? (
+            <span className="storage-banner-note">
               {health.last_error.route} failed: {health.last_error.message}
             </span>
           ) : null}
@@ -114,7 +103,8 @@ function StorageBanner() {
               refusal. All true, none of it what a reader wants before the
               status -- this banner is under the header on every page in the
               app, so its paragraph was the most-read copy in it. */}
-          {notice.reasoning ? (<Disclosure summary="Why">
+          {notice.reasoning ? (
+            <Disclosure summary="Why">
               <p>{notice.reasoning}</p>
             </Disclosure>
           ) : null}
@@ -126,7 +116,8 @@ function StorageBanner() {
           {/* Which variables it needs and why no redeploy does it for them.
               Behind the command rather than under it: somebody who has the
               command has what they came for, and the note is three sentences. */}
-          {notice.remedyNote ? (<Disclosure summary="Why this is manual">
+          {notice.remedyNote ? (
+            <Disclosure summary="Why this is manual">
               <p>{notice.remedyNote}</p>
             </Disclosure>
           ) : null}
@@ -195,16 +186,12 @@ export function NavLinks({
   role,
   features,
   onClick,
-  onSettingsOpen,
-  settingsOpen = false,
 }: {
   className?: string;
   linkClass: NavLinkClassFn;
   role: RoleResolution;
   features: ExperimentalFeatures;
   onClick?: () => void;
-  onSettingsOpen?: () => void;
-  settingsOpen?: boolean;
 }) {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -214,29 +201,13 @@ export function NavLinks({
   // ('/'): the conversation id lives in its `?c=` and means nothing on the
   // other pages, whose own query strings must not be read as one.
   const openConversation = location.pathname === '/' ? searchParams.get('c') : null;
-  const runsTo = openConversation
-    ? `/runs?conversation=${encodeURIComponent(openConversation)}`
-    : '/runs';
-  return (<nav className={className}>
+  const runsTo = openConversation ? `/runs?conversation=${encodeURIComponent(openConversation)}` : '/runs';
+  return (
+    <nav className={className}>
       {navEntries(role.state, features).map((entry) => {
         const Icon = NAV_ICONS[entry.to];
-        if (entry.to === '/settings') {
-          return (
-            <button
-              key={entry.to}
-              type="button"
-              className={linkClass({ isActive: settingsOpen })}
-              aria-current={settingsOpen ? 'page' : undefined}
-              onClick={() => {
-                onClick?.();
-                onSettingsOpen?.();
-              }}
-            >
-              <Settings className="size-4" /> {entry.label}
-            </button>
-          );
-        }
-        return (<NavLink
+        return (
+          <NavLink
             key={entry.to}
             to={entry.to === '/runs' ? runsTo : entry.to}
             // Ask PIA only. Without it the root path matches every route and the
@@ -298,7 +269,8 @@ export function HeaderBrand({
   buildSha?: string;
   arriving?: boolean;
 }) {
-  return (<div className="brand-lockup">
+  return (
+    <div className="brand-lockup">
       {/* The lockup pops in at the exact point the stars converged on
           (`login-transition.md` phase 5). The class is on the lockup rather than
           on the column so neither the chip nor the divider beside it pops with
@@ -355,7 +327,8 @@ export function IdentityChips({
   className?: string;
   gear?: ReactNode;
 }) {
-  return (<div className={`identity-chips ${className ?? ''}`}>
+  return (
+    <div className={`identity-chips ${className ?? ''}`}>
       <RoleBadge state={role.state} />
       <AccountMenu identity={identity} />
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
@@ -431,7 +404,8 @@ export function Layout() {
    */
   if (!drawsAppShell(firstOpen.stage)) return <>{firstOpen.gate}</>;
 
-  return (<div className={`min-h-screen flex flex-col${arriving ? ' ast-anim-x-app' : ''}`}>
+  return (
+    <div className={`min-h-screen flex flex-col${arriving ? ' ast-anim-x-app' : ''}`}>
       {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
           the app, which is the soft-ground treatment DuBois replaces with
           hairlines on a solid surface.
@@ -484,8 +458,6 @@ export function Layout() {
           linkClass={navLinkClass}
           role={role}
           features={features}
-          settingsOpen={settingsVisible}
-          onSettingsOpen={() => setSettingsOpen(true)}
           onClick={() => setSettingsOpen(false)}
         />
         {/* The way into settings, and now into settings rather than towards them.
@@ -535,19 +507,21 @@ export function Layout() {
         <IdentityChips
           identity={identity}
           role={role}
-          gear={showsSettingsGear(role.state) ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="header-settings text-muted-foreground hover:text-foreground"
-              aria-label="App settings"
-              title="App settings"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings className="size-5" />
-            </Button>
-          ) : null}
+          gear={
+            showsSettingsGear(role.state) ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="header-settings text-muted-foreground hover:text-foreground"
+                aria-label="App settings"
+                title="App settings"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Settings className="size-5" />
+              </Button>
+            ) : null
+          }
         />
         {/* Mobile nav, drawn only below the width at which the desktop nav is
             hidden. Both sides of that switch are in responsive.css, so they cannot
@@ -569,8 +543,6 @@ export function Layout() {
                 role={role}
                 features={features}
                 onClick={() => setMobileNavOpen(false)}
-                settingsOpen={settingsVisible}
-                onSettingsOpen={() => setSettingsOpen(true)}
               />
               {/* The release chip's only seat below 800px. The lockup column is
                   what gives at those widths -- the wordmark truncates so the menu

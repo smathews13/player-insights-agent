@@ -171,7 +171,7 @@ function MarkdownBlock({ block }: { block: Block }) {
           <table className="answer-table">
             {block.header ? (<thead>
                 <tr>
-                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]}>
+                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineRuns nodes={cell.children} />
                     </th>
                   ))}
@@ -180,7 +180,7 @@ function MarkdownBlock({ block }: { block: Block }) {
             ) : null}
             <tbody>
               {block.rows.map((row) => (<tr key={row.start}>
-                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]}>
+                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineRuns nodes={cell.children} />
                     </td>
                   ))}

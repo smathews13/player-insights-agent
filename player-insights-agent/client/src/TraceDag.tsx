@@ -726,7 +726,7 @@ export function TraceDag({
   // them". It was invisible while the nodes were unlabelled and became a support
   // question the moment they were numbered, which is the usual way round -- the
   // numbering did not break the pane, it published what the pane had been doing.
-  const steps = (<div className={`trace-dag ${compact ? 'compact' : 'map'}`}>
+  const steps = (<div className={`trace-dag ${compact ? 'compact' : `map${envelopeStage ? ' has-run-envelope' : ''}`}`}>
       {displayedStages.map((item, index) => {
         // Capped, because the indent is a reading aid and a deep run should not
         // push its last stages off the side of the rail. Handed to the stylesheet
@@ -801,11 +801,15 @@ export function TraceDag({
                 aria-controls={isOpen ? panelId : undefined}
                 onClick={() => setOpenId((current) => (current === item.id ? null : item.id))}
               >
-                <KindChip stage={item} />
+                <span className={`dag-index ast-num ${item.kind === 'agent' ? 'agent' : 'tool'}`}>
+                  {stepNumber(index + 1)}
+                </span>
                 <span className="dag-card-body">
-                  <StageName stage={item} mono clamp />
+                  <span className="dag-card-title">
+                    <KindChip stage={item} />
+                    <StageName stage={item} mono clamp />
+                  </span>
                   <span className="dag-card-meta">
-                    <span className="dag-index ast-num">{stepNumber(index + 1)}</span>
                     {isOrchestratorStep(item) && (<Badge variant="outline" className="dag-role-badge">
                         Orchestrator step
                       </Badge>

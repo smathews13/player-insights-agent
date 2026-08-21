@@ -87,7 +87,7 @@ import {
 } from '../lib/identity-binding';
 import { consumeServingStream, TruncatedStreamError, type StageSink } from '../lib/serving-stream';
 import { createAskResponder } from '../lib/ask-responder';
-import { allowRequiredUserApiScopes } from '../lib/app-user-api-scopes';
+import { allowAstrolabeUserApiScopes } from '../lib/app-user-api-scopes';
 import {
   accessDecisionFor,
   accessModeFor,
@@ -2824,7 +2824,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     });
 
     /**
-     * Add the four load-bearing OAuth scopes to this app as the signed-in user.
+     * Add Astrolabe's load-bearing scopes and workspace browse scope to this app
+     * as the signed-in user.
      *
      * This is intentionally beside the identity route rather than under an
      * Astrolabe admin prefix. CAN MANAGE on the Databricks App is the authority
@@ -2849,7 +2850,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         return;
       }
 
-      const outcome = await allowRequiredUserApiScopes({
+      const outcome = await allowAstrolabeUserApiScopes({
         host,
         appName,
         userToken,
@@ -2869,7 +2870,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         message:
           outcome.kind === 'updated'
             ? 'Access was added. Sign in again so the new access takes effect.'
-            : 'This app already allows serving, SQL, and Genie. Sign in again so the access takes effect.',
+            : 'This app already allows serving, SQL, Genie, and workspace browsing. Sign in again so the access takes effect.',
       });
     });
 

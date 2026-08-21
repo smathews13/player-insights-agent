@@ -10,13 +10,7 @@
  */
 import type { Chart } from './AnswerCharts';
 import type { ExperimentalFeatures } from './experimental-features';
-import type {
-  Derivation,
-  NormalizedAnswer,
-  StageStatus,
-  TraceStage,
-  TraceSummary,
-} from './answer-shape';
+import type { Derivation, NormalizedAnswer, StageStatus, TraceStage, TraceSummary } from './answer-shape';
 import type { SessionReport } from '../../shared/session-contract';
 
 /**
@@ -94,7 +88,7 @@ export interface Identity {
    * `failed`, and `failed` draws the consumer set. It is NOT a permission --
    * every admin route is refused on the server whatever this says.
    */
-  role?: 'admin' | 'consumer';
+  role?: 'super_admin' | 'admin' | 'consumer';
   /**
    * Whether the stored half of the admin list could be read. Carried so the
    * settings editor can say the list is unreadable rather than draw zero rows;

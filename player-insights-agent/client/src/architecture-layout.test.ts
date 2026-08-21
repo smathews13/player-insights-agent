@@ -291,6 +291,47 @@ describe('a card is as tall as the stylesheet and the copy make it', () => {
     expect(EDGE_LABEL_TEXT).toBe(px(rule(CSS, '.arch-edge-label'), 'font-size'));
   });
 
+  /**
+   * THIS IS THE ONE THAT WAS DOUBLE-SPACED, and the check is on the role
+   * paragraph specifically rather than on the card, because the card was already
+   * right: `.arch-node` has said 1.35 the whole time and the check above has
+   * always passed.
+   *
+   * What the check above cannot see is that a `<p>` never took that value.
+   * AppKit's imported stylesheet carries a bare `p` rule at `line-height:
+   * 1.75rem`, and a declaration whose selector matches the element beats an
+   * inherited value at any specificity -- so the twelve role paragraphs set at
+   * 28px while every figure in architecture-layout.ts was derived from 14.85px.
+   * Titles, pills and the identifier are spans and were never affected, which is
+   * why the defect read as the descriptions alone being loose.
+   *
+   * So the assertion is that the property is STATED on this selector. An
+   * inherited 1.35 is not enough here and testing the computed cascade would
+   * need a browser, which this suite does not have.
+   */
+  it('states the role paragraph line-height instead of inheriting it', () => {
+    const role = rule(CSS, '.arch-node-role');
+    expect(role).toMatch(/line-height:/);
+    expect(unitless(role, 'line-height')).toBe(CARD_LINE_HEIGHT);
+
+    // Unitless, so it is a multiple of the type rather than a fixed band. The
+    // 1.75rem it was losing to is exactly the shape of mistake this refuses: a
+    // length that stops tracking font-size at all.
+    expect(role).not.toMatch(/line-height:[^;]*(rem|px|em)/);
+
+    // And single-spaced in the sense the eye uses. 1.35 of 11px type is a 14.85px
+    // line; anything at or above 1.6 is the doubled setting that was reported.
+    const spacing = unitless(role, 'line-height');
+    expect(spacing).toBeGreaterThanOrEqual(1.2);
+    expect(spacing).toBeLessThanOrEqual(1.4);
+    expect(CARD_TEXT * spacing).toBeLessThan(CARD_TEXT * 1.6);
+
+    // The paragraph margin a `<p>` would otherwise carry stays off it: the model
+    // adds one CARD_ROW_GAP above this row and counts nothing else.
+    expect(pxList(role, 'margin')).toEqual([]);
+    expect(role).toMatch(/margin:\s*0/);
+  });
+
   it('reads a status pill the same way', () => {
     // The three pills share one rule, so the selector this finds is the last of
     // the three in the group. That rule now states the horizontal padding only:

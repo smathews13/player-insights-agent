@@ -26,7 +26,7 @@ import { describe, expect, it } from 'vitest';
 import { Layout, IdentityChips } from './Layout';
 import { RoleBadge } from './RoleBadge';
 import { badgeLabel, badgeTitle, roleFrom, type RoleResolution, type RoleState } from './role';
-import { identityAfterDeadline, IDENTITY_DEADLINE_MS } from './app-state';
+import { identityAfterDeadline, identityFromResponse, IDENTITY_DEADLINE_MS } from './app-state';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 import type { Identity } from './app-types';
 import { partial } from './styles/stylesheet';
@@ -94,9 +94,7 @@ function header(): string {
 
 /** The cluster the badge and the name share, at either width. */
 function cluster(state: RoleState, className?: string): string {
-  return renderToStaticMarkup(
-    <IdentityChips identity={identity()} role={resolution(state)} className={className} />
-  );
+  return renderToStaticMarkup(<IdentityChips identity={identity()} role={resolution(state)} className={className} />);
 }
 
 /**
@@ -305,8 +303,7 @@ describe('all five states reach the screen, and none of them is blank prose', ()
     //   - Amber is the evaluation mass, and green and red are verdicts about
     //     whether a dependency answered. None of those is a rank.
     const shell = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
-    const rule =
-      shell.match(/\.role-badge\[data-role-state='super_admin'\]\s*\{([^}]*)\}/)?.[1] ?? '';
+    const rule = shell.match(/\.role-badge\[data-role-state='super_admin'\]\s*\{([^}]*)\}/)?.[1] ?? '';
     expect(rule, 'shell.css styles the super_admin badge').not.toEqual('');
     expect(rule).not.toMatch(/--ast-blue|--ast-warn|--ast-pos|--ast-neg|--db-|FF3621/i);
     expect(rule).not.toMatch(/#[0-9A-Fa-f]{3,8}\b/);
@@ -338,7 +335,7 @@ describe('all five states reach the screen, and none of them is blank prose', ()
 
   it('draws the resolving chip empty, and reserves its width so nothing jumps', () => {
     const markup = badge('resolving');
-    expect(markup).toContain("data-role-state=\"resolving\"");
+    expect(markup).toContain('data-role-state="resolving"');
     // Empty of text, which is the specification, and hidden from assistive
     // technology because "Role:" with nothing after it is worse than silence.
     expect(markup).toMatch(/data-testid="role-badge"[^>]*><\/span>/);
@@ -383,7 +380,8 @@ describe('all five states reach the screen, and none of them is blank prose', ()
 
     // And no state may put one back, which is the instruction the handoff repeats.
     for (const state of ALL_STATES) {
-      const rule = shell.match(new RegExp(`\\.role-badge\\[data-role-state='${state}'\\][^{]*\\{([^}]*)\\}`))?.[1] ?? '';
+      const rule =
+        shell.match(new RegExp(`\\.role-badge\\[data-role-state='${state}'\\][^{]*\\{([^}]*)\\}`))?.[1] ?? '';
       expect(rule, `shell.css styles the ${state} badge`).not.toEqual('');
       expect(rule, `the ${state} badge must not draw a border`).not.toMatch(/border(-color)?:\s*(?!0)/);
     }
@@ -484,6 +482,25 @@ describe('all five states reach the screen, and none of them is blank prose', ()
 });
 
 describe('an unresolved read ends up saying Role unknown rather than staying blank', () => {
+  it('normalizes null and missing identity responses before the shell reads a role', () => {
+    for (const response of [null, undefined, {}]) {
+      const normalized = identityFromResponse(response);
+      expect(normalized.signedInAs).toBe(IDENTITY_UNAVAILABLE);
+      expect(roleFrom(normalized).state).toBe('failed');
+    }
+  });
+
+  it('keeps a normal identity and role intact', () => {
+    const normalized = identityFromResponse({
+      signedInAs: '<your-username>',
+      executionIdentity: 'Astrolabe service principal',
+      executionMode: 'service-principal',
+      role: 'super_admin',
+    });
+    expect(normalized.signedInAs).toBe('<your-username>');
+    expect(roleFrom(normalized).state).toBe('super_admin');
+  });
+
   it('turns a read that never landed into the unavailable identity', () => {
     // The third outcome, and it had no handling: a fetch that neither resolves
     // nor rejects left the hook on the resolving placeholder for as long as the

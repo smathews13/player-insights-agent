@@ -4,6 +4,7 @@ import { useOutletContext } from 'react-router';
 import type { ExperimentalFeaturesHandle } from './app-types';
 import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
+import { EnvironmentPanel } from './EnvironmentPanel';
 import { showsBenchmarkLab, showsEgressControls } from './experimental-features';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
 import { ResourceTagsPanel } from './ResourceTagsPanel';
@@ -11,13 +12,14 @@ import { showsUserRoster, useRole } from './role';
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
 
-type SettingsSection = 'roles' | 'runtime' | 'appearance' | 'egress' | 'experimental';
+type SettingsSection = 'roles' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
 
 const noopClose = () => {};
 
 const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'roles', label: 'Roles' },
   { id: 'runtime', label: 'Runtime' },
+  { id: 'environment', label: 'Environment' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'egress', label: 'Egress controls' },
   { id: 'experimental', label: 'Experimental' },
@@ -90,6 +92,7 @@ export function SettingsPage({
               </div>
             ) : null}
             {active === 'runtime' || active === 'appearance' ? <RuntimeSettingsPanel section={active} /> : null}
+            {active === 'environment' ? <EnvironmentPanel /> : null}
             {active === 'egress' ? <EgressPanel /> : null}
             {active === 'experimental' ? (
               <div className="settings-pane">

@@ -148,6 +148,27 @@ describe('a table the agent wrote is drawn as a table', () => {
     expect([...markup.matchAll(/<td data-align="left"/g)]).toHaveLength(3);
   });
 
+  it('keeps a date whole and lets a description wrap, per column', () => {
+    // THE MONITORING DRILLDOWN DEFECT. In a 620px panel every column was given
+    // its minimum width, and the minimum of a cell that may break anywhere is one
+    // character: `2026-07-14` came out as `202 / 6- / 07- / 14`, four lines tall,
+    // with the figures beside it stranded at the top of the row.
+    //
+    // Stated per column and in the DOM, so which columns a renderer may break is
+    // reviewable rather than a guess made from a width.
+    const ramp = render(RAMP);
+    expect([...ramp.matchAll(/<td data-align="[a-z]+" data-wrap="atomic"/g)]).toHaveLength(18);
+    expect(ramp).not.toContain('data-wrap="prose"');
+    // Headers carry it too: a column name sits on one line above its numbers.
+    expect([...ramp.matchAll(/<th [^>]*data-wrap="atomic"/g)]).toHaveLength(6);
+
+    // And the column that holds a sentence is marked as one, in both the header
+    // and its cells, so it keeps wrapping instead of widening the whole table.
+    const description = render(DATA_PACKAGE);
+    expect(description).toContain('data-wrap="prose"');
+    expect(cells(description, 'td')[3]).toBe('Stable identifier \u2014 not a display name');
+  });
+
   it('keeps a country cell exactly as the agent wrote it, em dash and parentheses', () => {
     // Germany is reported at country level and the cell says so. A renderer that
     // reflows a cell it does not understand is a renderer that can change what
@@ -257,6 +278,30 @@ describe('the table is styled as part of the answer, not as a new design', () =>
     const figures = rule(".answer-table tbody td[data-align='right']");
     expect(figures).toContain('overflow-wrap: normal');
     expect(figures).toContain('word-break: normal');
+  });
+
+  it('gives a column of dates the width its dates need, and a scroll if that is wide', () => {
+    // The other half of the drilldown fix. `atomic` columns are kept whole, so a
+    // table that then does not fit overflows the wrapper -- which is what the
+    // wrapper's scroll was always for. Crushing the columns instead was the bug.
+    const atomic = rule(".answer-table [data-wrap='atomic']");
+    expect(atomic).toContain('white-space: nowrap');
+    expect(atomic).toContain('overflow-wrap: normal');
+    expect(atomic).toContain('word-break: normal');
+    // A prose column keeps wrapping, with a floor so it is not squeezed to one
+    // word per line, which is the same defect wearing different clothes.
+    expect(rule(".answer-table [data-wrap='prose']")).toContain('min-width: 14ch');
+    // And the wrapper is the element that scrolls, rather than a box that grows
+    // past the panel and gets clipped by the panel's own edge.
+    expect(rule('.answer-table-wrap')).toContain('min-width: 0');
+    expect(rule('.answer-table-wrap')).toContain('max-width: 100%');
+  });
+
+  it('centres a cell against the row it is in, rather than the ceiling of it', () => {
+    // A row is one line tall wherever its cells are single values. Where one
+    // prose cell wraps and the row is not, the figures beside it should sit
+    // against that row and not at the top of an otherwise empty cell.
+    expect(rule('.answer-table tbody td')).toContain('vertical-align: middle');
   });
 
   it('keeps the I-beam over cells a reader can select', () => {

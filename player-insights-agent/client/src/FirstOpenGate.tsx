@@ -216,7 +216,7 @@ export function FirstOpenPanel({
    * is the one the customer commitment turns on -- see `FirstOpenOutcome`.
    */
   onSkip: () => void;
-  /** Adds the four required scopes through the signed-in user's Databricks token. */
+  /** Adds the required scopes plus workspace browse through the signed-in user's token. */
   onAllowRequiredScopes?: () => void;
   allowingRequiredScopes?: boolean;
   scopeUpdateMessage?: { kind: 'success' | 'error'; text: string } | null;
@@ -346,7 +346,9 @@ export function FirstOpenPanel({
                 onClick={onAllowRequiredScopes}
                 disabled={allowingRequiredScopes || scopeUpdateMessage?.kind === 'success'}
               >
-                {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, and Genie'}
+                {allowingRequiredScopes
+                  ? 'Adding access\u2026'
+                  : 'Allow serving, SQL, Genie, and workspace browsing'}
               </Button>
             ) : (
               <Button

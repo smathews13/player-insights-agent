@@ -766,6 +766,45 @@ describe('the detail drawer', () => {
     expect(rendered).not.toMatch(/·\s*$/m);
   });
 
+  /**
+   * WHERE THE THREE ONWARD LINKS ARE, which is the whole of this claim.
+   *
+   * They were the last thing in the drawer, under the answer, the timeline, the
+   * token count and the feedback -- so on a real run an admin scrolled a full
+   * answer and a ten-step trace before reaching the trace link they opened the
+   * drawer to follow. Asserted as an ORDERING rather than as presence, because
+   * every presence assertion in this file passed while they were at the bottom.
+   */
+  it('puts the three onward links at the top, above the answer and the trace', () => {
+    const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
+
+    const mlflow = rendered.indexOf('Open the MLflow trace');
+    const runs = rendered.indexOf('Open in Run Explorer');
+    const person = rendered.indexOf("See this person's activity");
+    expect(mlflow).toBeGreaterThan(-1);
+
+    // Still the same three, still in the same order across the row.
+    expect(mlflow).toBeLessThan(runs);
+    expect(runs).toBeLessThan(person);
+
+    // And all three above everything a reader would have had to scroll past.
+    expect(person).toBeLessThan(rendered.indexOf('The leading title is ahead on daily active players.'));
+    expect(person).toBeLessThan(rendered.indexOf('What ran'));
+    expect(person).toBeLessThan(rendered.indexOf('1,200 tokens recorded on this run.'));
+    expect(person).toBeLessThan(rendered.indexOf('Rated helpful'));
+  });
+
+  it('keeps the links above the answer on a run that recorded no trace id', () => {
+    // The MLflow link is absent rather than dead, and its absence must not drop
+    // the other two back under the answer.
+    const rendered = text(
+      render(<QuestionDrawer detail={detail({ mlflowUrl: null })} onClose={() => {}} onOpenPerson={() => {}} />)
+    );
+
+    expect(rendered).not.toContain('Open the MLflow trace');
+    expect(rendered.indexOf('Open in Run Explorer')).toBeLessThan(rendered.indexOf('What ran'));
+  });
+
   it('renders the answer with Ask PIA\u2019s own card when nothing is conditioned', () => {
     const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
 

@@ -263,6 +263,23 @@ describe('the tables the agent writes', () => {
     expect((firstTable(COUNTRIES) as { align: string[] }).align).toEqual(['left', 'right', 'right']);
   });
 
+  it('says which columns hold single values and which hold sentences', () => {
+    // What a renderer needs in order not to break `2026-07-14` across four
+    // lines: a table cannot work out from a width whether a column holds dates
+    // or descriptions, so the parser states it per column, as it does alignment.
+    expect((firstTable(RAMP) as { wrap: string[] }).wrap).toEqual([
+      'atomic',
+      'atomic',
+      'atomic',
+      'atomic',
+      'atomic',
+      'atomic',
+    ]);
+    // The country column carries "DE (Germany — country level)", which is a
+    // sentence in a cell and has to keep wrapping.
+    expect((firstTable(COUNTRIES) as { wrap: string[] }).wrap).toEqual(['prose', 'atomic', 'atomic']);
+  });
+
   it('honours a delimiter row that does state its alignment', () => {
     const table = firstTable('| A | B | C |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |');
     expect((table as { align: string[] }).align).toEqual(['left', 'center', 'right']);

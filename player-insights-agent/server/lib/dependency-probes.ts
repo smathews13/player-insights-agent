@@ -54,6 +54,8 @@ import type { PreflightCheck, PreflightConfiguration, PreflightRemedy } from '..
 import { looksLikeMissingScope, scopesFromToken } from '../routes/access-verification';
 import { scopeRefusalDiagnosis } from './scope-refusal';
 import { declaredUserApiScopes } from '../../shared/declared-scopes';
+import { tokenScopeVerdict } from '../../shared/token-scopes';
+export { tokenCarriesScope, tokenScopeVerdict } from '../../shared/token-scopes';
 
 /**
  * How long one probe may take before it is reported as unanswered.
@@ -105,122 +107,6 @@ export const SCOPE_BY_API_PREFIX: Readonly<Record<string, string>> = {
   '/api/2.0/genie/': 'dashboards.genie',
   '/api/2.0/sql/': 'sql',
 };
-
-/** The CLI's own scope, which stands for every API rather than naming one. */
-const ALL_APIS_SCOPE = 'all-apis';
-
-/**
- * The coarse OAuth family a fine-grained Apps scope belongs to.
- *
- * ONLY FOR READING A TOKEN, never for declaring one. The forwarded token's
- * `scope` claim is minted by the OAuth server, which names things its own way,
- * so a token that genuinely carries our catalog reads may spell it
- * `unity-catalog` while the bundle had to spell it `catalog.tables:read`. The
- * inference branch of {@link refusalCause} compares the two, and without this it
- * would read every such token as missing the scope and print a scope remedy for
- * a refusal that is really a missing grant -- the same confident wrong answer as
- * before, pointed the other way. An unknown scope maps to itself, so a name
- * neither list has to translate still compares exactly.
- */
-const OAUTH_FAMILY_BY_SCOPE: Readonly<Record<string, string>> = {
-  'catalog.catalogs:read': 'unity-catalog',
-  'catalog.schemas:read': 'unity-catalog',
-  'catalog.tables:read': 'unity-catalog',
-  'vectorsearch.vector-search-indexes:read': 'vector-search',
-  'vectorsearch.vector-search-endpoints:read': 'vector-search',
-  'workspace.workspace:read': 'workspace',
-  'serving.serving-endpoints': 'model-serving',
-  'dashboards.genie': 'genie',
-  sql: 'sql',
-  postgres: 'postgres',
-};
-
-/**
- * Whether a token enumerating `held` carries what `scope` asks for.
- *
- * Exported for the test that pins the two namespaces against each other, and
- * imported by `session-freshness.ts` rather than copied there. Two copies of
- * this comparison is two chances to read a token that carries a scope as a
- * token that lacks it, which has printed a GRANT for a missing scope once.
- *
- * A BOOLEAN IS THE RIGHT ANSWER FOR "does it carry it" AND THE WRONG ONE FOR
- * "is it absent". See {@link tokenScopeVerdict}: `false` here means only that
- * no name in the table matched, and the table is a hardcoded list of two
- * vocabularies that a third spelling from the OAuth server would fall outside.
- */
-export function tokenCarriesScope(held: readonly string[], scope: string): boolean {
-  if (held.includes(ALL_APIS_SCOPE)) return true;
-  if (!scope) return false;
-  return held.includes(scope) || held.includes(OAUTH_FAMILY_BY_SCOPE[scope] ?? scope);
-}
-
-/**
- * The names in a token's scope claim that carry no meaning for this comparison.
- *
- * Standard OIDC scopes, which every forwarded token carries and none of which
- * is an API family. Listed so their presence does not read as a vocabulary this
- * module does not speak; see {@link tokenScopeVerdict}.
- */
-const INERT_TOKEN_SCOPES: ReadonlySet<string> = new Set([
-  'openid',
-  'profile',
-  'email',
-  'offline_access',
-  ALL_APIS_SCOPE,
-]);
-
-/** The words a scope name is built from, for recognising a third spelling of it. */
-function scopeStems(scope: string): Set<string> {
-  return new Set(
-    scope
-      .split(/[.:\-_/]+/)
-      .map((word) => word.toLowerCase())
-      .filter((word) => word.length > 2 && !['read', 'write', 'api', 'apis', 'all'].includes(word))
-  );
-}
-
-/**
- * Whether the token carries `scope`, or `null` when its absence proves nothing.
- *
- * WHY ABSENCE NEEDS A THIRD ANSWER. {@link tokenCarriesScope} decides absence
- * against {@link OAUTH_FAMILY_BY_SCOPE}, which is eight hardcoded pairs. It
- * holds for the two spellings we have seen. A THIRD spelling from the OAuth
- * server, or a family renamed on some other workspace, is not in it, and the
- * old code read that silence as proof: a token that genuinely carried the scope
- * under a name this table does not know was reported as a token missing it, in
- * the same confident language as a refusal the workspace itself had explained.
- *
- * So absence is only evidence when the token's vocabulary is one this module
- * speaks. A held name that matches nothing here but shares a word with the
- * scope being asked about is exactly the shape a third spelling takes
- * (`catalog` for `unity-catalog`, `vectorsearch` for `vector-search`), and it
- * stands the inference down rather than overruling it. The refusal-wording
- * witness in {@link refusalCause} is untouched by this: the workspace naming a
- * scope is direct evidence and needs no vocabulary of ours to interpret.
- *
- * `null` costs a row its remedy and leaves it `undetermined`. That is the
- * intended trade. An undetermined row sends nobody anywhere; a confidently
- * wrong one cost an afternoon.
- */
-export function tokenScopeVerdict(held: readonly string[], scope: string): boolean | null {
-  if (tokenCarriesScope(held, scope)) return true;
-  if (!scope) return null;
-
-  const known = new Set<string>([...Object.keys(OAUTH_FAMILY_BY_SCOPE), ...Object.values(OAUTH_FAMILY_BY_SCOPE)]);
-  const stems = scopeStems(scope);
-  const familyStems = scopeStems(OAUTH_FAMILY_BY_SCOPE[scope] ?? '');
-  for (const stem of familyStems) stems.add(stem);
-
-  for (const name of held) {
-    if (known.has(name) || INERT_TOKEN_SCOPES.has(name)) continue;
-    // An unrecognised name that shares a word with what is being asked about.
-    // It may be this very scope under a spelling nothing here has been taught.
-    for (const stem of scopeStems(name)) {
-      if (stems.has(stem)) return null;
-    }
-  }
-  return false;
-}
 
 /**
  * The scope this path needs, or '' when no family claims it.

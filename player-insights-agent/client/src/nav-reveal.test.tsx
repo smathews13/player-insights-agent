@@ -54,7 +54,6 @@ const EVERY_TAB = [
   'Ops',
   'Connections',
   'Architecture',
-  'Settings',
 ];
 
 describe('the review flag is on', () => {
@@ -81,6 +80,7 @@ describe('every reader is shown every tab', () => {
 
   it('opens the gear for everyone, so App settings is reviewable with the rest', () => {
     expect(showsSettingsGear('consumer')).toBe(true);
+    expect(EVERY_TAB).not.toContain('Settings');
   });
 });
 

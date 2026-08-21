@@ -1,10 +1,5 @@
 /**
- * Adding and removing the assets the agent may consider.
- *
- * THE CARD'S JOB IS PARTLY TO CORRECT AN ASSUMPTION. A customer reads "add a
- * connection" as "grant access", so `CONNECTION_SCOPE_NOTE` sits under the heading
- * once, and removal asks for confirmation carrying what actually stops working
- * rather than a generic warning.
+ * Adding and removing declared assets.
  *
  * Removal is never destructive: a removed asset stays listed as removed with a way
  * to put it back, because this app is usually mid demonstration when somebody
@@ -25,11 +20,8 @@ import { useState } from 'react';
 import { AppSelect } from './AppSelect';
 import {
   ADDABLE_KINDS,
-  CONNECTION_LIST_TITLE,
-  CONNECTION_SCOPE_NOTE,
   REMOVE_LABEL,
   RESTORE_LABEL,
-  connectionCounts,
   orderConnections,
 } from './declared-connection-view';
 import type { ConnectionEntry } from './connection-model';
@@ -92,7 +84,6 @@ export function DeclaredConnectionsCard({
   const [confirming, setConfirming] = useState('');
 
   const listed = orderConnections(entries ?? []);
-  const counts = connectionCounts(listed);
   const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
   const picker = chosenKind.browse ? ADD_CONNECTION_PICKERS[chosenKind.browse] : null;
 
@@ -150,167 +141,156 @@ export function DeclaredConnectionsCard({
   }
 
   return (
-    <section className="plane-card" aria-label={CONNECTION_LIST_TITLE}>
-      <div className="plane-card-head">
-        <span>{CONNECTION_LIST_TITLE}</span>
-        <span className="plane-card-head-aside">
-          {/* Zero never renders: `connectionCounts` returns an empty string for a
-              list with nothing in either state, and an empty span beside the
-              heading reads as a count that failed to load. */}
-          {counts ? <span className="plane-count ast-num">{counts}</span> : null}
-          {allowMutations ? (
-            <button type="button" className="plane-button-quiet" onClick={() => setAdding((open) => !open)}>
-              {adding ? 'Cancel' : '+ Add a new connection'}
-            </button>
-          ) : null}
+    <>
+      {!storeAvailable ? (
+        <span className="plane-error">
+          The store that holds this list is not answering, so nothing can be added or removed.
         </span>
-      </div>
+      ) : null}
 
-      <div className="plane-card-body">
-        {/* The most important string in the feature, said once, under the heading:
-            listing an asset lets the agent consider it and grants nobody
-            anything. Asserted by a test rather than trusted to survive editing. */}
-        <span className="plane-note">{CONNECTION_SCOPE_NOTE}</span>
-
-        {!storeAvailable ? (
-          <span className="plane-error">
-            The store that holds this list is not answering, so nothing can be added or removed.
-          </span>
-        ) : null}
-
-        {allowMutations && adding ? (
-          <div className="plane-form">
-            <div className="plane-form-pair">
-              <input
-                className="plane-field"
-                value={id}
-                onChange={(event) => setId(event.target.value)}
-                placeholder="name"
-                aria-label="Name"
-              />
-              {/* The app's own menu rather than the platform's. The trigger is a
-                  combobox whose accessible name is "Kind" and whose value is the
-                  chosen label, so a reader hears the same thing the native
-                  control said. */}
-              <AppSelect
-                label="Kind"
-                ariaLabel="Kind"
-                value={kindChoice}
-                onValueChange={setKindChoice}
-                options={ADDABLE_KINDS.map((entry) => ({ value: entry.id, label: entry.label }))}
-                className="plane-field-select"
-              />
-            </div>
-            {picker ? (
-              <AssetPicker
-                spec={picker}
-                current={value}
-                onPick={(picked) => {
-                  setValue(picked);
-                  setLabel((current) => current || picked.split(/[./]/).filter(Boolean).at(-1) || picked);
-                  setId(
-                    (current) =>
-                      current || `${chosenKind.id}-${picked.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
-                  );
-                }}
-              />
-            ) : null}
-            <input
-              className="plane-field ast-mono"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder="catalog.schema.table"
-              aria-label="Identifier"
-            />
+      {allowMutations && adding ? (
+        <div className="plane-form">
+          <div className="plane-form-pair">
             <input
               className="plane-field"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder="label"
-              aria-label="Label"
+              value={id}
+              onChange={(event) => setId(event.target.value)}
+              placeholder="name"
+              aria-label="Name"
             />
-            <span>
-              <button
-                type="button"
-                className="plane-button"
-                disabled={busy || !id.trim() || !value.trim() || !storeAvailable}
-                onClick={() => void add()}
-              >
-                Add
-              </button>
-            </span>
+            {/* The app's own menu rather than the platform's. The trigger is a
+                combobox whose accessible name is "Kind" and whose value is the
+                chosen label, so a reader hears the same thing the native
+                control said. */}
+            <AppSelect
+              label="Kind"
+              ariaLabel="Kind"
+              value={kindChoice}
+              onValueChange={setKindChoice}
+              options={ADDABLE_KINDS.map((entry) => ({ value: entry.id, label: entry.label }))}
+              className="plane-field-select"
+            />
           </div>
-        ) : null}
+          {picker ? (
+            <AssetPicker
+              spec={picker}
+              current={value}
+              onPick={(picked) => {
+                setValue(picked);
+                setLabel((current) => current || picked.split(/[./]/).filter(Boolean).at(-1) || picked);
+                setId(
+                  (current) =>
+                    current || `${chosenKind.id}-${picked.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
+                );
+              }}
+            />
+          ) : null}
+          <input
+            className="plane-field ast-mono"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="catalog.schema.table"
+            aria-label="Identifier"
+          />
+          <input
+            className="plane-field"
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder="label"
+            aria-label="Label"
+          />
+          <span>
+            <button
+              type="button"
+              className="plane-button"
+              disabled={busy || !id.trim() || !value.trim() || !storeAvailable}
+              onClick={() => void add()}
+            >
+              Add
+            </button>
+          </span>
+        </div>
+      ) : null}
 
-        {error ? <span className="plane-error">{error}</span> : null}
+      {error ? <span className="plane-error">{error}</span> : null}
 
-        {listed.map((entry) => {
-          const removed = entry.connection.state === 'withdrawn';
-          return (
-            <div key={entry.connection.id} className="plane-stack">
-              <div className="plane-row" data-state={entry.connection.state}>
-                <span className="plane-row-name">{entry.connection.label}</span>
-                <span className="plane-row-value ast-mono" title={entry.connection.value}>
-                  {entry.connection.value}
-                </span>
-                {/* A removed asset keeps its way back. This app is usually mid
-                    demonstration when somebody removes the wrong thing, so the
-                    row stays and offers "Put back" rather than disappearing. */}
-                {allowMutations ? (
-                  removed ? (
-                    <button
-                      type="button"
-                      className="plane-button-quiet"
-                      disabled={busy || !storeAvailable}
-                      onClick={() => void act(entry.connection.id, 'POST', '/restore')}
-                    >
-                      {RESTORE_LABEL}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="plane-button-quiet"
-                      disabled={busy || !storeAvailable}
-                      onClick={() => setConfirming(entry.connection.id)}
-                    >
-                      {REMOVE_LABEL}
-                    </button>
-                  )
-                ) : null}
-              </div>
-
-              {allowMutations && confirming === entry.connection.id ? (
-                <div className="plane-confirm">
-                  <span className="plane-confirm-headline">{entry.impact.headline}</span>
-                  <ul className="plane-confirm-list">
-                    {entry.impact.consequences.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                  <span className="plane-confirm-actions">
-                    <button
-                      type="button"
-                      className="plane-button-quiet"
-                      disabled={busy}
-                      onClick={() => void act(entry.connection.id, 'DELETE')}
-                    >
-                      {REMOVE_LABEL}
-                    </button>
-                    <button
-                      type="button"
-                      className="plane-button-quiet"
-                      disabled={busy}
-                      onClick={() => setConfirming('')}
-                    >
-                      Keep
-                    </button>
-                  </span>
-                </div>
+      {listed.map((entry) => {
+        const removed = entry.connection.state === 'withdrawn';
+        return (
+          <div key={entry.connection.id} className="plane-stack">
+            <div className="plane-row" data-state={entry.connection.state}>
+              <span className="plane-row-name">{entry.connection.label}</span>
+              <span className="plane-row-value ast-mono" title={entry.connection.value}>
+                {entry.connection.value}
+              </span>
+              {/* A removed asset keeps its way back. This app is usually mid
+                  demonstration when somebody removes the wrong thing, so the
+                  row stays and offers "Put back" rather than disappearing. */}
+              {allowMutations ? (
+                removed ? (
+                  <button
+                    type="button"
+                    className="plane-button-quiet"
+                    disabled={busy || !storeAvailable}
+                    onClick={() => void act(entry.connection.id, 'POST', '/restore')}
+                  >
+                    {RESTORE_LABEL}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="plane-button-quiet"
+                    disabled={busy || !storeAvailable}
+                    onClick={() => setConfirming(entry.connection.id)}
+                  >
+                    {REMOVE_LABEL}
+                  </button>
+                )
               ) : null}
             </div>
-          );
-        })}
-      </div>
-    </section>
+
+            {allowMutations && confirming === entry.connection.id ? (
+              <div className="plane-confirm">
+                <span className="plane-confirm-headline">{entry.impact.headline}</span>
+                <ul className="plane-confirm-list">
+                  {entry.impact.consequences.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+                <span className="plane-confirm-actions">
+                  <button
+                    type="button"
+                    className="plane-button-quiet"
+                    disabled={busy}
+                    onClick={() => void act(entry.connection.id, 'DELETE')}
+                  >
+                    {REMOVE_LABEL}
+                  </button>
+                  <button
+                    type="button"
+                    className="plane-button-quiet"
+                    disabled={busy}
+                    onClick={() => setConfirming('')}
+                  >
+                    Keep
+                  </button>
+                </span>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+
+      {allowMutations ? (
+        <div
+          className="flex items-center rounded-[var(--radius-md)] border border-[var(--border)] p-3"
+          data-testid="add-connection-row"
+        >
+          <button type="button" className="plane-button-quiet" onClick={() => setAdding((open) => !open)}>
+            {adding ? 'Cancel' : '+ Add a new connection'}
+          </button>
+        </div>
+      ) : null}
+    </>
   );
 }

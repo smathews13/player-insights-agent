@@ -67,6 +67,17 @@ export interface ListItem {
 /** How one column is read: down as digits, or across as words. */
 export type CellAlign = 'left' | 'right' | 'center';
 
+/**
+ * Whether a column's values are single tokens or sentences.
+ *
+ * A date column is `atomic`: `2026-07-14` is one value, and a renderer that is
+ * allowed to break it puts `202 / 6- / 07- / 14` on four lines in a narrow panel,
+ * which is what the Monitoring drilldown was doing. A description column is
+ * `prose` and has to be allowed to wrap, or one long cell makes the whole table
+ * scroll past what a reader can hold.
+ */
+export type CellWrap = 'atomic' | 'prose';
+
 export interface TableCell {
   start: number;
   children: Inline[];
@@ -88,6 +99,12 @@ export type Block =
       start: number;
       /** One entry per column, so a cell never has to work out its own. */
       align: CellAlign[];
+      /**
+       * One entry per column, on the same principle as `align`: whether the
+       * column's cells are single values a renderer must keep whole, or prose it
+       * must be free to wrap.
+       */
+      wrap: CellWrap[];
       /**
        * Absent when the model wrote data rows and no header. That happens, and
        * it is worth rendering rather than refusing: the stray row an answer
@@ -392,6 +409,32 @@ function alignFor(column: number, declared: readonly (CellAlign | undefined)[] |
   return figures > 0 ? 'right' : 'left';
 }
 
+/**
+ * The longest a cell can be and still be one value rather than a sentence.
+ *
+ * Sized off what the agent's own columns hold: a date (`2026-07-14`), a figure
+ * (`$1,381.16`), a country code, an outcome word, a column name in backticks.
+ * A description, a caveat or a table's fully-qualified name is longer than this
+ * and is the thing that has to keep wrapping.
+ */
+const ATOMIC_CELL_MAX = 18;
+
+/**
+ * Whether a column holds single values or prose.
+ *
+ * Judged on the body only. Header cells are already drawn on one line -- a
+ * column name is one or two words above its numbers -- so a long heading over
+ * short values does not make the values wrappable.
+ */
+function wrapFor(column: number, rows: readonly RawRow[]): CellWrap {
+  for (const row of rows) {
+    const cell = row.cells[column];
+    if (!cell || !cell.text) continue;
+    if (bareCell(cell.text).length > ATOMIC_CELL_MAX) return 'prose';
+  }
+  return 'atomic';
+}
+
 function tableRow(row: RawRow, width: number): TableRow {
   return {
     start: row.line.start,
@@ -422,8 +465,12 @@ function tableBlock(raw: readonly RawRow[]): Block | undefined {
   if (body.length === 0) return undefined;
   const width = header ? header.cells.length : Math.max(...body.map((row) => row.cells.length));
   const align: CellAlign[] = [];
-  for (let column = 0; column < width; column += 1) align.push(alignFor(column, declared, body));
-  const block: Block = { kind: 'table', start: raw[0].line.start, align, rows: body.map((row) => tableRow(row, width)) };
+  const wrap: CellWrap[] = [];
+  for (let column = 0; column < width; column += 1) {
+    align.push(alignFor(column, declared, body));
+    wrap.push(wrapFor(column, body));
+  }
+  const block: Block = { kind: 'table', start: raw[0].line.start, align, wrap, rows: body.map((row) => tableRow(row, width)) };
   return header ? { ...block, header: tableRow(header, width) } : block;
 }
 

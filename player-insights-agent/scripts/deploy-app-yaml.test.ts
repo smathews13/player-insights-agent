@@ -19,6 +19,7 @@ const REQUIRED_ASK_SCOPES = [
   'sql',
   'dashboards.genie',
 ];
+const GIT_DEPLOY_SCOPES = [...REQUIRED_ASK_SCOPES, 'workspace.workspace:read'];
 const OPTIONAL_BROWSE_SCOPES = [
   'catalog.catalogs:read',
   'catalog.schemas:read',
@@ -79,20 +80,24 @@ describe('every authored variable reaches the deploy target', () => {
     expect(experimentId?.[1], 'the MLflow deep link needs the id the release resolved').toBe('424242');
   });
 
-  it('ships every Git deploy with the non-empty ask-path scope contract', () => {
+  it('ships every Git deploy with ask-path and workspace browse scopes', () => {
     const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
 
     expect(declaredScopes(generated),
       'A plain build produces build/deploy/app.yaml, which Deploy from Git runs. Leaving this ' +
         'empty makes the login gate say Astrolabe needs no serving, SQL, or Genie scopes.'
-    ).toEqual(REQUIRED_ASK_SCOPES);
+    ).toEqual(GIT_DEPLOY_SCOPES);
   });
 
-  it('does not turn optional browsing or Lakebase scopes into Git-deploy requirements', () => {
+  it('keeps optional scopes other than workspace browse out of Git deploys', () => {
     const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
     const declared = declaredScopes(generated);
 
-    for (const optional of OPTIONAL_BROWSE_SCOPES) expect(declared).not.toContain(optional);
+    for (const optional of OPTIONAL_BROWSE_SCOPES.filter(
+      (scope) => scope !== 'workspace.workspace:read'
+    )) {
+      expect(declared).not.toContain(optional);
+    }
   });
 
   it('lets a bundle release replace the Git fallback with its exact App declaration', () => {

@@ -1,5 +1,6 @@
 /**
- * Adds Astrolabe's required OAuth scopes to its own Apps resource.
+ * Adds Astrolabe's required OAuth scopes and workspace browse scope to its own
+ * Apps resource.
  *
  * Every request is authenticated explicitly with the forwarded user's token.
  * There is deliberately no WorkspaceClient fallback here: the app service
@@ -7,6 +8,7 @@
  * would turn a clear CAN MANAGE refusal into a misleading self-elevation flow.
  */
 import { REQUIRED_USER_API_SCOPES } from '../../shared/required-user-api-scopes';
+import { WORKSPACE_READ_USER_API_SCOPE } from '../../shared/optional-user-api-scopes';
 
 const APPS_PATH = '/api/2.0/apps';
 
@@ -66,9 +68,16 @@ function failed(response: Response, body: unknown): ScopeUpdateResult {
 
 /**
  * Read, merge, then update. The stable de-duplication preserves every scope an
- * administrator already granted and makes a repeated click a no-op.
+ * administrator already granted and makes a repeated click a no-op. Workspace
+ * read is optional to asks but included here because a Git deploy otherwise
+ * cannot obtain the token scope used by Connections notebook browsing.
  */
-export async function allowRequiredUserApiScopes(
+export const MANAGER_GRANT_USER_API_SCOPES = [
+  ...REQUIRED_USER_API_SCOPES,
+  WORKSPACE_READ_USER_API_SCOPE,
+] as const;
+
+export async function allowAstrolabeUserApiScopes(
   options: ScopeUpdaterOptions,
 ): Promise<ScopeUpdateResult> {
   const call = options.fetchImpl ?? fetch;
@@ -88,7 +97,7 @@ export async function allowRequiredUserApiScopes(
   if (!read.ok) return failed(read, currentBody);
 
   const current = scopesFrom(currentBody);
-  const merged = [...new Set([...current, ...REQUIRED_USER_API_SCOPES])];
+  const merged = [...new Set([...current, ...MANAGER_GRANT_USER_API_SCOPES])];
   if (merged.length === current.length) return { kind: 'unchanged', scopes: current };
 
   let update: Response;

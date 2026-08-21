@@ -3,7 +3,10 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes';
+import {
+  OPTIONAL_USER_API_SCOPES,
+  WORKSPACE_READ_USER_API_SCOPE,
+} from '../../shared/optional-user-api-scopes';
 import { auditGuidance } from '../../shared/stated-cause';
 import { DECLARED_SCOPES_VAR, declaredUserApiScopes, sessionFreshness } from './session-freshness';
 
@@ -227,12 +230,12 @@ describe('the authored app.yaml', () => {
   });
 
   /**
-   * THE FOUR ASK-PATH SCOPES, NOT EMPTY. A Git deploy has no bundle target, so
-   * this authored value is what the login gate uses. Empty made it claim
-   * Astrolabe needed no serving, SQL, or Genie scope. Optional browse and
-   * Postgres stay out: a bundle release can still widen the list per target.
+   * THE ASK-PATH SCOPES PLUS WORKSPACE BROWSE, NOT EMPTY. A Git deploy has no
+   * bundle target, so this authored value is what the login gate uses. Workspace
+   * browse must be requested for the notebook picker even though it remains
+   * optional to the gate. The other optional families stay out.
    */
-  it('authors the four required ask-path scopes for a Git deploy', () => {
+  it('authors the required ask-path scopes and workspace browse for a Git deploy', () => {
     const value =
       new RegExp(`- name: ${DECLARED_SCOPES_VAR}\\n\\s+value: '?([^'\\n]*)'?`).exec(appYaml)?.[1] ??
       '';
@@ -243,8 +246,11 @@ describe('the authored app.yaml', () => {
       'model-serving',
       'sql',
       'dashboards.genie',
+      WORKSPACE_READ_USER_API_SCOPE,
     ]);
-    for (const optional of OPTIONAL_USER_API_SCOPES) {
+    for (const optional of OPTIONAL_USER_API_SCOPES.filter(
+      (scope) => scope !== WORKSPACE_READ_USER_API_SCOPE
+    )) {
       expect(declared).not.toContain(optional);
     }
   });

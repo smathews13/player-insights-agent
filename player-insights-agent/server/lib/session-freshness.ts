@@ -40,12 +40,12 @@ import type { SessionReport } from '../../shared/session-contract';
 // out of it, so a list both of them read cannot live in either.
 export { DECLARED_SCOPES_VAR, declaredUserApiScopes } from '../../shared/declared-scopes';
 import { scopesFromToken } from '../routes/access-verification';
-// Imported rather than reimplemented, and deliberately not edited: the forwarded
+// Imported rather than reimplemented: the forwarded
 // token spells our catalog reads `unity-catalog` while the bundle has to spell
 // them `catalog.tables:read`, and a second copy of that mapping is a second
 // chance to read a token that carries a scope as a token that lacks it. That
 // exact confusion has already printed a GRANT for a missing scope once.
-import { tokenCarriesScope } from './dependency-probes';
+import { tokenCarriesScope } from '../../shared/token-scopes';
 
 function undetermined(
   explanation: string,

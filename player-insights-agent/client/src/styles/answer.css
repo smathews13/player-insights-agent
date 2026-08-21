@@ -462,6 +462,12 @@ ol.answer-list {
      mid-number. See the comment on the table case in DataEntityLinks.tsx. */
   overflow-x: auto;
   background: var(--ast-white);
+  /* THE WRAPPER IS THE SCROLLER, and these two say so. A grid or flex child
+     sizes to its content by default, so in the 620px Monitoring drilldown a wide
+     table pushed this box past the panel and was clipped by the panel's own edge:
+     the scrollbar was on an element that never overflowed. */
+  min-width: 0;
+  max-width: 100%;
 }
 .answer-table {
   /* `collapse` is Tailwind preflight's default and is restated because the row
@@ -498,7 +504,40 @@ ol.answer-list {
 }
 .answer-table tbody td {
   padding: 8px 14px;
-  vertical-align: top;
+  /* Centred rather than top-aligned. A row is one line tall wherever its cells
+     are single values, and the rows that are not are tall because ONE prose cell
+     wrapped: with `top`, the figures beside it sat at the ceiling of an otherwise
+     empty cell, which is what the Monitoring drilldown looked like. */
+  vertical-align: middle;
+}
+/*
+ * ── Column width, and the four-line date ───────────────────────────────────
+ *
+ * WHAT WAS ON SCREEN. In the 620px Monitoring drilldown, a six-column daily
+ * table was wider than the panel, so every column was given its MINIMUM width --
+ * and the minimum of a cell that may break anywhere is one character. `Date`
+ * came out as `202 / 6- / 07- / 14`, every row grew to four lines of white
+ * space, and the figures beside the date sat at the top of it.
+ *
+ * The fix is to state what a column holds, because a table cannot work it out
+ * from a width. A column of dates, codes or figures is `atomic` and its cells
+ * are kept whole; a column of descriptions is `prose` and keeps wrapping, with a
+ * floor so it cannot be squeezed to one word per line either. A table whose
+ * columns then do not fit scrolls in its wrapper, which is what the wrapper was
+ * always for -- crushing the columns instead was the bug.
+ */
+.answer-table [data-wrap='atomic'] {
+  white-space: nowrap;
+  /* The card's content slot sets `overflow-wrap: anywhere`. Right for a table
+     name in a sentence, wrong for a date: see the figures rule below. */
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.answer-table [data-wrap='prose'] {
+  /* Enough for a few words per line. Under this a description column reads as a
+     vertical list of single words, which is the same defect as the broken date
+     wearing different clothes. */
+  min-width: 14ch;
 }
 /* A rule between rows, never above the first one: the band already closes the
    header off, and a second line under it reads as an empty row. */

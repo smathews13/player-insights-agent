@@ -124,16 +124,18 @@ env:
   # whose sign-in predates a declaration what to do, instead of leaving them with
   # red rows and a 403.
   #
-  # THE FOUR ASK-PATH SCOPES ARE THE AUTHORED FALLBACK. A plain build is the
+  # THE ASK-PATH SCOPES AND WORKSPACE BROWSE ARE THE AUTHORED FALLBACK. A plain build is the
   # artifact customers deploy from Git, and that path has no bundle target from
   # which to resolve this value. Leaving it empty made a normal Git deployment
-  # claim it needed no serving, SQL, or Genie scope at all. These four are not
-  # target-specific: every Astrolabe question needs them. Optional browse scopes
-  # stay out of this fallback and remain optional on the gate.
+  # claim it needed no serving, SQL, or Genie scope at all. The ask-path scopes
+  # are not target-specific: every Astrolabe question needs them. Workspace read
+  # is also requested so the Connections notebook picker can work after a Git
+  # deploy, but remains optional to the gate. Other optional browse scopes stay
+  # out of this fallback.
   #
   # bundle/app-release.sh still replaces this value with the exact resolved
   # `user_api_scopes` from the App resource for a bundle target. That is how a
-  # target which opts into catalog, workspace, Vector Search, or Postgres browse
+  # target which opts into catalog, Vector Search, or Postgres browse
   # reports the larger list without making any optional scope universally
   # required here.
   #
@@ -146,4 +148,4 @@ env:
   # list on its own Connections page.
   #
   - name: PLAYER_INSIGHTS_USER_API_SCOPES
-    value: 'serving.serving-endpoints,model-serving,sql,dashboards.genie'
+    value: 'serving.serving-endpoints,model-serving,sql,dashboards.genie,workspace.workspace:read'

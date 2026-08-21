@@ -18,9 +18,10 @@ import type { MonitoringDetail } from '../../shared/monitoring-contract';
  * simply two of them, and a reader comparing them had no way to know that.
  *
  * The drawer's own section is the one that survives, because it is the one the
- * surrounding disclosure is written for: the "What ran" heading above it and
- * the token count and trace links below it all belong to the drawer, and read
- * as captions on the timeline between them.
+ * surrounding disclosure is written for: the "What ran" heading above it and the
+ * token count below it belong to the drawer, and read as captions on the
+ * timeline between them. The three onward links are the drawer's too, and they
+ * now sit at the top of it rather than under all of this.
  *
  * WHY THIS IS PINNED BY A COUNT RATHER THAN BY A PRESENCE CHECK. Every
  * assertion the drawer already had passed while the duplicate was on screen,
@@ -139,13 +140,15 @@ describe('the Monitoring drawer renders one run view, not two', () => {
   it('keeps the drawer’s own framing around the timeline it kept', () => {
     const rendered = text(drawer());
 
-    // The heading above and the two captions below. These are what identify
-    // the surviving view as the drawer's rather than the answer card's.
+    // The heading above, the token caption below, and the onward links now at
+    // the head of the drawer. These are what identify the surviving view as the
+    // drawer's rather than the answer card's.
     expect(rendered).toContain('What ran');
     expect(rendered).toContain('1,200 tokens recorded on this run.');
     expect(rendered).toContain('Open the MLflow trace');
     expect(rendered).toContain('Open in Run Explorer');
     expect(rendered).toContain('See this person');
+    expect(rendered.indexOf('Open the MLflow trace')).toBeLessThan(rendered.indexOf('What ran'));
   });
 
   it('still reaches the advanced trace details the answer card owns', () => {

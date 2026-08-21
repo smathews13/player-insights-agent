@@ -61,8 +61,8 @@ const DECLARED = ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboar
  * fourth optional scope was declared -- `workspace`, for the Connections notebook
  * picker -- two assertions in this file failed for saying the wrong number rather
  * than for finding the wrong thing. The claim is "every optional scope this deploy
- * did not declare reports that it was never asked for", and that is true at any
- * count.
+ * did not declare reports the effective token verdict for", and that is true at
+ * any count.
  */
 const OPTIONAL_ROWS = OPTIONAL_USER_API_SCOPES.length;
 
@@ -116,7 +116,7 @@ function text(markup: string): string {
     .trim();
 }
 
-describe('all scopes granted', () => {
+describe('all required scopes granted', () => {
   const markup = draw();
 
   it('names the app and the address the questions will run under', () => {
@@ -142,9 +142,11 @@ describe('all scopes granted', () => {
     expect(markup).not.toContain('>Missing<');
     expect(markup).not.toContain('>Not checked<');
     expect(markup).toContain('Optional scopes');
-    // Undeclared optional scopes report that they were never asked for. NOT the
-    // red Missing the required rows use: nothing an ask needs is short.
-    expect(markup.match(/>Not requested</g)).toHaveLength(OPTIONAL_ROWS);
+    // The token was inspected and carries none of the optional families, so
+    // omission from the app.yaml fallback is not allowed to masquerade as
+    // "Not requested". Optional absence stays neutral because asks still work.
+    expect(markup.match(/>Not granted</g)).toHaveLength(OPTIONAL_ROWS);
+    expect(markup).not.toContain('>Not requested<');
     expect(markup).toContain('The app cannot answer questions without these: they power serving, SQL, and Genie.');
     expect(markup).toContain(
       'Questions still work without these; they unlock Connections browsing (catalogs, tables, notebooks, Vector Search) and Lakebase, and a deployment can omit any of them.'
@@ -162,9 +164,8 @@ describe('all scopes granted', () => {
   });
 
   /*
-   * NO SKIP WHERE THERE IS NOTHING TO SKIP. Every row on this card says Granted,
-   * so a Skip button would ask the reader what they were being let off and send
-   * them looking for a problem the card has just told them it does not have.
+   * NO SKIP WHERE NOTHING REQUIRED IS SHORT. Optional absence does not stop an
+   * ask, so a Skip button would imply a gate that does not exist.
    */
   it('does not offer to skip a check that passed', () => {
     expect(markup).not.toContain('Skip');
@@ -251,7 +252,7 @@ describe('a scope is missing', () => {
    * lock the reader out, so Continue stays live and Refresh is added beside it.
    */
   it('offers one-click access and the recheck without a required-scope skip', () => {
-    expect(markup).toContain('Allow serving, SQL, and Genie');
+    expect(markup).toContain('Allow serving, SQL, Genie, and workspace browsing');
     expect(markup).toContain('Refresh');
     expect(markup).not.toContain('disabled=""');
     expect(markup).not.toContain('Skip checks and continue');

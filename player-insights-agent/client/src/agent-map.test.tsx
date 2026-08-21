@@ -240,6 +240,10 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(markup).toContain('12.34s');
     expect(markup).toContain('3 tool calls');
     expect(rule('.trace-dag.map .dag-step.run-envelope')).toMatch(/grid-column: 1 \/ -1/);
+    expect(markup).toContain('class="trace-dag map has-run-envelope"');
+    const wholeRun = rule('.trace-dag.map.has-run-envelope');
+    expect(wholeRun).toMatch(/border: 1px dotted var\(--db-connector\)/);
+    expect(wholeRun).toMatch(/padding: 14px/);
   });
 });
 
@@ -413,18 +417,25 @@ describe('a card says what kind of step, which step, and how long', () => {
     expect(markup.toUpperCase()).not.toContain('#FF3621');
   });
 
-  it('numbers every stage with its place in the run, in two digits', () => {
+  it('numbers every stage with a circular badge in the top-left corner', () => {
     // A wrapped grid takes reading order away from position, so the number is what
     // puts it back -- and a fixed width is what makes a column of them line up:
     // "1" beside "12" reads as a ragged edge before it reads as an index.
     const markup = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} />);
-    const numbers = [...markup.matchAll(/class="dag-index ast-num">(\d+)</g)].map((match) => match[1]);
+    const numbers = [...markup.matchAll(/class="dag-index ast-num (?:agent|tool)">(\d+)</g)].map((match) => match[1]);
     expect(numbers).toEqual(['01', '02', '03', '04', '05', '06', '07', '08']);
     // `ast-num` is not decoration on that class list. §3 puts every figure in a
     // column in DM Mono, and DM Sans declares no `tnum` feature at all -- so
     // `font-variant-numeric` on it is a no-op that reads as done, and a column of
     // step numbers set in it cannot line up however it is marked.
     expect(markup).not.toMatch(/class="dag-index"/);
+    const badge = rule('.trace-dag.map .dag-index');
+    expect(px(badge, 'width')).toBe(24);
+    expect(px(badge, 'height')).toBe(24);
+    expect(badge).toMatch(/border-radius: 50%/);
+    expect(markup).toMatch(
+      /<button[^>]*class="dag-node[^"]*"[^>]*><span class="dag-index ast-num agent">01<\/span><span class="dag-card-body">/,
+    );
     expect(stepNumber(9)).toBe('09');
     expect(stepNumber(10)).toBe('10');
     // A run past ninety-nine prints its real number rather than being clipped.
@@ -445,12 +456,14 @@ describe('a card says what kind of step, which step, and how long', () => {
     expect(metricBadge).toMatch(/border-radius: var\(--radius-sm\)/);
   });
 
-  it('keeps the icon in a fixed left lane and aligns every title beside it', () => {
+  it('keeps the numbered corner fixed and seats the icon beside the title', () => {
     const node = rule('.trace-dag.map .dag-node');
-    expect(node).toMatch(/grid-template-columns: 22px minmax\(0, 1fr\)/);
+    expect(node).toMatch(/grid-template-columns: 24px minmax\(0, 1fr\)/);
     expect(node).toMatch(/column-gap: 10px/);
     expect(node).not.toMatch(/padding-left: calc/);
     expect(rule('.trace-dag.map .dag-card-body')).toMatch(/flex-direction: column/);
+    expect(rule('.trace-dag.map .dag-card-title')).toMatch(/display: flex/);
+    expect(rule('.trace-dag.map .dag-card-title')).toMatch(/gap: 8px/);
     expect(rule('.trace-dag.map .dag-index')).toMatch(/font-variant-numeric: tabular-nums/);
   });
 
@@ -1221,7 +1234,9 @@ describe('the narrow rail is one column of every step', () => {
     const numbers = [...markup.matchAll(/<span class="dag-num ast-num [a-z]+">(\d+)<\/span>/g)].map((one) => one[1]);
     expect(numbers).toEqual(['01', '02', '03', '04', '05', '06', '07', '08']);
     const wide = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} />);
-    expect([...wide.matchAll(/<span class="dag-index ast-num">(\d+)<\/span>/g)].map((one) => one[1])).toEqual(numbers);
+    expect(
+      [...wide.matchAll(/<span class="dag-index ast-num (?:agent|tool)">(\d+)<\/span>/g)].map((one) => one[1]),
+    ).toEqual(numbers);
   });
 
   it('fills the number badge by kind, warm for a decision and washed for a call', () => {

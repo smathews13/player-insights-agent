@@ -65,7 +65,7 @@ export const REQUEST_LATENCY_QUERY = `
     FROM samples s
     GROUP BY s.route
     HAVING COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at) > 0
-  ),
+  )
   SELECT r.*, b.covered_from, b.covered_to
   FROM routes r CROSS JOIN bounds b
   ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;

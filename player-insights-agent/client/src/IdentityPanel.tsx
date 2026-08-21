@@ -68,11 +68,12 @@ import {
 // decided for itself would eventually offer a fresh sign-in to somebody whose
 // sign-in is fine -- which sends them round the loop this exists to end.
 import { staleSignInNotice } from '../../shared/stale-sign-in';
+import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes';
 import {
-  OPTIONAL_USER_API_SCOPES,
-  isOptionalUserApiScope,
-  requiredMissingScopes,
-} from '../../shared/optional-user-api-scopes';
+  PLATFORM_DEFAULT_USER_API_SCOPES,
+  isPlatformDefaultUserApiScope,
+  userApiScopeDetail,
+} from '../../shared/user-api-scope-details';
 
 /**
  * The `/api/identity` payload, as this card reads it.
@@ -109,60 +110,49 @@ function Fact({ label, wrap, children }: { label: string; wrap?: boolean; childr
   );
 }
 
+/** Scopes shown in Identity: declared asks, browse capabilities, and platform defaults. */
+export function identityTableScopes(declared: readonly string[] | null | undefined): string[] {
+  const declaredSet = new Set(declared ?? []);
+  const optional = OPTIONAL_USER_API_SCOPES.filter(
+    (scope) => scope !== 'postgres' || declaredSet.has(scope),
+  );
+  return [...new Set([...declaredSet, ...optional, ...PLATFORM_DEFAULT_USER_API_SCOPES])]
+    .sort((left, right) => left.localeCompare(right));
+}
+
 /**
- * A permission list, as chips.
+ * The scope contract as a two-column reference table.
  *
- * A LIST IS HERE BECAUSE THE SERVER SENDS READERS HERE. Three branches of
- * `scope-refusal.ts` end by saying this card lists what the sign-in carries and
- * what the app asks for, so the shortfall cannot be deleted or the remedy points
- * at nothing.
- *
- * WHAT WENT, AND WHY IT WAS TWO LISTS. It used to draw both in full: thirteen
- * chips for what the sign-in carries beside thirteen for what the app asks,
- * twenty-six monospace strings, five of them tinted, on a card whose subject is
- * two identifiers. It was by a wide margin the largest thing on the tab, and the
- * comparison it invited -- read both lists, spot the difference -- is arithmetic
- * the server had already done: `missingScopes` IS the difference. So the card
- * draws the answer and not the working.
- *
- * A declared permission the sign-in does not carry takes the amber rung rather
- * than the red one, for the reason the rest of the page does: the sign-in
- * authenticates fine and the shortfall may equally be an app that was never
- * restarted after the permission was added. Named in `title` as well as tinted,
- * because a colour is not a fact a screen reader can read.
+ * Exact names remain monospace, but the pills are gone: these are permissions
+ * with meaning, not tags. Postgres is conditional because some deployments do
+ * not request Lakebase browsing; the two IAM scopes are always shown and marked
+ * as Databricks platform defaults.
  */
-function ScopeList({
-  scopes,
-  missing,
-  optional,
-}: {
-  scopes: readonly string[];
-  missing?: ReadonlySet<string>;
-  optional?: boolean;
-}) {
-  if (scopes.length === 0) return <span className="identity-fact-when">none</span>;
+function ScopeTable({ scopes }: { scopes: readonly string[] }) {
   return (
-    <span className="identity-scopes">
-      {scopes.map((scope) => {
-        const absent = missing?.has(scope) ?? false;
-        const title = absent
-          ? `${scope}. This sign-in does not carry it.`
-          : optional
-            ? `${scope}. Optional for Connections and Ops catalog probes.`
-            : scope;
-        return (
-          <span
-            key={scope}
-            className="identity-scope"
-            data-absent={absent ? 'true' : undefined}
-            data-optional={optional ? 'true' : undefined}
-            title={title}
-          >
-            {scope}
-          </span>
-        );
-      })}
-    </span>
+    <div className="identity-scope-table-wrap">
+      <table className="identity-scope-table" aria-label="OAuth scopes">
+        <thead>
+          <tr>
+            <th scope="col">Scope</th>
+            <th scope="col">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scopes.map((scope) => (
+            <tr key={scope} data-scope={scope}>
+              <td>
+                <code>{scope}</code>
+                {isPlatformDefaultUserApiScope(scope) ? (
+                  <span className="identity-scope-default"> (default)</span>
+                ) : null}
+              </td>
+              <td>{userApiScopeDetail(scope)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -212,10 +202,7 @@ export function IdentityCard({
   const runsAsPerson = identity?.analyticalExecution?.mode !== 'app_service_principal';
   const clientId = identity?.executionIdentity?.trim() ?? '';
   const session = identity?.session;
-  const allMissing = session?.missingScopes ?? [];
-  const requiredMissing = requiredMissingScopes(allMissing);
-  const missingScopes = new Set(requiredMissing);
-  const optionalMissing = new Set(allMissing.filter(isOptionalUserApiScope));
+  const tableScopes = identityTableScopes(session?.declaredScopes);
   /**
    * Whether this reader is being told to sign in again, and null wherever the
    * evidence does not support telling them.
@@ -274,26 +261,7 @@ export function IdentityCard({
                 {observedAt ? <span className="identity-fact-when">{observedAt}</span> : null}
               </Fact>
             ) : null}
-            {/* THE SHORTFALL AS A ROW, which is what the two full lists became.
-                A reader arriving here off a 403 wants to know which permission
-                is short; they were given both lists and left to diff twenty-six
-                strings by eye to find out. This is the same finding, already
-                computed by the server, in the shape of every other fact on the
-                card. */}
-            {missingScopes.size > 0 ? (
-              <Fact label="Missing permissions" wrap>
-                <ScopeList scopes={[...missingScopes]} missing={missingScopes} />
-              </Fact>
-            ) : null}
-            {/* Always listed, never hidden — including when this deploy left them
-                off user_api_scopes. Optional Missing only when declared+absent. */}
-            <Fact label="Optional permissions" wrap>
-              <ScopeList
-                scopes={[...OPTIONAL_USER_API_SCOPES]}
-                missing={optionalMissing.size > 0 ? optionalMissing : undefined}
-                optional
-              />
-            </Fact>
+            <ScopeTable scopes={tableScopes} />
             {/* THE ONE THING A READER CAN DO, in one line, and only where nothing
                 else on the page is saying it.
 

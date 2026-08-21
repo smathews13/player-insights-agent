@@ -437,6 +437,7 @@ describe('POST /api/app-user-api-scopes', () => {
         'model-serving',
         'sql',
         'dashboards.genie',
+        'workspace.workspace:read',
       ],
     });
   });

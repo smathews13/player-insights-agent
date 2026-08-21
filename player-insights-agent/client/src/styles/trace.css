@@ -77,6 +77,16 @@
   overflow-x: clip;
   overflow-y: visible;
 }
+/*
+ * The measured run is one envelope, not a header followed by an unrelated
+ * grid. The solid blue edge remains on the Orchestrator run card; this quieter
+ * dotted perimeter groups that card with every numbered stage beneath it.
+ */
+.trace-dag.map.has-run-envelope {
+  padding: 14px;
+  border: 1px dotted var(--db-connector);
+  border-radius: var(--radius-md);
+}
 /* The rail: one column, in the order the run happened, and no wrapping to undo. */
 .trace-dag.compact {
   display: flex;
@@ -149,7 +159,7 @@
  */
 .trace-dag.map .dag-node {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: start;
   column-gap: 10px;
   padding: 11px 13px;
@@ -243,25 +253,42 @@
   height: 14px;
   color: var(--db-slate-icon);
 }
-/* The icon keeps one left lane. Everything else starts from the same edge,
-   regardless of title length or which mark the icon contains. */
+/* The numbered badge owns the top-left corner. The icon remains beside the
+   title inside the body, where it cannot compete for that corner. */
 .trace-dag.map .dag-card-body {
   display: flex;
   flex-direction: column;
   gap: 7px;
   min-width: 0;
 }
-/* The stage's place in the run, which is what a wrapped map cannot say by
-   position. Two digits from the component, so a column of them lines up; mono
-   and tabular so it reads as an index beside the name rather than as part of it.
-   The rail draws none: a column already reads in order, and a number against
-   every name there restates what the column shows. */
+.trace-dag.map .dag-card-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+/* The stage's place in the run, now a circular badge in every card's top-left
+   corner. Two digits from the component, mono and tabular so the sequence stays
+   legible when the grid wraps. */
 .trace-dag.map .dag-index {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--db-line);
+  border-radius: 50%;
+  background: var(--db-wash);
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
+}
+.trace-dag.map .dag-index.agent {
+  border-color: var(--db-blue-tint);
+  background: var(--ast-ice);
+  color: var(--db-blue-700);
 }
 /* The stage metadata is a compact row of independent, named measures. */
 .trace-dag.map .dag-card-meta {

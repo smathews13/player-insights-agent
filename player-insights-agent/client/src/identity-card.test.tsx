@@ -1,12 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { IdentityCard } from './IdentityPanel';
+import { IdentityCard, identityTableScopes } from './IdentityPanel';
 import {
   questionsRunAs,
   type DeploymentIdentity,
   type PanelIdentity,
 } from './identity-panel-state';
+import {
+  PLATFORM_DEFAULT_USER_API_SCOPES,
+  userApiScopeDetail,
+} from '../../shared/user-api-scope-details';
 
 /**
  * The Identity card as it is composed, rather than as its source reads.
@@ -98,7 +102,7 @@ describe('IdentityCard', () => {
    * permission the app does not ask for is gone from the screen, and the declared
    * permission the sign-in lacks -- the only one that explains a 403 -- is on it.
    */
-  it('names the permission the sign-in is short of, without printing both lists', () => {
+  it('names every permission in a Scope and Details table, without printing both lists', () => {
     const text = textOf({
       identity: {
         ...IDENTITY,
@@ -112,21 +116,23 @@ describe('IdentityCard', () => {
       },
       failed: false,
     });
-    expect(text).toContain('Missing permissions');
+    expect(text).toContain('Scope');
+    expect(text).toContain('Details');
     expect(text).toContain('dashboards.genie');
     expect(text).not.toContain('Sign-in carries');
     expect(text).not.toContain('App asks for');
+    expect(text).not.toContain('Missing permissions');
   });
 
   it('always lists optional catalog permissions, even when undeclared', () => {
     const text = textOf(SIGNED_IN);
-    expect(text).toContain('Optional permissions');
+    expect(text).toContain('Scope');
     expect(text).toContain('catalog.tables:read');
     expect(text).toContain('catalog.schemas:read');
     expect(text).toContain('catalog.catalogs:read');
   });
 
-  it('marks a declared permission the sign-in does not carry, in words as well as colour', () => {
+  it('uses exactly two table columns and gives every displayed scope a real explanation', () => {
     const markup = renderToStaticMarkup(
       <IdentityCard
         read={{
@@ -143,9 +149,29 @@ describe('IdentityCard', () => {
         }}
       />
     );
-    expect(markup).toMatch(/dashboards\.genie\. This sign-in does not carry it\./);
-    expect(markup).not.toMatch(/[—–]/);
-    expect(markup).toMatch(/data-absent="true"/);
+    expect(markup.match(/<th scope="col">/g)).toHaveLength(2);
+    expect(markup).toContain('<th scope="col">Scope</th>');
+    expect(markup).toContain('<th scope="col">Details</th>');
+
+    for (const scope of identityTableScopes(['sql', 'dashboards.genie'])) {
+      const detail = userApiScopeDetail(scope);
+      expect(detail.trim(), `${scope} has no detail`).not.toBe('');
+      expect(detail.trim(), `${scope} repeats its own name as detail`).not.toBe(scope);
+      expect(markup).toContain(`data-scope="${scope}"`);
+      expect(markup).toContain(detail);
+    }
+  });
+
+  it('marks both Databricks-provided IAM scopes as defaults', () => {
+    const text = textOf(SIGNED_IN);
+    for (const scope of PLATFORM_DEFAULT_USER_API_SCOPES) {
+      expect(text).toContain(`${scope} (default)`);
+    }
+  });
+
+  it('includes postgres only when this app declares it', () => {
+    expect(identityTableScopes(['sql'])).not.toContain('postgres');
+    expect(identityTableScopes(['sql', 'postgres'])).toContain('postgres');
   });
 
   it('tells a reader whose sign-in is short of a declared permission to sign in again', () => {
@@ -170,14 +196,13 @@ describe('IdentityCard', () => {
   it('leaves the sign-in line to What to fix when that panel is on screen', () => {
     const withPanel = textOf(SHORT_OF_A_PERMISSION, true);
     expect(withPanel).not.toMatch(/private browsing window/i);
-    expect(withPanel).toContain('Missing permissions');
     expect(withPanel).toContain('dashboards.genie');
   });
 
   it('says the sign-in line itself when nothing is blocked, so no panel renders', () => {
     const alone = textOf(SHORT_OF_A_PERMISSION, false);
     expect(alone).toContain('Open this app again in a private browsing window, and sign in there.');
-    expect(alone).toContain('Missing permissions');
+    expect(alone).toContain('dashboards.genie');
   });
 
   it('does not push a private window for optional catalog shortfalls alone', () => {
@@ -196,7 +221,7 @@ describe('IdentityCard', () => {
     });
     expect(text).not.toMatch(/private browsing window/i);
     expect(text).not.toContain('Missing permissions');
-    expect(text).toContain('Optional permissions');
+    expect(text).toContain('Scope');
     expect(text).toContain('catalog.tables:read');
   });
 

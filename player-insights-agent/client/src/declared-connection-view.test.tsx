@@ -1,10 +1,9 @@
 /**
  * What the Connections tab says about a notebook and a declared asset.
  *
- * The assertions that matter are about WORDING. This surface has to correct an
- * assumption a customer arrives with, and it has had narrative text stripped from
- * nearly every other surface, so the tests hold both: the scope sentence is present,
- * and nothing here is prose or carries an em dash.
+ * The assertions that matter are about the list and its controls. The old
+ * narrative wrapper has been removed, while every declared asset and mutation
+ * path remains.
  *
  * Every identifier is invented.
  */
@@ -298,15 +297,14 @@ describe('an empty readable-scopes list', () => {
 });
 
 describe('the list of assets the agent may consider', () => {
-  /**
-   * The single most important string in the feature. A customer reads "added a
-   * connection" as "granted access".
-   */
-  it('states that listing an asset is not permission to read it', () => {
-    expect(CONNECTION_SCOPE_NOTE).toMatch(/Unity Catalog grants/);
-    expect(CONNECTION_SCOPE_NOTE).toMatch(/consider/);
-    const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} onChanged={() => {}} />);
-    expect(markup).toContain('Unity Catalog grants');
+  it('removes the narrative wrapper without losing declared assets', () => {
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard entries={[entry()]} allowMutations onChanged={() => {}} />
+    );
+    expect(markup).toContain('Title roster');
+    expect(markup).not.toContain(CONNECTION_LIST_TITLE);
+    expect(markup).not.toContain(CONNECTION_SCOPE_NOTE);
+    expect(markup).not.toContain('plane-card-head');
   });
 
   it('never claims the asset is granted, connected or accessible', () => {
@@ -326,6 +324,15 @@ describe('the list of assets the agent may consider', () => {
     expect(ADDABLE_KINDS.slice(0, 3).map((option) => option.label)).toEqual(['Tables', 'Genie spaces', 'Catalogs']);
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[]} allowMutations onChanged={() => {}} />);
     expect(markup).toContain('+ Add a new connection');
+    expect(markup).toContain('data-testid="add-connection-row"');
+  });
+
+  it('puts the outlined add-connection row after the declared asset rows', () => {
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard entries={[entry()]} allowMutations onChanged={() => {}} />
+    );
+    expect(markup.indexOf('Title roster')).toBeLessThan(markup.indexOf('data-testid="add-connection-row"'));
+    expect(markup).toMatch(/class="[^"]*border[^"]*" data-testid="add-connection-row"/);
   });
 
   it('puts removed assets after listed ones', () => {
@@ -357,9 +364,9 @@ describe('the list of assets the agent may consider', () => {
     expect(markup).toMatch(/not answering/);
   });
 
-  it('draws the card with nothing in it rather than disappearing', () => {
+  it('draws no empty wrapper for a read-only empty list', () => {
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard onChanged={() => {}} />);
-    expect(markup).toContain(CONNECTION_LIST_TITLE);
+    expect(markup).toBe('');
   });
 });
 

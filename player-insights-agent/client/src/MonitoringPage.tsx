@@ -713,6 +713,23 @@ export function QuestionDrawer({
         </p>
       </div>
 
+      <div className="monitoring-drawer-links">
+        {/* Keep the drilldown's onward actions near its heading, where they are
+            available before a long answer and trace. The MLflow action remains
+            absent rather than dead when the run recorded no trace id. */}
+        {detail.mlflowUrl ? (
+          <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
+            {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
+            <BrandIcon product="mlflow" size={12} />
+            Open the MLflow trace ↗
+          </a>
+        ) : null}
+        {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
+        <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
+          See this person&apos;s activity
+        </button>
+      </div>
+
       {detail.conditioning ? (
         /* One line where the content would have been, in the same type as the
            surrounding body text. No warning colour, no icon, no modal, no
@@ -779,24 +796,6 @@ export function QuestionDrawer({
           {detail.comment ? <p className="monitoring-drawer-comment">{detail.comment}</p> : null}
         </section>
       ) : null}
-
-      <div className="monitoring-drawer-links">
-        {/* Absent rather than dead when the run recorded no trace id. The app
-            already distinguishes an answer that came from a traced run from one
-            that did not, and a link that lands on an empty search teaches people
-            the page is decorative. */}
-        {detail.mlflowUrl ? (
-          <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
-            {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
-            <BrandIcon product="mlflow" size={12} />
-            Open the MLflow trace ↗
-          </a>
-        ) : null}
-        {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
-        <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
-          See this person&apos;s activity
-        </button>
-      </div>
     </aside>
   );
 }

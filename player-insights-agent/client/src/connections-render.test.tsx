@@ -7,6 +7,7 @@ import {
   BuildStampRow,
   ConnectionRow,
   ConnectionsCounts,
+  DeclaredTablesSection,
   DeclaredTablesTable,
   OptionalScopeLine,
   PreflightRemedyBlock,
@@ -1363,6 +1364,22 @@ describe('the Unity Catalog tables section', () => {
       detail: 'The workspace answered: 20 columns.',
     }),
   ];
+
+  it('starts expanded with the add-connection control at the bottom', () => {
+    const markup = render(
+      <DeclaredTablesSection
+        tableChecks={tables}
+        requestedEntity=""
+        allowMutations
+        onChanged={() => {}}
+      />
+    );
+    expect(markup).toContain('aria-expanded="true"');
+    expect(text(markup)).toContain('gold_title_daily_summary');
+    expect(markup.indexOf('gold_title_daily_summary')).toBeLessThan(markup.indexOf('data-testid="add-connection-row"'));
+    expect(text(markup)).not.toContain('Assets the agent may consider');
+    expect(text(markup)).not.toContain('Listing an asset lets the agent consider it');
+  });
 
   it('draws a row per declared table with concise reachability and freshness', () => {
     const markup = render(

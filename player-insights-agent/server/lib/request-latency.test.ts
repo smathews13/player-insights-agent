@@ -21,6 +21,11 @@ describe('the Lakebase route latency query', () => {
     expect(REQUEST_LATENCY_QUERY).not.toMatch(/\$[12]|from_at|to_at/);
   });
 
+  it('ends the CTE list before the result SELECT', () => {
+    expect(REQUEST_LATENCY_QUERY).toMatch(/\)\s+SELECT r\.\*, b\.covered_from, b\.covered_to/);
+    expect(REQUEST_LATENCY_QUERY).not.toMatch(/\),\s+SELECT/);
+  });
+
   it('returns one row for every recorded route', () => {
     const common = {
       current_count: 4,

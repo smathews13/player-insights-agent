@@ -265,12 +265,18 @@ function ProseBlock({ block }: { block: Block }) {
        * wrap mid-figure. A figure that wraps has to be re-read to be believed
        * (the argument `.bar-row b` makes in answer-body.css), so this one
        * scrolls.
+       *
+       * `data-wrap` is the same kind of statement as `data-align` and is here for
+       * the same reason: CSS cannot select a column, and whether a column holds
+       * dates or sentences decides whether its cells may break at all. Without
+       * it a narrow panel gave every column its one-character minimum and set
+       * `2026-07-14` on four lines.
        */
       return (<div className="answer-table-wrap">
           <table className="answer-table">
             {block.header ? (<thead>
                 <tr>
-                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]}>
+                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineNodes nodes={cell.children} />
                     </th>
                   ))}
@@ -279,7 +285,7 @@ function ProseBlock({ block }: { block: Block }) {
             ) : null}
             <tbody>
               {block.rows.map((row) => (<tr key={row.start}>
-                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]}>
+                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineNodes nodes={cell.children} />
                     </td>
                   ))}

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { REQUIRED_USER_API_SCOPES } from '../../shared/required-user-api-scopes';
-import { allowRequiredUserApiScopes } from './app-user-api-scopes';
+import {
+  MANAGER_GRANT_USER_API_SCOPES,
+  allowAstrolabeUserApiScopes,
+} from './app-user-api-scopes';
 
 const options = {
   host: 'https://workspace.example.com',
@@ -15,18 +17,18 @@ function answer(body: unknown, status = 200): Response {
   });
 }
 
-describe('allowRequiredUserApiScopes', () => {
-  it('adds all four required scopes without removing an existing extra', async () => {
+describe('allowAstrolabeUserApiScopes', () => {
+  it('adds the required scopes and workspace browse without removing an existing extra', async () => {
     const call = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(answer({ user_api_scopes: ['catalog.tables:read'] }))
       .mockResolvedValueOnce(answer({}));
 
-    const result = await allowRequiredUserApiScopes({ ...options, fetchImpl: call });
+    const result = await allowAstrolabeUserApiScopes({ ...options, fetchImpl: call });
 
     expect(result).toEqual({
       kind: 'updated',
-      scopes: ['catalog.tables:read', ...REQUIRED_USER_API_SCOPES],
+      scopes: ['catalog.tables:read', ...MANAGER_GRANT_USER_API_SCOPES],
     });
     expect(call).toHaveBeenCalledTimes(2);
     expect(call.mock.calls[0][1]?.method).toBe('GET');
@@ -41,16 +43,16 @@ describe('allowRequiredUserApiScopes', () => {
     if (typeof patchBody !== 'string') throw new Error('PATCH carried no JSON body');
     const sent: unknown = JSON.parse(patchBody);
     expect(sent).toEqual({
-      user_api_scopes: ['catalog.tables:read', ...REQUIRED_USER_API_SCOPES],
+      user_api_scopes: ['catalog.tables:read', ...MANAGER_GRANT_USER_API_SCOPES],
     });
   });
 
-  it('does nothing when every required scope is already present', async () => {
-    const current = [...REQUIRED_USER_API_SCOPES, 'catalog.tables:read'];
+  it('does nothing when every managed scope is already present', async () => {
+    const current = [...MANAGER_GRANT_USER_API_SCOPES, 'catalog.tables:read'];
     const call = vi.fn<typeof fetch>().mockResolvedValue(answer({ user_api_scopes: current }));
 
     await expect(
-      allowRequiredUserApiScopes({ ...options, fetchImpl: call }),
+      allowAstrolabeUserApiScopes({ ...options, fetchImpl: call }),
     ).resolves.toEqual({ kind: 'unchanged', scopes: current });
     expect(call).toHaveBeenCalledTimes(1);
   });
@@ -58,7 +60,7 @@ describe('allowRequiredUserApiScopes', () => {
   it('uses only the forwarded user token and never creates a service-principal client', async () => {
     const call = vi.fn<typeof fetch>().mockResolvedValue(answer({ user_api_scopes: [] }));
 
-    await allowRequiredUserApiScopes({ ...options, fetchImpl: call });
+    await allowAstrolabeUserApiScopes({ ...options, fetchImpl: call });
 
     expect(call).toHaveBeenCalled();
     for (const [, init] of call.mock.calls) {
@@ -71,7 +73,7 @@ describe('allowRequiredUserApiScopes', () => {
       .fn<typeof fetch>()
       .mockResolvedValue(answer({ error_code: 'PERMISSION_DENIED', message: 'No CAN MANAGE' }, 403));
 
-    const result = await allowRequiredUserApiScopes({ ...options, fetchImpl: call });
+    const result = await allowAstrolabeUserApiScopes({ ...options, fetchImpl: call });
 
     expect(result.kind).toBe('refused');
     if (result.kind === 'refused') {

@@ -34,10 +34,8 @@ import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes'
 /**
  * A representative declared set: the four load-bearing base scopes, WITHOUT the
  * optional catalog/workspace browse scopes. Kept deliberately free of the
- * optional names so the "optional scope not on the deploy" rows below exercise
- * the `not_declared` path. (The shared default in `databricks.yml` also requests
- * the optional browse scopes; this fixture models a deployment that declared
- * only the base set.)
+ * optional names so the rows below prove that the signed-in token, not merely
+ * the deployment declaration, decides their badges.
  */
 const DECLARED = ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie'];
 
@@ -84,7 +82,7 @@ describe('firstOpenReport', () => {
       'granted',
       'granted',
     ]);
-    expect(optionalScopeRows(report.scopes).every((s) => s.status === 'not_declared')).toBe(true);
+    expect(optionalScopeRows(report.scopes).every((s) => s.status === 'missing')).toBe(true);
     expect(report.footer).toBeNull();
     expect(offersRefresh(report)).toBe(false);
   });
@@ -111,6 +109,60 @@ describe('firstOpenReport', () => {
       identity({ session: session({ declaredScopes: declared, tokenScopes: declared }) })
     );
     expect(report.scopes.map((s) => s.name)).toEqual([...declared, ...OPTIONAL_USER_API_SCOPES]);
+  });
+
+  it('marks undeclared optional scopes granted when the effective token carries them', () => {
+    const report = firstOpenReport(
+      identity({
+        session: session({
+          tokenScopes: [
+            ...DECLARED,
+            'unity-catalog',
+            'workspace',
+            'vector-search',
+            'postgres',
+          ],
+        }),
+      })
+    );
+
+    expect(optionalScopeRows(report.scopes).map((scope) => scope.status)).toEqual(
+      OPTIONAL_USER_API_SCOPES.map(() => 'granted')
+    );
+  });
+
+  it('marks undeclared optional scopes missing when the effective token does not carry them', () => {
+    const report = firstOpenReport(identity());
+
+    expect(optionalScopeRows(report.scopes).map((scope) => scope.status)).toEqual(
+      OPTIONAL_USER_API_SCOPES.map(() => 'missing')
+    );
+  });
+
+  it('reports the Git-deploy workspace scope from the signed-in token', () => {
+    const name = 'workspace.workspace:read';
+    const granted = firstOpenReport(
+      identity({
+        session: session({
+          declaredScopes: [...DECLARED, name],
+          tokenScopes: [...DECLARED, 'workspace'],
+        }),
+      })
+    );
+    const missing = firstOpenReport(
+      identity({
+        session: session({
+          state: 'stale',
+          declaredScopes: [...DECLARED, name],
+          tokenScopes: DECLARED,
+          missingScopes: [name],
+        }),
+      })
+    );
+
+    expect(granted.scopes.find((scope) => scope.name === name)?.status).toBe('granted');
+    expect(missing.scopes.find((scope) => scope.name === name)?.status).toBe('missing');
+    expect(missing.verdict).toBe('granted');
   });
 
   it('does not fail the gate when only optional catalog scopes are missing', () => {
@@ -236,6 +288,11 @@ describe('scopeRows', () => {
     const rows = scopeRows(null, [], true);
     expect(rows.map((r) => r.name)).toEqual([...OPTIONAL_USER_API_SCOPES]);
     expect(rows.every((r) => r.optional && r.status === 'not_declared')).toBe(true);
+  });
+
+  it('does not treat a missing token scope as never requested', () => {
+    const rows = scopeRows(null, [], true, ['sql']);
+    expect(rows.every((r) => r.optional && r.status === 'missing')).toBe(true);
   });
 });
 

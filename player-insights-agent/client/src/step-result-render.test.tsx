@@ -296,9 +296,12 @@ describe('rendered markdown results', () => {
       output,
     }));
     expect(markup).toContain('<table class="answer-table">');
-    expect(markup).toContain('<th scope="col" data-align="left">Table</th>');
+    expect(markup).toContain('<th scope="col" data-align="left" data-wrap="atomic">Table</th>');
     expect(markup).toContain('<code class="dag-name-chip" title="player_profiles">player_profiles</code>');
-    expect(markup).toContain('<td data-align="right">14,421,932</td>');
+    expect(markup).toContain('<td data-align="right" data-wrap="atomic">14,421,932</td>');
+    // The one column that holds a sentence keeps wrapping; the rest are single
+    // values a narrow panel must not break. See answer.css.
+    expect(markup).toContain('data-wrap="prose">Stable identifier');
     expect(markup).not.toContain('|---|');
     expect(markup).not.toContain('`player_id`');
   });

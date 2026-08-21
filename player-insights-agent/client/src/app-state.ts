@@ -48,6 +48,48 @@ export function identityAfterDeadline(current: Identity): Identity {
   return { ...current, signedInAs: IDENTITY_UNAVAILABLE };
 }
 
+const unavailableIdentity = (): Identity => ({
+  signedInAs: IDENTITY_UNAVAILABLE,
+  executionIdentity: 'Astrolabe service principal',
+  executionMode: 'service-principal',
+});
+
+/**
+ * Turn the untrusted identity response into the shape the shell can render.
+ *
+ * The endpoint may answer JSON `null` while the Apps identity is unavailable.
+ * A cast does not change that runtime value: passing it through made the shell
+ * read `.role` from null before Settings could render. Invalid or incomplete
+ * payloads now become the existing visible unavailable-identity state.
+ */
+export function identityFromResponse(value: unknown): Identity {
+  if (!value || typeof value !== 'object') return unavailableIdentity();
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.signedInAs !== 'string') return unavailableIdentity();
+
+  return {
+    signedInAs: candidate.signedInAs,
+    executionIdentity:
+      typeof candidate.executionIdentity === 'string' ? candidate.executionIdentity : 'Astrolabe service principal',
+    executionMode: typeof candidate.executionMode === 'string' ? candidate.executionMode : 'service-principal',
+    ...(candidate.identitySource === 'databricks-apps' || candidate.identitySource === 'development-fallback'
+      ? { identitySource: candidate.identitySource }
+      : {}),
+    ...(typeof candidate.sharedConversationRail === 'boolean'
+      ? { sharedConversationRail: candidate.sharedConversationRail }
+      : {}),
+    ...(candidate.role === 'super_admin' || candidate.role === 'admin' || candidate.role === 'consumer'
+      ? { role: candidate.role }
+      : {}),
+    ...(typeof candidate.addedAdminsReadable === 'boolean'
+      ? { addedAdminsReadable: candidate.addedAdminsReadable }
+      : {}),
+    ...(candidate.session && typeof candidate.session === 'object'
+      ? { session: candidate.session as Identity['session'] }
+      : {}),
+  };
+}
+
 /**
  * Who the app believes is signed in, per `GET /api/identity`.
  *
@@ -80,7 +122,7 @@ export function useIdentity(deadlineMs = IDENTITY_DEADLINE_MS) {
       )
       .then((next) => {
         settled = true;
-        setIdentity(next);
+        setIdentity(identityFromResponse(next));
       })
       .catch(() => {
         settled = true;

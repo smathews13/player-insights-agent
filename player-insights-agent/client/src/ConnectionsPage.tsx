@@ -22,7 +22,7 @@
  * the old one. Which affordance a row gets is decided in
  * `shared/deployment-config.ts` rather than here.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { showsAdminSurfaces, useRole } from './role';
 import {
   Alert,
@@ -171,6 +171,7 @@ import {
   readingsById,
   type ConnectionGroup,
   type ConnectionGroupKey,
+  type ConnectionEntry,
   type ConnectionReading,
   type DriftSeverity,
   type ResourceRow,
@@ -599,6 +600,49 @@ export function DeclaredTablesTable({
         )}
       </TableBody>
     </Table>
+  );
+}
+
+/**
+ * The declared Unity Catalog matrix and its asset controls are one list.
+ *
+ * It starts open because the rows are the reason this section exists. The
+ * disclosure remains available for readers who have already checked them.
+ */
+export function DeclaredTablesSection({
+  tableChecks,
+  requestedEntity,
+  checkedAt = '',
+  entries,
+  storeAvailable = true,
+  allowMutations = false,
+  onChanged,
+}: {
+  tableChecks: readonly PreflightCheck[];
+  requestedEntity: string;
+  checkedAt?: string;
+  entries?: ConnectionEntry[];
+  storeAvailable?: boolean;
+  allowMutations?: boolean;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <Disclosure
+      open={open}
+      onToggle={() => setOpen((was) => !was)}
+      summary="Unity Catalog tables"
+      aside={declaredTablesAside(tableChecks)}
+    >
+      <DeclaredTablesTable tableChecks={tableChecks} requestedEntity={requestedEntity} checkedAt={checkedAt} />
+      <DeclaredConnectionsCard
+        entries={entries}
+        storeAvailable={storeAvailable}
+        allowMutations={allowMutations}
+        onChanged={onChanged}
+      />
+    </Disclosure>
   );
 }
 
@@ -1511,15 +1555,6 @@ export function ConnectionsPage() {
   const requestedResource = CONNECTED_RESOURCES.some((resource) => resource.id === requestedEntity.toLowerCase())
     ? requestedEntity.toLowerCase()
     : '';
-  const [tablesOpen, setTablesOpen] = useState(Boolean(requestedEntity) && !requestedResource);
-
-  // Somebody followed an entity link here. The matrix is the entry they were
-  // sent to, so it is open before the first paint rather than after a click they
-  // were not told to make.
-  useEffect(() => {
-    if (requestedEntity && !requestedResource) setTablesOpen(true);
-  }, [requestedEntity, requestedResource]);
-
   /**
    * Re-read the configuration after a write, and report a refusal.
    *
@@ -2036,33 +2071,28 @@ export function ConnectionsPage() {
         )
       )}
 
-      {/* Adding one records intent; it grants nobody anything, which the card says
-          once under its heading. Removal is recoverable and states what stops
-          working before it happens. */}
-      <DeclaredConnectionsCard
-        entries={payload?.connections}
-        storeAvailable={payload?.storeAvailable ?? true}
-        allowMutations={allowMutations}
-        onChanged={() => {
-          void rereadSettings();
-        }}
-      />
-
       {tableChecks.length > 0 ? (
-        <Disclosure
-          open={tablesOpen}
-          onToggle={() => setTablesOpen((was) => !was)}
-          summary="Unity Catalog tables"
-          // Each verdict under its own word. This line read `N blocked` over
-          // every check that was not `ok`, which put the scope refusals -- which
-          // are reported as unchecked precisely because nothing was established
-          // about the table -- under the word "blocked". A zero does not render,
-          // so a healthy list says only how many tables were declared.
-          aside={declaredTablesAside(tableChecks)}
-        >
-          <DeclaredTablesTable tableChecks={tableChecks} requestedEntity={requestedEntity} checkedAt={lastCheckedAt} />
-        </Disclosure>
-      ) : null}
+        <DeclaredTablesSection
+          tableChecks={tableChecks}
+          requestedEntity={requestedEntity}
+          checkedAt={lastCheckedAt}
+          entries={payload?.connections}
+          storeAvailable={payload?.storeAvailable ?? true}
+          allowMutations={allowMutations}
+          onChanged={() => {
+            void rereadSettings();
+          }}
+        />
+      ) : (
+        <DeclaredConnectionsCard
+          entries={payload?.connections}
+          storeAvailable={payload?.storeAvailable ?? true}
+          allowMutations={allowMutations}
+          onChanged={() => {
+            void rereadSettings();
+          }}
+        />
+      )}
     </div>
   );
 }

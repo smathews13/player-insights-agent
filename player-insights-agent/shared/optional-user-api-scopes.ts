@@ -29,6 +29,8 @@
  * picker falls back to typing the full database resource name. It is NOT an
  * MLflow substitute: Apps still has no MLflow scope at all.
  */
+export const WORKSPACE_READ_USER_API_SCOPE = 'workspace.workspace:read' as const;
+
 export const OPTIONAL_USER_API_SCOPES = [
   'catalog.catalogs:read',
   'catalog.schemas:read',
@@ -37,7 +39,7 @@ export const OPTIONAL_USER_API_SCOPES = [
   // the same terms as the three above: without it a reader types the path
   // instead, and no ask is affected. The name is the Apps API's, which refuses
   // the bare `workspace` the OAuth server advertises.
-  'workspace.workspace:read',
+  WORKSPACE_READ_USER_API_SCOPE,
   // Vector Search browse, for the Connections VS endpoint/index pickers. In the
   // shared default and optional for the login gate on the same terms. The names
   // are the Apps API's, which refuses the bare `vector-search` the OAuth server

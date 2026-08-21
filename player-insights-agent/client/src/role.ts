@@ -64,7 +64,10 @@ export const ROLE_RESOLVING: RoleResolution = { state: 'resolving', addedAdminsR
  * draws the consumer layout, so not knowing costs a reader some tabs rather than
  * offering them tabs the server will refuse.
  */
-export function roleFrom(identity: { signedInAs: string; role?: string; addedAdminsReadable?: boolean }): RoleResolution {
+export function roleFrom(
+  identity: { signedInAs?: unknown; role?: unknown; addedAdminsReadable?: unknown } | null | undefined
+): RoleResolution {
+  if (!identity) return { state: 'failed', addedAdminsReadable: false };
   const addedAdminsReadable = identity.addedAdminsReadable !== false;
   if (identity.signedInAs === IDENTITY_RESOLVING) return ROLE_RESOLVING;
   if (isRole(identity.role)) return { state: identity.role, addedAdminsReadable };
@@ -218,7 +221,6 @@ const ADMIN_NAV: readonly NavEntry[] = [
   { to: '/ops', label: 'Ops' },
   { to: '/connections', label: 'Connections' },
   { to: '/architecture', label: 'Architecture' },
-  { to: '/settings', label: 'Settings' },
 ];
 
 /** The Benchmarking entry, appended for every signed-in role when enabled. */
@@ -305,12 +307,12 @@ export function showsSettingsGear(state: RoleState): boolean {
  * in. That is the one place the two widths differ, and it differs because at
  * that width the header has no room rather than because anybody reordered it.
  */
-export const HEADER_CLUSTER_ORDER: readonly [
+export const HEADER_CLUSTER_ORDER: readonly ['role-badge', 'identity-chip', 'settings-gear', 'built-on-databricks'] = [
   'role-badge',
   'identity-chip',
   'settings-gear',
   'built-on-databricks',
-] = ['role-badge', 'identity-chip', 'settings-gear', 'built-on-databricks'];
+];
 
 /* ── The gate ────────────────────────────────────────────────────────────── */
 

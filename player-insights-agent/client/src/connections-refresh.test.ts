@@ -323,7 +323,7 @@ describe('the Refresh button, which used to look wired to nothing', () => {
     // header control and declared-table evidence only.
     expect(PAGE).not.toMatch(/Checked \$\{formatCheckedAt\(lastCheckedAt\)\}/);
     expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(3);
-    expect(PAGE).toMatch(/<DeclaredTablesTable[^>]*checkedAt=\{lastCheckedAt\}/);
+    expect(PAGE).toMatch(/<DeclaredTablesSection[^>]*checkedAt=\{lastCheckedAt\}/);
   });
 
   /**

@@ -366,8 +366,27 @@ a.arch-node-main:hover .arch-node-label {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/*
+ * The `line-height` is RESTATED here, not inherited, and that is the whole fix
+ * for a card that set its role paragraph double-spaced.
+ *
+ * `.arch-node` declares 1.35 and every span inside it does inherit that. A `<p>`
+ * does not, because AppKit's imported stylesheet carries a bare `p` rule at
+ * `line-height: 1.75rem` -- 28px against this paragraph's 11px type -- and a
+ * declaration that matches the element beats an inherited value however low its
+ * specificity is. Inheritance was never in the running.
+ *
+ * This is the same failure radius-system.test.ts already names: architecture.css
+ * leaving a property unstated on the assumption nothing else would state it, and
+ * AppKit's Tailwind default answering instead. The layout depended on it, too --
+ * CARD_LINE_HEIGHT in architecture-layout.ts is 1.35 and every card height, row
+ * gap and caption clearance is derived from it, so the drawing was computed
+ * against 14.85px lines and painted with 28px ones. Stated at 1.35 so the
+ * geometry and the render agree on one number.
+ */
 .arch-node-role {
   margin: 0;
+  line-height: 1.35;
   color: var(--muted-foreground);
 }
 .arch-node-open {
