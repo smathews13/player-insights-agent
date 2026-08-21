@@ -35,6 +35,7 @@ const BANNED = [
   'Nothing is blocked',
   'Something is blocked',
   'No connection has been read yet',
+  "A change in this shape is usually the first sign a release changed the agent's behaviour.",
 ];
 
 function text(markup: string): string {
@@ -135,6 +136,16 @@ describe('no screen narrates under its own title', () => {
     expect(source).toContain('<PageHeading title="Ops" />');
     expect(source).toContain("<span className=\"ops-block-meta\">By route</span>");
     expect(source).not.toContain('vs each route');
+  });
+
+  it('gives the Ops tool-calls chart no standing note under the bars', () => {
+    // The bars and counts are the chart. A sentence under them that explained
+    // why the chart exists was the same filler family as the banners above.
+    const source = code('OpsPage.tsx');
+    const styles = code('styles/ops.css');
+    expect(source).not.toContain('ops-chart-note');
+    expect(source).not.toMatch(/\bnote\?:/);
+    expect(styles).not.toContain('ops-chart-note');
   });
 
   it('leaves the shared heading with no description prop to grow back into', () => {

@@ -139,7 +139,12 @@ describe('the row is the run card, not a third style', () => {
     expect(card).toMatch(/border:\s*1px solid var\(--border\)/);
     expect(body('.conversation-row:hover')).toMatch(/border-color:\s*var\(--primary\)/);
     expect(body('.conversation-row.active')).toMatch(/border-color:\s*var\(--primary\)/);
-    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--db-selected-tint\)/);
+    // A high white alpha, not a tint: the rail's navy reads as a faint tinge
+    // through the card, and the card is still a light surface its text is legible
+    // on. Anything that let the navy dominate would be the selected-tint failure.
+    expect(row).toMatch(/background:\s*rgba\(255, 255, 255, 0\.9\d?\)/);
+    expect(body('.conversation-row.active')).toMatch(/background:\s*rgba\(255, 255, 255, 0\.9\d\)/);
+    expect(body('.conversation-row.active')).not.toMatch(/selected-tint|ast-navy/);
     // The 3px marker is gone from every state, including the delete confirmation,
     // and its absence is what gave the title back three of its pixels.
     expect(row).not.toMatch(/border-left/);
@@ -200,10 +205,10 @@ describe('the row is the run card, not a third style', () => {
 
   it('takes a family per tone, with the neutral one outlined for the selected row', () => {
     expect(railStatusTone('complete')).toBe('ast-pill--pos');
-    // The selected row carries `--db-selected-tint`, and a grey fill on that wash
-    // reads as a rendering fault rather than as a chip. The outlined family is in
-    // the recipe for exactly this case.
-    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--db-selected-tint\)/);
+    // The selected row stays a light card over the navy rail -- near-white, with
+    // only a faint tinge of the rail through it. Its status stays outlined so the
+    // border, rather than a second fill, carries selection.
+    expect(body('.conversation-row.active')).toMatch(/background:\s*rgba\(255, 255, 255, 0\.9\d\)/);
     expect(railStatusTone('marinating')).toBe('ast-pill--neutral-outline');
     const outline = body('.ast-pill--neutral-outline', partial('astrolabe-tokens.css'));
     expect(outline).not.toMatch(/background/);
@@ -287,7 +292,7 @@ describe('a star says what it is out of', () => {
     for (const file of ['HomePage.tsx', 'RunExplorer.tsx', 'BenchmarkLab.tsx']) {
       const source = readFileSync(new URL(file, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ');
       const stars = [...source.matchAll(/<Star[^>]*\/>\s*(?:<span[^>]*>\s*)?\{([^}]+)\}/g)].map((match) =>
-        match[1].trim(),
+        match[1].trim()
       );
       expect(stars.length, `${file} draws no star`).toBeGreaterThan(0);
       for (const printed of stars) expect(printed).toMatch(/ratingOutOf\(/);

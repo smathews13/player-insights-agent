@@ -186,8 +186,8 @@ variables:
       - workspace.workspace:read
       - vectorsearch.vector-search-indexes:read
       - vectorsearch.vector-search-endpoints:read
-      # Add `postgres` when the app should browse Lakebase resources.
-      # - postgres
+      # Official Lakebase/Postgres API family scope.
+      - postgres
   app_source_code_path:
     description: >-
       REQUIRED FOR THE INITIAL BUNDLE BOOTSTRAP AND CLI APP RELEASE. Absolute

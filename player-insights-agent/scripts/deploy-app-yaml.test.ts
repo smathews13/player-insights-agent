@@ -19,7 +19,7 @@ const REQUIRED_ASK_SCOPES = [
   'sql',
   'dashboards.genie',
 ];
-const GIT_DEPLOY_SCOPES = [...REQUIRED_ASK_SCOPES, 'workspace.workspace:read'];
+const GIT_DEPLOY_SCOPES = [...REQUIRED_ASK_SCOPES, 'workspace.workspace:read', 'postgres'];
 const OPTIONAL_BROWSE_SCOPES = [
   'catalog.catalogs:read',
   'catalog.schemas:read',
@@ -89,12 +89,12 @@ describe('every authored variable reaches the deploy target', () => {
     ).toEqual(GIT_DEPLOY_SCOPES);
   });
 
-  it('keeps optional scopes other than workspace browse out of Git deploys', () => {
+  it('keeps optional scopes other than workspace and Lakebase browse out of Git deploys', () => {
     const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
     const declared = declaredScopes(generated);
 
     for (const optional of OPTIONAL_BROWSE_SCOPES.filter(
-      (scope) => scope !== 'workspace.workspace:read'
+      (scope) => !['workspace.workspace:read', 'postgres'].includes(scope)
     )) {
       expect(declared).not.toContain(optional);
     }

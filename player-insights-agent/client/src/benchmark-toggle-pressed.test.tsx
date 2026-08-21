@@ -57,7 +57,17 @@ function settingsMarkup(egressControls: boolean): string {
             />
           }
         >
-          <Route path="/settings" element={<SettingsPage initialSection="experimental" />} />
+          <Route
+            path="/settings"
+            element={
+              <SettingsPage
+                initialSection="experimental"
+                features={{ benchmarkLab: false, egressControls }}
+                setFeature={() => {}}
+                role={{ state: 'admin', addedAdminsReadable: true }}
+              />
+            }
+          />
         </Route>
       </Routes>
     </MemoryRouter>

@@ -82,7 +82,7 @@ describe('firstOpenReport', () => {
       'granted',
       'granted',
     ]);
-    expect(optionalScopeRows(report.scopes).every((s) => s.status === 'missing')).toBe(true);
+    expect(optionalScopeRows(report.scopes).every((s) => s.status === 'not_declared')).toBe(true);
     expect(report.footer).toBeNull();
     expect(offersRefresh(report)).toBe(false);
   });
@@ -131,12 +131,46 @@ describe('firstOpenReport', () => {
     );
   });
 
-  it('marks undeclared optional scopes missing when the effective token does not carry them', () => {
+  it('marks undeclared optional scopes not requested when the effective token does not carry them', () => {
     const report = firstOpenReport(identity());
 
     expect(optionalScopeRows(report.scopes).map((scope) => scope.status)).toEqual(
-      OPTIONAL_USER_API_SCOPES.map(() => 'missing')
+      OPTIONAL_USER_API_SCOPES.map(() => 'not_declared')
     );
+  });
+
+  it('distinguishes Lakebase requested-but-not-granted from not requested', () => {
+    const name = 'postgres';
+    const requested = firstOpenReport(
+      identity({
+        session: session({
+          state: 'stale',
+          declaredScopes: [...DECLARED, name],
+          tokenScopes: DECLARED,
+          missingScopes: [name],
+        }),
+      })
+    );
+    const notRequested = firstOpenReport(identity());
+
+    expect(requested.scopes.find((scope) => scope.name === name)?.status).toBe('missing');
+    expect(notRequested.scopes.find((scope) => scope.name === name)?.status).toBe('not_declared');
+  });
+
+  it('treats hostile scope payload values as unreadable instead of rendering or throwing', () => {
+    const hostile = identity({
+      session: {
+        ...session(),
+        declaredScopes: ['sql', { toString: () => 'postgres' }, '', '<script>'],
+        tokenScopes: ['sql', null, 42],
+        missingScopes: 'postgres',
+      } as unknown as SessionReport,
+    });
+
+    expect(() => firstOpenReport(hostile)).not.toThrow();
+    const report = firstOpenReport(hostile);
+    expect(report.scopes.some((scope) => scope.name === 'postgres')).toBe(true);
+    expect(report.scopes.some((scope) => scope.name === '[object Object]')).toBe(false);
   });
 
   it('reports the Git-deploy workspace scope from the signed-in token', () => {
@@ -290,9 +324,9 @@ describe('scopeRows', () => {
     expect(rows.every((r) => r.optional && r.status === 'not_declared')).toBe(true);
   });
 
-  it('does not treat a missing token scope as never requested', () => {
+  it('uses the deployment declaration to distinguish not requested', () => {
     const rows = scopeRows(null, [], true, ['sql']);
-    expect(rows.every((r) => r.optional && r.status === 'missing')).toBe(true);
+    expect(rows.every((r) => r.optional && r.status === 'not_declared')).toBe(true);
   });
 });
 

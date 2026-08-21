@@ -22,7 +22,7 @@
  * the old one. Which affordance a row gets is decided in
  * `shared/deployment-config.ts` rather than here.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { showsAdminSurfaces, useRole } from './role';
 import {
   Alert,
@@ -50,6 +50,7 @@ import {
   Copy,
   ExternalLink,
   GitCommitHorizontal,
+  Info,
   Lock,
   Pencil,
   Save,
@@ -164,7 +165,6 @@ import {
   readingsById,
   type ConnectionGroup,
   type ConnectionGroupKey,
-  type ConnectionEntry,
   type ConnectionReading,
   type DriftSeverity,
   type ResourceRow,
@@ -194,6 +194,62 @@ const GROUP_TONE: Record<ConnectionGroupKey, StatusTone> = {
   'not-checked': 'plain',
   configuration: 'plain',
 };
+
+/**
+ * What a section IS, for the reader who does not build this app.
+ *
+ * Only the two sections whose names are nouns rather than verdicts. "Blocked"
+ * and "Unreachable" say what they mean in the word; "Connected resources" and
+ * "Configuration" name a KIND of thing, and a reader who has never deployed
+ * this agent cannot tell from either name what the rows under it decide.
+ *
+ * One sentence each, and no file paths, product internals or setting names in
+ * either -- the rows already carry those, and a tooltip that restates the list
+ * beneath it is a tooltip nobody reads twice.
+ */
+const GROUP_HINTS: Partial<Record<ConnectionGroupKey, string>> = {
+  reachable:
+    'These are the live services this app is wired to right now: the models it asks, the warehouse and catalogs it reads from, and the database and search it looks things up in.',
+  configuration:
+    'These are the settings that shape how the agent answers: which data it is allowed to use, how long an answer may run, and where its files and activity records are kept.',
+};
+
+/**
+ * The sentence, on hover and on keyboard focus.
+ *
+ * THE TOOLTIP IS AN ELEMENT, NOT A `title` ATTRIBUTE, for the reason the
+ * release chip carries the same shape: `title` is pointer-only, so there is no
+ * keystroke that reaches the sentence at all, and on an element with its own
+ * text content it is dropped from the accessibility tree. The trigger is a
+ * button because a button is the one thing reliably focusable and reliably
+ * named; the sentence is its description rather than its name, so a reader is
+ * not made to hear the whole paragraph before being told what the control is.
+ *
+ * Hidden by opacity rather than by `display`, because `aria-describedby` must
+ * still resolve while it is off screen.
+ */
+export function GroupHint({ label, hint }: { label: string; hint: string }) {
+  // Two headers draw one of these each, so the id has to be per instance: two
+  // tooltips under one id is a description that resolves to whichever rendered
+  // first.
+  const hintId = `${useId()}hint`;
+  return (
+    <button
+      type="button"
+      className="connection-group-hint"
+      data-testid="connection-group-hint"
+      // The name is what the control IS. The sentence arrives as the
+      // description, below.
+      aria-label={`What ${label} means`}
+      aria-describedby={hintId}
+    >
+      <Info className="size-3.5" aria-hidden="true" />
+      <span className="connection-group-hint-tooltip" id={hintId} role="tooltip">
+        {hint}
+      </span>
+    </button>
+  );
+}
 
 /**
  * Which Databricks product each kind of connection belongs to.
@@ -597,27 +653,25 @@ export function DeclaredTablesTable({
 }
 
 /**
- * The declared Unity Catalog matrix and its asset controls are one list.
+ * The declared Unity Catalog matrix.
  *
  * It starts open because the rows are the reason this section exists. The
  * disclosure remains available for readers who have already checked them.
+ *
+ * THE ADD CONTROL IS NOT HERE ANY MORE. "Add a new connection" adds a table, a
+ * Genie space or a catalog -- three kinds, of which this list shows one -- so
+ * sitting under the tables it read as the way to add a table and nothing else,
+ * and it was two sections below the list it actually extends. It is the last
+ * row of Connected resources now.
  */
 export function DeclaredTablesSection({
   tableChecks,
   requestedEntity,
   checkedAt = '',
-  entries,
-  storeAvailable = true,
-  allowMutations = false,
-  onChanged,
 }: {
   tableChecks: readonly PreflightCheck[];
   requestedEntity: string;
   checkedAt?: string;
-  entries?: ConnectionEntry[];
-  storeAvailable?: boolean;
-  allowMutations?: boolean;
-  onChanged: () => void;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -629,12 +683,6 @@ export function DeclaredTablesSection({
       aside={declaredTablesAside(tableChecks)}
     >
       <DeclaredTablesTable tableChecks={tableChecks} requestedEntity={requestedEntity} checkedAt={checkedAt} />
-      <DeclaredConnectionsCard
-        entries={entries}
-        storeAvailable={storeAvailable}
-        allowMutations={allowMutations}
-        onChanged={onChanged}
-      />
     </Disclosure>
   );
 }
@@ -1389,7 +1437,10 @@ export function ConfigurationList({
 
   return (
     <section className="connection-group">
-      <h3 className="connection-group-title">{group.title}</h3>
+      <h3 className="connection-group-title">
+        {group.title}
+        {GROUP_HINTS.configuration ? <GroupHint label={group.title} hint={GROUP_HINTS.configuration} /> : null}
+      </h3>
       <Card className="deployment-card">
         <div className="configuration-rows">
           {group.readings.map(({ row, resource }) => {
@@ -1698,6 +1749,22 @@ export function ConnectionsPage() {
    */
   const lastCheckedAt = payload?.checkedAt || report?.checked_at || '';
 
+  /**
+   * The declared assets and the control that extends them, built once and drawn
+   * in exactly one place: the foot of Connected resources, or the page itself on
+   * a deployment that has no such section to hang it from.
+   */
+  const declaredConnections = (
+    <DeclaredConnectionsCard
+      entries={payload?.connections}
+      storeAvailable={payload?.storeAvailable ?? true}
+      allowMutations={allowMutations}
+      onChanged={() => {
+        void rereadSettings();
+      }}
+    />
+  );
+
   const now = Date.now();
 
   /**
@@ -1972,6 +2039,7 @@ export function ConnectionsPage() {
                 verdict does not need. */}
             <h3 className="connection-group-title" data-tone={GROUP_TONE[group.key]}>
               {group.title}
+              {GROUP_HINTS[group.key] ? <GroupHint label={group.title} hint={GROUP_HINTS[group.key]!} /> : null}
               {group.aside ? <span className="connection-group-aside">{group.aside}</span> : null}
             </h3>
             <div className="connection-rows">
@@ -1990,32 +2058,27 @@ export function ConnectionsPage() {
                 />
               ))}
             </div>
+            {/* THE LAST ROW OF THIS SECTION, and of no other. What the control
+                adds -- a table, a Genie space, a catalog -- is the same kind of
+                thing every row above it names, and it used to sit at the foot
+                of the Unity Catalog table list, two sections down, where it
+                read as the way to add a table. */}
+            {group.key === 'reachable' ? declaredConnections : null}
           </section>
         )
       )}
+
+      {/* A deployment where nothing was reachable draws no Connected resources
+          section, and the control must not vanish with it. */}
+      {groups.some((group) => group.key === 'reachable') ? null : declaredConnections}
 
       {tableChecks.length > 0 ? (
         <DeclaredTablesSection
           tableChecks={tableChecks}
           requestedEntity={requestedEntity}
           checkedAt={lastCheckedAt}
-          entries={payload?.connections}
-          storeAvailable={payload?.storeAvailable ?? true}
-          allowMutations={allowMutations}
-          onChanged={() => {
-            void rereadSettings();
-          }}
         />
-      ) : (
-        <DeclaredConnectionsCard
-          entries={payload?.connections}
-          storeAvailable={payload?.storeAvailable ?? true}
-          allowMutations={allowMutations}
-          onChanged={() => {
-            void rereadSettings();
-          }}
-        />
-      )}
+      ) : null}
     </div>
   );
 }

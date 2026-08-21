@@ -16,6 +16,11 @@
   border-top: 3px solid var(--ast-blue);
   border-radius: var(--ast-radius-card);
   box-shadow: none;
+  /* Stated here rather than left to AppKit's opaque card surface: the transcript
+     sits on the navy sky, and a high white alpha lets a faint navy tinge read
+     through the card so it belongs to the page instead of being punched out of
+     it. 0.92 is high enough that prose on the card keeps the contrast it had. */
+  background: rgba(255, 255, 255, 0.92);
   margin-bottom: 26px;
 }
 
@@ -59,13 +64,14 @@
   box-shadow: none;
   /* Ice, which replaces oat as the AI-context surface. The plan is the one card
      in the transcript that is waiting on the reader, and the wash is what says
-     so until it resolves. */
-  background: var(--ast-ice);
+     so until it resolves. Carried at the same alpha as the answer card so the two
+     take the navy behind them by the same amount. */
+  background: color-mix(in srgb, var(--ast-ice) 92%, transparent);
   margin-bottom: 26px;
 }
 .plan-card.resolved {
   border: 1px solid var(--ast-hairline);
-  background: var(--ast-white);
+  background: rgba(255, 255, 255, 0.92);
 }
 /*
  * The transcript's own gutters, over AppKit's.

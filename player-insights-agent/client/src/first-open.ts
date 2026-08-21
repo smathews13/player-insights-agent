@@ -265,15 +265,23 @@ export function missingFooter(notice: StaleSignInNotice): ScopeFooter {
  * workspace read) as Optional.
  */
 export function scopeRows(
-  declared: readonly string[] | null | undefined,
-  missing: readonly string[],
+  declared: readonly unknown[] | null | undefined,
+  missing: readonly unknown[],
   checked: boolean,
-  tokenScopes?: readonly string[] | null
+  tokenScopes?: readonly unknown[] | null
 ): ScopeRow[] {
-  const declaredList = declared ?? [];
+  const cleanScopes = (value: readonly unknown[] | null | undefined): string[] =>
+    Array.isArray(value)
+      ? [...new Set(value.filter((scope): scope is string => typeof scope === 'string')
+          .map((scope) => scope.trim())
+          .filter(Boolean))]
+      : [];
+  const declaredList = cleanScopes(declared);
+  const missingList = cleanScopes(missing);
+  const heldScopes = tokenScopes == null ? null : cleanScopes(tokenScopes);
   const declaredSet = new Set(declaredList);
   const statusFor = (name: string): ScopeRow['status'] =>
-    !checked ? 'unchecked' : missing.includes(name) ? 'missing' : 'granted';
+    !checked ? 'unchecked' : missingList.includes(name) ? 'missing' : 'granted';
 
   const rows: ScopeRow[] = declaredList.map((name) => ({
     name,
@@ -283,7 +291,7 @@ export function scopeRows(
 
   for (const name of OPTIONAL_USER_API_SCOPES) {
     if (declaredSet.has(name)) continue;
-    const held = checked && tokenScopes ? tokenScopeVerdict(tokenScopes, name) : null;
+    const held = checked && heldScopes ? tokenScopeVerdict(heldScopes, name) : null;
     rows.push({
       name,
       optional: true,
@@ -295,11 +303,9 @@ export function scopeRows(
       status:
         held === true
           ? 'granted'
-          : held === false
-            ? 'missing'
-            : checked && tokenScopes === undefined
-              ? 'not_declared'
-              : 'unchecked',
+          : held === false || (checked && tokenScopes === undefined)
+            ? 'not_declared'
+            : 'unchecked',
     });
   }
   return rows;
@@ -360,13 +366,14 @@ export function firstOpenReport(identity: Identity | null | undefined): FirstOpe
     return { ...base, verdict: 'unchecked', footer: { lead: NOT_COMPLETED, scopes: [], tail: '' } };
   }
 
-  const oauthVerified = session.signedIn;
-  const declared = session.declaredScopes;
+  const oauthVerified = session.signedIn === true;
+  const declared = Array.isArray(session.declaredScopes) ? session.declaredScopes : null;
+  const tokenScopes = Array.isArray(session.tokenScopes) ? session.tokenScopes : null;
   const unchecked = (lead: string): FirstOpenReport => ({
     ...base,
     oauthVerified,
     verdict: 'unchecked',
-    scopes: scopeRows(declared, [], false, session.tokenScopes),
+    scopes: scopeRows(declared, [], false, tokenScopes),
     footer: { lead, scopes: [], tail: '' },
   });
 
@@ -374,8 +381,8 @@ export function firstOpenReport(identity: Identity | null | undefined): FirstOpe
   if (session.state === 'undetermined') return unchecked(declared?.length ? NOT_CHECKED : NOTHING_DECLARED);
   if (!declared || declared.length === 0) return unchecked(NOTHING_DECLARED);
 
-  const allMissing = [...session.missingScopes];
-  const scopes = scopeRows(declared, allMissing, true, session.tokenScopes);
+  const allMissing = Array.isArray(session.missingScopes) ? session.missingScopes : [];
+  const scopes = scopeRows(declared, allMissing, true, tokenScopes);
   // Catalog (optional) shortfalls do not fail the gate. Asks do not need them.
   const missing = requiredMissingScopes(allMissing);
   if (missing.length === 0) {

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { EnvironmentInfo } from '../../shared/environment-info';
 import { filterEnvironmentItems } from './environment-filter';
 import { EnvironmentPanel } from './EnvironmentPanel';
+import { environmentInfoFromResponse } from './environment-response';
 
 const INFO: EnvironmentInfo = {
   runtime: { python: '3.11.15', node: 'v22.16.0' },
@@ -40,5 +41,40 @@ describe('Environment panel', () => {
     ]);
     expect(filterEnvironmentItems(INFO.packages, '4.3')).toEqual([{ name: 'zod', version: '4.3.6' }]);
     expect(INFO.variables).toHaveLength(2);
+  });
+
+  it('renders empty and malformed environment payloads without throwing', () => {
+    for (const payload of [
+      null,
+      {},
+      { runtime: null, variables: null, packages: null },
+      { runtime: {}, variables: [], packages: [] },
+      {
+        runtime: { python: null, node: 22 },
+        variables: [null, { key: 'SAFE', value: 'yes' }, { key: 7, value: false }],
+        packages: [undefined, { name: 'zod', version: '4.3.6' }, { name: null, version: [] }],
+      },
+    ]) {
+      const markup = renderToStaticMarkup(<EnvironmentPanel initialData={payload} />);
+      expect(markup).toContain('<h3>Environment</h3>');
+      expect(markup).toContain('Python unavailable');
+      expect(markup).toContain('Node.js unavailable');
+    }
+  });
+
+  it('keeps only complete string rows from hostile payloads', () => {
+    expect(
+      environmentInfoFromResponse({
+        variables: [null, { key: 'SAFE', value: 'yes' }, { key: 7, value: false }],
+        packages: [
+          { name: 'zod', version: '4.3.6' },
+          { name: null, version: [] },
+        ],
+      })
+    ).toEqual({
+      runtime: { python: '', node: '' },
+      variables: [{ key: 'SAFE', value: 'yes' }],
+      packages: [{ name: 'zod', version: '4.3.6' }],
+    });
   });
 });

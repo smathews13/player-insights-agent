@@ -1,34 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import { SettingsPage } from './SettingsPage';
-import { roleFrom } from './role';
+import { identityFromResponse } from './app-state';
+import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
+import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
+const FEATURES = { benchmarkLab: false, egressControls: true };
 
 function render(
   section: 'roles' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
-  identity: Parameters<typeof roleFrom>[0] = NORMAL_IDENTITY
+  role: RoleResolution = roleFrom(NORMAL_IDENTITY)
 ) {
   return renderToStaticMarkup(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route
-          element={
-            <Outlet
-              context={{
-                features: { benchmarkLab: false, egressControls: true },
-                setFeature: () => {},
-                role: roleFrom(identity),
-              }}
-            />
-          }
-        >
-          <Route path="/" element={<SettingsPage initialSection={section} />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
+    <SettingsPage initialSection={section} features={FEATURES} setFeature={() => {}} role={role} />
   );
 }
 
@@ -71,13 +56,43 @@ describe('Settings modal', () => {
     }
   });
 
-  it('renders a sane Roles pane with null, missing and normal identity payloads', () => {
-    for (const identity of [null, {}, NORMAL_IDENTITY]) {
-      const markup = render('roles', identity);
+  it('renders every pane without router outlet context', () => {
+    for (const section of ['roles', 'runtime', 'environment', 'appearance', 'egress', 'experimental'] as const) {
+      const markup = render(section);
       expect(markup).toContain('data-testid="settings-modal-overlay"');
+      expect(markup).not.toContain('This view could not be displayed');
+    }
+  });
+
+  it('renders Roles for null, undefined, refused, failed, missing-role and service-principal identities', () => {
+    const hostileIdentities: unknown[] = [
+      null,
+      undefined,
+      {}, // empty JSON
+      { status: 401 },
+      { status: 403 },
+      { status: 500 },
+      { signedInAs: '<your-username>' }, // missing role
+      {
+        signedInAs: 'service-principal',
+        executionIdentity: 'Astrolabe service principal',
+        executionMode: 'service-principal',
+      },
+    ];
+    for (const identity of hostileIdentities) {
+      const markup = render('roles', roleFrom(identityFromResponse(identity)));
       expect(markup).toContain('<h3>Roles</h3>');
       expect(markup).not.toContain('This view could not be displayed');
     }
+  });
+
+  it('falls back inside one pane instead of replacing the whole view', () => {
+    const boundary = new SettingsPaneBoundary({ section: 'environment', children: <div>unreachable</div> });
+    boundary.state = SettingsPaneBoundary.getDerivedStateFromError();
+    const markup = renderToStaticMarkup(<>{boundary.render()}</>);
+    expect(markup).toContain('<h3>Environment</h3>');
+    expect(markup).toContain('other Settings sections are still available');
+    expect(markup).not.toContain('This view could not be displayed');
   });
 
   it('keeps Settings behind the gear and opens a pasted deep link as the modal', () => {

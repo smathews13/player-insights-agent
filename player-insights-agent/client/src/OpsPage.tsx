@@ -758,7 +758,6 @@ function BarChart({
   series,
   tone,
   href,
-  note,
 }: {
   title: string;
   /** Shown INSTEAD of the bars when there are none, never under them. */
@@ -768,14 +767,6 @@ function BarChart({
   tone: 'failure' | 'refusal' | 'tool';
   /** Where a count links, if a count links anywhere. */
   href?: (bar: { key: string }) => string;
-  /**
-   * A standing fact about what this chart is FOR, under it whether or not it has
-   * bars. The tool-call chart carries the one that pays for the chart: a shift in
-   * its shape is usually the first sign a release moved the agent. It is body
-   * text, not a caption on the empty state, because it is true of the populated
-   * chart too.
-   */
-  note?: string;
 }) {
   return (
     <div className={`ops-chart ops-chart-${tone}`}>
@@ -808,7 +799,6 @@ function BarChart({
           ))}
         </ul>
       )}
-      {note ? <p className="ops-chart-note">{note}</p> : null}
     </div>
   );
 }
@@ -1289,11 +1279,6 @@ export function TrafficBody({
                 caption="No tool calls"
                 series={bars(payload.toolCalls)}
                 tone="tool"
-                // The reason this chart earns its column, said on the chart. It is
-                // the one whose shape an operator reads for release drift, so the
-                // sentence that tells them that stands under it rather than in a
-                // doc they will not have open.
-                note="A change in this shape is usually the first sign a release changed the agent's behaviour."
               />
             </div>
           </>

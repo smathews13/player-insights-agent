@@ -79,7 +79,6 @@ import {
 } from './conversation-run';
 import { AstrolabeMark } from './AstrolabeMark';
 import { ConceptFlicker } from './ConceptFlicker';
-import { WorkingConstellation } from './WorkingConstellation';
 import { WorkingInlineRow } from './WorkingInlineRow';
 import { elapsedSeconds, seatForTranscript, WORKING_LABEL } from './working-animation';
 import {
@@ -1803,15 +1802,7 @@ export function HomePage() {
                     ) : null}
                   </div>
                 </>
-              ) : liveStages.length > 0 ? (
-                /* Once the continuation reports its first real step, the growing
-                   run replaces the three-star waiting fragment in the card body.
-                   The same liveStages array drives the harness at right, so both
-                   surfaces advance from the same events after plan approval. */
-                <AgentPathConstellation stages={liveStages} activeIndex={railActiveIndex} elapsedMs={railElapsedMs} />
-              ) : (
-                <WorkingConstellation seat="card" elapsed={elapsed} />
-              )}
+              ) : null}
               {/* Still indeterminate, and still for the original reason: the run
                   reports each step on finishing it, so the client knows what has
                   happened but never how much is left -- the agent takes as many

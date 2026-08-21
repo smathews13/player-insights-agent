@@ -14,9 +14,7 @@ const IDENTITY: Identity = {
 
 describe('account menu', () => {
   it('opens with the live identity and the fixed menu order', () => {
-    const markup = renderToStaticMarkup(
-      <AccountMenuPanel identity={IDENTITY} onSignOut={() => {}} />
-    );
+    const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} onSignOut={() => {}} />);
     const labels = [
       'jordan.lee',
       'jordan.lee@example.com',
@@ -36,12 +34,8 @@ describe('account menu', () => {
 
   it('opens Slack DMs addressed to Sam for feedback and Garrett for escalation', () => {
     const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} onSignOut={() => {}} />);
-    expect(accountSlackHref('feedback')).toBe(
-      'https://slack.com/app_redirect?team=T02EPKPG3&channel=U04H3555WMB'
-    );
-    expect(accountSlackHref('escalation')).toBe(
-      'https://slack.com/app_redirect?team=T02EPKPG3&channel=U06BV72N4KY'
-    );
+    expect(accountSlackHref('feedback')).toBe('https://slack.com/app_redirect?team=T02EPKPG3&channel=U04H3555WMB');
+    expect(accountSlackHref('escalation')).toBe('https://slack.com/app_redirect?team=T02EPKPG3&channel=U06BV72N4KY');
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noopener noreferrer"');
   });
@@ -73,6 +67,8 @@ describe('account menu', () => {
     const layout = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
     expect(layout).toContain('aria-label="App settings"');
     expect(layout).toContain('onClick={() => setSettingsOpen(true)}');
-    expect(layout).toContain('<SettingsPage onClose={closeSettings} />');
+    expect(layout).toContain('<SettingsPage');
+    expect(layout).toContain('features={features}');
+    expect(layout).toContain('role={role}');
   });
 });

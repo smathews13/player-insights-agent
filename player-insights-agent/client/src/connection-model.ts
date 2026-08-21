@@ -446,7 +446,11 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
   // A refusal is answered by a permission and an unreachable call by a retry or an
   // escalation, which is two next moves and so two headings.
   { key: 'unreachable', title: 'Unreachable' },
-  { key: 'reachable', title: 'Checked and reachable' },
+  // Named for what the rows ARE rather than for what the probe did to them.
+  // "Checked and reachable" described the last preflight; a reader opening this
+  // tab wants the list of live services the app is wired to, which is the same
+  // list under a name that says so.
+  { key: 'reachable', title: 'Connected resources' },
   { key: 'not-checked', title: 'Not checked' },
   { key: 'configuration', title: 'Configuration' },
 ];
@@ -457,7 +461,7 @@ const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
  * Drift outranks reachability, and that is the whole reason this is a function
  * rather than a read of `status`. A warehouse the endpoint reached, running under
  * an id this deployment was not configured with, is `reachable` on the badge and
- * is the most interesting row on the page: filed under "Checked and reachable"
+ * is the most interesting row on the page: filed under "Connected resources"
  * it would be the twelfth green row in a list nobody reads to the end.
  */
 export function connectionGroupKey(reading: ConnectionReading): ConnectionGroupKey {

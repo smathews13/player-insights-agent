@@ -321,6 +321,64 @@
   font-size: 15px;
   font-weight: 700;
 }
+/* The "i", beside the two headers that name a kind of thing rather than a
+   verdict. Inline-flex and baseline-aligned so it sits inside the heading line
+   without giving the heading a height of its own, and `position: relative` so
+   the sentence below positions against the icon rather than against the page. */
+.connection-group-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted-foreground);
+  vertical-align: middle;
+  /* Not `pointer`: nothing happens when it is clicked. The control exists to be
+     hovered and focused. */
+  cursor: help;
+}
+.connection-group-hint:hover {
+  color: var(--db-body);
+}
+/* The sentence, on hover and on keyboard focus. Same idiom as the release
+   chip's tooltip in shell.css, including why it is hidden by OPACITY rather
+   than by `display`: it is the target of the button's `aria-describedby`, and a
+   description that is `display: none` is not reliably resolved.
+   `pointer-events: none` keeps the invisible box from swallowing clicks meant
+   for the rows underneath. */
+.connection-group-hint-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: max-content;
+  max-width: min(70vw, 340px);
+  padding: 8px 10px;
+  border: 1px solid var(--db-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  box-shadow: 0 6px 16px color-mix(in oklab, var(--db-ink-deep) 14%, transparent);
+  color: var(--db-body);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.connection-group-hint:hover .connection-group-hint-tooltip,
+.connection-group-hint:focus-visible .connection-group-hint-tooltip {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .connection-group-hint-tooltip {
+    transition: none;
+  }
+}
 /* The extent of what nobody asked about, beside the header that says nobody
    asked. In the caption rung and at the body weight, so it reads as a
    measurement of the section rather than as part of its name. */
@@ -749,10 +807,18 @@
 }
 
 /* Permissions are reference data, not tags: two explicit columns keep every
-   exact scope beside the explanation a reader needs to understand it. */
+   exact scope beside the explanation a reader needs to understand it.
+
+   AND IT IS ITS OWN BLOCK. The card's 6px row gap is the spacing between facts
+   that are read as one column; the table is a different kind of thing, and at
+   6px its header row sat flush under "App client id" and read as a third
+   identity row. The rule and the room above it say where the facts stop. */
 .identity-scope-table-wrap {
   width: 100%;
   overflow-x: auto;
+  margin-top: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 .identity-scope-table {
   width: 100%;
@@ -769,6 +835,7 @@
 .identity-scope-table th {
   font-weight: 600;
   color: var(--ast-text);
+  background: var(--muted);
 }
 .identity-scope-table th:first-child,
 .identity-scope-table td:first-child {
@@ -781,6 +848,10 @@
 }
 .identity-scope-default {
   color: var(--muted-foreground);
+}
+/* Anything after the table needs the same break, in the other direction. */
+.identity-scope-table-wrap + .identity-fact {
+  margin-top: 10px;
 }
 
 /* ── Sign in again ──────────────────────────────────────────────────────────

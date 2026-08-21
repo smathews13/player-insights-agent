@@ -518,7 +518,11 @@
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--ast-white) 96%, transparent);
+  /* A high white alpha rather than a flat white, so the rail's navy reads as a
+     faint tinge through the card instead of the card reading as a cut-out. 0.9 is
+     the floor that keeps body text on the card above the contrast the opaque
+     surface had. */
+  background: rgba(255, 255, 255, 0.9);
   transition:
     border-color 150ms ease-out,
     background-color 150ms ease-out;
@@ -670,14 +674,17 @@
    rail are gone with every other shadow on a static panel. */
 .conversation-row:hover {
   border-color: var(--primary);
-  background: var(--db-row-hover);
+  /* Hover lifts toward white rather than washing grey: on a translucent card over
+     navy, the legible direction for "under the pointer" is less navy showing
+     through, not more. */
+  background: rgba(255, 255, 255, 0.96);
 }
-/* Selected is the blue border on the faint blue ground. Blue because a selected row
-   is the app's own "this is the one you picked", which is the same statement a
-   pressed tab makes. The tint is pitched so muted text still clears AA on it. */
+/* Selected keeps the same card surface as the rows around it and changes only the
+   border. It carries a hair less navy than a resting row so the open conversation
+   still sits forward. */
 .conversation-row.active {
   border-color: var(--primary);
-  background: var(--db-selected-tint);
+  background: rgba(255, 255, 255, 0.94);
 }
 .conversation-rail > .ast-eyebrow,
 .conversation-rail .section-label-scope {

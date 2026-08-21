@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Search } from 'lucide-react';
-import type {
-  EnvironmentInfo,
-  EnvironmentPackage,
-  EnvironmentVariable,
-} from '../../shared/environment-info';
+import type { EnvironmentInfo, EnvironmentPackage, EnvironmentVariable } from '../../shared/environment-info';
 import { filterEnvironmentItems } from './environment-filter';
+import { environmentInfoFromResponse } from './environment-response';
 import { Badge, Button, Input } from './ui';
 
 type EnvironmentTab = 'variables' | 'packages';
@@ -13,9 +10,7 @@ type EnvironmentRow = EnvironmentVariable | EnvironmentPackage;
 
 function rowsForClipboard(tab: EnvironmentTab, rows: readonly EnvironmentRow[]): string {
   const headings = tab === 'variables' ? ['Key', 'Value'] : ['Package', 'Version'];
-  const body = rows.map((row) =>
-    'key' in row ? [row.key, row.value] : [row.name, row.version]
-  );
+  const body = rows.map((row) => ('key' in row ? [row.key, row.value] : [row.name, row.version]));
   return [headings, ...body].map((columns) => columns.join('\t')).join('\n');
 }
 
@@ -23,20 +18,21 @@ async function copyText(value: string): Promise<void> {
   await navigator.clipboard.writeText(value);
 }
 
-export function EnvironmentPanel({ initialData }: { initialData?: EnvironmentInfo }) {
-  const [data, setData] = useState<EnvironmentInfo | null>(initialData ?? null);
-  const [state, setState] = useState<'loading' | 'ready' | 'failed'>(initialData ? 'ready' : 'loading');
+export function EnvironmentPanel({ initialData }: { initialData?: unknown }) {
+  const normalizedInitial = initialData === undefined ? null : environmentInfoFromResponse(initialData);
+  const [data, setData] = useState<EnvironmentInfo | null>(normalizedInitial);
+  const [state, setState] = useState<'loading' | 'ready' | 'failed'>(normalizedInitial ? 'ready' : 'loading');
   const [active, setActive] = useState<EnvironmentTab>('variables');
   const [query, setQuery] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (initialData) return;
+    if (initialData !== undefined) return;
     let current = true;
     fetch('/api/environment')
       .then(async (response) => {
         if (!response.ok) throw new Error('Runtime details are not available just now.');
-        return (await response.json()) as EnvironmentInfo;
+        return environmentInfoFromResponse(await response.json());
       })
       .then((payload) => {
         if (!current) return;

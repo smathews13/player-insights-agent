@@ -266,6 +266,28 @@
   overflow-wrap: anywhere;
 }
 
+.fo-scope-detail {
+  display: block;
+  margin-top: 3px;
+  max-width: 28rem;
+  color: var(--ast-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.fo-scope-row > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.fo-scope-request {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
 /* Inside the box, under the rows, so the fix reads as part of the finding rather
    than as a separate remark under the card.
 

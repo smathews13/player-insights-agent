@@ -30,6 +30,8 @@
  * MLflow substitute: Apps still has no MLflow scope at all.
  */
 export const WORKSPACE_READ_USER_API_SCOPE = 'workspace.workspace:read' as const;
+/** Official Databricks API scope for Lakebase Postgres control-plane operations. */
+export const LAKEBASE_USER_API_SCOPE = 'postgres' as const;
 
 export const OPTIONAL_USER_API_SCOPES = [
   'catalog.catalogs:read',
@@ -49,7 +51,7 @@ export const OPTIONAL_USER_API_SCOPES = [
   // Lakebase (Postgres) control-plane browse: projects, branches, databases.
   // Apps accepts `postgres` (also used for OBO Lakebase queries). Without it
   // the Connections Lakebase picker stays a typed full resource name.
-  'postgres',
+  LAKEBASE_USER_API_SCOPE,
 ] as const;
 
 export type OptionalUserApiScope = (typeof OPTIONAL_USER_API_SCOPES)[number];

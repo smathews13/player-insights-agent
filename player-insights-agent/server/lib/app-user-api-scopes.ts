@@ -8,7 +8,7 @@
  * would turn a clear CAN MANAGE refusal into a misleading self-elevation flow.
  */
 import { REQUIRED_USER_API_SCOPES } from '../../shared/required-user-api-scopes';
-import { WORKSPACE_READ_USER_API_SCOPE } from '../../shared/optional-user-api-scopes';
+import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes';
 
 const APPS_PATH = '/api/2.0/apps';
 
@@ -22,6 +22,8 @@ export interface ScopeUpdaterOptions {
   host: string;
   appName: string;
   userToken: string;
+  /** Optional browse scopes requested by a specific UI action. */
+  additionalScopes?: readonly string[];
   fetchImpl?: typeof fetch;
 }
 
@@ -41,7 +43,12 @@ function scopesFrom(body: unknown): string[] {
       ? (body as Record<string, unknown>).user_api_scopes
       : undefined;
   if (!Array.isArray(raw)) return [];
-  return raw.filter((scope): scope is string => typeof scope === 'string' && Boolean(scope.trim()));
+  return [...new Set(
+    raw
+      .filter((scope): scope is string => typeof scope === 'string')
+      .map((scope) => scope.trim())
+      .filter(Boolean),
+  )];
 }
 
 function appUrl(host: string, appName: string): string {
@@ -69,12 +76,12 @@ function failed(response: Response, body: unknown): ScopeUpdateResult {
 /**
  * Read, merge, then update. The stable de-duplication preserves every scope an
  * administrator already granted and makes a repeated click a no-op. Workspace
- * read is optional to asks but included here because a Git deploy otherwise
- * cannot obtain the token scope used by Connections notebook browsing.
+ * browse scopes are optional to asks but included here because a Git deploy
+ * otherwise cannot obtain the token scopes used by Connections browsing.
  */
 export const MANAGER_GRANT_USER_API_SCOPES = [
   ...REQUIRED_USER_API_SCOPES,
-  WORKSPACE_READ_USER_API_SCOPE,
+  ...OPTIONAL_USER_API_SCOPES,
 ] as const;
 
 export async function allowAstrolabeUserApiScopes(
@@ -97,7 +104,10 @@ export async function allowAstrolabeUserApiScopes(
   if (!read.ok) return failed(read, currentBody);
 
   const current = scopesFrom(currentBody);
-  const merged = [...new Set([...current, ...MANAGER_GRANT_USER_API_SCOPES])];
+  const managed = options.additionalScopes
+    ? [...REQUIRED_USER_API_SCOPES, ...options.additionalScopes]
+    : MANAGER_GRANT_USER_API_SCOPES;
+  const merged = [...new Set([...current, ...managed])];
   if (merged.length === current.length) return { kind: 'unchanged', scopes: current };
 
   let update: Response;

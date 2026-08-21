@@ -604,7 +604,7 @@ export function Layout() {
       </main>
       {settingsVisible ? (
         <AdminOnly>
-          <SettingsPage onClose={closeSettings} />
+          <SettingsPage onClose={closeSettings} features={features} setFeature={setFeature} role={role} />
         </AdminOnly>
       ) : null}
     </div>

@@ -151,6 +151,7 @@
   width: fit-content;
   max-width: 80%;
   padding: 10px 14px;
+  border: 1px solid var(--ast-blue-on-dark);
   /* 8/8/2/8: the panel radius on three corners and a near-square notch on the one
      that points at the avatar. It was 14/14/3/14, a fourth radius in a token block
      that says in as many words that there is no third one, and the difference shows
@@ -168,7 +169,11 @@
   cursor: text;
 }
 .user-avatar {
-  max-width: 160px;
+  max-width: none;
+}
+.user-avatar .identity-chip-text {
+  overflow: visible;
+  text-overflow: clip;
 }
 /*
  * Selection, per surface.

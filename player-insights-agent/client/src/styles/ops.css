@@ -902,18 +902,6 @@ a.ops-bar-count:hover {
   margin: 0;
 }
 
-/*
- * A standing note under a chart (the tool-call chart's release-drift line).
- * Body text: no colour, no icon, per the tab's copy rules. It sits under the
- * bars, so a small top margin lifts it off the last row.
- */
-.ops-chart-note {
-  margin: 4px 0 0;
-  font-size: var(--text-xs);
-  color: var(--ast-text-secondary);
-  line-height: 1.4;
-}
-
 .ops-skeleton {
   height: 8rem;
   width: 100%;

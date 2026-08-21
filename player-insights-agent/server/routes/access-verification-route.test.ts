@@ -20,6 +20,7 @@ import {
   type AccessDecision,
 } from './execution-identity';
 import { resetLakebaseHealth } from '../lib/lakebase-store';
+import { MANAGER_GRANT_USER_API_SCOPES } from '../lib/app-user-api-scopes';
 
 /**
  * `/api/access-verification` from the outside, which is the only place several
@@ -431,15 +432,57 @@ describe('POST /api/app-user-api-scopes', () => {
       'Bearer user-token',
     ]);
     expect(calls[1].body).toEqual({
+      user_api_scopes: [...new Set(['catalog.tables:read', ...MANAGER_GRANT_USER_API_SCOPES])],
+    });
+  });
+
+  it('requests only a supported optional scope from an untrusted body', async () => {
+    const calls: unknown[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      if (requestedUrl(input) !== APP) return real(input, init);
+      calls.push(typeof init?.body === 'string' ? JSON.parse(init.body) : null);
+      return Promise.resolve(calls.length === 1 ? new Response('{"user_api_scopes":[]}') : new Response('{}'));
+    });
+    const app = await startApp(retiredWithoutConfiguration());
+    try {
+      const response = await fetch(app.url('/api/app-user-api-scopes'), {
+        ...asUser('user-token'),
+        headers: { ...asUser('user-token').headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ scope: 'postgres' }),
+      });
+      expect(response.status).toBe(200);
+    } finally {
+      await app.close();
+    }
+
+    expect(calls[1]).toEqual({
       user_api_scopes: [
-        'catalog.tables:read',
         'serving.serving-endpoints',
         'model-serving',
         'sql',
         'dashboards.genie',
-        'workspace.workspace:read',
+        'postgres',
       ],
     });
+  });
+
+  it('rejects a hostile scope name before calling Databricks', async () => {
+    const call = vi.spyOn(globalThis, 'fetch');
+    const app = await startApp(retiredWithoutConfiguration());
+    let response: Response;
+    try {
+      response = await fetch(app.url('/api/app-user-api-scopes'), {
+        ...asUser('user-token'),
+        headers: { ...asUser('user-token').headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ scope: '<script>alert(1)</script>' }),
+      });
+    } finally {
+      await app.close();
+    }
+
+    expect(response.status).toBe(400);
+    expect(call).toHaveBeenCalledTimes(1);
   });
 
   it('returns a clear refusal when the user cannot manage the app', async () => {

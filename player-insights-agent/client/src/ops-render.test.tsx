@@ -1235,21 +1235,16 @@ describe('the traffic block', () => {
       expect(markup).not.toContain('ops-bar-fill');
     });
 
-    /**
-     * THE LINE THAT SAYS WHY THIS CHART IS HERE. The handoff asks the tool-call
-     * chart to carry a standing note about release drift: a change in its shape
-     * is usually the first visible sign a release moved the agent. It is body
-     * text under the chart, true of the populated chart, so it must show whether
-     * or not any tool was called.
-     */
-    it('carries the release-drift note whether or not a tool was called', () => {
+    it('prints the bars with no standing note under them', () => {
       const populated = text(render(<TrafficBody block={block(traffic())} />));
-      expect(populated).toContain('first sign a release changed the agent');
+      expect(populated).not.toContain('first sign a release changed the agent');
+      expect(populated).toContain('Tool calls by tool');
 
       const empty = text(
         render(<TrafficBody block={block(traffic({ toolCalls: [], failuresByCause: [], refusalsByCause: [] }))} />)
       );
-      expect(empty).toContain('first sign a release changed the agent');
+      expect(empty).not.toContain('first sign a release changed the agent');
+      expect(empty).toContain('No tool calls');
     });
   });
 });

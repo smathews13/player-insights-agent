@@ -170,8 +170,8 @@ describe('the scopes the bundle declares against the scopes the probes call with
    * day. So an ADDITION has to break this test too, not just a removal.
    */
   it('requests those and no more, so an added scope is a decision rather than a drift', () => {
-    // example inherits the shared default. Workspace read is now required by the
-    // released notebook browser; postgres remains staged for Lakebase browse.
+    // example inherits the shared default. Workspace read and postgres are now
+    // requested for the released notebook and Lakebase browsers.
     expect(effectiveScopes('example')).toEqual([
       'serving.serving-endpoints',
       'model-serving',
@@ -183,6 +183,7 @@ describe('the scopes the bundle declares against the scopes the probes call with
       'workspace.workspace:read',
       'vectorsearch.vector-search-indexes:read',
       'vectorsearch.vector-search-endpoints:read',
+      'postgres',
     ]);
   });
 
@@ -197,8 +198,8 @@ describe('the scopes the bundle declares against the scopes the probes call with
     expect(declaredScopes('example')).toEqual([]);
   });
 
-  it('keeps only the unreleased Lakebase scope staged', () => {
-    expect(stagedScopes('example')).toEqual(['postgres']);
+  it('has no staged scopes after releasing Lakebase browse', () => {
+    expect(stagedScopes('example')).toEqual([]);
   });
 
   // A scope cannot be both. Advancing a staged name means moving it, not
@@ -351,10 +352,10 @@ describe('the shared default every customer / T2 deployment inherits', () => {
     expect(declared).toContain('vectorsearch.vector-search-endpoints:read');
   });
 
-  it('declares workspace read for notebook browse and leaves postgres staged', () => {
+  it('declares workspace and Lakebase browse with nothing staged', () => {
     expect(defaultScopes()).toContain('workspace.workspace:read');
-    expect(defaultScopes()).not.toContain('postgres');
-    expect(defaultStagedScopes()).toEqual(['postgres']);
+    expect(defaultScopes()).toContain('postgres');
+    expect(defaultStagedScopes()).toEqual([]);
   });
 
   /**
@@ -374,6 +375,7 @@ describe('the shared default every customer / T2 deployment inherits', () => {
       'workspace.workspace:read',
       'vectorsearch.vector-search-indexes:read',
       'vectorsearch.vector-search-endpoints:read',
+      'postgres',
     ]);
   });
 });

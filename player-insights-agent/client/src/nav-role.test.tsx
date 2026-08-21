@@ -174,7 +174,9 @@ describe('Settings stays behind the gear', () => {
   });
 
   it('mounts the modal from Layout for the gear and deep link', () => {
-    expect(LAYOUT).toContain('<SettingsPage onClose={closeSettings} />');
+    expect(LAYOUT).toContain('<SettingsPage');
+    expect(LAYOUT).toContain('features={features}');
+    expect(LAYOUT).toContain('role={role}');
     expect(LAYOUT).toContain('settingsVisible ?');
     expect(LAYOUT).toContain("location.pathname === '/settings'");
   });

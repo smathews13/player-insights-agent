@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ConfigurationList,
   ConnectionRow,
+  GroupHint,
   ConnectionsCounts,
   DataCatalogsValue,
   CatalogDenylistValue,
@@ -228,6 +229,59 @@ describe('the Configuration list', () => {
     );
     expect(editable).toContain('data-affordance="write"');
     expect(configuration()).toContain('data-affordance="locked"');
+  });
+});
+
+/**
+ * The two section headers that name a KIND of thing rather than a verdict.
+ *
+ * "Blocked" and "Unreachable" say what they mean in the word. "Connected
+ * resources" and "Configuration" do not: a reader who has never deployed this
+ * agent cannot tell from either name what the rows under it decide, and the
+ * section that used to be called "Checked and reachable" was named after what
+ * the last preflight DID rather than after what the rows are.
+ */
+describe('the headers that say what a section is', () => {
+  function configurationHeader(): string {
+    const group = groupsFor(CONFIG_ROWS).find((candidate) => candidate.key === 'configuration')!;
+    return render(
+      <ConfigurationList
+        group={group}
+        saving=""
+        requestedResource=""
+        onSave={() => Promise.resolve(true)}
+        onClear={async () => {}}
+      />
+    );
+  }
+
+  it('names the reachable list for what its rows are, not for what the probe did', () => {
+    const groups = groupsFor([row('sql-warehouse', { configured: 'wh-0001' })], [check('sql-warehouse', 'ok')]);
+    expect(groups[0]?.title).toBe('Connected resources');
+    expect(groups[0]?.title).not.toMatch(/checked/i);
+  });
+
+  /**
+   * THE SENTENCE IS AN ELEMENT, NOT A `title` ATTRIBUTE, which is the whole
+   * reason this is asserted at all: `title` is pointer-only, so there would be
+   * no keystroke that reaches the explanation, and the release chip spent a
+   * release proving that failure mode.
+   */
+  it('explains Configuration in one sentence a reader can reach by keyboard', () => {
+    const markup = configurationHeader();
+    expect(markup).toContain('data-testid="connection-group-hint"');
+    expect(markup).toContain('role="tooltip"');
+    expect(markup).toContain('aria-describedby');
+    const sentence = text(markup).match(/These are the settings[^.]*\./)?.[0] ?? '';
+    expect(sentence).toContain('how the agent answers');
+    // One sentence, and none of the machinery the rows already name.
+    expect(sentence).not.toMatch(/\.ts|Lakebase schema|MLflow experiment/);
+  });
+
+  it('gives the hint a name of its own rather than reading the sentence out as one', () => {
+    const markup = render(<GroupHint label="Connected resources" hint="The live services this app is wired to." />);
+    expect(markup).toContain('aria-label="What Connected resources means"');
+    expect(text(markup)).toContain('The live services this app is wired to.');
   });
 });
 

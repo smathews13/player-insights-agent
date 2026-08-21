@@ -86,6 +86,7 @@ import {
 import { consumeServingStream, TruncatedStreamError, type StageSink } from '../lib/serving-stream';
 import { createAskResponder } from '../lib/ask-responder';
 import { allowAstrolabeUserApiScopes } from '../lib/app-user-api-scopes';
+import { isOptionalUserApiScope } from '../../shared/optional-user-api-scopes';
 import {
   accessDecisionFor,
   accessModeFor,
@@ -2825,6 +2826,16 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
      * that matters, and the Apps API evaluates it from the forwarded token.
      */
     app.post('/api/app-user-api-scopes', async (req, res) => {
+      const requestedScope = (req.body as { scope?: unknown } | undefined)?.scope;
+      if (requestedScope !== undefined && (
+        typeof requestedScope !== 'string' || !isOptionalUserApiScope(requestedScope)
+      )) {
+        res.status(400).json({
+          error: 'unsupported_scope',
+          message: 'Only a known optional Databricks scope can be requested here.',
+        });
+        return;
+      }
       const userToken = forwardedUserToken(req);
       if (!userToken) {
         res.status(409).json({
@@ -2847,6 +2858,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         host,
         appName,
         userToken,
+        additionalScopes: requestedScope ? [requestedScope] : undefined,
       });
       if (outcome.kind === 'refused') {
         res.status(403).json({ error: 'app_manage_required', message: outcome.message });

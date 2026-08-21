@@ -100,6 +100,7 @@ function draw(over: Partial<Identity> = {}): string {
       onRefresh={() => {}}
       onSkip={() => {}}
       onAllowRequiredScopes={() => {}}
+      onRequestScope={() => {}}
     />
   );
 }
@@ -142,11 +143,10 @@ describe('all required scopes granted', () => {
     expect(markup).not.toContain('>Missing<');
     expect(markup).not.toContain('>Not checked<');
     expect(markup).toContain('Optional scopes');
-    // The token was inspected and carries none of the optional families, so
-    // omission from the app.yaml fallback is not allowed to masquerade as
-    // "Not requested". Optional absence stays neutral because asks still work.
-    expect(markup.match(/>Not granted</g)).toHaveLength(OPTIONAL_ROWS);
-    expect(markup).not.toContain('>Not requested<');
+    expect(markup.match(/>Not requested</g)).toHaveLength(OPTIONAL_ROWS);
+    expect(markup.match(/>Request</g)).toHaveLength(OPTIONAL_ROWS);
+    expect(markup).toContain('postgres');
+    expect(markup).toContain('Allows the app to read Lakebase projects, branches, and databases.');
     expect(markup).toContain('The app cannot answer questions without these: they power serving, SQL, and Genie.');
     expect(markup).toContain(
       'Questions still work without these; they unlock Connections browsing (catalogs, tables, notebooks, Vector Search) and Lakebase, and a deployment can omit any of them.'

@@ -398,10 +398,16 @@ describe('the two marks that sign a transcript', () => {
     expect(body('.agent-avatar svg')).toMatch(/height:\s*32px/);
   });
 
-  it('gives the reader’s bubble the panel radius rather than a fourth one', () => {
+  it('outlines every reader question and leaves the full asker name visible', () => {
+    // Every live, replayed, follow-up and plan-approval user turn reaches this one
+    // role branch, so the class is the contract for all question surfaces.
+    expect(HOME_PAGE).toMatch(/message\.role === 'user'[\s\S]{0,180}className="user-bubble"/);
+    expect(body('.user-bubble')).toMatch(/border:\s*1px solid var\(--ast-blue-on-dark\)/);
     // 8/8/2/8, per the handoff. It was 14/14/3/14, and a 14px bubble beside an 8px
     // answer card reads as two different applications.
     expect(body('.user-bubble')).toMatch(/border-radius:\s*8px 8px 2px 8px/);
+    expect(body('.user-avatar')).toMatch(/max-width:\s*none/);
+    expect(body('.user-avatar .identity-chip-text')).toMatch(/overflow:\s*visible/);
   });
 });
 
@@ -462,16 +468,15 @@ describe('the owner filter chips are the one control that may not move when pres
 });
 
 describe('the inspector while a run is still going', () => {
-  it('replaces the waiting fragment in the answer card with the same growing path', () => {
-    // The compact constellation is only the before-first-event state. Leaving it
-    // mounted for the whole request produced the reported empty dark card even
-    // while liveStages was filling the harness beside it.
-    expect(HOME_PAGE).toMatch(
-      /liveStages\.length > 0 \? \([\s\S]{0,420}<AgentPathConstellation[\s\S]{0,180}stages=\{liveStages\}/
-    );
-    expect(HOME_PAGE).toMatch(
-      /<AgentPathConstellation[\s\S]{0,240}elapsedMs=\{railElapsedMs\}[\s\S]{0,180}<WorkingConstellation seat="card"/
-    );
+  it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
+    // The answer pane reports live steps in text; only the inspector draws their
+    // expanding numbered path.
+    const answerPane = HOME_PAGE.slice(0, HOME_PAGE.indexOf('<aside className="trace-inspector">'));
+    const harness = HOME_PAGE.slice(HOME_PAGE.indexOf('<aside className="trace-inspector">'));
+    expect(answerPane).not.toContain('<AgentPathConstellation');
+    expect(answerPane).not.toContain('<WorkingConstellation');
+    expect(harness.match(/<AgentPathConstellation/g)).toHaveLength(1);
+    expect(HOME_PAGE).not.toContain("import { WorkingConstellation } from './WorkingConstellation'");
   });
 
   it('marks a plan resolved as soon as its approval row is appended', () => {

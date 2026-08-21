@@ -91,6 +91,8 @@ import {
   type FirstOpenReport,
   type ScopeRow,
 } from './first-open';
+import { LAKEBASE_USER_API_SCOPE } from '../../shared/optional-user-api-scopes';
+import { userApiScopeDetail } from '../../shared/user-api-scope-details';
 
 /**
  * One scope's verdict, in the app's ONE pill recipe.
@@ -136,11 +138,15 @@ function ScopeSection({
   scopes,
   note,
   footer,
+  onRequestScope,
+  requestingScope,
 }: {
   heading: string;
   scopes: readonly ScopeRow[];
   note?: string;
   footer?: ReactNode;
+  onRequestScope?: (scope: string) => void;
+  requestingScope?: string | null;
 }) {
   /*
    * A BOX WITH NOTHING IN IT IS THE ONE THING NOT DRAWN, and "nothing" has to
@@ -162,8 +168,24 @@ function ScopeSection({
         <ul className="fo-scope-list">
           {scopes.map((scope) => (
             <li className="fo-scope-row" key={scope.name} data-optional={scope.optional ? 'true' : undefined}>
-              <code className="fo-scope-name">{scope.name}</code>
-              <ScopePill status={scope.status} optional={scope.optional} />
+              <span>
+                <code className="fo-scope-name">{scope.name}</code>
+                {scope.name === LAKEBASE_USER_API_SCOPE ? (
+                  <span className="fo-scope-detail">{userApiScopeDetail(scope.name)}</span>
+                ) : null}
+              </span>
+              <span>
+                <ScopePill status={scope.status} optional={scope.optional} />
+                {scope.status === 'not_declared' && onRequestScope ? (
+                  <Button
+                    className="fo-scope-request"
+                    onClick={() => onRequestScope(scope.name)}
+                    disabled={Boolean(requestingScope)}
+                  >
+                    {requestingScope === scope.name ? 'Requesting\u2026' : 'Request'}
+                  </Button>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>
@@ -201,7 +223,9 @@ export function FirstOpenPanel({
   onRefresh,
   onSkip,
   onAllowRequiredScopes,
+  onRequestScope,
   allowingRequiredScopes = false,
+  requestingScope = null,
   scopeUpdateMessage = null,
   onSky = false,
   rising = false,
@@ -218,7 +242,9 @@ export function FirstOpenPanel({
   onSkip: () => void;
   /** Adds the required scopes plus workspace browse through the signed-in user's token. */
   onAllowRequiredScopes?: () => void;
+  onRequestScope?: (scope: string) => void;
   allowingRequiredScopes?: boolean;
+  requestingScope?: string | null;
   scopeUpdateMessage?: { kind: 'success' | 'error'; text: string } | null;
   /**
    * Whether the opening sequence is drawing underneath. The backdrop goes
@@ -311,6 +337,8 @@ export function FirstOpenPanel({
           heading={OPTIONAL_SCOPES_HEADING}
           scopes={optionalScopeRows(report.scopes)}
           note={OPTIONAL_SCOPES_NOTE}
+          onRequestScope={onRequestScope}
+          requestingScope={requestingScope}
         />
 
         {/*
@@ -468,6 +496,7 @@ export function useFirstOpen(identity: Identity): FirstOpen {
   const [animates] = useState(() => transitionRuns({ reducedMotion: prefersReducedMotion() }));
   const [leaving, setLeaving] = useState(false);
   const [allowingRequiredScopes, setAllowingRequiredScopes] = useState(false);
+  const [requestingScope, setRequestingScope] = useState<string | null>(null);
   const [scopeUpdateMessage, setScopeUpdateMessage] = useState<{
     kind: 'success' | 'error';
     text: string;
@@ -603,6 +632,29 @@ export function useFirstOpen(identity: Identity): FirstOpen {
     }
   };
 
+  const requestOptionalScope = async (scope: string) => {
+    setRequestingScope(scope);
+    setScopeUpdateMessage(null);
+    try {
+      const response = await fetch('/api/app-user-api-scopes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scope }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { message?: unknown };
+      const message = typeof body.message === 'string' ? body.message : '';
+      if (!response.ok) throw new Error(message || 'The app could not request this scope.');
+      setScopeUpdateMessage({
+        kind: 'success',
+        text: message || 'Access was requested. Sign in again so the new access takes effect.',
+      });
+    } catch (error) {
+      setScopeUpdateMessage({ kind: 'error', text: (error as Error).message });
+    } finally {
+      setRequestingScope(null);
+    }
+  };
+
   if (stage === 'open') return { stage, gate: null };
   if (stage === 'pending') {
     return { stage, gate: sequence ? <OpeningSequence intro={intro} /> : <FirstOpenHold /> };
@@ -625,7 +677,9 @@ export function useFirstOpen(identity: Identity): FirstOpen {
       leaving={leaving}
       onContinue={leave(acknowledgeFirstOpen)}
       onAllowRequiredScopes={() => void allowRequiredScopes()}
+      onRequestScope={(scope) => void requestOptionalScope(scope)}
       allowingRequiredScopes={allowingRequiredScopes}
+      requestingScope={requestingScope}
       scopeUpdateMessage={scopeUpdateMessage}
       /*
        * Identical in effect to Continue, and that is the requirement rather than
