@@ -142,7 +142,7 @@ env:
   # list on its own Connections page.
   #
   - name: PLAYER_INSIGHTS_USER_API_SCOPES
-    value: 'serving.serving-endpoints,model-serving,sql,dashboards.genie'
+    value: 'serving.serving-endpoints,model-serving,sql,dashboards.genie,workspace.workspace:read'
   - name: NODE_ENV
     value: production
   - name: PLAYER_INSIGHTS_BUILD_ANCESTORS
