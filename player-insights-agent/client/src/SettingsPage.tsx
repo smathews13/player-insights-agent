@@ -13,6 +13,7 @@ import { Button, Switch } from './ui';
 type SettingsSection = 'roles' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
 
 const noopClose = () => {};
+const noopSetFeature = () => {};
 
 const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'roles', label: 'Roles' },
@@ -73,18 +74,26 @@ export class SettingsPaneBoundary extends Component<SettingsPaneBoundaryProps, S
 export function SettingsPage({
   onClose,
   initialSection = 'runtime',
-  features = DEFAULT_FEATURES,
-  setFeature = () => {},
-  role = DEFAULT_ROLE,
+  features: featuresProp,
+  setFeature: setFeatureProp,
+  role: roleProp,
 }: {
   onClose?: () => void;
   initialSection?: SettingsSection;
-  features?: ExperimentalFeatures;
+  features?: ExperimentalFeatures | null;
   setFeature?: (name: keyof ExperimentalFeatures, enabled: boolean) => void;
-  role?: RoleResolution;
+  role?: RoleResolution | null;
 }) {
   const [active, setActive] = useState<SettingsSection>(initialSection);
   const close = onClose ?? noopClose;
+  // `?? ` rather than a default parameter, because a default parameter only
+  // covers `undefined`. A caller handing down a value it fetched can hand down
+  // null, and `null.state` a few lines below is read while THIS component
+  // renders -- outside the pane boundary, so it would take the page down rather
+  // than one section of it.
+  const features = featuresProp ?? DEFAULT_FEATURES;
+  const role = roleProp ?? DEFAULT_ROLE;
+  const setFeature = setFeatureProp ?? noopSetFeature;
   const sections = BASE_SECTIONS.filter((section) => section.id !== 'egress' || showsEgressControls(features));
 
   useEffect(() => {

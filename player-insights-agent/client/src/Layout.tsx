@@ -602,8 +602,15 @@ export function Layout() {
             which set of tabs the reader is entitled to. */}
         <Outlet context={{ features, setFeature, role } satisfies AppOutletContext} />
       </main>
+      {/* THE ROLE IS HANDED DOWN RATHER THAN READ FROM THE OUTLET HERE. This is
+          a sibling of `<Outlet />`, not a descendant of it, so the outlet
+          context does not reach it and `AdminOnly`'s hook answers null. It used
+          to read the hook regardless, which made every click of the gear a
+          TypeError in the layout itself -- above the per-pane boundary inside
+          Settings, so the route boundary replaced the whole app with "This view
+          could not be displayed" instead of a Settings pane. */}
       {settingsVisible ? (
-        <AdminOnly>
+        <AdminOnly role={role}>
           <SettingsPage onClose={closeSettings} features={features} setFeature={setFeature} role={role} />
         </AdminOnly>
       ) : null}

@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { identityFromResponse } from './app-state';
+import { AdminOnly } from './GatePanel';
 import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
@@ -95,6 +97,88 @@ describe('Settings modal', () => {
     expect(markup).not.toContain('This view could not be displayed');
   });
 
+  /**
+   * The crash Sam kept seeing, reproduced where it actually happens.
+   *
+   * Every test above renders `SettingsPage` on its own with a role handed to it,
+   * which is not how the app mounts it. The layout wraps it in `AdminOnly` and
+   * draws it as a SIBLING of `<Outlet />`, so `useOutletContext` -- a context
+   * whose default value is null -- answers null there. Reading `.role` off that
+   * threw in the layout itself, above the per-pane boundary inside Settings, so
+   * the route boundary replaced the whole application with "This view could not
+   * be displayed". That is why the pane boundary did not help.
+   */
+  function renderAsLayoutDoes(role: RoleResolution | null) {
+    return renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <div>
+                {/* The outlet the pages get... */}
+                <Outlet context={{ features: FEATURES, setFeature: () => {}, role }} />
+                {/* ...and the modal, which is not inside it. */}
+                <AdminOnly role={role ?? undefined}>
+                  <SettingsPage features={FEATURES} setFeature={() => {}} role={role} />
+                </AdminOnly>
+              </div>
+            }
+          >
+            <Route index element={<p>ask</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it('opens the gear from the layout, outside the outlet, without taking the app down', () => {
+    for (const state of ['admin', 'super_admin'] as const) {
+      const markup = renderAsLayoutDoes({ state, addedAdminsReadable: true });
+      expect(markup).toContain('data-testid="settings-modal-overlay"');
+      expect(markup).toContain('<h2 id="settings-title">Settings</h2>');
+    }
+  });
+
+  it('does not throw when the role it is handed is null, undefined or unresolved', () => {
+    for (const role of [null, undefined, { state: 'resolving', addedAdminsReadable: true }] as const) {
+      expect(() => renderAsLayoutDoes(role ?? null)).not.toThrow();
+    }
+  });
+
+  it('survives null features and a null role reaching the page itself', () => {
+    for (const features of [null, undefined] as const) {
+      for (const role of [null, undefined] as const) {
+        const markup = renderToStaticMarkup(<SettingsPage features={features} role={role} />);
+        expect(markup).toContain('data-testid="settings-modal-overlay"');
+        expect(markup).not.toContain('This view could not be displayed');
+      }
+    }
+  });
+
+  it('reads the role from the outlet when it is given one and is inside it', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="/"
+            element={<Outlet context={{ features: FEATURES, setFeature: () => {}, role: roleFrom(NORMAL_IDENTITY) }} />}
+          >
+            <Route
+              index
+              element={
+                <AdminOnly>
+                  <p>admin body</p>
+                </AdminOnly>
+              }
+            />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(markup).toContain('admin body');
+  });
+
   it('keeps Settings behind the gear and opens a pasted deep link as the modal', () => {
     const layout = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8');
     const app = readFileSync(new URL('App.tsx', import.meta.url), 'utf8');
@@ -104,5 +188,7 @@ describe('Settings modal', () => {
     expect(layout).toContain("const settingsDeepLink = location.pathname === '/settings'");
     expect(app).toContain("path: '/settings', element: <AdminOnly><HomePage /></AdminOnly>");
     expect(app).not.toContain("path: '/settings', element: <AdminOnly><SettingsPage");
+    // The gate outside the outlet must be handed a role rather than reading one.
+    expect(layout).toContain('<AdminOnly role={role}>');
   });
 });

@@ -564,7 +564,7 @@
  * container and the bar above it.
  */
 .run-process {
-  border: 1px solid var(--ast-hairline);
+  border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-card);
   overflow: hidden;
 }
@@ -591,11 +591,21 @@
 .run-process-body {
   padding: 14px 16px;
 }
+/*
+ * The toggle row's edge, at the control rung rather than the hairline.
+ *
+ * It sits directly under the run process panel, so a #EBEBEB box on a card that is
+ * a high-alpha white over the sky gave it no break from the step list at all: the
+ * label and its caption read as two more lines of the timeline, with a switch that
+ * belonged to whatever was above it. #CBCBCB is the rung .ast-pill--neutral-outline
+ * already steps to for an edge that has to survive a tinted surface, and it is a
+ * rung, not a black rule.
+ */
 .advanced-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--ast-hairline);
+  border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-card);
   padding: 10px 16px;
 }

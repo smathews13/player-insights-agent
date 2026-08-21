@@ -408,5 +408,25 @@ export interface AppOutletContext {
  * put on screen.
  */
 export function useRole(): RoleResolution {
-  return useOutletContext<AppOutletContext>().role;
+  return useOptionalRole() ?? ROLE_RESOLVING;
+}
+
+/**
+ * The role when there may be no outlet at all, as null rather than as a throw.
+ *
+ * `useOutletContext` is `useContext` on a context whose default value is null,
+ * so it answers null for any caller mounted outside the `<Outlet />` subtree --
+ * and `null.role` is a TypeError that takes down the whole layout. That is not
+ * hypothetical: the Settings modal is rendered by the layout as a sibling of the
+ * outlet, so wrapping it in `AdminOnly` made every click of the gear throw
+ * "Cannot read properties of null (reading 'role')" before Settings drew a
+ * single pane. The route boundary then replaced the entire application with
+ * "This view could not be displayed", header and all.
+ *
+ * Callers that HAVE a role already should pass it rather than read it here.
+ * `useRole` above resolves the absent case to `resolving`, which draws nothing,
+ * because guessing `failed` would show an administrator the consumer gate.
+ */
+export function useOptionalRole(): RoleResolution | null {
+  return useOutletContext<AppOutletContext | null>()?.role ?? null;
 }

@@ -76,6 +76,15 @@
   gap: 8px;
   margin: 10px 0 4px;
 }
+/*
+ * The tile's edge is the control rung rather than the hairline, and the reason is
+ * the surface under it. --ast-hairline is #EBEBEB, which was calibrated against a
+ * pure white card; the answer card is a high-alpha white over the sky now, so the
+ * tile, its edge and the card behind it all landed within a few points of each
+ * other and the strip read as four numbers floating in a grey field. The next rung
+ * up is #CBCBCB, which is what .ast-pill--neutral-outline already steps to for the
+ * same reason: an edge that has to survive a tinted surface.
+ */
 .trace-kpi {
   display: flex;
   flex-direction: column;
@@ -83,7 +92,7 @@
   gap: 4px;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid var(--db-line);
+  border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
   background: var(--card);
 }
@@ -201,7 +210,7 @@
   color: var(--muted-foreground);
   font-weight: 700;
   padding: 0 8px 6px 0;
-  border-bottom: 1px solid var(--db-line);
+  border-bottom: 1px solid var(--ast-border-input);
   vertical-align: bottom;
 }
 .trace-gantt .trace-step {
@@ -281,9 +290,18 @@
 .trace-axis b:last-child {
   transform: translateX(-100%);
 }
+/*
+ * Every row is ruled, including the last, because the rule under row 18 is what
+ * closes the table off from the toggle row beneath it.
+ *
+ * Same rung as the tiles above, for the same reason: eighteen rows with a #EBEBEB
+ * rule on a card that is no longer pure white is eighteen rows with no rule at
+ * all, and a Gantt whose labels, bars and durations have to be tracked across
+ * three columns is the one table in the app that cannot be read without them.
+ */
 .trace-gantt tbody td {
   padding: 7px 8px 7px 0;
-  border-bottom: 1px solid var(--db-line);
+  border-bottom: 1px solid var(--ast-border-input);
   vertical-align: middle;
 }
 .trace-gantt-row {

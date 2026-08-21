@@ -32,7 +32,9 @@ import {
   gateOutcome,
   roleLostSentence,
   showsAdminSurfaces,
-  useRole,
+  useOptionalRole,
+  ROLE_RESOLVING,
+  type RoleResolution,
 } from './role';
 import { adminPageName, roleLostNotice } from './gate-panel-state';
 
@@ -85,8 +87,22 @@ export function GatePanel({ page }: { page: string }) {
  * saying an answer is coming, and the role is read once for the whole app, so
  * this is a blank body on a cold load and nothing at all on a click through.
  */
-export function AdminOnly({ children }: { children: React.ReactNode }) {
-  const role = useRole();
+/**
+ * @param role The reader's role, for a caller that already holds one.
+ *
+ * REQUIRED WHEN THIS IS MOUNTED OUTSIDE THE OUTLET, and the Settings modal is
+ * the case that proves it: the layout draws it as a sibling of `<Outlet />`, so
+ * there is no outlet context to read there and the hook answers null. Passing
+ * the role the layout has already derived is also the cheaper answer -- it is
+ * the same object the header is using, so the gate and the badge cannot
+ * disagree about who is reading.
+ */
+export function AdminOnly({ children, role: provided }: { children: React.ReactNode; role?: RoleResolution }) {
+  // Both branches every render: the hook is unconditional because hooks must be,
+  // and `provided` wins because a caller that has the role is a better source
+  // than a context that may not exist where this is mounted.
+  const contextRole = useOptionalRole();
+  const role = provided ?? contextRole ?? ROLE_RESOLVING;
   const location = useLocation();
   /**
    * Which page this is, from the path.

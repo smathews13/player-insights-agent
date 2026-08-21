@@ -567,8 +567,11 @@ describe('the caveats change how loudly they are said and nothing else', () => {
 
 describe('the run process is one panel rather than a bar and a box', () => {
   it('carries its edge on the container', () => {
+    // At the control rung rather than the hairline: the answer card is a
+    // high-alpha white over the sky, and #EBEBEB on that is an edge nobody can
+    // see. Same step .ast-pill--neutral-outline makes for the same reason.
     const rule = ruleFor(BODY_CSS, '.run-process {');
-    expect(rule).toContain('border: 1px solid var(--ast-hairline)');
+    expect(rule).toContain('border: 1px solid var(--ast-border-input)');
     expect(rule).toContain('border-radius: var(--ast-radius-card)');
   });
 
