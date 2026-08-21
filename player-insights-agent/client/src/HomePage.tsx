@@ -3,8 +3,8 @@
  * agent steps beside them.
  *
  * Split out of App.tsx when the pages became modules. The helpers above the page
- * are its own -- the attachment chips, the response parsing, the rail's dedupe
- * and its watermarks -- and stay unexported, because nothing else has ever
+ * are its own -- the attachment chips, the response parsing and the rail's
+ * watermarks -- and stay unexported, because nothing else has ever
  * needed them. The two cards a turn can be drawn as, AnswerCard and PlanCard,
  * are their own modules; ClarificationCard is here because this is the only page
  * that asks for a clarification.
@@ -21,7 +21,6 @@ import { UserIdentityChip } from './UserIdentityChip';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import {
   claimConversationTitle,
-  ownerKey,
   railOwnership,
   signedInOwner,
   unaskedConversation,
@@ -185,29 +184,6 @@ function responseFromMessage(message?: ConversationMessage): AgentResponse | nul
     }
   }
   return normalizeResponse(message.response_json, identity);
-}
-
-/**
- * The dev Lakebase currently returns many rows per conversation, which floods the rail with
- * near-identical entries. Keep the most recent of each title so the list stays scannable;
- * the underlying rows are untouched and every distinct conversation is still reachable.
- */
-function dedupeByTitle(items: Conversation[], keepId: string) {
-  const seen = new Map<string, Conversation>();
-  for (const item of items) {
-    // A NUL between the two parts, so an owner and a title cannot run together
-    // into the same key as a different pair would. The owner half is normalised
-    // by the module the watermarks and the counts read from, so this cannot come
-    // to a different view of "same person" than the chips above it do.
-    const key = `${ownerKey(item.user_email)}\u0000${item.title.trim().toLowerCase()}`;
-    const existing = seen.get(key);
-    // The open conversation always wins its slot, so selecting one never makes it disappear.
-    if (existing?.id === keepId) continue;
-    if (!existing || item.id === keepId || new Date(item.updated_at) > new Date(existing.updated_at)) {
-      seen.set(key, item);
-    }
-  }
-  return Array.from(seen.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 }
 
 /**
@@ -1343,14 +1319,6 @@ export function HomePage() {
   }
 
   /**
-   * The rail as it is actually drawn, collapsed once.
-   */
-  const railConversations = useMemo(
-    () => dedupeByTitle(conversations, conversationId),
-    [conversations, conversationId]
-  );
-
-  /**
    * Who appears in the rail, how many entries each of them has, and which owner
    * every row on screen is drawn with.
    *
@@ -1367,8 +1335,8 @@ export function HomePage() {
    * which reads as a colleague having quietly used their rail.
    */
   const rail = useMemo(
-    () => railOwnership(railConversations, identity.signedInAs),
-    [railConversations, identity.signedInAs]
+    () => railOwnership(conversations, identity.signedInAs),
+    [conversations, identity.signedInAs]
   );
 
   /**
@@ -1431,7 +1399,7 @@ export function HomePage() {
       </Button>
       <div>
         <p className="section-label">
-          Recent
+          Conversations
           {identity.sharedConversationRail && ( // A rail carrying other people's conversations says so on the
             // page. The scope is a deployment setting, so without this the
             // only way to know which one is running is to read the app's

@@ -37,7 +37,7 @@ import {
   settingsPayload,
   writeStoredSetting,
 } from '../lib/app-settings';
-import { resolveNotebookDeclaration } from '../lib/app-settings';
+import { resolveExperimentId, resolveNotebookDeclaration } from '../lib/app-settings';
 import { recordAdminAction, requireAdmin } from '../lib/admin-roles';
 import { readAppFacts } from '../lib/app-metadata';
 import { declaredTables, probeConnections } from '../lib/dependency-probes';
@@ -73,6 +73,7 @@ import {
   readModelRelease,
 } from '../lib/model-release-store';
 import type { ModelReleaseDeclaration, ReleasePreflight } from '../../shared/model-release';
+import { applyAstrolabeTags } from '../lib/resource-tagging';
 
 const WriteBody = z.object({
   value: z.string().trim().max(500),
@@ -92,10 +93,7 @@ export async function validateAndStoreNotebookPath(input: {
   updatedBy: string;
   validate?: typeof validateNotebookPath;
   write?: typeof writeStoredSetting;
-}): Promise<
-  | { ok: true; saved: StoredSetting }
-  | { ok: false; status: 400 | 403 | 404 | 503; detail: string }
-> {
+}): Promise<{ ok: true; saved: StoredSetting } | { ok: false; status: 400 | 403 | 404 | 503; detail: string }> {
   const validate = input.validate ?? validateNotebookPath;
   const validation = await validate(input.path, {
     host: input.host,
@@ -289,6 +287,40 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
     });
 
     /**
+     * Backfill the Astrolabe billing tag on platform resources this deployment
+     * manages. WorkspaceClient uses the app service principal injected by
+     * Databricks Apps; the viewer's forwarded token is deliberately not read.
+     */
+    app.post('/api/settings/resource-tags', async (req, res) => {
+      try {
+        const { report } = await readOrchestratorReport(appkit);
+        const experimentId = await resolveExperimentId(appkit);
+        const summary = await applyAstrolabeTags({
+          report,
+          environment: {
+            ...process.env,
+            PLAYER_INSIGHTS_EXPERIMENT_ID: experimentId,
+          },
+        });
+        await recordAdminAction(appkit.lakebase, {
+          actor: userEmail(req),
+          action: 'resource-tags-applied',
+          subject: 'astrolabe=true',
+          detail:
+            `${summary.tagged} tagged, ${summary.skipped} skipped, ` +
+            `${summary.failed} failed (${summary.alreadyTagged} already tagged).`,
+        });
+        res.json(summary);
+      } catch (error) {
+        console.error('[settings] Resource tags could not be applied:', (error as Error).message);
+        res.status(503).json({
+          error: 'resource_tagging_unavailable',
+          detail: 'Databricks did not start the resource tag update. No viewer credential was used.',
+        });
+      }
+    });
+
+    /**
      * Every connection, with what it was configured as, what the running system
      * used, and what somebody intends it to be.
      *
@@ -333,45 +365,41 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
       });
     });
 
-    app.put(
-      '/api/settings/notebook-path',
-      requireAdmin(appkit.lakebase, userEmail),
-      async (req, res) => {
-        const parsed = NotebookPathBody.safeParse(req.body);
-        if (!parsed.success) {
-          res.status(400).json({ error: 'invalid_notebook_path', detail: parsed.error.message });
+    app.put('/api/settings/notebook-path', requireAdmin(appkit.lakebase, userEmail), async (req, res) => {
+      const parsed = NotebookPathBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_notebook_path', detail: parsed.error.message });
+        return;
+      }
+      try {
+        const savedResult = await validateAndStoreNotebookPath({
+          appkit,
+          path: parsed.data.path,
+          host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
+          token: forwardedUserToken(req) ?? '',
+          updatedBy: userEmail(req),
+        });
+        if (!savedResult.ok) {
+          res.status(savedResult.status).json({
+            error: 'notebook_path_not_usable',
+            detail: savedResult.detail,
+          });
           return;
         }
-        try {
-          const savedResult = await validateAndStoreNotebookPath({
-            appkit,
-            path: parsed.data.path,
-            host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
-            token: forwardedUserToken(req) ?? '',
-            updatedBy: userEmail(req),
-          });
-          if (!savedResult.ok) {
-            res.status(savedResult.status).json({
-              error: 'notebook_path_not_usable',
-              detail: savedResult.detail,
-            });
-            return;
-          }
-          await recordAdminAction(appkit.lakebase, {
-            actor: userEmail(req),
-            action: 'connection-setting-saved',
-            subject: 'notebook-path',
-            detail: 'Configured the workspace notebook shown on Connections.',
-          });
-          res.json({ path: savedResult.saved.value });
-        } catch (error) {
-          res.status(503).json({
-            error: 'settings_store_unavailable',
-            detail: `The notebook path was validated but not saved: ${(error as Error).message}`,
-          });
-        }
-      },
-    );
+        await recordAdminAction(appkit.lakebase, {
+          actor: userEmail(req),
+          action: 'connection-setting-saved',
+          subject: 'notebook-path',
+          detail: 'Configured the workspace notebook shown on Connections.',
+        });
+        res.json({ path: savedResult.saved.value });
+      } catch (error) {
+        res.status(503).json({
+          error: 'settings_store_unavailable',
+          detail: `The notebook path was validated but not saved: ${(error as Error).message}`,
+        });
+      }
+    });
 
     /**
      * Add an asset to the list the agent may consider.
@@ -750,7 +778,7 @@ function textEnv(value: string | undefined): string {
 
 export function configuredNotebookPath(
   stored: ReadonlyMap<string, StoredSetting>,
-  environment: NodeJS.ProcessEnv = process.env,
+  environment: NodeJS.ProcessEnv = process.env
 ): string {
   const saved = stored.get('notebook-path');
   if (saved?.intent === 'active' && saved.value.trim()) return saved.value.trim();
@@ -805,7 +833,7 @@ async function readNotebook(
   req: Request,
   appkit: InsightsAppKit,
   report: PreflightReport | null,
-  storedInput?: ReadonlyMap<string, StoredSetting>,
+  storedInput?: ReadonlyMap<string, StoredSetting>
 ): Promise<NotebookPanel> {
   try {
     const stored = storedInput ?? (await readStoredSettings(appkit));

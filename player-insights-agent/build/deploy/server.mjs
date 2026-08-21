@@ -5506,11 +5506,11 @@ var require_binaryParsers = __commonJS({
         var array2 = [];
         var i2;
         if (dimension.length > 1) {
-          var count3 = dimension.shift();
-          for (i2 = 0; i2 < count3; i2++) {
+          var count4 = dimension.shift();
+          for (i2 = 0; i2 < count4; i2++) {
             array2[i2] = parse5(dimension, elementType2);
           }
-          dimension.unshift(count3);
+          dimension.unshift(count4);
         } else {
           for (i2 = 0; i2 < dimension[0]; i2++) {
             array2[i2] = parseElement(elementType2);
@@ -5898,12 +5898,12 @@ var require_utils_legacy = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text14) {
-      return nodeCrypto.createHash("sha256").update(text14).digest();
+    function sha2562(text16) {
+      return nodeCrypto.createHash("sha256").update(text16).digest();
     }
-    function hashByName(hashName, text14) {
+    function hashByName(hashName, text16) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text14).digest();
+      return nodeCrypto.createHash(hashName).update(text16).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -5956,11 +5956,11 @@ var require_utils_webcrypto = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text14) {
-      return await subtleCrypto.digest("SHA-256", text14);
+    async function sha2562(text16) {
+      return await subtleCrypto.digest("SHA-256", text16);
     }
-    async function hashByName(hashName, text14) {
-      return await subtleCrypto.digest(hashName, text14);
+    async function hashByName(hashName, text16) {
+      return await subtleCrypto.digest(hashName, text16);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -6181,21 +6181,21 @@ var require_sasl = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text14) {
-      if (typeof text14 !== "string") {
+    function isPrintableChars(text16) {
+      if (typeof text16 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text14.split("").map((_, i) => text14.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text16.split("").map((_, i) => text16.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text14) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text14);
+    function isBase64(text16) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text16);
     }
-    function parseAttributePairs(text14) {
-      if (typeof text14 !== "string") {
+    function parseAttributePairs(text16) {
+      if (typeof text16 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text14.split(",").map((attrValue) => {
+        text16.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -7054,9 +7054,9 @@ var require_messages = __commonJS({
     };
     exports2.ReadyForQueryMessage = ReadyForQueryMessage;
     var CommandCompleteMessage = class {
-      constructor(length, text14) {
+      constructor(length, text16) {
         this.length = length;
-        this.text = text14;
+        this.text = text16;
         this.name = "commandComplete";
       }
     };
@@ -7205,8 +7205,8 @@ var require_serializer = __commonJS({
         /* code.startup */
       );
     };
-    var query = (text14) => {
-      return writer.addCString(text14).flush(
+    var query = (text16) => {
+      return writer.addCString(text16).flush(
         81
         /* code.query */
       );
@@ -7326,8 +7326,8 @@ var require_serializer = __commonJS({
       return msg.name ? cstringMessage(68, `${msg.type}${msg.name || ""}`) : msg.type === "P" ? emptyDescribePortal : emptyDescribeStatement;
     };
     var close = (msg) => {
-      const text14 = `${msg.type}${msg.name || ""}`;
-      return cstringMessage(67, text14);
+      const text16 = `${msg.type}${msg.name || ""}`;
+      return cstringMessage(67, text16);
     };
     var copyData = (chunk) => {
       return writer.add(chunk).flush(
@@ -7599,8 +7599,8 @@ var require_parser = __commonJS({
       return new messages_1.ReadyForQueryMessage(LATEINIT_LENGTH, status);
     };
     var parseCommandCompleteMessage = (reader) => {
-      const text14 = reader.cstring();
-      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text14);
+      const text16 = reader.cstring();
+      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text16);
     };
     var parseCopyData = (reader, length) => {
       const chunk = reader.bytes(length - 4);
@@ -7967,8 +7967,8 @@ var require_connection = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text14) {
-        this._send(serialize.query(text14));
+      query(text16) {
+        this._send(serialize.query(text16));
       }
       // send parse message
       parse(query) {
@@ -9164,12 +9164,12 @@ var require_utils_legacy2 = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text14) {
-      return nodeCrypto.createHash("sha256").update(text14).digest();
+    function sha2562(text16) {
+      return nodeCrypto.createHash("sha256").update(text16).digest();
     }
-    function hashByName(hashName, text14) {
+    function hashByName(hashName, text16) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text14).digest();
+      return nodeCrypto.createHash(hashName).update(text16).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -9222,11 +9222,11 @@ var require_utils_webcrypto2 = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text14) {
-      return await subtleCrypto.digest("SHA-256", text14);
+    async function sha2562(text16) {
+      return await subtleCrypto.digest("SHA-256", text16);
     }
-    async function hashByName(hashName, text14) {
-      return await subtleCrypto.digest(hashName, text14);
+    async function hashByName(hashName, text16) {
+      return await subtleCrypto.digest(hashName, text16);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -9447,21 +9447,21 @@ var require_sasl2 = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text14) {
-      if (typeof text14 !== "string") {
+    function isPrintableChars(text16) {
+      if (typeof text16 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text14.split("").map((_, i) => text14.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text16.split("").map((_, i) => text16.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text14) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text14);
+    function isBase64(text16) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text16);
     }
-    function parseAttributePairs(text14) {
-      if (typeof text14 !== "string") {
+    function parseAttributePairs(text16) {
+      if (typeof text16 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text14.split(",").map((attrValue) => {
+        text16.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -10186,8 +10186,8 @@ var require_connection2 = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text14) {
-        this._send(serialize.query(text14));
+      query(text16) {
+        this._send(serialize.query(text16));
       }
       // send parse message
       parse(query) {
@@ -11652,9 +11652,9 @@ var require_pg_pool = __commonJS({
         this._idle.push(new IdleItem(client, idleListener, tid));
         this._pulseQueue();
       }
-      query(text14, values, cb) {
-        if (typeof text14 === "function") {
-          const response2 = promisify(this.Promise, text14);
+      query(text16, values, cb) {
+        if (typeof text16 === "function") {
+          const response2 = promisify(this.Promise, text16);
           setImmediate(function() {
             return response2.callback(new Error("Passing a function as the first parameter to pool.query is not supported"));
           });
@@ -11682,7 +11682,7 @@ var require_pg_pool = __commonJS({
           client.once("error", onError);
           this.log("dispatching query");
           try {
-            client.query(text14, values, (err2, res) => {
+            client.query(text16, values, (err2, res) => {
               this.log("query dispatched");
               client.removeListener("error", onError);
               if (clientReleased) {
@@ -26432,8 +26432,8 @@ var require_BatchSpanProcessorBase = __commonJS({
       _flushAll() {
         return new Promise((resolve2, reject) => {
           const promises = [];
-          const count3 = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
-          for (let i = 0, j = count3; i < j; i++) {
+          const count4 = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
+          for (let i = 0, j = count4; i < j; i++) {
             promises.push(this._flushOneBatch());
           }
           Promise.all(promises).then(() => {
@@ -32752,11 +32752,11 @@ var require_utils19 = __commonJS({
       return repeatChar(" ", i);
     }
     function repeatChar(char, to) {
-      let text14 = "";
+      let text16 = "";
       for (let i = 0; i < to; i++) {
-        text14 += char;
+        text16 += char;
       }
-      return text14;
+      return text16;
     }
     var KindsToBeRemoved = [
       enum_1.TokenKind.FLOAT,
@@ -49920,8 +49920,8 @@ var require_common2 = __commonJS({
       }
       function redactString(obj, key2) {
         if (typeof obj === "object" && obj !== null && typeof obj[key2] === "string") {
-          const text14 = obj[key2];
-          if (/grant_type=/i.test(text14) || /assertion=/i.test(text14) || /secret/i.test(text14)) {
+          const text16 = obj[key2];
+          if (/grant_type=/i.test(text16) || /assertion=/i.test(text16) || /secret/i.test(text16)) {
             obj[key2] = REDACT;
           }
         }
@@ -52895,18 +52895,18 @@ var require_parse2 = __commonJS({
         n: "\n",
         r: "\r",
         t: "	"
-      }, text14, error48 = function(m) {
+      }, text16, error48 = function(m) {
         throw {
           name: "SyntaxError",
           message: m,
           at,
-          text: text14
+          text: text16
         };
       }, next = function(c) {
         if (c && c !== ch) {
           error48("Expected '" + c + "' instead of '" + ch + "'");
         }
-        ch = text14.charAt(at);
+        ch = text16.charAt(at);
         at += 1;
         return ch;
       }, number4 = function() {
@@ -52953,12 +52953,12 @@ var require_parse2 = __commonJS({
           var startAt = at;
           while (next()) {
             if (ch === '"') {
-              if (at - 1 > startAt) string5 += text14.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text16.substring(startAt, at - 1);
               next();
               return string5;
             }
             if (ch === "\\") {
-              if (at - 1 > startAt) string5 += text14.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text16.substring(startAt, at - 1);
               next();
               if (ch === "u") {
                 uffff = 0;
@@ -53091,7 +53091,7 @@ var require_parse2 = __commonJS({
       };
       return function(source, reviver) {
         var result;
-        text14 = source + "";
+        text16 = source + "";
         at = 0;
         ch = " ";
         result = value();
@@ -53984,13 +53984,13 @@ var require_gke = __commonJS({
     }
     exports2.availabilityZoneOrRegion = availabilityZoneOrRegion;
     function countChar(s, char) {
-      let count3 = 0;
+      let count4 = 0;
       for (let i = 0; i < s.length; i++) {
         if (s[i] === char) {
-          count3 += 1;
+          count4 += 1;
         }
       }
-      return count3;
+      return count4;
     }
   }
 });
@@ -81497,8 +81497,8 @@ var require_BatchSpanProcessorBase2 = __commonJS({
       _flushAll() {
         return new Promise((resolve2, reject) => {
           const promises = [];
-          const count3 = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
-          for (let i = 0, j = count3; i < j; i++) {
+          const count4 = Math.ceil(this._finishedSpans.length / this._maxExportBatchSize);
+          for (let i = 0, j = count4; i < j; i++) {
             promises.push(this._flushOneBatch());
           }
           Promise.all(promises).then(() => {
@@ -84020,9 +84020,9 @@ var require_logging = __commonJS({
       }
     }
     var allEnabled = enabledTracers.has("all");
-    function trace2(severity, tracer, text14) {
+    function trace2(severity, tracer, text16) {
       if (isTracerEnabled(tracer)) {
-        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text14);
+        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text16);
       }
     }
     function isTracerEnabled(tracer) {
@@ -85560,8 +85560,8 @@ var require_backoff_timeout = __commonJS({
       static getNextId() {
         return this.nextId++;
       }
-      trace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text14);
+      trace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text16);
       }
       runTimer(delay) {
         var _a2, _b;
@@ -85804,8 +85804,8 @@ var require_resolving_load_balancer = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var load_balancer_child_handler_1 = require_load_balancer_child_handler();
     var TRACER_NAME = "resolving_load_balancer";
-    function trace2(text14) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var NAME_MATCH_LEVEL_ORDER = [
       "SERVICE_AND_METHOD",
@@ -97458,11 +97458,11 @@ var require_subchannel = __commonJS({
           target: this.subchannelAddressString
         };
       }
-      trace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text14);
+      trace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
       }
-      refTrace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text14);
+      refTrace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
       }
       handleBackoffTimer() {
         if (this.continueConnecting) {
@@ -97740,8 +97740,8 @@ var require_resolver_dns = __commonJS({
     var backoff_timeout_1 = require_backoff_timeout();
     var environment_1 = require_environment13();
     var TRACER_NAME = "dns_resolver";
-    function trace2(text14) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     exports2.DEFAULT_PORT = 443;
     var DEFAULT_MIN_TIME_BETWEEN_RESOLUTIONS_MS = 3e4;
@@ -98026,8 +98026,8 @@ var require_http_proxy = __commonJS({
     var url_1 = __require("url");
     var resolver_dns_1 = require_resolver_dns();
     var TRACER_NAME = "proxy";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     function getProxyInfo() {
       let proxyEnv = "";
@@ -98542,8 +98542,8 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.resume();
         }
       }
-      trace(text14) {
-        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text14);
+      trace(text16) {
+        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text16);
       }
       /**
        * On first call, emits a 'status' event with the given StatusObject.
@@ -98866,17 +98866,17 @@ var require_transport = __commonJS({
         };
         return socketInfo;
       }
-      trace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text14);
+      trace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
       }
-      keepaliveTrace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text14);
+      keepaliveTrace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
       }
-      flowControlTrace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text14);
+      flowControlTrace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
       }
-      internalsTrace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text14);
+      internalsTrace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
       }
       /**
        * Indicate to the owner of this object that this transport should no longer
@@ -99100,8 +99100,8 @@ var require_transport = __commonJS({
         this.session = null;
         this.isShutdown = false;
       }
-      trace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text14);
+      trace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text16);
       }
       createSession(secureConnectResult, address, options) {
         if (this.isShutdown) {
@@ -99407,8 +99407,8 @@ var require_load_balancing_call = __commonJS({
         }
         return deadlineInfo;
       }
-      trace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text14);
+      trace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text16);
       }
       outputStatus(status, progress) {
         var _a2, _b;
@@ -99639,8 +99639,8 @@ var require_resolving_call = __commonJS({
         this.trace("Created");
         this.runDeadlineTimer();
       }
-      trace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text14);
+      trace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text16);
       }
       runDeadlineTimer() {
         clearTimeout(this.deadlineTimer);
@@ -100005,8 +100005,8 @@ var require_retrying_call = __commonJS({
       getCallNumber() {
         return this.callNumber;
       }
-      trace(text14) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text14);
+      trace(text16) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text16);
       }
       reportStatus(statusObject) {
         this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + this.startTime.toISOString());
@@ -100162,13 +100162,13 @@ var require_retrying_call = __commonJS({
         }, retryDelayMs);
       }
       countActiveCalls() {
-        let count3 = 0;
+        let count4 = 0;
         for (const call of this.underlyingCalls) {
           if ((call === null || call === void 0 ? void 0 : call.state) === "ACTIVE") {
-            count3 += 1;
+            count4 += 1;
           }
         }
-        return count3;
+        return count4;
       }
       handleProcessedStatus(status, callIndex, pushback) {
         var _a2, _b, _c;
@@ -100842,8 +100842,8 @@ var require_internal_channel = __commonJS({
         }
         this.lastActivityTimestamp = /* @__PURE__ */ new Date();
       }
-      trace(text14, verbosityOverride) {
-        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text14);
+      trace(text16, verbosityOverride) {
+        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text16);
       }
       callRefTimerRef() {
         var _a2, _b, _c, _d;
@@ -102040,8 +102040,8 @@ var require_server_interceptors = __commonJS({
     var tls_1 = __require("tls");
     var orca_1 = require_orca();
     var TRACER_NAME = "server_call";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var ServerListenerBuilder = class {
       constructor() {
@@ -102833,8 +102833,8 @@ var require_server = __commonJS({
     var { HTTP2_HEADER_PATH } = http2.constants;
     var TRACER_NAME = "server";
     var kMaxAge = Buffer.from("max_age");
-    function serverCallTrace(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text14);
+    function serverCallTrace(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text16);
     }
     function noop() {
     }
@@ -102973,11 +102973,11 @@ var require_server = __commonJS({
           };
           return socketInfo;
         }
-        trace(text14) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text14);
+        trace(text16) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text16);
         }
-        keepaliveTrace(text14) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text14);
+        keepaliveTrace(text16) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text16);
         }
         addProtoService() {
           throw new Error("Not implemented. Use addService() instead");
@@ -104288,8 +104288,8 @@ var require_load_balancer_pick_first = __commonJS({
     var net_1 = __require("net");
     var call_interface_1 = require_call_interface();
     var TRACER_NAME = "pick_first";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var TYPE_NAME = "pick_first";
     var CONNECTION_DELAY_INTERVAL_MS = 250;
@@ -104700,8 +104700,8 @@ var require_certificate_provider = __commonJS({
     var constants_1 = require_constants20();
     var util_1 = __require("util");
     var TRACER_NAME = "certificate_provider";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var readFilePromise = (0, util_1.promisify)(fs16.readFile);
     var FileWatcherCertificateProvider = class {
@@ -105000,8 +105000,8 @@ var require_resolver_ip = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var logging = require_logging();
     var TRACER_NAME = "ip_resolver";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var IPV4_SCHEME = "ipv4";
     var IPV6_SCHEME = "ipv6";
@@ -105091,8 +105091,8 @@ var require_load_balancer_round_robin = __commonJS({
     var subchannel_address_1 = require_subchannel_address();
     var load_balancer_pick_first_1 = require_load_balancer_pick_first();
     var TRACER_NAME = "round_robin";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var TYPE_NAME = "round_robin";
     var RoundRobinLoadBalancingConfig = class _RoundRobinLoadBalancingConfig {
@@ -105270,8 +105270,8 @@ var require_load_balancer_outlier_detection = __commonJS({
     var subchannel_interface_1 = require_subchannel_interface();
     var logging = require_logging();
     var TRACER_NAME = "outlier_detection";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var TYPE_NAME = "outlier_detection";
     var OUTLIER_DETECTION_ENABLED = ((_a2 = process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION) !== null && _a2 !== void 0 ? _a2 : "true") === "true";
@@ -105870,8 +105870,8 @@ var require_load_balancer_weighted_round_robin = __commonJS({
     var priority_queue_1 = require_priority_queue();
     var subchannel_address_1 = require_subchannel_address();
     var TRACER_NAME = "weighted_round_robin";
-    function trace2(text14) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text14);
+    function trace2(text16) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
     }
     var TYPE_NAME = "weighted_round_robin";
     var DEFAULT_OOB_REPORTING_PERIOD_MS = 1e4;
@@ -106006,13 +106006,13 @@ var require_load_balancer_weighted_round_robin = __commonJS({
         this.weightUpdateTimer = null;
       }
       countChildrenWithState(state) {
-        let count3 = 0;
+        let count4 = 0;
         for (const entry of this.children.values()) {
           if (entry.child.getConnectivityState() === state) {
-            count3 += 1;
+            count4 += 1;
           }
         }
-        return count3;
+        return count4;
       }
       updateWeight(entry, loadReport) {
         var _a2, _b;
@@ -119674,8 +119674,8 @@ var init_az = __esm({
 });
 
 // node_modules/zod/v4/locales/be.js
-function getBelarusianPlural(count3, one, few, many) {
-  const absCount = Math.abs(count3);
+function getBelarusianPlural(count4, one, few, many) {
+  const absCount = Math.abs(count4);
   const lastDigit = absCount % 10;
   const lastTwoDigits = absCount % 100;
   if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
@@ -121589,8 +121589,8 @@ var init_hu = __esm({
 });
 
 // node_modules/zod/v4/locales/hy.js
-function getArmenianPlural(count3, one, many) {
-  return Math.abs(count3) === 1 ? one : many;
+function getArmenianPlural(count4, one, many) {
+  return Math.abs(count4) === 1 ? one : many;
 }
 function withDefiniteArticle(word) {
   if (!word)
@@ -122584,8 +122584,8 @@ var capitalizeFirstCharacter, error26;
 var init_lt = __esm({
   "node_modules/zod/v4/locales/lt.js"() {
     init_util2();
-    capitalizeFirstCharacter = (text14) => {
-      return text14.charAt(0).toUpperCase() + text14.slice(1);
+    capitalizeFirstCharacter = (text16) => {
+      return text16.charAt(0).toUpperCase() + text16.slice(1);
     };
     error26 = () => {
       const Sizable = {
@@ -123705,8 +123705,8 @@ var init_pt = __esm({
 });
 
 // node_modules/zod/v4/locales/ru.js
-function getRussianPlural(count3, one, few, many) {
-  const absCount = Math.abs(count3);
+function getRussianPlural(count4, one, few, many) {
+  const absCount = Math.abs(count4);
   const lastDigit = absCount % 10;
   const lastTwoDigits = absCount % 100;
   if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
@@ -134477,8 +134477,8 @@ var require_depd = __commonJS({
       return deprecate;
     }
     function eehaslisteners(emitter2, type) {
-      var count3 = typeof emitter2.listenerCount !== "function" ? emitter2.listeners(type).length : emitter2.listenerCount(type);
-      return count3 > 0;
+      var count4 = typeof emitter2.listenerCount !== "function" ? emitter2.listeners(type).length : emitter2.listenerCount(type);
+      return count4 > 0;
     }
     function isignored(namespace) {
       if (process.noDeprecation) {
@@ -148794,8 +148794,8 @@ var require_text = __commonJS({
     var debug = require_src100()("body-parser:text");
     var read2 = require_read();
     var typeis = require_type_is();
-    module2.exports = text14;
-    function text14(options) {
+    module2.exports = text16;
+    function text16(options) {
       var opts = options || {};
       var defaultCharset = opts.defaultCharset || "utf-8";
       var inflate = opts.inflate !== false;
@@ -151477,16 +151477,16 @@ var require_urlencoded = __commonJS({
       }
     }
     function parameterCount(body, limit) {
-      var count3 = 0;
+      var count4 = 0;
       var index = 0;
       while ((index = body.indexOf("&", index)) !== -1) {
-        count3++;
+        count4++;
         index++;
-        if (count3 === limit) {
+        if (count4 === limit) {
           return void 0;
         }
       }
-      return count3;
+      return count4;
     }
     function parser(name2) {
       var mod2 = parsers[name2];
@@ -155093,8 +155093,8 @@ var require_send = __commonJS({
       return typeof res.getHeaderNames !== "function" ? Object.keys(res._headers || {}) : res.getHeaderNames();
     }
     function hasListeners(emitter2, type) {
-      var count3 = typeof emitter2.listenerCount !== "function" ? emitter2.listeners(type).length : emitter2.listenerCount(type);
-      return count3 > 0;
+      var count4 = typeof emitter2.listenerCount !== "function" ? emitter2.listeners(type).length : emitter2.listenerCount(type);
+      return count4 > 0;
     }
     function headersSent(res) {
       return typeof res.headersSent !== "boolean" ? Boolean(res._header) : res.headersSent;
@@ -156782,13 +156782,13 @@ var require_mediaType = __commonJS({
       return spec.q > 0;
     }
     function quoteCount(string4) {
-      var count3 = 0;
+      var count4 = 0;
       var index = 0;
       while ((index = string4.indexOf('"', index)) !== -1) {
-        count3++;
+        count4++;
         index++;
       }
-      return count3;
+      return count4;
     }
     function splitKeyValuePair(str) {
       var index = str.indexOf("=");
@@ -158242,8 +158242,8 @@ async function extractPdfText(input, options = {}) {
       enableXfa: false
     });
     try {
-      const { text: text15 } = await extractText(pdf, { mergePages: false });
-      return text15;
+      const { text: text17 } = await extractText(pdf, { mergePages: false });
+      return text17;
     } finally {
       await pdf.loadingTask?.destroy();
     }
@@ -158266,14 +158266,14 @@ async function extractPdfText(input, options = {}) {
   } finally {
     clearTimeout(timer);
   }
-  const text14 = normalizeText(pages);
-  if (!text14) {
+  const text16 = normalizeText(pages);
+  if (!text16) {
     throw new PdfTextError(
       "no-text",
       "No readable text was found in this report. Scanned or image-only PDFs are not supported."
     );
   }
-  return text14.slice(0, maxChars);
+  return text16.slice(0, maxChars);
 }
 var MAX_PDF_TEXT_CHARS, PDF_EXTRACTION_TIMEOUT_MS, PDF_EXTENSIONS, PdfTextError;
 var init_pdf_text = __esm({
@@ -161184,9 +161184,9 @@ ${answer.sql}`);
   for (const source of answer.sources) {
     parts.push(`[source] ${source.name} (${source.freshness})`);
   }
-  const text14 = parts.join("\n\n");
-  if (text14.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text14, truncated: false };
-  return { text: text14.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
+  const text16 = parts.join("\n\n");
+  if (text16.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text16, truncated: false };
+  return { text: text16.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
 }
 function answerText(answer) {
   return `${answer.takeaway}
@@ -163572,12 +163572,12 @@ async function workspaceLinksAllowed(client) {
   return egressAllowed(controls, "workspace-link");
 }
 function clamp(raw2, max) {
-  const text14 = typeof raw2 === "string" ? raw2.trim() : "";
-  return text14.length > max ? text14.slice(0, max) : text14;
+  const text16 = typeof raw2 === "string" ? raw2.trim() : "";
+  return text16.length > max ? text16.slice(0, max) : text16;
 }
 function pointer(raw2) {
-  const text14 = clamp(raw2, IDENTIFIER_MAX);
-  return text14 === "" ? null : text14;
+  const text16 = clamp(raw2, IDENTIFIER_MAX);
+  return text16 === "" ? null : text16;
 }
 function count(raw2) {
   if (typeof raw2 !== "number" || !Number.isFinite(raw2)) return null;
@@ -164462,6 +164462,7 @@ var init_admin_roles = __esm({
       "/api/settings/values",
       "/api/settings/connections",
       "/api/settings/apply",
+      "/api/settings/resource-tags",
       // One namespace for every release-request lifecycle operation. Creation,
       // claim, and completion all resolve the acting person from the same trusted
       // forwarded identity and are refused to consumers by construction.
@@ -165167,6 +165168,138 @@ var init_handler_failures = __esm({
   }
 });
 
+// shared/ops-contract.ts
+var SPAN_PERCENTILE_FLOOR;
+var init_ops_contract = __esm({
+  "shared/ops-contract.ts"() {
+    SPAN_PERCENTILE_FLOOR = 20;
+  }
+});
+
+// server/lib/request-latency.ts
+function text4(value) {
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  return "";
+}
+function count2(value) {
+  const parsed = typeof value === "number" ? value : Number(text4(value));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function readRequestLatencyRows(rows) {
+  const routes = [];
+  let coveredFrom = "";
+  let coveredTo = "";
+  for (const row2 of rows) {
+    const route = text4(row2.route).trim();
+    const spans = count2(row2.current_count);
+    if (!route || spans <= 0) continue;
+    coveredFrom ||= text4(row2.covered_from);
+    coveredTo ||= text4(row2.covered_to);
+    const priorSpans = count2(row2.prior_count);
+    routes.push({
+      route,
+      spans,
+      p50Ms: count2(row2.current_p50_ms),
+      p95Ms: spans >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p95_ms) : null,
+      p99Ms: spans >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p99_ms) : null,
+      slowestMs: count2(row2.slowest_ms),
+      errorCount: count2(row2.error_count),
+      refusalCount: null,
+      lastSpanAt: text4(row2.last_request_at),
+      priorSpans,
+      priorP50Ms: row2.prior_p50_ms === null || priorSpans === 0 ? null : count2(row2.prior_p50_ms)
+    });
+  }
+  routes.sort((left, right) => right.p50Ms - left.p50Ms || left.route.localeCompare(right.route));
+  return { routes, coveredFrom, coveredTo };
+}
+function matchedRoutePath(req) {
+  const matched = req.route;
+  if (!matched || typeof matched !== "object") return "";
+  const path19 = Reflect.get(matched, "path");
+  return typeof path19 === "string" ? path19 : "";
+}
+function requestLatencyRecorder(store) {
+  return (req, res, next) => {
+    const started = process.hrtime.bigint();
+    res.once("finish", () => {
+      const path19 = matchedRoutePath(req);
+      if (!path19.startsWith("/api/")) return;
+      const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
+      void store.query(
+        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
+           VALUES ($1, $2, $3, $4)`,
+        [req.method.toUpperCase(), `${req.baseUrl || ""}${path19}`, res.statusCode, durationMs]
+      ).catch((error48) => {
+        console.warn(`[ops] Request latency was not recorded for ${req.method} ${path19}: ${error48.message}`);
+      });
+    });
+    next();
+  };
+}
+var REQUEST_LATENCY_TABLE, REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL, REQUEST_LATENCY_QUERY;
+var init_request_latency = __esm({
+  "server/lib/request-latency.ts"() {
+    init_app_schema();
+    init_ops_contract();
+    REQUEST_LATENCY_TABLE = `${APP_SCHEMA}.request_latencies`;
+    REQUEST_LATENCY_DDL = `CREATE TABLE IF NOT EXISTS ${REQUEST_LATENCY_TABLE} (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  method TEXT NOT NULL,
+  route TEXT NOT NULL,
+  status_code INTEGER NOT NULL,
+  duration_ms DOUBLE PRECISION NOT NULL,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`;
+    REQUEST_LATENCY_INDEX_DDL = `CREATE INDEX IF NOT EXISTS request_latencies_recorded_route_idx
+  ON ${REQUEST_LATENCY_TABLE} (recorded_at DESC, method, route)`;
+    REQUEST_LATENCY_QUERY = `
+  WITH coverage AS (
+    SELECT MIN(recorded_at) AS covered_from,
+           MAX(recorded_at) AS covered_to
+    FROM ${REQUEST_LATENCY_TABLE}
+  ),
+  bounds AS (
+    SELECT covered_from,
+           covered_to,
+           covered_from + ((covered_to - covered_from) / 2) AS split_at
+    FROM coverage
+  ),
+  samples AS (
+    SELECT CONCAT(r.method, ' ', r.route) AS route,
+           r.duration_ms,
+           r.status_code,
+           r.recorded_at,
+           b.split_at
+    FROM ${REQUEST_LATENCY_TABLE} r, bounds b
+  ),
+  routes AS (
+    SELECT
+      s.route,
+      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at)::int AS current_count,
+      ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p50_ms,
+      ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p95_ms,
+      ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p99_ms,
+      ROUND(MAX(s.duration_ms) FILTER (WHERE s.recorded_at >= s.split_at))::int AS slowest_ms,
+      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at AND s.status_code >= 500)::int AS error_count,
+      MAX(s.recorded_at) FILTER (WHERE s.recorded_at >= s.split_at) AS last_request_at,
+      COUNT(*) FILTER (WHERE s.recorded_at < s.split_at)::int AS prior_count,
+      ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at < s.split_at))::int AS prior_p50_ms
+    FROM samples s
+    GROUP BY s.route
+    HAVING COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at) > 0
+  ),
+  SELECT r.*, b.covered_from, b.covered_to
+  FROM routes r CROSS JOIN bounds b
+  ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;
+  }
+});
+
 // server/lib/warehouse-warmup.ts
 function warehouseStatePath(warehouseId2) {
   return `/api/2.0/sql/warehouses/${encodeURIComponent(warehouseId2)}`;
@@ -165319,7 +165452,7 @@ function readAgentRefusal(payload, context2) {
   if (!outputs || outputs.type !== UNAVAILABLE_TYPE) return null;
   const declared = outputs.code;
   const code = isFailureCode(declared) ? declared : UNKNOWN_CODE_FALLBACK;
-  const message = text4(outputs.message);
+  const message = text5(outputs.message);
   const detail = isFailureCode(declared) ? `The agent endpoint refused this turn with ${code}.` : `The agent endpoint refused this turn with ${JSON.stringify(declared)}, which this build does not know. Reported as ${UNKNOWN_CODE_FALLBACK}: the app and the model version are not from the same release.`;
   return unavailableResult({
     code,
@@ -165341,7 +165474,7 @@ function executionIdentity(outputs) {
   const claim = outputs.execution_identity;
   if (!claim || typeof claim !== "object" || Array.isArray(claim)) return void 0;
   const record2 = claim;
-  const mode = text4(record2.mode);
+  const mode = text5(record2.mode);
   if (!mode) return void 0;
   return { mode, verified: record2.verified === true };
 }
@@ -165351,7 +165484,7 @@ function customOutputs(payload) {
   if (!outputs || typeof outputs !== "object" || Array.isArray(outputs)) return null;
   return outputs;
 }
-function text4(value) {
+function text5(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 var UNAVAILABLE_TYPE, UNKNOWN_CODE_FALLBACK;
@@ -165529,8 +165662,8 @@ function diagnoseUserToken(req, isDevelopmentIdentity) {
   };
 }
 function looksLikeMissingScope(message) {
-  const text14 = message.toLowerCase();
-  return text14.includes("does not have required scopes") || text14.includes("insufficient_scope") || text14.includes("scope") && (text14.includes("oauth") || text14.includes("token"));
+  const text16 = message.toLowerCase();
+  return text16.includes("does not have required scopes") || text16.includes("insufficient_scope") || text16.includes("scope") && (text16.includes("oauth") || text16.includes("token"));
 }
 function scopesFromToken(token) {
   const segments = token.split(".");
@@ -165629,12 +165762,12 @@ function statusForOutcome(outcome) {
 function probeStatement(table) {
   return `SELECT 1 FROM ${table} WHERE 1=0`;
 }
-function matches(text14, markers) {
-  return markers.some((marker) => text14.includes(marker));
+function matches(text16, markers) {
+  return markers.some((marker) => text16.includes(marker));
 }
 function classifyDenial(message, table) {
-  const text14 = message.toLowerCase();
-  if (matches(text14, PERMISSION_MARKERS)) {
+  const text16 = message.toLowerCase();
+  if (matches(text16, PERMISSION_MARKERS)) {
     const catalog = CATALOG_REFUSED.exec(message);
     if (catalog) {
       return { kind: "no-grant", object: catalog[1], objectKind: "catalog", permission: "USE CATALOG" };
@@ -165645,7 +165778,7 @@ function classifyDenial(message, table) {
     }
     return { kind: "no-grant", object: table, objectKind: "table", permission: "SELECT" };
   }
-  if (matches(text14, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
+  if (matches(text16, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
   return { kind: "unrecognised" };
 }
 function classify(message, table, principal) {
@@ -166448,7 +166581,7 @@ function scopeForPath(path19) {
   }
   return best;
 }
-function text5(value) {
+function text6(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function list2(value) {
@@ -166482,11 +166615,11 @@ function connectionSubjects(input) {
       path: `/api/2.0/sql/warehouses/${encodeURIComponent(warehouse)}`,
       proves: "It does not prove a statement would run: CAN_USE on the warehouse and SELECT on the tables are separate grants, and a stopped warehouse still answers this call.",
       observe: (body) => {
-        const state = text5(body.state);
-        const name2 = text5(body.name);
+        const state = text6(body.state);
+        const name2 = text6(body.name);
         return [name2 && `named \u201C${name2}\u201D`, state && `state ${state}`].filter(Boolean).join(", ");
       },
-      displayName: (body) => text5(body.name),
+      displayName: (body) => text6(body.name),
       grant: (principal) => (
         // No guidance. What stood here said a warehouse is a workspace object
         // rather than a Unity Catalog one, which is why the fix is an API call
@@ -166513,10 +166646,10 @@ function connectionSubjects(input) {
       path: `/api/2.0/genie/spaces/${encodeURIComponent(space)}`,
       proves: "It does not prove a question would be answered: a space someone can open can still be backed by tables they cannot read, and CAN RUN is a separate grant from CAN VIEW.",
       observe: (body) => {
-        const title = text5(body.title);
+        const title = text6(body.title);
         return title ? `titled \u201C${title}\u201D` : "";
       },
-      displayName: (body) => text5(body.title),
+      displayName: (body) => text6(body.title),
       grant: (principal) => (
         // No guidance. The dropped sentence said the tables behind a space are
         // granted separately in Unity Catalog, which is a real fact and one this
@@ -166539,7 +166672,7 @@ function connectionSubjects(input) {
       path: `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(catalog)}`,
       proves: "Every schema and table inside it is granted separately, so this covers the container only.",
       observe: (body) => {
-        const owner = text5(body.owner);
+        const owner = text6(body.owner);
         return owner ? `owned by ${owner}` : "";
       },
       grant: (principal) => (
@@ -166560,7 +166693,7 @@ function connectionSubjects(input) {
       path: `/api/2.1/unity-catalog/schemas/${encodeURIComponent(full)}`,
       proves: "Each table inside it is granted separately, so this covers the container only.",
       observe: (body) => {
-        const owner = text5(body.owner);
+        const owner = text6(body.owner);
         return owner ? `owned by ${owner}` : "";
       },
       grant: (principal) => (
@@ -166610,11 +166743,11 @@ function connectionSubjects(input) {
       path: `/api/2.0/vector-search/indexes/${encodeURIComponent(index)}`,
       proves: "It does not prove a search would return anything: an index that exists can still be empty or behind on its sync.",
       observe: (body) => {
-        const endpoint = text5(body.endpoint_name);
-        const state = text5(body.status?.detailed_state);
+        const endpoint = text6(body.endpoint_name);
+        const state = text6(body.status?.detailed_state);
         return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(", ");
       },
-      displayName: (body) => text5(body.name),
+      displayName: (body) => text6(body.name),
       contentAt: (body) => indexContentAt(body),
       // NOW A GRANT, which is what this row always claimed to be offering. What
       // stood here was a `databricks api get` against the index -- the same call
@@ -166643,7 +166776,7 @@ function connectionSubjects(input) {
 function indexContentAt(body) {
   const status = body.status ?? {};
   for (const key2 of ["triggered_update_status", "continuous_update_status"]) {
-    const stamp2 = text5(status[key2]?.last_processed_commit_timestamp);
+    const stamp2 = text6(status[key2]?.last_processed_commit_timestamp);
     if (stamp2 && !Number.isNaN(new Date(stamp2).getTime())) return stamp2;
   }
   return "";
@@ -166658,7 +166791,7 @@ function servingEndpointSubject(id, label, name2, note) {
     proves: `${note} Seeing an endpoint is not being allowed to call it: CAN_VIEW and CAN_QUERY are separate grants, and this call needs only the first.`,
     observe: (body) => {
       const state = body.state ?? {};
-      const ready = text5(state.ready);
+      const ready = text6(state.ready);
       return ready ? `state ${ready}` : "";
     },
     // No guidance. The dropped sentence classified the object to explain why the
@@ -166669,9 +166802,9 @@ function servingEndpointSubject(id, label, name2, note) {
   };
 }
 function vectorEndpointSubject(indexBody) {
-  const endpoint = text5(indexBody.endpoint_name);
+  const endpoint = text6(indexBody.endpoint_name);
   if (!endpoint) return null;
-  const endpointId = text5(indexBody.endpoint_id);
+  const endpointId = text6(indexBody.endpoint_id);
   return {
     id: "semantic-index-endpoint",
     kind: "vector-endpoint",
@@ -166681,7 +166814,7 @@ function vectorEndpointSubject(indexBody) {
     proves: "It does not prove a search would return anything; it says the endpoint serving the index exists.",
     observe: (body) => {
       const status = body.endpoint_status ?? {};
-      const state = text5(status.state);
+      const state = text6(status.state);
       return state ? `state ${state}` : "";
     },
     grant: endpointId ? (principal) => cli(
@@ -166779,8 +166912,8 @@ function probeVerdict(input) {
     });
   }
   const { status, body } = outcome;
-  const code = text5(body.error_code);
-  const message = text5(body.message);
+  const code = text6(body.error_code);
+  const message = text6(body.message);
   if (status >= 200 && status < 300) {
     const observed = subject.observe?.(body) ?? "";
     const contentAt = subject.contentAt ? subject.contentAt(body) : "";
@@ -167049,12 +167182,12 @@ function withSemanticFollowUps(checks, configured) {
 function withManifestRollup(checks) {
   const tables = checks.filter((entry) => entry.kind === "table");
   if (tables.length === 0) return checks;
-  const failed4 = tables.filter((entry) => entry.status === "failed");
+  const failed5 = tables.filter((entry) => entry.status === "failed");
   const unverified = tables.filter((entry) => entry.status === "unverified");
-  const status = failed4.length > 0 ? "failed" : unverified.length > 0 ? "unverified" : "ok";
+  const status = failed5.length > 0 ? "failed" : unverified.length > 0 ? "unverified" : "ok";
   const stopped = unverified.some((entry) => entry.stopped === "refused") ? "refused" : unverified.find((entry) => entry.stopped)?.stopped ?? "unasked";
   const refusedScopes = new Set(unverified.map((entry) => (entry.scope ?? "").trim()));
-  const scope = failed4.length === 0 && refusedScopes.size === 1 && unverified.length === tables.length ? [...refusedScopes][0] : "";
+  const scope = failed5.length === 0 && refusedScopes.size === 1 && unverified.length === tables.length ? [...refusedScopes][0] : "";
   return [
     ...checks,
     {
@@ -167068,7 +167201,7 @@ function withManifestRollup(checks) {
       status,
       ...status === "unverified" ? { stopped } : {},
       ...scope ? { scope } : {},
-      detail: failed4.length > 0 ? `${failed4.length} of ${tables.length} declared tables could not be read by this identity. Each one is listed under Unity Catalog tables with what the workspace said about it.` : unverified.length > 0 ? `${tables.length - unverified.length} of ${tables.length} declared tables answered, and ${unverified.length} did not, so the manifest as a whole is unconfirmed rather than clear.` : `All ${tables.length} declared tables answered a metadata read by this identity. Row filters and column masks are applied when data is read and are not covered.`,
+      detail: failed5.length > 0 ? `${failed5.length} of ${tables.length} declared tables could not be read by this identity. Each one is listed under Unity Catalog tables with what the workspace said about it.` : unverified.length > 0 ? `${tables.length - unverified.length} of ${tables.length} declared tables answered, and ${unverified.length} did not, so the manifest as a whole is unconfirmed rather than clear.` : `All ${tables.length} declared tables answered a metadata read by this identity. Row filters and column masks are applied when data is read and are not covered.`,
       checked_with: "derived from the table checks above",
       duration_ms: 0,
       error: "",
@@ -167527,13 +167660,13 @@ var init_required_user_api_scopes = __esm({
 });
 
 // server/lib/app-user-api-scopes.ts
-function text6(value) {
+function text7(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function messageFrom(body, fallback) {
   if (!body || typeof body !== "object") return fallback;
   const record2 = body;
-  return text6(record2.message) || text6(record2.error) || text6(record2.error_code) || fallback;
+  return text7(record2.message) || text7(record2.error) || text7(record2.error_code) || fallback;
 }
 function scopesFrom(body) {
   const raw2 = body && typeof body === "object" ? body.user_api_scopes : void 0;
@@ -167779,7 +167912,7 @@ function timestamp(value) {
   if (value instanceof Date) return value.toISOString();
   return typeof value === "string" ? value : (/* @__PURE__ */ new Date()).toISOString();
 }
-function text7(value) {
+function text8(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return null;
@@ -167850,10 +167983,10 @@ function conversationRunTrace(row2, experimentId) {
   const identity = {
     runId: String(row2.id),
     kind: "conversation",
-    conversationId: text7(row2.conversation_id),
+    conversationId: text8(row2.conversation_id),
     createdAt: timestamp(row2.created_at),
-    prompt: text7(row2.prompt),
-    stakeholder: text7(row2.stakeholder)
+    prompt: text8(row2.prompt),
+    stakeholder: text8(row2.stakeholder)
   };
   const payload = parseStoredJson(row2.response_json);
   if (!payload || typeof payload !== "object") {
@@ -167938,8 +168071,8 @@ function benchmarkRunTrace(row2) {
     kind: "benchmark",
     conversationId: null,
     createdAt: timestamp(row2.created_at),
-    prompt: text7(metrics2.prompt) ?? `Benchmark suite: ${text7(row2.suite_id) ?? "unknown"}`,
-    stakeholder: text7(row2.user_email)
+    prompt: text8(metrics2.prompt) ?? `Benchmark suite: ${text8(row2.suite_id) ?? "unknown"}`,
+    stakeholder: text8(row2.user_email)
   };
   return {
     ...runWithoutTrace(
@@ -167953,7 +168086,7 @@ function benchmarkRunTrace(row2) {
       // six below are then read defensively because they are the ones the panes
       // depend on.
       ...metrics2,
-      suiteId: text7(metrics2.suiteId) ?? text7(row2.suite_id),
+      suiteId: text8(metrics2.suiteId) ?? text8(row2.suite_id),
       passed: numberOrNull(metrics2.passed),
       total: numberOrNull(metrics2.total),
       groundedness: numberOrNull(metrics2.groundedness),
@@ -168198,15 +168331,15 @@ function extractLiveText(value) {
     const items = record2[key2];
     if (Array.isArray(items)) {
       for (const item of items) {
-        const text14 = extractLiveText(item);
-        if (text14) return text14;
+        const text16 = extractLiveText(item);
+        if (text16) return text16;
       }
     }
   }
   for (const key2 of ["message", "data", "response", "result", "body"]) {
     if (record2[key2]) {
-      const text14 = extractLiveText(record2[key2]);
-      if (text14) return text14;
+      const text16 = extractLiveText(record2[key2]);
+      if (text16) return text16;
     }
   }
   return null;
@@ -168541,7 +168674,7 @@ function agentEndpointEvidence(error48, context2) {
 function rejectionStatus(error48) {
   const carried = error48?.statusCode ?? error48?.status;
   if (typeof carried === "number") return carried;
-  const message = error48 instanceof Error ? error48.message : text7(error48) ?? "";
+  const message = error48 instanceof Error ? error48.message : text8(error48) ?? "";
   if (/\b403\b|permission denied|not authorized|forbidden/i.test(message)) return 403;
   if (/\b401\b|unauthenticated|unauthorized|invalid access token|expired/i.test(message)) return 401;
   return null;
@@ -168621,6 +168754,7 @@ function setupInsightsRoutes(appkit) {
     app.use(requireIdentity);
     app.use(requireAdmin(appkit.lakebase, userEmail));
     app.use(requireSuperAdmin(appkit.lakebase, userEmail));
+    app.use(requestLatencyRecorder(appkit.lakebase));
     app.get("/api/identity", async (req, res) => {
       const role = await rolePayload(appkit.lakebase, userEmail(req));
       res.json({ ...identityPayload(req), ...role });
@@ -169901,6 +170035,7 @@ var init_insights_routes = __esm({
     init_run_state();
     init_handler_failures();
     init_deadline();
+    init_request_latency();
     init_warehouse_warmup();
     init_failure_taxonomy();
     init_terminal_response();
@@ -169967,6 +170102,11 @@ var init_insights_routes = __esm({
       // one direction of the same walk.
       `CREATE INDEX IF NOT EXISTS messages_created_at_idx
      ON ${APP_SCHEMA}.messages (created_at DESC)`,
+      // App-owned route timings. This is deliberately Lakebase rather than OTEL:
+      // customer deployments leave billed telemetry off, while Ops still needs to
+      // report the API routes this server actually handled.
+      REQUEST_LATENCY_DDL,
+      REQUEST_LATENCY_INDEX_DDL,
       `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.attachments (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, user_email TEXT NOT NULL,
     filename TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,
     extracted_text TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -170550,29 +170690,11 @@ var init_app_facts = __esm({
       tags: [],
       deployedAt: "",
       deployedBy: "",
+      source: { path: "", workspaceUrl: "", gitRef: "" },
       serving: NO_APP_SERVING,
       otelExporter: "",
       otelExport: NO_EXPORTER_READING
     };
-  }
-});
-
-// shared/ops-contract.ts
-function opsDayRange(from, to, now) {
-  const day = (at) => new Date(at).toISOString().slice(0, 10);
-  const start = Date.parse(from);
-  const end = Date.parse(to);
-  const lastComplete = now - DAY_MS;
-  if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
-    return { from: day(start), to: day(Math.min(end, lastComplete)) };
-  }
-  return { from: day(lastComplete - 6 * DAY_MS), to: day(lastComplete) };
-}
-var SPAN_PERCENTILE_FLOOR, DAY_MS;
-var init_ops_contract = __esm({
-  "shared/ops-contract.ts"() {
-    SPAN_PERCENTILE_FLOOR = 20;
-    DAY_MS = 864e5;
   }
 });
 
@@ -170622,12 +170744,8 @@ function uncheckedMeasurement(insightsHref, note) {
     reason: `App telemetry is switched on and writing to ${table}, and ${note} So nothing about what this app served was established here, which is unchecked rather than empty.`
   };
 }
-function noHistoryReason(input) {
-  const since = input.recordingSince.trim();
-  if (!since) {
-    return "App telemetry is switched on and this table is readable, and nothing has been written to it at all yet. Telemetry does not backfill: the platform starts writing at the deploy that switches it on and records nothing about the time before that.";
-  }
-  return `App telemetry is switched on and this table is readable. It holds nothing for ${input.from} to ${input.to}, the days shown, because it did not start recording until ${since}. Telemetry does not backfill, and this page shows whole completed days, so the first day telemetry is on has no figures here until the day after. Nothing is broken and nothing was lost.`;
+function noHistoryReason() {
+  return "No app requests have been recorded yet.";
 }
 function stateFromFailure(message, table) {
   const denial = classifyDenial(message, table);
@@ -170643,8 +170761,6 @@ function buildTelemetryStatement(table) {
   return `WITH scoped AS (
   SELECT time, severity_text, body, attributes
   FROM ${table}
-  WHERE time >= CAST(:from_at AS TIMESTAMP)
-    AND time <  CAST(:to_at AS TIMESTAMP)
 ), served AS (
   SELECT time, severity_text, body
   FROM scoped
@@ -170685,7 +170801,7 @@ function readTelemetryRows(dataArray) {
   const recent = [];
   let lastServedAt = "";
   let recordingSince = "";
-  let count3 = 0;
+  let count4 = 0;
   if (Array.isArray(dataArray)) {
     for (const raw2 of dataArray) {
       if (!Array.isArray(raw2) || raw2.length < 4) continue;
@@ -170699,7 +170815,7 @@ function readTelemetryRows(dataArray) {
       } else if (kind === "first-recorded" && value) {
         recordingSince = value;
       } else if (kind === "error-count") {
-        count3 = Number(value ?? 0);
+        count4 = Number(value ?? 0);
       } else if (kind === "error-line" && bucket) {
         recent.push({ at: bucket, body: detail ?? "" });
       }
@@ -170711,7 +170827,7 @@ function readTelemetryRows(dataArray) {
     signInsPerDay,
     lastServedAt,
     recordingSince,
-    errors: { count: count3, recent: recent.slice(0, RECENT_ERROR_LIMIT) }
+    errors: { count: count4, recent: recent.slice(0, RECENT_ERROR_LIMIT) }
   };
 }
 function hasHistory(figures) {
@@ -170837,6 +170953,12 @@ function textOf3(value) {
 function objectOf(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
+function workspaceFolderUrl(host2, path19) {
+  const base = normalizeWorkspaceHost(host2);
+  const source = textOf3(path19);
+  if (!base || !source.startsWith("/Workspace/")) return "";
+  return `${base}/#workspace${encodeURI(source)}`;
+}
 function appTags(raw2) {
   if (Array.isArray(raw2)) {
     return raw2.map((entry) => typeof entry === "string" ? entry.trim() : textOf3(objectOf(entry).value) || textOf3(objectOf(entry).key)).filter(Boolean);
@@ -170866,6 +170988,12 @@ function appFacts(input) {
   if (input.read.kind !== "ok") return { ...NO_APP_FACTS, otelExporter, otelExport };
   const body = input.read.body;
   const deployment = objectOf(body.active_deployment);
+  const gitSource = objectOf(deployment.git_source);
+  const gitBacked = Object.keys(gitSource).length > 0;
+  const sourcePath = gitBacked ? textOf3(gitSource.source_code_path) : textOf3(deployment.source_code_path);
+  const appName = textOf3(body.name);
+  const workspaceHost2 = normalizeWorkspaceHost(input.workspaceHost);
+  const gitRef = textOf3(gitSource.branch) || textOf3(gitSource.tag) || textOf3(gitSource.commit);
   return {
     url: textOf3(body.url),
     answered: true,
@@ -170874,6 +171002,14 @@ function appFacts(input) {
     tags: appTags(body.tags),
     deployedAt: textOf3(deployment.create_time) || textOf3(body.update_time),
     deployedBy: textOf3(deployment.creator) || textOf3(body.updater),
+    source: {
+      path: sourcePath,
+      // Git deployments are managed from the app's own workspace page. Uploaded
+      // deployments link to the exact input folder Apps reports, never to the
+      // generated deployment artifact or to a bundle path inferred elsewhere.
+      workspaceUrl: gitBacked && workspaceHost2 && appName ? `${workspaceHost2}/apps/${encodeURIComponent(appName)}` : workspaceFolderUrl(workspaceHost2, sourcePath),
+      gitRef
+    },
     serving: appServing(body),
     otelExporter,
     otelExport
@@ -170881,6 +171017,7 @@ function appFacts(input) {
 }
 async function readAppFacts(input = {}) {
   const name2 = (input.name ?? process.env[APP_NAME_ENV] ?? "").trim();
+  const workspaceHost2 = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? "";
   const otelExporter = (input.otelExporter ?? process.env[OTEL_ENDPOINT_ENV] ?? "").trim();
   let otelExport = NO_EXPORTER_READING;
   try {
@@ -170898,12 +171035,13 @@ async function readAppFacts(input = {}) {
   if (read2.kind !== "ok") {
     console.warn(`[settings] The workspace could not be asked about the app ${name2}:`, read2.message);
   }
-  return appFacts({ read: read2, otelExporter, otelExport });
+  return appFacts({ read: read2, workspaceHost: workspaceHost2, otelExporter, otelExport });
 }
 var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, workspaceAppReader;
 var init_app_metadata = __esm({
   "server/lib/app-metadata.ts"() {
     init_app_facts();
+    init_databricks_links();
     init_ops_telemetry();
     APPS_PATH2 = "/api/2.0/apps";
     APP_NAME_ENV = "DATABRICKS_APP_NAME";
@@ -170959,7 +171097,7 @@ function scopeForBrowsePath(path19) {
   if (path19.startsWith("/api/2.0/postgres/")) return "postgres";
   return scopeForPath(path19.endsWith("/") ? path19 : `${path19}/`);
 }
-function text8(value) {
+function text9(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function unavailable3(kind, scope) {
@@ -171043,8 +171181,8 @@ function interpretBrowseAnswer(input) {
     const parsed = input.itemsFromBody(body);
     return ok(kind, parsed.items, parsed.next_page_token, input.path ?? "");
   }
-  const code = text8(body.error_code);
-  const message = text8(body.message);
+  const code = text9(body.error_code);
+  const message = text9(body.message);
   const scope = scopeForBrowsePath(apiPath);
   const named = scopesFromRefusal(message);
   const looksScope = named.length > 0 || looksLikeMissingScope(message);
@@ -171116,11 +171254,11 @@ function catalogItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const name2 = text8(row2.name);
+    const name2 = text9(row2.name);
     if (!name2) continue;
     items.push({ id: name2, label: name2, secondary: "", expandable: false });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function schemaItems(body) {
   const rows = Array.isArray(body.schemas) ? body.schemas : [];
@@ -171128,8 +171266,8 @@ function schemaItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text8(record2.full_name);
-    const name2 = text8(record2.name);
+    const fullName = text9(record2.full_name);
+    const name2 = text9(record2.name);
     const schemaName = name2.includes(".") ? name2.slice(name2.indexOf(".") + 1) : name2 || (fullName.includes(".") ? fullName.slice(fullName.indexOf(".") + 1) : fullName);
     if (!schemaName) continue;
     items.push({
@@ -171143,7 +171281,7 @@ function schemaItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function tableItems(body) {
   const rows = Array.isArray(body.tables) ? body.tables : [];
@@ -171151,17 +171289,17 @@ function tableItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text8(record2.full_name) || text8(record2.name);
+    const fullName = text9(record2.full_name) || text9(record2.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: fullName,
       label: short,
-      secondary: text8(record2.table_type),
+      secondary: text9(record2.table_type),
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function warehouseItems(body) {
   const rows = Array.isArray(body.warehouses) ? body.warehouses : [];
@@ -171169,16 +171307,16 @@ function warehouseItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const id = text8(record2.id);
+    const id = text9(record2.id);
     if (!id) continue;
     items.push({
       id,
-      label: text8(record2.name) || id,
-      secondary: text8(record2.state),
+      label: text9(record2.name) || id,
+      secondary: text9(record2.state),
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function genieItems(body) {
   const rows = Array.isArray(body.spaces) ? body.spaces : [];
@@ -171186,16 +171324,16 @@ function genieItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const id = text8(record2.space_id) || text8(record2.id);
+    const id = text9(record2.space_id) || text9(record2.id);
     if (!id) continue;
     items.push({
       id,
-      label: text8(record2.title) || id,
+      label: text9(record2.title) || id,
       secondary: "",
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function servingEndpointItems(body) {
   const rows = Array.isArray(body.endpoints) ? body.endpoints : [];
@@ -171203,18 +171341,18 @@ function servingEndpointItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text8(record2.name);
+    const name2 = text9(record2.name);
     if (!name2) continue;
     const state = record2.state;
-    const ready = state && typeof state === "object" ? text8(state.ready) : "";
+    const ready = state && typeof state === "object" ? text9(state.ready) : "";
     items.push({
       id: name2,
       label: name2,
-      secondary: text8(record2.task) || ready,
+      secondary: text9(record2.task) || ready,
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function notebookItems(body) {
   const rows = Array.isArray(body.objects) ? body.objects : [];
@@ -171222,15 +171360,15 @@ function notebookItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const path19 = text8(record2.path);
+    const path19 = text9(record2.path);
     if (!path19) continue;
-    const objectType = text8(record2.object_type).toUpperCase();
+    const objectType = text9(record2.object_type).toUpperCase();
     if (objectType !== "DIRECTORY" && objectType !== "NOTEBOOK") continue;
     const label = path19.includes("/") ? path19.slice(path19.lastIndexOf("/") + 1) : path19;
     items.push({
       id: path19,
       label: label || path19,
-      secondary: objectType === "NOTEBOOK" ? text8(record2.language) : "Directory",
+      secondary: objectType === "NOTEBOOK" ? text9(record2.language) : "Directory",
       expandable: objectType === "DIRECTORY"
     });
   }
@@ -171335,7 +171473,7 @@ async function validateNotebookPath(pathInput, options) {
         detail: answer.kind === "timeout" ? "The workspace did not answer before notebook validation timed out." : "The workspace could not be reached to validate this notebook."
       };
     }
-    if (answer.status === 404 || text8(answer.body.error_code) === "RESOURCE_DOES_NOT_EXIST") {
+    if (answer.status === 404 || text9(answer.body.error_code) === "RESOURCE_DOES_NOT_EXIST") {
       return { ok: false, status: 404, detail: "No workspace notebook exists at that path." };
     }
     if (answer.status === 401 || answer.status === 403) {
@@ -171352,7 +171490,7 @@ async function validateNotebookPath(pathInput, options) {
         detail: `The workspace refused notebook validation with HTTP ${answer.status}.`
       };
     }
-    if (apiPath.endsWith("/get-status") && text8(answer.body.object_type).toUpperCase() !== "NOTEBOOK") {
+    if (apiPath.endsWith("/get-status") && text9(answer.body.object_type).toUpperCase() !== "NOTEBOOK") {
       return { ok: false, status: 400, detail: "Choose a notebook, not a workspace folder." };
     }
   }
@@ -171364,17 +171502,17 @@ function volumeItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text8(record2.full_name) || text8(record2.name);
+    const fullName = text9(record2.full_name) || text9(record2.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: short,
       label: short,
-      secondary: text8(record2.volume_type) || fullName,
+      secondary: text9(record2.volume_type) || fullName,
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 async function listVolumes(options) {
   const catalog = options.catalog.trim();
@@ -171417,19 +171555,19 @@ function vectorSearchEndpointItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text8(record2.name);
+    const name2 = text9(record2.name);
     if (!name2) continue;
     const status = record2.endpoint_status;
-    const state = status && typeof status === "object" ? text8(status.state) : "";
-    const count3 = typeof record2.num_indexes === "number" ? `${record2.num_indexes} indexes` : "";
+    const state = status && typeof status === "object" ? text9(status.state) : "";
+    const count4 = typeof record2.num_indexes === "number" ? `${record2.num_indexes} indexes` : "";
     items.push({
       id: name2,
       label: name2,
-      secondary: [state, count3].filter(Boolean).join(", "),
+      secondary: [state, count4].filter(Boolean).join(", "),
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function vectorSearchIndexItems(body) {
   const rows = Array.isArray(body.vector_indexes) ? body.vector_indexes : Array.isArray(body.indexes) ? body.indexes : [];
@@ -171437,17 +171575,17 @@ function vectorSearchIndexItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text8(record2.name);
+    const name2 = text9(record2.name);
     if (!name2) continue;
     const short = name2.includes(".") ? name2.split(".").pop() : name2;
     items.push({
       id: name2,
       label: short,
-      secondary: text8(record2.index_type) || text8(record2.endpoint_name),
+      secondary: text9(record2.index_type) || text9(record2.endpoint_name),
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 async function listVectorSearchEndpoints(options) {
   const apiPath = "/api/2.0/vector-search/endpoints";
@@ -171487,10 +171625,10 @@ function lakebaseProjectItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text8(record2.name);
+    const name2 = text9(record2.name);
     if (!name2) continue;
     const status = record2.status;
-    const display = status && typeof status === "object" ? text8(status.display_name) : "";
+    const display = status && typeof status === "object" ? text9(status.display_name) : "";
     const short = name2.startsWith("projects/") ? name2.slice("projects/".length) : name2;
     items.push({
       id: name2,
@@ -171499,7 +171637,7 @@ function lakebaseProjectItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function lakebaseBranchItems(body) {
   const rows = Array.isArray(body.branches) ? body.branches : [];
@@ -171507,11 +171645,11 @@ function lakebaseBranchItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text8(record2.name);
+    const name2 = text9(record2.name);
     if (!name2) continue;
     const short = name2.includes("/branches/") ? name2.slice(name2.lastIndexOf("/branches/") + "/branches/".length) : name2;
     const status = record2.status;
-    const state = status && typeof status === "object" ? text8(status.state) : "";
+    const state = status && typeof status === "object" ? text9(status.state) : "";
     items.push({
       id: name2,
       label: short,
@@ -171519,7 +171657,7 @@ function lakebaseBranchItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function lakebaseDatabaseItems(body) {
   const rows = Array.isArray(body.databases) ? body.databases : [];
@@ -171527,7 +171665,7 @@ function lakebaseDatabaseItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text8(record2.name);
+    const name2 = text9(record2.name);
     if (!name2) continue;
     const short = name2.includes("/databases/") ? name2.slice(name2.lastIndexOf("/databases/") + "/databases/".length) : name2;
     items.push({
@@ -171537,7 +171675,7 @@ function lakebaseDatabaseItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text8(body.next_page_token) };
+  return { items, next_page_token: text9(body.next_page_token) };
 }
 function lakebaseProjectParent(project) {
   const trimmed = project.trim();
@@ -171898,32 +172036,32 @@ var init_notebook_declaration_read = __esm({
 });
 
 // server/lib/declared-connections.ts
-function text9(value) {
+function text10(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return "";
 }
 function timestamp2(value) {
   if (value instanceof Date) return value.toISOString();
-  return text9(value);
+  return text10(value);
 }
 function storedFromRow2(row2) {
-  const kind = text9(row2.kind);
+  const kind = text10(row2.kind);
   return {
-    id: text9(row2.id),
-    label: text9(row2.label),
+    id: text10(row2.id),
+    label: text10(row2.label),
     // Read through the allowlist rather than cast. A kind that is no longer one
     // this build declares would otherwise reach the client as an icon lookup that
     // silently renders nothing.
     kind: DECLARABLE_KINDS.includes(kind) ? kind : "unity-catalog",
-    value: text9(row2.value),
-    note: text9(row2.note),
+    value: text10(row2.value),
+    note: text10(row2.note),
     state: row2.state === "withdrawn" ? "withdrawn" : "declared",
     origin: row2.origin === "notebook" ? "notebook" : "app",
     createdAt: timestamp2(row2.created_at),
-    createdBy: text9(row2.created_by),
+    createdBy: text10(row2.created_by),
     changedAt: timestamp2(row2.changed_at),
-    changedBy: text9(row2.changed_by)
+    changedBy: text10(row2.changed_by)
   };
 }
 async function readDeclaredConnections(client) {
@@ -172038,7 +172176,7 @@ var init_declared_connections = __esm({
 });
 
 // shared/apply-declaration.ts
-function text10(value) {
+function text11(value) {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
   return "";
@@ -172047,7 +172185,7 @@ function intendedFromResources(resources) {
   const out = {};
   for (const entry of resources ?? []) {
     const key2 = entry.resource?.agentKey;
-    const intended = text10(entry.intended);
+    const intended = text11(entry.intended);
     if (!key2 || !intended || !APPLYABLE_KEYS.has(key2)) continue;
     out[key2] = intended;
   }
@@ -172057,8 +172195,8 @@ function settingsFromDeclaration(declaration) {
   const out = {};
   if (!declaration) return out;
   for (const setting2 of declaration.settings) {
-    const key2 = text10(setting2.key);
-    const value = text10(setting2.value);
+    const key2 = text11(setting2.key);
+    const value = text11(setting2.value);
     if (!key2 || !value) continue;
     if (NOTEBOOK_REFUSED_KEYS.has(key2)) continue;
     if (!APPLYABLE_KEYS.has(key2)) continue;
@@ -172105,7 +172243,7 @@ function resolveApplyPlan(input) {
       "Values come from the notebook declaration. Intended settings on Connections override the notebook when both name the same key."
     );
   }
-  const target = text10(input.target) || "<your-target>";
+  const target = text11(input.target) || "<your-target>";
   return {
     knobs,
     notes,
@@ -172142,14 +172280,14 @@ var init_apply_declaration = __esm({
 });
 
 // server/lib/model-release-store.ts
-function text11(value) {
+function text12(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
   return "";
 }
 function instant(value) {
   if (value == null) return null;
-  return value instanceof Date ? value.toISOString() : text11(value) || null;
+  return value instanceof Date ? value.toISOString() : text12(value) || null;
 }
 function jsonValue(value) {
   if (value == null) return null;
@@ -172164,24 +172302,24 @@ function jsonValue(value) {
 }
 function modelReleaseFromRow(row2) {
   return {
-    id: text11(row2.id),
-    status: text11(row2.status),
-    requestedBy: text11(row2.requested_by),
+    id: text12(row2.id),
+    status: text12(row2.status),
+    requestedBy: text12(row2.requested_by),
     requestedAt: instant(row2.requested_at) ?? "",
     declaration: jsonValue(row2.declaration),
-    declarationRevision: text11(row2.declaration_revision),
-    target: text11(row2.target),
-    endpointName: text11(row2.endpoint_name),
-    modelName: text11(row2.model_name),
-    vFrom: text11(row2.v_from) || null,
-    vTo: text11(row2.v_to) || null,
+    declarationRevision: text12(row2.declaration_revision),
+    target: text12(row2.target),
+    endpointName: text12(row2.endpoint_name),
+    modelName: text12(row2.model_name),
+    vFrom: text12(row2.v_from) || null,
+    vTo: text12(row2.v_to) || null,
     preflightAtRequest: jsonValue(row2.preflight_at_request),
     preflightResult: jsonValue(row2.preflight_result),
     startedAt: instant(row2.started_at),
     completedAt: instant(row2.completed_at),
-    claimedBy: text11(row2.claimed_by) || null,
-    completedBy: text11(row2.completed_by) || null,
-    errorSummary: text11(row2.error_summary) || null
+    claimedBy: text12(row2.claimed_by) || null,
+    completedBy: text12(row2.completed_by) || null,
+    errorSummary: text12(row2.error_summary) || null
   };
 }
 async function createModelRelease(store, input) {
@@ -172289,6 +172427,353 @@ var init_model_release_store = __esm({
   }
 });
 
+// server/lib/resource-tagging.ts
+function configurationValue(report, key2) {
+  const value = report?.configuration.find((entry) => entry.key === key2)?.value;
+  return typeof value === "string" ? value.trim() : "";
+}
+function text13(value) {
+  return (value ?? "").trim();
+}
+function resourceTagInventory(input = {}) {
+  const environment = input.environment ?? process.env;
+  const report = input.report ?? null;
+  const targets = [];
+  const appName = text13(environment.DATABRICKS_APP_NAME);
+  if (appName) {
+    targets.push({ kind: "app", name: appName, label: `App \xB7 ${appName}`, action: "tag" });
+  }
+  const modelName = configurationValue(report, "model_name") || text13(environment.PLAYER_INSIGHTS_MODEL_NAME);
+  const modelVersion = configurationValue(report, "model_version");
+  if (modelName) {
+    targets.push({
+      kind: "registered-model",
+      name: modelName,
+      label: `Registered agent model \xB7 ${modelName}`,
+      action: "tag"
+    });
+    if (modelVersion) {
+      targets.push({
+        kind: "model-version",
+        name: modelName,
+        version: modelVersion,
+        label: `Agent model version \xB7 ${modelName} v${modelVersion}`,
+        action: "tag"
+      });
+    }
+  }
+  const serving2 = text13(environment.DATABRICKS_SERVING_ENDPOINT_NAME);
+  if (serving2) {
+    targets.push({
+      kind: "serving-endpoint",
+      name: serving2,
+      label: `Serving endpoint \xB7 ${serving2}`,
+      action: "tag"
+    });
+  }
+  const experimentId = text13(environment.PLAYER_INSIGHTS_EXPERIMENT_ID);
+  if (experimentId) {
+    targets.push({
+      kind: "mlflow-experiment",
+      name: experimentId,
+      label: `MLflow experiment \xB7 ${experimentId}`,
+      action: "tag"
+    });
+  }
+  const index = configurationValue(report, "semantic_index");
+  if (index && index.includes(".")) {
+    targets.push({
+      kind: "vector-index",
+      name: index,
+      label: `Vector Search index \xB7 ${index}`,
+      action: "skip",
+      reason: "Vector Search indexes do not have a custom tag API. Their endpoint can be tagged."
+    });
+  }
+  const warehouse = text13(environment.DATABRICKS_SQL_WAREHOUSE_ID);
+  if (warehouse) {
+    targets.push({
+      kind: "sql-warehouse",
+      name: warehouse,
+      label: `SQL warehouse \xB7 ${warehouse}`,
+      action: "tag"
+    });
+  }
+  const lakebaseBinding = text13(environment.LAKEBASE_ENDPOINT);
+  const projectId = /^projects\/([^/]+)/.exec(lakebaseBinding)?.[1] ?? "";
+  if (projectId) {
+    targets.push({
+      kind: "lakebase",
+      name: `projects/${projectId}`,
+      label: `Lakebase project \xB7 ${projectId}`,
+      action: "tag"
+    });
+  }
+  return targets;
+}
+function hasTag(tags) {
+  return tags.some((tag) => tag.key === ASTROLABE_TAG.key && tag.value === ASTROLABE_TAG.value);
+}
+function mergeTag(tags) {
+  return [...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key), { ...ASTROLABE_TAG }];
+}
+function failed4(target, error48) {
+  const raw2 = error48 instanceof Error ? error48.message : String(error48);
+  let detail = raw2.split("\n")[0].trim().slice(0, 240) || "Databricks did not complete the update.";
+  if (/permission|forbidden|unauthori[sz]ed|403/i.test(detail)) {
+    if (target.kind === "sql-warehouse") {
+      detail += " The app service principal needs CAN_MANAGE (or ownership) on this SQL warehouse to set cost tags.";
+    } else if (target.kind === "lakebase") {
+      detail += " The app service principal needs permission to update this Lakebase project.";
+    } else if (target.kind === "registered-model" || target.kind === "model-version" || target.kind === "mlflow-experiment") {
+      detail += " Grant the app service principal management permission on this MLflow resource.";
+    }
+  }
+  return { ...target, status: "failed", detail };
+}
+async function tagTarget(target, platform) {
+  if (target.action === "skip") {
+    return { ...target, status: "skipped", detail: target.reason ?? "This resource cannot be tagged." };
+  }
+  try {
+    if (target.kind === "app") {
+      const current = await platform.getAppTag(target.name);
+      if (current === ASTROLABE_TAG.value) {
+        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
+      }
+      if (current === null) await platform.createAppTag(target.name);
+      else await platform.updateAppTag(target.name);
+      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+    }
+    if (target.kind === "serving-endpoint") {
+      const tags = await platform.getServingTags(target.name);
+      if (hasTag(tags)) {
+        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
+      }
+      await platform.addServingTag(target.name);
+      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+    }
+    if (target.kind === "registered-model") {
+      if (hasTag(await platform.getModelTags(target.name))) {
+        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
+      }
+      await platform.setModelTag(target.name);
+      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+    }
+    if (target.kind === "model-version") {
+      const version4 = target.version;
+      if (!version4) throw new Error("The connected agent model version was not resolved.");
+      if (hasTag(await platform.getModelVersionTags(target.name, version4))) {
+        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
+      }
+      await platform.setModelVersionTag(target.name, version4);
+      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+    }
+    if (target.kind === "mlflow-experiment") {
+      if (hasTag(await platform.getExperimentTags(target.name))) {
+        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
+      }
+      await platform.setExperimentTag(target.name);
+      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+    }
+    if (target.kind === "sql-warehouse") {
+      const tags = await platform.getWarehouseTags(target.name);
+      if (hasTag(tags)) {
+        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
+      }
+      await platform.setWarehouseTags(target.name, mergeTag(tags));
+      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+    }
+    if (target.kind === "lakebase") {
+      const tags = await platform.getLakebaseTags(target.name);
+      if (hasTag(tags)) {
+        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
+      }
+      await platform.setLakebaseTags(target.name, mergeTag(tags));
+      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+    }
+    return {
+      ...target,
+      status: "skipped",
+      detail: target.reason ?? "This connected resource is not managed by Astrolabe."
+    };
+  } catch (error48) {
+    return failed4(target, error48);
+  }
+}
+async function applyAstrolabeTags(input) {
+  const platform = input.platform ?? await workspaceTagPlatform();
+  const targets = resourceTagInventory({ environment: input.environment, report: input.report });
+  const results = [];
+  for (const target of targets) {
+    results.push(await tagTarget(target, platform));
+    if (target.kind !== "vector-index" || target.action !== "skip") continue;
+    try {
+      const endpointName = await platform.getVectorIndexEndpoint(target.name);
+      const endpoint = {
+        kind: "vector-endpoint",
+        name: endpointName,
+        label: `Vector Search endpoint \xB7 ${endpointName}`,
+        action: "tag"
+      };
+      const tags = await platform.getVectorEndpointTags(endpointName);
+      if (hasTag(tags)) {
+        results.push({ ...endpoint, status: "already-tagged", detail: "Already tagged astrolabe=true." });
+      } else {
+        await platform.setVectorEndpointTags(endpointName, mergeTag(tags));
+        results.push({ ...endpoint, status: "tagged", detail: "Tagged astrolabe=true." });
+      }
+    } catch (error48) {
+      results.push(
+        failed4(
+          {
+            kind: "vector-endpoint",
+            name: target.name,
+            label: "Vector Search endpoint",
+            action: "tag"
+          },
+          error48
+        )
+      );
+    }
+  }
+  return {
+    tagged: results.filter((result) => result.status === "tagged" || result.status === "already-tagged").length,
+    alreadyTagged: results.filter((result) => result.status === "already-tagged").length,
+    skipped: results.filter((result) => result.status === "skipped").length,
+    failed: results.filter((result) => result.status === "failed").length,
+    results
+  };
+}
+function errorStatus(error48) {
+  const shape = error48;
+  return Number(shape?.statusCode ?? shape?.status ?? 0);
+}
+async function workspaceTagPlatform() {
+  const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+  const client = new WorkspaceClient6({});
+  const jsonHeaders = new Headers({ Accept: "application/json", "Content-Type": "application/json" });
+  const appTagPath = (appName) => `/api/2.0/entity-tag-assignments/apps/${encodeURIComponent(appName)}/tags/${ASTROLABE_TAG.key}`;
+  return {
+    async getAppTag(appName) {
+      try {
+        const body = await client.apiClient.request({
+          path: appTagPath(appName),
+          method: "GET",
+          headers: jsonHeaders,
+          raw: false
+        });
+        return typeof body?.tag_value === "string" ? body.tag_value : "";
+      } catch (error48) {
+        if (errorStatus(error48) === 404) return null;
+        throw error48;
+      }
+    },
+    async createAppTag(appName) {
+      await client.apiClient.request({
+        path: "/api/2.0/entity-tag-assignments",
+        method: "POST",
+        headers: jsonHeaders,
+        payload: {
+          entity_type: "apps",
+          entity_id: appName,
+          tag_key: ASTROLABE_TAG.key,
+          tag_value: ASTROLABE_TAG.value
+        },
+        raw: false
+      });
+    },
+    async updateAppTag(appName) {
+      await client.apiClient.request({
+        path: appTagPath(appName),
+        method: "PATCH",
+        headers: jsonHeaders,
+        query: { update_mask: "tag_value" },
+        payload: { tag_value: ASTROLABE_TAG.value },
+        raw: false
+      });
+    },
+    async getServingTags(name2) {
+      return (await client.servingEndpoints.get({ name: name2 })).tags ?? [];
+    },
+    async addServingTag(name2) {
+      await client.servingEndpoints.patch({ name: name2, add_tags: [{ ...ASTROLABE_TAG }] });
+    },
+    async getModelTags(name2) {
+      return (await client.modelRegistry.getModel({ name: name2 })).registered_model_databricks?.tags ?? [];
+    },
+    async setModelTag(name2) {
+      await client.modelRegistry.setModelTag({ name: name2, ...ASTROLABE_TAG });
+    },
+    async getModelVersionTags(name2, version4) {
+      return (await client.modelRegistry.getModelVersion({ name: name2, version: version4 })).model_version?.tags ?? [];
+    },
+    async setModelVersionTag(name2, version4) {
+      await client.modelRegistry.setModelVersionTag({ name: name2, version: version4, ...ASTROLABE_TAG });
+    },
+    async getExperimentTags(experimentId) {
+      return (await client.experiments.getExperiment({ experiment_id: experimentId })).experiment?.tags ?? [];
+    },
+    async setExperimentTag(experimentId) {
+      await client.experiments.setExperimentTag({ experiment_id: experimentId, ...ASTROLABE_TAG });
+    },
+    async getWarehouseTags(warehouseId2) {
+      return (await client.warehouses.get({ id: warehouseId2 })).tags?.custom_tags ?? [];
+    },
+    async setWarehouseTags(warehouseId2, tags) {
+      await client.warehouses.edit({
+        id: warehouseId2,
+        tags: {
+          custom_tags: tags.map((tag) => ({ key: tag.key ?? "", value: tag.value ?? "" }))
+        }
+      });
+    },
+    async getLakebaseTags(projectName) {
+      const project = await client.apiClient.request({
+        path: `/api/2.0/postgres/${projectName}`,
+        method: "GET",
+        headers: jsonHeaders,
+        raw: false
+      });
+      return project.spec?.custom_tags ?? [];
+    },
+    async setLakebaseTags(projectName, tags) {
+      await client.apiClient.request({
+        path: `/api/2.0/postgres/${projectName}`,
+        method: "PATCH",
+        headers: jsonHeaders,
+        query: { update_mask: "spec.custom_tags" },
+        payload: {
+          spec: {
+            custom_tags: tags.map((tag) => ({ key: tag.key ?? "", value: tag.value ?? "" }))
+          }
+        },
+        raw: false
+      });
+    },
+    async getVectorIndexEndpoint(indexName) {
+      const endpoint = (await client.vectorSearchIndexes.getIndex({ index_name: indexName })).endpoint_name?.trim();
+      if (!endpoint) throw new Error(`Vector Search index ${indexName} did not report its endpoint.`);
+      return endpoint;
+    },
+    async getVectorEndpointTags(endpointName) {
+      return (await client.vectorSearchEndpoints.getEndpoint({ endpoint_name: endpointName })).custom_tags ?? [];
+    },
+    async setVectorEndpointTags(endpointName, tags) {
+      await client.vectorSearchEndpoints.updateEndpointCustomTags({
+        endpoint_name: endpointName,
+        custom_tags: tags.map((tag) => ({ key: tag.key ?? "", value: tag.value ?? "" }))
+      });
+    }
+  };
+}
+var ASTROLABE_TAG;
+var init_resource_tagging = __esm({
+  "server/lib/resource-tagging.ts"() {
+    ASTROLABE_TAG = { key: "astrolabe", value: "true" };
+  }
+});
+
 // server/routes/settings-routes.ts
 var settings_routes_exports = {};
 __export(settings_routes_exports, {
@@ -172385,6 +172870,32 @@ function setupSettingsRoutes(appkit) {
       const facts = await readAppFacts();
       res.json({ deployedAt: facts.deployedAt, deployedBy: facts.deployedBy, buildSha: appBuildSha() });
     });
+    app.post("/api/settings/resource-tags", async (req, res) => {
+      try {
+        const { report } = await readOrchestratorReport(appkit);
+        const experimentId = await resolveExperimentId(appkit);
+        const summary = await applyAstrolabeTags({
+          report,
+          environment: {
+            ...process.env,
+            PLAYER_INSIGHTS_EXPERIMENT_ID: experimentId
+          }
+        });
+        await recordAdminAction(appkit.lakebase, {
+          actor: userEmail(req),
+          action: "resource-tags-applied",
+          subject: "astrolabe=true",
+          detail: `${summary.tagged} tagged, ${summary.skipped} skipped, ${summary.failed} failed (${summary.alreadyTagged} already tagged).`
+        });
+        res.json(summary);
+      } catch (error48) {
+        console.error("[settings] Resource tags could not be applied:", error48.message);
+        res.status(503).json({
+          error: "resource_tagging_unavailable",
+          detail: "Databricks did not start the resource tag update. No viewer credential was used."
+        });
+      }
+    });
     app.get("/api/settings", async (req, res) => {
       const { report, answered } = await readOrchestratorReport(appkit);
       const stored = await readStoredSettings(appkit);
@@ -172420,45 +172931,41 @@ function setupSettingsRoutes(appkit) {
         connections: await readConnections(appkit, states)
       });
     });
-    app.put(
-      "/api/settings/notebook-path",
-      requireAdmin(appkit.lakebase, userEmail),
-      async (req, res) => {
-        const parsed = NotebookPathBody.safeParse(req.body);
-        if (!parsed.success) {
-          res.status(400).json({ error: "invalid_notebook_path", detail: parsed.error.message });
+    app.put("/api/settings/notebook-path", requireAdmin(appkit.lakebase, userEmail), async (req, res) => {
+      const parsed = NotebookPathBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_notebook_path", detail: parsed.error.message });
+        return;
+      }
+      try {
+        const savedResult = await validateAndStoreNotebookPath({
+          appkit,
+          path: parsed.data.path,
+          host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
+          token: forwardedUserToken(req) ?? "",
+          updatedBy: userEmail(req)
+        });
+        if (!savedResult.ok) {
+          res.status(savedResult.status).json({
+            error: "notebook_path_not_usable",
+            detail: savedResult.detail
+          });
           return;
         }
-        try {
-          const savedResult = await validateAndStoreNotebookPath({
-            appkit,
-            path: parsed.data.path,
-            host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
-            token: forwardedUserToken(req) ?? "",
-            updatedBy: userEmail(req)
-          });
-          if (!savedResult.ok) {
-            res.status(savedResult.status).json({
-              error: "notebook_path_not_usable",
-              detail: savedResult.detail
-            });
-            return;
-          }
-          await recordAdminAction(appkit.lakebase, {
-            actor: userEmail(req),
-            action: "connection-setting-saved",
-            subject: "notebook-path",
-            detail: "Configured the workspace notebook shown on Connections."
-          });
-          res.json({ path: savedResult.saved.value });
-        } catch (error48) {
-          res.status(503).json({
-            error: "settings_store_unavailable",
-            detail: `The notebook path was validated but not saved: ${error48.message}`
-          });
-        }
+        await recordAdminAction(appkit.lakebase, {
+          actor: userEmail(req),
+          action: "connection-setting-saved",
+          subject: "notebook-path",
+          detail: "Configured the workspace notebook shown on Connections."
+        });
+        res.json({ path: savedResult.saved.value });
+      } catch (error48) {
+        res.status(503).json({
+          error: "settings_store_unavailable",
+          detail: `The notebook path was validated but not saved: ${error48.message}`
+        });
       }
-    );
+    });
     app.post("/api/settings/connections", async (req, res) => {
       const parsed = ConnectionBody.safeParse(req.body);
       if (!parsed.success) {
@@ -172883,6 +173390,7 @@ var init_settings_routes = __esm({
     init_declared_connections();
     init_apply_declaration();
     init_model_release_store();
+    init_resource_tagging();
     WriteBody = external_exports.object({
       value: external_exports.string().trim().max(500),
       intent: external_exports.enum(["active", "intended"]),
@@ -173202,13 +173710,13 @@ async function withdrawAccess(input) {
     );
   }
   if (!input.run) return nothing(input.unavailable ?? NO_WAREHOUSE_REASON);
-  const failed4 = [];
+  const failed5 = [];
   const revoked = [];
   for (const row2 of mine) {
     const statement = revokeStatement({ kind: kindOf(row2.object), name: row2.object, privilege: row2.privilege }, email3);
     const outcome = await input.run(statement);
     if (outcome.ok) revoked.push(row2);
-    else failed4.push(statement);
+    else failed5.push(statement);
   }
   for (const row2 of revoked) {
     try {
@@ -173225,8 +173733,8 @@ async function withdrawAccess(input) {
   }
   return {
     revoked: revoked.length,
-    refused: failed4,
-    summary: failed4.length > 0 ? `Access not fully taken back. ${failed4.length} of ${mine.length} statements were refused.` : "Access taken back.",
+    refused: failed5,
+    summary: failed5.length > 0 ? `Access not fully taken back. ${failed5.length} of ${mine.length} statements were refused.` : "Access taken back.",
     note: leftInPlace
   };
 }
@@ -173681,9 +174189,9 @@ async function resolveGrants(options) {
     return empty;
   }
   if (!options.probe) {
-    const failed4 = unresolvedGrants(now);
-    cache2.set(id, failed4);
-    return failed4;
+    const failed5 = unresolvedGrants(now);
+    cache2.set(id, failed5);
+    return failed5;
   }
   let outcome;
   try {
@@ -173692,17 +174200,17 @@ async function resolveGrants(options) {
     console.warn(
       `[monitoring] Table permissions could not be resolved for ${options.key.admin}: ${error48.message}. Everything is shown, and the page says the check could not run.`
     );
-    const failed4 = unresolvedGrants(now);
-    cache2.set(id, failed4);
-    return failed4;
+    const failed5 = unresolvedGrants(now);
+    cache2.set(id, failed5);
+    return failed5;
   }
   if (outcome.blocked) {
     console.warn(
       `[monitoring] Table permissions not established for ${options.key.admin}: ${outcome.blocked.kind}. Everything is shown.`
     );
-    const failed4 = unresolvedGrants(now);
-    cache2.set(id, failed4);
-    return failed4;
+    const failed5 = unresolvedGrants(now);
+    cache2.set(id, failed5);
+    return failed5;
   }
   const verdicts = /* @__PURE__ */ new Map();
   for (const verdict of outcome.verdicts) verdicts.set(verdict.table, verdict);
@@ -173858,7 +174366,7 @@ function manifestTables() {
 function queryString2(value) {
   return typeof value === "string" ? value : "";
 }
-function text12(value) {
+function text14(value) {
   return typeof value === "string" ? value : "";
 }
 function integer2(value) {
@@ -173869,7 +174377,7 @@ function integer2(value) {
 }
 function stamp(value) {
   if (value instanceof Date) return value.toISOString();
-  const raw2 = text12(value);
+  const raw2 = text14(value);
   const parsed = Date.parse(raw2);
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : "";
 }
@@ -173877,13 +174385,13 @@ function tableList(value) {
   if (!Array.isArray(value)) return [];
   const seen = /* @__PURE__ */ new Set();
   for (const entry of value) {
-    const name2 = text12(entry).trim();
+    const name2 = text14(entry).trim();
     if (name2.split(".").filter((part) => part.length > 0).length === 3) seen.add(name2);
   }
   return [...seen];
 }
 function sentiment(value, usefulness) {
-  const word = text12(value).trim().toLowerCase();
+  const word = text14(value).trim().toLowerCase();
   if (word === "up" || word === "down") return word;
   if (usefulness === null) return null;
   if (usefulness >= 4) return "up";
@@ -173904,12 +174412,12 @@ function tokensOf(response) {
   return { prompt, completion, total };
 }
 function questionRows(rows) {
-  return rows.filter((row2) => text12(row2.question_id) !== "");
+  return rows.filter((row2) => text14(row2.question_id) !== "");
 }
 function rangeTotalsFrom(row2, page) {
   const asked = integer2(row2?.asked_total);
   const people = integer2(row2?.people_total);
-  const listed = Array.isArray(row2?.people_list) ? row2.people_list.map((entry) => text12(entry)).filter((email3) => email3 !== "") : null;
+  const listed = Array.isArray(row2?.people_list) ? row2.people_list.map((entry) => text14(entry)).filter((email3) => email3 !== "") : null;
   const fromPage = [...new Set(page.map((question) => question.askedBy).filter((email3) => email3 !== ""))].sort();
   return {
     asked: asked !== null && asked >= page.length ? asked : page.length,
@@ -173918,7 +174426,7 @@ function rangeTotalsFrom(row2, page) {
   };
 }
 function questionFromRow(row2, ledger) {
-  const answerId = text12(row2.answer_id);
+  const answerId = text14(row2.answer_id);
   const verdict = answerId ? ledger.get(answerId) : void 0;
   const outcome = classifyOutcome({
     runState: verdict?.state ?? null,
@@ -173927,10 +174435,10 @@ function questionFromRow(row2, ledger) {
     traceHasPartialStage: row2.trace_partial === true
   });
   return {
-    id: text12(row2.question_id),
-    conversationId: text12(row2.conversation_id),
-    question: text12(row2.question),
-    askedBy: text12(row2.user_email),
+    id: text14(row2.question_id),
+    conversationId: text14(row2.conversation_id),
+    question: text14(row2.question),
+    askedBy: text14(row2.user_email),
     askedAt: stamp(row2.asked_at),
     outcome,
     // The taxonomy's own sentence, and only where a code was recorded. A run
@@ -173986,9 +174494,9 @@ async function readLedger(appkit, answerIds) {
   try {
     const result = await appkit.lakebase.query(MONITORING_LEDGER_QUERY, [answerIds]);
     for (const row2 of result.rows) {
-      const id = text12(row2.answer_id);
+      const id = text14(row2.answer_id);
       if (!id) continue;
-      verdicts.set(id, { state: text12(row2.state), code: text12(row2.terminal_code) || null });
+      verdicts.set(id, { state: text14(row2.state), code: text14(row2.terminal_code) || null });
     }
   } catch (error48) {
     console.warn(
@@ -174068,7 +174576,7 @@ function setupMonitoringRoutes(appkit, deps) {
         });
         return;
       }
-      const answerIds = rows.map((row2) => text12(row2.answer_id)).filter((id) => id !== "");
+      const answerIds = rows.map((row2) => text14(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
       const all = rows.map((row2) => questionFromRow(row2, ledger));
       const totals = rangeTotalsFrom(stored.rows[0], all);
@@ -174117,7 +174625,7 @@ function setupMonitoringRoutes(appkit, deps) {
         res.status(404).json({ error: "question_not_found" });
         return;
       }
-      const answerId = text12(row2.answer_id);
+      const answerId = text14(row2.answer_id);
       const ledger = await readLedger(appkit, answerId ? [answerId] : []);
       const verdict = answerId ? ledger.get(answerId) : void 0;
       const tables = tableList(row2.sources);
@@ -174130,14 +174638,14 @@ function setupMonitoringRoutes(appkit, deps) {
         now: clock()
       });
       const conditioning = conditioningFor(tables, grants);
-      const traceId = text12(row2.trace_id);
+      const traceId = text14(row2.trace_id);
       const mlflow = traceId ? mlflowReference(traceId, await resolveExperimentId(appkit)) : null;
-      const executionMode = text12(row2.execution_mode);
+      const executionMode = text14(row2.execution_mode);
       const detail = {
-        id: text12(row2.question_id),
-        conversationId: text12(row2.conversation_id),
-        question: text12(row2.question),
-        askedBy: text12(row2.user_email),
+        id: text14(row2.question_id),
+        conversationId: text14(row2.conversation_id),
+        question: text14(row2.question),
+        askedBy: text14(row2.user_email),
         askedAt: stamp(row2.asked_at),
         outcome: classifyOutcome({
           runState: verdict?.state ?? null,
@@ -174161,7 +174669,7 @@ function setupMonitoringRoutes(appkit, deps) {
         execution: executionMode && typeof row2.execution_identity_verified === "boolean" ? { mode: executionMode, verified: row2.execution_identity_verified } : null,
         rating: sentiment(row2.sentiment, integer2(row2.usefulness)),
         usefulness: integer2(row2.usefulness),
-        comment: text12(row2.comment) || null,
+        comment: text14(row2.comment) || null,
         // Absent rather than dead. `mlflowReference` answers null for a trace id
         // that is not MLflow's and for a deployment with no host or experiment,
         // and now also for a deployment whose administrator has turned the
@@ -174194,9 +174702,9 @@ function setupMonitoringRoutes(appkit, deps) {
         return;
       }
       const mine = questionRows(stored.rows).filter(
-        (row2) => text12(row2.user_email).toLowerCase() === person.toLowerCase()
+        (row2) => text14(row2.user_email).toLowerCase() === person.toLowerCase()
       );
-      const answerIds = mine.map((row2) => text12(row2.answer_id)).filter((id) => id !== "");
+      const answerIds = mine.map((row2) => text14(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
       const questions = mine.map((row2) => questionFromRow(row2, ledger));
       let tokenTotal = 0;
@@ -174211,7 +174719,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const executionSplit = { asThemselves: 0, asApplication: 0, unrecorded: 0 };
       const subjectSplit = { verified: 0, confirmedByEndpoint: 0, unrecorded: 0 };
       for (const row2 of mine) {
-        const mode = text12(row2.execution_mode);
+        const mode = text14(row2.execution_mode);
         if (mode === "signed_in_user") executionSplit.asThemselves += 1;
         else if (mode === "app_service_principal") executionSplit.asApplication += 1;
         else executionSplit.unrecorded += 1;
@@ -174450,14 +174958,11 @@ function workspaceEstimateRow(component) {
 function canAsk(component, ids) {
   return Boolean(ids[MATCHERS[component].parameter]);
 }
-function buildCostStatement(ids, range) {
+function buildCostStatement(ids) {
   const covered = COST_COMPONENTS.filter((component) => canAsk(component, ids));
   const estimated = ids.workspaceId ? COST_COMPONENTS.filter((component) => !canAsk(component, ids) && MATCHERS[component].column !== null) : [];
   if (covered.length === 0 && estimated.length === 0) return null;
-  const parameters = [
-    { name: "from_day", value: range.from, type: "STRING" },
-    { name: "to_day", value: range.to, type: "STRING" }
-  ];
+  const parameters = [];
   const branches = [];
   const bound = /* @__PURE__ */ new Set();
   const bind = (marker, value, type) => {
@@ -174495,9 +175000,7 @@ ${branches.join("\n")}
    AND u.cloud = p.cloud
    AND u.usage_end_time >= p.price_start_time
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
-  WHERE u.usage_date >= CAST(:from_day AS DATE)
-    AND u.usage_date <= CAST(:to_day AS DATE)
-    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
+  WHERE u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
 )
 SELECT
   component,
@@ -174538,15 +175041,8 @@ function readComponentRows(dataArray) {
   }
   return rows;
 }
-function daysInRange(range) {
-  const from = Date.parse(`${range.from}T00:00:00Z`);
-  const to = Date.parse(`${range.to}T00:00:00Z`);
-  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return 1;
-  return Math.floor((to - from) / 864e5) + 1;
-}
-function buildTiles(ids, range, rows) {
+function buildTiles(ids, rows) {
   const byComponent = new Map(rows.map((row2) => [row2.component, row2]));
-  const days = daysInRange(range);
   return COST_COMPONENTS.map((component) => {
     const description = DESCRIPTIONS[component];
     const base = {
@@ -174563,7 +175059,7 @@ function buildTiles(ids, range, rows) {
           ...base,
           quality: "estimate",
           population: "Whole workspace",
-          amount: description.basis === "per-day" ? estimate.spend / days : estimate.spend,
+          amount: description.basis === "per-day" ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
           note: "",
           unavailable: "",
           remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : ""
@@ -174579,10 +175075,10 @@ function buildTiles(ids, range, rows) {
     }
     const row2 = byComponent.get(component);
     if (!row2 || row2.spend === null || !Number.isFinite(row2.spend)) {
-      return { ...base, amount: null, note: "", unavailable: "No billing rows in this range", remedy: "" };
+      return { ...base, amount: null, note: "", unavailable: "No billing rows", remedy: "" };
     }
-    const amount = description.basis === "per-day" ? row2.spend / days : row2.spend;
-    const note = component === "index-rebuild-job" && row2.jobRuns !== null ? `${row2.jobRuns} ${row2.jobRuns === 1 ? "run" : "runs"} in range` : "";
+    const amount = description.basis === "per-day" ? row2.spend / Math.max(row2.billedDays, 1) : row2.spend;
+    const note = component === "index-rebuild-job" && row2.jobRuns !== null ? `${row2.jobRuns} ${row2.jobRuns === 1 ? "run" : "runs"}` : "";
     return { ...base, amount, note, unavailable: "", remedy: "" };
   });
 }
@@ -174685,7 +175181,6 @@ var init_ops_billing = __esm({
 // server/routes/ops-routes.ts
 var ops_routes_exports = {};
 __export(ops_routes_exports, {
-  ANSWER_LATENCY_QUERY: () => ANSWER_LATENCY_QUERY,
   OPS_ROUTES: () => OPS_ROUTES,
   QUESTIONS_PER_DAY_QUERY: () => QUESTIONS_PER_DAY_QUERY,
   RUN_OUTCOMES_QUERY: () => RUN_OUTCOMES_QUERY,
@@ -174693,7 +175188,6 @@ __export(ops_routes_exports, {
   causeLabel: () => causeLabel,
   forgetWorkspaceId: () => forgetWorkspaceId,
   lakebaseReading: () => lakebaseReading,
-  opsRange: () => opsRange,
   platformReadings: () => platformReadings,
   resolveWorkspaceId: () => resolveWorkspaceId,
   resultFor: () => resultFor,
@@ -174704,31 +175198,14 @@ function queryText(req, name2) {
   const value = req.query[name2];
   return typeof value === "string" ? value.trim() : "";
 }
-function opsRange(req, now = Date.now()) {
-  return opsDayRange(queryText(req, "from"), queryText(req, "to"), now);
-}
-function instantsFor(range) {
-  return { from: `${range.from}T00:00:00Z`, to: `${range.to}T23:59:59Z` };
-}
-function activityInstants(req, now) {
-  const from = Date.parse(queryText(req, "from"));
-  const to = Date.parse(queryText(req, "to"));
-  if (Number.isFinite(from) && Number.isFinite(to) && to >= from) {
-    return { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
-  }
-  return {
-    from: new Date(now - 7 * 864e5).toISOString(),
-    to: new Date(now).toISOString()
-  };
-}
-function text13(value) {
+function text15(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (value instanceof Date) return value.toISOString();
   return "";
 }
-function count2(value) {
-  const parsed = typeof value === "number" ? value : Number(text13(value));
+function count3(value) {
+  const parsed = typeof value === "number" ? value : Number(text15(value));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 function noteWorkspaceId(response) {
@@ -174789,15 +175266,15 @@ async function runStatement2(input) {
       ok: false,
       rows: null,
       status: response.status,
-      message: text13(body.message) || `Databricks answered HTTP ${response.status} with no message body.`
+      message: text15(body.message) || `Databricks answered HTTP ${response.status} with no message body.`
     };
   }
-  const state = text13(body.status?.state);
+  const state = text15(body.status?.state);
   if (state !== "SUCCEEDED") {
     return {
       ok: false,
       rows: null,
-      message: text13(body.status?.error?.message) || `The statement ended in ${state || "an unknown state"}.`
+      message: text15(body.status?.error?.message) || `The statement ended in ${state || "an unknown state"}.`
     };
   }
   return { ok: true, rows: body.result?.data_array ?? [], message: "" };
@@ -174857,7 +175334,7 @@ function platformReadings(input, extra = []) {
     ...extra
   ];
 }
-async function readAppMeasurement(req, range, insightsHref) {
+async function readAppMeasurement(req, insightsHref) {
   const schema = telemetrySchema();
   if (!schema) return offMeasurement(insightsHref);
   const table = logsTable(schema);
@@ -174872,16 +175349,12 @@ async function readAppMeasurement(req, range, insightsHref) {
       "this app has no warehouse, workspace address or forwarded sign-in to read it with."
     );
   }
-  const instants = instantsFor(range);
   const outcome = await runStatement2({
     host: workspace,
     token,
     warehouseId: warehouse,
     statement: buildTelemetryStatement(table),
-    parameters: [
-      { name: "from_at", value: instants.from, type: "STRING" },
-      { name: "to_at", value: instants.to, type: "STRING" }
-    ]
+    parameters: []
   });
   if (!outcome.ok) {
     const classified = stateFromFailure(outcome.message, table);
@@ -174908,7 +175381,7 @@ async function readAppMeasurement(req, range, insightsHref) {
       ...figures,
       telemetry: "no-rows-yet",
       table,
-      reason: noHistoryReason({ recordingSince: figures.recordingSince, from: range.from, to: range.to })
+      reason: noHistoryReason()
     };
   }
   return { ...base, ...figures, telemetry: "reading", table, reason: "" };
@@ -174968,7 +175441,7 @@ function unreadNote(charts, message) {
   return `${named} could not be read, so ${which} missing rather than empty: ${message || "the store did not answer"}`;
 }
 function toBars(counts) {
-  return [...counts.entries()].map(([key2, count3]) => ({ key: key2, label: causeLabel(key2), count: count3 })).sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+  return [...counts.entries()].map(([key2, count4]) => ({ key: key2, label: causeLabel(key2), count: count4 })).sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
 }
 function setupOpsRoutes(appkit, deps) {
   if (typeof deps?.isAdminRoute !== "function") {
@@ -174987,13 +175460,12 @@ function setupOpsRoutes(appkit, deps) {
   const clock = deps.now ?? Date.now;
   appkit.server.extend((app) => {
     app.get("/api/ops/health", async (req, res) => {
-      const range = opsRange(req, clock());
       const workspace = host();
       const insightsHref = workspace ? `${workspace}/apps` : "";
       try {
         const [dependencies, appMeasurement, lakebase2] = await Promise.all([
           readDependencies(appkit, req),
-          readAppMeasurement(req, range, insightsHref).catch(
+          readAppMeasurement(req, insightsHref).catch(
             (error48) => uncheckedMeasurement(insightsHref, `reading it threw: ${error48.message}.`)
           ),
           lakebaseReading(appkit)
@@ -175021,7 +175493,6 @@ function setupOpsRoutes(appkit, deps) {
       }
     });
     app.get("/api/ops/cost", async (req, res) => {
-      const range = opsRange(req, clock());
       const readAt = new Date(clock()).toISOString();
       const workspace = host();
       const warehouse = warehouseId();
@@ -175040,22 +175511,22 @@ function setupOpsRoutes(appkit, deps) {
         workspaceId: token ? await resolveWorkspaceId({ host: workspace, token }) : "",
         telemetryEnabled: Boolean(telemetrySchema())
       };
-      const empty = { grant: null, reason: "", currency: "", throughDay: range.to, readAt };
+      const empty = { grant: null, reason: "", currency: "", throughDay: "", readAt };
       if (!workspace || !warehouse || !token) {
         res.json({
           ...empty,
           state: "no-warehouse",
-          tiles: buildTiles(ids, range, []),
+          tiles: buildTiles(ids, []),
           reason: "Billing could not be read because this app has no SQL warehouse, no workspace address, or no forwarded sign-in to read it with. Nothing about spend was established."
         });
         return;
       }
-      const built = buildCostStatement(ids, range);
+      const built = buildCostStatement(ids);
       if (!built) {
         res.json({
           ...empty,
           state: "ready",
-          tiles: buildTiles(ids, range, [])
+          tiles: buildTiles(ids, [])
         });
         return;
       }
@@ -175094,9 +175565,9 @@ function setupOpsRoutes(appkit, deps) {
           res.json({
             ...empty,
             state: "no-rows",
-            tiles: buildTiles(ids, range, []),
+            tiles: buildTiles(ids, []),
             currency: meta3?.currency ?? "",
-            throughDay: meta3?.lastDay || range.to
+            throughDay: meta3?.lastDay || ""
           });
           return;
         }
@@ -175104,8 +175575,8 @@ function setupOpsRoutes(appkit, deps) {
           ...empty,
           state: "ready",
           currency: meta3?.currency ?? "",
-          throughDay: meta3?.lastDay || range.to,
-          tiles: buildTiles(ids, range, componentRows)
+          throughDay: meta3?.lastDay || "",
+          tiles: buildTiles(ids, componentRows)
         });
       } catch (error48) {
         res.json({
@@ -175116,25 +175587,23 @@ function setupOpsRoutes(appkit, deps) {
         });
       }
     });
-    app.get("/api/ops/traffic", async (req, res) => {
-      const instants = activityInstants(req, clock());
+    app.get("/api/ops/traffic", async (_req, res) => {
       const readAt = new Date(clock()).toISOString();
-      const bounds = [instants.from, instants.to];
       try {
         const [questions, outcomes, tools] = await Promise.allSettled([
-          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, bounds),
-          appkit.lakebase.query(RUN_OUTCOMES_QUERY, bounds),
-          appkit.lakebase.query(TOOL_CALLS_QUERY, bounds)
+          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
+          appkit.lakebase.query(RUN_OUTCOMES_QUERY),
+          appkit.lakebase.query(TOOL_CALLS_QUERY)
         ]);
-        const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text13(row2.day), count: count2(row2.count) })) : [];
+        const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text15(row2.day), count: count3(row2.count) })) : [];
         const failures = /* @__PURE__ */ new Map();
         const refusals = /* @__PURE__ */ new Map();
         let runsInRange = 0;
         if (outcomes.status === "fulfilled") {
           for (const row2 of outcomes.value.rows) {
-            const state = text13(row2.state);
-            const code = text13(row2.terminal_code);
-            const runs = count2(row2.count);
+            const state = text15(row2.state);
+            const code = text15(row2.terminal_code);
+            const runs = count3(row2.count);
             runsInRange += runs;
             if (state === "REFUSED") {
               refusals.set(code, (refusals.get(code) ?? 0) + runs);
@@ -175144,9 +175613,9 @@ function setupOpsRoutes(appkit, deps) {
           }
         }
         const toolCalls = tools.status === "fulfilled" ? tools.value.rows.map((row2) => ({
-          key: text13(row2.tool),
-          label: text13(row2.tool),
-          count: count2(row2.count)
+          key: text15(row2.tool),
+          label: text15(row2.tool),
+          count: count3(row2.count)
         })) : [];
         const outstanding = [
           { done: questions, charts: "Questions per day" },
@@ -175156,10 +175625,10 @@ function setupOpsRoutes(appkit, deps) {
         const rejected = outstanding.map((read2) => read2.done);
         const payload = {
           readAt,
-          reason: rejected.length === 3 ? `Nothing about traffic could be read: ${text13(rejected[0].reason?.message) || "the store did not answer"}` : "",
+          reason: rejected.length === 3 ? `Nothing about traffic could be read: ${text15(rejected[0].reason?.message) || "the store did not answer"}` : "",
           unread: rejected.length > 0 && rejected.length < 3 ? unreadNote(
             outstanding.map((read2) => read2.charts),
-            text13(rejected[0].reason?.message)
+            text15(rejected[0].reason?.message)
           ) : "",
           questionsPerDay,
           failuresByCause: toBars(failures),
@@ -175182,58 +175651,42 @@ function setupOpsRoutes(appkit, deps) {
         res.json(payload);
       }
     });
-    app.get("/api/ops/latency", async (req, res) => {
+    app.get("/api/ops/latency", async (_req, res) => {
       const readAt = new Date(clock()).toISOString();
-      const instants = activityInstants(req, clock());
       const base = {
         readAt,
         state: "no-rows",
         reason: "",
         grant: null,
-        table: `${APP_SCHEMA}.messages`,
+        table: REQUEST_LATENCY_TABLE,
         routes: [],
         coveredFrom: "",
         coveredTo: ""
       };
       try {
-        const result = await appkit.lakebase.query(ANSWER_LATENCY_QUERY, [instants.from, instants.to]);
-        const row2 = result.rows[0] ?? {};
-        const current = count2(row2.current_count);
-        if (current === 0) {
+        const result = await appkit.lakebase.query(REQUEST_LATENCY_QUERY);
+        const measured = readRequestLatencyRows(result.rows);
+        if (measured.routes.length === 0) {
           res.json({
             ...base,
-            reason: "No stored answer timings were recorded in this range.",
-            coveredFrom: text13(row2.covered_from),
-            coveredTo: text13(row2.covered_to)
+            reason: "No API request timings have been recorded. Recording starts with this release and does not backfill.",
+            coveredFrom: measured.coveredFrom,
+            coveredTo: measured.coveredTo
           });
           return;
         }
         res.json({
           ...base,
           state: "ready",
-          routes: [
-            {
-              route: "POST /api/insights/ask",
-              spans: current,
-              p50Ms: count2(row2.current_p50_ms),
-              p95Ms: current >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p95_ms) : null,
-              p99Ms: current >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p99_ms) : null,
-              slowestMs: count2(row2.slowest_ms),
-              errorCount: count2(row2.error_count),
-              refusalCount: null,
-              lastSpanAt: text13(row2.last_answer_at),
-              priorSpans: count2(row2.prior_count),
-              priorP50Ms: row2.prior_p50_ms === null ? null : count2(row2.prior_p50_ms)
-            }
-          ],
-          coveredFrom: text13(row2.covered_from),
-          coveredTo: text13(row2.covered_to)
+          routes: measured.routes,
+          coveredFrom: measured.coveredFrom,
+          coveredTo: measured.coveredTo
         });
       } catch (error48) {
         const payload = {
           ...base,
           state: "unreadable",
-          reason: `No stored answer timings could be read: ${error48.message}`
+          reason: `No stored API request timings could be read: ${error48.message}`
         };
         res.json(payload);
       }
@@ -175241,7 +175694,7 @@ function setupOpsRoutes(appkit, deps) {
   });
   console.log("[ops] Registered the Ops read routes. The admin guard's prefix list covers all of them.");
 }
-var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, ANSWER_LATENCY_QUERY, FAILURE_STATES, OPS_ROUTES;
+var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, OPS_ROUTES;
 var init_ops_routes = __esm({
   "server/routes/ops-routes.ts"() {
     init_app_schema();
@@ -175253,20 +175706,19 @@ var init_ops_routes = __esm({
     init_databricks_links();
     init_run_failure_codes();
     init_insights_routes();
-    init_ops_contract();
+    init_request_latency();
     STATEMENT_TIMEOUT_MS2 = 45e3;
     ORG_ID_HEADER = "x-databricks-org-id";
     knownWorkspaceId = "";
     QUESTIONS_PER_DAY_QUERY = `
   SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
-  WHERE m.role = 'user' AND m.created_at >= $1 AND m.created_at < $2
+  WHERE m.role = 'user'
   GROUP BY 1
   ORDER BY 1`;
     RUN_OUTCOMES_QUERY = `
   SELECT r.state, COALESCE(r.terminal_code, '') AS terminal_code, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.runs r
-  WHERE r.created_at >= $1 AND r.created_at < $2
   GROUP BY 1, 2`;
     TOOL_CALLS_QUERY = `
   SELECT stage->>'name' AS tool, COUNT(*)::int AS count
@@ -175274,46 +175726,10 @@ var init_ops_routes = __esm({
        LATERAL jsonb_array_elements(m.response_json->'trace'->'stages') AS stage
   WHERE m.role = 'assistant'
     AND jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-    AND m.created_at >= $1 AND m.created_at < $2
     AND stage->>'kind' = 'tool'
     AND COALESCE(stage->>'name', '') <> ''
   GROUP BY 1
   ORDER BY 2 DESC`;
-    ANSWER_LATENCY_QUERY = `
-  WITH bounds AS (
-    SELECT $1::timestamptz AS from_at,
-           $2::timestamptz AS to_at,
-           $1::timestamptz + (($2::timestamptz - $1::timestamptz) / 2) AS split_at
-  ),
-  samples AS (
-    SELECT m.created_at,
-           (m.response_json->'trace'->>'totalMs')::double precision AS duration_ms,
-           jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS failed
-    FROM ${APP_SCHEMA}.messages m, bounds b
-    WHERE m.role = 'assistant'
-      AND jsonb_typeof(m.response_json->'trace') = 'object'
-      AND jsonb_typeof(m.response_json->'trace'->'totalMs') = 'number'
-      AND m.created_at >= b.from_at AND m.created_at < b.to_at
-  )
-  SELECT
-    COUNT(*) FILTER (WHERE s.created_at >= b.split_at)::int AS current_count,
-    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p50_ms,
-    ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p95_ms,
-    ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p99_ms,
-    ROUND(MAX(s.duration_ms) FILTER (WHERE s.created_at >= b.split_at))::int AS slowest_ms,
-    COUNT(*) FILTER (WHERE s.created_at >= b.split_at AND s.failed)::int AS error_count,
-    MAX(s.created_at) FILTER (WHERE s.created_at >= b.split_at) AS last_answer_at,
-    COUNT(*) FILTER (WHERE s.created_at < b.split_at)::int AS prior_count,
-    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at < b.split_at))::int AS prior_p50_ms,
-    MIN(s.created_at) AS covered_from,
-    MAX(s.created_at) AS covered_to
-  FROM bounds b
-  LEFT JOIN samples s ON TRUE
-  GROUP BY b.split_at`;
     FAILURE_STATES = /* @__PURE__ */ new Set(["FAILED", "DEADLINE_EXCEEDED", "PERSISTENCE_FAILED"]);
     OPS_ROUTES = [
       "/api/ops/health",
@@ -175666,6 +176082,151 @@ var init_runtime_settings_routes = __esm({
     init_admin_roles();
     init_runtime_settings_store();
     init_insights_routes();
+  }
+});
+
+// server/routes/account-routes.ts
+var account_routes_exports = {};
+__export(account_routes_exports, {
+  SlackConfigurationError: () => SlackConfigurationError,
+  sendAccountSlackMessage: () => sendAccountSlackMessage,
+  setupAccountRoutes: () => setupAccountRoutes,
+  workspaceAppsHref: () => workspaceAppsHref
+});
+async function slackCall(method, token, body, transport) {
+  const response = await transport(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=utf-8"
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(1e4)
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.ok !== true) {
+    throw new SlackApiError(method, payload.error ?? `HTTP ${response.status}`);
+  }
+  return payload;
+}
+async function sendAccountSlackMessage(input, env = process.env, transport = fetch) {
+  const destinationVariable = DESTINATION_VARIABLE[input.kind];
+  const token = env.ASTROLABE_SLACK_BOT_TOKEN?.trim() ?? "";
+  const destination = env[destinationVariable]?.trim() ?? "";
+  const missing = [...token ? [] : ["ASTROLABE_SLACK_BOT_TOKEN"], ...destination ? [] : [destinationVariable]];
+  if (missing.length > 0) throw new SlackConfigurationError(missing);
+  const opened = await slackCall(
+    "conversations.open",
+    token,
+    { users: destination },
+    transport
+  );
+  const heading = input.kind === "feedback" ? "Astrolabe feedback" : "Astrolabe super admin escalation";
+  const posted = await slackCall(
+    "chat.postMessage",
+    token,
+    {
+      channel: opened.channel.id,
+      text: `${heading}
+
+${input.message}
+
+From: ${input.user}
+Page: ${input.pageUrl}`,
+      unfurl_links: false,
+      unfurl_media: false
+    },
+    transport
+  );
+  return {
+    permalink: `https://slack.com/archives/${encodeURIComponent(posted.channel)}/p${posted.ts.replace(".", "")}`
+  };
+}
+function workspaceAppsHref(env = process.env) {
+  const host2 = normalizeWorkspaceHost(env.DATABRICKS_HOST);
+  return host2 ? `${host2}/apps` : "";
+}
+function setupAccountRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.post("/api/account/slack-message", async (req, res) => {
+      const parsed = SlackMessageBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: "invalid_slack_message",
+          detail: "Send one message, page URL, action, and signed-in user."
+        });
+        return;
+      }
+      const signedInAs = userEmail(req);
+      if (parsed.data.user.toLowerCase() !== signedInAs.toLowerCase()) {
+        res.status(409).json({
+          error: "identity_changed",
+          detail: "Your signed-in identity changed. Reload the page before sending this message."
+        });
+        return;
+      }
+      try {
+        const sent = await sendAccountSlackMessage({ ...parsed.data, user: signedInAs });
+        res.json(sent);
+      } catch (error48) {
+        if (error48 instanceof SlackConfigurationError) {
+          res.status(503).json({
+            error: "slack_not_configured",
+            detail: error48.message
+          });
+          return;
+        }
+        console.error("[account] Slack message was not sent:", error48.message);
+        res.status(502).json({
+          error: "slack_send_failed",
+          detail: "Slack did not accept the message. Nothing was sent."
+        });
+      }
+    });
+    app.get("/api/account/apps", (_req, res) => {
+      const href = workspaceAppsHref();
+      if (!href) {
+        res.status(503).json({
+          error: "workspace_apps_unavailable",
+          detail: "This app does not know its Databricks workspace URL, so it cannot open the Apps page."
+        });
+        return;
+      }
+      res.redirect(303, href);
+    });
+  });
+}
+var SlackMessageBody, DESTINATION_VARIABLE, SlackConfigurationError, SlackApiError;
+var init_account_routes = __esm({
+  "server/routes/account-routes.ts"() {
+    init_zod();
+    init_databricks_links();
+    init_insights_routes();
+    SlackMessageBody = external_exports.object({
+      kind: external_exports.enum(["feedback", "escalation"]),
+      message: external_exports.string().trim().min(1).max(4e3),
+      pageUrl: external_exports.string().trim().url().max(2048),
+      user: external_exports.string().trim().email().max(320)
+    });
+    DESTINATION_VARIABLE = {
+      feedback: "ASTROLABE_SLACK_FEEDBACK_USER_ID",
+      escalation: "ASTROLABE_SLACK_SUPER_ADMIN_USER_ID"
+    };
+    SlackConfigurationError = class extends Error {
+      constructor(missing) {
+        super(`Slack messaging is not configured. Missing ${missing.join(", ")}.`);
+        this.missing = missing;
+        this.name = "SlackConfigurationError";
+      }
+    };
+    SlackApiError = class extends Error {
+      constructor(method, slackError) {
+        super(`Slack ${method} failed: ${slackError}`);
+        this.method = method;
+        this.slackError = slackError;
+        this.name = "SlackApiError";
+      }
+    };
   }
 });
 
@@ -176447,8 +177008,8 @@ var RoutingPool = class {
     const userCtx = getUserContext();
     return userCtx ? this.resolveUserPool(userCtx) : this.spPool;
   }
-  query(text14, values) {
-    return this.activePool().query(text14, values);
+  query(text16, values) {
+    return this.activePool().query(text16, values);
   }
   connect() {
     return this.activePool().connect();
@@ -180742,9 +181303,9 @@ var FilesConnector = class {
       await client.config.authenticate(headers);
       const res = await fetch(url2.toString(), fetchOptions);
       if (!res.ok) {
-        const text14 = await res.text();
-        logger16.error(`Upload failed (${res.status}): ${text14}`);
-        throw new ApiError2(`Upload failed: ${text14.length > 200 ? `${text14.slice(0, 200)}\u2026` : text14}`, "UPLOAD_FAILED", res.status, void 0, []);
+        const text16 = await res.text();
+        logger16.error(`Upload failed (${res.status}): ${text16}`);
+        throw new ApiError2(`Upload failed: ${text16.length > 200 ? `${text16.slice(0, 200)}\u2026` : text16}`, "UPLOAD_FAILED", res.status, void 0, []);
       }
     });
   }
@@ -184237,8 +184798,8 @@ var LakebasePlugin = class extends Plugin {
   * );
   * ```
   */
-  async query(text14, values) {
-    return this.pool.query(text14, values);
+  async query(text16, values) {
+    return this.pool.query(text16, values);
   }
   /**
   * Execute a single statement inside a `BEGIN READ ONLY … ROLLBACK`
@@ -184254,11 +184815,11 @@ var LakebasePlugin = class extends Plugin {
   * statement may attempt (writes, writable-function side effects) are
   * rejected by PostgreSQL under the read-only transaction posture.
   */
-  async runReadOnlyStatement(text14, values) {
+  async runReadOnlyStatement(text16, values) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN READ ONLY");
-      return (await client.query(text14, values)).rows;
+      return (await client.query(text16, values)).rows;
     } finally {
       try {
         await client.query("ROLLBACK");
@@ -184525,8 +185086,8 @@ async function isAutoMigrateDisabled(projectRoot) {
     return false;
   }
 }
-function stripJsonComments(text14) {
-  return text14.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
+function stripJsonComments(text16) {
+  return text16.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
 }
 async function migrateTsconfigClient(projectRoot) {
   const results = [];
@@ -184664,8 +185225,8 @@ var Spinner = class {
   current = 0;
   interval = null;
   text = "";
-  start(text14) {
-    this.text = text14;
+  start(text16) {
+    this.text = text16;
     this.current = 0;
     process.stdout.write(`  ${this.text}${this.frames[0]}`);
     this.interval = setInterval(() => {
@@ -184673,8 +185234,8 @@ var Spinner = class {
       process.stdout.write(`\r  ${this.text}${this.frames[this.current]}`);
     }, 300);
   }
-  update(text14) {
-    this.text = text14;
+  update(text16) {
+    this.text = text16;
   }
   stop(finalText) {
     if (this.interval) {
@@ -184684,8 +185245,8 @@ var Spinner = class {
     process.stdout.write(`\x1B[Contoso\r  ${finalText || this.text}
 `);
   }
-  printDetail(text14) {
-    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text14}\x1B[0m
+  printDetail(text16) {
+    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text16}\x1B[0m
 `);
     if (this.interval) process.stdout.write(`  ${this.text}${this.frames[this.current]}`);
   }
@@ -185216,8 +185777,8 @@ async function fetchOpenApiSchema(client, endpointName, servedModel) {
       logger31.warn("Empty OpenAPI response for '%s', skipping type generation", endpointName);
       return null;
     }
-    const text14 = await new Response(response.contents).text();
-    const rawSpec = JSON.parse(text14);
+    const text16 = await new Response(response.contents).text();
+    const rawSpec = JSON.parse(text16);
     if (typeof rawSpec !== "object" || rawSpec === null || !("paths" in rawSpec) || typeof rawSpec.paths !== "object") {
       logger31.warn("Invalid OpenAPI schema structure for '%s', skipping", endpointName);
       return null;
@@ -188025,6 +188586,7 @@ createApp({
       { setupOpsRoutes: setupOpsRoutes2 },
       { setupEgressRoutes: setupEgressRoutes2 },
       { setupRuntimeSettingsRoutes: setupRuntimeSettingsRoutes2 },
+      { setupAccountRoutes: setupAccountRoutes2 },
       { bootstrapSeedRoles: bootstrapSeedRoles2, isAdminRoute: isAdminRoute2 },
       { respondToHandlerFailures: respondToHandlerFailures2 }
     ] = await Promise.all([
@@ -188038,6 +188600,7 @@ createApp({
       Promise.resolve().then(() => (init_ops_routes(), ops_routes_exports)),
       Promise.resolve().then(() => (init_egress_routes(), egress_routes_exports)),
       Promise.resolve().then(() => (init_runtime_settings_routes(), runtime_settings_routes_exports)),
+      Promise.resolve().then(() => (init_account_routes(), account_routes_exports)),
       Promise.resolve().then(() => (init_admin_roles(), admin_roles_exports)),
       Promise.resolve().then(() => (init_handler_failures(), handler_failures_exports))
     ]);
@@ -188046,6 +188609,7 @@ createApp({
     await bootstrapSeedRoles2(appkit.lakebase);
     setupSettingsRoutes2(appkit);
     setupRuntimeSettingsRoutes2(appkit);
+    setupAccountRoutes2(appkit);
     setupBrowseRoutes2(appkit);
     setupArchitectureRoutes2(appkit);
     setupAdminRoutes2(appkit);

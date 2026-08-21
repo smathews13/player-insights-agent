@@ -1,0 +1,313 @@
+.account-menu-root {
+  position: relative;
+  flex: none;
+}
+
+.account-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  max-width: 250px;
+  padding: 0 10px;
+  border: 1px solid #cbcbcb;
+  border-radius: 4px;
+  background: #fff;
+  color: #11171c;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.account-menu-trigger[aria-expanded='true'],
+.account-menu-trigger:hover {
+  background: #f7f7f7;
+}
+
+.account-menu-trigger > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.account-menu-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-menu-trigger strong {
+  font-weight: 600;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 70;
+  width: 292px;
+  padding: 6px;
+  border: 1px solid #ebebeb;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(17, 23, 28, 0.16);
+  color: #11171c;
+  font-size: 13px;
+}
+
+.account-menu-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 18px;
+}
+
+.account-menu-identity strong {
+  font-weight: 600;
+}
+
+.account-menu-identity span {
+  overflow: hidden;
+  color: #6f6f6f;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu-group {
+  margin: 0 -6px;
+  padding: 8px 12px;
+  border-top: 1px solid #ebebeb;
+}
+
+.account-menu-group > button,
+.account-menu-group > a {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.account-menu-group > button:hover,
+.account-menu-group > button:focus-visible,
+.account-menu-group > a:hover,
+.account-menu-group > a:focus-visible {
+  background: #f7f7f7;
+  outline: none;
+}
+
+.account-menu-group:not(.account-menu-leave) > button > :last-child {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  flex: none;
+  color: #525252;
+}
+
+.account-menu .account-menu-databricks {
+  object-fit: contain;
+}
+
+.account-menu-leave img,
+.account-menu-leave svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.account-menu-leave .account-menu-astrolabe {
+  width: 13px;
+  height: 13px;
+  margin-left: -4px;
+}
+
+.account-composer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 23, 28, 0.5);
+}
+
+.account-composer {
+  width: min(420px, 100%);
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+  color: #11171c;
+}
+
+.account-composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 0 20px 0 28px;
+  border-bottom: 1px solid #ebebeb;
+}
+
+.account-composer-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.account-composer-header button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  place-items: center;
+  background: transparent;
+  color: #525252;
+  cursor: pointer;
+}
+
+.account-composer-header svg {
+  width: 18px;
+  height: 18px;
+}
+
+.account-composer-body {
+  display: grid;
+  gap: 8px;
+  padding: 22px 28px 20px;
+}
+
+.account-composer-body label {
+  color: #6f6f6f;
+  font-size: 12px;
+}
+
+.account-composer-recipient {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  gap: 9px;
+  margin-bottom: 10px;
+  padding: 0 12px;
+  border: 1px solid #ebebeb;
+  border-radius: 4px;
+  background: #f7f7f7;
+}
+
+.account-composer-recipient img,
+.account-composer-recipient svg {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.account-composer-recipient strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.account-composer-recipient span {
+  color: #6f6f6f;
+  font-size: 12px;
+}
+
+.account-composer textarea {
+  min-height: 72px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid #cbcbcb;
+  border-radius: 4px;
+  color: #11171c;
+  font: inherit;
+}
+
+.account-composer textarea::placeholder {
+  color: #8f8f8f;
+}
+
+.account-composer-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 0;
+  color: #6f6f6f;
+  font-size: 12px;
+}
+
+.account-composer-context svg {
+  width: 14px;
+  height: 14px;
+}
+
+.account-composer-error {
+  margin: 4px 0 0;
+  color: #b42318;
+  font-size: 12px;
+}
+
+.account-composer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 28px;
+  border-top: 1px solid #ebebeb;
+  background: #f7f7f7;
+}
+
+.account-composer-footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  gap: 7px;
+  padding: 0 14px;
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-composer-cancel {
+  border: 1px solid #cbcbcb;
+  background: #fff;
+  color: #11171c;
+}
+
+.account-composer-send {
+  border: 1px solid #2272b4;
+  background: #2272b4;
+  color: #fff;
+}
+
+.account-composer-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.account-composer-send svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 480px) {
+  .account-composer-overlay {
+    padding: 12px;
+  }
+
+  .account-composer-body,
+  .account-composer-footer {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+}

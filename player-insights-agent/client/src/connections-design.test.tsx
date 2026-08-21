@@ -448,6 +448,137 @@ describe('the Build and telemetry card', () => {
   });
 });
 
+/**
+ * Whether each half of the deployment is WORKING, which the two stamp rows did
+ * not say.
+ *
+ * THE DEFECT. `App 5b0e675b` and `Orchestrator 05d742b2`, two grey hashes with a
+ * copy button, on the tab a reader opens to find out what this deployment can
+ * reach. The commit says which build is running; nothing on either row said
+ * whether it is up, so a crashed app and a healthy one rendered identically.
+ *
+ * The assertions are on the reading rather than on the markup because what green
+ * and red MEAN is the part that must not drift: green on the App row is the
+ * workspace reporting a running app on active compute, or failing that this app
+ * having answered the read that drew the page; green on the Orchestrator row is
+ * the serving endpoint that runs questions having been reached.
+ */
+describe('whether each build stamp names something that is working', () => {
+  const serving = (app: string, compute: string, message = '') => ({ app, compute, message });
+
+  function health(over: Partial<Parameters<typeof buildFacts>[0]>) {
+    const [app, orchestrator] = buildFacts({ appBuildSha: 'aaaaaaaa11', modelBuildSha: 'bbbbbbbb22', ...over })
+      .artifacts;
+    return { app, orchestrator };
+  }
+
+  it('is green on an app the workspace reports running on active compute', () => {
+    const { app } = health({
+      appBuildSha: 'aaaaaaaa11',
+      modelBuildSha: '',
+      appServing: serving('RUNNING', 'ACTIVE'),
+    });
+    expect(app.health.state).toBe('working');
+    expect(app.health.label).toBe('Running');
+    expect(app.tone).toBe('reachable');
+  });
+
+  /**
+   * The one substitution this whole page exists to prevent: a badge stating
+   * health nobody measured. A crashed app answered nothing, and a green stamp
+   * over it is worse than a grey one.
+   */
+  it('is red on an app the workspace reports crashed, and says which state', () => {
+    const { app } = health({
+      appBuildSha: 'aaaaaaaa11',
+      modelBuildSha: '',
+      appServing: serving('CRASHED', 'ACTIVE'),
+      // Answered from a stale response, which must not rescue the reading.
+      appAnswered: true,
+    });
+    expect(app.health.state).toBe('not-working');
+    expect(app.health.label).toBe('Not running');
+    expect(app.health.note).toContain('CRASHED');
+    expect(app.tone).toBe('blocked');
+  });
+
+  /**
+   * A laptop, and every workspace version that does not answer about apps. The
+   * app plainly works -- it served the read that drew the row -- and the platform
+   * word is not available to state it, so the row says what it does know.
+   */
+  it('falls back to the read this page made when the workspace said nothing', () => {
+    const { app } = health({ appBuildSha: 'aaaaaaaa11', modelBuildSha: '', appAnswered: true });
+    expect(app.health.state).toBe('working');
+    expect(app.health.label).toBe('Answering');
+  });
+
+  it('draws no verdict on an app nothing has reported and nothing has read', () => {
+    const { app } = health({ appBuildSha: 'aaaaaaaa11', modelBuildSha: '' });
+    expect(app.health.state).toBe('unknown');
+    expect(app.tone).toBe('plain');
+  });
+
+  it('is green on an orchestrator endpoint a check reached', () => {
+    const { orchestrator } = health({ appBuildSha: '', modelBuildSha: 'bbbbbbbb22', orchestratorStatus: 'reachable' });
+    expect(orchestrator.health.state).toBe('working');
+    expect(orchestrator.health.label).toBe('Reachable');
+    expect(orchestrator.tone).toBe('reachable');
+  });
+
+  it.each(['blocked', 'unreachable'] as const)('is red on an orchestrator endpoint that is %s', (status) => {
+    const { orchestrator } = health({
+      appBuildSha: '',
+      modelBuildSha: 'bbbbbbbb22',
+      orchestratorStatus: status,
+      // The model version's own report is older than the failed call, so it must
+      // not outrank it.
+      orchestratorReported: true,
+    });
+    expect(orchestrator.health.state).toBe('not-working');
+    expect(orchestrator.tone).toBe('blocked');
+  });
+
+  /**
+   * A refusal stopped at the permission layer and never reached the endpoint, so
+   * it is not evidence the orchestrator is down. Red here sends a reader after a
+   * service that is fine, which is the rule the row badges follow too.
+   */
+  it('does not call a refused call a broken orchestrator', () => {
+    const { orchestrator } = health({ appBuildSha: '', modelBuildSha: 'bbbbbbbb22', orchestratorStatus: 'refused' });
+    expect(orchestrator.health.state).toBe('unclear');
+    expect(orchestrator.tone).toBe('drifted');
+  });
+
+  /**
+   * The commonest healthy deployment: no probe named the endpoint, and the served
+   * model version answered with its own configuration, which is the orchestrator
+   * having demonstrably run.
+   */
+  it('counts the served version reporting its own configuration as working', () => {
+    const { orchestrator } = health({ appBuildSha: '', modelBuildSha: 'bbbbbbbb22', orchestratorReported: true });
+    expect(orchestrator.health.state).toBe('working');
+    expect(orchestrator.health.label).toBe('Answered');
+  });
+
+  it('draws no verdict on an orchestrator nothing asked about and nothing heard from', () => {
+    const { orchestrator } = health({ appBuildSha: '', modelBuildSha: 'bbbbbbbb22' });
+    expect(orchestrator.health.state).toBe('unknown');
+    expect(orchestrator.tone).toBe('plain');
+  });
+
+  /**
+   * A stamp nobody reported is not a failing one. The tint would otherwise land
+   * on the words `not set`, which reads as a verdict about the absence.
+   */
+  it('leaves an absent stamp untinted while still stating the health beside it', () => {
+    const { orchestrator } = health({ appBuildSha: '', modelBuildSha: '', orchestratorStatus: 'blocked' });
+    expect(orchestrator.short).toBe('');
+    expect(orchestrator.tone).toBe('plain');
+    expect(orchestrator.health.state).toBe('not-working');
+  });
+});
+
 describe('the counts line, where the figures had to become tabular', () => {
   const NONE = {
     reachable: 0,

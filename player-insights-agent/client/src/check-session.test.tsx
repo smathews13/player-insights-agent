@@ -32,12 +32,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ArchitecturePage } from './ArchitecturePage';
 import {
-  STALE_CHECK_MS,
   checkedAtOf,
   forgetChecks,
   recallChecks,
   rememberChecks,
-  restoredNotice,
   type CheckSession,
 } from './check-session';
 import { connectedResource } from '../../shared/deployment-config';
@@ -45,12 +43,13 @@ import type { SettingsPayload } from './connection-model';
 import type { PreflightCheck, PreflightReport } from './preflight';
 
 const PAGE_SOURCE = readFileSync(fileURLToPath(new URL('./ArchitecturePage.tsx', import.meta.url)), 'utf8');
+const CONNECTIONS_SOURCE = readFileSync(fileURLToPath(new URL('./ConnectionsPage.tsx', import.meta.url)), 'utf8');
+const SESSION_SOURCE = readFileSync(fileURLToPath(new URL('./check-session.ts', import.meta.url)), 'utf8');
 /** Comments stripped, so prose about a call is not read as the call. */
 const PAGE = PAGE_SOURCE.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
 
 /** A time far enough back to be beyond every rounding boundary in play. */
 const WHEN = '2026-08-16T01:00:00.000Z';
-const WHEN_MS = Date.parse(WHEN);
 
 function row(id: string, over: Record<string, unknown> = {}) {
   return {
@@ -155,7 +154,7 @@ describe('opening the tab having never checked anything', () => {
    * session-checks.test.ts, rather than by reading this page's source.
    */
   it('keeps the cheap read for itself and the expensive pair for the session', () => {
-    const fetches = [...PAGE.matchAll(/fetch\('([^']+)'/g)].map((match) => match[1]);
+    const fetches = [...PAGE.matchAll(/fetchWithTimeout\('([^']+)'/g)].map((match) => match[1]);
     expect(fetches).toEqual(['/api/architecture']);
     expect(PAGE).toContain('useSessionChecks()');
   });
@@ -224,42 +223,25 @@ describe('a restored view does not backdate its timestamp to when the tab was re
   });
 });
 
-describe('and it says so when the results are not from this visit', () => {
-  it('tells the reader nothing has run since they came back', () => {
-    // Restored and freshly-checked are the same pixels. Without this sentence
-    // the cache trades one invisible state for another.
+describe('restored checks use only the header freshness control', () => {
+  it('renders no narrative banner under Architecture', () => {
     rememberChecks(ranAt());
-    expect(text(pageMarkup())).toContain('These are the results of the last check, not a new one');
+    const shown = text(pageMarkup());
+    expect(shown).toContain('Read');
+    expect(shown).not.toContain('These are the results of the last check');
+    expect(shown).not.toContain('Nothing has been re-checked');
+    expect(shown).not.toContain('Refresh to ask again');
   });
 
-  it('says nothing extra while the check is recent, because recent is fine', () => {
-    const recent = restoredNotice(WHEN, WHEN_MS + 10 * 60 * 1000);
-    expect(recent).toContain('not a new one');
-    expect(recent).not.toContain('over an hour old');
-  });
-
-  it('says plainly that an old check may describe a deployment since changed', () => {
-    // "Read 5 h ago" on the button is true and easy to read past. This is the
-    // sentence that does not get read past.
-    const old = restoredNotice(WHEN, WHEN_MS + STALE_CHECK_MS + 1);
-    expect(old).toContain('over an hour old');
-    expect(old).toContain('Refresh');
-  });
-
-  it('says nothing at all when there is nothing restored to explain', () => {
-    expect(restoredNotice('', Date.now())).toBe('');
-    expect(restoredNotice('not a date', Date.now())).toBe('');
-  });
-
-  it('drops the sentence once a run has landed in this visit', () => {
-    // Guarded on `restored` rather than on the presence of results, so a page
-    // that has just been re-checked does not keep telling the reader its results
-    // are old. The flag is now derived in `session-checks.ts`, by comparing the
-    // session's completed-run count against the count this page mounted at --
-    // which is what lets the page that runs the AUTOMATIC check know its own
-    // results are fresh even though it mounted with an empty store.
-    expect(PAGE).toContain('restored ? restoredNotice(checkedAt, now)');
-    expect(PAGE).toContain('useSessionChecks()');
+  it('keeps the same banner family out of both deployment panes', () => {
+    for (const source of [PAGE_SOURCE, CONNECTIONS_SOURCE, SESSION_SOURCE]) {
+      expect(source).not.toContain('These are the results of the last check');
+      expect(source).not.toContain('Nothing has been re-checked');
+      expect(source).not.toContain('That check is over an hour old');
+      expect(source).not.toContain('Refresh to ask again');
+    }
+    expect(PAGE_SOURCE).not.toContain('architecture-restored');
+    expect(CONNECTIONS_SOURCE).not.toContain('connections-restored');
   });
 });
 

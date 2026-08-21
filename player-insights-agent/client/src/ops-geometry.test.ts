@@ -112,8 +112,7 @@ describe('nothing on this tab is louder than what it is reporting', () => {
    * that family, and it is louder rather than quieter: 5.79:1 on white against
    * #BE501E's 4.82.
    */
-  it('paints the substituted-window note in amber rather than in orange', () => {
-    expect(rule('.ops-range-dates-note')).toMatch(/color:\s*var\(--ast-warn-deep\)/);
+  it('uses no orange', () => {
     expect(RULES).not.toMatch(/--db-orange|--db-warn-600|#FF3621|#ff3621|#BE501E|#be501e/);
   });
 
@@ -157,15 +156,6 @@ describe('the type scale and the two radii', () => {
     expect(sizes.length).toBeGreaterThan(10);
     const stray = sizes.filter((value) => !/^var\(--(ast-fs-\d+|text-[\w-]+)\)$/.test(value));
     expect(stray).toEqual([]);
-  });
-
-  /**
-   * Two corners, and the range chip is one of them now. It was 999px -- one of
-   * eight places in the app reaching for the shape a chip reads as most naturally
-   * -- and §2 settles the astrolabe chip at the same 4px corner as a button.
-   */
-  it('gives the compact date range the chip corner rather than a pill', () => {
-    expect(rule('.ops-range-dates-value')).toMatch(/border-radius:\s*var\(--ast-radius-control\)/);
   });
 
   it('writes every corner as a token or a shape', () => {

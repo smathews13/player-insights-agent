@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BuildFactRow,
+  BuildStampRow,
   ConnectionRow,
   ConnectionsCounts,
   DeclaredTablesTable,
@@ -11,6 +12,11 @@ import {
   PreflightRemedyBlock,
   PreflightRemedyRow,
 } from './ConnectionsPage';
+import { BRAND_THEME_MARKS } from './brand-icons';
+import { sourceRows } from './build-card';
+import { GithubMark } from './GithubMark';
+import { NO_APP_FACTS, PUBLIC_SOURCE_REPO_URL } from '../../shared/app-facts';
+import { buildFacts } from './connection-build';
 import { groupByCause, groupByRemedy } from './connection-causes';
 import { splitOptionalScopeFindings } from './optional-scope-findings';
 import {
@@ -26,6 +32,76 @@ import { ENTITY_PARAM, entityHref } from './data-entities';
 import type { PreflightCheck } from './preflight';
 import { connectedResource } from '../../shared/deployment-config';
 import { pickerForField } from './asset-picker';
+
+/**
+ * The two build stamp rows, as a reader sees them.
+ *
+ * WHAT WAS ON SCREEN. Two rows of plain grey type -- `App 5b0e675b` and
+ * `Orchestrator 05d742b2` -- with a copy button and no status of any kind, on the
+ * tab whose subject is what this deployment can reach. Both halves looked the
+ * same whether they were up or down.
+ *
+ * Composed rather than unit-tested because the failure was a composition: the
+ * reading existed nowhere, and the assertions that matter are that the tint, the
+ * word, the identifier and the copy affordance are all on the row together. A
+ * green row with no word fails the app's never-colour-alone rule, and a word with
+ * no identifier would have taken away the reason somebody opens this card.
+ */
+describe('the build stamps say whether each half is working', () => {
+  function stamp(over: Partial<Parameters<typeof buildFacts>[0]>) {
+    return buildFacts({ appBuildSha: '5b0e675b1c', modelBuildSha: '05d742b299', ...over });
+  }
+
+  it('draws a green pill and keeps the stamp and its copy button', () => {
+    const [app] = stamp({
+      appBuildSha: '5b0e675b1c',
+      modelBuildSha: '',
+      appServing: { app: 'RUNNING', compute: 'ACTIVE', message: '' },
+    }).artifacts;
+    const markup = render(<BuildStampRow artifact={app} />);
+
+    // On the PILL, named as such: the stamp badge beside it is tinted from the
+    // same reading, so a looser assertion would pass on the tint alone and let
+    // the word disappear.
+    expect(markup).toContain('class="ast-pill ast-pill--pos deployment-health" data-health="working"');
+    expect(markup).toContain('data-testid="build-app-health"');
+    // The word, not just the colour: a tint is not a fact a screen reader reads.
+    expect(text(markup)).toContain('Running');
+    // And the identifier a reader came for, still copyable, still whole in title.
+    expect(text(markup)).toContain('5b0e675b');
+    expect(markup).toContain('aria-label="Copy the App commit"');
+    expect(markup).toContain('title="5b0e675b1c"');
+  });
+
+  it('draws a red pill on an orchestrator endpoint that could not be reached', () => {
+    const [, orchestrator] = stamp({
+      appBuildSha: '',
+      modelBuildSha: '05d742b299',
+      orchestratorStatus: 'blocked',
+    }).artifacts;
+    const markup = render(<BuildStampRow artifact={orchestrator} />);
+
+    expect(markup).toContain('class="ast-pill ast-pill--neg deployment-health" data-health="not-working"');
+    expect(markup).toContain('data-testid="build-orchestrator-health"');
+    expect(text(markup)).toContain('Blocked');
+    expect(text(markup)).toContain('05d742b2');
+    expect(markup).toContain('aria-label="Copy the Orchestrator commit"');
+  });
+
+  /**
+   * The rule this page has always had: an absence is a fact nobody established,
+   * not a fault. A pill on this row would put a verdict-shaped element on every
+   * deployment and teach a reader that the shape means nothing.
+   */
+  it('draws no pill at all where nothing measured that half', () => {
+    const [, orchestrator] = stamp({ appBuildSha: '', modelBuildSha: '05d742b299' }).artifacts;
+    const markup = render(<BuildStampRow artifact={orchestrator} />);
+
+    expect(markup).not.toContain('ast-pill');
+    expect(markup).not.toContain('data-health');
+    expect(text(markup)).toContain('05d742b2');
+  });
+});
 
 describe('people on deployment facts', () => {
   it('uses the shared identity chip for the deployer', () => {
@@ -45,6 +121,65 @@ describe('people on deployment facts', () => {
     expect(markup).toContain('lucide-user-round');
     expect(markup).toContain('identity-chip-name">release.owner');
     expect(markup).not.toContain('>RO<');
+  });
+});
+
+/**
+ * THE TWO ROWS SAM ASKED TO BE LINKS RATHER THAN CHIPS.
+ *
+ * Composed rather than asserted on `sourceRows`, because everything that went
+ * wrong the first time round is a property of the markup: a chip carrying a URL
+ * as text and an anchor that opens it read identically in the row model, and
+ * "it has the destination's logo on it" is not a claim a row object can settle.
+ */
+describe('the deployment source links', () => {
+  const rows = sourceRows({
+    ...NO_APP_FACTS,
+    answered: true,
+    source: {
+      path: 'player-insights-agent/build/deploy',
+      workspaceUrl: 'https://workspace.example.com/apps/astrolabe',
+      gitRef: 'main',
+    },
+  });
+
+  function renderSourceRows(): string {
+    return render(
+      <>
+        {rows.map((row) => (
+          <BuildFactRow key={row.key} row={row} />
+        ))}
+      </>
+    );
+  }
+
+  it('opens each destination from a real anchor, in a new tab', () => {
+    const markup = renderSourceRows();
+
+    expect(markup).toContain('<a class="deployment-fact-link" href="https://workspace.example.com/apps/astrolabe"');
+    expect(markup).toContain(`<a class="deployment-fact-link" href="${PUBLIC_SOURCE_REPO_URL}"`);
+    // A new tab, and one that cannot reach back into this one.
+    expect([...markup.matchAll(/target="_blank"/g)]).toHaveLength(2);
+    expect([...markup.matchAll(/rel="noreferrer noopener"/g)]).toHaveLength(2);
+    expect(text(markup)).toContain('App source player-insights-agent/build/deploy');
+    expect(text(markup)).toContain('GitHub <your-username>/player-insights-agent · main');
+  });
+
+  /**
+   * THE LOGOS, AND THAT THEY ARE THE APP'S OWN. The workspace row wears the
+   * official Databricks Apps mark from the brand directory -- not a Lucide
+   * approximation of one -- and the repository row wears the very octocat the
+   * login gate draws, which is why both are asserted against the same modules
+   * those two surfaces use rather than against a shape recognised by eye.
+   */
+  it('wears the Databricks Apps mark and the login screen’s GitHub mark', () => {
+    const markup = renderSourceRows();
+
+    expect(markup).toContain(BRAND_THEME_MARKS.light.apps);
+    expect(markup).toContain(renderToStaticMarkup(<GithubMark className="deployment-fact-mark" />));
+    // The generic glyphs are the app's link affordance, not a stand-in product
+    // mark: one external-link icon per row and no more.
+    expect([...markup.matchAll(/lucide-external-link/g)]).toHaveLength(2);
   });
 });
 

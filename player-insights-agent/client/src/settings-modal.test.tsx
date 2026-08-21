@@ -4,7 +4,7 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { SettingsPage } from './SettingsPage';
 
-function render(section: 'runtime' | 'appearance' | 'egress' = 'runtime') {
+function render(section: 'runtime' | 'appearance' | 'egress' | 'experimental' = 'runtime') {
   return renderToStaticMarkup(
     <MemoryRouter initialEntries={['/']}>
       <Routes>
@@ -32,7 +32,11 @@ describe('Settings modal', () => {
     expect(markup).toContain('data-testid="settings-modal-overlay"');
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain('aria-modal="true"');
-    expect(markup).toContain('Admin only. Enforced on the server.');
+    // The header is the word Settings and the close button. It used to lecture
+    // ("Admin only. Enforced on the server.") under its own title; the roles and
+    // the server enforce that, and neither needs announcing.
+    expect(markup).not.toContain('Admin only');
+    expect(markup).not.toContain('Enforced on the server');
     for (const label of ['Roles', 'Runtime', 'Appearance', 'Egress controls', 'Experimental']) {
       expect(markup).toContain(`>${label}</button>`);
     }
@@ -42,6 +46,14 @@ describe('Settings modal', () => {
     expect(render('runtime')).toContain('Live behavior for the next ask.');
     expect(render('appearance')).toContain('Answer entity colors, shared by Ask and Run Explorer.');
     expect(render('egress')).toContain('What can leave this deployment: downloads, copies, and outbound links.');
+  });
+
+  it('puts the legacy-deployment tag repair under Experimental', () => {
+    const markup = render('experimental');
+    expect(markup).toContain('Astrolabe resource tags');
+    expect(markup).toContain('astrolabe=true');
+    expect(markup).toContain('>Apply Astrolabe tags</button>');
+    expect(markup).not.toContain('Admin only');
   });
 
   it('keeps one active-section Save in the modal footer', () => {

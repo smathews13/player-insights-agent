@@ -31,69 +31,6 @@
   gap: 16px;
 }
 
-/* ── The window the figures are over ─────────────────────────────────────── */
-
-/*
- * The dates, directly under the heading and the range control, above every block
- * they apply to.
- *
- * It is quiet but it is not decoration. Every caption on this page says "in this
- * range" and until now nothing on it said which range, so a highlighted button
- * was the only evidence a reader had for what a total covered -- and the button
- * was wrong for two of the four options for as long as that went unnoticed. A
- * figure a reader cannot check is a figure they have to trust.
- *
- * Negative top margin against the page's gap: it belongs to the heading above it
- * rather than floating between the heading and the first block.
- */
-/*
- * The dates stay in DM Sans, and the `tabular-nums` this rule used to carry is
- * gone rather than made real. It renders once, reads as a label, and has nothing
- * above or below it to fail to line up with, which is the whole test for whether a
- * figure is columnar. Mono here would be worse than proportional: it would read as
- * a code span to anybody who has learnt this app's mono convention. The property
- * was inert on DM Sans in any case, and leaving a dead claim in the one place a
- * reader would look to check the rule is how the rule stops being read.
- */
-.ops-range-dates {
-  margin: -8px 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 8px;
-  align-items: baseline;
-  font-size: var(--text-sm);
-  color: var(--ast-text-long);
-}
-
-/* The dates read as a chip, matching the filter idiom the rest of the app uses,
-   so the window is scanned rather than read as a sentence. "Showing" is not in
-   front of it: the word introduced a fact that reads as a fact without it.
-
-   4px, not 999. The pill radius was one of eight places in the app reaching for
-   the shape a chip reads as most naturally, and §2 settles it at the same corner
-   as a button. The astrolabe chip is a rectangle with a 4px corner. */
-.ops-range-dates-value {
-  border: 1px solid var(--border);
-  border-radius: var(--ast-radius-control);
-  padding: 1px 10px;
-  background: var(--muted);
-  color: var(--ast-text-long);
-}
-
-/* A substituted window is a page answering a question nobody put, so this is the
-   one part of the line that is allowed to be loud. The DEEP warning rung, which
-   is the palette's text weight for amber: --ast-warn-text is sized for a label on
-   a tint and this is 12px on white.
-
-   It was --db-warn-600 #BE501E, which is not amber. It is orange, close enough to
-   --db-orange to read as it, and the astrolabe palette has none: "no orange in
-   the palette" is §2's rule and this line was the one place on the tab breaking
-   it. #7A5E32 is 5.79:1 on white against #BE501E's 4.82, so the loudness this
-   rule was buying survives the swap. */
-.ops-range-dates-note {
-  color: var(--ast-warn-deep);
-}
-
 /* ── A block ─────────────────────────────────────────────────────────────── */
 
 .ops-block {

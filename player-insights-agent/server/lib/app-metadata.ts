@@ -28,6 +28,7 @@ import {
   type AppServing,
   type ExporterReading,
 } from '../../shared/app-facts';
+import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { readExporter, type ExporterReader } from './ops-telemetry';
 
 /** Where the app is asked about, named once. */
@@ -72,6 +73,28 @@ function textOf(value: unknown): string {
 /** A record the API nests, or nothing, so a missing branch reads as absent. */
 function objectOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+/**
+ * A workspace folder URL whose path still says exactly what Apps reported.
+ *
+ * THE PATH FORM, NOT `/browse/folders/<id>`. The browser's own URL identifies a
+ * folder by a numeric directory id this app has not asked for and would have to
+ * make a second workspace call to learn; the documented shareable form is
+ * `#workspace` followed by the full path, which is precisely the string Apps
+ * already handed us. `encodeURI` rather than a per-segment `encodeURIComponent`
+ * so a home folder's `user@example.com` survives as itself, as the documented
+ * examples spell it, while a space in a folder name is still escaped.
+ *
+ * Anything that is not a `/Workspace/...` path resolves to no link at all. An
+ * Apps deployment can report a source this app has no browser route for, and a
+ * link built out of hope is worse than a row that is not drawn.
+ */
+function workspaceFolderUrl(host: string, path: string): string {
+  const base = normalizeWorkspaceHost(host);
+  const source = textOf(path);
+  if (!base || !source.startsWith('/Workspace/')) return '';
+  return `${base}/#workspace${encodeURI(source)}`;
 }
 
 /**
@@ -135,6 +158,7 @@ export function appCompute(raw: unknown): AppCompute | null {
  */
 export function appFacts(input: {
   read: AppRead;
+  workspaceHost?: string;
   otelExporter?: string;
   otelExport?: ExporterReading;
 }): AppFacts {
@@ -151,6 +175,12 @@ export function appFacts(input: {
   // and whose creator is the deployer. `create_time` on the app itself is when
   // the app was first made, which is a different and much less useful fact.
   const deployment = objectOf(body.active_deployment);
+  const gitSource = objectOf(deployment.git_source);
+  const gitBacked = Object.keys(gitSource).length > 0;
+  const sourcePath = gitBacked ? textOf(gitSource.source_code_path) : textOf(deployment.source_code_path);
+  const appName = textOf(body.name);
+  const workspaceHost = normalizeWorkspaceHost(input.workspaceHost);
+  const gitRef = textOf(gitSource.branch) || textOf(gitSource.tag) || textOf(gitSource.commit);
   return {
     url: textOf(body.url),
     answered: true,
@@ -159,6 +189,17 @@ export function appFacts(input: {
     tags: appTags(body.tags),
     deployedAt: textOf(deployment.create_time) || textOf(body.update_time),
     deployedBy: textOf(deployment.creator) || textOf(body.updater),
+    source: {
+      path: sourcePath,
+      // Git deployments are managed from the app's own workspace page. Uploaded
+      // deployments link to the exact input folder Apps reports, never to the
+      // generated deployment artifact or to a bundle path inferred elsewhere.
+      workspaceUrl:
+        gitBacked && workspaceHost && appName
+          ? `${workspaceHost}/apps/${encodeURIComponent(appName)}`
+          : workspaceFolderUrl(workspaceHost, sourcePath),
+      gitRef,
+    },
     serving: appServing(body),
     otelExporter,
     otelExport,
@@ -203,11 +244,13 @@ export const workspaceAppReader: AppReader = async (name) => {
  */
 export async function readAppFacts(input: {
   name?: string;
+  workspaceHost?: string;
   otelExporter?: string;
   read?: AppReader;
   readExport?: ExporterReader;
 } = {}): Promise<AppFacts> {
   const name = (input.name ?? process.env[APP_NAME_ENV] ?? '').trim();
+  const workspaceHost = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? '';
   const otelExporter = (input.otelExporter ?? process.env[OTEL_ENDPOINT_ENV] ?? '').trim();
   // Counted before the name is checked, because the two are independent: the
   // exporter writes to the telemetry schema whether or not this process knows
@@ -229,5 +272,5 @@ export async function readAppFacts(input: {
   if (read.kind !== 'ok') {
     console.warn(`[settings] The workspace could not be asked about the app ${name}:`, read.message);
   }
-  return appFacts({ read, otelExporter, otelExport });
+  return appFacts({ read, workspaceHost, otelExporter, otelExport });
 }

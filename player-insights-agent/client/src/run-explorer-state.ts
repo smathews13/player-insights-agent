@@ -1,5 +1,5 @@
 import type { TraceStage } from './answer-shape';
-import type { Run } from './app-types';
+import type { Conversation, Run } from './app-types';
 import { runLabel } from './run-label';
 
 function isDataWork(stage: TraceStage): boolean {
@@ -73,12 +73,35 @@ export function conversationSummary(run: Run): string {
   return `${clipped.slice(0, lastSpace > 0 ? lastSpace : CONVERSATION_SUMMARY_LIMIT).trimEnd()}…`;
 }
 
-export function conversationFilterOptions(runs: readonly Run[]): Array<{ id: string; label: string }> {
+/**
+ * Which conversations the filter offers, and what each one is called.
+ *
+ * THE STORED ROWS DECIDE WHICH EXIST. This was built from the runs alone, so a
+ * conversation appeared here only once a turn inside it had stored a trace, and
+ * the Ask rail -- which reads the conversation rows -- listed a different set.
+ * One store, two answers to "how many conversations are there", which is what
+ * a reader saw as three on one page and six on the other.
+ *
+ * The runs still decide the LABEL, because a thread's opening question reads
+ * better in a filter than its stored title. A conversation with no run yet
+ * keeps its title rather than being dropped, which is the honest ordering: it
+ * exists, and nothing has been asked in it.
+ */
+export function conversationFilterOptions(
+  conversations: readonly Conversation[],
+  runs: readonly Run[]
+): Array<{ id: string; label: string }> {
   const firstRunByConversation = new Map<string, Run>();
   for (const run of [...runs].reverse()) {
     if (run.conversation_id && !firstRunByConversation.has(run.conversation_id)) {
       firstRunByConversation.set(run.conversation_id, run);
     }
   }
-  return [...firstRunByConversation].map(([id, run]) => ({ id, label: conversationSummary(run) }));
+  return conversations.map((conversation) => {
+    const firstRun = firstRunByConversation.get(conversation.id);
+    return {
+      id: conversation.id,
+      label: firstRun ? conversationSummary(firstRun) : conversation.title,
+    };
+  });
 }

@@ -601,7 +601,6 @@
 }
 
 .settings-modal-header h2,
-.settings-modal-header p,
 .settings-pane-heading h3,
 .settings-pane-heading p {
   margin: 0;
@@ -612,7 +611,6 @@
   font-weight: 700;
 }
 
-.settings-modal-header p,
 .settings-pane-heading p {
   font-size: 12px;
   color: #6f6f6f;
@@ -951,6 +949,35 @@
 
 .settings-error {
   color: var(--destructive);
+}
+
+.settings-resource-tags {
+  padding-top: 16px;
+  border-top: 1px solid #ebebeb;
+}
+
+.settings-resource-tags > [data-slot='button'] {
+  flex: none;
+}
+
+.resource-tag-result {
+  margin-top: 8px;
+  color: var(--ast-text-long);
+  font-size: 12px;
+}
+
+.resource-tag-result p {
+  margin: 0;
+  font-weight: 500;
+}
+
+.resource-tag-result ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.resource-tag-result li + li {
+  margin-top: 3px;
 }
 
 .app-nav > button.app-nav-tab {

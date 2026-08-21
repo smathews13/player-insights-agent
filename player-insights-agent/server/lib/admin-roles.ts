@@ -430,6 +430,7 @@ export const ADMIN_ROUTE_PREFIXES: readonly string[] = [
   '/api/settings/values',
   '/api/settings/connections',
   '/api/settings/apply',
+  '/api/settings/resource-tags',
   // One namespace for every release-request lifecycle operation. Creation,
   // claim, and completion all resolve the acting person from the same trusted
   // forwarded identity and are refused to consumers by construction.
@@ -635,7 +636,9 @@ export type AdminAction =
   | 'runtime-settings-updated'
   /** An admin recorded or cleared a Connections setting intention (or live value). */
   | 'connection-setting-saved'
-  | 'connection-setting-cleared';
+  | 'connection-setting-cleared'
+  /** An admin asked the app identity to backfill astrolabe=true on managed resources. */
+  | 'resource-tags-applied';
 
 /**
  * Record what an admin did: who, when, what.

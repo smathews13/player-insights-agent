@@ -30,6 +30,7 @@
  * side in that.
  */
 import type { Identity } from './app-types';
+import { PUBLIC_SOURCE_REPO_URL } from '../../shared/app-facts';
 import { DEVELOPMENT_FALLBACK } from './oauth-badge';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 import {
@@ -180,7 +181,13 @@ export const DISCLAIMER_BODY =
   'of your engagement.';
 
 export const SOURCE_LABEL = 'Source on GitHub';
-export const SOURCE_URL = 'https://github.com/smathews13/player-insights-agent';
+/**
+ * The published repository, from the one module that names it.
+ *
+ * The Connections tab links the same repository beside the workspace source it
+ * is actually running, and two literals would eventually be two repositories.
+ */
+export const SOURCE_URL = PUBLIC_SOURCE_REPO_URL;
 
 /**
  * The body either side of the emphasised phrase.
@@ -462,6 +469,7 @@ export type FirstOpenOutcome = 'passed' | 'skipped';
 export interface AcknowledgementStore {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem?(key: string): void;
 }
 
 /**
@@ -585,7 +593,26 @@ export function firstOpenOutcome(store = browserAcknowledgementStore()): FirstOp
   }
 }
 
-/** Test seam, and nothing else. Clears the in-memory half only. */
+/** Test seam. Clears the in-memory half only. */
 export function forgetFirstOpen(): void {
   acknowledgedHere = false;
+}
+
+/**
+ * End this browser tab's Astrolabe session without touching Databricks sign-in.
+ *
+ * Both keys have to go before the page reloads: the acknowledgement decides
+ * whether the login gate appears, and the outcome is evidence about the session
+ * that just ended rather than the one about to begin.
+ */
+export function signOutOfAstrolabe(store = browserAcknowledgementStore()): void {
+  acknowledgedHere = false;
+  if (!store?.removeItem) return;
+  try {
+    store.removeItem(FIRST_OPEN_OUTCOME_KEY);
+    store.removeItem(FIRST_OPEN_KEY);
+  } catch {
+    // Reloading still clears the module latch. A browser that refuses storage
+    // may show the gate again because it cannot retain the acknowledgement.
+  }
 }

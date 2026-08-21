@@ -229,7 +229,7 @@ export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean 
  * pinned to the current price. A range that crosses a price change would
  * otherwise be restated at today's rate, quietly, with no sign on the tile.
  */
-export function buildCostStatement(ids: CostIdentifiers, range: CostRange): CostStatement | null {
+export function buildCostStatement(ids: CostIdentifiers): CostStatement | null {
   const covered = COST_COMPONENTS.filter((component) => canAsk(component, ids));
   // Only where the workspace itself is identified. See the note on
   // WORKSPACE_ESTIMATE_SUFFIX: without that predicate there is nothing keeping
@@ -239,10 +239,7 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
     : [];
   if (covered.length === 0 && estimated.length === 0) return null;
 
-  const parameters: StatementParameter[] = [
-    { name: 'from_day', value: range.from, type: 'STRING' },
-    { name: 'to_day', value: range.to, type: 'STRING' },
-  ];
+  const parameters: StatementParameter[] = [];
   const branches: string[] = [];
   const bound = new Set<string>();
 
@@ -291,9 +288,7 @@ ${branches.join('\n')}
    AND u.cloud = p.cloud
    AND u.usage_end_time >= p.price_start_time
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
-  WHERE u.usage_date >= CAST(:from_day AS DATE)
-    AND u.usage_date <= CAST(:to_day AS DATE)
-    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
+  WHERE u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
 )
 SELECT
   component,
@@ -431,14 +426,6 @@ const DESCRIPTIONS: Record<
   },
 };
 
-/** Days in an inclusive range, for the per-day tiles. Never zero. */
-export function daysInRange(range: CostRange): number {
-  const from = Date.parse(`${range.from}T00:00:00Z`);
-  const to = Date.parse(`${range.to}T00:00:00Z`);
-  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return 1;
-  return Math.floor((to - from) / 86_400_000) + 1;
-}
-
 /**
  * Turn the rows into the tiles the page draws, one per component, always six.
  *
@@ -447,9 +434,8 @@ export function daysInRange(range: CostRange): number {
  * that nothing identifies the job on this deployment; an absent tile tells them
  * nothing and reads as an app that forgot.
  */
-export function buildTiles(ids: CostIdentifiers, range: CostRange, rows: ComponentRow[]): CostTile[] {
+export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile[] {
   const byComponent = new Map(rows.map((row) => [row.component, row]));
-  const days = daysInRange(range);
 
   return COST_COMPONENTS.map((component): CostTile => {
     const description = DESCRIPTIONS[component];
@@ -474,7 +460,10 @@ export function buildTiles(ids: CostIdentifiers, range: CostRange, rows: Compone
           ...base,
           quality: 'estimate',
           population: 'Whole workspace',
-          amount: description.basis === 'per-day' ? estimate.spend / days : estimate.spend,
+          amount:
+            description.basis === 'per-day'
+              ? estimate.spend / Math.max(estimate.billedDays, 1)
+              : estimate.spend,
           note: '',
           unavailable: '',
           remedy: description.variable
@@ -497,16 +486,16 @@ export function buildTiles(ids: CostIdentifiers, range: CostRange, rows: Compone
 
     const row = byComponent.get(component);
     if (!row || row.spend === null || !Number.isFinite(row.spend)) {
-      return { ...base, amount: null, note: '', unavailable: 'No billing rows in this range', remedy: '' };
+      return { ...base, amount: null, note: '', unavailable: 'No billing rows', remedy: '' };
     }
 
-    const amount = description.basis === 'per-day' ? row.spend / days : row.spend;
+    const amount = description.basis === 'per-day' ? row.spend / Math.max(row.billedDays, 1) : row.spend;
     // A second FIGURE, never a second sentence. The vector search tile carried a
     // paragraph here about a usage count this deployment does not record, which
     // is a fact about our instrumentation rather than about anybody's bill.
     const note =
       component === 'index-rebuild-job' && row.jobRuns !== null
-        ? `${row.jobRuns} ${row.jobRuns === 1 ? 'run' : 'runs'} in range`
+        ? `${row.jobRuns} ${row.jobRuns === 1 ? 'run' : 'runs'}`
         : '';
 
     return { ...base, amount, note, unavailable: '', remedy: '' };

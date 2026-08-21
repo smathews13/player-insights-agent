@@ -201,10 +201,10 @@ describe('the telemetry statement', () => {
     }
   });
 
-  it('bounds the read by the range parameters rather than scanning the table', () => {
-    // A warehouse is charged by the second and this table grows without limit.
-    expect(statement).toContain(':from_at');
-    expect(statement).toContain(':to_at');
+  it('reads all available telemetry without date bounds', () => {
+    expect(statement).not.toContain(':from_at');
+    expect(statement).not.toContain(':to_at');
+    expect(statement).not.toMatch(/time\s*[<>]=?/);
   });
 
   /**
@@ -235,11 +235,7 @@ describe('the telemetry statement', () => {
     expect(signIn?.[1]).toEqual('scoped');
   });
 
-  /**
-   * The one branch that must NOT be bounded by the range. See the empty-state
-   * tests below for what it is for.
-   */
-  it('reads the table\u2019s earliest row outside the range, so an empty window can explain itself', () => {
+  it('reads the table\u2019s earliest row', () => {
     expect(statement).toContain(`SELECT 'first-recorded', '', CAST(MIN(time) AS STRING), '' FROM ${TABLE}`);
   });
 });
@@ -262,8 +258,6 @@ describe('the telemetry statement', () => {
  * 2026-08-16 19:13:40 UTC.
  */
 describe('the three telemetry states are told apart', () => {
-  const RANGE = { from: '2026-08-10', to: '2026-08-16' };
-
   it('not enabled: off is the reading, and the remedy is the variable', () => {
     const measurement = offMeasurement(HREF);
     expect(measurement.telemetry).toEqual('not-enabled');
@@ -278,26 +272,7 @@ describe('the three telemetry states are told apart', () => {
    * and the rarer of the two.
    */
   it('nothing recorded yet: says so plainly, and does not invent a start time', () => {
-    const reason = noHistoryReason({ recordingSince: '', ...RANGE });
-    expect(reason).toContain('nothing has been written to it at all yet');
-    expect(reason).toContain('does not backfill');
-    expect(reason).not.toContain('until');
-  });
-
-  /**
-   * ENABLED, RECORDING, AND EMPTY FOR THE DAYS ON SCREEN -- which is what a
-   * deployment reads as on the day telemetry is switched on, because this page
-   * shows whole completed days and therefore cannot show today. Sam's Ops tab was
-   * in exactly this state while the table filled behind it.
-   */
-  it('recording since after the window: names when it started and which days are shown', () => {
-    const reason = noHistoryReason({ recordingSince: '2026-08-16 19:13:40', ...RANGE });
-    expect(reason).toContain('2026-08-16 19:13:40');
-    expect(reason).toContain('2026-08-10');
-    expect(reason).toContain('2026-08-16');
-    expect(reason).toContain('Nothing is broken and nothing was lost');
-    // It must not claim the table is empty, because it is not.
-    expect(reason).not.toContain('nothing has been written to it at all');
+    expect(noHistoryReason()).toBe('No app requests have been recorded yet.');
   });
 
   it('a failed read: names the error and refuses to call the table empty', () => {

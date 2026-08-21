@@ -14,9 +14,16 @@ const IDS: CostIdentifiers = {
 
 describe('billing attribution', () => {
   it('limits every cost figure to resources tagged for Astrolabe', () => {
-    const query = buildCostStatement(IDS, { from: '2026-08-01', to: '2026-08-07' });
+    const query = buildCostStatement(IDS);
 
     expect(BILLING_TAG_KEY).toBe('astrolabe');
     expect(query?.statement).toContain("u.custom_tags['astrolabe'] IS NOT NULL");
+  });
+
+  it('reads every available billing row without date parameters', () => {
+    const query = buildCostStatement(IDS);
+    expect(query?.statement).not.toMatch(/usage_date\s*[<>]=?/);
+    expect(query?.parameters.map((parameter) => parameter.name)).not.toContain('from_day');
+    expect(query?.parameters.map((parameter) => parameter.name)).not.toContain('to_day');
   });
 });

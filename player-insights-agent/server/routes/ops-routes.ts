@@ -37,7 +37,6 @@ import {
   readComponentRows,
   RANGE_ROW,
   type CostIdentifiers,
-  type CostRange,
   type StatementParameter,
 } from '../lib/ops-billing';
 import {
@@ -63,7 +62,11 @@ import { appEnvironment, readStoredSettings, resourceStates } from '../lib/app-s
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
-import { opsDayRange, SPAN_PERCENTILE_FLOOR } from '../../shared/ops-contract';
+import {
+  readRequestLatencyRows,
+  REQUEST_LATENCY_QUERY,
+  REQUEST_LATENCY_TABLE,
+} from '../lib/request-latency';
 import type {
   AppMeasurement,
   DependencyResult,
@@ -93,52 +96,6 @@ const STATEMENT_TIMEOUT_MS = 45_000;
 function queryText(req: Request, name: string): string {
   const value = req.query[name];
   return typeof value === 'string' ? value.trim() : '';
-}
-
-/**
- * The range, as whole days, ending on the last COMPLETE day.
- *
- * THE ARITHMETIC IS `opsDayRange`, IN THE SHARED CONTRACT, and it is shared for a
- * reason worth keeping in front of whoever edits this next. The page prints the
- * dates it is showing figures for; if it derived them with its own copy of this
- * rule, the printed window and the queried window could drift apart, and a
- * printed date that is not the queried date is worse than no date at all because
- * a reader would then be checking the figure against a lie.
- *
- * The parameters are `from` and `to`, and ONLY those. The range control's word --
- * `range=24h`, `range=30d` -- is a client-side control state and never reaches
- * here: the page resolves it to two timestamps first, the way Monitoring always
- * has. This function used to be all there was, which meant a page sending only
- * the word got the fallback window and three of the four options silently
- * returned the last seven days.
- */
-export function opsRange(req: Request, now = Date.now()): CostRange {
-  return opsDayRange(queryText(req, 'from'), queryText(req, 'to'), now);
-}
-
-/** The half-open timestamp bounds a Lakebase or telemetry read uses for that range. */
-function instantsFor(range: CostRange): { from: string; to: string } {
-  return { from: `${range.from}T00:00:00Z`, to: `${range.to}T23:59:59Z` };
-}
-
-/**
- * The exact activity window the browser asked for, including today.
- *
- * Cost intentionally ends on the last complete day because billing arrives
- * late. Traffic and latency are app-owned operational records and must not
- * inherit that lag: doing so made a new customer deployment say no questions
- * had been asked while people were actively using it.
- */
-function activityInstants(req: Request, now: number): { from: string; to: string } {
-  const from = Date.parse(queryText(req, 'from'));
-  const to = Date.parse(queryText(req, 'to'));
-  if (Number.isFinite(from) && Number.isFinite(to) && to >= from) {
-    return { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
-  }
-  return {
-    from: new Date(now - 7 * 86_400_000).toISOString(),
-    to: new Date(now).toISOString(),
-  };
 }
 
 interface StatementOutcome {
@@ -461,7 +418,7 @@ export function platformReadings(
  * write", which was never measured and is false -- appkit runs an exporter, and
  * `otel_spans` has been filling since 2026-08-16.
  */
-async function readAppMeasurement(req: Request, range: CostRange, insightsHref: string): Promise<AppMeasurement> {
+async function readAppMeasurement(req: Request, insightsHref: string): Promise<AppMeasurement> {
   const schema = telemetrySchema();
   if (!schema) return offMeasurement(insightsHref);
 
@@ -479,16 +436,12 @@ async function readAppMeasurement(req: Request, range: CostRange, insightsHref: 
     );
   }
 
-  const instants = instantsFor(range);
   const outcome = await runStatement({
     host: workspace,
     token,
     warehouseId: warehouse,
     statement: buildTelemetryStatement(table),
-    parameters: [
-      { name: 'from_at', value: instants.from, type: 'STRING' },
-      { name: 'to_at', value: instants.to, type: 'STRING' },
-    ],
+    parameters: [],
   });
 
   if (!outcome.ok) {
@@ -520,15 +473,12 @@ async function readAppMeasurement(req: Request, range: CostRange, insightsHref: 
 
   const figures = readTelemetryRows(outcome.rows);
   if (!hasHistory(figures)) {
-    // The range is passed in so the sentence can name the days it found nothing
-    // in. Without them, "no rows in this range" is a claim a reader cannot
-    // check against the window the page is showing.
     return {
       ...base,
       ...figures,
       telemetry: 'no-rows-yet',
       table,
-      reason: noHistoryReason({ recordingSince: figures.recordingSince, from: range.from, to: range.to }),
+      reason: noHistoryReason(),
     };
   }
   return { ...base, ...figures, telemetry: 'reading', table, reason: '' };
@@ -591,11 +541,11 @@ async function readDependencies(
 
 /* ── Traffic ─────────────────────────────────────────────────────────────── */
 
-/** Every question asked in the range, by the day it was asked. */
+/** Every recorded question, by the day it was asked. */
 export const QUESTIONS_PER_DAY_QUERY = `
   SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
-  WHERE m.role = 'user' AND m.created_at >= $1 AND m.created_at < $2
+  WHERE m.role = 'user'
   GROUP BY 1
   ORDER BY 1`;
 
@@ -612,7 +562,6 @@ export const QUESTIONS_PER_DAY_QUERY = `
 export const RUN_OUTCOMES_QUERY = `
   SELECT r.state, COALESCE(r.terminal_code, '') AS terminal_code, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.runs r
-  WHERE r.created_at >= $1 AND r.created_at < $2
   GROUP BY 1, 2`;
 
 /** Tool-tagged stages, counted by the tool each one named. */
@@ -622,54 +571,10 @@ export const TOOL_CALLS_QUERY = `
        LATERAL jsonb_array_elements(m.response_json->'trace'->'stages') AS stage
   WHERE m.role = 'assistant'
     AND jsonb_typeof(m.response_json->'trace'->'stages') = 'array'
-    AND m.created_at >= $1 AND m.created_at < $2
     AND stage->>'kind' = 'tool'
     AND COALESCE(stage->>'name', '') <> ''
   GROUP BY 1
   ORDER BY 2 DESC`;
-
-/**
- * Answer latency from the app's own durable messages.
- *
- * This is deliberately not an OpenTelemetry query. Every successful answer
- * stores its measured `trace.totalMs` in Lakebase, so customer deployments that
- * leave billed telemetry off still have the operational timing they own.
- */
-export const ANSWER_LATENCY_QUERY = `
-  WITH bounds AS (
-    SELECT $1::timestamptz AS from_at,
-           $2::timestamptz AS to_at,
-           $1::timestamptz + (($2::timestamptz - $1::timestamptz) / 2) AS split_at
-  ),
-  samples AS (
-    SELECT m.created_at,
-           (m.response_json->'trace'->>'totalMs')::double precision AS duration_ms,
-           jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS failed
-    FROM ${APP_SCHEMA}.messages m, bounds b
-    WHERE m.role = 'assistant'
-      AND jsonb_typeof(m.response_json->'trace') = 'object'
-      AND jsonb_typeof(m.response_json->'trace'->'totalMs') = 'number'
-      AND m.created_at >= b.from_at AND m.created_at < b.to_at
-  )
-  SELECT
-    COUNT(*) FILTER (WHERE s.created_at >= b.split_at)::int AS current_count,
-    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p50_ms,
-    ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p95_ms,
-    ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at >= b.split_at))::int AS current_p99_ms,
-    ROUND(MAX(s.duration_ms) FILTER (WHERE s.created_at >= b.split_at))::int AS slowest_ms,
-    COUNT(*) FILTER (WHERE s.created_at >= b.split_at AND s.failed)::int AS error_count,
-    MAX(s.created_at) FILTER (WHERE s.created_at >= b.split_at) AS last_answer_at,
-    COUNT(*) FILTER (WHERE s.created_at < b.split_at)::int AS prior_count,
-    ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
-      FILTER (WHERE s.created_at < b.split_at))::int AS prior_p50_ms,
-    MIN(s.created_at) AS covered_from,
-    MAX(s.created_at) AS covered_to
-  FROM bounds b
-  LEFT JOIN samples s ON TRUE
-  GROUP BY b.split_at`;
 
 /** The terminal states that mean something broke, as opposed to something was declined. */
 const FAILURE_STATES = new Set(['FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED']);
@@ -800,7 +705,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     /* ── Health ──────────────────────────────────────────────────────────── */
 
     app.get('/api/ops/health', async (req: Request, res: Response) => {
-      const range = opsRange(req, clock());
       const workspace = host();
       const insightsHref = workspace ? `${workspace}/apps` : '';
       try {
@@ -808,7 +712,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // grant nobody has made must not stop the dependency rows rendering.
         const [dependencies, appMeasurement, lakebase] = await Promise.all([
           readDependencies(appkit, req),
-          readAppMeasurement(req, range, insightsHref).catch((error: Error) =>
+          readAppMeasurement(req, insightsHref).catch((error: Error) =>
             uncheckedMeasurement(insightsHref, `reading it threw: ${error.message}.`)
           ),
           lakebaseReading(appkit),
@@ -839,7 +743,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
     /* ── Cost ────────────────────────────────────────────────────────────── */
 
     app.get('/api/ops/cost', async (req: Request, res: Response) => {
-      const range = opsRange(req, clock());
       const readAt = new Date(clock()).toISOString();
       const workspace = host();
       const warehouse = warehouseId();
@@ -858,13 +761,13 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         workspaceId: token ? await resolveWorkspaceId({ host: workspace, token }) : '',
         telemetryEnabled: Boolean(telemetrySchema()),
       };
-      const empty = { grant: null, reason: '', currency: '', throughDay: range.to, readAt };
+      const empty = { grant: null, reason: '', currency: '', throughDay: '', readAt };
 
       if (!workspace || !warehouse || !token) {
         res.json({
           ...empty,
           state: 'no-warehouse',
-          tiles: buildTiles(ids, range, []),
+          tiles: buildTiles(ids, []),
           reason:
             'Billing could not be read because this app has no SQL warehouse, no workspace address, ' +
             'or no forwarded sign-in to read it with. Nothing about spend was established.',
@@ -872,12 +775,12 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         return;
       }
 
-      const built = buildCostStatement(ids, range);
+      const built = buildCostStatement(ids);
       if (!built) {
         res.json({
           ...empty,
           state: 'ready',
-          tiles: buildTiles(ids, range, []),
+          tiles: buildTiles(ids, []),
         } satisfies OpsCostPayload);
         return;
       }
@@ -927,9 +830,9 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           res.json({
             ...empty,
             state: 'no-rows',
-            tiles: buildTiles(ids, range, []),
+            tiles: buildTiles(ids, []),
             currency: meta?.currency ?? '',
-            throughDay: meta?.lastDay || range.to,
+            throughDay: meta?.lastDay || '',
           } satisfies OpsCostPayload);
           return;
         }
@@ -938,8 +841,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           ...empty,
           state: 'ready',
           currency: meta?.currency ?? '',
-          throughDay: meta?.lastDay || range.to,
-          tiles: buildTiles(ids, range, componentRows),
+          throughDay: meta?.lastDay || '',
+          tiles: buildTiles(ids, componentRows),
         } satisfies OpsCostPayload);
       } catch (error) {
         res.json({
@@ -953,18 +856,16 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     /* ── Traffic ─────────────────────────────────────────────────────────── */
 
-    app.get('/api/ops/traffic', async (req: Request, res: Response) => {
-      const instants = activityInstants(req, clock());
+    app.get('/api/ops/traffic', async (_req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
-      const bounds = [instants.from, instants.to];
       try {
         // Settled rather than awaited together: the run ledger is newer than the
         // messages table and a deployment that has not created it yet should
         // still get its questions chart rather than an empty block.
         const [questions, outcomes, tools] = await Promise.allSettled([
-          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY, bounds),
-          appkit.lakebase.query(RUN_OUTCOMES_QUERY, bounds),
-          appkit.lakebase.query(TOOL_CALLS_QUERY, bounds),
+          appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
+          appkit.lakebase.query(RUN_OUTCOMES_QUERY),
+          appkit.lakebase.query(TOOL_CALLS_QUERY),
         ]);
 
         const questionsPerDay =
@@ -1050,59 +951,43 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     /* ── Latency ─────────────────────────────────────────────────────────── */
 
-    /** Answer timings from Lakebase, independent of billed app telemetry. */
-    app.get('/api/ops/latency', async (req: Request, res: Response) => {
+    /** Per-route request timings from Lakebase, independent of billed app telemetry. */
+    app.get('/api/ops/latency', async (_req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
-      const instants = activityInstants(req, clock());
       const base: OpsLatencyPayload = {
         readAt,
         state: 'no-rows',
         reason: '',
         grant: null,
-        table: `${APP_SCHEMA}.messages`,
+        table: REQUEST_LATENCY_TABLE,
         routes: [],
         coveredFrom: '',
         coveredTo: '',
       };
       try {
-        const result = await appkit.lakebase.query(ANSWER_LATENCY_QUERY, [instants.from, instants.to]);
-        const row = result.rows[0] ?? {};
-        const current = count(row.current_count);
-        if (current === 0) {
+        const result = await appkit.lakebase.query(REQUEST_LATENCY_QUERY);
+        const measured = readRequestLatencyRows(result.rows);
+        if (measured.routes.length === 0) {
           res.json({
             ...base,
-            reason: 'No stored answer timings were recorded in this range.',
-            coveredFrom: text(row.covered_from),
-            coveredTo: text(row.covered_to),
+            reason: 'No API request timings have been recorded. Recording starts with this release and does not backfill.',
+            coveredFrom: measured.coveredFrom,
+            coveredTo: measured.coveredTo,
           });
           return;
         }
         res.json({
           ...base,
           state: 'ready',
-          routes: [
-            {
-              route: 'POST /api/insights/ask',
-              spans: current,
-              p50Ms: count(row.current_p50_ms),
-              p95Ms: current >= SPAN_PERCENTILE_FLOOR ? count(row.current_p95_ms) : null,
-              p99Ms: current >= SPAN_PERCENTILE_FLOOR ? count(row.current_p99_ms) : null,
-              slowestMs: count(row.slowest_ms),
-              errorCount: count(row.error_count),
-              refusalCount: null,
-              lastSpanAt: text(row.last_answer_at),
-              priorSpans: count(row.prior_count),
-              priorP50Ms: row.prior_p50_ms === null ? null : count(row.prior_p50_ms),
-            },
-          ],
-          coveredFrom: text(row.covered_from),
-          coveredTo: text(row.covered_to),
+          routes: measured.routes,
+          coveredFrom: measured.coveredFrom,
+          coveredTo: measured.coveredTo,
         } satisfies OpsLatencyPayload);
       } catch (error) {
         const payload: OpsLatencyPayload = {
           ...base,
           state: 'unreadable',
-          reason: `No stored answer timings could be read: ${(error as Error).message}`,
+          reason: `No stored API request timings could be read: ${(error as Error).message}`,
         };
         res.json(payload);
       }

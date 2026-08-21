@@ -34,6 +34,7 @@ createApp({
       { setupOpsRoutes },
       { setupEgressRoutes },
       { setupRuntimeSettingsRoutes },
+      { setupAccountRoutes },
       { bootstrapSeedRoles, isAdminRoute },
       { respondToHandlerFailures },
     ] = await Promise.all([
@@ -47,6 +48,7 @@ createApp({
       import('./routes/ops-routes'),
       import('./routes/egress-routes'),
       import('./routes/runtime-settings-routes'),
+      import('./routes/account-routes'),
       import('./lib/admin-roles'),
       import('./lib/handler-failures'),
     ]);
@@ -62,6 +64,9 @@ createApp({
     // the settings routes first would leave the write route unguarded.
     setupSettingsRoutes(appkit);
     setupRuntimeSettingsRoutes(appkit);
+    // The account menu is user-scoped. Register it after the identity gate so a
+    // message sender always comes from x-forwarded-email rather than the body.
+    setupAccountRoutes(appkit);
     // After the identity gate: browse calls out as the signed-in user and must
     // refuse unidentified traffic rather than listing under nobody.
     setupBrowseRoutes(appkit);

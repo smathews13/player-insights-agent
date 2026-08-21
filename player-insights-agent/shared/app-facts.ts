@@ -103,6 +103,31 @@ export interface AppCompute {
   envelope: { vcpus: number; memoryGb: number; dbuPerHour: number } | null;
 }
 
+/**
+ * The public repository this product is published from.
+ *
+ * A PRODUCT FACT, NOT A READING, which is why it is a constant rather than
+ * something derived from `git_source`: the internal remote a deployment was
+ * built from is not the repository a reader should be sent to, and the login
+ * gate has always named this one. Stated once here so the gate and the
+ * Connections tab cannot come to name two different repositories.
+ */
+export const PUBLIC_SOURCE_REPO_URL = 'https://github.com/smathews13/player-insights-agent';
+
+/** Where the source of the running deployment can be opened, per live metadata. */
+export interface AppSource {
+  /** The live deployment's workspace source path, or its Git subdirectory. */
+  path: string;
+  /**
+   * The workspace destination for that source: the app's own page where Apps
+   * manages a Git connection, or the folder browser for an uploaded deploy.
+   * Empty when the workspace reported no path this app can build a link from.
+   */
+  workspaceUrl: string;
+  /** Branch, tag or commit, where the running deployment came from Git. */
+  gitRef: string;
+}
+
 export interface AppFacts {
   /** The app's URL, whole. The card renders the host and copies this. */
   url: string;
@@ -116,6 +141,8 @@ export interface AppFacts {
   /** When the running deployment was created, ISO, and who created it. */
   deployedAt: string;
   deployedBy: string;
+  /** Source links derived from the active deployment, never from bundle defaults. */
+  source: AppSource;
   /**
    * Whether the workspace reports the app as serving.
    *
@@ -150,6 +177,7 @@ export const NO_APP_FACTS: AppFacts = {
   tags: [],
   deployedAt: '',
   deployedBy: '',
+  source: { path: '', workspaceUrl: '', gitRef: '' },
   serving: NO_APP_SERVING,
   otelExporter: '',
   otelExport: NO_EXPORTER_READING,

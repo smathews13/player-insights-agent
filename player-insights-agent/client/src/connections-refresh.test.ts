@@ -319,13 +319,10 @@ describe('the Refresh button, which used to look wired to nothing', () => {
     // computed in, and the orchestrator's own is routinely empty on a version
     // that reports its configuration and runs no checks.
     expect(PAGE).toMatch(/payload\?\.checkedAt \|\| report\?\.checked_at/);
-    // It is not printed in the old status summary. The same value now also
-    // reaches restored-session copy and the declared-table evidence, so pin the
-    // complete set of consumers rather than treating those uses as duplicate
-    // top-level timestamps.
+    // It is not printed in the old status summary. The same value reaches the
+    // header control and declared-table evidence only.
     expect(PAGE).not.toMatch(/Checked \$\{formatCheckedAt\(lastCheckedAt\)\}/);
-    expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(4);
-    expect(PAGE).toMatch(/restoredNotice\(lastCheckedAt, now\)/);
+    expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(3);
     expect(PAGE).toMatch(/<DeclaredTablesTable[^>]*checkedAt=\{lastCheckedAt\}/);
   });
 
@@ -359,18 +356,8 @@ describe('the Refresh button, which used to look wired to nothing', () => {
     expect(PAGE).toMatch(/const checkError = session\?\.error/);
   });
 
-  /**
-   * The other half of it: a reader has to be told when what they are looking at
-   * was not produced by this visit.
-   *
-   * Now that the checks run themselves once, a restored page and a freshly-checked
-   * one are the same pixels on every visit after the first -- which is the state
-   * the Architecture tab was already in, so this page says it in the same words,
-   * from the same module, rather than inventing a second sentence for it.
-   */
-  it('says when the results were restored rather than run in this visit', () => {
-    expect(PAGE).toMatch(/restored \? restoredNotice\(lastCheckedAt, now\)/);
-    expect(PAGE).toMatch(/data-testid="connections-restored"/);
+  it('renders no restored-results banner below the header', () => {
+    expect(PAGE).not.toMatch(/restoredNotice|connections-restored|arch-restored/);
   });
 });
 

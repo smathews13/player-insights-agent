@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeAside, deployedAtLabel, deploymentRows, endpointHost, telemetryRows, uptimeSince } from './build-card';
-import { NO_APP_FACTS, type AppFacts } from '../../shared/app-facts';
+import {
+  computeAside,
+  deployedAtLabel,
+  deploymentRows,
+  endpointHost,
+  sourceRows,
+  telemetryRows,
+  uptimeSince,
+} from './build-card';
+import { NO_APP_FACTS, PUBLIC_SOURCE_REPO_URL, type AppFacts } from '../../shared/app-facts';
 
 /**
  * Which rows the Build card draws, and which it does not.
@@ -141,6 +149,63 @@ describe('the left column: what this deployment is', () => {
 
 describe('the right column: what it was built from', () => {
   /**
+   * THE TWO ROWS A READER CLICKS, and the rule that separates them: the
+   * workspace one is a reading and is dropped where nothing resolved it, the
+   * repository one is a product fact and is always drawn.
+   */
+  it('names the live workspace source and the published repository', () => {
+    const rows = sourceRows(
+      facts({
+        source: {
+          path: 'player-insights-agent/build/deploy',
+          workspaceUrl: 'https://workspace.example.com/apps/astrolabe',
+          gitRef: 'main',
+        },
+      })
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'link',
+        key: 'app-source',
+        label: 'App source',
+        value: 'player-insights-agent/build/deploy',
+        href: 'https://workspace.example.com/apps/astrolabe',
+        mark: 'apps',
+        title: 'player-insights-agent/build/deploy',
+      },
+      {
+        kind: 'link',
+        key: 'github',
+        label: 'GitHub',
+        value: '<your-username>/player-insights-agent · main',
+        href: PUBLIC_SOURCE_REPO_URL,
+        mark: 'github',
+        title: PUBLIC_SOURCE_REPO_URL,
+      },
+    ]);
+  });
+
+  /**
+   * A workspace that reported no source, or a container with no host, has no
+   * destination this app can honestly offer -- and a dead link is worse than no
+   * link. The repository survives, because nothing about it was being read.
+   */
+  it('drops the workspace link where nothing resolved it, and keeps the repository', () => {
+    const rows = sourceRows(facts());
+    expect(rows.map((row) => row.key)).toEqual(['github']);
+    // And says nothing about a branch, because an uploaded deploy establishes none.
+    expect(rows[0]).toMatchObject({ value: '<your-username>/player-insights-agent', href: PUBLIC_SOURCE_REPO_URL });
+  });
+
+  /** The card composes them, so they are on the deployment column and not adrift. */
+  it('puts both source rows in the built-from column', () => {
+    const keys = telemetryRows(facts({ deployedAt: AUG_2 }), Date.parse(AUG_2)).map((row) => row.key);
+    expect(keys).toContain('github');
+    expect(keys).toContain('deployed');
+  });
+
+  /**
    * ONE STAMP, TWO ROWS. The handoff requires the release time and the uptime to
    * agree, and reading them from two fields would be two chances to disagree.
    */
@@ -153,7 +218,9 @@ describe('the right column: what it was built from', () => {
   });
 
   it('drops both rows where nothing reported a release', () => {
-    expect(telemetryRows(facts(), Date.now()).map((row) => row.key)).toEqual([]);
+    const keys = telemetryRows(facts(), Date.now()).map((row) => row.key);
+    expect(keys).not.toContain('deployed');
+    expect(keys).not.toContain('uptime');
   });
 
   it('states an uptime under a day in hours rather than as "0d"', () => {
@@ -293,7 +360,7 @@ describe('the right column: what it was built from', () => {
       Date.parse(AUG_2) + 6 * 60 * 60 * 1000,
     );
 
-    expect(rows.map((row) => row.key)).toEqual(['otel', 'deployed', 'uptime']);
+    expect(rows.map((row) => row.key)).toEqual(['otel', 'github', 'deployed', 'uptime']);
     // And no row invents one out of the DBU rate the compute envelope carries,
     // which is the plausible-looking arithmetic to reach for: a published rate
     // times an uptime is a capacity, not a bill, and it would read on this card

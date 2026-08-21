@@ -86,6 +86,109 @@ describe('what one read establishes', () => {
   });
 });
 
+/**
+ * WHICH SOURCE IS ACTUALLY RUNNING, which is the whole reason these links are
+ * read off live metadata instead of written down. This repository holds a DAB
+ * tree under `.bundle/` and has historically had an uploaded folder as well, and
+ * an operator sent to the wrong one is debugging code that is not serving.
+ */
+describe('the active deployment source', () => {
+  it('links a Git deployment to the workspace app that manages its connection', () => {
+    const facts = appFacts({
+      workspaceHost: 'https://workspace.example.com/',
+      read: {
+        kind: 'ok',
+        body: {
+          name: 'astrolabe',
+          active_deployment: {
+            source_code_path: '/Workspace/Users/someone/.bundle/player-insights-agent-dab/dev/files',
+            git_source: {
+              branch: 'release',
+              source_code_path: 'player-insights-agent/build/deploy',
+              git_repository: { url: 'https://github.com/an-internal-owner/an-internal-repo.git' },
+            },
+          },
+        },
+      },
+    });
+
+    expect(facts.source).toEqual({
+      path: 'player-insights-agent/build/deploy',
+      workspaceUrl: 'https://workspace.example.com/apps/astrolabe',
+      gitRef: 'release',
+    });
+    // NOT THE BUNDLE TREE. `.bundle/player-insights-agent-dab/...` is where a
+    // DAB deploy puts files; it is not what a Git-sourced app runs, and sending
+    // an operator there is sending them to code that is not serving.
+    expect(facts.source.workspaceUrl).not.toContain('.bundle');
+  });
+
+  it('links an uploaded deployment to the exact source folder Apps reports', () => {
+    const facts = appFacts({
+      workspaceHost: 'workspace.example.com',
+      read: {
+        kind: 'ok',
+        body: {
+          name: 'astrolabe',
+          active_deployment: {
+            source_code_path: '/Workspace/Users/operator/player-insights-agent-real-src',
+            deployment_artifacts: {
+              source_code_path: '/Workspace/Users/system/src/a-generated-snapshot',
+            },
+          },
+        },
+      },
+    });
+
+    expect(facts.source.path).toBe('/Workspace/Users/operator/player-insights-agent-real-src');
+    // The documented shareable folder form. `/browse/folders/...` wants a
+    // numeric directory id, which would be a second workspace call to learn.
+    expect(facts.source.workspaceUrl).toBe(
+      'https://workspace.example.com/#workspace/Workspace/Users/operator/player-insights-agent-real-src'
+    );
+    // The generated artifact snapshot is what the deployment READS. It is not a
+    // folder anybody edits, so the row points at the source that was deployed.
+    expect(facts.source.workspaceUrl).not.toContain('a-generated-snapshot');
+    // Nothing established a branch, so nothing claims one.
+    expect(facts.source.gitRef).toBe('');
+  });
+
+  it('keeps a home folder readable and still escapes what has to be escaped', () => {
+    const facts = appFacts({
+      workspaceHost: 'https://workspace.example.com',
+      read: {
+        kind: 'ok',
+        body: {
+          name: 'astrolabe',
+          active_deployment: { source_code_path: '/Workspace/Users/first.last@example.com/an app src' },
+        },
+      },
+    });
+
+    expect(facts.source.workspaceUrl).toBe(
+      'https://workspace.example.com/#workspace/Workspace/Users/first.last@example.com/an%20app%20src'
+    );
+  });
+
+  it('offers no workspace link where nothing resolved one', () => {
+    // No host: an app container with no `DATABRICKS_HOST` cannot build a link
+    // anybody could follow, and a dead link teaches readers the page is decor.
+    expect(
+      appFacts({
+        read: { kind: 'ok', body: { name: 'astrolabe', active_deployment: { source_code_path: '/Workspace/a/b' } } },
+      }).source.workspaceUrl
+    ).toBe('');
+
+    // A host, but the workspace reported no source path at all.
+    expect(
+      appFacts({
+        workspaceHost: 'https://workspace.example.com',
+        read: { kind: 'ok', body: { name: 'astrolabe', active_deployment: {} } },
+      }).source.workspaceUrl
+    ).toBe('');
+  });
+});
+
 describe('the compute size', () => {
   it('carries the published envelope for a size there is one for', () => {
     expect(appCompute('MEDIUM')).toEqual({ size: 'MEDIUM', envelope: { vcpus: 2, memoryGb: 6, dbuPerHour: 0.5 } });

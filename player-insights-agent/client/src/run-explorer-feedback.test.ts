@@ -8,7 +8,7 @@ import {
   conversationSummary,
   toolStageDurationMs,
 } from './run-explorer-state';
-import type { Run } from './app-types';
+import type { Conversation, Run } from './app-types';
 import type { TraceStage } from './answer-shape';
 
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
@@ -133,7 +133,11 @@ describe('Run Explorer feedback', () => {
       run('c1-r1', 'c1', '2026-08-19T01:00:00Z'),
     ];
     expect(conversationRunTitle(runs, runs[1])).toBe('Conversation c1, Run 2');
-    expect(conversationFilterOptions(runs)).toEqual([
+    const conversations: Conversation[] = [
+      { id: 'c1', title: 'First', updated_at: '2026-08-19T02:00:00Z' },
+      { id: 'c2', title: 'Second', updated_at: '2026-08-19T03:00:00Z' },
+    ];
+    expect(conversationFilterOptions(conversations, runs)).toEqual([
       { id: 'c1', label: 'c1-r1' },
       { id: 'c2', label: 'c2-r1' },
     ]);
@@ -157,7 +161,14 @@ describe('Run Explorer feedback', () => {
     );
     const later = { ...run('msg-later', 'Now break that down by label.'), created_at: '2026-08-19T02:00:00Z' };
 
-    expect(conversationFilterOptions([later, first])).toEqual([
+    const conversations: Conversation[] = [
+      {
+        id: 'conv-player-comparison',
+        title: 'Stored conversation title',
+        updated_at: '2026-08-19T02:00:00Z',
+      },
+    ];
+    expect(conversationFilterOptions(conversations, [later, first])).toEqual([
       { id: 'conv-player-comparison', label: conversationSummary(first) },
     ]);
     expect(conversationSummary(first)).toBe('Compare active players by title over the last 30 days…');

@@ -424,7 +424,7 @@ describe('the health block', () => {
         block={block(health({ app: { ...health().app, telemetry: 'reading', errors: { count: 3, recent: [] } } }))}
       />
     );
-    expect(markup).toContain('3 error lines recorded in this range');
+    expect(markup).toContain('3 error lines recorded');
     expect(markup).not.toMatch(/out of everything the app logged/);
     // The live timestamp stays. It is the only thing on the block that says
     // whether anything has reached this deployment recently.
@@ -462,7 +462,7 @@ describe('the health block', () => {
         )}
       />
     );
-    expect(markup).not.toContain('error lines recorded in this range');
+    expect(markup).not.toContain('error lines recorded');
     expect(markup).not.toContain('appkit:cache:persistent fell back to in-memory');
   });
 
@@ -488,7 +488,7 @@ describe('the health block', () => {
         )}
       />
     );
-    expect(markup).toContain('1 error line recorded in this range');
+    expect(markup).toContain('1 error line recorded');
     expect(markup).toContain('A dependency is not answering its most recent check');
     expect(markup).not.toContain('not a live failure');
   });
@@ -509,7 +509,7 @@ describe('the health block', () => {
       />
     );
     expect(markup).not.toContain('0 error lines');
-    expect(markup).not.toMatch(/error lines? recorded in this range/);
+    expect(markup).not.toMatch(/error lines? recorded/);
     expect(markup).toContain('Most recent request');
   });
 
@@ -794,7 +794,7 @@ describe('the cost block', () => {
 
   it('says whether a tile is a total or a daily rate', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('in range');
+    expect(markup).toContain('all time');
     expect(markup).toContain('per day');
   });
 
@@ -903,7 +903,7 @@ describe('the cost block', () => {
 
   it('renders an unfilled range as a different thing from a missing grant', () => {
     const markup = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
-    expect(markup).toContain('No billing rows for this range yet');
+    expect(markup).toContain('No billing rows yet');
     expect(markup).toMatch(/nothing to grant/);
     expect(markup).not.toContain('GRANT SELECT');
   });
@@ -1253,20 +1253,7 @@ describe('the traffic block', () => {
   });
 });
 
-/**
- * The window, printed where a reader can check a figure against it.
- *
- * THE PAGE PRINTED NO DATES AT ALL, and that is what made a broken range control
- * survive: 24h and 30 days both returned the last 7 days, the pressed button
- * highlighted, and every caption on the page read "in this range". A cost total
- * for the wrong week looked exactly like one for the right week, because the only
- * evidence on screen for which week it was was the highlight itself.
- *
- * Rendered on the server, so the three fetches never start. The dates are drawn
- * from the URL and the clock alone, which is the whole point: they are what will
- * be asked for, not a report of what came back.
- */
-describe('the dates the figures are over', () => {
+describe('Ops is all time', () => {
   const at = (search: string) =>
     renderToStaticMarkup(
       <MemoryRouter initialEntries={[`/ops${search}`]}>
@@ -1274,58 +1261,14 @@ describe('the dates the figures are over', () => {
       </MemoryRouter>
     );
 
-  /** Just the line, so an assertion cannot pass on words from elsewhere on the page. */
-  const shownFor = (search: string) => {
-    const line = at(search).match(/<p class="ops-range-dates"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? '';
-    expect(line, `a window is printed for "${search || 'the default'}"`).not.toEqual('');
-    return text(line);
-  };
-
-  it('names the days on the page rather than only highlighting a button', () => {
-    // A month name, so this is a date and not a duration restated.
-    // "Showing" was dropped: the dates read as the window without being
-    // introduced, and the line is a chip beside the range control now.
-    expect(shownFor('')).toMatch(/^\d{1,2} \w{3} \d{4} to \d{1,2} \w{3} \d{4}$/);
+  it('renders no date control, range chip, or latency window', () => {
+    const markup = at('?range=24h&from=2026-03-02&to=2026-03-06');
+    expect(markup).not.toContain('ops-range-dates');
+    expect(markup).not.toContain('time-range-control');
+    expect(text(markup)).not.toMatch(/prior half|Aug \d|2026-03-0[26]/);
   });
 
-  it('says a different window for each option, which is the bug it exists to catch', () => {
-    const windows = ['?range=24h', '', '?range=30d'].map(shownFor);
-    expect(new Set(windows).size).toBe(3);
-  });
-
-  /**
-   * 24 hours is one complete day, so it says one date rather than the same date
-   * twice. Billing rows arrive late, which is why no range ends today.
-   */
-  it('says a single date for a single day', () => {
-    expect(shownFor('?range=24h')).toMatch(/^\d{1,2} \w{3} \d{4}$/);
-  });
-
-  it('admits a custom range it could not read, instead of substituting one quietly', () => {
-    expect(shownFor('?range=custom&from=2026-03-02')).toContain('The custom range was incomplete');
-    // And a complete one says nothing of the sort.
-    expect(shownFor('?range=custom&from=2026-03-02&to=2026-03-06')).not.toContain('was incomplete');
-  });
-
-  /**
-   * That a range change re-reads EVERY block and not only whichever one is on
-   * screen.
-   *
-   * READ FROM THE SOURCE, and that is a weaker test than it looks, so it says so
-   * rather than implying otherwise. The property is a consequence of an effect
-   * firing, and this repository runs vitest under `environment: 'node'` with no
-   * DOM and no testing-library, so no test here can mount the page and count
-   * fetches. What can be checked is the thing that would have to change first:
-   * the reads take ONE window string, so there is no per-block window to get out
-   * of step. Give one of them its own and this fails.
-   *
-   * LATENCY TAKES THE SAME STRING WITHOUT BEING BOUNDED BY IT, which is not a
-   * contradiction and is worth stating because it looks like one. The server
-   * ignores the bounds on that route and reports the window its spans actually
-   * cover; passing `search` anyway is what makes a range change re-read it, so
-   * its read time stays honest beside the other three.
-   */
-  it('reads every block over one window', () => {
+  it('fetches every block without date parameters', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
     const reads = [...source.matchAll(/useBlock<\w+>\('(\/api\/ops\/\w+)',\s*(\w+)\)/g)];
     expect(reads.map(([, path]) => path)).toEqual([
@@ -1335,20 +1278,10 @@ describe('the dates the figures are over', () => {
       '/api/ops/latency',
     ]);
     expect(new Set(reads.map(([, , argument]) => argument))).toEqual(new Set(['search']));
-  });
-
-  /**
-   * And that the window sent is not the browser's own query string, which is the
-   * bug exactly. The control writes `range=30d` and no timestamps; the server
-   * reads `from` and `to` and has never read `range`.
-   */
-  it('sends the resolved window rather than the browser’s search string', () => {
-    const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
-    // Resolved through the module Monitoring has always used.
-    expect(source).toMatch(/rangeWindow\(searchParams, now\)/);
-    expect(source).toMatch(/const search = `\?from=\$\{encodeURIComponent\(window_\.from\)\}/);
-    // The old wiring, which must not come back.
-    expect(source).not.toMatch(/const search = location\.search/);
+    expect(source).toContain("const search = ''");
+    expect(source).not.toMatch(/TimeRangeControl|rangeWindow|opsRangeDates|[?&](?:from|to)=/);
+    expect(source).toContain("params.set('range', 'all')");
+    expect(source).toContain("const runsHref = () => '/runs?range=all'");
   });
 });
 
@@ -1422,19 +1355,13 @@ function latency(overrides: Partial<OpsLatencyPayload> = {}): OpsLatencyPayload 
 }
 
 describe('the latency block', () => {
-  /**
-   * The covered window is named so a reader can see what "prior half" means,
-   * human-readable on the page with the exact span timestamps kept on hover.
-   */
-  it('names the covered window in words and keeps the exact times on hover', () => {
+  it('shows no date window in its subheader', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
-
-    expect(text(markup)).toContain('prior half');
-    // Human-readable on the page.
-    expect(text(markup)).toContain('Aug 16');
-    // Exact timestamps live in a title, not on the page.
-    expect(markup).toContain('title="2026-08-16 19:30:59 to 2026-08-17 16:43:41"');
+    expect(text(markup)).toContain('By route');
+    expect(text(markup)).not.toContain('prior half');
+    expect(text(markup)).not.toContain('Aug 16');
     expect(text(markup)).not.toContain('2026-08-16 19:30:59');
+    expect(markup).not.toContain('title="2026-08-16 19:30:59 to 2026-08-17 16:43:41"');
   });
 
   /**
@@ -1525,7 +1452,7 @@ describe('the latency block', () => {
     // The thin ask row is not the one wearing the slower pill; preflight is.
     expect(rendered).toContain('Slower than baseline');
     // The thin row carries no fabricated verdict word.
-    expect(markup).toMatch(/Needs 20 spans in each half/);
+    expect(markup).toMatch(/Needs 20 requests in each all-time half/);
   });
 
   /**
@@ -1537,8 +1464,8 @@ describe('the latency block', () => {
     const rendered = render(<LatencyBody block={block(latency())} />);
 
     // The fixture carries two error spans (preflight) and null refusals.
-    expect(rendered).toContain('2 error spans recorded across these routes');
-    expect(rendered).toContain('Refusals not reported by the endpoint');
+    expect(rendered).toContain('2 error responses recorded across these routes');
+    expect(rendered).toContain('Refusals are not reported');
     // Never merged into one "problems" figure.
     expect(rendered).not.toMatch(/2 errors? and \d+ refus/i);
     // And no per-row errors/refusals columns survive in the compact grid.
@@ -1586,8 +1513,8 @@ describe('the latency block', () => {
     const markup = markupOf(<LatencyBody block={block(allThin)} />);
     const rendered = text(markup);
 
-    expect(rendered).toContain('Every route is under 20 spans this window: no p95, p99, or trend yet.');
-    expect(rendered).toContain('Errors and refusals not reported by the endpoint.');
+    expect(rendered).toContain('Every route is under 20 recorded requests: no p95, p99, or trend yet.');
+    expect(rendered).toContain('No error responses recorded across these routes. Refusals are not reported.');
     // The columns are gone, not merely blank.
     expect(markup).not.toMatch(/<th[^>]*>p95<\/th>/);
     expect(markup).not.toMatch(/<th[^>]*>Trend<\/th>/);
@@ -1618,7 +1545,7 @@ describe('the latency block', () => {
 
     // No prior half means no verdict: the trend cell is withheld, not a flag.
     expect(rendered).not.toContain('Slower than baseline');
-    expect(rendered).not.toContain('Within range');
+    expect(rendered).not.toContain('Within baseline');
   });
 
   it('flags a route that cleared both floors and rose against its own baseline', () => {
@@ -1626,8 +1553,8 @@ describe('the latency block', () => {
 
     // preflight: 26 vs 22 spans, 169.9 vs 100 ms → slower.
     expect(rendered).toContain('Slower than baseline');
-    // storage: 0.7 vs 0.6 → within range.
-    expect(rendered).toContain('Within range');
+    // storage: 0.7 vs 0.6 is within its baseline.
+    expect(rendered).toContain('Within baseline');
   });
 
   it('prints p99 and the slowest alongside p50 and p95', () => {

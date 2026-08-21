@@ -152,38 +152,3 @@ export function checkedAtOf(session: CheckSession | null): string {
   return session.settings?.checkedAt || session.report?.checked_at || '';
 }
 
-/**
- * How old a restored run has to be before it is called old in words.
- *
- * An hour, because that is the scale on which this deployment's configuration
- * changes: warehouses are repointed, indexes are rebuilt and grants are altered
- * between sittings rather than between minutes. Under it, "Read 12 min ago" on
- * the Refresh control says everything a reader needs. Over it, a relative time
- * is easy to read past, and the results are old enough to be describing a
- * deployment somebody has since changed.
- */
-export const STALE_CHECK_MS = 60 * 60 * 1000;
-
-/**
- * The sentence a restored page says about where its results came from.
- *
- * SAID AT ALL BECAUSE RESTORED AND FRESH LOOK IDENTICAL. Once the cache works,
- * a page that was checked twenty minutes ago in another tab-visit is
- * pixel-for-pixel a page that was checked twenty minutes ago right here, and the
- * reader has no way to know nothing has run since they came back. The Refresh
- * control's relative time is true but easy to read as belonging to this visit.
- *
- * Empty when there is nothing restored to explain. Never a warning tone for the
- * recent case: results from ten minutes ago are good results, and dressing them
- * as a problem would train people past the sentence that matters.
- */
-export function restoredNotice(checkedAt: string, now: number): string {
-  if (!checkedAt) return '';
-  const at = new Date(checkedAt).getTime();
-  if (Number.isNaN(at)) return '';
-  const shown = 'These are the results of the last check, not a new one. Nothing has been re-checked since.';
-  if (now - at < STALE_CHECK_MS) return shown;
-  return (`${shown} That check is over an hour old, so it may describe a deployment that has since ` +
-    'been changed. Refresh to ask again.'
-  );
-}

@@ -49,10 +49,12 @@ import { RoleBadge } from './RoleBadge';
 import { AdminOnly, RoleLostNotice } from './GatePanel';
 import { SettingsPage } from './SettingsPage';
 import { UserIdentityChip } from './UserIdentityChip';
+import { AccountMenu } from './AccountMenu';
 import { mobileNavLinkClass } from './layout-view';
 import {
   navEntries,
   roleFrom,
+  showsSettingsGear,
   type AppOutletContext,
   type RoleResolution,
 } from './role';
@@ -355,7 +357,7 @@ export function IdentityChips({
 }) {
   return (<div className={`identity-chips ${className ?? ''}`}>
       <RoleBadge state={role.state} />
-      <IdentityChip identity={identity} />
+      <AccountMenu identity={identity} />
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       {gear}
       <span className="app-chrome-rule" aria-hidden="true" />
@@ -533,6 +535,19 @@ export function Layout() {
         <IdentityChips
           identity={identity}
           role={role}
+          gear={showsSettingsGear(role.state) ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="header-settings text-muted-foreground hover:text-foreground"
+              aria-label="App settings"
+              title="App settings"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings className="size-5" />
+            </Button>
+          ) : null}
         />
         {/* Mobile nav, drawn only below the width at which the desktop nav is
             hidden. Both sides of that switch are in responsive.css, so they cannot

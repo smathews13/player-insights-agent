@@ -16,7 +16,7 @@
  * nothing, whether an unrecognised compute size prints a DBU rate, and whether
  * the uptime and the release can disagree, are all questions about this module.
  */
-import type { AppFacts } from '../../shared/app-facts';
+import { PUBLIC_SOURCE_REPO_URL, type AppFacts } from '../../shared/app-facts';
 import type { StatusTone } from './StatusBadge';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -62,6 +62,25 @@ export type BuildRow =
        * that broke it: two Delta stamps to the millisecond, printed whole, wrapped
        * the row over three lines.
        */
+      title?: string;
+    }
+  | {
+      kind: 'link';
+      key: string;
+      label: string;
+      /** What the anchor reads, which is the destination in a person's terms. */
+      value: string;
+      /** Where it goes. A row is never built without one; see `sourceRows`. */
+      href: string;
+      /**
+       * Whose mark the anchor wears.
+       *
+       * The two destinations belong to two different organisations, and a
+       * reader scanning this card decides which one to click by the logo before
+       * they read the label. `apps` is the official Databricks Apps mark from
+       * `brand-icons.ts`; `github` is the octocat the login gate already uses.
+       */
+      mark: 'apps' | 'github';
       title?: string;
     }
   | { kind: 'chips'; key: string; label: string; values: string[] };
@@ -350,6 +369,60 @@ export function deploymentRows(app: AppFacts): BuildRow[] {
  * front of it, and that is its own piece of work with its own permission
  * decision. Not a row quietly added here.
  */
+/**
+ * Where the code this deployment is running can be opened, as two links.
+ *
+ * TWO DESTINATIONS, AND THEY ANSWER DIFFERENT QUESTIONS. The workspace link
+ * goes to whatever the Apps API says the RUNNING deployment was made from -- the
+ * app's own page where a Git connection is managed, or the folder somebody
+ * uploaded -- and the repository link goes to the published product. An operator
+ * looking at a deployment that is behaving oddly wants the first; somebody
+ * reading the code wants the second.
+ *
+ * THE WORKSPACE ROW IS DROPPED WHERE NOTHING RESOLVED IT, on this card's
+ * standing rule that an unestablished fact draws nothing rather than a dead
+ * link -- a deployment whose workspace reported no source path, or a container
+ * with no `DATABRICKS_HOST`, has no honest destination. The repository row is
+ * always drawn, because it is not a reading: this product publishes to one
+ * public repository whether or not the workspace answered, and it is the same
+ * URL the login gate names.
+ */
+export function sourceRows(app: AppFacts): BuildRow[] {
+  const rows: BuildRow[] = [];
+  if (app.source.workspaceUrl) {
+    rows.push({
+      kind: 'link',
+      key: 'app-source',
+      label: 'App source',
+      // The path, where the workspace named one. It is what makes this row
+      // worth reading at a glance -- an operator can see which folder or
+      // subdirectory is live without following the link.
+      value: app.source.path || 'Open in the workspace',
+      href: app.source.workspaceUrl,
+      mark: 'apps',
+      title: app.source.path || app.source.workspaceUrl,
+    });
+  }
+  rows.push({
+    kind: 'link',
+    key: 'github',
+    label: 'GitHub',
+    // The ref only where the running deployment came from Git. On an uploaded
+    // deployment nothing establishes which commit is serving, and naming a
+    // branch there would be this card asserting something it did not read.
+    value: `${repoLabel(PUBLIC_SOURCE_REPO_URL)}${app.source.gitRef ? ` \u00b7 ${app.source.gitRef}` : ''}`,
+    href: PUBLIC_SOURCE_REPO_URL,
+    mark: 'github',
+    title: PUBLIC_SOURCE_REPO_URL,
+  });
+  return rows;
+}
+
+/** `owner/repo`, so the row reads as a repository rather than as a URL. */
+function repoLabel(url: string): string {
+  return endpointHost(url).replace(/^github\.com\//, '');
+}
+
 export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
   const rows: BuildRow[] = [];
   if (app.otelExporter) {
@@ -378,6 +451,7 @@ export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
       title: activity.title,
     });
   }
+  rows.push(...sourceRows(app));
   const deployed = deployedAtLabel(app.deployedAt);
   if (deployed) {
     rows.push({

@@ -273,11 +273,13 @@ describe('the rail draws one answer to "whose is this", not two', () => {
     expect(HOME_PAGE).not.toMatch(/\{conversation\.user_email && \(/);
   });
 
-  it('counts All off the same list the rows are drawn from', () => {
-    // `railConversations.length` and a separately-filtered set of rows was the
-    // arrangement that produced "All 5" over four visible watermarks.
+  it('counts All off the stored list itself, with no collapsing pass in between', () => {
+    // Two failures in one assertion. "All 5" over four visible watermarks came
+    // from counting one list and drawing another. The reported one is worse:
+    // the rail collapsed same-titled conversations before counting, so All said
+    // 3 where the store held 6 and the Run Explorer listed 6.
     expect(HOME_PAGE).toMatch(/className="conversation-filter-count">\{rail\.entries\.length\}/);
-    expect(HOME_PAGE).toMatch(/railOwnership\(railConversations, identity\.signedInAs\)/);
+    expect(HOME_PAGE).toMatch(/railOwnership\(conversations, identity\.signedInAs\)/);
   });
 
   it('filters on the normalised key, so a selection survives a change of case', () => {

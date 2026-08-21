@@ -47,6 +47,7 @@ import {
 } from './ui';
 import { CircleAlert, Search, Star, Workflow } from 'lucide-react';
 import { conversationHref } from './conversation-links';
+import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
 import { AnswerProse } from './DataEntityLinks';
 import { SourcesModule } from './SourcesModule';
@@ -59,7 +60,7 @@ import { astPill } from './run-header';
 import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
-import type { Run } from './app-types';
+import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import {
   conversationFilterOptions,
@@ -146,6 +147,7 @@ function tileValue(absent: boolean): string {
 export function RunExplorer() {
   const [searchParams] = useSearchParams();
   const [runs, setRuns] = useState<Run[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   // Seeded from ?run= so "Explore full run" lands on the run it came from. The
   // previous default named a representative row that no live list contains, so
@@ -169,25 +171,63 @@ export function RunExplorer() {
   // and an unreachable one return the same zero rows and are fixed by
   // completely different people.
   const [runsAvailability, setRunsAvailability] = useState<ListAvailability | null>(null);
+  const [conversationAvailability, setConversationAvailability] = useState<ListAvailability | null>(null);
+  /*
+   * Two reads, issued together and awaited separately, and the second one is
+   * the fix for the defect Sam reported: Ask listed three conversations while
+   * this filter listed six, off the same Lakebase.
+   *
+   * WHICH CONVERSATIONS EXIST IS ANSWERED BY `/api/conversations`, on both
+   * surfaces. This page used to derive the question from `/api/runs` -- a
+   * conversation existed for the filter only once a turn inside it had stored a
+   * trace -- while Ask read the conversation rows and then collapsed the ones
+   * sharing a title. Two surfaces, two different answers, one store. The runs
+   * are still what a conversation is CALLED here, because the first prompt of a
+   * thread reads better in a filter than a stored title does, and a conversation
+   * with no run yet falls back to its title rather than being dropped.
+   *
+   * Separately awaited because they gate different things. `loading` covers the
+   * run rows, so the run list must not sit under skeletons waiting on a read
+   * that only fills the filter above it.
+   */
   useEffect(() => {
-    fetch('/api/runs')
+    let live = true;
+    const conversationsRead = readConversationList();
+    void fetch('/api/runs')
       .then(async (response) => {
         const rows = (await response.json()) as Run[];
         setRunsAvailability(listAvailability({ headers: response.headers, rowCount: rows.length }));
         return rows;
       })
-      .then(setRuns)
       .catch(() => {
         // No stand-in row. This used to insert one complete, plausible run,
         // carrying a real colleague's name, a duration and a five-star rating,
         // none of which had ever happened. It was the last place in the client
         // that answered "I do not know" with a fabrication.
         setRunsAvailability(listUnreachable());
-        setRuns([]);
+        return [] as Run[];
       })
-      .finally(() => setLoading(false));
+      .then((rows) => {
+        if (live) setRuns(rows);
+      })
+      .finally(() => {
+        if (live) setLoading(false);
+      });
+    void conversationsRead.then((list) => {
+      if (!live) return;
+      // Null, not an empty array, when the list could not be read, and the
+      // filter says so rather than offering "All conversations" over a store
+      // nobody could reach. An empty filter would read as a deployment with one
+      // conversation in it.
+      setConversations(list.conversations ?? []);
+      setConversationAvailability(list.availability);
+    });
+    return () => {
+      live = false;
+    };
   }, []);
-  const conversationOptions = conversationFilterOptions(runs);
+  const conversationsUnreadable = conversationAvailability?.origin === 'unavailable';
+  const conversationOptions = conversationFilterOptions(conversations, runs);
   const visibleRuns = runs.filter((run) => {
     const inConversation = !conversationFilter || run.conversation_id === conversationFilter;
     const matchesSearch = `${runLabel(run)} ${run.stakeholder ?? ''} ${run.conversation_id ?? ''}`
@@ -306,9 +346,15 @@ export function RunExplorer() {
               onValueChange={(value) => setConversationFilter(value === 'all' ? '' : value)}
             >
               <SelectTrigger className="run-conversation-filter" aria-label="Filter runs by conversation">
+                {/* An unreadable conversation list says so here rather than
+                    standing as "All conversations" over a store nobody could
+                    reach. The runs below are unaffected and still listed: what
+                    is missing is the list of threads to narrow them by. */}
                 <span>
-                  {conversationOptions.find((option) => option.id === conversationFilter)?.label ??
-                    'All conversations'}
+                  {conversationsUnreadable
+                    ? 'Conversations could not be read'
+                    : (conversationOptions.find((option) => option.id === conversationFilter)?.label ??
+                      'All conversations')}
                 </span>
               </SelectTrigger>
               <SelectContent position="popper" align="start" sideOffset={4}>

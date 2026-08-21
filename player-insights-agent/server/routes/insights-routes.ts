@@ -51,6 +51,11 @@ import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
 import { withDeadline } from '../lib/deadline';
 import {
+  REQUEST_LATENCY_DDL,
+  REQUEST_LATENCY_INDEX_DDL,
+  requestLatencyRecorder,
+} from '../lib/request-latency';
+import {
   createWarehouseWarmup,
   describeWarmup,
   type WarehouseWarmup,
@@ -228,6 +233,11 @@ export const schemaStatements = [
   // one direction of the same walk.
   `CREATE INDEX IF NOT EXISTS messages_created_at_idx
      ON ${APP_SCHEMA}.messages (created_at DESC)`,
+  // App-owned route timings. This is deliberately Lakebase rather than OTEL:
+  // customer deployments leave billed telemetry off, while Ops still needs to
+  // report the API routes this server actually handled.
+  REQUEST_LATENCY_DDL,
+  REQUEST_LATENCY_INDEX_DDL,
   `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.attachments (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, user_email TEXT NOT NULL,
     filename TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,
     extracted_text TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -2794,6 +2804,11 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     // deployment, and because a defect in the narrower list would otherwise leave
     // the roster open to every administrator rather than to nobody.
     app.use(requireSuperAdmin(appkit.lakebase, userEmail));
+    // One recorder for every API route registered below or by later modules.
+    // It runs after identity/role gates, so rejected requests are not presented
+    // as routes the app served, and it stores canonical Express route templates
+    // rather than concrete URLs containing user or resource ids.
+    app.use(requestLatencyRecorder(appkit.lakebase));
 
     /**
      * Who the caller is and what they may open, in one payload.

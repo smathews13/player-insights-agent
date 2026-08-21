@@ -71,9 +71,16 @@ export async function readRunSummaries(): Promise<Map<string, RailRunSummary>> {
   }
 }
 
-type ConversationList = Pick<InitialRail, 'conversations' | 'availability'>;
+export type ConversationList = Pick<InitialRail, 'conversations' | 'availability'>;
 
-async function readConversations(): Promise<ConversationList> {
+/**
+ * The canonical list of conversations in Lakebase.
+ *
+ * Ask draws these rows directly and Run Explorer uses the same rows for its
+ * conversation filter. Runs can describe a conversation, but they no longer
+ * decide whether that conversation exists.
+ */
+export async function readConversationList(): Promise<ConversationList> {
   try {
     const response = await fetch('/api/conversations');
     if (!response.ok) throw new Error('Conversations unavailable');
@@ -113,7 +120,7 @@ export interface InitialRailReads {
  * callers are render paths with nowhere to put an exception.
  */
 export function startInitialRail(): InitialRailReads {
-  return { runSummaries: readRunSummaries(), conversations: readConversations() };
+  return { runSummaries: readRunSummaries(), conversations: readConversationList() };
 }
 
 /**

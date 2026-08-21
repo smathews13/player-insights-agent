@@ -62,6 +62,9 @@ import {
 // artwork. The Lucide glyphs above keep the actions and the generic concepts --
 // the carets, pencils, padlocks and copies -- and never stand in for a product.
 import { BrandIcon } from './BrandIcon';
+// GitHub's own mark is not Databricks artwork and does not live in the brand
+// directory. One copy, shared with the login gate. See GithubMark.tsx.
+import { GithubMark } from './GithubMark';
 // The word, the icon and the pending state, decided once for the whole app.
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { CONNECTED_RESOURCES, type ChangedBy } from '../../shared/deployment-config';
@@ -74,8 +77,11 @@ import { CopyButton, NOT_SET, StatusBadge, type StatusTone } from './StatusBadge
 // so the call has to be made here too or the channel reports from one site and
 // not the other.
 import { reportEgress } from './egress-policy';
-// Build stamps are shortened consistently away from the markup.
-import { buildFacts } from './connection-build';
+// Build stamps are shortened consistently away from the markup, and so is the
+// reading that decides whether each half of the deployment is working.
+import { buildFacts, HEALTH_FAMILY, type BuildArtifact } from './connection-build';
+// The one status recipe. Named as a meaning here, painted in astrolabe-tokens.css.
+import { astPill } from './astrolabe-pill';
 // What this deployment is, as against what it was built from. The two grids the
 // Build card draws are decided there, so a row with nothing to say is dropped
 // before the markup sees it.
@@ -103,7 +109,6 @@ import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ApplyDeclarationCard } from './ApplyDeclarationCard';
 import { configurationValue, RESOURCE_PRODUCT, tableReachabilityCopy } from './connections-view';
 import { useSessionChecks } from './session-checks';
-import { restoredNotice } from './check-session';
 import {
   DRIFT_MARKER_LABEL,
   connectionsHeadline,
@@ -338,6 +343,34 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
             {row.identity ? <UserIdentityChip identity={row.identity} label="by" compact /> : null}
           </p>
         ) : null}
+        {/* A PLACE, NOT A VALUE. These two rows are the only ones on the card
+            whose point is to be followed, so they are anchors and they carry
+            the mark of whoever owns the destination: the official Databricks
+            Apps mark for the workspace the app is running its source from, and
+            GitHub's own octocat -- the login gate's, from one module -- for the
+            published repository. A reader picks between them by the logo before
+            they read the label. */}
+        {row.kind === 'link' ? (
+          <a
+            className="deployment-fact-link"
+            href={row.href}
+            target="_blank"
+            rel="noreferrer noopener"
+            title={row.title}
+            data-testid={`build-${row.key}`}
+          >
+            {row.mark === 'apps' ? (
+              <BrandIcon product="apps" size={14} className="deployment-fact-mark" />
+            ) : (
+              <GithubMark className="deployment-fact-mark" />
+            )}
+            <span className="deployment-fact-link-text">{row.value}</span>
+            {/* The same affordance the app endpoint row uses for the one other
+                thing on this card a reader can open, so "this leaves the app"
+                is said the same way twice rather than two ways. */}
+            <ExternalLink className="size-3" aria-hidden="true" />
+          </a>
+        ) : null}
         {row.kind === 'chips' ? (
           <span className="deployment-tags">
             {row.values.map((value) => (
@@ -347,6 +380,61 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
             ))}
           </span>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One build stamp, and whether the half of the deployment it names is working.
+ *
+ * THE ROW WAS A VERSION STAMP AND WAS READ AS A STATUS. `App 5b0e675b` and
+ * `Orchestrator 05d742b2`, two grey hashes, on the tab a reader opens to find out
+ * what this deployment can reach: the commit answers which build is running and
+ * says nothing about whether it is up, so a crashed app and a healthy one drew
+ * the same row. The reading is decided in `connection-build.ts` -- what green and
+ * red MEAN for each half is the part that has to be assertable without composing
+ * a screen.
+ *
+ * THE IDENTIFIER IS STILL THE IDENTIFIER. It keeps the eight characters a commit
+ * is recognised by, the whole hash in `title` and on the clipboard, and its copy
+ * button: the health is added beside it and takes nothing away, because the
+ * reason somebody comes to this row is often to paste the stamp into a ticket.
+ *
+ * AND THE WORD IS NOT DECORATION. The tint is the answer at a glance and the word
+ * is the same answer for anybody who cannot see the tint, which is this app's
+ * rule for every pill it draws.
+ */
+export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
+  return (
+    <div className="identity-fact">
+      <p className="identity-fact-label">{artifact.label}</p>
+      <div className="identity-fact-value">
+        {/* Eight characters, which is what a reader recognises a commit by, and
+            the whole hash on the clipboard: `git show` takes the short one, but a
+            paste into a message or a ticket wants the full string. */}
+        <StatusBadge
+          value={artifact.short || NOT_SET}
+          tone={artifact.tone}
+          title={artifact.full || NOT_SET}
+          testId={`build-${artifact.key}`}
+        />
+        {artifact.full ? (
+          <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} />
+        ) : null}
+        {/* Nothing at all where nothing was measured. A neutral pill there would
+            put a verdict-shaped element on a row that has no verdict, which is
+            how a page teaches a reader that its badges mean nothing. */}
+        {artifact.health.state === 'unknown' ? null : (
+          <span
+            className={astPill(HEALTH_FAMILY[artifact.health.state], 'deployment-health')}
+            data-health={artifact.health.state}
+            data-testid={`build-${artifact.key}-health`}
+            title={artifact.health.note}
+          >
+            {artifact.health.label}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -1403,7 +1491,7 @@ export function ConnectionsPage() {
    * per session, with Refresh as the only thing that re-runs it. See
    * session-checks.ts.
    */
-  const { session, running: refreshing, restored, refresh, reloadSettings } = useSessionChecks();
+  const { session, running: refreshing, refresh, reloadSettings } = useSessionChecks();
   const payload = session?.settings ?? null;
   const report = session?.report ?? null;
   const checkError = session?.error ?? '';
@@ -1560,6 +1648,15 @@ export function ConnectionsPage() {
     const catalogRow = readingsById(readings).get('catalog')?.row;
     return (catalogRow?.intended ?? catalogRow?.configured ?? '').trim();
   }, [readings]);
+  /**
+   * The serving endpoint's own reading, for the Orchestrator stamp's badge.
+   *
+   * The SAME reading the connection row is drawn from, taken by id off the same
+   * derivation, rather than a verdict computed here: the endpoint appears twice on
+   * this page and two readings of it are two chances to badge one endpoint green
+   * in the Build card and red in the list.
+   */
+  const orchestratorReading = useMemo(() => readingsById(readings).get('agent-endpoint'), [readings]);
   // Whether the tick is earned, decided beside the sentence it sits next to so
   // the two cannot come apart.
   const settled = connectionsSettled(counts);
@@ -1578,14 +1675,7 @@ export function ConnectionsPage() {
    */
   const lastCheckedAt = payload?.checkedAt || report?.checked_at || '';
 
-  /**
-   * The sentence a restored view says, or '' while this visit produced the run.
-   *
-   * One clock for the whole page, read once rather than per call, so the notice
-   * and the Refresh control cannot round the same instant differently.
-   */
   const now = Date.now();
-  const restoredLine = restored ? restoredNotice(lastCheckedAt, now) : '';
 
   /**
    * The reading's own qualifications, and ONLY the ones that qualify it.
@@ -1611,11 +1701,30 @@ export function ConnectionsPage() {
     .filter(Boolean)
     .join(' \u00b7 ');
 
-  /** The independent app and orchestrator build stamps. */
+  /**
+   * The independent app and orchestrator build stamps, and whether each half is
+   * working.
+   *
+   * THE HEALTH IS READ OFF WHAT THIS PAGE ALREADY HOLDS, which is the only way
+   * these two rows can be trusted to agree with the rest of the tab. The app's
+   * comes from the workspace's own report of the app and its compute -- the same
+   * field the App endpoint row is tinted from -- with the fact that this page's
+   * read was answered as the fallback. The orchestrator's comes from the check on
+   * the serving endpoint row, which is the endpoint a question is actually run
+   * against, and falls back to whether the served model version reported its own
+   * configuration on this pass.
+   *
+   * Neither is a second probe. A row that measured its own health would eventually
+   * disagree with the row above it about one app.
+   */
   const build = buildFacts({
     appBuildSha: payload?.appBuildSha ?? '',
     modelBuildSha: payload?.modelBuildSha ?? '',
     appBuildAncestors: payload?.appBuildAncestors ?? [],
+    appServing: payload?.app?.serving,
+    appAnswered: Boolean(payload),
+    orchestratorStatus: orchestratorReading?.status,
+    orchestratorReported: payload?.orchestratorReported,
   });
 
   /**
@@ -1626,9 +1735,8 @@ export function ConnectionsPage() {
    * branch in the markup. A server built before this field existed lands here
    * too, and correctly draws nothing.
    *
-   * Both read the SAME clock as the restored notice above, for the reason that
-   * one is read once per render: an uptime and a freshness line that rounded two
-   * different instants would disagree by a minute on the same screen.
+   * Both read the same clock, taken once per render, so an uptime and a
+   * freshness line cannot round two different instants.
    */
   const appFacts = payload?.app ?? NO_APP_FACTS;
   const deploymentFacts = useMemo(() => deploymentRows(appFacts), [appFacts]);
@@ -1695,16 +1803,6 @@ export function ConnectionsPage() {
           <CircleAlert />
           <AlertDescription>{writeError}</AlertDescription>
         </Alert>
-      ) : null}
-
-      {/* Restored rather than run in this visit, said once, in the same words the
-          Architecture tab uses -- one store, one sentence about it. Neutral tone:
-          restored results are the results, and the only thing the reader cannot
-          see for themselves is that nothing has run since they came back. */}
-      {restoredLine ? (
-        <p className="arch-restored" data-testid="connections-restored">
-          {restoredLine}
-        </p>
       ) : null}
 
       {/* Only ever visible to someone who followed an entity link here and whose
@@ -1853,25 +1951,11 @@ export function ConnectionsPage() {
               </div>
             ) : null}
             <div className="deployment-grid">
+              {/* The stamp AND whether that half is working. The row used to be
+                  the hash alone, on the tab a reader opens to find out what this
+                  deployment can reach. */}
               {build.artifacts.map((artifact) => (
-                <div key={artifact.key} className="identity-fact">
-                  <p className="identity-fact-label">{artifact.label}</p>
-                  <div className="identity-fact-value">
-                    {/* Eight characters, which is what a reader recognises a
-                        commit by, and the whole hash on the clipboard: `git
-                        show` takes the short one, but a paste into a message or
-                        a ticket wants the full string. */}
-                    <StatusBadge
-                      value={artifact.short || NOT_SET}
-                      tone={artifact.tone}
-                      title={artifact.full || NOT_SET}
-                      testId={`build-${artifact.key}`}
-                    />
-                    {artifact.full ? (
-                      <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} />
-                    ) : null}
-                  </div>
-                </div>
+                <BuildStampRow key={artifact.key} artifact={artifact} />
               ))}
               {telemetryFacts.map((row) => (
                 <BuildFactRow key={row.key} row={row} />

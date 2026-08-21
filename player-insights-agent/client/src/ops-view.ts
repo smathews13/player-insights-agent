@@ -121,7 +121,7 @@ export interface TileView {
    * follows the population it was sent rather than the card it is on.
    */
   sharedScope: boolean;
-  /** 'in range' or 'per day', so a rate is never read as a total. */
+  /** 'all time' or 'per day', so a rate is never read as a total. */
   basisLabel: string;
   /** The one thing that would make an absent figure attributable, or ''. */
   remedy: string;
@@ -130,7 +130,7 @@ export interface TileView {
 
 /** The words for the two bases. A rate drawn as a total is the whole hazard. */
 export const BASIS_LABEL: Record<CostTile['basis'], string> = {
-  'total-in-range': 'in range',
+  'total-in-range': 'all time',
   'per-day': 'per day',
 };
 
@@ -262,7 +262,7 @@ export function costAbsence(payload: OpsCostPayload): Absence | null {
     // empty block as the missing grant above and goes to ask for a privilege
     // they already hold.
     return {
-      title: 'No billing rows for this range yet',
+      title: 'No billing rows yet',
       body: 'This is not a permission problem and there is nothing to grant.',
     };
   }
@@ -619,7 +619,7 @@ export function errorFraming(input: { errorCount: number; dependencies: Dependen
   // beside green checks and no useful action, so it does not render.
   if (!live) return null;
   const noun = input.errorCount === 1 ? 'error line' : 'error lines';
-  const headline = `${count(input.errorCount)} ${noun} recorded in this range`;
+  const headline = `${count(input.errorCount)} ${noun} recorded`;
   const note = 'A dependency is not answering its most recent check. Read these lines against the Result column above.';
   return { headline, note, live };
 }
@@ -669,8 +669,8 @@ export function trafficCaption(series: TrafficBar[], singular: string, plural: s
   if (total === 0) return `No ${plural}`;
   const noun = total === 1 ? singular : plural;
   return runs > 0
-    ? `${count(total)} ${noun} out of ${count(runs)} runs that ended in this range.`
-    : `${count(total)} ${noun} in this range.`;
+    ? `${count(total)} ${noun} out of ${count(runs)} recorded runs.`
+    : `${count(total)} ${noun}.`;
 }
 
 /* ── Latency ─────────────────────────────────────────────────────────────── */
@@ -862,16 +862,16 @@ export function latencySharedFacts(routes: RouteLatency[]): LatencySharedFacts {
   const showPercentiles = routes.some((route) => route.p95Ms !== null);
   const parts: string[] = [];
   if (routes.length > 0 && !showPercentiles) {
-    parts.push(`Every route is under ${SPAN_PERCENTILE_FLOOR} spans this window: no p95, p99, or trend yet.`);
+    parts.push(`Every route is under ${SPAN_PERCENTILE_FLOOR} recorded requests: no p95, p99, or trend yet.`);
   }
   const errorTotal = routes.reduce((sum, route) => sum + (route.errorCount > 0 ? route.errorCount : 0), 0);
   const refusalsAllUnreported = routes.every((route) => route.refusalCount === null);
   if (errorTotal === 0 && refusalsAllUnreported) {
-    parts.push('Errors and refusals not reported by the endpoint.');
+    parts.push('No error responses recorded across these routes. Refusals are not reported.');
   } else if (refusalsAllUnreported) {
     parts.push(
-      `${count(errorTotal)} error ${errorTotal === 1 ? 'span' : 'spans'} recorded across these routes. ` +
-        'Refusals not reported by the endpoint.'
+      `${count(errorTotal)} error ${errorTotal === 1 ? 'response' : 'responses'} recorded across these routes. ` +
+        'Refusals are not reported.'
     );
   }
   return { line: parts.join(' '), showPercentiles };
@@ -887,8 +887,8 @@ export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()
       verdict: 'too-thin',
       verdictLabel: 'Too thin to judge',
       verdictDetail:
-        `Needs ${LATENCY_BASELINE_FLOOR} spans in each half of the covered window ` +
-        `(this half ${count(route.spans)}, prior half ${count(route.priorSpans)}).`,
+        `Needs ${LATENCY_BASELINE_FLOOR} requests in each all-time half ` +
+        `(recent half ${count(route.spans)}, earlier half ${count(route.priorSpans)}).`,
       errorsLabel,
       refusalsLabel,
       freshLabel,
@@ -899,7 +899,7 @@ export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()
     return {
       verdict: 'not-reported',
       verdictLabel: 'Not reported',
-      verdictDetail: 'No prior-half median to compare against.',
+      verdictDetail: 'No earlier-half median to compare against.',
       errorsLabel,
       refusalsLabel,
       freshLabel,
@@ -912,7 +912,7 @@ export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()
       verdict: 'slower',
       verdictLabel: 'Slower than baseline',
       verdictDetail:
-        `Current-half p50 is ${ratio.toFixed(1)}× the prior-half p50 ` +
+        `Recent-half p50 is ${ratio.toFixed(1)}× the earlier-half p50 ` +
         `(${count(route.spans)} vs ${count(route.priorSpans)} spans).`,
       errorsLabel,
       refusalsLabel,
@@ -922,7 +922,7 @@ export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()
 
   return {
     verdict: 'within',
-    verdictLabel: 'Within range',
+    verdictLabel: 'Within baseline',
     verdictDetail: '',
     errorsLabel,
     refusalsLabel,

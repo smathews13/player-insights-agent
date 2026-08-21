@@ -510,29 +510,6 @@ a.arch-node-main:hover .arch-node-label {
   color: var(--muted-foreground);
 }
 /*
- * "These are the results of the last check, not a new one."
- *
- * Given a neutral note treatment rather than an alert's, and the choice is the
- * message. Restored results are not a fault --
- * they are the results, and remembering them is the fix. What the reader is
- * being told is a fact about provenance, not a problem to act on, and dressing
- * provenance as a warning is how people learn to read past warnings. The
- * sentence itself gets firmer when the check is over an hour old; see
- * restoredNotice in check-session.ts.
- *
- * Full width and above the tiles, because it qualifies everything below it.
- */
-.arch-restored {
-  margin: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--ast-fill-band);
-  padding: 10px 12px;
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-}
-
-/*
  * ── The drawing, in words ──────────────────────────────────────────────────
  *
  * ONE LIST, READ TWO WAYS. It is the screen-reader equivalent of the diagram at

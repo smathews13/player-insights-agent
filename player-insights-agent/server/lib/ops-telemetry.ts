@@ -180,21 +180,8 @@ export function uncheckedMeasurement(insightsHref: string, note: string): AppMea
  * invents activity: the first says nothing has been written, the second says
  * something has and points at when, without claiming to know what it was.
  */
-export function noHistoryReason(input: { recordingSince: string; from: string; to: string }): string {
-  const since = input.recordingSince.trim();
-  if (!since) {
-    return (
-      'App telemetry is switched on and this table is readable, and nothing has been written to it ' +
-      'at all yet. Telemetry does not backfill: the platform starts writing at the deploy that ' +
-      'switches it on and records nothing about the time before that.'
-    );
-  }
-  return (
-    `App telemetry is switched on and this table is readable. It holds nothing for ${input.from} to ` +
-    `${input.to}, the days shown, because it did not start recording until ${since}. Telemetry does ` +
-    'not backfill, and this page shows whole completed days, so the first day telemetry is on has no ' +
-    'figures here until the day after. Nothing is broken and nothing was lost.'
-  );
+export function noHistoryReason(): string {
+  return 'No app requests have been recorded yet.';
 }
 
 /**
@@ -315,8 +302,6 @@ export function buildTelemetryStatement(table: string): string {
   return `WITH scoped AS (
   SELECT time, severity_text, body, attributes
   FROM ${table}
-  WHERE time >= CAST(:from_at AS TIMESTAMP)
-    AND time <  CAST(:to_at AS TIMESTAMP)
 ), served AS (
   SELECT time, severity_text, body
   FROM scoped

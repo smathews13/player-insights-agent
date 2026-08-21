@@ -74,7 +74,7 @@ import {
   type ConnectionReading,
 } from './connection-model';
 import { DRIFT_MARKER_LABEL } from './connection-status';
-import { checkedAtOf, restoredNotice } from './check-session';
+import { checkedAtOf } from './check-session';
 import { useSessionChecks } from './session-checks';
 import { fetchWithTimeout } from './fetch-timeout';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
@@ -611,7 +611,7 @@ export function ArchitecturePage() {
    * down its whole length reads as broken, however carefully the sentence at the
    * bottom explains that it is not.
    */
-  const { session, running: checking, restored, refresh } = useSessionChecks();
+  const { session, running: checking, refresh } = useSessionChecks();
   const settings = session?.settings ?? null;
   const report = session?.report ?? null;
   const checkError = session?.error ?? '';
@@ -661,10 +661,6 @@ export function ArchitecturePage() {
    * same order ConnectionsPage reads it, so one run cannot be given two times.
    */
   const checkedAt = checkedAtOf(session);
-  // Only while nothing has been re-run in this visit. Once Refresh has landed,
-  // the results are this visit's and the Refresh control's relative time is the
-  // whole story.
-  const restoredLine = restored ? restoredNotice(checkedAt, now) : '';
 
   return (<div className="page-shell architecture-page">
       <div className="page-heading">
@@ -687,16 +683,6 @@ export function ArchitecturePage() {
           <CircleAlert />
           <AlertDescription>{checkError}</AlertDescription>
         </Alert>
-      ) : null}
-
-      {/* Neutral rather than an alert. Restored results are not a fault -- they
-          are the results, and they are the reason this page no longer forgets
-          them. What the reader cannot see without being told is that nothing has
-          run since they came back, because a restored page and a freshly checked
-          one are the same pixels. */}
-      {restoredLine ? (<p className="arch-restored" data-testid="architecture-restored">
-          {restoredLine}
-        </p>
       ) : null}
 
       {drifted.length > 0 ? (<Alert data-testid="architecture-drift">

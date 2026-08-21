@@ -28,15 +28,6 @@
  * layout and ARIA. It also does not own:
  *
  *  - The Refresh control and its freshness line, which are `RefreshControl`.
- *  - The time-range control, which is `TimeRangeControl`, and the window it
- *    means, which is `rangeWindow` in `time-range.ts`. Both are shared with
- *    Monitoring. Sharing them is what MAKES it possible for the two tabs to be
- *    over one window; it does not by itself achieve it, and this comment used to
- *    claim it did. It was wrong in the direction that costs the most: this page
- *    sent the control's word to a server that reads timestamps, so 24h and 30
- *    days both returned the last 7 days for as long as that went unnoticed. What
- *    keeps the two tabs together is that both resolve the control to a window
- *    with `rangeWindow` and send THAT. See the note in `OpsPage` itself.
  *  - The failure and refusal taxonomy, which is the server's.
  *
  * NO POLLING, for the reason Monitoring does not poll: the billing query scans
@@ -44,7 +35,7 @@
  * cost money to look at.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from 'lucide-react';
 import { Button, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
@@ -52,9 +43,6 @@ import { BrandIcon } from './BrandIcon';
 import { PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
-import { TimeRangeControl } from './TimeRangeControl';
-// Shared with Monitoring, so the two tabs cannot be over different windows.
-import { rangeWindow } from './time-range';
 import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
@@ -80,7 +68,6 @@ import {
   type Absence as AbsenceCopy,
   type HealthRow,
 } from './ops-view';
-import { opsDayRange, opsRangeDates } from '../../shared/ops-contract';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -877,7 +864,7 @@ function QuestionsPerDay({ days }: { days: Array<{ day: string; count: number }>
     <div className="ops-chart">
       <h4>Questions per day</h4>
       {days.length === 0 ? (
-        <p className="ops-chart-empty">No questions were asked in this range.</p>
+        <p className="ops-chart-empty">No questions have been recorded.</p>
       ) : (
         <>
           {/* The scale, where the columns are too many to each carry one. On the
@@ -987,7 +974,7 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
       <BlockHead
         id="ops-latency-heading"
         title="Latency"
-        meta={<LatencyCaption from={payload?.coveredFrom ?? ''} to={payload?.coveredTo ?? ''} />}
+        meta={<LatencyCaption />}
         control={<RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />}
       />
 
@@ -1119,39 +1106,8 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
   );
 }
 
-/**
- * The window the baseline is taken from, in the reader's words, with the exact
- * span timestamps kept on hover.
- *
- * "vs each route's prior half" is the constant; the dates are what the table is
- * actually over, which is NOT the range chip at the top of the page — telemetry
- * does not backfill, so the spans reach back only as far as they were recorded.
- * Human-readable on the page, full timestamps in `title`, per the handoff.
- */
-function LatencyCaption({ from, to }: { from: string; to: string }) {
-  if (!from || !to) {
-    return <span className="ops-block-meta">By route, vs each route’s prior half</span>;
-  }
-  return (
-    <span className="ops-block-meta" title={`${from} to ${to}`}>
-      By route, vs each route’s prior half · {spokenSpanTime(from)} to {spokenSpanTime(to)}
-    </span>
-  );
-}
-
-/** A span time as a reader reads one: "Aug 16, 7:30 PM". Empty stays empty. */
-function spokenSpanTime(raw: string): string {
-  if (!raw) return '';
-  const at = Date.parse(raw.includes('T') ? raw : `${raw.replace(' ', 'T')}Z`);
-  if (!Number.isFinite(at)) return raw;
-  return new Date(at).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'UTC',
-  });
+function LatencyCaption() {
+  return <span className="ops-block-meta">By route</span>;
 }
 
 /** One high percentile, or the withheld mark with the reason on the cell. */
@@ -1368,115 +1324,29 @@ export function TrafficBody({
 /* ── The page ────────────────────────────────────────────────────────────── */
 
 export function OpsPage() {
-  const [searchParams] = useSearchParams();
-
-  /**
-   * One instant for the whole page, taken once when it mounts.
-   *
-   * Not `Date.now()` in the render: the window below is part of the string the
-   * three blocks fetch, so a clock read here would produce a new string on every
-   * render and three reads that never stopped. It is also the right answer on its
-   * own terms -- the three blocks refresh independently, and a `now` that moved
-   * between them would let health be over a different window from cost, which is
-   * the one thing this page's range is shared to prevent.
-   */
-  const [now] = useState(() => Date.now());
-
-  /**
-   * THE RANGE, RESOLVED TO TIMESTAMPS BEFORE IT IS SENT. This is the fix for a
-   * bug worth naming here, because the shape of the code invited it: this page
-   * used to hand the browser's own search string to the three routes, and the
-   * server reads `from` and `to`. The control writes `range=24h` or `range=30d`
-   * and deliberately writes no timestamps for those -- so the server saw no
-   * bounds, fell back to its default, and returned the last seven days for three
-   * of the four options while the chosen button stayed highlighted.
-   *
-   * Monitoring never had the bug because it has always resolved the control to a
-   * window with `rangeWindow` and sent that. This now does the same thing the
-   * same way. Nothing on either page should send the control's WORD to a server.
-   */
-  const window_ = rangeWindow(searchParams, now);
-  const search = `?from=${encodeURIComponent(window_.from)}&to=${encodeURIComponent(window_.to)}`;
-
-  /**
-   * The days the figures are actually over, derived with the server's own
-   * function so the printed window cannot drift from the queried one.
-   */
-  const days = opsDayRange(window_.from, window_.to, now);
+  const search = '';
 
   // Three reads, started together and finishing whenever each finishes. Nothing
   // below waits on anything else, which is the whole point of the arrangement.
-  // All three take the same `search`, so a range change re-reads all three
-  // rather than only whichever one is on screen.
+  // Every read is unbounded, so each block covers all data its source exposes.
   const health = useBlock<OpsHealthPayload>('/api/ops/health', search);
   const cost = useBlock<OpsCostPayload>('/api/ops/cost', search);
   const traffic = useBlock<OpsTrafficPayload>('/api/ops/traffic', search);
-  /*
-    The fourth read, and the one that does not take the range: it is passed the
-    same `search` so a range change still re-reads it, but the server ignores the
-    bounds and reports the window the spans actually cover. See
-    `buildLatencyStatement`.
-  */
   const latency = useBlock<OpsLatencyPayload>('/api/ops/latency', search);
 
-  /**
-   * Monitoring, over the window this page is showing, narrowed to one outcome.
-   *
-   * The range parameters travel rather than being dropped, because the count the
-   * reader clicked was counted over THIS window: landing them on Monitoring's
-   * default week would show a different number for the same question and the
-   * page they came from would look wrong.
-   */
+  /** Monitoring narrowed to one all-time outcome. */
   const monitoringHref: MonitoringHref = (outcome) => {
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams();
+    params.set('range', 'all');
     params.set(OUTCOME_PARAM, outcome);
     return `/monitoring?${params.toString()}`;
   };
 
-  /**
-   * Run Explorer, over the window this page is showing.
-   *
-   * The range travels for the same reason it travels to Monitoring: a reader
-   * following an answer time out of a chart drawn over 30 days must not land on
-   * Run Explorer's default week and see a shorter list than the one they clicked
-   * out of.
-   */
-  const runsHref = () => {
-    const params = new URLSearchParams(searchParams);
-    const query = params.toString();
-    return query ? `/runs?${query}` : '/runs';
-  };
+  const runsHref = () => '/runs?range=all';
 
   return (
     <div className="page-shell ops-page">
-      <PageHeading title="Ops" actions={<TimeRangeControl page="Ops" />} />
-
-      {/*
-        THE DATES, SPELLED OUT. A highlighted button is a claim about a window and
-        this is the evidence for it. Without it a total for the wrong week is
-        indistinguishable from one for the right week, which is exactly how the
-        range bug above survived: every caption said "in this range" and nothing
-        on the page said which range.
-
-        `data-testid` because the string is a date and a test asserting it by
-        prose would be asserting the locale.
-      */}
-      {/* The dates alone, in the chip idiom the filters use. "Showing" was a word
-          spent introducing a fact that reads as a fact without it. */}
-      <p className="ops-range-dates" data-testid="ops-range-dates">
-        <span className="ops-range-dates-value">{opsRangeDates(days)}</span>
-        {/*
-          A custom range that could not be read is not the window that was asked
-          for, and a page showing figures over a substituted window has to say so.
-          Silently falling back is how somebody reads last week's spend as the
-          answer to a question about March.
-        */}
-        {window_.customIncomplete ? (
-          <span className="ops-range-dates-note">
-            The custom range was incomplete, so this is the default window rather than the one asked for.
-          </span>
-        ) : null}
-      </p>
+      <PageHeading title="Ops" />
 
       {/* Each block reads itself. Three read times on one page rather than one,
           because they were read at three different moments. */}

@@ -6,6 +6,7 @@ import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { showsBenchmarkLab, showsEgressControls } from './experimental-features';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
+import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsUserRoster, useRole } from './role';
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
@@ -56,7 +57,6 @@ export function SettingsPage({
         <header className="settings-modal-header">
           <div>
             <h2 id="settings-title">Settings</h2>
-            <p>Admin only. Enforced on the server.</p>
           </div>
           <button className="settings-close" type="button" onClick={close} aria-label="Close settings">
             <X aria-hidden="true" />
@@ -125,6 +125,7 @@ export function SettingsPage({
                     aria-label="Show the egress controls on this page"
                   />
                 </div>
+                <ResourceTagsPanel />
               </div>
             ) : null}
           </div>

@@ -760,6 +760,21 @@
   font-size: var(--text-sm);
   color: var(--muted-foreground);
 }
+/*
+ * Whether the half of the deployment a stamp names is working.
+ *
+ * LAYOUT ONLY. The border, the tint, the radius and the 11px are `.ast-pill` in
+ * astrolabe-tokens.css, and which family a reading takes is `HEALTH_FAMILY` in
+ * connection-build.ts. Nothing here names a colour, so the App row's green is the
+ * same green as every other positive pill in the app.
+ *
+ * `flex: none` and `nowrap` because this pill shares a row with a commit badge
+ * that is allowed to shrink and ellipsis: without them the state word is the
+ * thing the row compresses, and a compressed status word is not a status. */
+.deployment-health {
+  flex: none;
+  white-space: nowrap;
+}
 
 /* A permission list runs to eight or nine names, so its row wraps and its label
    sits at the top of the block rather than centred against three lines of it. */
@@ -904,6 +919,39 @@
    looked up. */
 .deployment-fact-aside {
   color: var(--muted-foreground);
+}
+/* The two rows that are places rather than values: the workspace the running
+   source lives in, and the published repository. Blue and underlined on hover
+   like every other link in the app, because a row that opens something must
+   look like one -- these were chips first, and a chip reads as a status.
+
+   The mark is the destination's owner and is never tinted by this rule: the
+   Databricks Apps mark is official artwork in its own ink, and the octocat
+   takes `currentColor` from the anchor, which is how the login gate draws it. */
+.deployment-fact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ast-blue);
+  font-size: var(--text-base);
+  font-weight: 500;
+  text-decoration: none;
+}
+.deployment-fact-link-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deployment-fact-link:hover .deployment-fact-link-text,
+.deployment-fact-link:focus-visible .deployment-fact-link-text {
+  text-decoration: underline;
+}
+/* Neither the mark nor the external-link glyph may be what a long path
+   squeezes: the text has the ellipsis, so these hold their size. */
+.deployment-fact-mark,
+.deployment-fact-link > svg {
+  flex: none;
 }
 /* The "by" chip sits inline after the release time with no whitespace between
    them, so give it a little air off the value it qualifies -- otherwise the
