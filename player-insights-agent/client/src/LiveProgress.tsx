@@ -148,8 +148,6 @@ export function LiveProgress({
   }, [run.steps.length]);
 
   return (<div className="live-progress">
-      {run.detail && <p className="live-progress-detail">{run.detail}</p>}
-
       {run.steps.length > 0 && (<ol className="live-steps" ref={list} onScroll={onScroll}>
           {run.steps.map((step, index) => (<StepRow
               key={step.id}

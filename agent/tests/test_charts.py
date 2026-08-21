@@ -20,6 +20,7 @@ from charts import (
     MAX_POINTS_PER_TRACE,
     MAX_TRACES,
     MIN_PIE_LABEL_SHARE,
+    NEW_PLOT_TOOL,
     PLOT_INSTRUCTIONS,
     RED_FAILURE,
     SLATE,
@@ -961,6 +962,10 @@ class TestDeclines:
         with pytest.raises(EmptyChartError):
             new_plot([])
 
+    def test_none_is_the_renderer_independent_no_chart_sentinel(self):
+        with pytest.raises(EmptyChartError):
+            new_plot(None)
+
     def test_traces_carrying_no_points_are_a_decline(self):
         with pytest.raises(EmptyChartError):
             new_plot([{"type": "bar", "x": [], "y": []}])
@@ -975,11 +980,11 @@ class TestDeclines:
             # The sentence a reader had already learnt to read as a breakage.
             assert "must be" not in str(raised.value)
 
-    @pytest.mark.parametrize("wrong_shape", [{"type": "bar"}, "[]", None, 7])
+    @pytest.mark.parametrize("wrong_shape", [{"type": "bar"}, "[]", 7])
     def test_a_data_argument_of_the_wrong_shape_is_not_a_decline(self, wrong_shape):
         """A serialization fault must stay visible instead of reading as empty data.
 
-        `data` arriving as a dict, as a JSON string of a list, or as null is a spec
+        `data` arriving as a dict or as a JSON string of a list is a spec
         in the wrong shape. It shared this branch with `data: []` and therefore
         shared its message, so a model that stringified its traces would have been
         filed as a dataset with no series and nobody would have gone looking. The
@@ -997,7 +1002,7 @@ class TestDeclines:
 
 class TestRejections:
     def test_a_trace_that_is_not_an_object_is_refused(self):
-        with pytest.raises(ChartError, match="must be a Plotly trace object"):
+        with pytest.raises(ChartError, match="must be a chart series object"):
             new_plot(["not a trace"])
 
     def test_an_unsupported_trace_type_names_what_is_supported(self):
@@ -1020,6 +1025,39 @@ class TestRejections:
         rows = MAX_POINTS_PER_TRACE + 1
         with pytest.raises(ChartError, match="aggregate"):
             new_plot([{"type": "bar", "x": list(range(rows)), "y": list(range(rows))}])
+
+
+class TestRendererNeutralContract:
+    def test_a_semantic_bar_spec_is_adapted_after_validation(self):
+        chart = new_plot(
+            spec={
+                "kind": "bar",
+                "series": [
+                    {
+                        "name": "players",
+                        "x": ["alpha", "beta"],
+                        "y": [12, 7],
+                    }
+                ],
+                "x_title": "title",
+                "y_title": "players",
+            },
+            title="Players by title",
+        )
+
+        assert chart.kind == "bar"
+        assert chart.data[0]["type"] == "bar"
+        assert chart.data[0]["x"] == ["alpha", "beta"]
+        assert chart.layout["yaxis"]["title"] == {"text": "players"}
+
+    def test_the_model_contract_does_not_require_renderer_objects(self):
+        function = NEW_PLOT_TOOL["function"]
+        encoded = str(function)
+
+        assert function["parameters"]["required"] == ["outcome"]
+        assert "spec" in function["parameters"]["properties"]
+        assert "data" not in function["parameters"]["properties"]
+        assert "Plotly" not in encoded
 
 
 class TestGeneralPurpose:

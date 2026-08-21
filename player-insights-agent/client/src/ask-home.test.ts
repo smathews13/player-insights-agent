@@ -164,18 +164,12 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(withoutComments(STYLESHEET)).not.toMatch(/clamp\(28px,\s*3\.5vw,\s*64px\)/);
   });
 
-  it('insets at the rate the other four pages do, and no longer at its own', () => {
-    // `.page-shell` grows its inset at 4vw and Ask PIA grew at 3.5vw from a
-    // tighter floor, so the one page a reader spends their time on was the least
-    // padded of the five. The floor is what the complaint was about -- 28px is
-    // where the cards sat when the window was not wide -- and the rate is what
-    // made it the odd one out.
+  it('spends less of the middle column on empty side gutters', () => {
     const inset = partial('tokens.css').match(/--conversation-inset:\s*clamp\(([^)]*)\)/)?.[1] ?? '';
     expect(inset, 'tokens.css declares --conversation-inset as a clamp').not.toEqual('');
     const [floor, rate] = inset.split(',').map((part) => part.trim());
-    expect(Number.parseInt(floor, 10)).toBeGreaterThan(28);
-    expect(rate).toBe('4vw');
-    expect(body('.page-shell')).toContain('4vw');
+    expect(Number.parseInt(floor, 10)).toBe(24);
+    expect(rate).toBe('2.5vw');
   });
 
   it('bounds the transcript’s measure, so the widest windows have a page margin', () => {
@@ -205,9 +199,9 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // tidier-looking rule and it would have taken width off the thing being read.
     const measure = Number.parseInt(partial('tokens.css').match(/--conversation-measure:\s*(\d+)px/)?.[1] ?? '0', 10);
     expect(measure).toBeGreaterThan(720);
-    // And short enough that a line of body copy is still a line rather than a
-    // paragraph's worth of tracking across a monitor.
-    expect(measure).toBeLessThan(1000);
+    // Wide enough for result tables; prose still lives inside surfaced cards and
+    // truly wide tables retain their own horizontal scroller.
+    expect(measure).toBeGreaterThanOrEqual(1100);
   });
 
   it('gives the hero, the suggestions and the composer one width to share', () => {

@@ -64,6 +64,7 @@ from data_source_finder import (
     GEOGRAPHY_INSTRUCTIONS,
     DataSourceFinderAgent,
     DiscoveryRequest,
+    compact_finder_package,
 )
 from evidence import Verdict, refusal_guidance
 from llm_usage import record_llm_usage
@@ -1190,6 +1191,22 @@ def _needs_dictionary(question: str) -> bool:
     return bool(_DICTIONARY_TRIGGERS.search(question))
 
 
+_INVENTORY_REQUEST = re.compile(
+    r"^\s*(?:what|which|show|list)\s+(?:governed\s+)?data(?:\s+sources?)?"
+    r"(?:\s+do\s+(?:you|i)\s+have\s+access\s+to|\s+(?:is|are)\s+available)?[?/.]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _is_simple_inventory_request(question: str) -> bool:
+    """True only for an unfiltered source inventory, not analytical discovery."""
+
+    candidate = question.strip()
+    if candidate.startswith("Discovery intent:\n"):
+        candidate = candidate.removeprefix("Discovery intent:\n").split("\n\n", 1)[0].strip()
+    return bool(_INVENTORY_REQUEST.fullmatch(candidate))
+
+
 def _failure_reason(error: Exception) -> str:
     detail = re.sub(r"\s+", " ", str(error)).strip()
     return f"{type(error).__name__}: {detail}"[:300] if detail else type(error).__name__
@@ -1876,6 +1893,15 @@ class LoopOutcome:
     answer_text: str = ""
     clarification: Clarification | None = None
     capped: str = ""
+    #: False only when a required result is genuinely absent or degraded.
+    complete: bool | None = None
+
+
+@dataclass
+class FinderBudget:
+    """Budget owned by one DSF invocation, never by the enclosing trace."""
+
+    tool_calls: int = 0
 
 
 class RunLog:
@@ -1894,7 +1920,10 @@ class RunLog:
     """
 
     def __init__(self) -> None:
-        self.started = time.perf_counter()
+        # Runtime activation happens at request entry, before identity checks and
+        # orchestration. Queueing before Python receives the request is unknowable;
+        # everything after entry counts against this one monotonic clock.
+        self.started = runtime_settings.turn_started()
         self.stages: list[TraceStage] = []
         self.sources: list[str] = []
         #: The subset of `sources` that a value-returning query read, so the
@@ -2093,6 +2122,10 @@ class RunLog:
 
     def expired(self) -> bool:
         return self.elapsed >= runtime_settings.current().loop.max_run_seconds
+
+    @property
+    def remaining(self) -> float:
+        return max(0.0, runtime_settings.current().loop.max_run_seconds - self.elapsed)
 
     def starting(
         self,
@@ -2672,6 +2705,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         tools: PlayerInsightTools,
         log: RunLog,
         braked: dict[str, str],
+        budget: FinderBudget,
     ) -> str:
         """Spend the budget on one call, or say why it is not being run.
 
@@ -2691,14 +2725,14 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             return skipped
 
         max_tool_calls = runtime_settings.current().loop.max_tool_calls
-        if log.tool_calls >= max_tool_calls or log.expired():
+        if budget.tool_calls >= max_tool_calls or log.expired():
             entry.announce = False
             entry.capped = (
                 f"the {max_tool_calls}-tool-call budget was spent"
-                if log.tool_calls >= max_tool_calls
+                if budget.tool_calls >= max_tool_calls
                 else (
-                    f"the {runtime_settings.current().loop.max_run_seconds}s budget "
-                    "for this turn was spent"
+                    f"the turn budget was reached at {log.elapsed:.1f}s elapsed with "
+                    f"{log.remaining:.1f}s remaining"
                 )
             )
             return (
@@ -2708,6 +2742,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
 
         log.calls += 1
         log.tool_calls += 1
+        budget.tool_calls += 1
         entry.admitted = True
         entry.started = time.perf_counter()
         # Before the call, not after it. Which space a question was routed to is
@@ -2865,8 +2900,56 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         messages.append({"role": "user", "content": question})
 
         capped = ""
+        finder_budget = FinderBudget()
+        if _is_simple_inventory_request(question):
+            # An inventory is already answered by the declared manifest. Semantic
+            # search and tags rank candidates for an analytical intent; running
+            # both here adds latency and duplicates a list that needs no ranking.
+            started = time.perf_counter()
+            yield log.starting(
+                "inventory",
+                "Listing available tables",
+                "tool",
+                started,
+                depth=depth,
+                parent_id=parent_id,
+            )
+            log.calls += 1
+            log.tool_calls += 1
+            finder_budget.tool_calls += 1
+            result = tools.list_data_assets(
+                getattr(tools.settings, "catalog", ""),
+                getattr(tools.settings, "schema", ""),
+            )
+            log.record(result)
+            log.evidence.append("list_data_assets returned:\n" + result.text)
+            log.evidence_sources.append("list_data_assets")
+            yield log.stage(
+                "inventory",
+                "Listed available tables",
+                "tool",
+                started,
+                "{}",
+                result.text,
+                depth=depth,
+                parent_id=parent_id,
+            )
+            package = compact_finder_package(
+                "## DATA OVERVIEW\n"
+                "- **Declared governed sources:**\n"
+                + result.text
+                + "\n- **Access note:** This is the deployment's declared source set. "
+                "Unity Catalog still evaluates the signed-in user's grants when a table is read."
+            )
+            return LoopOutcome(answer_text=package, complete=True)
         max_steps = runtime_settings.current().loop.max_steps
         for step in range(1, max_steps + 1):
+            if log.expired():
+                capped = (
+                    f"the turn budget was reached at {log.elapsed:.1f}s elapsed "
+                    f"with {log.remaining:.1f}s remaining"
+                )
+                break
             started = time.perf_counter()
             log.calls += 1
             # Named for what the call is FOR rather than for what it turns out to
@@ -2896,6 +2979,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         max_tokens=self.settings.max_output_tokens,
                         tools=DATA_SOURCE_FINDER_TOOLS,
                         tool_choice="auto",
+                        timeout=max(1.0, log.remaining),
                     )
                 except Exception as error:
                     # The endpoint that chooses the steps also writes the answer, so
@@ -3100,7 +3184,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             if together:
                 for entry in runnable:
                     entry.refused_before_running = self._admit_tool_call(
-                        entry, tools, log, braked
+                        entry, tools, log, braked, finder_budget
                     )
                     capped = capped or entry.capped
                 flight = [entry for entry in runnable if entry.admitted]
@@ -3148,7 +3232,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     # The serial path: this call's decisions could not be made
                     # until the ones before it had returned.
                     entry.refused_before_running = self._admit_tool_call(
-                        entry, tools, log, braked
+                        entry, tools, log, braked, finder_budget
                     )
                     capped = capped or entry.capped
                     if entry.admitted:
@@ -3395,8 +3479,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
 
             if log.expired() and not capped:
                 capped = (
-                    f"the {runtime_settings.current().loop.max_run_seconds}s budget "
-                    "for this turn was spent"
+                    f"the turn budget was reached at {log.elapsed:.1f}s elapsed "
+                    f"with {log.remaining:.1f}s remaining"
                 )
             if capped:
                 break
@@ -3431,6 +3515,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         return LoopOutcome(
             answer_text=answer_text,
             capped="" if completed_from_reading else capped,
+            complete=completed_from_reading,
         )
 
     def _forced_answer(
@@ -3450,8 +3535,50 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         its own gap, rather than a dropped turn.
         """
 
-        _, client = self._runtime()
         started = time.perf_counter()
+        # Do not start another remote model call after the deadline (the observed
+        # "stop" row took 36.75s because it did exactly that). A deterministic
+        # handoff preserves the evidence already gathered without replaying it
+        # through another expensive step.
+        if log.remaining < 5.0:
+            evidence = log.plot_evidence() or log.evidence
+            if evidence:
+                heading = "## DATA PACKAGE" if log.readings else "## DATA OVERVIEW"
+                text = compact_finder_package(
+                    f"{heading}\n- **Findings / data:**\n" + "\n\n".join(evidence)
+                )
+            else:
+                text = (
+                    "## DATA OVERVIEW\n- **Gaps:** The turn ended before a governed "
+                    "source returned evidence."
+                )
+            completed_from_reading = bool(text.strip() and log.readings)
+            summary = (
+                f"Deadline enforced at {log.elapsed:.1f}s elapsed; "
+                f"{log.remaining:.1f}s remained. "
+                f"Kept a {len(text):,}-character grounded handoff without another model call."
+            )
+            return (
+                text,
+                log.stage(
+                    "cap",
+                    (
+                        "Completed from assessed sources"
+                        if completed_from_reading
+                        else "Stopped within the turn budget"
+                    ),
+                    "agent",
+                    started,
+                    capped,
+                    summary,
+                    "complete" if completed_from_reading else "partial",
+                    depth=depth,
+                    parent_id=parent_id,
+                ),
+                completed_from_reading,
+            )
+
+        _, client = self._runtime()
         messages = [
             *messages,
             {
@@ -3474,9 +3601,10 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     model=self.settings.llm_endpoint,
                     messages=messages,
                     temperature=0.1,
-                    max_tokens=self.settings.max_output_tokens,
+                    max_tokens=min(self.settings.max_output_tokens, 900),
+                    timeout=max(1.0, log.remaining),
                 )
-                text = response.choices[0].message.content or ""
+                text = compact_finder_package(response.choices[0].message.content or "")
                 llm_span.set_outputs({"text": text[:6000]})
                 log.add_usage(record_llm_usage(llm_span, response))
         except Exception as error:
@@ -3497,6 +3625,10 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 False,
             )
         completed_from_reading = bool(text.strip() and log.readings)
+        summary = (
+            f"Produced a {len(text):,}-character grounded handoff at "
+            f"{log.elapsed:.1f}s elapsed with {log.remaining:.1f}s remaining."
+        )
         return (
             text,
             log.stage(
@@ -3509,7 +3641,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 "agent",
                 started,
                 capped,
-                text,
+                summary,
                 "complete" if completed_from_reading else "partial",
                 depth=depth,
                 parent_id=parent_id,
@@ -3525,12 +3657,27 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         log: RunLog,
         findings: str,
     ) -> Synthesis:
+        if log.remaining < 5.0:
+            return Synthesis(
+                takeaway=(
+                    "The analysis completed from assessed sources."
+                    if log.readings
+                    else "The turn ended before all required evidence was available."
+                ),
+                narrative=findings,
+                caveats=(
+                    []
+                    if log.readings
+                    else ["The turn deadline was reached before a governed data result returned."]
+                ),
+            )
         _, client = self._runtime()
         log.calls += 1
         system = SYNTHESIS_INSTRUCTIONS
         runtime_prompt = runtime_settings.prompt_fragment()
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"
+        evidence_package = "\n".join(log.evidence) or "(no tool returned data)"
         user = f"""Question:
 {question}
 
@@ -3544,7 +3691,7 @@ The analyst's own findings from this run:
 {findings or "(the run produced no findings)"}
 
 Tool results gathered this run, the assessed data package:
-{chr(10).join(log.evidence) or "(no tool returned data)"}
+{evidence_package}
 
 Tool calls that FAILED this run, whose evidence is therefore missing from the
 package above. Say the answer is degraded and name what was unavailable; do not
@@ -3588,6 +3735,7 @@ Tables actually read this run:
                 ],
                 "temperature": 0.1,
                 "max_tokens": self.settings.max_output_tokens,
+                "timeout": max(1.0, log.remaining),
             }
             structured = "accepted"
             try:
@@ -3599,6 +3747,15 @@ Tables actually read this run:
                 # if the endpoint refuses structured output then EVERY answer pays two
                 # model calls, and no recorded run could tell us which path it took.
                 structured = "fallback"
+                if log.remaining < 5.0:
+                    return Synthesis(
+                        takeaway=(
+                            "The analysis completed, but the structured presentation "
+                            "was incomplete."
+                        ),
+                        narrative=findings,
+                        caveats=["The turn deadline left no time for a second formatting attempt."],
+                    )
                 try:
                     response = client.chat.completions.create(**kwargs)
                 except Exception as error:
@@ -3666,8 +3823,8 @@ Tables actually read this run:
         tool's own words, "descriptions and definitions, not data", and the model
         was asked to plot all three. It called `new_plot` with an empty `data`,
         the chart gate rejected that as a malformed spec, and the step went amber
-        with `'data' must be a non-empty list of Plotly trace objects` -- a run
-        that had answered the question correctly, reported as one that broke.
+        with a renderer-specific validation error -- a run that had answered the
+        question correctly, reported as one that broke.
         See `RunLog.plot_evidence`.
         """
 
@@ -3726,6 +3883,7 @@ Statements run, for column names and grain:
                     max_tokens=self.settings.max_output_tokens,
                     tools=[NEW_PLOT_TOOL],
                     tool_choice="auto",
+                    timeout=max(1.0, log.remaining),
                 )
                 calls = getattr(response.choices[0].message, "tool_calls", None) or []
             except Exception as error:
@@ -3747,13 +3905,33 @@ Statements run, for column names and grain:
                 except json.JSONDecodeError as error:
                     rejected.append(f"the spec was not valid JSON ({error})")
                     continue
-                # An explicit null is the model declining the optional outcome in
-                # tool-call form. This endpoint has produced `data: null` when the
-                # package is narrative rather than chartable, despite the brief
-                # asking it not to call the tool. Recognise that sentinel before
-                # chart validation. A missing `data` key still reaches `new_plot`
-                # below and remains a malformed response.
-                if "data" in arguments and arguments["data"] is None:
+                outcome = arguments.get("outcome")
+                if outcome == "not_applicable":
+                    empty.append("no figures were applicable")
+                    continue
+                if outcome not in {None, "chart"}:
+                    rejected.append("the chart response used an unknown outcome")
+                    continue
+
+                has_spec = "spec" in arguments and arguments["spec"] is not None
+                has_legacy_data = "data" in arguments and arguments["data"] is not None
+                if outcome == "chart" and not (has_spec or has_legacy_data):
+                    # The model explicitly promised a chart, so a null/missing payload
+                    # is malformed rather than an optional decline.
+                    rejected.append("a chart was requested without a usable specification")
+                    continue
+                if outcome is None and (
+                    ("data" in arguments and arguments["data"] is None)
+                    or ("spec" in arguments and arguments["spec"] is None)
+                ):
+                    # Compatibility with endpoints that express an optional decline as
+                    # null without the renderer-neutral outcome field.
+                    empty.append("no figures were applicable")
+                    continue
+                if not (has_spec or has_legacy_data):
+                    # No renderer payload and no explicit chart intent is the same
+                    # optional decline as making no tool call. This is the path that
+                    # previously turned a missing key into `NoneType` at validation.
                     empty.append("no figures were applicable")
                     continue
                 try:
@@ -3762,6 +3940,7 @@ Statements run, for column names and grain:
                         arguments.get("layout"),
                         title=str(arguments.get("title") or ""),
                         chart_id=f"chart-{len(charts) + 1}",
+                        spec=arguments.get("spec"),
                     )
                     if chart_types == "bar" and chart.kind != "bar":
                         rejected.append(
@@ -3804,11 +3983,10 @@ Statements run, for column names and grain:
                 #
                 # The reason is `EmptyChartError`'s own sentence and nothing is
                 # wrapped around it. It used to be quoted inside "found no chartable
-                # data in the result set (...)", which put the validator's demand --
-                # "`data` must be a non-empty list of Plotly trace objects" -- in
-                # front of a reader whose answer was correct. Green with that
-                # sentence under it still reads as a breakage, because that sentence
-                # is what a breakage looked like.
+                # data in the result set (...)", which put a renderer-specific
+                # validator demand in front of a reader whose answer was correct.
+                # Green with that sentence under it still reads as a breakage,
+                # because that sentence is what a breakage looked like.
                 note = "Charts were not applicable for this answer."
                 status = "complete"
             else:
@@ -4486,6 +4664,7 @@ Tables available to this analysis, with their columns:
         plottable_evidence = log.plot_evidence()
         if (
             plottable_evidence
+            and log.remaining >= 5.0
             and runtime_settings.current().answer.charts
             and runtime_settings.current().answer.max_charts > 0
         ):

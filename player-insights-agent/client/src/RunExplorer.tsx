@@ -64,7 +64,7 @@ import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import {
   conversationFilterOptions,
-  conversationRunTitle,
+  conversationRunNumber,
   KPI_HINTS,
   toolStageDurationMs,
 } from './run-explorer-state';
@@ -413,7 +413,8 @@ export function RunExplorer() {
         <div className="run-detail">
           <RunHeader
             run={selected}
-            title={conversationRunTitle(runs, selected)}
+            conversationId={selected?.conversation_id ?? undefined}
+            conversationRun={conversationRunNumber(runs, selected)}
             toolCalls={agentToolCalls}
             reference={isReference}
             groundedness={groundedness}

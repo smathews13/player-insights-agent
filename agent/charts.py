@@ -1,8 +1,12 @@
-"""The `new_plot` tool: Plotly specifications built from whatever the query returned.
+"""The `new_plot` tool: renderer-neutral chart specifications built from query results.
 
-The model decides *what* to plot and supplies Plotly `data` traces plus an optional
-`layout`; this module owns validation, the DuBois palette and the layout defaults.
-The app renders the resulting spec with Plotly.js in the browser.
+The model decides *what* to plot and supplies a small semantic chart contract. This
+module validates that contract, adapts it to Plotly, and owns the DuBois palette and
+layout defaults. The app renders the resulting spec with Plotly.js in the browser.
+
+Legacy Plotly `data` and `layout` arguments remain accepted at the adapter boundary so
+stored prompts and compatible endpoints keep working. They are an implementation detail,
+not the semantic condition for a completed answer.
 
 Nothing here knows what the data is about. Series names, axis titles, categories and
 units all arrive from the model, which reads them off the result set, so the tool
@@ -206,21 +210,21 @@ class EmptyChartError(ChartError):
     cases are not the same event as a malformed spec and must not be badged like
     one. A model that has decided there is nothing to draw still has to call the
     tool it was given -- `data` is required -- so it sends `data: []`, and that
-    arrived in the trace as "Rejected: `data` must be a non-empty list of Plotly
-    trace objects" under an amber step, which reads as a chart that broke rather
-    than a dataset that held no series. Callers treat this as a decline; every
-    other `ChartError` stays a rejection.
+    arrived in the trace as a renderer-specific validation error under an amber
+    step, which reads as a chart that broke rather than a dataset that held no
+    series. Callers treat this as a decline; every other `ChartError` stays a
+    rejection.
 
     THE MESSAGE IS THE SENTENCE THE READER GETS, so these two read as accounts of
     what happened rather than as instructions to whoever sent the spec. The
     rejection messages are the other way round -- they name what the spec must be
     -- because that is a fault report and this is not. A decline whose text was
-    still "`data` must be a non-empty list of Plotly trace objects" put the
-    validator's demand in front of a reader whose answer was fine, and that
-    sentence is the one they had already learnt to read as a breakage.
+    still a renderer-specific demand put the validator in front of a reader
+    whose answer was fine, and that sentence is the one they had already learnt
+    to read as a breakage.
 
-    A WRONG SHAPE IS NOT AN EMPTY ONE. `data` arriving as a dict, a string or null
-    is a rejection, not a decline: see `_validate`.
+    A WRONG SHAPE IS NOT AN EMPTY ONE. A dict or a JSON string in the legacy `data`
+    slot is a rejection, not a decline. `None` is the established no-chart sentinel.
     """
 
 
@@ -317,7 +321,7 @@ def _validate(data: Any, layout: dict[str, Any]) -> list[dict[str, Any]]:
     # A LIST THAT IS EMPTY AND A THING THAT IS NOT A LIST ARE DIFFERENT EVENTS, and
     # they used to share this line and this message. `data: []` is a model with
     # nothing to draw obeying a required argument, which is a decline. Anything
-    # else in that slot -- a dict, a JSON string of a list, a null -- is a spec in
+    # else in that slot -- a dict or a JSON string of a list -- is a spec in
     # the wrong shape, which is a fault worth seeing: reported as a decline it
     # would be filed as "the data held no series" and nobody would ever look for
     # the serialization bug behind it. The step's amber no longer reaches the run's
@@ -325,8 +329,7 @@ def _validate(data: Any, layout: dict[str, Any]) -> list[dict[str, Any]]:
     # this to keep a correct answer from reading as a broken one.
     if not isinstance(data, list):
         raise ChartError(
-            "`data` must be a list of Plotly trace objects, and arrived as "
-            f"{type(data).__name__}."
+            f"`data` must be a list of chart series objects, and arrived as {type(data).__name__}."
         )
     if not data:
         raise EmptyChartError("the plotting step sent no traces, so there was nothing to draw")
@@ -345,7 +348,7 @@ def _validate(data: Any, layout: dict[str, Any]) -> list[dict[str, Any]]:
     traces: list[dict[str, Any]] = []
     for trace in data:
         if not isinstance(trace, dict):
-            raise ChartError("Every entry in `data` must be a Plotly trace object.")
+            raise ChartError("Every entry in `data` must be a chart series object.")
         traces.append(dict(trace))
 
     unsupported = sorted({_trace_type(t) for t in traces} - SUPPORTED_TRACE_TYPES)
@@ -362,10 +365,68 @@ def _validate(data: Any, layout: dict[str, Any]) -> list[dict[str, Any]]:
                 "aggregate the result set before plotting it."
             )
     if not any(_point_count(trace) for trace in traces):
-        raise EmptyChartError(
-            "no trace carried any data points, so there was nothing to draw"
-        )
+        raise EmptyChartError("no trace carried any data points, so there was nothing to draw")
     return traces
+
+
+def _semantic_spec(spec: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Translate the renderer-neutral chart contract into Plotly at the last boundary."""
+
+    if not isinstance(spec, dict):
+        raise ChartError("The chart specification must be an object.")
+
+    kind = str(spec.get("kind") or "").strip().lower()
+    if kind not in {"bar", "line", "scatter", "histogram", "pie", "box"}:
+        raise ChartError("The chart specification names an unsupported chart kind.")
+
+    series = spec.get("series")
+    if not isinstance(series, list):
+        raise ChartError("The chart specification must include a series list.")
+    if not series:
+        raise EmptyChartError("the chart recommendation contained no series")
+
+    traces: list[dict[str, Any]] = []
+    for item in series:
+        if not isinstance(item, dict):
+            raise ChartError("Each chart series must be an object.")
+        trace: dict[str, Any] = {}
+        name = item.get("name")
+        if isinstance(name, str) and name.strip():
+            trace["name"] = name.strip()
+
+        if kind in {"bar", "line", "scatter"}:
+            if not isinstance(item.get("x"), list) or not isinstance(item.get("y"), list):
+                raise ChartError(f"Each {kind} series must include x and y lists.")
+            trace.update({"type": "scatter" if kind in {"line", "scatter"} else "bar"})
+            trace.update({"x": item["x"], "y": item["y"]})
+            if kind == "line":
+                trace["mode"] = "lines"
+            elif kind == "scatter":
+                trace["mode"] = "markers"
+        elif kind == "pie":
+            if not isinstance(item.get("labels"), list) or not isinstance(item.get("values"), list):
+                raise ChartError("Each pie series must include labels and values lists.")
+            trace.update({"type": "pie", "labels": item["labels"], "values": item["values"]})
+        else:
+            values = item.get("values")
+            if not isinstance(values, list):
+                raise ChartError(f"Each {kind} series must include a values list.")
+            trace.update({"type": kind, "x" if kind == "histogram" else "y": values})
+        traces.append(trace)
+
+    layout: dict[str, Any] = {}
+    x_title = spec.get("x_title")
+    y_title = spec.get("y_title")
+    if isinstance(x_title, str) and x_title.strip():
+        layout["xaxis"] = {"title": {"text": x_title.strip()}}
+    if isinstance(y_title, str) and y_title.strip():
+        layout["yaxis"] = {"title": {"text": y_title.strip()}}
+    stacking = str(spec.get("stacking") or "").strip().lower()
+    if stacking:
+        if kind != "bar" or stacking not in {"group", "stack", "relative"}:
+            raise ChartError("The chart specification uses an unsupported stacking mode.")
+        layout["barmode"] = stacking
+    return traces, layout
 
 
 def _paint(traces: list[dict[str, Any]]) -> None:
@@ -861,18 +922,24 @@ def _kind(traces: list[dict[str, Any]]) -> str:
 
 
 def new_plot(
-    data: Any,
+    data: Any = None,
     layout: dict[str, Any] | None = None,
     title: str = "",
     chart_id: str = "chart",
+    spec: Any = None,
 ) -> Chart:
-    """Validate one Plotly spec, apply the DuBois palette and layout, and return a `Chart`.
+    """Validate one chart recommendation and adapt it to the current renderer.
 
     Raises `ChartError` with a message the model can act on. Callers treat a failed chart
     as a missing chart, never as a failed answer.
     """
 
     supplied_layout = dict(layout) if isinstance(layout, dict) else {}
+    if spec is not None:
+        data, semantic_layout = _semantic_spec(spec)
+        supplied_layout = _merge(semantic_layout, supplied_layout)
+    elif data is None:
+        raise EmptyChartError("the plotting step found no applicable chart")
     traces = _validate(data, supplied_layout)
     _paint(traces)
     _wrap_category_ticks(traces)
@@ -896,35 +963,58 @@ def new_plot(
     )
 
 
-# The tool as the model sees it. Kept beside the implementation so the description and
-# what `new_plot` actually accepts cannot drift apart.
+# The tool as the model sees it. Plotly is deliberately absent: renderer translation is
+# an application concern, not a requirement the model must satisfy.
 NEW_PLOT_TOOL = {
     "type": "function",
     "function": {
         "name": "new_plot",
         "description": (
-            "Render one chart from the data you already have. Pass `data` (a list of "
-            "Plotly.js trace objects) and optionally `layout` and `title`. One panel per "
-            "call. Call it again for a second chart. Supported trace types: bar (grouped "
-            "or stacked via layout.barmode), scatter (set mode to lines for a line or time "
-            "series), histogram, pie, box. Do not set colours; they are applied "
-            "automatically. Do not set the legend position, tick angles, or margins; the "
-            "figure works those out from the labels it ends up drawing. Do not use "
-            "layout.grid or layout.updatemenus."
+            "Recommend one optional chart from the data you already have. Use outcome "
+            "`chart` with a renderer-neutral `spec`, or outcome `not_applicable` when a "
+            "tool response is required but no chart is warranted. One panel per call. "
+            "Call it again for a second chart."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {"type": "object"},
-                    "description": "Plotly.js data: a list of trace objects.",
+                "outcome": {
+                    "type": "string",
+                    "enum": ["chart", "not_applicable"],
+                    "description": "Whether this answer warrants a chart.",
                 },
-                "layout": {
+                "spec": {
                     "type": "object",
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": ["bar", "line", "scatter", "histogram", "pie", "box"],
+                        },
+                        "series": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "x": {"type": "array"},
+                                    "y": {"type": "array"},
+                                    "labels": {"type": "array"},
+                                    "values": {"type": "array"},
+                                },
+                            },
+                        },
+                        "x_title": {"type": "string"},
+                        "y_title": {"type": "string"},
+                        "stacking": {
+                            "type": "string",
+                            "enum": ["group", "stack", "relative"],
+                        },
+                    },
+                    "required": ["kind", "series"],
                     "description": (
-                        "Plotly.js layout. Set axis titles and barmode here; leave "
-                        "colours, fonts, margins, legend position and tick angles alone."
+                        "Renderer-neutral chart meaning. For bar, line, and scatter, each "
+                        "series has x and y. For pie, use labels and values. For histogram "
+                        "and box, use values."
                     ),
                 },
                 "title": {
@@ -932,7 +1022,7 @@ NEW_PLOT_TOOL = {
                     "description": "Short chart title, taken from the result set itself.",
                 },
             },
-            "required": ["data"],
+            "required": ["outcome"],
         },
     },
 }
@@ -945,13 +1035,13 @@ chart(s) by calling new_plot.
 Rules:
 - Plot only values present in the package. Never invent, extrapolate, or round a number.
 - Choose the shape from the result set: a ranked breakdown is a bar chart, a date or \
-period series is a scatter with mode "lines", a distribution is a histogram or box.
+period series is a line chart, a distribution is a histogram or box.
 - A part-of-whole split is a pie only when it has at most {MAX_PIE_SLICES} categories and \
 every category is at least {MIN_PIE_LABEL_SHARE:.0%} of the total. Otherwise plot the \
 shares as a ranked bar chart. A pie with slivers in it hides the small categories and \
 crowds the labels on the big ones; a bar chart of the same shares reads at any count.
-- Several measures over the same categories are several traces on one chart, each with \
-its own `name`. Set layout.barmode to "group" or "stack" when you mean it.
+- Several measures over the same categories are several series on one chart, each with \
+its own `name`. Set `stacking` to "group" or "stack" when you mean it.
 - Take every label from the data itself: series names from the column or category \
 names, axis titles from the measure and its unit, the title from what was asked.
 - A ranked bar chart is sorted for you, largest value first, so send the rows in \
@@ -964,9 +1054,10 @@ many you left out and that they were zero. Never leave out a category that has a
 however small, and never leave one out to sharpen a point.
 - A breakdown where every value is zero is not a chart. Say so in the answer instead.
 - One panel per call. Call new_plot once per chart, at most {MAX_CHARTS} times in \
-total, and not at all if the package holds no plottable rows or only a single scalar.
-- Do not set colours, fonts, margins, figure size, legend position, or tick angles. The \
-figure lays those out from the labels it ends up drawing. Send the labels themselves \
-exactly as they appear in the data; do not shorten or abbreviate a name to make it fit.
+total, and not at all if the package holds no plottable rows or only a single scalar. If \
+the tool interface requires a response, send outcome "not_applicable" without a spec.
+- Describe chart meaning only. The application chooses the renderer, colours, fonts, \
+margins, figure size, legend position, and tick angles. Send labels exactly as they \
+appear in the data; do not shorten or abbreviate a name to make it fit.
 
 Reply with tool calls only; any prose is discarded."""

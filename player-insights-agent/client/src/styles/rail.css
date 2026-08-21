@@ -4,6 +4,12 @@
    block narrows the rail by restating one of them. */
 .ask-layout {
   display: grid;
+  background-color: var(--ast-navy);
+  background-image:
+    radial-gradient(circle at 8% 16%, rgba(255, 255, 255, 0.32) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 42%, rgba(111, 174, 221, 0.28) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 58% 12%, rgba(255, 255, 255, 0.24) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 76% 68%, rgba(111, 174, 221, 0.24) 0 1px, transparent 1.5px);
   /*
    * 264 / fluid / 340, and the asymmetry is the point rather than a slip.
    *
@@ -86,6 +92,8 @@
      what shows behind the thumb. */
   scrollbar-width: thin;
   scrollbar-color: var(--db-line-strong) transparent;
+  background: color-mix(in srgb, var(--ast-navy) 94%, transparent);
+  color: var(--ast-white);
 }
 /* 8px, because the inspector's head is a title with a pill beside it and then the
    run: three things that belong to each other, unlike the rail's three blocks. */
@@ -510,7 +518,7 @@
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: transparent;
+  background: color-mix(in srgb, var(--ast-white) 96%, transparent);
   transition:
     border-color 150ms ease-out,
     background-color 150ms ease-out;
@@ -670,6 +678,22 @@
 .conversation-row.active {
   border-color: var(--primary);
   background: var(--db-selected-tint);
+}
+.conversation-rail > .ast-eyebrow,
+.conversation-rail .section-label-scope {
+  color: var(--ast-text-on-dark-secondary);
+}
+.conversation-rail .conversation-filter-chip.is-all {
+  border-color: rgba(255, 255, 255, 0.38);
+  color: var(--ast-white);
+}
+.conversation-rail .conversation-filter-chip.is-all:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.conversation-rail .conversation-filter-chip.is-all[aria-pressed='true'] {
+  border-color: var(--ast-white);
+  background: var(--ast-white);
+  color: var(--ast-navy);
 }
 .conversation-row.active .conversation-title {
   font-weight: 600;

@@ -200,11 +200,9 @@ describe('buildLiveRun', () => {
     expect(HOME).not.toContain('only once it has finished');
   });
 
-  it('draws no empty line in the phase that now says nothing', () => {
-    // An unguarded `<p>` would keep the panel's 12px gap and leave a blank band
-    // between the animation and the first step, which is the deleted sentence
-    // still taking up its space.
-    expect(PANEL).toContain('{run.detail && <p className="live-progress-detail">{run.detail}</p>}');
+  it('leaves step narration to the Live Agent harness', () => {
+    expect(PANEL).not.toContain('live-progress-detail');
+    expect(PANEL).not.toContain('{run.detail');
   });
 
   it('draws every reported step rather than a sample of them', () => {

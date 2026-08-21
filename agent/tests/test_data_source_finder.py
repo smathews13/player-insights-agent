@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from data_source_finder import FINDER_SYSTEM_PROMPT, DiscoveryRequest
+from data_source_finder import (
+    FINDER_SYSTEM_PROMPT,
+    MAX_FINDER_PACKAGE_CHARS,
+    DiscoveryRequest,
+    compact_finder_package,
+)
 from evidence import EvidenceGateway
 from tests.test_agent import (
     MANIFEST,
@@ -263,3 +268,90 @@ def test_empty_catalog_hit_by_budget_remains_partial():
         "stopped early" in caveat.lower()
         for caveat in response.custom_outputs["answer"]["caveats"]
     )
+
+
+def test_long_data_package_is_compacted_by_more_than_half():
+    long_package = "## DATA PACKAGE\n" + "\n".join(
+        f"- column {index}: quality assessment and repeated provenance detail {'x' * 90}"
+        for index in range(78)
+    )
+
+    compact = compact_finder_package(long_package)
+
+    assert len(long_package) > 6_288
+    assert len(compact) <= MAX_FINDER_PACKAGE_CHARS
+    assert len(compact) < len(long_package) / 2
+    assert "Optional detail was clipped" in compact
+
+
+def test_simple_inventory_uses_only_the_manifest_listing():
+    llm = ScriptedLlm(charts=False)
+    tools = FakeTools()
+
+    response = execute(build(llm, tools), "what data do you have access to")
+
+    assert response.custom_outputs["type"] == "answer"
+    assert len(tools.named("list_data_assets")) == 1
+    assert tools.named("search_tagged_assets") == []
+    assert tools.named("search_semantics") == []
+    assert llm.loop_calls == []
+
+
+def test_finder_tool_budget_does_not_inherit_an_enclosing_trace_count():
+    llm = ScriptedLlm(
+        [Call("data_genie", {"question": "active players"})],
+        "## DATA PACKAGE\n- **Findings / data:** 10 active players.",
+        charts=False,
+    )
+    tools = FakeTools()
+    runtime = build(llm, tools)
+    original = runtime._orchestrate
+
+    def orchestrate(question, history, attachment, log, **kwargs):
+        log.tool_calls = 99  # work attributed to an enclosing envelope
+        return original(question, history, attachment, log, **kwargs)
+
+    runtime.data_source_finder._run = orchestrate
+    execute(runtime, "How many active players are there?")
+
+    assert tools.named("data_genie") == [{"question": "active players"}]
+
+
+def test_deadline_stop_does_not_replay_the_package_in_the_cap_step():
+    result = "metric,value\nsessions,402\nactive_players,371"
+    sql = f"SELECT sessions, active_players FROM {TITLE_DAILY}"
+    verdict = EvidenceGateway(MANIFEST).admit_genie_query("data_genie", sql)
+    llm = ScriptedLlm(
+        [Call("data_genie", {"question": "launch spike"})],
+        charts=False,
+    )
+    tools = FakeTools(
+        data_genie=ToolResult(
+            text=result,
+            sql=sql,
+            sources=[TITLE_DAILY],
+            verdicts=(verdict,),
+        )
+    )
+    runtime = build(llm, tools)
+    original = runtime._orchestrate
+
+    def orchestrate(question, history, attachment, log, **kwargs):
+        generated = original(question, history, attachment, log, **kwargs)
+        while True:
+            try:
+                event = next(generated)
+            except StopIteration as stopped:
+                return stopped.value
+            yield event
+            if getattr(event, "id", "") == "step-1-1-data_genie":
+                log.started -= 100
+
+    runtime.data_source_finder._run = orchestrate
+    response = execute(runtime, "Show the launch spike.")
+    trace = response.custom_outputs["answer"]["trace"]["stages"]
+    cap = next(stage for stage in trace if stage["id"] == "cap")
+
+    assert cap["status"] == "complete"
+    assert result not in cap["output"]
+    assert "without another model call" in cap["output"]

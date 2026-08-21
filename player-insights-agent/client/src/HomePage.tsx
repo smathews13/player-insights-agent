@@ -1694,7 +1694,6 @@ export function HomePage() {
               astrolabe player intelligence
             </div>
             <h2>What would you like to understand about your players?</h2>
-            <p>Ask in plain language. The agent finds governed data, checks definitions, and explains the answer.</p>
             <div className="prompt-grid">
               {[
                 'Compare active players by title over the last 30 days.',

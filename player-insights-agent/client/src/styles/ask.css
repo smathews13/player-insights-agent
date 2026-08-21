@@ -28,11 +28,9 @@
   /* Was a translucent vertical gradient over a radial pool, both decorative and
      both gone: DuBois pages are a solid surface and the transcript's cards do the
      separating. */
-  background: var(--background);
+  background: transparent;
 }
-/* Wide enough for the suggestion grid and the composer, both of which cap at 720px;
-   the headline and the support line cap themselves tighter than that, so the hero
-   narrows towards the middle rather than filling one width. */
+/* Wide enough for the suggestion grid and the composer, both of which cap at 720px. */
 .ask-hero {
   width: 100%;
   max-width: 720px;
@@ -95,19 +93,9 @@
   letter-spacing: -0.015em;
   margin: 0 auto;
   max-width: 640px;
-  color: var(--db-ink);
+  color: var(--ast-white);
   font-weight: 700;
   text-wrap: pretty;
-}
-/* This rule carried two `color` declarations, so the token on the first was dead
-   and the hardcoded grey under it was what painted. One colour now, and it is the
-   app's secondary text token: 5.02:1 on white. */
-.ask-hero > p {
-  font-size: var(--text-base);
-  line-height: 1.55;
-  color: var(--db-slate);
-  max-width: 520px;
-  margin: 12px auto 0;
 }
 .prompt-grid {
   display: grid;

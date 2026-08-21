@@ -55,12 +55,12 @@ export const KPI_HINTS = {
   userRating: 'What a person scored this answer out of five, or Not rated when nobody has scored it yet.',
 } as const;
 
-export function conversationRunTitle(runs: readonly Run[], selected: Run | null): string | undefined {
+export function conversationRunNumber(runs: readonly Run[], selected: Run | null): number | undefined {
   if (!selected?.conversation_id) return undefined;
   const chronological = [...runs].reverse();
   const inConversation = chronological.filter((run) => run.conversation_id === selected.conversation_id);
   const run = inConversation.findIndex((item) => item.id === selected.id) + 1;
-  return run > 0 ? `Conversation ${selected.conversation_id}, Run ${run}` : undefined;
+  return run > 0 ? run : undefined;
 }
 
 const CONVERSATION_SUMMARY_LIMIT = 56;

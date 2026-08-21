@@ -24,6 +24,12 @@
   letter-spacing: -0.01em;
   margin: 0 0 2px;
 }
+.run-explorer {
+  /* Recorded result tables benefit from the available desktop width. The shell
+     still contracts fluidly below this cap and the narrow breakpoint stacks the
+     run list above the detail. */
+  max-width: 1760px;
+}
 /* There was an eyebrow above the h2 here, reading PROGRESSIVE TRACE DISCLOSURE,
    with a grid wrapper to close the page gap under it. It named the mechanism the
    page is built on rather than the page, which is the one thing an eyebrow may
@@ -424,6 +430,32 @@
   gap: 8px;
   margin-top: 6px;
   min-width: 0;
+}
+/* Conversation context is compact and distinct from status. Both values use
+   the navy identity treatment; the conversation badge copies the full id while
+   showing only the shared six-character display prefix. */
+.run-context-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--ast-navy);
+  border-radius: var(--radius-sm);
+  background: var(--ast-navy);
+  color: var(--ast-white);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+button.run-context-badge {
+  cursor: pointer;
+}
+button.run-context-badge:hover {
+  background: color-mix(in srgb, var(--ast-navy) 90%, var(--ast-white));
+}
+.run-context-badge > svg {
+  width: 12px;
+  height: 12px;
 }
 /*
  * The id, as much of it as is worth showing.

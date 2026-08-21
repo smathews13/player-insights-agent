@@ -320,25 +320,12 @@
    * above exists to prevent, and it is why "give Ask PIA more padding" was not a
    * one-number change until now. It is one now.
    *
-   * The figures are raised from that clamp, which is the reported defect: the
-   * transcript's cards sat close enough to the rail's hairline to read as
-   * touching it. The floor moves 28 -> 40 so the narrow end is no longer the
-   * tight one, and the growth rate matches `.page-shell`'s 4vw so this page
-   * insets its contents the way the other four do rather than on a rate of its
-   * own. The ceiling clears 64 so a wide window gains from it too.
-   *
-   * NOT A SOURCE OF COLUMN WIDTH. Raising this narrows the transcript, because
-   * the middle column is whatever the two 264px rails leave. Making the column
-   * itself wider means taking width from one of them, which is a design decision
-   * with a test on it -- see `--trace-width` on `.ask-layout` in rail.css, and
-   * `.brand-lockup` in shell.css for why the rail's own width cannot move
-   * without moving the first nav tab with it.
-   *
-   * The floor moves 40 -> 48 because 40 is the figure a narrow window actually
-   * gets and it is the one that was reported as cramped. The rate and the ceiling
-   * are untouched: past about 1200px the clamp is already giving more than this.
+   * The second feedback wave asks the result tables to use the large unused
+   * margin. The gutters therefore give back room at every desktop width while
+   * remaining fluid: 24px is enough separation from either rail, 2.5vw grows
+   * gently, and 48px caps decorative space before it starts squeezing data.
    */
-  --conversation-inset: clamp(48px, 4vw, 72px);
+  --conversation-inset: clamp(24px, 2.5vw, 48px);
 
   /*
    * The widest the transcript itself is allowed to be, as opposed to the column
@@ -354,14 +341,12 @@
    * different faults wearing one sentence: the reading measure was unbounded at
    * the wide end and the gutter was thin at the narrow end.
    *
-   * 880px is wider than the 720px the hero and composer cap at -- an answer
-   * carries tables, charts and a source list, and is entitled to more measure
-   * than a prompt box -- and short enough that a line of body copy stays
-   * readable. Everything past it becomes margin, which is where the width for
-   * a wider rail comes from: NOT from the answer column, which keeps every pixel
-   * it has at every width a laptop is likely to be.
+   * 1120px is wider than the 720px the hero and composer cap at because an
+   * answer carries tables, charts and a source list. Body prose remains inside
+   * surfaced cards; result tables use the extra measure and keep their own
+   * horizontal scroller when their natural width is larger still.
    */
-  --conversation-measure: 880px;
+  --conversation-measure: 1120px;
 
   /* ---- appkit-ui / shadcn semantic mapping ---- */
   --background: #ffffff;

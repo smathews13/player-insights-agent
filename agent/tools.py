@@ -25,6 +25,7 @@ from databricks.sdk.service.sql import ExecuteStatementRequestOnWaitTimeout
 
 import evidence
 import failures
+import runtime_settings
 from config import Settings, format_genie_space
 from evidence import EvidenceGateway, EvidenceRefused, Verdict
 
@@ -816,6 +817,7 @@ class PlayerInsightTools:
         """
 
         started = time.perf_counter()
+        deadline = started + min(GENIE_TIMEOUT_SECONDS, runtime_settings.remaining_seconds())
         wait = self.workspace.genie.start_conversation(space_id, question)
         status: Any = None
         poll = GENIE_FIRST_POLL_SECONDS
@@ -832,10 +834,12 @@ class PlayerInsightTools:
                     f"{time.perf_counter() - started:.0f}s: "
                     f"{getattr(message, 'error', None) or 'no detail was returned'}."
                 )
-            if time.perf_counter() - started >= GENIE_TIMEOUT_SECONDS:
+            if time.perf_counter() >= deadline:
                 name = getattr(status, "value", status)
+                allowed = max(0.0, deadline - started)
                 raise TimeoutError(
-                    f"Genie did not answer within {GENIE_TIMEOUT_SECONDS:.0f}s; it was still "
+                    f"Genie did not answer within the {allowed:.0f}s remaining turn budget; "
+                    "it was still "
                     f"{name or 'working'}. "
                     + _GENIE_STALL_HINTS.get(status, "Try a narrower question or run SQL.")
                 )
@@ -848,7 +852,7 @@ class PlayerInsightTools:
             # which is what keeps the new schedule a refinement of the old one
             # rather than a different one that is sometimes worse.
             next_on_grid = ((int(elapsed // cap) + 1) * cap - elapsed) if cap > 0 else 0.0
-            time.sleep(max(0.0, min(poll, next_on_grid)))
+            time.sleep(max(0.0, min(poll, next_on_grid, deadline - time.perf_counter())))
             poll *= 2
 
     def _genie_rows(
@@ -1266,10 +1270,12 @@ class PlayerInsightTools:
 
         with mlflow.start_span(name=span_name, span_type="TOOL") as span:
             span.set_inputs({"sql": sql})
+            remaining = max(1, int(runtime_settings.remaining_seconds()))
+            wait_timeout = f"{min(30, remaining)}s"
             response = self.workspace.statement_execution.execute_statement(
                 warehouse_id=self.settings.warehouse_id,
                 statement=sql,
-                wait_timeout=SQL_WAIT_TIMEOUT,
+                wait_timeout=wait_timeout,
                 on_wait_timeout=ExecuteStatementRequestOnWaitTimeout.CANCEL,
             )
             failure = statement_failure(response)

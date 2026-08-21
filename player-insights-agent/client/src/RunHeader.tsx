@@ -30,16 +30,19 @@ import { runLabel } from './run-label';
 import { reportEgress } from './egress-policy';
 import type { Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
+import { abbreviatedConversationId } from './display-id';
 
 export function RunHeader({
   run,
-  title,
+  conversationId,
+  conversationRun,
   toolCalls,
   reference,
   groundedness,
 }: {
   run: Run | null;
-  title?: string;
+  conversationId?: string;
+  conversationRun?: number;
   /** The agent's own call counter, from the trace rather than from the row. */
   toolCalls: number | null;
   reference: boolean;
@@ -49,13 +52,30 @@ export function RunHeader({
   const family = statusFamily(run?.status);
   return (<div className="run-detail-head">
       <div className="min-w-0">
-        <h3 className="run-detail-title">{run ? (title ?? runLabel(run)) : 'Select a run'}</h3>
+        <h3 className="run-detail-title">{run ? runLabel(run) : 'Select a run'}</h3>
         {/* Only when there is a run to describe. With nothing selected this row
             used to carry "Pick a run from the list to inspect its trace." -- the
             same sentence the empty state below it prints, under a heading that
             already says "Select a run", so one instruction was given three times
             in one column. */}
         {run && (<div className="run-detail-ident">
+            {conversationId && (
+              <button
+                type="button"
+                className="run-context-badge"
+                title={`Conversation ${conversationId}`}
+                aria-label={`Copy full conversation id ${conversationId}`}
+                onClick={() => void navigator.clipboard?.writeText(conversationId)}
+              >
+                Conversation <span className="ast-num">{abbreviatedConversationId(conversationId)}</span>
+                <Copy aria-hidden="true" />
+              </button>
+            )}
+            {conversationRun !== undefined && (
+              <span className="run-context-badge" title={`Run ${conversationRun} in this conversation`}>
+                Run <span className="ast-num">{conversationRun}</span>
+              </span>
+            )}
             <button
               type="button"
               className="run-id-chip"

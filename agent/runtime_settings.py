@@ -7,6 +7,7 @@ older app builds remain compatible.
 
 from __future__ import annotations
 
+import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
@@ -54,6 +55,8 @@ class RuntimeSettings:
 
 
 _current: ContextVar[RuntimeSettings | None] = ContextVar("runtime_settings", default=None)
+_turn_started: ContextVar[float] = ContextVar("turn_started", default=0.0)
+_turn_deadline: ContextVar[float] = ContextVar("turn_deadline", default=0.0)
 
 
 def _integer(value: Any, default: int, low: int, high: int) -> int:
@@ -77,10 +80,13 @@ def _string(value: Any, default: str, limit: int) -> str:
 def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
     """Validate and activate settings for the current invocation."""
 
+    started = time.perf_counter()
     raw = custom_inputs.get("runtime_settings")
     if not isinstance(raw, dict):
         value = RuntimeSettings()
         _current.set(value)
+        _turn_started.set(started)
+        _turn_deadline.set(started + value.loop.max_run_seconds)
         return value
     loop = raw.get("loop") if isinstance(raw.get("loop"), dict) else {}
     answer = raw.get("answer") if isinstance(raw.get("answer"), dict) else {}
@@ -138,11 +144,28 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
         ),
     )
     _current.set(value)
+    _turn_started.set(started)
+    _turn_deadline.set(started + value.loop.max_run_seconds)
     return value
 
 
 def current() -> RuntimeSettings:
     return _current.get() or RuntimeSettings()
+
+
+def turn_started() -> float:
+    """The one monotonic origin for this request's execution budget."""
+
+    return _turn_started.get() or time.perf_counter()
+
+
+def remaining_seconds() -> float:
+    """Time left on the single request deadline, never negative."""
+
+    deadline = _turn_deadline.get()
+    if not deadline:
+        return float(current().loop.max_run_seconds)
+    return max(0.0, deadline - time.perf_counter())
 
 
 def today_line(timezone: str = "", *, now: datetime | None = None) -> str:
@@ -197,7 +220,11 @@ def prompt_fragment(*, now: datetime | None = None) -> str:
     if settings.answer.figures_order != "as-ranked":
         lines.append(f"- figure order={settings.answer.figures_order}")
     if settings.answer.charts_types != "auto":
-        chart_rule = "bar charts only" if settings.answer.charts_types == "bar" else "bar or line charts only"
+        chart_rule = (
+            "bar charts only"
+            if settings.answer.charts_types == "bar"
+            else "bar or line charts only"
+        )
         lines.append(f"- chart types={settings.answer.charts_types}; produce {chart_rule}")
     if settings.behavior.inject_current_date:
         # Explicit UI/request opt-in keeps a second labeled reminder for operators

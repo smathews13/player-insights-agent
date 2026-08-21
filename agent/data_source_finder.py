@@ -17,6 +17,39 @@ import mlflow
 
 FINDER_ATTACHMENT_BEGIN = "----- BEGIN UNTRUSTED FINDER ATTACHMENT -----"
 FINDER_ATTACHMENT_END = "----- END UNTRUSTED FINDER ATTACHMENT -----"
+MAX_FINDER_PACKAGE_CHARS = 3_200
+MAX_FINDER_PACKAGE_LINES = 40
+
+
+def compact_finder_package(text: str) -> str:
+    """Bound the internal handoff without changing its grounded findings.
+
+    The package is fed to another model and persisted in several trace fields, so
+    its useful unit is a compact handoff, not an analyst report. Keep the model's
+    order (findings are required before optional detail), collapse blank space,
+    and make any mechanical clipping explicit.
+    """
+
+    lines: list[str] = []
+    blank = False
+    for raw in (text or "").splitlines():
+        line = raw.rstrip()
+        if not line:
+            if lines and not blank:
+                lines.append("")
+            blank = True
+            continue
+        blank = False
+        lines.append(line)
+        if len(lines) >= MAX_FINDER_PACKAGE_LINES:
+            break
+    compact = "\n".join(lines).strip()
+    clipped = len(lines) < len((text or "").splitlines()) or len(compact) > MAX_FINDER_PACKAGE_CHARS
+    compact = compact[:MAX_FINDER_PACKAGE_CHARS].rstrip()
+    if clipped:
+        note = "\n\n- **Package note:** Optional detail was clipped at the DSF handoff bound."
+        compact = compact[: MAX_FINDER_PACKAGE_CHARS - len(note)].rstrip() + note
+    return compact
 
 GEOGRAPHY_INSTRUCTIONS = """# Geography contract
 Apply these rules whenever the request or evidence involves a country, region, market,
@@ -104,21 +137,30 @@ return a CLEAN, ASSESSED DATA PACKAGE. You never present the final answer to the
    answer source where possible. Do not repeat this for every discovered candidate.
 6. As soon as the selected source can answer the intent, assemble one assessed package.
 
+# Compact output contract
+- This is an internal handoff, not a report. Keep the whole package under 3,200
+  characters and 40 lines. Never repeat the same fact in multiple sections.
+- Include at most 8 answer-relevant columns and 3-5 representative aggregate rows.
+- Provenance is one compact line per query. Quality and caveats include only conditions
+  that can change the answer or its safe use; omit routine successful checks.
+- Put required findings first. Do not emit full column-quality inventories, long prose,
+  raw records, or a second narrative interpretation.
+
 # Output — end with EXACTLY ONE of these, nothing after it
 
 ## DATA PACKAGE
 - **Interpretation:** one line stating what the request means.
 - **Sources used:** tools/spaces and fully-qualified tables actually read; explain how
   dictionary_genie informed an interpretation when used.
-- **Columns:** for every relevant field: table_name · column_name · data_type ·
+- **Columns:** for at most 8 answer-relevant fields: table_name · column_name · data_type ·
   description (mark inferred where applicable) · null_ratio · quality_warning (or
   none). Include every `asked: X → used: Y` mapping.
-- **Findings / data:** compact concrete figures plus a real Markdown table of 3-10
+- **Findings / data:** compact concrete figures plus a real Markdown table of 3-5
   representative aggregate or non-identifying sample rows where possible, with
   identifier and grain stated. Do not dump raw records or replace available rows with
   bullets alone.
-- **Provenance:** statements or governed query provenance available from the tools.
-- **Quality assessment:** checks performed and their results.
+- **Provenance:** one compact line per query; do not restate findings.
+- **Quality assessment:** only checks whose result changes confidence or use.
 - **Caveats & rules applied:** governance, geography, migration, addressability, or
   interpretation constraints.
 - **Gaps:** anything missing, refused, failed, partial, or uncertain. Distinguish blockers
@@ -221,9 +263,14 @@ class DataSourceFinderAgent:
                 parent_id=parent.id,
                 depth=depth + 1,
             )
+            package = compact_finder_package(
+                getattr(outcome, "answer_text", "") or getattr(outcome, "capped", "")
+            )
+            if getattr(outcome, "answer_text", ""):
+                outcome.answer_text = package
             span.set_outputs(
                 {
-                    "package_chars": len(getattr(outcome, "answer_text", "") or ""),
+                    "package_chars": len(package),
                     "clarification": getattr(outcome, "clarification", None) is not None,
                 }
             )
@@ -231,8 +278,8 @@ class DataSourceFinderAgent:
                 summary = getattr(outcome.clarification, "question", "")
                 status = "partial"
             else:
-                summary = getattr(outcome, "answer_text", "") or getattr(outcome, "capped", "")
-                status = "partial" if getattr(outcome, "capped", "") else "complete"
+                summary = package
+                status = "partial" if getattr(outcome, "complete", None) is False else "complete"
             yield log.close_stage(parent, started, summary, status)
             return outcome
 

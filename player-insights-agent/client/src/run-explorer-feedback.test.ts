@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   KPI_HINTS,
   conversationFilterOptions,
-  conversationRunTitle,
+  conversationRunNumber,
   conversationSummary,
   toolStageDurationMs,
 } from './run-explorer-state';
@@ -132,7 +132,7 @@ describe('Run Explorer feedback', () => {
       run('c1-r2', 'c1', '2026-08-19T02:00:00Z'),
       run('c1-r1', 'c1', '2026-08-19T01:00:00Z'),
     ];
-    expect(conversationRunTitle(runs, runs[1])).toBe('Conversation c1, Run 2');
+    expect(conversationRunNumber(runs, runs[1])).toBe(2);
     const conversations: Conversation[] = [
       { id: 'c1', title: 'First', updated_at: '2026-08-19T02:00:00Z' },
       { id: 'c2', title: 'Second', updated_at: '2026-08-19T03:00:00Z' },

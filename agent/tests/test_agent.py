@@ -2876,11 +2876,10 @@ def _plotter(arguments: str) -> type[ScriptedLlm]:
 def test_an_empty_chart_spec_is_a_decline_and_not_a_rejection():
     """`data: []` is the model saying there is nothing to draw. It is not a breakage.
 
-    THE RUN THIS PINS. Ten steps, nine green, and step ten amber reading "No chart
-    rendered. Rejected: `data` must be a non-empty list of Plotly trace objects."
-    The narrative, the figures, the sources and the SQL were all correct: the
-    plotting model had been handed results with no series in them and said so in
-    the only way a required argument allows.
+    THE RUN THIS PINS. Ten steps, nine green, and step ten amber with a
+    renderer-specific validation error. The narrative, the figures, the sources
+    and the SQL were all correct: the plotting model had been handed results with
+    no series in them and said so in the only way a required argument allows.
 
     Two changes made that a green step and neither had a test, which is how the
     same symptom came back twice. This is that test: the step ends complete, its
@@ -2931,6 +2930,69 @@ def test_an_explicit_null_chart_is_the_no_figures_outcome():
     assert plot_stage["output"] == "Charts were not applicable for this answer."
 
 
+def test_an_explicit_not_applicable_outcome_completes_without_a_chart():
+    llm = _plotter('{"outcome": "not_applicable"}')(
+        [Call("data_genie", {"question": "figures"})], "Done."
+    )
+
+    response = ask(build(llm))
+    answer = response.custom_outputs["answer"]
+    plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
+
+    assert answer["takeaway"]
+    assert answer["charts"] == []
+    assert plot_stage["status"] == "complete"
+    assert plot_stage["output"] == "Charts were not applicable for this answer."
+
+
+def test_a_renderer_neutral_chart_spec_is_adapted_and_rendered():
+    llm = _plotter(
+        json.dumps(
+            {
+                "outcome": "chart",
+                "title": "Players by title",
+                "spec": {
+                    "kind": "bar",
+                    "series": [
+                        {
+                            "name": "players",
+                            "x": ["alpha", "beta"],
+                            "y": [12, 7],
+                        }
+                    ],
+                    "y_title": "players",
+                },
+            }
+        )
+    )([Call("data_genie", {"question": "figures"})], "Done.")
+
+    response = ask(build(llm))
+    answer = response.custom_outputs["answer"]
+    plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
+
+    assert answer["charts"][0]["kind"] == "bar"
+    assert answer["charts"][0]["data"][0]["type"] == "bar"
+    assert plot_stage["status"] == "complete"
+    assert plot_stage["output"] == "Rendered 1 chart(s): bar."
+
+
+def test_an_explicit_chart_with_no_spec_stays_a_chart_specific_partial():
+    llm = _plotter('{"outcome": "chart", "spec": null}')(
+        [Call("data_genie", {"question": "figures"})], "Done."
+    )
+
+    response = ask(build(llm))
+    answer = response.custom_outputs["answer"]
+    plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
+
+    assert answer["takeaway"], "the optional chart must not invalidate the answer"
+    assert answer["charts"] == []
+    assert plot_stage["status"] == "partial"
+    assert plot_stage["output"] == (
+        "Charts could not be built because the chart response was incomplete."
+    )
+
+
 def test_a_data_argument_of_the_wrong_shape_stays_a_rejection():
     """A spec in the wrong shape is a fault to see, not a dataset with no series.
 
@@ -2956,16 +3018,17 @@ def test_a_data_argument_of_the_wrong_shape_stays_a_rejection():
     assert "dict" not in plot_stage["output"]
 
 
-def test_a_missing_data_argument_stays_a_plain_english_failure():
+def test_a_missing_chart_payload_is_an_optional_decline_without_explicit_intent():
     llm = _plotter("{}")([Call("data_genie", {"question": "figures"})], "Done.")
 
     response = ask(build(llm))
+    answer = response.custom_outputs["answer"]
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
-    assert plot_stage["status"] == "partial"
-    assert plot_stage["output"] == (
-        "Charts could not be built because the chart response was incomplete."
-    )
+    assert answer["takeaway"]
+    assert answer["charts"] == []
+    assert plot_stage["status"] == "complete"
+    assert plot_stage["output"] == "Charts were not applicable for this answer."
 
 
 def test_a_chart_declined_without_a_reason_still_says_that_much():

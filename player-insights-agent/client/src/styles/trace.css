@@ -1071,6 +1071,8 @@
 }
 .trace-dag.map .dag-grid table {
   border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
   font-size: var(--ast-fs-12);
   border: 1px solid var(--ast-hairline);
   border-radius: 6px;
@@ -1084,12 +1086,14 @@
   text-transform: uppercase;
   color: var(--ast-text-secondary);
   padding: 5px 10px;
+  white-space: nowrap;
 }
 .trace-dag.map .dag-grid td {
   border-top: 1px solid var(--ast-hairline);
   padding: 6px 10px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .trace-dag.map .dag-grid-note {
   margin: 4px 0 0;
@@ -1320,8 +1324,14 @@
  * the step to do. The numerals are mono and tabular and right-aligned so a
  * column of them can be compared down its length.
  */
+.trace-dag.map .dag-result-table {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
 .trace-dag.map .dag-result-table table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: var(--ast-fs-12);
 }
@@ -1334,10 +1344,14 @@
   text-transform: uppercase;
   color: var(--ast-text-secondary);
   padding: 5px 8px;
+  white-space: nowrap;
 }
 .trace-dag.map .dag-result-table td {
   border-top: 1px solid var(--ast-hairline);
   padding: 5px 8px;
+}
+.trace-dag.map .dag-result-table td:nth-child(-n + 3) {
+  white-space: nowrap;
 }
 /* The last column is the measured one in every result this panel draws -- a null
    rate, a count, a share -- so it is the one set in figures. */
