@@ -518,11 +518,9 @@
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  /* A high white alpha rather than a flat white, so the rail's navy reads as a
-     faint tinge through the card instead of the card reading as a cut-out. 0.9 is
-     the floor that keeps body text on the card above the contrast the opaque
-     surface had. */
-  background: rgba(255, 255, 255, 0.9);
+  /* Keep the conversation cards on the same solid light surface as the top rail.
+     The navy belongs behind the cards, not in their reading surface. */
+  background: var(--ast-white);
   transition:
     border-color 150ms ease-out,
     background-color 150ms ease-out;
@@ -674,17 +672,12 @@
    rail are gone with every other shadow on a static panel. */
 .conversation-row:hover {
   border-color: var(--primary);
-  /* Hover lifts toward white rather than washing grey: on a translucent card over
-     navy, the legible direction for "under the pointer" is less navy showing
-     through, not more. */
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--db-wash);
 }
-/* Selected keeps the same card surface as the rows around it and changes only the
-   border. It carries a hair less navy than a resting row so the open conversation
-   still sits forward. */
+/* Selected keeps the same solid white card surface and changes only the border. */
 .conversation-row.active {
   border-color: var(--primary);
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--ast-white);
 }
 .conversation-rail > .ast-eyebrow,
 .conversation-rail .section-label-scope {

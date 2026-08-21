@@ -780,7 +780,7 @@ describe('the detail drawer', () => {
 
     const mlflow = rendered.indexOf('Open the MLflow trace');
     const runs = rendered.indexOf('Open in Run Explorer');
-    const person = rendered.indexOf("See this person's activity");
+    const person = rendered.indexOf("see first.person's activity");
     expect(mlflow).toBeGreaterThan(-1);
 
     // Still the same three, still in the same order across the row.
@@ -891,7 +891,35 @@ describe('the detail drawer', () => {
     expect(rendered).not.toContain('Open the MLflow trace');
     // The other two links are unaffected.
     expect(rendered).toContain('Open in Run Explorer');
-    expect(rendered).toContain("See this person's activity");
+    expect(rendered).toContain("see first.person's activity");
+  });
+
+  /**
+   * The link names the asker, in a possessive an English reader would write.
+   * `<your-username>'` and not `<your-username>'s`, because the name already ends in s;
+   * `first.person's` above, because it does not.
+   */
+  it("names the asker in the activity link, apostrophe alone on a name ending in s", () => {
+    const rendered = text(
+      render(
+        <QuestionDrawer detail={detail({ askedBy: '<your-username>@example.test' })} onClose={() => {}} onOpenPerson={() => {}} />
+      )
+    );
+
+    expect(rendered).toContain("see <your-username>' activity");
+    expect(rendered).not.toContain("<your-username>'s activity");
+    expect(rendered).not.toContain("this person's activity");
+  });
+
+  /** And falls back to the old wording where no identity was recorded. */
+  it('says "this person" rather than naming nobody when the run recorded no asker', () => {
+    const rendered = text(
+      render(<QuestionDrawer detail={detail({ askedBy: '' })} onClose={() => {}} onOpenPerson={() => {}} />)
+    );
+
+    expect(rendered).toContain("see this person's activity");
+    // Not "see Unknown's activity", which is what naming the asker would give.
+    expect(rendered).not.toMatch(/see Unknown/);
   });
 
   it('shows the taxonomy sentence and the code for a refusal', () => {

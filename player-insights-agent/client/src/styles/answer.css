@@ -17,10 +17,9 @@
   border-radius: var(--ast-radius-card);
   box-shadow: none;
   /* Stated here rather than left to AppKit's opaque card surface: the transcript
-     sits on the navy sky, and a high white alpha lets a faint navy tinge read
-     through the card so it belongs to the page instead of being punched out of
-     it. 0.92 is high enough that prose on the card keeps the contrast it had. */
-  background: rgba(255, 255, 255, 0.92);
+     sits on the navy sky, and a very high white alpha lets only a hint of that
+     sky read through while preserving the contrast of an ordinary white card. */
+  background: rgba(255, 255, 255, 0.95);
   margin-bottom: 26px;
 }
 
@@ -53,6 +52,28 @@
   color: var(--ast-entity-tag-fg);
   background: var(--ast-entity-tag-bg);
 }
+/* The data package's values, in the shape the source table beside them already
+   takes: `.answer-code`'s 3px radius and 1px 5px, so a fact is one shape across
+   the block and only its colour says which kind of fact it is. The colours are
+   the two Appearance rows that already own these kinds -- Quote for a window,
+   Tag for a label -- rather than a third vocabulary invented here. */
+.answer-badge {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.88em;
+  /* A window is one value and must not break across lines: `2026-07-22 –
+     2026-08-03` wrapped at the dash reads as two dates. */
+  white-space: nowrap;
+}
+.answer-badge--date {
+  color: var(--ast-entity-quote-fg);
+  background: var(--ast-entity-quote-bg);
+}
+.answer-badge--tag {
+  color: var(--ast-entity-tag-fg);
+  background: var(--ast-entity-tag-bg);
+}
 /* A plan is the one card that is waiting on the user, so it is the most emphatic
    thing in the transcript until it resolves: a heavier blue edge and a wash, blue
    because what the card is waiting for is a decision and every other thing you act
@@ -65,13 +86,13 @@
   /* Ice, which replaces oat as the AI-context surface. The plan is the one card
      in the transcript that is waiting on the reader, and the wash is what says
      so until it resolves. Carried at the same alpha as the answer card so the two
-     take the navy behind them by the same amount. */
-  background: color-mix(in srgb, var(--ast-ice) 92%, transparent);
+     take the navy behind them by the same subtle amount. */
+  background: color-mix(in srgb, var(--ast-ice) 95%, transparent);
   margin-bottom: 26px;
 }
 .plan-card.resolved {
   border: 1px solid var(--ast-hairline);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.95);
 }
 /*
  * The transcript's own gutters, over AppKit's.

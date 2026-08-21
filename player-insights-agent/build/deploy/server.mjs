@@ -159624,6 +159624,12 @@ function normalizeWorkspaceHost(raw2) {
   if (!trimmed) return "";
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
+function workspaceAppsUrl(host2, workspaceId) {
+  const base = normalizeWorkspaceHost(host2);
+  if (!base) return "";
+  const org = (workspaceId ?? "").trim();
+  return org ? `${base}/apps-v2?o=${encodeURIComponent(org)}` : `${base}/apps-v2`;
+}
 var init_databricks_links = __esm({
   "shared/databricks-links.ts"() {
   }
@@ -175595,7 +175601,9 @@ function setupOpsRoutes(appkit, deps) {
   appkit.server.extend((app) => {
     app.get("/api/ops/health", async (req, res) => {
       const workspace = host();
-      const insightsHref = workspace ? `${workspace}/apps` : "";
+      const appsToken = forwardedUserToken(req);
+      const appsWorkspaceId = appsToken ? await resolveWorkspaceId({ host: workspace, token: appsToken }).catch(() => "") : "";
+      const insightsHref = workspaceAppsUrl(workspace, appsWorkspaceId);
       try {
         const [dependencies, appMeasurement, lakebase2] = await Promise.all([
           readDependencies(appkit, req),
@@ -176331,8 +176339,7 @@ __export(account_routes_exports, {
   workspaceAppsHref: () => workspaceAppsHref
 });
 function workspaceAppsHref(env = process.env) {
-  const host2 = normalizeWorkspaceHost(env.DATABRICKS_HOST);
-  return host2 ? `${host2}/apps` : "";
+  return workspaceAppsUrl(env.DATABRICKS_HOST ?? "", env.DATABRICKS_WORKSPACE_ID);
 }
 function setupAccountRoutes(appkit) {
   appkit.server.extend((app) => {

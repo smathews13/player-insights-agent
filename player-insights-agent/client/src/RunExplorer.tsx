@@ -62,12 +62,7 @@ import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
 import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
-import {
-  conversationFilterOptions,
-  conversationRunNumber,
-  KPI_HINTS,
-  toolStageDurationMs,
-} from './run-explorer-state';
+import { conversationFilterOptions, conversationRunNumber, KPI_HINTS, toolStageDurationMs } from './run-explorer-state';
 
 /**
  * What a tile says when the run recorded no such measurement.
@@ -164,7 +159,12 @@ export function RunExplorer() {
   // resets on reload, which is the right scope for a preference nothing stores.
   const [advanced, setAdvanced] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [conversationFilter, setConversationFilter] = useState(searchParams.get('conversation') ?? '');
+  // Always "All conversations" on arrival. This used to be seeded from
+  // `?conversation=`, so clicking through from Ask PIA hid every other run in
+  // the store behind a filter the reader never set and had no reason to look
+  // for. Narrowing the list is the reader's decision; the carried-over
+  // conversation only decides which run OPENS (see `conversationRun` below).
+  const [conversationFilter, setConversationFilter] = useState('');
   // Whether the rows below are stored runs, seeded ones, or nothing at all
   // because nobody could find out. Classified in list-availability.ts from what
   // the server said, not guessed from the ids or the row count: an empty store
@@ -310,16 +310,16 @@ export function RunExplorer() {
   // `selected.id` is the answer's own message id, not a separate run key. See
   // conversation-links.ts, and RUNS_QUERY, which derives a conversation run from
   // the message that carries the trace.
-  const ratePath = selected?.conversation_id
-    ? conversationHref(selected.conversation_id, selected.id)
-    : null;
-  return (<div className="page-shell run-explorer">
+  const ratePath = selected?.conversation_id ? conversationHref(selected.conversation_id, selected.id) : null;
+  return (
+    <div className="page-shell run-explorer">
       {/* No actions. The Advanced switch was here, and the only thing that read
           it was the Details tab, so on the tab this page opens on it animated and
           changed nothing on screen. It is drawn by RunDetails.tsx now, with the
           panels it governs. */}
       <PageHeading title="Run Explorer" />
-      {requestedMissing && (<Alert variant="destructive">
+      {requestedMissing && (
+        <Alert variant="destructive">
           <CircleAlert />
           <AlertDescription>
             {/* Why the link missed is the durable half and stays put. What is on
@@ -377,12 +377,15 @@ export function RunExplorer() {
             </div>
           </CardHeader>
           <CardContent className="p-2">
-            {loading ? ([1, 2, 3].map((item) => <Skeleton key={item} className="h-24" />)
-            ) : runsAvailability?.origin === 'unavailable' ? (/* Checked before the empty state, and this order is the whole point.
+            {loading ? (
+              [1, 2, 3].map((item) => <Skeleton key={item} className="h-24" />)
+            ) : runsAvailability?.origin ===
+              'unavailable' /* Checked before the empty state, and this order is the whole point.
                  Both arrive here with no rows, and "No runs yet" over an outage
-                 tells a customer their history is gone. */
+                 tells a customer their history is gone. */ ? (
               <UnavailablePanel notice={unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' })} />
-            ) : runs.length === 0 ? (<Empty>
+            ) : runs.length === 0 ? (
+              <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
                     <Workflow />
@@ -391,16 +394,21 @@ export function RunExplorer() {
                   <EmptyDescription>Ask a question or run a benchmark to create one.</EmptyDescription>
                 </EmptyHeader>
               </Empty>
-            ) : visibleRuns.length === 0 ? (<Empty>
+            ) : visibleRuns.length === 0 ? (
+              <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
                     <Search />
                   </EmptyMedia>
                   <EmptyTitle>No matching runs</EmptyTitle>
-                  <EmptyDescription>Try a different conversation filter, prompt, or stakeholder search.</EmptyDescription>
+                  <EmptyDescription>
+                    Try a different conversation filter, prompt, or stakeholder search.
+                  </EmptyDescription>
                 </EmptyHeader>
               </Empty>
-            ) : (visibleRuns.map((run) => (<RunListItem
+            ) : (
+              visibleRuns.map((run) => (
+                <RunListItem
                   key={run.id}
                   run={run}
                   active={run.id === selected?.id}
@@ -419,7 +427,8 @@ export function RunExplorer() {
             reference={isReference}
             groundedness={groundedness}
           />
-          {isReference && (<Alert>
+          {isReference && (
+            <Alert>
               <CircleAlert />
               <AlertDescription>
                 {runTrace?.note || 'This is the representative reference trace, not a live agent run.'}
@@ -466,7 +475,8 @@ export function RunExplorer() {
                     <strong className={tileValue(totalTokens === null || totalTokens <= 0)}>
                       {totalTokens !== null && totalTokens > 0 ? totalTokens.toLocaleString() : ABSENT}
                     </strong>
-                    {totalTokens !== null && totalTokens > 0 && tokenSplit && (<small className="tile-mono ast-num">{tokenSplit}</small>
+                    {totalTokens !== null && totalTokens > 0 && tokenSplit && (
+                      <small className="tile-mono ast-num">{tokenSplit}</small>
                     )}
                   </CardContent>
                 </Card>
@@ -478,18 +488,21 @@ export function RunExplorer() {
                     <strong className={tileValue(!rating.rated)}>
                       {rating.rated ? ratingOutOf(rating.value) : 'Not rated'}
                     </strong>
-                    {!rating.rated && ratePath && (<Link className="tile-link" to={ratePath}>
+                    {!rating.rated && ratePath && (
+                      <Link className="tile-link" to={ratePath}>
                         Rate this run
                       </Link>
                     )}
                   </CardContent>
                 </Card>
               </div>
-              {traceState.status === 'loading' ? (<div className="space-y-2">
+              {traceState.status === 'loading' ? (
+                <div className="space-y-2">
                   <Skeleton className="h-6 w-3/4" />
                   <Skeleton className="h-16" />
                 </div>
-              ) : runTrace?.takeaway ? (<Card className="final-answer">
+              ) : runTrace?.takeaway ? (
+                <Card className="final-answer">
                   <CardContent>
                     <div className="final-answer-head">
                       {/* 18 because `.final-answer-mark svg` paints 18. The
@@ -541,36 +554,39 @@ export function RunExplorer() {
                       caveats={runTrace.caveats}
                       derivation={runTrace.derivation}
                     />
-                    {selected?.conversation_id && (<Link
-                        className="final-answer-open"
-                        to={conversationHref(selected.conversation_id, selected.id)}
-                      >
+                    {selected?.conversation_id && (
+                      <Link className="final-answer-open" to={conversationHref(selected.conversation_id, selected.id)}>
                         Open full response →
                       </Link>
                     )}
                   </CardContent>
                 </Card>
-              ) : (<p className="text-muted-foreground text-sm">
+              ) : (
+                <p className="text-muted-foreground text-sm">
                   {traceState.status === 'ready' ? runTrace?.note : 'Pick a run from the list to read its answer.'}
                 </p>
               )}
             </TabsContent>
             <TabsContent value="map" className="pt-5">
-              {stages.length > 0 ? (<TraceDag
+              {stages.length > 0 ? (
+                <TraceDag
                   stages={stages}
                   activeIndex={-1}
                   charts={runTrace?.charts}
                   trace={runTrace?.trace}
                   question={runTrace?.prompt ?? ''}
                 />
-              ) : (<TraceUnavailable state={traceState} />
+              ) : (
+                <TraceUnavailable state={traceState} />
               )}
             </TabsContent>
             <TabsContent value="timeline" className="pt-5">
               {/* The prompt, for the envelope row, which is the run's own
                   question here just as it is on the card. */}
-              {stages.length > 0 && runTrace?.trace ? (<TraceTimeline trace={runTrace.trace} question={runTrace.prompt ?? ''} />
-              ) : (<TraceUnavailable state={traceState} />
+              {stages.length > 0 && runTrace?.trace ? (
+                <TraceTimeline trace={runTrace.trace} question={runTrace.prompt ?? ''} />
+              ) : (
+                <TraceUnavailable state={traceState} />
               )}
             </TabsContent>
             <TabsContent value="details" className="space-y-4 pt-5">
@@ -598,33 +614,18 @@ export function RunExplorer() {
  * effect, and effects do not run under the static renderer these tests use, so
  * every row was previously unreachable from a test.
  */
-export function RunListItem({ run, active, onSelect }: {
-  run: Run;
-  active: boolean;
-  onSelect: () => void;
-}) {
+export function RunListItem({ run, active, onSelect }: { run: Run; active: boolean; onSelect: () => void }) {
   const runRating = ratingLabel(run.rating);
-  return (<button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={active}
-      className={`run-item ${active ? 'active' : ''}`}
-    >
+  const displayedStatus = run.truncated === true ? 'partial' : run.status;
+  return (
+    <button type="button" onClick={onSelect} aria-pressed={active} className={`run-item ${active ? 'active' : ''}`}>
       <div className="run-item-head">
         <span className="run-item-pills">
-          <Badge variant="outline" className={`run-status-pill ${astPill(run.status)}`}>
-            {run.status ?? 'unknown'}
+          <Badge variant="outline" className={`run-status-pill ${astPill(displayedStatus)}`}>
+            {displayedStatus ?? 'unknown'}
           </Badge>
-          {/* Strictly true, never merely truthy: a server that does not report
-              this field at all leaves it undefined, and "not reported" must not
-              draw as "ran to the end". Beside the status rather than folded into
-              it because the two are independent -- a run can be cut short having
-              completed every step it did take, and that row reads `complete`. */}
-          {run.truncated === true && (<Badge variant="outline" className={`run-status-pill ${astPill('truncated')}`}>
-              Truncated
-            </Badge>
-          )}
-          {typeof run.tool_calls === 'number' && (<Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+          {typeof run.tool_calls === 'number' && (
+            <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
               Tools · <span className="ast-num">{run.tool_calls.toLocaleString()}</span>
             </Badge>
           )}
@@ -641,13 +642,16 @@ export function RunListItem({ run, active, onSelect }: {
       <span className="run-item-meta">
         <span>
           <UserIdentityChip identity={run.stakeholder} compact />
-          {run.duration_ms ? (<>
+          {run.duration_ms ? (
+            <>
               {' · '}
               {/* The figure in mono, the name beside it in the body face. A
                   person's name is not a measurement and must not read as one. */}
               <span className="ast-num">{(run.duration_ms / 1000).toFixed(1)}s</span>
             </>
-          ) : ('')}
+          ) : (
+            ''
+          )}
         </span>
         {/* Only when somebody rated it. An empty star reads as a rating of zero,
             which is a claim nobody made. */}
@@ -658,7 +662,8 @@ export function RunListItem({ run, active, onSelect }: {
             A span around the figure would satisfy §3 here and break that reading
             in a file this lane does not own. Nothing else inside is a glyph the
             face changes -- a middot and an SVG. */}
-        {runRating.rated && (<span className="run-item-rating ast-num">
+        {runRating.rated && (
+          <span className="run-item-rating ast-num">
             {/* With its scale, because a star and a bare number read as a count
                 of something rather than as a score. */}
             · <Star /> {ratingOutOf(runRating.value)}
@@ -677,14 +682,17 @@ export function RunListItem({ run, active, onSelect }: {
  */
 function TraceUnavailable({ state }: { state: RunTraceState }) {
   if (state.status === 'loading') {
-    return (<div className="space-y-2">
-        {[1, 2, 3].map((row) => (<Skeleton key={row} className="h-16" />
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3].map((row) => (
+          <Skeleton key={row} className="h-16" />
         ))}
       </div>
     );
   }
   if (state.status === 'error') {
-    return (<Alert variant="destructive">
+    return (
+      <Alert variant="destructive">
         <CircleAlert />
         <AlertDescription>{state.message}</AlertDescription>
       </Alert>
@@ -696,7 +704,8 @@ function TraceUnavailable({ state }: { state: RunTraceState }) {
       : state.status === 'ready'
         ? ['No trace for this run', state.data.note]
         : ['No run selected', 'Pick a run from the list to inspect its trace.'];
-  return (<Empty>
+  return (
+    <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <Workflow />

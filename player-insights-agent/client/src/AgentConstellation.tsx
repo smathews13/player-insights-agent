@@ -56,7 +56,7 @@ import {
 } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
 import { ConceptFlicker } from './ConceptFlicker';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TraceStage } from './answer-shape';
 import { formatDuration } from './benchmark-summary';
 
@@ -163,6 +163,38 @@ function lastUnfinished(stages: TraceStage[]): number {
 }
 
 /**
+ * The clearance the followed star keeps from either end of its scroller, in px.
+ *
+ * A star flush against the edge of the column reads as a step half-arrived, and
+ * the ring around the current one is drawn outside the glyph. 16 is the
+ * inspector's own padding, so the star lands where every other row in that
+ * column starts.
+ */
+const FOLLOW_MARGIN = 16;
+
+/**
+ * The one box around the band that scrolls, or null when nothing around it does.
+ *
+ * THE NEAREST ONE AND ONLY THAT ONE. The band's seating is `.trace-inspector`,
+ * a column with its own `overflow-y: auto`, and it sits in a page whose middle
+ * pane is the reader's transcript. `scrollIntoView` would walk every scrollable
+ * ancestor, so a step landing in the rail could move the answer the reader is
+ * in the middle of. This walk stops at the first box that can actually take the
+ * scroll, and the scroll is applied to that box's `scrollTop` alone.
+ *
+ * `scrollHeight > clientHeight` rather than the overflow value alone: a column
+ * declared scrollable but not yet overflowing is not the thing to move, and on
+ * a short run that is exactly what the inspector is.
+ */
+function scrollParent(node: Element): HTMLElement | null {
+  for (let box = node.parentElement; box !== null; box = box.parentElement) {
+    const overflowY = getComputedStyle(box).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && box.scrollHeight > box.clientHeight) return box;
+  }
+  return null;
+}
+
+/**
  * The stars a run has not reached yet do not exist.
  *
  * There is no placeholder for a step the agent has not announced, which is the
@@ -217,9 +249,57 @@ export function AgentPathConstellation({
    * render after a first one that drew the wrong star.
    */
   if (pinnedId !== null && pinnedIndex === -1) setPinnedId(null);
-  if (stages.length === 0) return null;
   const current = activeIndex >= 0 && activeIndex < stages.length ? stages[activeIndex] : null;
   const shownIndex = pinnedIndex !== -1 ? pinnedIndex : current ? activeIndex : stages.length - 1;
+  /*
+   * THE BAND FOLLOWS THE STEP IT IS MARKING, so the newest star cannot build its
+   * way off the bottom of the column.
+   *
+   * The reported defect: a long run draws taller than the inspector, the column
+   * has something to scroll, and nothing scrolls it -- the reader watches a run
+   * whose current step is below the fold and has to chase it by hand once a step.
+   *
+   * `followIndex` is the star to keep in view, and it is -1 when the reader has
+   * PINNED a step: a pin is them opening a settled step while the run goes on
+   * past it, and hauling the column away from what they just opened is the same
+   * defect the pin itself was written to end. Unpinning hands the band back to
+   * the run and this follows again with it.
+   *
+   * KEYED ON THE INDEX rather than on the render. The caller ticks `elapsedMs`
+   * once a second for as long as a step is in flight, so an effect that ran on
+   * every render would drag the column back once a second while a reader was
+   * looking somewhere else in it. Between steps, the column is theirs.
+   *
+   * Above the empty-stage return because it is a hook: `stages` is empty on the
+   * rail before anything is asked and full during a run, and hooks cannot be
+   * called on one of those renders and skipped on the other.
+   */
+  const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;
+  const followRef = useRef<SVGGElement | null>(null);
+  const statusRef = useRef<HTMLParagraphElement | null>(null);
+  useEffect(() => {
+    const star = followRef.current;
+    if (followIndex < 0 || star === null) return;
+    const scroller = scrollParent(star);
+    if (scroller === null) return;
+    const view = scroller.getBoundingClientRect();
+    const box = star.getBoundingClientRect();
+    /*
+     * The status line is RESERVED rather than covered: it is the one sentence
+     * naming the step this star is, so parking the star on the column's bottom
+     * edge would scroll its own caption out of view.
+     *
+     * A minimal correction in both directions, so a star already in view is left
+     * where it is, and instant rather than smoothed -- an easing scroll under a
+     * drawing that is drawing itself reads as the panel drifting.
+     */
+    const reserve = statusRef.current?.getBoundingClientRect().height ?? 0;
+    const floor = view.top + FOLLOW_MARGIN;
+    const ceiling = view.bottom - reserve - FOLLOW_MARGIN;
+    if (box.bottom > ceiling) scroller.scrollTop += box.bottom - ceiling;
+    else if (box.top < floor) scroller.scrollTop -= floor - box.top;
+  }, [followIndex]);
+  if (stages.length === 0) return null;
   const shown = stages[shownIndex];
   /*
    * WHETHER THE RUN IS ACTUALLY INSIDE THAT STEP, which is not the same question as
@@ -309,6 +389,10 @@ export function AgentPathConstellation({
         {path.stars.map((star, index) => (
           <g
             key={star.id}
+            // The one star the column follows, and only while it is the followed
+            // one: a ref on every group would leave the effect reading whichever
+            // node React happened to attach last.
+            ref={followIndex === index ? followRef : undefined}
             className={`ast-star-select ${shownIndex === index ? 'selected' : ''}`}
             role="button"
             tabIndex={0}
@@ -360,7 +444,7 @@ export function AgentPathConstellation({
         happening. The elapsed figure is the caller's measured elapsed in DM Mono,
         because it is a figure in a right-aligned meta slot.
       */}
-      <p className="ast-sky-status" aria-live="polite">
+      <p ref={statusRef} className="ast-sky-status" aria-live="polite">
         {/*
           THE SLOT FLICKERS WHILE THE STEP IT NAMES IS THE ONE BEING WORKED ON,
           and holds the step's real mark the rest of the time.

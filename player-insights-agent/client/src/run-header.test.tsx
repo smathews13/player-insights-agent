@@ -234,10 +234,11 @@ describe('the run header is four objects, not one sentence', () => {
      * its class list.
      */
     const complete = header({ run: run({ truncated: true }) });
-    expect(complete).toMatch(/run-status-pill ast-pill ast-pill--pos/);
-    expect(complete).toContain('complete');
+    expect(complete).not.toMatch(/run-status-pill ast-pill ast-pill--pos/);
+    expect(complete).not.toContain('complete');
     expect(complete).toMatch(/run-status-pill ast-pill ast-pill--warn/);
-    expect(complete).toContain('Truncated');
+    expect(complete).toContain('partial');
+    expect(complete).not.toContain('Truncated');
     expect(header({ run: run({ status: 'failed' }) })).toMatch(/ast-pill--neg/);
     // The DuBois pill is gone from this surface. It is still defined, because the
     // conversation rail's own pill is written against it, but nothing here draws it.
@@ -248,7 +249,9 @@ describe('the run header is four objects, not one sentence', () => {
   it('ticks the family that earns a tick, and nothing else', () => {
     // A run that failed does not get a check beside the word "failed".
     expect(statusFamily('complete')).toBe('pos');
+    expect(statusFamily('answered')).toBe('pos');
     expect(statusFamily('failed')).toBe('neg');
+    expect(statusFamily('refused')).toBe('neg');
     expect(statusFamily('partial')).toBe('warn');
     expect(statusFamily('queued')).toBe('neutral');
     expect(statusFamily(null)).toBe('neutral');

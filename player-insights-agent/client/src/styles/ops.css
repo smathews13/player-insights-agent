@@ -667,7 +667,20 @@ a.ops-dependency-label:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   width: 100%;
-  align-items: start;
+  /* Stretch rather than start, so the rules below run the full height of the
+     row instead of stopping at the bottom of the shortest chart. The charts
+     themselves are fixed-height and stay at the top of their column. */
+  align-items: stretch;
+}
+
+/*
+ * A rule where each pair of groups meets. Whitespace alone left three unrelated
+ * charts floating in one band; the hairline says which heading owns which bars.
+ * The padding keeps the bars and their counts off the line.
+ */
+.ops-charts > * + * {
+  border-left: 1px solid var(--ast-hairline);
+  padding-left: 16px;
 }
 
 /* One column when the panel is too narrow to seat three charts side by side
@@ -675,6 +688,12 @@ a.ops-dependency-label:hover {
 @media (max-width: 60rem) {
   .ops-charts {
     grid-template-columns: 1fr;
+  }
+
+  /* Stacked, a left rule would be an indent rather than a divider. */
+  .ops-charts > * + * {
+    border-left: 0;
+    padding-left: 0;
   }
 }
 

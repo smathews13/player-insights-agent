@@ -101,6 +101,14 @@ function statusLine(markup: string): string {
   return /<span class="ast-sky-status-text">([^<]*)<\/span>/.exec(markup)?.[1] ?? '';
 }
 
+/** The body of the band's one effect, up to its dependency list. */
+function effectBody(source: string): string {
+  const open = source.indexOf('useEffect(() => {');
+  expect(open, 'the band has an effect').toBeGreaterThan(-1);
+  const body = source.slice(open);
+  return body.slice(0, body.indexOf('}, ['));
+}
+
 describe('the bands expose only the controls they own (§5)', () => {
   it('adds a star when the approved continuation reports its next step', () => {
     // This is the state transition the approval regression froze: the stream's
@@ -536,7 +544,78 @@ describe('a step the reader pinned outranks the step the run is on', () => {
     // "adjusting state when a prop changes": in an effect it would be a second
     // render after a first one that drew the wrong star.
     expect(PATH_SOURCE).toContain('if (pinnedId !== null && pinnedIndex === -1) setPinnedId(null);');
-    expect(PATH_SOURCE).not.toContain('useEffect');
+    // And the band's one effect does not touch the pin. This was
+    // `not.toContain('useEffect')` outright, which stood in for the claim only
+    // while the file had no effects at all -- it has one now, and what it does is
+    // scroll the column, which is not a piece of state to adjust while rendering.
+    expect(effectBody(PATH_SOURCE)).not.toContain('setPinnedId');
+  });
+});
+
+describe('the column follows the step the band is marking', () => {
+  /*
+   * THE REPORTED DEFECT: a long run draws taller than the inspector, so the
+   * newest star builds its way off the bottom of the column and the reader has
+   * to chase the run by hand once a step.
+   *
+   * Read as source rather than driven. What a scroll does is layout, this repo
+   * has no jsdom, and a rendered tree with no layout cannot answer where a star
+   * is relative to the box around it. What IS checkable here is the wiring, and
+   * the wiring is the half that breaks.
+   */
+  it('holds the followed star, and marks only the one it follows', () => {
+    expect(PATH_SOURCE).toContain('const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;');
+    expect(PATH_SOURCE).toContain('ref={followIndex === index ? followRef : undefined}');
+  });
+
+  it('scrolls on a change of step rather than on every tick of the clock', () => {
+    // The caller ticks `elapsedMs` once a second for as long as a step is in
+    // flight. An effect that ran on every render would haul the column back once
+    // a second while the reader was looking somewhere else in it.
+    expect(PATH_SOURCE).toMatch(/\}, \[followIndex\]\);/);
+    expect(effectBody(PATH_SOURCE)).not.toContain('elapsedMs');
+  });
+
+  it('leaves the pinned reader where they are', () => {
+    // A pin is the reader opening a settled step while the run goes on past it.
+    // Scrolling them off it is the same defect the pin was written to end, so a
+    // pinned band follows nothing until it is released.
+    expect(PATH_SOURCE).toContain('const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;');
+    expect(effectBody(PATH_SOURCE)).toContain('if (followIndex < 0 || star === null) return;');
+  });
+
+  it('moves the nearest scroller only, and never the page under it', () => {
+    /*
+     * `scrollIntoView` walks every scrollable ancestor, so a step landing in the
+     * rail could move the transcript in the middle pane -- the reader's own
+     * answer, scrolled out from under them by a panel beside it. The walk stops
+     * at the first box that can take the scroll and sets that box's `scrollTop`.
+     */
+    expect(PATH_SOURCE).not.toMatch(/\.scrollIntoView\(/);
+    expect(PATH_SOURCE).toContain('function scrollParent(');
+    expect(PATH_SOURCE).toMatch(/box\.scrollHeight > box\.clientHeight/);
+    const body = effectBody(PATH_SOURCE);
+    expect(body).toContain('scroller.scrollTop +=');
+    expect(body).toContain('scroller.scrollTop -=');
+    expect(body).not.toContain('window.scroll');
+  });
+
+  it('keeps the status line on screen with the star it names', () => {
+    // Parking the followed star on the column's bottom edge would scroll its own
+    // caption -- "Step 17 · Built the charts" -- out of view.
+    const body = effectBody(PATH_SOURCE);
+    expect(body).toContain('statusRef.current?.getBoundingClientRect().height');
+    expect(body).toContain('view.bottom - reserve - FOLLOW_MARGIN');
+    expect(PATH_SOURCE).toContain('<p ref={statusRef} className="ast-sky-status" aria-live="polite">');
+  });
+
+  it('renders the same markup it always did, refs being nothing a reader sees', () => {
+    // The follow is layout, not drawing: no attribute, no class and no wrapper
+    // arrives with it, so nothing above the status line moved.
+    const markup = path(runOf(18), 17, 12_000);
+    expect(markup).not.toContain('followRef');
+    expect(markup).not.toContain('ref=');
+    expect(selectedStar(markup)).toBe(17);
   });
 });
 

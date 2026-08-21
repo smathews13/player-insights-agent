@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import { AssetPickerField, AssetPickerPanel, AssetPickerRow, BrowseGrantPrompt } from './AssetPicker';
 import {
-  BROWSE_EMPTY_IS_AN_ANSWER,
   BROWSE_GRANT_PROMPT,
   BROWSE_TYPE_INSTEAD,
   BROWSE_UNAVAILABLE_CHIP,
@@ -211,7 +210,7 @@ describe('browsing is unavailable', () => {
     expect(shown).toContain('catalog.catalogs:read');
     // Not the empty-list wording, which would be a claim about the workspace.
     expect(markup).not.toContain('data-testid="asset-picker-empty"');
-    expect(shown).not.toContain(BROWSE_EMPTY_IS_AN_ANSWER);
+    expect(shown).not.toMatch(/visible to your sign-in/);
   });
 
   it('keeps the fallback reachable and says nothing was established', () => {
@@ -273,8 +272,7 @@ describe('an empty answer', () => {
     const markup = panel('sql-warehouse', ok([], { kind: 'warehouses' }));
     const shown = text(markup);
     expect(markup).toContain('data-testid="asset-picker-empty"');
-    expect(shown).toContain('Your sign-in can see no SQL warehouse.');
-    expect(shown).toContain(BROWSE_EMPTY_IS_AN_ANSWER);
+    expect(shown).toContain('No SQL warehouses are visible to your sign-in.');
     expect(markup).not.toContain('data-testid="asset-picker-grant"');
     expect(shown).not.toContain(BROWSE_GRANT_PROMPT);
   });
@@ -295,7 +293,7 @@ describe('long lists', () => {
     const markup = panel('notebook-declaration', ok(many, { kind: 'tables' }), { query: 'zzz' });
     const shown = text(markup);
     expect(shown).toContain('Nothing in this list matches what you typed.');
-    expect(shown).not.toContain(BROWSE_EMPTY_IS_AN_ANSWER);
+    expect(shown).not.toMatch(/visible to your sign-in/);
   });
 
   it('offers another page only where the workspace said there is one', () => {

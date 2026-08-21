@@ -67,8 +67,8 @@ export type PillFamily = 'pos' | 'neg' | 'warn' | 'neutral';
 
 export function statusFamily(status: string | null | undefined): PillFamily {
   const word = (status ?? '').trim().toLowerCase();
-  if (word === 'complete' || word === 'completed' || word === 'succeeded') return 'pos';
-  if (word === 'failed' || word === 'error') return 'neg';
+  if (word === 'complete' || word === 'completed' || word === 'succeeded' || word === 'answered') return 'pos';
+  if (word === 'failed' || word === 'error' || word === 'refused') return 'neg';
   if (word === 'partial' || word === 'truncated' || word === 'degraded') return 'warn';
   return 'neutral';
 }
@@ -127,8 +127,6 @@ export function runHeadline({ durationMs, toolCalls, rating }: RunHeadline): str
   if (typeof toolCalls === 'number' && Number.isFinite(toolCalls)) {
     parts.push(`${toolCalls} tool call${toolCalls === 1 ? '' : 's'}`);
   }
-  parts.push(
-    typeof rating === 'number' && Number.isFinite(rating) ? `rated ${ratingOutOf(rating)}` : 'Not rated yet'
-  );
+  parts.push(typeof rating === 'number' && Number.isFinite(rating) ? `rated ${ratingOutOf(rating)}` : 'Not rated yet');
   return parts.join(' · ');
 }

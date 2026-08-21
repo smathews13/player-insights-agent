@@ -28,6 +28,22 @@ export function normalizeWorkspaceHost(raw: string | undefined | null): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+/**
+ * The workspace's own Apps list.
+ *
+ * `/apps-v2?o=<workspace id>` is the address the workspace UI puts in the bar,
+ * and the `?o=` is what makes it land for a reader signed in to more than one
+ * workspace. The host and the id are both arguments: a hostname compiled in
+ * here would send every deployment to whichever workspace was current when the
+ * line was written.
+ */
+export function workspaceAppsUrl(host: string, workspaceId?: string | null): string {
+  const base = normalizeWorkspaceHost(host);
+  if (!base) return '';
+  const org = (workspaceId ?? '').trim();
+  return org ? `${base}/apps-v2?o=${encodeURIComponent(org)}` : `${base}/apps-v2`;
+}
+
 /** What kind of workspace object a link points at. */
 export type DatabricksObject =
   | { kind: 'serving-endpoint'; name: string }

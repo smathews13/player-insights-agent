@@ -32,11 +32,7 @@ import type { Run } from './app-types';
  * selected row carries a tint, and a grey fill on that wash reads as a
  * rendering fault rather than as a chip.
  */
-export type RailStatusTone =
-  | 'ast-pill--pos'
-  | 'ast-pill--neg'
-  | 'ast-pill--warn'
-  | 'ast-pill--neutral-outline';
+export type RailStatusTone = 'ast-pill--pos' | 'ast-pill--neg' | 'ast-pill--warn' | 'ast-pill--neutral-outline';
 
 export interface RailRunSummary {
   /** The store's own word for the status, unaltered. */
@@ -75,8 +71,9 @@ export interface RailRunSummary {
  */
 export function railStatusTone(status: string | null | undefined): RailStatusTone {
   const word = (status ?? '').trim().toLowerCase();
-  if (word === 'complete' || word === 'completed' || word === 'succeeded') return 'ast-pill--pos';
-  if (word === 'failed' || word === 'error') return 'ast-pill--neg';
+  if (word === 'complete' || word === 'completed' || word === 'succeeded' || word === 'answered')
+    return 'ast-pill--pos';
+  if (word === 'failed' || word === 'error' || word === 'refused') return 'ast-pill--neg';
   if (word === 'partial') return 'ast-pill--warn';
   return 'ast-pill--neutral-outline';
 }

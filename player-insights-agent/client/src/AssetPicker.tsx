@@ -40,7 +40,6 @@ import type { BrowseItem, BrowseResponse } from '../../shared/browse-contract';
 import {
   pickerForField,
   BROWSE_APPS_NO_SCOPE_PROMPT,
-  BROWSE_EMPTY_IS_AN_ANSWER,
   BROWSE_FAILED_CHIP,
   BROWSE_GRANT_ACTION,
   BROWSE_GRANT_PROMPT,
@@ -297,7 +296,6 @@ export function AssetPickerPanel({
       {!loading && response && response.status === 'ok' && items.length === 0 ? (
         <div className="asset-picker-empty" data-testid="asset-picker-empty">
           <p className="asset-picker-empty-head">{browseEmptyNote(kind)}</p>
-          <p className="asset-picker-empty-note">{BROWSE_EMPTY_IS_AN_ANSWER}</p>
         </div>
       ) : null}
 

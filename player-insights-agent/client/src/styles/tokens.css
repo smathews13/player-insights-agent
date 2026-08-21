@@ -100,7 +100,7 @@
   --db-green-line: #b1ecc5;
   --db-warn-600: #be501e; /* drift / degraded, as text (4.82:1 on white) */
   --db-ink: #161616; /* textPrimary, 18.10:1 on white */
-  --db-ink-deep: #11171c; /* darkest fill: the user's own bubble, dark chips */
+  --db-ink-deep: #11171c; /* darkest fill: dark chips, scrims, drop shadows */
   --db-body: #3a3838; /* long-form body copy, 11.65:1 on white */
   --db-slate: #6f6f6f; /* textSecondary / placeholder / eyebrows, 5.02:1 */
   --db-slate-icon: #525252; /* default icon stroke */
@@ -367,7 +367,8 @@
    *
    * The user's own bubble deliberately no longer routes through it. It used to,
    * back when --primary was ink, and a blue speech bubble would have made the
-   * reader's own question look like a button. It takes --db-ink-deep now.
+   * reader's own question look like a button. It states its own near-opaque
+   * light fill in ask.css now.
    */
   --primary: var(--db-blue-600);
   --primary-foreground: #ffffff;

@@ -41,9 +41,11 @@ function rowMarkup(run: Run): string {
   );
 }
 
-describe('the Truncated badge on a row of the runs list', () => {
-  it('marks a run that stopped before it had finished', () => {
-    expect(rowMarkup({ ...RUN, truncated: true })).toContain('Truncated');
+describe('the status on a truncated run', () => {
+  it('collapses a run that stopped early to one Partial badge', () => {
+    const markup = rowMarkup({ ...RUN, truncated: true });
+    expect(markup).toContain('partial');
+    expect(markup).not.toContain('Truncated');
   });
 
   it('leaves a run that ran to the end unmarked', () => {
@@ -58,14 +60,10 @@ describe('the Truncated badge on a row of the runs list', () => {
     expect(rowMarkup({ ...RUN, truncated: null })).not.toContain('Truncated');
   });
 
-  it('keeps the badge beside the status rather than in place of it', () => {
-    // The two are independent: a suite cut short after two of ten cases can have
-    // completed both, and that row is `complete` AND truncated. Replacing the
-    // status would have made a truncated run's outcome unreadable.
+  it('does not keep the stored Complete badge beside Partial', () => {
     const markup = rowMarkup({ ...RUN, truncated: true });
-
-    expect(markup).toContain('complete');
-    expect(markup).toContain('Truncated');
+    expect(markup).not.toContain('complete');
+    expect(markup.match(/partial/g)).toHaveLength(1);
   });
 
   it('keeps the tool-call count and rating state in the same badge row', () => {
@@ -84,13 +82,11 @@ function headerMarkup(run: Run, toolCalls: number | null = run.tool_calls ?? nul
   );
 }
 
-describe('the same badge on the run the reader opened', () => {
-  it('carries the mark through from the row to the header it opens', () => {
-    // The list said the run stopped early and the page that run opened did not,
-    // so the fact was true of the row and untrue of everything below it. The
-    // header already holds the row's own object, which is where the field is --
-    // nothing here needed asking of the server a second time.
-    expect(headerMarkup({ ...RUN, truncated: true })).toContain('Truncated');
+describe('the same status on the run the reader opened', () => {
+  it('carries Partial through from the row to the header it opens', () => {
+    const markup = headerMarkup({ ...RUN, truncated: true });
+    expect(markup).toContain('partial');
+    expect(markup).not.toContain('Truncated');
   });
 
   it('leaves a run that ran to the end, or never said, unmarked', () => {
@@ -99,10 +95,10 @@ describe('the same badge on the run the reader opened', () => {
     expect(headerMarkup({ ...RUN, truncated: null })).not.toContain('Truncated');
   });
 
-  it('keeps the status beside it here too', () => {
+  it('does not keep the stored Complete badge beside Partial here either', () => {
     const markup = headerMarkup({ ...RUN, truncated: true });
-    expect(markup).toContain('complete');
-    expect(markup).toContain('Truncated');
+    expect(markup).not.toContain('complete');
+    expect(markup.match(/partial/g)).toHaveLength(1);
   });
 
   it('keeps the tool-call count and rating state beside the id, user, and status', () => {

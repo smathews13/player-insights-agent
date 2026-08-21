@@ -586,6 +586,17 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+/* The compact chip's 150px cap is for a header sharing a row with the wordmark
+   and the nav. This row wraps, so there is nothing here for a cut name to save:
+   "sam.mathe..." over a line that then spells the same name out in full is the
+   one place the truncation is pure loss. */
+.monitoring-drawer-meta-row .identity-chip {
+  max-width: none;
+}
+.monitoring-drawer-meta-row .identity-chip-text {
+  overflow: visible;
+  text-overflow: clip;
+}
 .monitoring-drawer-meta {
   margin: 0;
   font-size: var(--text-sm);

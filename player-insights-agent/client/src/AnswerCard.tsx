@@ -231,10 +231,15 @@ export function AnswerCard({
         />
         {answer.content ? (<section className="answer-content" aria-label="Answer content">
             <h3 className="answer-heading">Content</h3>
+            {/* The data package is a list of values, not sentences: the window
+                and the labels are set as badges here so the four facts on the
+                line read as four rather than as one run of grey. The source
+                table beside them was already a chip. See answer-badges.ts. */}
             <AnswerProse
               text={answer.content}
               sources={answer.sources}
               columns={mentionedIdentifiers([answer.content])}
+              badges
             />
           </section>
         ) : null}

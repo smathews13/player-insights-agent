@@ -144,19 +144,27 @@
    * Keeping the mapping here means the prose renderer can distinguish catalogs,
    * schemas, tables, columns and quoted values without inventing a second set of
    * near-neutral colours inside answer.css.
+   *
+   * Settings > Appearance saves a colour per kind, and `useRuntimeEntityStyles`
+   * writes those onto the document as `--entity-<kind>-fg`/`-bg`. Each token
+   * below reads that variable first and falls back to the palette role, so a
+   * deployment that has never opened Appearance renders exactly what it did
+   * before and one that has set a colour actually gets it. Without the fallback
+   * chain the saved settings landed on variables no stylesheet read, and the
+   * panel's swatches were the only place the choice ever showed.
    */
-  --ast-entity-catalog-fg: var(--ast-white);
-  --ast-entity-catalog-bg: var(--ast-info-text);
-  --ast-entity-schema-fg: var(--ast-navy);
-  --ast-entity-schema-bg: var(--ast-info-fill);
-  --ast-entity-table-fg: var(--ast-text-long);
-  --ast-entity-table-bg: var(--ast-hairline);
-  --ast-entity-column-fg: var(--ast-text-long);
-  --ast-entity-column-bg: var(--ast-neutral-fill);
-  --ast-entity-quote-fg: var(--ast-neutral-text);
-  --ast-entity-quote-bg: var(--ast-fill-band);
-  --ast-entity-tag-fg: var(--ast-white);
-  --ast-entity-tag-bg: var(--ast-navy);
+  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-white));
+  --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-info-text));
+  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-navy));
+  --ast-entity-schema-bg: var(--entity-schema-bg, var(--ast-info-fill));
+  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-text-long));
+  --ast-entity-table-bg: var(--entity-table-bg, var(--ast-hairline));
+  --ast-entity-column-fg: var(--entity-column-fg, var(--ast-text-long));
+  --ast-entity-column-bg: var(--entity-column-bg, var(--ast-neutral-fill));
+  --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-neutral-text));
+  --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-fill-band));
+  --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-white));
+  --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-navy));
 
   /* ---- Type scale (§3) ---- */
   --ast-fs-11: 11px;

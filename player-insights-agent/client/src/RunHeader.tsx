@@ -49,8 +49,10 @@ export function RunHeader({
   groundedness: number | null;
 }) {
   const rating = ratingLabel(run?.rating);
-  const family = statusFamily(run?.status);
-  return (<div className="run-detail-head">
+  const displayedStatus = run?.truncated === true ? 'partial' : run?.status;
+  const family = statusFamily(displayedStatus);
+  return (
+    <div className="run-detail-head">
       <div className="min-w-0">
         <h3 className="run-detail-title">{run ? runLabel(run) : 'Select a run'}</h3>
         {/* Only when there is a run to describe. With nothing selected this row
@@ -58,11 +60,12 @@ export function RunHeader({
             same sentence the empty state below it prints, under a heading that
             already says "Select a run", so one instruction was given three times
             in one column. */}
-        {run && (<div className="run-detail-ident">
+        {run && (
+          <div className="run-detail-ident">
             {conversationId && (
               <button
                 type="button"
-                className="run-context-badge"
+                className={`run-context-badge conversation-context-badge ${astPill(displayedStatus)}`}
                 title={`Conversation ${conversationId}`}
                 aria-label={`Copy full conversation id ${conversationId}`}
                 onClick={() => void navigator.clipboard?.writeText(conversationId)}
@@ -94,27 +97,15 @@ export function RunHeader({
               <Copy aria-hidden="true" />
             </button>
             <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
-            <Badge variant="outline" className={`run-status-pill ${astPill(run.status)}`}>
+            <Badge variant="outline" className={`run-status-pill ${astPill(displayedStatus)}`}>
               {/* The tick only on the family that earns it. A run that failed does
                   not get a check beside the word "failed", and a status this app
                   does not recognise gets no glyph asserting how it went. */}
               {family === 'pos' && <Check aria-hidden="true" />}
-              {run.status ?? 'unknown'}
+              {displayedStatus ?? 'unknown'}
             </Badge>
-            {/* And beside it, not instead of it, exactly as the row in the list
-                draws it. The header was the one place a reader could open a run
-                the list had marked as cut short and find nothing here saying so
-                -- so the fact was true of the row and untrue of the page the row
-                opened. `=== true` because an older server does not report it at
-                all, and "not reported" is not "ran to the end". */}
-            {run.truncated === true && (<Badge variant="outline" className={`run-status-pill ${astPill('truncated')}`}>
-                Truncated
-              </Badge>
-            )}
-            {typeof toolCalls === 'number' && Number.isFinite(toolCalls) && (<Badge
-                variant="outline"
-                className="ast-pill ast-pill--neutral-outline"
-              >
+            {typeof toolCalls === 'number' && Number.isFinite(toolCalls) && (
+              <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
                 Tools · <span className="ast-num">{toolCalls.toLocaleString()}</span>
               </Badge>
             )}
@@ -132,8 +123,10 @@ export function RunHeader({
         {run && typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) && (
           <p className="run-detail-meta ast-num">{(run.duration_ms / 1000).toFixed(1)}s</p>
         )}
-        {(reference || groundedness !== null) && (<div className="run-detail-flags">
-            {reference && (<Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+        {(reference || groundedness !== null) && (
+          <div className="run-detail-flags">
+            {reference && (
+              <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
                 Reference trace
               </Badge>
             )}
@@ -141,7 +134,8 @@ export function RunHeader({
                 here on every run, including ones nobody had scored. The score is a
                 real proportion of a measured thing, which is what separates it
                 from the elapsed figures §5 bars from ever being a percentage. */}
-            {groundedness !== null && (<Badge variant="outline" className="ast-pill ast-pill--info">
+            {groundedness !== null && (
+              <Badge variant="outline" className="ast-pill ast-pill--info">
                 Groundedness <span className="ast-num">{Math.round(groundedness * 100)}%</span>
               </Badge>
             )}

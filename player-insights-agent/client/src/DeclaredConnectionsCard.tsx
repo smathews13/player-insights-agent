@@ -18,10 +18,15 @@
  */
 import { useState } from 'react';
 import { AppSelect } from './AppSelect';
+import { BrandIcon } from './BrandIcon';
+import { RESOURCE_PRODUCT } from './connections-view';
 import {
   ADDABLE_KINDS,
+  JUST_ADDED_LABEL,
   REMOVE_LABEL,
   RESTORE_LABEL,
+  connectionDisplayName,
+  connectionSecondaryId,
   orderConnections,
 } from './declared-connection-view';
 import type { ConnectionEntry } from './connection-model';
@@ -82,8 +87,18 @@ export function DeclaredConnectionsCard({
   const [busy, setBusy] = useState(false);
   /** The id awaiting a confirmed removal, so the impact is read before it happens. */
   const [confirming, setConfirming] = useState('');
+  /** The row added in this sitting, which carries the badge until the page is left. */
+  const [justAdded, setJustAdded] = useState('');
 
-  const listed = orderConnections(entries ?? []);
+  const ordered = orderConnections(entries ?? []);
+  // The row just added sits at the foot of the list, immediately above the
+  // control that added it, which is where a reader is already looking.
+  const listed = justAdded
+    ? [
+        ...ordered.filter((entry) => entry.connection.id !== justAdded),
+        ...ordered.filter((entry) => entry.connection.id === justAdded),
+      ]
+    : ordered;
   const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
   const picker = chosenKind.browse ? ADD_CONNECTION_PICKERS[chosenKind.browse] : null;
 
@@ -111,6 +126,7 @@ export function DeclaredConnectionsCard({
         setError(body.detail ?? 'The asset was not added.');
         return;
       }
+      setJustAdded(id.trim());
       setId('');
       setLabel('');
       setValue('');
@@ -216,12 +232,23 @@ export function DeclaredConnectionsCard({
 
       {listed.map((entry) => {
         const removed = entry.connection.state === 'withdrawn';
+        const name = connectionDisplayName(entry.connection);
+        const identifier = connectionSecondaryId(entry.connection);
         return (
           <div key={entry.connection.id} className="plane-stack">
             <div className="plane-row" data-state={entry.connection.state}>
-              <span className="plane-row-name">{entry.connection.label}</span>
-              <span className="plane-row-value ast-mono" title={entry.connection.value}>
-                {entry.connection.value}
+              <span className="plane-row-name">
+                <BrandIcon product={RESOURCE_PRODUCT[entry.connection.kind]} className="plane-row-product" />
+                <span className="plane-row-title">{name}</span>
+                {/* Said on the row somebody just added, because the list it
+                    joins is long enough that a new entry at the foot of it is
+                    otherwise indistinguishable from the rest. */}
+                {entry.connection.id === justAdded ? (
+                  <span className="plane-row-new">{JUST_ADDED_LABEL}</span>
+                ) : null}
+              </span>
+              <span className="plane-row-value ast-mono" title={identifier}>
+                {identifier}
               </span>
               {/* A removed asset keeps its way back. This app is usually mid
                   demonstration when somebody removes the wrong thing, so the

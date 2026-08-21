@@ -445,7 +445,7 @@ describe('the three outcomes, kept apart', () => {
   });
 
   it('reads an empty list as an answer about the workspace', () => {
-    expect(browseEmptyNote('catalogs')).toBe('Your sign-in can see no catalog.');
+    expect(browseEmptyNote('catalogs')).toBe('No catalogs are visible to your sign-in.');
     expect(browseEmptyNote('schemas')).toMatch(/in this catalog/);
     expect(browseEmptyNote('tables')).toMatch(/in this schema/);
     expect(browseEmptyNote('warehouses')).toMatch(/SQL warehouse/);

@@ -112,7 +112,9 @@
      are cards that happen to be pressable, not buttons that happen to be large. */
   border: 1px solid var(--db-line);
   border-radius: var(--radius-md);
-  background: var(--card);
+  /* Keep the starter cards light and fully readable while letting only a hint of
+     the navy empty-state sky show through. */
+  background: rgba(255, 255, 255, 0.95);
   color: var(--foreground);
   cursor: pointer;
   font-weight: 500;
@@ -159,11 +161,15 @@
   border-radius: 8px 8px 2px 8px;
   /* Stated rather than inherited from --primary, which it used to be back when
      --primary was ink. The reader's own question is not an action, and a blue
-     speech bubble on the right of the transcript reads as a button. The darkest
-     neutral fill instead, which is what the design gives it: white on #11171C is
-     18.06:1. */
-  background: var(--db-ink-deep);
-  color: #ffffff;
+     speech bubble on the right of the transcript reads as a button.
+
+     A light neutral held just off full opacity instead, so the navy transcript
+     behind it tints the fill without showing through it: the bubble reads as
+     part gray, part navy, which is what it is, rather than as glass. The alpha
+     is the floor that keeps it on the gray side -- below about 0.8 the navy
+     dominates and ink on it drops under the 4.5:1 the design asks for. */
+  background: rgba(245, 246, 248, 0.85);
+  color: var(--foreground);
   /* The customer could select this text but saw no I-beam over it, so nothing
      said it was selectable. */
   cursor: text;
@@ -180,21 +186,23 @@
  *
  * There was no ::selection rule anywhere in this app or in AppKit's stylesheet,
  * so both surfaces got the browser default: a pale wash that leaves the
- * foreground colour alone. On the near-black bubble that is white text on pale
- * blue, which is the report we had -- the selection works, copies and pastes,
- * and cannot be seen.
+ * foreground colour alone. On the bubble, which was near-black then, that was
+ * white text on pale blue, which is the report we had -- the selection works,
+ * copies and pastes, and cannot be seen.
  *
- * One global rule cannot serve both, because the two surfaces are inverses of
- * each other. Each gets the inverse of its own background, which is the highest
+ * Each surface gets the inverse of its own background, which is the highest
  * contrast available on it. Deliberately not the action colour, even though blue
  * now owns "whatever is currently active or selected" everywhere else: a drag
  * across three paragraphs is not an affordance, and a blue-on-blue answer card
  * would be harder to read than the default it replaced.
  *
- * These two named the deprecated --pia-ink alias rather than --db-ink, because
- * message-selection.test.ts pinned that name as its proof that each surface
- * inverts the other. The two moved together: the test pins --db-ink now, which is
- * the same ink it always resolved to and the name the rest of the app uses.
+ * The bubble's pair is ink-on-white the same way round as the answer card's now,
+ * because the bubble is a light fill now too. It was white-on-ink while the fill
+ * was the darkest neutral in the app; left that way over the light fill it would
+ * have painted near-white on near-white and reproduced the original bug exactly.
+ * The rule stays separate from the card's rather than merging into it, because
+ * the two surfaces are only the same colour by coincidence and the bubble is the
+ * one the design keeps moving.
  *
  * Both the element and its descendants are named: ::selection matches the
  * element whose text is selected, and a bubble holding a nested span would
@@ -202,8 +210,8 @@
  */
 .user-bubble::selection,
 .user-bubble ::selection {
-  background: var(--primary-foreground);
-  color: var(--db-ink);
+  background: var(--db-ink);
+  color: #ffffff;
 }
 .answer-card::selection,
 .answer-card ::selection,

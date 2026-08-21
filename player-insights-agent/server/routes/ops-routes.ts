@@ -59,7 +59,7 @@ import {
   SERVING_ENDPOINT_KIND,
 } from '../lib/dependency-probes';
 import { appEnvironment, readStoredSettings, resourceStates } from '../lib/app-settings';
-import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import {
@@ -706,7 +706,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     app.get('/api/ops/health', async (req: Request, res: Response) => {
       const workspace = host();
-      const insightsHref = workspace ? `${workspace}/apps` : '';
+      // `?o=` is what makes the Apps list land for a reader signed in to more
+      // than one workspace. The id is resolved rather than configured, since
+      // nothing hands the container one, and '' simply omits the parameter.
+      const appsToken = forwardedUserToken(req);
+      const appsWorkspaceId = appsToken
+        ? await resolveWorkspaceId({ host: workspace, token: appsToken }).catch(() => '')
+        : '';
+      const insightsHref = workspaceAppsUrl(workspace, appsWorkspaceId);
       try {
         // Independent of each other as well as of the other blocks: a telemetry
         // grant nobody has made must not stop the dependency rows rendering.

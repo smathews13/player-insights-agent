@@ -43,7 +43,7 @@ import { AnswerCard } from './AnswerCard';
 import { TraceTimeline } from './TraceTimeline';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { UserIdentityChip } from './UserIdentityChip';
-import { identityName } from './user-identity';
+import { identityName, possessiveName } from './user-identity';
 import type { Answer, FeedbackEntry } from './app-types';
 import {
   answerTimeTile,
@@ -725,8 +725,15 @@ export function QuestionDrawer({
           </a>
         ) : null}
         {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
+        {/* Named, not "this person". The row already says who asked, and a
+            reader following the link is going to that person's panel -- so the
+            link says whose. The fallback is the old wording, for the run that
+            recorded no identity: `identityName` would hand us "Unknown" and
+            "see Unknown's activity" names nobody. */}
         <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
-          See this person&apos;s activity
+          {detail.askedBy?.trim()
+            ? `see ${possessiveName(identityName(detail.askedBy))} activity`
+            : "see this person's activity"}
         </button>
       </div>
 

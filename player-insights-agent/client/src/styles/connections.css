@@ -1303,7 +1303,34 @@
   font-size: var(--ast-fs-13);
 }
 .plane-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-weight: 500;
+}
+.plane-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plane-row-product {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+/* Said on the row somebody just added, and quiet: it marks a row rather than
+   grading it, so it takes the neutral fill and not a status colour. */
+.plane-row-new {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ast-fill-band);
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-12);
+  font-weight: 500;
+  white-space: nowrap;
 }
 .plane-row-value {
   min-width: 0;
@@ -1405,9 +1432,12 @@
   border-radius: var(--ast-radius-control);
   font-size: var(--ast-fs-13);
 }
-/* The kind picker fills its half of the paired add form. */
+/* The kind picker takes its half of the paired add form and stops there: a
+   seven-item menu stretched across the row read as the widest control on the
+   card while carrying the least in it. */
 .plane-field-select {
   width: 100%;
+  max-width: 320px;
 }
 /* The listed / removed tally beside the heading. Secondary and 400, because the
    heading is the 700 in this band and two bold things in one row compete. */

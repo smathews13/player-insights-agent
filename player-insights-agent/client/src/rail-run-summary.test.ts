@@ -139,12 +139,9 @@ describe('the row is the run card, not a third style', () => {
     expect(card).toMatch(/border:\s*1px solid var\(--border\)/);
     expect(body('.conversation-row:hover')).toMatch(/border-color:\s*var\(--primary\)/);
     expect(body('.conversation-row.active')).toMatch(/border-color:\s*var\(--primary\)/);
-    // A high white alpha, not a tint: the rail's navy reads as a faint tinge
-    // through the card, and the card is still a light surface its text is legible
-    // on. Anything that let the navy dominate would be the selected-tint failure.
-    expect(row).toMatch(/background:\s*rgba\(255, 255, 255, 0\.9\d?\)/);
-    expect(body('.conversation-row.active')).toMatch(/background:\s*rgba\(255, 255, 255, 0\.9\d\)/);
-    expect(body('.conversation-row.active')).not.toMatch(/selected-tint|ast-navy/);
+    expect(row).toMatch(/background:\s*var\(--ast-white\)/);
+    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--ast-white\)/);
+    expect(body('.conversation-row.active')).not.toMatch(/transparent|rgba|selected-tint|ast-navy/);
     // The 3px marker is gone from every state, including the delete confirmation,
     // and its absence is what gave the title back three of its pixels.
     expect(row).not.toMatch(/border-left/);
@@ -180,7 +177,8 @@ describe('the row is the run card, not a third style', () => {
     // never colour alone. The rail used to keep its own copy of that rule against
     // the retired db- washes, which is how one screen ends up a shade off the rest
     // the day somebody restyles the other.
-    expect(HOME_PAGE).toMatch(/className=\{`ast-pill conversation-status \$\{summary\.tone\}`\}/);
+    expect(HOME_PAGE).toContain('ast-pill conversation-status');
+    expect(HOME_PAGE).toContain("summary.truncated === true ? 'ast-pill--warn' : summary.tone");
     const recipe = body('.ast-pill', partial('astrolabe-tokens.css'));
     expect(recipe).toMatch(/border-radius:\s*var\(--ast-radius-control\)/);
     expect(recipe).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
@@ -205,23 +203,18 @@ describe('the row is the run card, not a third style', () => {
 
   it('takes a family per tone, with the neutral one outlined for the selected row', () => {
     expect(railStatusTone('complete')).toBe('ast-pill--pos');
-    // The selected row stays a light card over the navy rail -- near-white, with
-    // only a faint tinge of the rail through it. Its status stays outlined so the
-    // border, rather than a second fill, carries selection.
-    expect(body('.conversation-row.active')).toMatch(/background:\s*rgba\(255, 255, 255, 0\.9\d\)/);
+    // The selected row stays an opaque light card over the navy rail. Its status
+    // stays outlined so the border, rather than a second fill, carries selection.
+    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--ast-white\)/);
     expect(railStatusTone('marinating')).toBe('ast-pill--neutral-outline');
     const outline = body('.ast-pill--neutral-outline', partial('astrolabe-tokens.css'));
     expect(outline).not.toMatch(/background/);
     expect(outline).toMatch(/border-color/);
   });
 
-  it('marks a truncated turn beside the status, as the card does, and never instead of it', () => {
-    // The last thing the row was missing against the card it is another view of.
-    // The two facts are independent -- a turn cut short can still have completed
-    // -- so the word and the mark are two pills, and the mark is guarded on
-    // `=== true` exactly as the Explorer's row guards it.
-    expect(HOME_PAGE).toMatch(/summary\?\.truncated === true &&/);
-    expect(HOME_PAGE).toMatch(/ast-pill ast-pill--warn conversation-status/);
+  it('collapses a truncated turn to the one Partial status pill', () => {
+    expect(HOME_PAGE).toMatch(/summary\.truncated === true \? 'partial' : summary\.status/);
+    expect(HOME_PAGE).not.toContain('Truncated');
   });
 
   it('lets the head line wrap, because two pills and a date do not fit the narrow rail', () => {
@@ -242,7 +235,6 @@ describe('the row is the run card, not a third style', () => {
     const pill = body('.conversation-status');
     expect(pill, 'a pill cannot be squeezed').toMatch(/flex:\s*none/);
     expect(pill, 'a pill cannot be broken').toMatch(/white-space:\s*nowrap/);
-    expect(HOME_PAGE, 'the head line can carry two pills').toMatch(/summary\?\.truncated === true &&/);
     expect(body('.conversation-item-head')).toMatch(/flex-wrap:\s*wrap/);
     // And the date still goes to the right of whichever line it ends up on, which
     // is what `margin-left: auto` is doing there rather than `space-between`.

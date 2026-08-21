@@ -66,6 +66,7 @@ describe('Sam’s second feedback wave', () => {
       />
     );
     expect(markup).toContain('Conversation <span class="ast-num">conv-5</span>');
+    expect(markup).toContain('conversation-context-badge ast-pill ast-pill--pos');
     expect(markup).toContain('Run <span class="ast-num">1</span>');
     expect(markup).toContain(`title="Conversation ${full}"`);
     expect(markup).toContain(`aria-label="Copy full conversation id ${full}"`);

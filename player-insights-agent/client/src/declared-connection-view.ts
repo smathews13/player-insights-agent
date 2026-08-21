@@ -166,6 +166,26 @@ export function connectionCounts(entries: readonly ConnectionEntry[]): string {
   return parts.join(' · ');
 }
 
+/**
+ * The name a listed asset is known by.
+ *
+ * The label a reader typed, or the identifier where none was given. A row that
+ * printed the raw id as its name AND again as its value said the same opaque
+ * string twice and named nothing.
+ */
+export function connectionDisplayName(connection: { label: string; value: string; id: string }): string {
+  return connection.label.trim() || connection.value.trim() || connection.id;
+}
+
+/** The identifier under the name, or '' where it would only repeat the name. */
+export function connectionSecondaryId(connection: { label: string; value: string; id: string }): string {
+  const value = connection.value.trim();
+  return value && value !== connectionDisplayName(connection) ? value : '';
+}
+
+/** The badge on a row added in this sitting, so a reader can see what they just did. */
+export const JUST_ADDED_LABEL = 'New';
+
 /** The label on the button that puts a withdrawn asset back. */
 export const RESTORE_LABEL = 'Put back';
 

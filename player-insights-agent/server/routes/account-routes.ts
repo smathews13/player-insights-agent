@@ -1,9 +1,8 @@
-import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { workspaceAppsUrl } from '../../shared/databricks-links';
 import type { InsightsAppKit } from './insights-routes';
 
 export function workspaceAppsHref(env: NodeJS.ProcessEnv = process.env): string {
-  const host = normalizeWorkspaceHost(env.DATABRICKS_HOST);
-  return host ? `${host}/apps` : '';
+  return workspaceAppsUrl(env.DATABRICKS_HOST ?? '', env.DATABRICKS_WORKSPACE_ID);
 }
 
 export function setupAccountRoutes(appkit: Pick<InsightsAppKit, 'server'>) {

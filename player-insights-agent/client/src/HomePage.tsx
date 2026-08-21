@@ -19,12 +19,7 @@ import { submitsOnEnter } from './submit-on-enter';
 import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
 import { UserIdentityChip } from './UserIdentityChip';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
-import {
-  claimConversationTitle,
-  railOwnership,
-  signedInOwner,
-  unaskedConversation,
-} from './conversation-rail';
+import { claimConversationTitle, railOwnership, signedInOwner, unaskedConversation } from './conversation-rail';
 import {
   Alert,
   AlertDescription,
@@ -1333,10 +1328,7 @@ export function HomePage() {
    * One reader asking five questions saw "All 5 · You 3" and two anonymous rows,
    * which reads as a colleague having quietly used their rail.
    */
-  const rail = useMemo(
-    () => railOwnership(conversations, identity.signedInAs),
-    [conversations, identity.signedInAs]
-  );
+  const rail = useMemo(() => railOwnership(conversations, identity.signedInAs), [conversations, identity.signedInAs]);
 
   /**
    * The selection, narrowed to people the rail is actually showing.
@@ -1567,25 +1559,15 @@ export function HomePage() {
                     <span className="conversation-item-head">
                       {summary && (
                         <span
-                          className={`ast-pill conversation-status ${summary.tone}`}
+                          className={`ast-pill conversation-status ${
+                            summary.truncated === true ? 'ast-pill--warn' : summary.tone
+                          }`}
                           // The store's own word is short and unqualified. The
                           // tooltip says what it is the status OF, which the pill
                           // has no room to say and the row's title does not imply.
-                          title={`Latest turn: ${summary.status}`}
+                          title={`Latest turn: ${summary.truncated === true ? 'partial' : summary.status}`}
                         >
-                          {summary.status}
-                        </span>
-                      )}
-                      {/* Beside the status and never in place of it, as the
-                          Explorer's card draws it: a turn cut short can still
-                          have completed, and replacing the word would leave a
-                          truncated turn's outcome unreadable. */}
-                      {summary?.truncated === true && (
-                        <span
-                          className="ast-pill ast-pill--warn conversation-status"
-                          title="This turn stopped before it had finished"
-                        >
-                          Truncated
+                          {summary.truncated === true ? 'partial' : summary.status}
                         </span>
                       )}
                       <span className="conversation-age ast-num">{conversationAge(conversation.updated_at)}</span>

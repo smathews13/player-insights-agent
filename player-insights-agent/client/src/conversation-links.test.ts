@@ -158,4 +158,24 @@ describe('the way back into the Run Explorer', () => {
     // newest-overall default is still last.
     expect(RUN_EXPLORER).toMatch(/chosen \?\?\s*conversationRun \?\?/);
   });
+
+  /**
+   * Carrying the conversation over decides which run OPENS. It must not decide
+   * which runs are LISTED.
+   *
+   * The filter used to start at the carried-over id, so arriving from a
+   * question you had just asked showed a run list with one row in it. Nothing
+   * announced that a filter was on -- the dropdown reads as a label, not as
+   * state somebody set -- so the honest reading of that screen was "this
+   * deployment has answered one question", and the reader had no reason to open
+   * the dropdown to find out otherwise.
+   */
+  it('does not pin the run list to the conversation it arrived with', () => {
+    const filterState = /const \[conversationFilter, setConversationFilter\] = useState\(([^)]*)\);/.exec(RUN_EXPLORER);
+    expect(filterState, 'the conversation filter is held in state on the Run Explorer').not.toBeNull();
+    // Empty string: every conversation, which is what "All conversations" in
+    // the dropdown is the label for.
+    expect(filterState?.[1].trim()).toBe("''");
+    expect(filterState?.[0]).not.toContain('searchParams');
+  });
 });

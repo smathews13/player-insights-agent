@@ -687,24 +687,22 @@ export const BROWSE_FAILED_CHIP = 'Not read';
  * statement from browsing being unavailable, and the two must not read the same:
  * one means "there is nothing here", the other means "nobody looked".
  */
-export const BROWSE_EMPTY_IS_AN_ANSWER = 'The workspace answered. Nothing is a refusal here.';
-
 const NOTHING_VISIBLE: Readonly<Record<BrowseKind, string>> = {
-  catalogs: 'Your sign-in can see no catalog.',
-  schemas: 'Your sign-in can see no schema in this catalog.',
-  tables: 'Your sign-in can see no table in this schema.',
-  volumes: 'Your sign-in can see no volume in this schema.',
+  catalogs: 'No catalogs are visible to your sign-in.',
+  schemas: 'No schemas are visible to your sign-in in this catalog.',
+  tables: 'No tables are visible to your sign-in in this schema.',
+  volumes: 'No volumes are visible to your sign-in in this schema.',
   // Mapped for exhaustiveness rather than for use: no field browses notebooks.
-  notebooks: 'Your sign-in can see nothing in this directory.',
-  warehouses: 'Your sign-in can see no SQL warehouse.',
-  'genie-spaces': 'Your sign-in can see no Genie space.',
-  'serving-endpoints': 'Your sign-in can see no serving endpoint.',
-  'vector-search-endpoints': 'Your sign-in can see no Vector Search endpoint.',
-  'vector-search-indexes': 'Your sign-in can see no Vector Search index on this endpoint.',
-  'lakebase-projects': 'Your sign-in can see no Lakebase project.',
-  'lakebase-branches': 'Your sign-in can see no branch in this project.',
-  'lakebase-databases': 'Your sign-in can see no database in this branch.',
-  experiments: 'Your sign-in can see no MLflow experiment.',
+  notebooks: 'Nothing is visible to your sign-in in this directory.',
+  warehouses: 'No SQL warehouses are visible to your sign-in.',
+  'genie-spaces': 'No Genie spaces are visible to your sign-in.',
+  'serving-endpoints': 'No serving endpoints are visible to your sign-in.',
+  'vector-search-endpoints': 'No Vector Search endpoints are visible to your sign-in.',
+  'vector-search-indexes': 'No Vector Search indexes are visible to your sign-in on this endpoint.',
+  'lakebase-projects': 'No Lakebase projects are visible to your sign-in.',
+  'lakebase-branches': 'No branches are visible to your sign-in in this project.',
+  'lakebase-databases': 'No databases are visible to your sign-in in this branch.',
+  experiments: 'No MLflow experiments are visible to your sign-in.',
 };
 
 export function browseEmptyNote(kind: BrowseKind): string {

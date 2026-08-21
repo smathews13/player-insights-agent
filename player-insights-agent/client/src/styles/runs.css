@@ -431,26 +431,29 @@
   margin-top: 6px;
   min-width: 0;
 }
-/* Conversation context is compact and distinct from status. Both values use
-   the navy identity treatment; the conversation badge copies the full id while
-   showing only the shared six-character display prefix. */
+/* Conversation context is compact and distinct from status. The conversation
+   badge copies the full id while showing only the shared six-character prefix.
+   Its shared ast-pill status class supplies the complete/partial/refused color;
+   the run-number badge keeps the navy identity treatment. */
 .run-context-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 3px 8px;
-  border: 1px solid var(--ast-navy);
   border-radius: var(--radius-sm);
-  background: var(--ast-navy);
-  color: var(--ast-white);
   font: inherit;
   font-size: var(--text-sm);
   white-space: nowrap;
 }
+.run-context-badge:not(.conversation-context-badge) {
+  border: 1px solid var(--ast-navy);
+  background: var(--ast-navy);
+  color: var(--ast-white);
+}
 button.run-context-badge {
   cursor: pointer;
 }
-button.run-context-badge:hover {
+button.run-context-badge:not(.conversation-context-badge):hover {
   background: color-mix(in srgb, var(--ast-navy) 90%, var(--ast-white));
 }
 .run-context-badge > svg {

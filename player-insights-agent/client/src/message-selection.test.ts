@@ -12,6 +12,10 @@ import { stylesheet } from './styles/stylesheet';
  * the browser default, which paints a pale wash and leaves the foreground
  * colour alone. White text on a near-black bubble stays white, on pale blue.
  *
+ * The bubble is a light fill now, so its pair runs the same way round as the
+ * answer card's. What is asserted is still that each surface names both halves
+ * and inverts its own background -- not that the two differ from each other.
+ *
  * Asserted against the stylesheet because the effect is a painted pixel and this
  * repo has no browser. That is a real limit: this proves the rules exist and
  * name a foreground as well as a background, which is the specific thing whose
@@ -30,13 +34,14 @@ function ruleFor(selector: string): string {
   return open === -1 || close === -1 ? '' : STYLESHEET.slice(open + 1, close);
 }
 
-describe('selection is styled per surface, because the surfaces are inverses', () => {
+describe('selection is styled per surface, because each inverts its own fill', () => {
   /**
-   * The dark bubble and the light card cannot share one rule. Whatever is
-   * legible on one is close to invisible on the other, which is how a single
-   * global rule would leave the app half-fixed and looking handled.
+   * Each surface keeps its own rule. They happen to carry the same pair while
+   * both fills are light, but the bubble's fill is the one the design keeps
+   * moving, and a single shared rule would follow one surface and silently
+   * stop matching the other the next time it does.
    */
-  it('styles the dark user bubble and the light answer card separately', () => {
+  it('styles the user bubble and the answer card separately', () => {
     expect(STYLESHEET).toContain('.user-bubble::selection');
     expect(STYLESHEET).toContain('.answer-card::selection');
   });
@@ -61,9 +66,12 @@ describe('selection is styled per surface, because the surfaces are inverses', (
   });
 
   it('inverts each surface rather than tinting it', () => {
-    // Light on the dark bubble, ink on the light card. Same pair, each way up.
-    expect(ruleFor('.user-bubble::selection')).toContain('var(--primary-foreground)');
+    // Ink on both, because both fills are light now. The bubble was white-on-ink
+    // while its fill was the darkest neutral in the app; the fill went to a light
+    // near-opaque gray and the pair had to turn over with it, or the selection
+    // would have been near-white on near-white -- the original bug, restaged.
     expect(ruleFor('.user-bubble::selection')).toContain('var(--db-ink)');
+    expect(ruleFor('.user-bubble::selection')).toContain('#ffffff');
     expect(ruleFor('.answer-card::selection')).toContain('var(--db-ink)');
     expect(ruleFor('.answer-card::selection')).toContain('#ffffff');
   });

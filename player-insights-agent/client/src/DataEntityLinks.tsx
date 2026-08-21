@@ -9,6 +9,7 @@ import {
   type ProseSegment,
 } from './data-entities';
 import { answerBlocks, answerInline, type Block, type Inline } from './answer-markdown';
+import { dateBadgeRuns, isLabelLeadIn, labelBadgeRuns } from './answer-badges';
 import { splitSourceName } from './source-rows';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
 import {
@@ -152,19 +153,61 @@ export function OpenInDatabricks({ name, object }: { name: string; object?: Data
  * key would make React reconcile run 3 of the plain version against run 3 of
  * the linked one.
  */
-function ProseRuns({ runs }: { runs: readonly ProseSegment[] }) {
+function ProseRuns({
+  runs,
+  badges = false,
+  labelList = false,
+}: {
+  runs: readonly ProseSegment[];
+  /** Whether this surface sets windows and labels as badges. See answer-badges.ts. */
+  badges?: boolean;
+  /** Whether the run this leaf opens with is the value of a `Labels:` lead-in. */
+  labelList?: boolean;
+}) {
   return (<>
-      {runs.map((run) => {
+      {runs.map((run, index) => {
         if (run.entity)
           return (<EntityLink entity={run.entity} key={run.start}>
               <EntityParts text={run.text} entity={run.entity} />
             </EntityLink>
           );
         if (run.emphasis) return <EntityMark key={run.start}>{run.text}</EntityMark>;
-        return <Fragment key={run.start}>{run.text}</Fragment>;
+        if (!badges) return <Fragment key={run.start}>{run.text}</Fragment>;
+        // The label list is the head of the leaf that follows the lead-in, so
+        // only the first run can carry it; every other plain run is scanned for
+        // a window instead.
+        const cut =
+          labelList && index === 0 ? labelBadgeRuns(run.text, run.start) : dateBadgeRuns(run.text, run.start);
+        return (<Fragment key={run.start}>
+            {cut.map((part) =>
+              part.badge ? (<span className={`answer-badge answer-badge--${part.badge}`} key={part.start}>
+                  {part.text}
+                </span>
+              ) : (<Fragment key={part.start}>{part.text}</Fragment>)
+            )}
+          </Fragment>
+        );
       })}
     </>
   );
+}
+
+/** The words in an inline subtree, for reading a lead-in back off it. */
+function inlineText(nodes: readonly Inline[]): string {
+  return nodes
+    .map((node) => {
+      switch (node.kind) {
+        case 'text':
+        case 'code':
+          return node.runs.map((run) => run.text).join('');
+        case 'strong':
+        case 'link':
+          return inlineText(node.children);
+        case 'break':
+          return '\n';
+      }
+    })
+    .join('');
 }
 
 /**
@@ -176,12 +219,19 @@ function ProseRuns({ runs }: { runs: readonly ProseSegment[] }) {
  * as the six characters it is. See answer-markdown.ts for why that is the
  * safety story rather than a sanitiser.
  */
-function InlineNodes({ nodes }: { nodes: readonly Inline[] }) {
+function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badges?: boolean }) {
   return (<>
-      {nodes.map((node) => {
+      {nodes.map((node, index) => {
         switch (node.kind) {
-          case 'text':
-            return <ProseRuns runs={node.runs} key={node.start} />;
+          case 'text': {
+            // `**Labels:** Northwind, Contoso` is a lead-in and its value, and the
+            // parser puts them in two siblings: the list can only be recognised
+            // from here, where both are in view.
+            const previous = nodes[index - 1];
+            const labelList =
+              previous !== undefined && previous.kind === 'strong' && isLabelLeadIn(inlineText(previous.children));
+            return <ProseRuns runs={node.runs} badges={badges} labelList={labelList} key={node.start} />;
+          }
           case 'code':
             return (<code className="answer-code entity-quote" key={node.start}>
                 <ProseRuns runs={node.runs} />
@@ -189,7 +239,7 @@ function InlineNodes({ nodes }: { nodes: readonly Inline[] }) {
             );
           case 'strong':
             return (<strong key={node.start}>
-                <InlineNodes nodes={node.children} />
+                <InlineNodes nodes={node.children} badges={badges} />
               </strong>
             );
           case 'link':
@@ -224,7 +274,7 @@ function InlineNodes({ nodes }: { nodes: readonly Inline[] }) {
  * in `.answer-heading` follow from the same thing -- these read as the label on
  * a paragraph, not as a title.
  */
-function ProseBlock({ block }: { block: Block }) {
+function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean }) {
   switch (block.kind) {
     case 'heading': {
       const Tag = block.level === 2 ? 'h3' : 'h4';
@@ -237,7 +287,7 @@ function ProseBlock({ block }: { block: Block }) {
       const Tag = block.ordered ? 'ol' : 'ul';
       return (<Tag className="answer-list">
           {block.items.map((item) => (<li key={item.start}>
-              <InlineNodes nodes={item.children} />
+              <InlineNodes nodes={item.children} badges={badges} />
             </li>
           ))}
         </Tag>
@@ -304,7 +354,7 @@ function ProseBlock({ block }: { block: Block }) {
       );
     case 'paragraph':
       return (<p>
-          <InlineNodes nodes={block.children} />
+          <InlineNodes nodes={block.children} badges={badges} />
         </p>
       );
   }
@@ -367,12 +417,22 @@ export function AnswerProse({
   sources,
   className,
   columns = [],
+  badges = false,
 }: {
   text: string;
   sources: readonly { name: string }[];
   className?: string;
   /** The columns this surface declared. Bolded, never linked. */
   columns?: readonly string[];
+  /**
+   * Whether date windows and label lists are set as badges.
+   *
+   * Off for the narrative, which is sentences: a paragraph that mentions three
+   * dates would come out as three chips inside a sentence. On for the data
+   * package, where the window and the labels are values in a list of facts and
+   * the source table beside them is already a chip.
+   */
+  badges?: boolean;
 }) {
   const tracked = useTrackedTables();
   const blocks = answerBlocks(text,
@@ -381,7 +441,7 @@ export function AnswerProse({
     columns
   );
   return (<div className={className ? `answer-prose ${className}` : 'answer-prose'}>
-      {blocks.map((block) => (<ProseBlock block={block} key={block.start} />
+      {blocks.map((block) => (<ProseBlock block={block} badges={badges} key={block.start} />
       ))}
     </div>
   );
