@@ -130,12 +130,14 @@ describe('the left column: what this deployment is', () => {
 
   it('omits the description and the tags rather than printing an empty row for either', () => {
     const keys = deploymentRows(facts({ url: 'https://a.example.com', description: '', tags: [] })).map((row) => row.key);
-    expect(keys).toEqual(['endpoint']);
+    // The two source links are always in this column now; the repository one is
+    // a product fact rather than a reading, so it is drawn on every deployment.
+    expect(keys).toEqual(['endpoint', 'github']);
   });
 
   it('draws one chip per tag where the workspace reported any', () => {
-    const [tags] = deploymentRows(facts({ tags: ['insights', 'demo'] }));
-    expect(tags).toMatchObject({ kind: 'chips', label: 'Tags', values: ['insights', 'demo'] });
+    const rows = deploymentRows(facts({ tags: ['insights', 'demo'] }));
+    expect(rows.at(-1)).toMatchObject({ kind: 'chips', label: 'Tags', values: ['insights', 'demo'] });
   });
 
   it('names the compute size, and prints its envelope only where there is one', () => {
@@ -144,6 +146,89 @@ describe('the left column: what this deployment is', () => {
     );
     expect(computeAside({ size: 'X-LARGE-2', envelope: null })).toBe('');
     expect(computeAside(null)).toBe('');
+  });
+});
+
+/**
+ * WHICH COLUMN EACH ROW IS IN, asked of the two functions that are the only
+ * answer to it.
+ *
+ * The card is read as two columns, and it had drifted to three rows on the left
+ * against seven on the right, which reads as one list with a hole in it. Sam
+ * asked for the two source links to move under Compute; these assertions are
+ * what stops the next row being appended to whichever function it was easiest
+ * to reach.
+ */
+describe('the two columns of the card', () => {
+  /** What the workspace running this app actually reports about it. */
+  const live = facts({
+    url: 'https://an-app-1234567890.aws.databricksapps.com',
+    description: 'Player insights, multi-agent traces, and repeatable benchmarking',
+    compute: { size: 'MEDIUM', envelope: { vcpus: 2, memoryGb: 6, dbuPerHour: 0.5 } },
+    deployedAt: AUG_2,
+    deployedBy: 'someone@example.com',
+    otelExporter: 'http://localhost:4314',
+    source: {
+      path: '/Workspace/Users/someone/player-insights-agent-real-src',
+      workspaceUrl: 'https://workspace.example.com/browse/folders/1999001141571163?o=1234567890',
+      gitRef: 'main',
+    },
+  });
+  const now = Date.parse(AUG_2) + 6 * 60 * 60 * 1000;
+
+  it('puts the two source links on the left, directly under Compute', () => {
+    expect(deploymentRows(live).map((row) => row.key)).toEqual([
+      'endpoint',
+      'description',
+      'compute',
+      'app-source',
+      'github',
+    ]);
+  });
+
+  it('leaves the exporter and the release on the right, and neither source link', () => {
+    const keys = telemetryRows(live, now).map((row) => row.key);
+    expect(keys).toEqual(['otel', 'deployed', 'uptime']);
+    expect(keys).not.toContain('app-source');
+    expect(keys).not.toContain('github');
+  });
+
+  /**
+   * FIVE AND FIVE. The right column is these three rows plus the two commit
+   * stamps, which the card takes from `buildFacts` rather than from here -- so
+   * the balance is only checkable by counting both halves at once, which is
+   * what this does.
+   */
+  it('balances the two columns on the deployment this app runs on', () => {
+    const COMMIT_ROWS = 2;
+    expect(deploymentRows(live)).toHaveLength(telemetryRows(live, now).length + COMMIT_ROWS);
+    expect(deploymentRows(live)).toHaveLength(5);
+  });
+
+  /**
+   * The tags row closes the column, which means the links go BEFORE it rather
+   * than at the end of whatever exists.
+   */
+  it('keeps the tags row last when the workspace reported any', () => {
+    const rows = deploymentRows(facts({ ...live, tags: ['insights', 'demo'] }));
+    expect(rows.map((row) => row.key)).toEqual([
+      'endpoint',
+      'description',
+      'compute',
+      'app-source',
+      'github',
+      'tags',
+    ]);
+  });
+
+  /**
+   * A deployment whose workspace answered nothing has no left column, so the
+   * links have nowhere to be but the right -- and losing them would lose the
+   * repository row, which was never a reading in the first place.
+   */
+  it('carries the links on the right where there is no left column at all', () => {
+    expect(deploymentRows(NO_APP_FACTS)).toEqual([]);
+    expect(telemetryRows(NO_APP_FACTS, now).map((row) => row.key)).toEqual(['github']);
   });
 });
 
@@ -198,11 +283,18 @@ describe('the right column: what it was built from', () => {
     expect(rows[0]).toMatchObject({ value: '<your-username>/player-insights-agent', href: PUBLIC_SOURCE_REPO_URL });
   });
 
-  /** The card composes them, so they are on the deployment column and not adrift. */
-  it('puts both source rows in the built-from column', () => {
-    const keys = telemetryRows(facts({ deployedAt: AUG_2 }), Date.parse(AUG_2)).map((row) => row.key);
-    expect(keys).toContain('github');
-    expect(keys).toContain('deployed');
+  /**
+   * The card composes them, so they are in a column and not adrift. Which
+   * column is asserted above, in `the two columns of the card`.
+   */
+  it('composes the source rows into a column rather than leaving them unrendered', () => {
+    const left = deploymentRows(facts({ url: 'https://a.example.com', deployedAt: AUG_2 })).map((row) => row.key);
+    const right = telemetryRows(facts({ url: 'https://a.example.com', deployedAt: AUG_2 }), Date.parse(AUG_2))
+      .map((row) => row.key);
+
+    expect(left).toContain('github');
+    expect(right).toContain('deployed');
+    expect(right).not.toContain('github');
   });
 
   /**
@@ -360,7 +452,7 @@ describe('the right column: what it was built from', () => {
       Date.parse(AUG_2) + 6 * 60 * 60 * 1000,
     );
 
-    expect(rows.map((row) => row.key)).toEqual(['otel', 'github', 'deployed', 'uptime']);
+    expect(rows.map((row) => row.key)).toEqual(['otel', 'deployed', 'uptime']);
     // And no row invents one out of the DBU rate the compute envelope carries,
     // which is the plausible-looking arithmetic to reach for: a published rate
     // times an uptime is a capacity, not a bill, and it would read on this card

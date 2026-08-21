@@ -28,6 +28,16 @@ import type { PreflightCheck } from './preflight';
 import type { ConnectedResource, ResourceKind } from '../../shared/deployment-config';
 import type { AppFacts } from '../../shared/app-facts';
 
+/**
+ * Whether the notebook declaration table is offered as a connection editor.
+ *
+ * OFF for Astrolabe. The registry entry, settings route, declaration reader and
+ * notebook-required Apply gate deliberately remain in place: a deployment may
+ * still configure the table outside this screen, and this can be restored later
+ * without rebuilding that machinery.
+ */
+export const SHOW_NOTEBOOK_DECLARATION_EDITOR = false;
+
 export type DriftSeverity = 'blocking' | 'warning' | 'pending' | 'unknown' | 'note';
 
 export interface DriftFinding {
@@ -355,13 +365,15 @@ export function readConnections(payload: SettingsPayload | null,
   if (!payload) return [];
   const checksById = indexChecks(allChecks(payload, checks));
   const findings = findingsByResource(payload.drift);
-  return payload.resources.map((row) =>
-    readConnection({
-      row,
-      check: checkFor(row.resource, checksById),
-      findings: findings.get(row.resource.id) ?? [],
-    })
-  );
+  return payload.resources
+    .filter((row) => SHOW_NOTEBOOK_DECLARATION_EDITOR || row.resource.id !== 'notebook-declaration')
+    .map((row) =>
+      readConnection({
+        row,
+        check: checkFor(row.resource, checksById),
+        findings: findings.get(row.resource.id) ?? [],
+      })
+    );
 }
 
 /** The counts for the status line, off the same readings the rows render. */

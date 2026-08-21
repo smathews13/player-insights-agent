@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { appCompute, appFacts, appServing, appTags, readAppFacts, type AppRead } from './app-metadata';
+import {
+  appCompute,
+  appFacts,
+  appServing,
+  appTags,
+  readAppFacts,
+  sourceFolderPath,
+  workspaceIdFromAppUrl,
+  type AppRead,
+} from './app-metadata';
 
 /**
  * What the deployment is allowed to say about itself.
@@ -121,15 +130,39 @@ describe('the active deployment source', () => {
     // DAB deploy puts files; it is not what a Git-sourced app runs, and sending
     // an operator there is sending them to code that is not serving.
     expect(facts.source.workspaceUrl).not.toContain('.bundle');
+    // And not a folder link either, whatever id it is handed: a Git deployment
+    // materialises no workspace folder, so there is none to browse.
+    expect(
+      appFacts({
+        workspaceHost: 'https://workspace.example.com',
+        sourceFolderId: '1999001141571163',
+        read: {
+          kind: 'ok',
+          body: {
+            name: 'astrolabe',
+            url: 'https://astrolabe-<workspace-id>.aws.databricksapps.com',
+            active_deployment: { git_source: { branch: 'main', source_code_path: 'player-insights-agent/build/deploy' } },
+          },
+        },
+      }).source.workspaceUrl
+    ).toBe('https://workspace.example.com/apps/astrolabe?o=<workspace-id>');
   });
 
-  it('links an uploaded deployment to the exact source folder Apps reports', () => {
+  /**
+   * THE FORM SAM ASKED FOR: `/browse/folders/<id>?o=<workspace>`. It shipped
+   * briefly as `#workspace/<path>`, which needed no folder id and was not the
+   * pattern the workspace UI puts in the address bar or that an operator can
+   * paste to somebody else.
+   */
+  it('links an uploaded deployment to the folder id the workspace resolved', () => {
     const facts = appFacts({
       workspaceHost: 'workspace.example.com',
+      sourceFolderId: '1999001141571163',
       read: {
         kind: 'ok',
         body: {
           name: 'astrolabe',
+          url: 'https://astrolabe-<workspace-id>.aws.databricksapps.com',
           active_deployment: {
             source_code_path: '/Workspace/Users/operator/player-insights-agent-real-src',
             deployment_artifacts: {
@@ -140,34 +173,101 @@ describe('the active deployment source', () => {
       },
     });
 
+    // The row still READS as the path, which is what makes it worth scanning.
     expect(facts.source.path).toBe('/Workspace/Users/operator/player-insights-agent-real-src');
-    // The documented shareable folder form. `/browse/folders/...` wants a
-    // numeric directory id, which would be a second workspace call to learn.
     expect(facts.source.workspaceUrl).toBe(
-      'https://workspace.example.com/#workspace/Workspace/Users/operator/player-insights-agent-real-src'
+      'https://workspace.example.com/browse/folders/1999001141571163?o=<workspace-id>'
     );
+    expect(facts.source.workspaceUrl).not.toContain('#workspace');
     // The generated artifact snapshot is what the deployment READS. It is not a
-    // folder anybody edits, so the row points at the source that was deployed.
+    // folder anybody edits, so nothing points at it.
     expect(facts.source.workspaceUrl).not.toContain('a-generated-snapshot');
     // Nothing established a branch, so nothing claims one.
     expect(facts.source.gitRef).toBe('');
   });
 
-  it('keeps a home folder readable and still escapes what has to be escaped', () => {
+  /**
+   * A FOLDER ID IS NEVER DERIVED FROM A PATH. Where the workspace would not say
+   * what the folder is -- a refusal, a deleted folder, an unreachable control
+   * plane -- the row falls back to the app's own page, which is a destination
+   * that exists, rather than to a number this module invented.
+   */
+  it('falls back to the app page when the folder id could not be resolved', () => {
     const facts = appFacts({
       workspaceHost: 'https://workspace.example.com',
       read: {
         kind: 'ok',
         body: {
           name: 'astrolabe',
-          active_deployment: { source_code_path: '/Workspace/Users/first.last@example.com/an app src' },
+          url: 'https://astrolabe-<workspace-id>.aws.databricksapps.com',
+          active_deployment: { source_code_path: '/Workspace/Users/operator/an app src' },
         },
       },
     });
 
     expect(facts.source.workspaceUrl).toBe(
-      'https://workspace.example.com/#workspace/Workspace/Users/first.last@example.com/an%20app%20src'
+      'https://workspace.example.com/apps/astrolabe?o=<workspace-id>'
     );
+    expect(facts.source.workspaceUrl).not.toContain('/browse/folders');
+  });
+
+  /**
+   * The workspace id comes from the app's own URL, because nothing hands the
+   * container one: `DATABRICKS_WORKSPACE_ID` is unset on Apps, and a literal in
+   * this repository would be a real customer workspace id in a published tree.
+   */
+  it('reads the workspace id off the app URL, and states none where there is none to read', () => {
+    expect(workspaceIdFromAppUrl('https://player-insights-agent-<workspace-id>.<region>.databricksapps.com')).toBe(
+      '<workspace-id>'
+    );
+    // Not any host that ends a label in digits: a wrong `?o=` sends a reader to
+    // a workspace they cannot switch to.
+    expect(workspaceIdFromAppUrl('https://an-app-1234.example.com')).toBe('');
+    expect(workspaceIdFromAppUrl('')).toBe('');
+
+    const noUrl = appFacts({
+      workspaceHost: 'https://workspace.example.com',
+      sourceFolderId: '42',
+      read: { kind: 'ok', body: { name: 'astrolabe', active_deployment: { source_code_path: '/Workspace/a/b' } } },
+    });
+    expect(noUrl.source.workspaceUrl).toBe('https://workspace.example.com/browse/folders/42');
+  });
+
+  /**
+   * WHICH PATH IS EVEN ASKED ABOUT. The second workspace call is made for the
+   * running deployment's own folder and for nothing else.
+   */
+  it('resolves the running deployment folder, and no other path in the record', () => {
+    expect(
+      sourceFolderPath({
+        active_deployment: {
+          source_code_path: '/Workspace/Users/operator/player-insights-agent-real-src',
+          deployment_artifacts: { source_code_path: '/Workspace/Users/system/src/a-snapshot' },
+        },
+      })
+    ).toBe('/Workspace/Users/operator/player-insights-agent-real-src');
+
+    // A Git deployment's path is relative to a repository and names no
+    // workspace object, so there is nothing to ask about.
+    expect(
+      sourceFolderPath({
+        active_deployment: { git_source: { source_code_path: 'player-insights-agent/build/deploy' } },
+      })
+    ).toBe('');
+
+    // NOT THE BUNDLE TREE, even where the record carries one beside the
+    // repository: that folder is where a bundle deploy last put files, not what
+    // a Git-sourced app runs.
+    expect(
+      sourceFolderPath({
+        active_deployment: {
+          source_code_path: '/Workspace/Users/someone/.bundle/player-insights-agent-dab/example/files',
+          git_source: { branch: 'main', source_code_path: 'player-insights-agent/build/deploy' },
+        },
+      })
+    ).toBe('');
+
+    expect(sourceFolderPath({})).toBe('');
   });
 
   it('offers no workspace link where nothing resolved one', () => {
@@ -260,6 +360,81 @@ describe('asking the workspace at all', () => {
     });
 
     expect(facts.answered).toBe(false);
+  });
+
+  /** The folder id is a second workspace call, made for the running folder only. */
+  it('asks the workspace for the folder id of an uploaded deployment', async () => {
+    const asked: string[] = [];
+    const facts = await readAppFacts({
+      name: 'astrolabe',
+      workspaceHost: 'https://workspace.example.com',
+      read: () =>
+        Promise.resolve({
+          kind: 'ok',
+          body: {
+            name: 'astrolabe',
+            url: 'https://astrolabe-<workspace-id>.aws.databricksapps.com',
+            active_deployment: { source_code_path: '/Workspace/Users/operator/player-insights-agent-real-src' },
+          },
+        }),
+      resolveFolderId: (path) => {
+        asked.push(path);
+        return Promise.resolve('1999001141571163');
+      },
+    });
+
+    expect(asked).toEqual(['/Workspace/Users/operator/player-insights-agent-real-src']);
+    expect(facts.source.workspaceUrl).toBe(
+      'https://workspace.example.com/browse/folders/1999001141571163?o=<workspace-id>'
+    );
+  });
+
+  it('asks nothing about a folder for a Git deployment, which has none', async () => {
+    let asked = false;
+    const facts = await readAppFacts({
+      name: 'astrolabe',
+      workspaceHost: 'https://workspace.example.com',
+      read: () =>
+        Promise.resolve({
+          kind: 'ok',
+          body: {
+            name: 'astrolabe',
+            url: 'https://astrolabe-<workspace-id>.aws.databricksapps.com',
+            active_deployment: {
+              git_source: { branch: 'main', source_code_path: 'player-insights-agent/build/deploy' },
+            },
+          },
+        }),
+      resolveFolderId: () => {
+        asked = true;
+        return Promise.resolve('999');
+      },
+    });
+
+    expect(asked).toBe(false);
+    expect(facts.source.workspaceUrl).toBe('https://workspace.example.com/apps/astrolabe?o=<workspace-id>');
+  });
+
+  /** A resolver that throws must not take the settings route with it. */
+  it('survives a folder resolver that throws, and still reports the rest', async () => {
+    const facts = await readAppFacts({
+      name: 'astrolabe',
+      workspaceHost: 'https://workspace.example.com',
+      read: () =>
+        Promise.resolve({
+          kind: 'ok',
+          body: {
+            name: 'astrolabe',
+            url: 'https://astrolabe-<workspace-id>.aws.databricksapps.com',
+            description: 'Asks governed questions.',
+            active_deployment: { source_code_path: '/Workspace/Users/operator/src' },
+          },
+        }),
+      resolveFolderId: () => Promise.reject(new Error('refused')),
+    });
+
+    expect(facts.description).toBe('Asks governed questions.');
+    expect(facts.source.workspaceUrl).toBe('https://workspace.example.com/apps/astrolabe?o=<workspace-id>');
   });
 });
 

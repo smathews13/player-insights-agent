@@ -75,26 +75,103 @@ function objectOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+/** Where a folder's numeric id is asked for, by the path Apps reported. */
+export const WORKSPACE_STATUS_PATH = '/api/2.0/workspace/get-status';
+
 /**
- * A workspace folder URL whose path still says exactly what Apps reported.
- *
- * THE PATH FORM, NOT `/browse/folders/<id>`. The browser's own URL identifies a
- * folder by a numeric directory id this app has not asked for and would have to
- * make a second workspace call to learn; the documented shareable form is
- * `#workspace` followed by the full path, which is precisely the string Apps
- * already handed us. `encodeURI` rather than a per-segment `encodeURIComponent`
- * so a home folder's `user@example.com` survives as itself, as the documented
- * examples spell it, while a space in a folder name is still escaped.
- *
- * Anything that is not a `/Workspace/...` path resolves to no link at all. An
- * Apps deployment can report a source this app has no browser route for, and a
- * link built out of hope is worse than a row that is not drawn.
+ * A workspace path turned into the numeric folder id, or '' for anything that
+ * did not resolve. Injected, so the rules below are assertable without a
+ * workspace and so a refusal is a missing id rather than an exception.
  */
-function workspaceFolderUrl(host: string, path: string): string {
-  const base = normalizeWorkspaceHost(host);
-  const source = textOf(path);
-  if (!base || !source.startsWith('/Workspace/')) return '';
-  return `${base}/#workspace${encodeURI(source)}`;
+export type FolderIdResolver = (path: string) => Promise<string>;
+
+/**
+ * The prefix of a Workspace path. Anything else -- a repo-relative path from a
+ * Git deployment, a volume, a bare name -- is not a folder this app can resolve.
+ */
+const WORKSPACE_PREFIX = '/Workspace/';
+
+/**
+ * The workspace the app is in, read off the app's own URL.
+ *
+ * Apps publishes at `<app-name>-<workspace-id>.<cloud>.databricksapps.com`, so
+ * the id is already in a field this module fetches -- which matters, because
+ * NOTHING HANDS THE CONTAINER A WORKSPACE ID. `DATABRICKS_WORKSPACE_ID` is unset
+ * on Apps (`ops-routes.ts` reads it off a response header for the same reason),
+ * and a literal here would be a real customer workspace id in a repository that
+ * is published.
+ *
+ * The `databricksapps.com` suffix is required rather than assumed: without it
+ * this would mine digits out of any host that happened to end a label with
+ * some, and a wrong `?o=` sends a reader to a workspace switch they cannot make.
+ */
+export function workspaceIdFromAppUrl(url: string): string {
+  return /^https?:\/\/[^./]*?-(\d{6,})\.[^/]*databricksapps\.com/i.exec(textOf(url))?.[1] ?? '';
+}
+
+/** `?o=<workspace id>`, where one was established. */
+function withWorkspace(url: string, workspaceId: string): string {
+  const org = textOf(workspaceId);
+  return org ? `${url}?o=${encodeURIComponent(org)}` : url;
+}
+
+/**
+ * The browser's own URL for a workspace folder.
+ *
+ * `/browse/folders/<id>?o=<workspace>`, WHICH IS THE FORM SAM ASKED FOR and the
+ * one the workspace UI puts in the address bar. It briefly rendered as
+ * `#workspace/<path>` instead, on the argument that a path needs no second
+ * workspace call -- true, and beside the point: the row exists to be followed,
+ * and the pattern an operator can paste back to somebody else is this one.
+ *
+ * The id is never derived from the path. It comes from
+ * {@link workspaceFolderIdResolver} asking the workspace what the folder is, so
+ * an unresolvable path produces no link rather than a folder id that is a guess.
+ */
+export function browseFolderUrl(input: { host: string; folderId: string; workspaceId: string }): string {
+  const base = normalizeWorkspaceHost(input.host);
+  const id = textOf(input.folderId);
+  if (!base || !id) return '';
+  return withWorkspace(`${base}/browse/folders/${encodeURIComponent(id)}`, input.workspaceId);
+}
+
+/**
+ * The app's own workspace page, which is where a Git deployment's source is
+ * managed rather than held.
+ *
+ * A Git-sourced app has NO workspace folder: Apps reports a repository, a branch
+ * and a path inside that repository, and materialises nothing an operator can
+ * open. This page is the honest destination for it -- it names the repository,
+ * the resolved commit and the source path -- and it is the fallback for an
+ * uploaded deployment whose folder id could not be resolved.
+ */
+export function appPageUrl(input: { host: string; appName: string; workspaceId: string }): string {
+  const base = normalizeWorkspaceHost(input.host);
+  const name = textOf(input.appName);
+  if (!base || !name) return '';
+  return withWorkspace(`${base}/apps/${encodeURIComponent(name)}`, input.workspaceId);
+}
+
+/**
+ * The workspace folder the RUNNING deployment was made from, where it has one.
+ *
+ * `active_deployment.source_code_path` and nothing else. Not
+ * `deployment_artifacts.source_code_path`, which is the snapshot the platform
+ * copied into the app's own service-principal home and which nobody edits, and
+ * not the Git deployment's own `source_code_path`, which is relative to a
+ * repository and names no workspace object at all.
+ *
+ * NOTHING AT ALL FOR A GIT DEPLOYMENT, even when the record still carries a
+ * workspace path beside the repository. That path is where a bundle deploy last
+ * put files; it is not what a Git-sourced app runs, and an operator sent there
+ * is reading code that is not serving. Which of the two is live is exactly what
+ * this row is for.
+ */
+export function sourceFolderPath(body: Record<string, unknown>): string {
+  const deployment = objectOf(body.active_deployment);
+  if (Object.keys(objectOf(deployment.git_source)).length > 0) return '';
+  const path = textOf(deployment.source_code_path);
+  return path.startsWith(WORKSPACE_PREFIX) ? path : '';
 }
 
 /**
@@ -161,6 +238,14 @@ export function appFacts(input: {
   workspaceHost?: string;
   otelExporter?: string;
   otelExport?: ExporterReading;
+  /**
+   * The numeric id of {@link sourceFolderPath}, where the workspace resolved
+   * one. Passed in rather than fetched here so this stays a pure function:
+   * `readAppFacts` owns the second call and the cache in front of it.
+   */
+  sourceFolderId?: string;
+  /** Overrides the id read off the app's own URL. For tests and for a caller that already knows. */
+  workspaceId?: string;
 }): AppFacts {
   const otelExporter = textOf(input.otelExporter);
   // Carried through a failed read as well. The count is taken from the
@@ -171,6 +256,7 @@ export function appFacts(input: {
   if (input.read.kind !== 'ok') return { ...NO_APP_FACTS, otelExporter, otelExport };
 
   const body = input.read.body;
+  const appUrl = textOf(body.url);
   // The running deployment, which is the one whose creation time is the uptime
   // and whose creator is the deployer. `create_time` on the app itself is when
   // the app was first made, which is a different and much less useful fact.
@@ -181,8 +267,15 @@ export function appFacts(input: {
   const appName = textOf(body.name);
   const workspaceHost = normalizeWorkspaceHost(input.workspaceHost);
   const gitRef = textOf(gitSource.branch) || textOf(gitSource.tag) || textOf(gitSource.commit);
+  const workspaceId = textOf(input.workspaceId) || workspaceIdFromAppUrl(appUrl);
+  // Never for a Git deployment, whatever id it was handed: see
+  // `sourceFolderPath` for why a workspace path on a Git-sourced app is the
+  // wrong folder rather than a second-best one.
+  const folderUrl = gitBacked
+    ? ''
+    : browseFolderUrl({ host: workspaceHost, folderId: input.sourceFolderId ?? '', workspaceId });
   return {
-    url: textOf(body.url),
+    url: appUrl,
     answered: true,
     description: textOf(body.description),
     compute: appCompute(body.compute_size),
@@ -191,13 +284,21 @@ export function appFacts(input: {
     deployedBy: textOf(deployment.creator) || textOf(body.updater),
     source: {
       path: sourcePath,
-      // Git deployments are managed from the app's own workspace page. Uploaded
-      // deployments link to the exact input folder Apps reports, never to the
-      // generated deployment artifact or to a bundle path inferred elsewhere.
+      // THE FOLDER WINS WHENEVER THE WORKSPACE RESOLVED ONE. That is the
+      // uploaded and the bundle-deployed case, and it is the link Sam asked
+      // for: `/browse/folders/<id>?o=<workspace>`, pointing at the folder that
+      // actually holds what is serving -- never at the generated snapshot in
+      // the service principal's home, and never at a bundle path inferred here
+      // instead of read.
+      //
+      // The app's own page is the fallback, and only where Apps named a source
+      // at all. It is the whole answer for a Git deployment, which has no
+      // workspace folder to open; it also covers an uploaded folder this app was
+      // refused the id for. A deployment that reported no source gets no link,
+      // because a row that goes somewhere unrelated is worse than a row that is
+      // not drawn.
       workspaceUrl:
-        gitBacked && workspaceHost && appName
-          ? `${workspaceHost}/apps/${encodeURIComponent(appName)}`
-          : workspaceFolderUrl(workspaceHost, sourcePath),
+        folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost, appName, workspaceId }) : ''),
       gitRef,
     },
     serving: appServing(body),
@@ -235,6 +336,62 @@ export const workspaceAppReader: AppReader = async (name) => {
 };
 
 /**
+ * Folder ids already resolved, kept for the life of the process.
+ *
+ * A deployment's source folder does not move while the app runs, and
+ * `/api/settings` is read on every visit to the Connections tab: without this,
+ * one link on one card would cost a workspace call per page load.
+ */
+const knownFolderIds = new Map<string, string>();
+
+/** For tests, which must not inherit an id resolved by an earlier case. */
+export function forgetFolderIds(): void {
+  knownFolderIds.clear();
+}
+
+/**
+ * Production resolver: the workspace API on the app's own service-principal
+ * credentials.
+ *
+ * Never throws and never guesses. A refusal, a deleted folder and a workspace
+ * that cannot be reached all return '', and the caller falls back to the app's
+ * own page -- which is a destination that exists -- rather than to a folder id
+ * this app made up. The warning names the path, because "the App source row
+ * points at the app page instead of the folder" is otherwise invisible.
+ */
+export const workspaceFolderIdResolver: FolderIdResolver = async (path) => {
+  const wanted = path.trim();
+  if (!wanted) return '';
+  const cached = knownFolderIds.get(wanted);
+  if (cached !== undefined) return cached;
+  let id = '';
+  try {
+    const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+    const client = new WorkspaceClient({});
+    const body = (await client.apiClient.request({
+      path: WORKSPACE_STATUS_PATH,
+      method: 'GET',
+      query: { path: wanted },
+      headers: new Headers({ Accept: 'application/json' }),
+      raw: false,
+    })) as Record<string, unknown>;
+    // `object_id` is the number the browser's own folder URL carries.
+    // `resource_id` is the same value as a string on the versions that send it.
+    const found = (body ?? {}).object_id ?? (body ?? {}).resource_id;
+    id = typeof found === 'number' ? String(found) : textOf(found);
+  } catch (error) {
+    console.warn(
+      `[settings] The workspace could not resolve the folder id for ${wanted} ` +
+        `(${(error as Error).message}), so the App source row points at the app's own page.`
+    );
+  }
+  // Cached either way. A refusal will not become a grant while this process
+  // lives, and retrying it per page load would be a request that always fails.
+  knownFolderIds.set(wanted, id);
+  return id;
+};
+
+/**
  * The facts, or the empty set.
  *
  * An app that does not know its own name -- which is every run outside Apps --
@@ -248,6 +405,7 @@ export async function readAppFacts(input: {
   otelExporter?: string;
   read?: AppReader;
   readExport?: ExporterReader;
+  resolveFolderId?: FolderIdResolver;
 } = {}): Promise<AppFacts> {
   const name = (input.name ?? process.env[APP_NAME_ENV] ?? '').trim();
   const workspaceHost = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? '';
@@ -272,5 +430,17 @@ export async function readAppFacts(input: {
   if (read.kind !== 'ok') {
     console.warn(`[settings] The workspace could not be asked about the app ${name}:`, read.message);
   }
-  return appFacts({ read, workspaceHost, otelExporter, otelExport });
+  // ASKED ONLY WHERE THERE IS A FOLDER TO ASK ABOUT. A Git deployment reports a
+  // repository-relative path, which names no workspace object, so this second
+  // call is not made for it at all.
+  const folderPath = read.kind === 'ok' ? sourceFolderPath(read.body) : '';
+  let sourceFolderId = '';
+  if (folderPath) {
+    try {
+      sourceFolderId = await (input.resolveFolderId ?? workspaceFolderIdResolver)(folderPath);
+    } catch (error) {
+      console.warn(`[settings] The folder id for ${folderPath} could not be read:`, (error as Error).message);
+    }
+  }
+  return appFacts({ read, workspaceHost, otelExporter, otelExport, sourceFolderId });
 }

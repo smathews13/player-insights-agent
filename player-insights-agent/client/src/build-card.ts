@@ -288,15 +288,32 @@ export function exporterActivity(
 }
 
 /**
- * The left column: what this deployment is.
+ * The left column: what this deployment is, and where its code can be opened.
  *
  * The endpoint leads, because it is the one fact on the card that answers "am I
  * looking at the deployment I think I am". It is drawn only where the workspace
  * reported a URL: this app cannot tell an app with no URL from an app it was
  * never able to ask about, and a red "not set" on the second would accuse a
  * healthy deployment.
+ *
+ * THE TWO SOURCE LINKS SIT HERE, under the compute row, rather than closing the
+ * built-from column as they used to. Two reasons, and the second is the one that
+ * decided it. They belong with this side's subject: where the running code is
+ * opened is a property of the deployment, not of the two commit stamps it was
+ * built from. And the card is read as two columns, so seven rows on the right
+ * against three on the left is a shape a reader scans as one list with a hole in
+ * it -- moving these two makes it five and five on the deployment this app runs
+ * on.
+ *
+ * They land BEFORE the tags row, which stays last: tags are the loosest fact
+ * the workspace reports and the design has them closing the column.
  */
 export function deploymentRows(app: AppFacts): BuildRow[] {
+  // No left column at all where the workspace established nothing about the
+  // app. The source links are not enough to make one: the repository row is a
+  // product fact rather than a reading, so a column built out of it would be
+  // this card claiming a workspace answered when none did.
+  if (!hasDeploymentFacts(app)) return [];
   const rows: BuildRow[] = [];
   const host = endpointHost(app.url);
   if (host) {
@@ -327,6 +344,7 @@ export function deploymentRows(app: AppFacts): BuildRow[] {
   if (app.compute) {
     rows.push({ kind: 'text', key: 'compute', label: 'Compute', value: app.compute.size, aside: computeAside(app.compute) });
   }
+  rows.push(...sourceRows(app));
   if (app.tags.length > 0) {
     rows.push({ kind: 'chips', key: 'tags', label: 'Tags', values: app.tags });
   }
@@ -339,6 +357,10 @@ export function deploymentRows(app: AppFacts): BuildRow[] {
  * The two commit rows are NOT built here. They come from `buildFacts`, which
  * owns the `+dirty` suffix and the two-commit comparison and must stay the only
  * thing that does; the card renders them ahead of these.
+ *
+ * The two source links used to end this column and are now under Compute on the
+ * left, which is what makes the card read five rows against five rather than
+ * three against seven.
  *
  * ## There is no Compute hours row, and it is not an oversight
  *
@@ -372,12 +394,17 @@ export function deploymentRows(app: AppFacts): BuildRow[] {
 /**
  * Where the code this deployment is running can be opened, as two links.
  *
+ * DRAWN IN THE LEFT COLUMN, under Compute. `deploymentRows` composes them; this
+ * function only decides what the two rows say. The one exception is a deployment
+ * whose workspace reported nothing at all, which has no left column for them to
+ * sit in and where `telemetryRows` carries them instead.
+ *
  * TWO DESTINATIONS, AND THEY ANSWER DIFFERENT QUESTIONS. The workspace link
  * goes to whatever the Apps API says the RUNNING deployment was made from -- the
- * app's own page where a Git connection is managed, or the folder somebody
- * uploaded -- and the repository link goes to the published product. An operator
- * looking at a deployment that is behaving oddly wants the first; somebody
- * reading the code wants the second.
+ * workspace folder holding its source, or the app's own page where a Git
+ * connection is managed -- and the repository link goes to the published
+ * product. An operator looking at a deployment that is behaving oddly wants the
+ * first; somebody reading the code wants the second.
  *
  * THE WORKSPACE ROW IS DROPPED WHERE NOTHING RESOLVED IT, on this card's
  * standing rule that an unestablished fact draws nothing rather than a dead
@@ -451,7 +478,11 @@ export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
       title: activity.title,
     });
   }
-  rows.push(...sourceRows(app));
+  // ONLY WHERE THERE IS NO LEFT COLUMN. The two source links live under Compute
+  // now; a deployment whose workspace reported nothing about the app draws no
+  // left column, and dropping the links entirely on that one would lose the
+  // repository row -- which is a product fact and was never a reading.
+  if (!hasDeploymentFacts(app)) rows.push(...sourceRows(app));
   const deployed = deployedAtLabel(app.deployedAt);
   if (deployed) {
     rows.push({
@@ -473,12 +504,18 @@ export function telemetryRows(app: AppFacts, now: number): BuildRow[] {
 }
 
 /**
- * Whether the card has anything beyond the two commit rows to draw.
+ * Whether the workspace established anything about the app itself.
  *
- * Used to decide the two-column layout: one column of hashes is a list, and
- * putting it in a grid with an empty half beside it draws attention to the half
- * that is empty.
+ * Two callers, one question. The card uses it to decide the two-column layout --
+ * one column of hashes is a list, and putting it in a grid with an empty half
+ * beside it draws attention to the half that is empty -- and `telemetryRows`
+ * uses it to decide whether the source links have a left column to go in.
+ *
+ * Asked of the app's OWN facts rather than of `deploymentRows`, because
+ * `deploymentRows` now includes the source links and the repository link is
+ * always drawn: reading the answer off that list would say every deployment
+ * reported something.
  */
 export function hasDeploymentFacts(app: AppFacts): boolean {
-  return deploymentRows(app).length > 0;
+  return Boolean(endpointHost(app.url) || app.description || app.compute || app.tags.length > 0);
 }
