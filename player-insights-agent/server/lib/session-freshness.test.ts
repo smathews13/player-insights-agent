@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  LAKEBASE_USER_API_SCOPE,
   OPTIONAL_USER_API_SCOPES,
   WORKSPACE_READ_USER_API_SCOPE,
 } from '../../shared/optional-user-api-scopes';
@@ -232,8 +233,8 @@ describe('the authored app.yaml', () => {
   /**
    * THE ASK-PATH SCOPES PLUS WORKSPACE BROWSE, NOT EMPTY. A Git deploy has no
    * bundle target, so this authored value is what the login gate uses. Workspace
-   * browse must be requested for the notebook picker even though it remains
-   * optional to the gate. The other optional families stay out.
+   * browse must be requested for the notebook picker and Lakebase picker even
+   * though both remain optional to the gate. The other optional families stay out.
    */
   it('authors the required ask-path scopes and workspace browse for a Git deploy', () => {
     const value =
@@ -247,9 +248,10 @@ describe('the authored app.yaml', () => {
       'sql',
       'dashboards.genie',
       WORKSPACE_READ_USER_API_SCOPE,
+      LAKEBASE_USER_API_SCOPE,
     ]);
     for (const optional of OPTIONAL_USER_API_SCOPES.filter(
-      (scope) => scope !== WORKSPACE_READ_USER_API_SCOPE
+      (scope) => scope !== WORKSPACE_READ_USER_API_SCOPE && scope !== LAKEBASE_USER_API_SCOPE
     )) {
       expect(declared).not.toContain(optional);
     }

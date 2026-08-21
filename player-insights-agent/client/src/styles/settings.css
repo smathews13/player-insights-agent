@@ -774,7 +774,9 @@
 }
 
 .settings-save-notice.settings-error {
-  color: #b3253a;
+  /* The app's one negative text colour, so a refused save reads the same red as
+     every other refusal rather than a hand-mixed one only this row uses. */
+  color: var(--ast-neg-text);
 }
 
 .runtime-section {

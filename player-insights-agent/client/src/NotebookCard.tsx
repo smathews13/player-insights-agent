@@ -26,6 +26,7 @@ import type { NotebookPanel } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import type { AssetPickerSpec } from './asset-picker';
 import { Button } from './ui';
+import { ExperimentalBadge } from './ExperimentalBadge';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 
 const NOTEBOOK_PICKER: AssetPickerSpec = {
@@ -128,7 +129,10 @@ function NotebookCardContent({
   return (
     <section className="plane-card" aria-label="Notebook">
       <div className="plane-card-head">
-        <span>Notebook</span>
+        <span className="plane-card-title">
+          Notebook
+          <ExperimentalBadge />
+        </span>
         <span className="plane-card-purpose">
           Connecting one shows the settings it published beside what the running agent uses.
         </span>

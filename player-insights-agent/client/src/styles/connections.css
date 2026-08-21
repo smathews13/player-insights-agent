@@ -1281,6 +1281,17 @@
   font-size: var(--ast-fs-13);
   font-weight: 700;
 }
+.plane-card-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.experimental-pane-badge {
+  cursor: help;
+  font-weight: 500;
+}
 .plane-card-purpose {
   font-size: var(--ast-fs-12);
   font-weight: 400;
@@ -1402,7 +1413,10 @@
 .plane-row-new {
   flex: none;
   padding: 0 6px;
-  border-radius: 999px;
+  /* The chip's corner is the app's control corner, as every other pill on this
+     page is. A fully rounded end would make this the one pill shaped unlike the
+     status pills it sits beside. */
+  border-radius: var(--ast-radius-control);
   background: var(--ast-fill-band);
   color: var(--ast-text-secondary);
   font-size: var(--ast-fs-12);

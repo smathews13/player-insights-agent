@@ -147,7 +147,7 @@ describe('the Monitoring drawer renders one run view, not two', () => {
     expect(rendered).toContain('1,200 tokens recorded on this run.');
     expect(rendered).toContain('Open the MLflow trace');
     expect(rendered).toContain('Open in Run Explorer');
-    expect(rendered).toContain('See this person');
+    expect(rendered).toContain("see first.person's activity");
     expect(rendered.indexOf('Open the MLflow trace')).toBeLessThan(rendered.indexOf('What ran'));
   });
 

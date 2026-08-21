@@ -9,6 +9,7 @@ import {
 } from './apply-declaration-state';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
+import { EXPERIMENTAL_PANE_HINT } from './ExperimentalBadge';
 
 function notebookPanel(overrides: Partial<NotebookPanel> = {}): NotebookPanel {
   return {
@@ -76,6 +77,12 @@ describe('Connections Apply release request', () => {
     expect(source).toContain('Run the copied notebook cell.');
     expect(source).toContain('Outcome: a new model version with these settings, ready for deployment.');
     expect(source).not.toContain('does not change the live agent silently');
+  });
+
+  it('marks the model re-log pane as experimental and explains the warning', () => {
+    const source = readFileSync(new URL('./ApplyDeclarationCard.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('<ExperimentalBadge />');
+    expect(EXPERIMENTAL_PANE_HINT).toMatch(/may be unstable or may not work as expected/i);
   });
 
   it('drops the narrative filler about what is not listed here', () => {

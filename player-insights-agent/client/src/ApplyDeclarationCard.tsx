@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ApplyPlan } from '../../shared/apply-declaration';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
+import { ExperimentalBadge } from './ExperimentalBadge';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button } from './ui';
 import {
@@ -137,7 +138,10 @@ export function ApplyDeclarationCard({
   return (
     <section className="plane-card" aria-label="Apply model settings" data-testid="apply-declaration">
       <div className="plane-card-head">
-        <span>Apply → new model version</span>
+        <span className="plane-card-title">
+          Apply → new model version
+          <ExperimentalBadge />
+        </span>
         <span className="plane-card-head-aside">
           <button type="button" className="plane-button-quiet" disabled={busy} onClick={() => void load()}>
             Refresh
