@@ -168484,7 +168484,7 @@ function identityPayload(req) {
     // Named so the client can label a development session as one instead of
     // rendering "You are signed in as …" over an address nobody is signed in as.
     identitySource: signedInAs === DEVELOPMENT_IDENTITY ? "development-fallback" : "databricks-apps",
-    executionIdentity: appServicePrincipal() ?? "Player Insights service principal",
+    executionIdentity: appServicePrincipal() ?? "Astrolabe service principal",
     // Was a literal, which was true of every deployment right up until the gate
     // gave a user something else to choose. It is now whatever this server last
     // established for this user, and established is the operative word: see
@@ -172638,7 +172638,7 @@ async function applyAstrolabeTags(input) {
     }
   }
   return {
-    tagged: results.filter((result) => result.status === "tagged" || result.status === "already-tagged").length,
+    tagged: results.filter((result) => result.status === "tagged").length,
     alreadyTagged: results.filter((result) => result.status === "already-tagged").length,
     skipped: results.filter((result) => result.status === "skipped").length,
     failed: results.filter((result) => result.status === "failed").length,
@@ -188554,7 +188554,7 @@ async function preserveOwnedAppSchema(lakebase2, env = process.env) {
       GROUP BY n.oid, n.nspname
       HAVING count(DISTINCT c.relname) >= 2
       ORDER BY n.oid ASC`);
-    const existing = result.rows?.map((row2) => String(row2.nspname ?? "").trim()).find(Boolean);
+    const existing = result.rows?.map((row2) => typeof row2.nspname === "string" ? row2.nspname.trim() : "").find(Boolean);
     if (existing) {
       const adopted = adoptAppSchema(existing);
       console.warn(
