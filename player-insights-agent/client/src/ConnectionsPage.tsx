@@ -45,7 +45,6 @@ import {
 import {
   ChevronRight,
   CircleAlert,
-  CircleCheck,
   CircleHelp,
   Clock,
   Copy,
@@ -54,7 +53,6 @@ import {
   Lock,
   Pencil,
   Save,
-  TriangleAlert,
   Undo2,
   Wrench,
 } from 'lucide-react';
@@ -94,7 +92,6 @@ import { entityRowId } from './data-entities';
 import {
   checkBadgeVariant,
   checkVerdictLabel,
-  checksHeadline,
   formatCheckedAt,
   verdictBadgeVariant,
   type PreflightCheck,
@@ -111,9 +108,6 @@ import { configurationValue, RESOURCE_PRODUCT, tableReachabilityCopy } from './c
 import { useSessionChecks } from './session-checks';
 import {
   DRIFT_MARKER_LABEL,
-  connectionsHeadline,
-  connectionsHeadlineState,
-  connectionsSettled,
   truncateHead,
   visibleCounts,
   type ConnectionCounts,
@@ -164,7 +158,6 @@ import { AssetPickerField } from './AssetPicker';
 // connection-model.ts for why that is one module rather than two readings.
 import {
   allChecks,
-  countConnections,
   deploymentWideFindings,
   groupConnections,
   readConnections,
@@ -1654,13 +1647,12 @@ export function ConnectionsPage() {
   /**
    * Every connection, read once.
    *
-   * The counts, the sections and the rows are all off this one derivation. They
-   * used to be off three: the counts walked the readings, the sections were a
-   * fixed list of resource KINDS, and each row re-derived its own verdict from a
-   * check it looked up itself.
+   * The sections and the rows are off this one derivation. They used to be off
+   * three: a count strip walked the readings, the sections were a fixed list of
+   * resource KINDS, and each row re-derived its own verdict from a check it
+   * looked up itself. The strip is gone; the rows still speak for themselves.
    */
   const readings = useMemo(() => readConnections(payload, reported), [payload, reported]);
-  const counts = useMemo(() => countConnections(readings), [readings]);
   /**
    * The sections, in the order a reader needs them: what is broken, what moved,
    * what answered, what nobody asked, and then the configuration.
@@ -1692,10 +1684,6 @@ export function ConnectionsPage() {
    * in the Build card and red in the list.
    */
   const orchestratorReading = useMemo(() => readingsById(readings).get('agent-endpoint'), [readings]);
-  // Whether the tick is earned, decided beside the sentence it sits next to so
-  // the two cannot come apart.
-  const settled = connectionsSettled(counts);
-  const headlineState = connectionsHeadlineState(counts);
 
   /**
    * When these answers were taken.
@@ -1711,30 +1699,6 @@ export function ConnectionsPage() {
   const lastCheckedAt = payload?.checkedAt || report?.checked_at || '';
 
   const now = Date.now();
-
-  /**
-   * The reading's own qualifications, and ONLY the ones that qualify it.
-   *
-   * THE BUILD HASHES ARE NOT HERE ANY MORE. This line used to also name where
-   * the table inventory came from, in 12px grey under the headline. That origin
-   * is still on the payload for callers that need it; it is not a sentence a
-   * person can act on. The two hashes are a comparison, nothing in that line
-   * said so, and the comparison is the only reason to print either: they are
-   * the Build and telemetry card below, where the mismatch is the finding
-   * rather than something to spot by eye.
-   *
-   * What is left is stated only in the negative, which is a change of rule. It
-   * used to say "recorded values readable" as well, so that silence could not be
-   * mistaken for health -- and then said it on every healthy deployment forever.
-   * The positive direction is now carried by the card: an orchestrator commit
-   * that came back green IS the orchestrator having answered.
-   */
-  const statusMeta = [
-    payload && !payload.orchestratorReported ? 'the served model version did not report its own configuration' : '',
-    payload && !payload.storeAvailable ? 'recorded values cannot be read or saved' : '',
-  ]
-    .filter(Boolean)
-    .join(' \u00b7 ');
 
   /**
    * The independent app and orchestrator build stamps, and whether each half is
@@ -1850,49 +1814,8 @@ export function ConnectionsPage() {
         ready={!!report || !!payload}
       />
 
-      {report || payload ? (
+      {wide.length > 0 ? (
         <div className="connections-status" data-testid="drift-summary">
-          <p className="connections-status-headline" data-state={payload ? headlineState : undefined}>
-            {/* The mark and the sentence are decided together, in
-                `connectionsHeadlineState`, so a green tick can never end up over
-                a red sentence. Nothing is drawn for the unread case: there is no
-                verdict yet, and a neutral mark there would be a third symbol
-                that means "no symbol". */}
-            {payload && settled ? <CircleCheck className="size-4" /> : null}
-            {payload && headlineState === 'blocked' ? <TriangleAlert className="size-4" /> : null}
-            {/* Over the CONNECTIONS this page draws, once a payload exists.
-                `checksHeadline` is right about checks and was wrong here: it
-                answered "Every dependency is reachable" from twenty-four passing
-                checks, printed above nineteen rows of which eight carry no
-                verdict at all. Where there is no payload there are no rows to
-                summarise, so the checks are all there is and it is used. */}
-            {payload ? connectionsHeadline(counts) : checksHeadline(checks)}
-          </p>
-          {/* ONE POPULATION, which is the fix. These five counts were taken from
-              two: reachable, blocked and not-checked came off the CHECK list --
-              twenty-four of them, twelve being individual tables -- while drifted
-              and pending came off the nineteen ROWS. So the line read "24
-              reachable · 0 blocked · 0 not checked" directly above four rows
-              badged "Not checked" and four badged "Nothing to reach". A summary a
-              reader can disprove by counting the screen is worse than none.
-              
-              Each count carries its own word, so the colour is a second reading
-              of something already stated. A count of nothing is not tinted: a
-              green "0 reachable" or a red "0 blocked" spends the colour on a
-              state it does not describe, and a page whose red is always lit
-              teaches people to stop seeing it. A zero is not printed at all: see
-              `visibleCounts`. */}
-          {/* And the line itself is not printed when every count is a zero,
-              because an empty paragraph is a gap a reader reads as a missing
-              value. The headline above has already said nothing has been read. */}
-          {!payload ? (
-            <p className="connections-status-counts">No connection has been read yet</p>
-          ) : visibleCounts(counts).length > 0 ? (
-            <p className="connections-status-counts">
-              <ConnectionsCounts counts={counts} />
-            </p>
-          ) : null}
-          {statusMeta ? <p className="connections-status-meta">{statusMeta}</p> : null}
           {wide.map((finding) => {
             const Icon = SEVERITY_ICON[finding.severity];
             return (
@@ -1908,7 +1831,7 @@ export function ConnectionsPage() {
         </div>
       ) : null}
 
-      {/* Kept whole, and DIRECTLY UNDER THE SUMMARY, against the general rule
+      {/* Kept whole, against the general rule
           that everything collapses. Every other block on this page describes
           state; this one is the only thing on it a reader can act on, and most of
           what it carries belongs to the table checks, which have no resource row

@@ -28,7 +28,6 @@ import {
   type SettingsPayload,
 } from './connection-model';
 import type { StatusTone } from './StatusBadge';
-import { connectionsHeadline, connectionsSettled } from './connection-status';
 import { ENTITY_PARAM, entityHref } from './data-entities';
 import type { PreflightCheck } from './preflight';
 import { connectedResource } from '../../shared/deployment-config';
@@ -394,51 +393,6 @@ describe('the counts line under the status headline', () => {
     expect(line).toBe('1 reachable · 1 blocked · 1 configuration only');
     expect(line).not.toMatch(/^ ?\u00b7/);
     expect(line).not.toMatch(/\u00b7 ?\u00b7/);
-  });
-
-  /**
-   * TWO SENTENCES, AND THE NARROWING IS WHAT EARNS THE TICK.
-   *
-   * The headline used to choose between five readings of these same counts -- "N
-   * of M connections are blocked", "One connection is not using what it was
-   * configured with", "N of M connections answered", "Every connection answered,
-   * and a change is waiting on a release", "Every connection answered" -- so the
-   * first line of the page was a different sentence on nearly every deployment,
-   * and four of the five restated something the count line under it already said
-   * in fewer words.
-   *
-   * It says one thing now: whether anything is blocked. That is a claim these
-   * counts settle outright, which is why the tick may be drawn beside it while
-   * rows are still unverdicted -- where "Every connection answered" could not
-   * honestly be ticked with eight rows carrying no verdict at all. The drifted,
-   * not-checked and pending counts are still facts, they are on the next line,
-   * and each has a section of its own further down.
-   */
-  it('claims only that nothing is blocked, which is what these counts can settle', () => {
-    const partial = countsFor(
-      [row('catalog', { configured: 'c' }), row('genie-data', { configured: 'g' })],
-      [check('catalog', 'ok')]
-    );
-    expect(connectionsHeadline(partial)).toBe('Nothing is blocked');
-    expect(connectionsHeadline(partial)).not.toMatch(/every/i);
-    expect(connectionsSettled(partial)).toBe(true);
-
-    const unread = countsFor([], []);
-    expect(connectionsSettled(unread)).toBe(false);
-    expect(connectionsHeadline(unread)).toBe('No connection has been read yet');
-  });
-
-  /**
-   * A blocked row outranks everything else in the headline, because it is the only
-   * state on this page a reader can act on.
-   */
-  it('leads with the blocked count when anything is blocked', () => {
-    const counts = countsFor(
-      [row('catalog', { configured: 'c' }), row('schema', { configured: 's' })],
-      [check('catalog', 'failed'), check('schema', 'ok')]
-    );
-    expect(connectionsHeadline(counts)).toBe('1 blocked');
-    expect(connectionsSettled(counts)).toBe(false);
   });
 });
 

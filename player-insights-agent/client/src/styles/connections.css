@@ -37,42 +37,14 @@
   opacity: 0.55;
 }
 
-/* The verdict strip: a tick, a sentence, and the parts of the population it
-   describes. Boxed, on the design's own showing, but at the quietest weight the
-   page has -- a hairline and a 8px radius, no wash and no tint -- so it reads as
-   the summary of the report rather than competing with the What to fix card
-   below it, which is the one thing here anybody can act on. */
+/* Drift findings that are not about a single row still sit here. The
+   headline / count / last-check strip that used to wrap them is gone. */
 .connections-status {
   display: grid;
   gap: 4px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
 }
-.connections-status-headline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-}
-/* Two marks, and the state decides which. Green for the tick, which is a thin
-   stroke and green is the one accent in this palette that can be one: #35706B is
-   5.66:1 on white, where amber is 1.90. Red for the triangle, which is only drawn
-   when something is blocked -- and `data-state` comes from the same function as
-   the sentence, so the two cannot disagree. */
-.connections-status-headline > svg {
-  color: var(--ast-pos-text);
-  flex: none;
-}
-.connections-status-headline[data-state='blocked'] > svg {
-  color: var(--ast-neg-text);
-}
-.connections-status-counts {
-  margin: 0;
-  font-size: var(--text-base);
-  color: var(--ast-text-long);
+.connections-status [data-slot='alert'] {
+  margin-top: 0;
 }
 /* 500 on the tinted ones so the colour is not carrying the emphasis by itself.
    The figures are tabular, which is what stops a landing refresh reflowing the
@@ -99,14 +71,6 @@
    is 13px text on white rather than a label on a tint. */
 .connections-count[data-tone='drifted'] {
   color: var(--ast-warn-deep);
-}
-.connections-status-meta {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--muted-foreground);
-}
-.connections-status [data-slot='alert'] {
-  margin-top: 8px;
 }
 
 /* ── What to fix ───────────────────────────────────────────────────────────

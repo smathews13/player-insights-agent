@@ -32,6 +32,9 @@ const BANNED = [
   'Admin only',
   'Enforced on the server',
   'prior half',
+  'Nothing is blocked',
+  'Something is blocked',
+  'No connection has been read yet',
 ];
 
 function text(markup: string): string {
@@ -139,5 +142,23 @@ describe('no screen narrates under its own title', () => {
     const source = code('page-chrome.tsx');
     expect(source).toContain('export function PageHeading({ title, actions }');
     expect(source).not.toMatch(/description\??:/);
+  });
+
+  it('gives Connections no rollup under the title', () => {
+    // The rows already carry reachable / blocked / not checked. A strip that
+    // restated those counts — green or red — was the same filler family as the
+    // lines above, just wearing a tick.
+    const source = code('ConnectionsPage.tsx');
+    const status = code('connection-status.ts');
+    const shown = text(inApp(<ConnectionsPage />));
+    expect(source).not.toContain('connections-status-headline');
+    expect(source).not.toContain('connections-status-counts');
+    expect(source).not.toContain('connections-status-meta');
+    expect(source).not.toContain('connectionsHeadline(');
+    expect(source).not.toContain('checksHeadline(');
+    expect(source).not.toContain('<ConnectionsCounts');
+    expect(status).not.toContain('connectionsHeadline');
+    expect(shown).not.toMatch(/reachable\s*·/);
+    expect(shown).not.toMatch(/configuration only/);
   });
 });

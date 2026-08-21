@@ -11358,7 +11358,7 @@ var require_pg_pool = __commonJS({
     function throwOnDoubleRelease() {
       throw new Error("Release called on client which has already been released to the pool.");
     }
-    function promisify(Promise2, callback) {
+    function promisify2(Promise2, callback) {
       if (callback) {
         return { callback, result: void 0 };
       }
@@ -11489,7 +11489,7 @@ var require_pg_pool = __commonJS({
           const err = new Error("Cannot use a pool after calling end on the pool");
           return cb ? cb(err) : this.Promise.reject(err);
         }
-        const response = promisify(this.Promise, cb);
+        const response = promisify2(this.Promise, cb);
         const result = response.result;
         if (this._isFull() || this._idle.length) {
           if (this._idle.length) {
@@ -11654,7 +11654,7 @@ var require_pg_pool = __commonJS({
       }
       query(text16, values, cb) {
         if (typeof text16 === "function") {
-          const response2 = promisify(this.Promise, text16);
+          const response2 = promisify2(this.Promise, text16);
           setImmediate(function() {
             return response2.callback(new Error("Passing a function as the first parameter to pool.query is not supported"));
           });
@@ -11664,7 +11664,7 @@ var require_pg_pool = __commonJS({
           cb = values;
           values = void 0;
         }
-        const response = promisify(this.Promise, cb);
+        const response = promisify2(this.Promise, cb);
         cb = response.callback;
         this.connect((err, client) => {
           if (err) {
@@ -11709,7 +11709,7 @@ var require_pg_pool = __commonJS({
           return cb ? cb(err) : this.Promise.reject(err);
         }
         this.ending = true;
-        const promised = promisify(this.Promise, cb);
+        const promised = promisify2(this.Promise, cb);
         this._endCallback = promised.callback;
         this._pulseQueue();
         return promised.result;
@@ -34786,7 +34786,7 @@ var require_instrumentation18 = __commonJS({
       _getConsumerRunPatch() {
         const instrumentation = this;
         return (original) => {
-          return function run(...args) {
+          return function run2(...args) {
             const config2 = args[0];
             if (config2?.eachMessage) {
               if ((0, instrumentation_1.isWrapped)(config2.eachMessage)) {
@@ -41362,10 +41362,10 @@ var require_utils35 = __commonJS({
     };
     exports2.renameHttpSpan = renameHttpSpan;
     var once2 = (fn) => {
-      let run = true;
+      let run2 = true;
       return () => {
-        if (run) {
-          run = false;
+        if (run2) {
+          run2 = false;
           fn();
         }
       };
@@ -158472,11 +158472,11 @@ async function runStatement(client, sql3, params) {
     connection.release();
   }
 }
-async function withoutReadTimeout(client, run) {
+async function withoutReadTimeout(client, run2) {
   const pool = client.lakebase.pool;
   const restore = statementTimeoutSql();
   if (restore === null || typeof pool?.connect !== "function") {
-    return run((sql3, params) => client.lakebase.query(sql3, params));
+    return run2((sql3, params) => client.lakebase.query(sql3, params));
   }
   let connection;
   try {
@@ -158485,12 +158485,12 @@ async function withoutReadTimeout(client, run) {
     console.warn(
       `[lakebase] no connection could be reserved to lift the read timeout: ${error48.message}. Continuing on the pool, where a long statement may still be cancelled.`
     );
-    return run((sql3, params) => client.lakebase.query(sql3, params));
+    return run2((sql3, params) => client.lakebase.query(sql3, params));
   }
   sessionsWithTimeout.delete(connection);
   try {
     await connection.query("SET statement_timeout = 0");
-    return await run((sql3, params) => connection.query(sql3, params));
+    return await run2((sql3, params) => connection.query(sql3, params));
   } finally {
     try {
       await connection.query(restore);
@@ -158797,6 +158797,138 @@ ${GRANT_SCRIPT_WHY}`;
   }
 });
 
+// shared/ops-contract.ts
+var SPAN_PERCENTILE_FLOOR;
+var init_ops_contract = __esm({
+  "shared/ops-contract.ts"() {
+    SPAN_PERCENTILE_FLOOR = 20;
+  }
+});
+
+// server/lib/request-latency.ts
+function text(value) {
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  return "";
+}
+function count(value) {
+  const parsed = typeof value === "number" ? value : Number(text(value));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function readRequestLatencyRows(rows) {
+  const routes = [];
+  let coveredFrom = "";
+  let coveredTo = "";
+  for (const row2 of rows) {
+    const route = text(row2.route).trim();
+    const spans = count(row2.current_count);
+    if (!route || spans <= 0) continue;
+    coveredFrom ||= text(row2.covered_from);
+    coveredTo ||= text(row2.covered_to);
+    const priorSpans = count(row2.prior_count);
+    routes.push({
+      route,
+      spans,
+      p50Ms: count(row2.current_p50_ms),
+      p95Ms: spans >= SPAN_PERCENTILE_FLOOR ? count(row2.current_p95_ms) : null,
+      p99Ms: spans >= SPAN_PERCENTILE_FLOOR ? count(row2.current_p99_ms) : null,
+      slowestMs: count(row2.slowest_ms),
+      errorCount: count(row2.error_count),
+      refusalCount: null,
+      lastSpanAt: text(row2.last_request_at),
+      priorSpans,
+      priorP50Ms: row2.prior_p50_ms === null || priorSpans === 0 ? null : count(row2.prior_p50_ms)
+    });
+  }
+  routes.sort((left, right) => right.p50Ms - left.p50Ms || left.route.localeCompare(right.route));
+  return { routes, coveredFrom, coveredTo };
+}
+function matchedRoutePath(req) {
+  const matched = req.route;
+  if (!matched || typeof matched !== "object") return "";
+  const path19 = Reflect.get(matched, "path");
+  return typeof path19 === "string" ? path19 : "";
+}
+function requestLatencyRecorder(store) {
+  return (req, res, next) => {
+    const started = process.hrtime.bigint();
+    res.once("finish", () => {
+      const path19 = matchedRoutePath(req);
+      if (!path19.startsWith("/api/")) return;
+      const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
+      void store.query(
+        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
+           VALUES ($1, $2, $3, $4)`,
+        [req.method.toUpperCase(), `${req.baseUrl || ""}${path19}`, res.statusCode, durationMs]
+      ).catch((error48) => {
+        console.warn(`[ops] Request latency was not recorded for ${req.method} ${path19}: ${error48.message}`);
+      });
+    });
+    next();
+  };
+}
+var REQUEST_LATENCY_TABLE, REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL, REQUEST_LATENCY_QUERY;
+var init_request_latency = __esm({
+  "server/lib/request-latency.ts"() {
+    init_app_schema();
+    init_ops_contract();
+    REQUEST_LATENCY_TABLE = `${APP_SCHEMA}.request_latencies`;
+    REQUEST_LATENCY_DDL = `CREATE TABLE IF NOT EXISTS ${REQUEST_LATENCY_TABLE} (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  method TEXT NOT NULL,
+  route TEXT NOT NULL,
+  status_code INTEGER NOT NULL,
+  duration_ms DOUBLE PRECISION NOT NULL,
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`;
+    REQUEST_LATENCY_INDEX_DDL = `CREATE INDEX IF NOT EXISTS request_latencies_recorded_route_idx
+  ON ${REQUEST_LATENCY_TABLE} (recorded_at DESC, method, route)`;
+    REQUEST_LATENCY_QUERY = `
+  WITH coverage AS (
+    SELECT MIN(recorded_at) AS covered_from,
+           MAX(recorded_at) AS covered_to
+    FROM ${REQUEST_LATENCY_TABLE}
+  ),
+  bounds AS (
+    SELECT covered_from,
+           covered_to,
+           covered_from + ((covered_to - covered_from) / 2) AS split_at
+    FROM coverage
+  ),
+  samples AS (
+    SELECT CONCAT(r.method, ' ', r.route) AS route,
+           r.duration_ms,
+           r.status_code,
+           r.recorded_at,
+           b.split_at
+    FROM ${REQUEST_LATENCY_TABLE} r, bounds b
+  ),
+  routes AS (
+    SELECT
+      s.route,
+      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at)::int AS current_count,
+      ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p50_ms,
+      ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p95_ms,
+      ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p99_ms,
+      ROUND(MAX(s.duration_ms) FILTER (WHERE s.recorded_at >= s.split_at))::int AS slowest_ms,
+      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at AND s.status_code >= 500)::int AS error_count,
+      MAX(s.recorded_at) FILTER (WHERE s.recorded_at >= s.split_at) AS last_request_at,
+      COUNT(*) FILTER (WHERE s.recorded_at < s.split_at)::int AS prior_count,
+      ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
+        FILTER (WHERE s.recorded_at < s.split_at))::int AS prior_p50_ms
+    FROM samples s
+    GROUP BY s.route
+    HAVING COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at) > 0
+  )
+  SELECT r.*, b.covered_from, b.covered_to
+  FROM routes r CROSS JOIN bounds b
+  ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;
+  }
+});
+
 // server/lib/migrations.ts
 function buildMigrations(baselineStatements) {
   return [
@@ -158844,6 +158976,7 @@ var BASELINE_VERSION, BASELINE_NAME, LATER_MIGRATIONS;
 var init_migrations = __esm({
   "server/lib/migrations.ts"() {
     init_app_schema();
+    init_request_latency();
     BASELINE_VERSION = 1;
     BASELINE_NAME = "baseline schema";
     LATER_MIGRATIONS = [
@@ -159129,6 +159262,18 @@ var init_migrations = __esm({
        )`
         ],
         down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.runtime_settings`]
+      },
+      {
+        version: 8,
+        name: "app request timings",
+        // A numbered migration, not an edit to the recorded baseline. Existing
+        // deployments already have version 1, so adding these statements there
+        // caused the writer to start without ever creating its destination.
+        statements: [REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL],
+        down: [
+          `DROP INDEX IF EXISTS ${APP_SCHEMA}.request_latencies_recorded_route_idx`,
+          `DROP TABLE IF EXISTS ${APP_SCHEMA}.request_latencies`
+        ]
       }
     ];
   }
@@ -160501,7 +160646,7 @@ var init_benchmark_suite = __esm({
 });
 
 // shared/answer-scorers.ts
-function text(value) {
+function text2(value) {
   return typeof value === "string" ? value : "";
 }
 function list(value) {
@@ -160519,16 +160664,16 @@ function observedRoutes(envelope) {
   if (!answer) return /* @__PURE__ */ new Set([ROUTE_NONE]);
   const routes = /* @__PURE__ */ new Set();
   if (list(answer.trace?.genie_spaces).length > 0) routes.add(ROUTE_GENIE);
-  if (text(answer.sql).trim()) routes.add(ROUTE_SQL);
+  if (text2(answer.sql).trim()) routes.add(ROUTE_SQL);
   for (const source of sourcesOf(answer)) {
-    if (text(source.role) === "reference") routes.add(ROUTE_DICTIONARY);
+    if (text2(source.role) === "reference") routes.add(ROUTE_DICTIONARY);
   }
   return routes.size > 0 ? routes : /* @__PURE__ */ new Set([ROUTE_NONE]);
 }
 function sqlValidity(envelope) {
   const answer = answerOf(envelope);
   if (!answer) return abstain("No answer was produced, so no statement was published.");
-  const sql3 = text(answer.sql).trim();
+  const sql3 = text2(answer.sql).trim();
   if (!sql3) {
     return abstain("The answer published no SQL, which is expected for a definitional answer or a refusal.");
   }
@@ -160572,11 +160717,11 @@ function provenanceCompleteness(envelope) {
   }
   const missing = [];
   if (sources.length === 0) missing.push("figures were stated but no source was named");
-  const roleless = sources.filter((source) => !text(source.role).trim()).length;
+  const roleless = sources.filter((source) => !text2(source.role).trim()).length;
   if (roleless > 0) {
     missing.push(`${roleless} of ${sources.length} named source(s) did not say what they were read for`);
   }
-  if (figures.length > 0 && !text(answer.sql).trim() && list(answer.trace?.genie_spaces).length === 0) {
+  if (figures.length > 0 && !text2(answer.sql).trim() && list(answer.trace?.genie_spaces).length === 0) {
     missing.push("figures were stated with neither a published statement nor a named Genie space behind them");
   }
   if (missing.length > 0) return scored(false, `${missing.join("; ")}.`);
@@ -160603,7 +160748,7 @@ function coverageCaveat(envelope, expectations) {
   }
   const answer = answerOf(envelope);
   if (!answer) return abstain("No answer was produced, so there was nothing to attach a caveat to.");
-  const caveats = list(answer.caveats).map(text).filter((entry) => entry.trim());
+  const caveats = list(answer.caveats).map(text2).filter((entry) => entry.trim());
   if (caveats.length === 0) {
     return scored(false, "The case has a known coverage gap and the answer disclosed no caveat.");
   }
@@ -160626,7 +160771,7 @@ function semanticRecall(envelope, expectations) {
   if (expected.length === 0) return abstain("The case names no entity to recall.");
   const answer = answerOf(envelope);
   if (!answer) return abstain("No answer was produced, so nothing was retrieved.");
-  const reached = [...sourcesOf(answer).map((source) => text(source.name)), text(answer.sql)].join(" ").toLowerCase();
+  const reached = [...sourcesOf(answer).map((source) => text2(source.name)), text2(answer.sql)].join(" ").toLowerCase();
   const missing = expected.filter((name2) => !reached.includes(name2));
   if (missing.length > 0) {
     return scored(
@@ -160639,11 +160784,11 @@ function semanticRecall(envelope, expectations) {
 function staleIndex(envelope) {
   const answer = answerOf(envelope);
   if (!answer) return abstain("No answer was produced, so no table was read.");
-  const sources = sourcesOf(answer).map((source) => text(source.name).trim()).filter(Boolean);
+  const sources = sourcesOf(answer).map((source) => text2(source.name).trim()).filter(Boolean);
   if (sources.length === 0) {
     return abstain("The run named no source, so there is nothing to compare the index against.");
   }
-  const described = new Set(list(envelope.semantic_layer_tables).map((name2) => text(name2).trim().toLowerCase()).filter(Boolean));
+  const described = new Set(list(envelope.semantic_layer_tables).map((name2) => text2(name2).trim().toLowerCase()).filter(Boolean));
   if (described.size === 0) {
     return abstain(
       "The run did not report which tables the semantic layer describes, so index freshness could not be established. Recorded as unmeasured rather than fresh."
@@ -160660,7 +160805,7 @@ function staleIndex(envelope) {
 }
 function identityExecutionMode(envelope) {
   const identity = envelope?.execution_identity ?? {};
-  const mode = text(identity.mode);
+  const mode = text2(identity.mode);
   const verified = Boolean(identity.verified);
   if (!mode) {
     return abstain("The run recorded no execution identity, so the mode could not be established. Unmeasured, not compliant.");
@@ -160703,11 +160848,11 @@ function warehouseCalls(envelope) {
   const answer = answerOf(envelope);
   if (!answer) return abstain("No answer was produced, so no governed surface was read.");
   let calls = list(answer.trace?.genie_spaces).length;
-  if (text(answer.sql).trim()) calls += 1;
+  if (text2(answer.sql).trim()) calls += 1;
   return scored(calls, `${calls} governed-surface call(s): Genie spaces reached plus a published warehouse statement, if any.`);
 }
 function errorRate(envelope) {
-  const kind = text(envelope?.type);
+  const kind = text2(envelope?.type);
   if (kind === ANSWER) return scored(0, "The run produced an answer.");
   if (kind === "clarification") {
     return scored(0, "The run asked a clarifying question, which is an outcome of a turn rather than a failure of one.");
@@ -160716,7 +160861,7 @@ function errorRate(envelope) {
     return scored(0, "The run declined to answer, which is a correct outcome on a question that asks for restricted data.");
   }
   if (kind === "unavailable") {
-    return scored(1, `The run produced no answer: ${text(envelope.code) || "unavailable"}.`);
+    return scored(1, `The run produced no answer: ${text2(envelope.code) || "unavailable"}.`);
   }
   return scored(1, "The run produced no recognised outcome.");
 }
@@ -161844,7 +161989,7 @@ async function startBenchmarkRun(deps) {
     };
   }
   const sweep = await sweepStaleRuns({ store: deps.store, userEmail: deps.identity.email, now });
-  const inFlight2 = sweep.stillRunning.find((run) => run.suiteId === suite.id);
+  const inFlight2 = sweep.stillRunning.find((run2) => run2.suiteId === suite.id);
   if (inFlight2) {
     return {
       status: 409,
@@ -162668,7 +162813,7 @@ var init_experiment_probe = __esm({
 });
 
 // server/lib/app-settings.ts
-function text2(value) {
+function text3(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return null;
@@ -162676,12 +162821,12 @@ function text2(value) {
 function storedFromRow(row2) {
   const updatedAt = row2.updated_at;
   return {
-    resourceId: text2(row2.resource_id) ?? "",
-    value: text2(row2.value) ?? "",
+    resourceId: text3(row2.resource_id) ?? "",
+    value: text3(row2.value) ?? "",
     intent: row2.intent === "active" ? "active" : "intended",
-    note: text2(row2.note) ?? "",
-    updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : text2(updatedAt) ?? "",
-    updatedBy: text2(row2.updated_by) ?? ""
+    note: text3(row2.note) ?? "",
+    updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : text3(updatedAt) ?? "",
+    updatedBy: text3(row2.updated_by) ?? ""
   };
 }
 function forgetStoredSettings() {
@@ -162781,13 +162926,13 @@ function displayValue(value) {
   if (Array.isArray(value)) {
     const entries = [];
     for (const item of value) {
-      const entry = text2(item);
+      const entry = text3(item);
       if (entry === null) return "";
       entries.push(entry);
     }
     return entries.join(", ");
   }
-  return text2(value) ?? "";
+  return text3(value) ?? "";
 }
 function resourceStates(input) {
   const { report, environment, stored } = input;
@@ -162804,7 +162949,7 @@ function resourceStates(input) {
     let configuredFrom = "";
     if (entry) {
       configured = displayValue(entry.value);
-      configuredFrom = text2(entry.source) ?? "";
+      configuredFrom = text3(entry.source) ?? "";
     } else if (resource.appEnvVar) {
       configured = environment[resource.appEnvVar] ?? "";
       configuredFrom = "app-environment";
@@ -163579,7 +163724,7 @@ function pointer(raw2) {
   const text16 = clamp(raw2, IDENTIFIER_MAX);
   return text16 === "" ? null : text16;
 }
-function count(raw2) {
+function count2(raw2) {
   if (typeof raw2 !== "number" || !Number.isFinite(raw2)) return null;
   const whole = Math.trunc(raw2);
   return whole > 0 ? whole : null;
@@ -163601,7 +163746,7 @@ async function recordEgress(client, input) {
     surface: clamp(input.report.surface, SURFACE_MAX),
     runId: pointer(input.report.runId),
     conversationId: pointer(input.report.conversationId),
-    itemCount: count(input.report.itemCount)
+    itemCount: count2(input.report.itemCount)
   };
   try {
     await client.lakebase.query(
@@ -164562,7 +164707,7 @@ function unavailable2(read2) {
 function row(read2) {
   return read2.rows[0] ?? null;
 }
-function text3(value) {
+function text4(value) {
   if (value === null || value === void 0) return null;
   if (value instanceof Date) return value.toISOString();
   if (typeof value === "string") return value;
@@ -164576,20 +164721,20 @@ function toRun(record2) {
     conversationId: String(record2.conversation_id),
     turnId: String(record2.turn_id),
     requestHash: String(record2.request_hash),
-    idempotencyKeyHash: text3(record2.idempotency_key_hash),
-    planFingerprint: text3(record2.plan_fingerprint),
+    idempotencyKeyHash: text4(record2.idempotency_key_hash),
+    planFingerprint: text4(record2.plan_fingerprint),
     state: String(record2.state),
     deadlineAt: String(record2.deadline_at),
-    identityModeRequested: text3(record2.identity_mode_requested),
-    identityModeEffective: text3(record2.identity_mode_effective),
+    identityModeRequested: text4(record2.identity_mode_requested),
+    identityModeEffective: text4(record2.identity_mode_effective),
     identityVerified: record2.identity_verified === null || record2.identity_verified === void 0 ? null : Boolean(record2.identity_verified),
-    terminalCode: text3(record2.terminal_code),
-    terminalMessageId: text3(record2.terminal_message_id),
-    traceId: text3(record2.trace_id),
-    correlationId: text3(record2.correlation_id),
+    terminalCode: text4(record2.terminal_code),
+    terminalMessageId: text4(record2.terminal_message_id),
+    traceId: text4(record2.trace_id),
+    correlationId: text4(record2.correlation_id),
     fencingToken: Number(record2.fencing_token ?? 0),
-    leaseOwner: text3(record2.lease_owner),
-    leaseExpiresAt: text3(record2.lease_expires_at),
+    leaseOwner: text4(record2.lease_owner),
+    leaseExpiresAt: text4(record2.lease_expires_at),
     attempts: Number(record2.attempts ?? 0)
   };
 }
@@ -164637,8 +164782,8 @@ async function createOrGetRun(store, input) {
     detail: `A run for this request could not be created or found in ${RACE_ATTEMPTS} attempts. Each insert conflicted and each read then missed the row it conflicted with, which should resolve in one retry, so this is contention on a scale nothing here expects.`
   };
 }
-function idempotencyConflict(run, requestHash) {
-  return run.idempotencyKeyHash !== null && run.requestHash !== requestHash;
+function idempotencyConflict(run2, requestHash) {
+  return run2.idempotencyKeyHash !== null && run2.requestHash !== requestHash;
 }
 async function acquireLease(store, runId, executor, from, leaseMs = LEASE_MS) {
   const sql3 = `UPDATE ${APP_SCHEMA}.runs
@@ -164812,38 +164957,38 @@ async function admitRun(store, input) {
       runId: null
     };
   }
-  const { run, created: isNew } = created.value;
+  const { run: run2, created: isNew } = created.value;
   if (!isNew && input.mode === "enforce") {
-    if (idempotencyConflict(run, requestHash)) {
+    if (idempotencyConflict(run2, requestHash)) {
       return {
         kind: "refuse",
         code: "IDEMPOTENCY_CONFLICT",
         status: statusOf("IDEMPOTENCY_CONFLICT"),
         detail: "This Idempotency-Key was already used for a different question. Returning the earlier answer would answer a question you are no longer asking, so nothing was run. Use a new key for a new question.",
-        runId: run.runId
+        runId: run2.runId
       };
     }
-    if (isTerminal(run.state)) return { kind: "replay", run };
+    if (isTerminal(run2.state)) return { kind: "replay", run: run2 };
   }
-  const leased = await acquireLease(store, run.runId, input.executor, ["RECEIVED", "AWAITING_APPROVAL"]);
+  const leased = await acquireLease(store, run2.runId, input.executor, ["RECEIVED", "AWAITING_APPROVAL"]);
   if (!leased.ok) {
     if (input.mode === "shadow") {
       console.warn(
-        `[run-ledger] shadow: run ${run.runId} is already owned (${leased.detail}). In enforce mode this request would have attached to it instead of invoking the agent.`
+        `[run-ledger] shadow: run ${run2.runId} is already owned (${leased.detail}). In enforce mode this request would have attached to it instead of invoking the agent.`
       );
-      return { kind: "proceed", run, fencingToken: null, mode: input.mode };
+      return { kind: "proceed", run: run2, fencingToken: null, mode: input.mode };
     }
     return {
       kind: "refuse",
       code: "STREAM_INTERRUPTED",
       status: statusOf("STREAM_INTERRUPTED"),
       detail: "This question is already running. Reconnect to it rather than asking again; asking again would run the same model and data work a second time.",
-      runId: run.runId
+      runId: run2.runId
     };
   }
   await recordAttempt(store, {
     attemptId: `attempt-${input.runId}-${leased.value.fencingToken}`,
-    runId: run.runId,
+    runId: run2.runId,
     fencingToken: leased.value.fencingToken,
     executor: input.executor
   });
@@ -164937,14 +165082,14 @@ var init_run_admission = __esm({
 });
 
 // server/lib/run-replay.ts
-async function readReplay(store, run) {
-  if (!mayCarryAnswer(run.state)) {
-    return { kind: "failure", code: run.terminalCode, state: run.state };
+async function readReplay(store, run2) {
+  if (!mayCarryAnswer(run2.state)) {
+    return { kind: "failure", code: run2.terminalCode, state: run2.state };
   }
-  if (!run.terminalMessageId) {
+  if (!run2.terminalMessageId) {
     return {
       kind: "missing",
-      detail: `Run ${run.runId} succeeded but recorded no message to replay.`
+      detail: `Run ${run2.runId} succeeded but recorded no message to replay.`
     };
   }
   const read2 = await ledgerQuery(
@@ -164953,21 +165098,21 @@ async function readReplay(store, run) {
     `SELECT m.response_json FROM ${APP_SCHEMA}.messages m
        JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
       WHERE m.id = $1 AND c.user_email = $2`,
-    [run.terminalMessageId, run.userEmail]
+    [run2.terminalMessageId, run2.userEmail]
   );
   if (!read2.available) return { kind: "unavailable", detail: `${read2.error} (code ${read2.code})` };
   const stored = read2.rows[0]?.response_json;
   if (stored === void 0 || stored === null) {
     return {
       kind: "missing",
-      detail: `Run ${run.runId} names message ${run.terminalMessageId}, which no longer exists for this reader.`
+      detail: `Run ${run2.runId} names message ${run2.terminalMessageId}, which no longer exists for this reader.`
     };
   }
   const body = parseStored(stored);
   if (!body) {
     return {
       kind: "missing",
-      detail: `The stored answer for run ${run.runId} could not be read back as an answer.`
+      detail: `The stored answer for run ${run2.runId} could not be read back as an answer.`
     };
   }
   return { kind: "answer", body };
@@ -164982,11 +165127,11 @@ function parseStored(stored) {
     return null;
   }
 }
-function replayBody(body, run) {
+function replayBody(body, run2) {
   return {
     ...body,
     replayed: true,
-    replayedRunId: run.runId
+    replayedRunId: run2.runId
   };
 }
 var init_run_replay = __esm({
@@ -165165,138 +165310,6 @@ function respondToHandlerFailures(app) {
 }
 var init_handler_failures = __esm({
   "server/lib/handler-failures.ts"() {
-  }
-});
-
-// shared/ops-contract.ts
-var SPAN_PERCENTILE_FLOOR;
-var init_ops_contract = __esm({
-  "shared/ops-contract.ts"() {
-    SPAN_PERCENTILE_FLOOR = 20;
-  }
-});
-
-// server/lib/request-latency.ts
-function text4(value) {
-  if (typeof value === "string") return value;
-  if (value instanceof Date) return value.toISOString();
-  return "";
-}
-function count2(value) {
-  const parsed = typeof value === "number" ? value : Number(text4(value));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-function readRequestLatencyRows(rows) {
-  const routes = [];
-  let coveredFrom = "";
-  let coveredTo = "";
-  for (const row2 of rows) {
-    const route = text4(row2.route).trim();
-    const spans = count2(row2.current_count);
-    if (!route || spans <= 0) continue;
-    coveredFrom ||= text4(row2.covered_from);
-    coveredTo ||= text4(row2.covered_to);
-    const priorSpans = count2(row2.prior_count);
-    routes.push({
-      route,
-      spans,
-      p50Ms: count2(row2.current_p50_ms),
-      p95Ms: spans >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p95_ms) : null,
-      p99Ms: spans >= SPAN_PERCENTILE_FLOOR ? count2(row2.current_p99_ms) : null,
-      slowestMs: count2(row2.slowest_ms),
-      errorCount: count2(row2.error_count),
-      refusalCount: null,
-      lastSpanAt: text4(row2.last_request_at),
-      priorSpans,
-      priorP50Ms: row2.prior_p50_ms === null || priorSpans === 0 ? null : count2(row2.prior_p50_ms)
-    });
-  }
-  routes.sort((left, right) => right.p50Ms - left.p50Ms || left.route.localeCompare(right.route));
-  return { routes, coveredFrom, coveredTo };
-}
-function matchedRoutePath(req) {
-  const matched = req.route;
-  if (!matched || typeof matched !== "object") return "";
-  const path19 = Reflect.get(matched, "path");
-  return typeof path19 === "string" ? path19 : "";
-}
-function requestLatencyRecorder(store) {
-  return (req, res, next) => {
-    const started = process.hrtime.bigint();
-    res.once("finish", () => {
-      const path19 = matchedRoutePath(req);
-      if (!path19.startsWith("/api/")) return;
-      const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
-      void store.query(
-        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
-           VALUES ($1, $2, $3, $4)`,
-        [req.method.toUpperCase(), `${req.baseUrl || ""}${path19}`, res.statusCode, durationMs]
-      ).catch((error48) => {
-        console.warn(`[ops] Request latency was not recorded for ${req.method} ${path19}: ${error48.message}`);
-      });
-    });
-    next();
-  };
-}
-var REQUEST_LATENCY_TABLE, REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL, REQUEST_LATENCY_QUERY;
-var init_request_latency = __esm({
-  "server/lib/request-latency.ts"() {
-    init_app_schema();
-    init_ops_contract();
-    REQUEST_LATENCY_TABLE = `${APP_SCHEMA}.request_latencies`;
-    REQUEST_LATENCY_DDL = `CREATE TABLE IF NOT EXISTS ${REQUEST_LATENCY_TABLE} (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  method TEXT NOT NULL,
-  route TEXT NOT NULL,
-  status_code INTEGER NOT NULL,
-  duration_ms DOUBLE PRECISION NOT NULL,
-  recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-)`;
-    REQUEST_LATENCY_INDEX_DDL = `CREATE INDEX IF NOT EXISTS request_latencies_recorded_route_idx
-  ON ${REQUEST_LATENCY_TABLE} (recorded_at DESC, method, route)`;
-    REQUEST_LATENCY_QUERY = `
-  WITH coverage AS (
-    SELECT MIN(recorded_at) AS covered_from,
-           MAX(recorded_at) AS covered_to
-    FROM ${REQUEST_LATENCY_TABLE}
-  ),
-  bounds AS (
-    SELECT covered_from,
-           covered_to,
-           covered_from + ((covered_to - covered_from) / 2) AS split_at
-    FROM coverage
-  ),
-  samples AS (
-    SELECT CONCAT(r.method, ' ', r.route) AS route,
-           r.duration_ms,
-           r.status_code,
-           r.recorded_at,
-           b.split_at
-    FROM ${REQUEST_LATENCY_TABLE} r, bounds b
-  ),
-  routes AS (
-    SELECT
-      s.route,
-      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at)::int AS current_count,
-      ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
-        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p50_ms,
-      ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY s.duration_ms)
-        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p95_ms,
-      ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY s.duration_ms)
-        FILTER (WHERE s.recorded_at >= s.split_at))::int AS current_p99_ms,
-      ROUND(MAX(s.duration_ms) FILTER (WHERE s.recorded_at >= s.split_at))::int AS slowest_ms,
-      COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at AND s.status_code >= 500)::int AS error_count,
-      MAX(s.recorded_at) FILTER (WHERE s.recorded_at >= s.split_at) AS last_request_at,
-      COUNT(*) FILTER (WHERE s.recorded_at < s.split_at)::int AS prior_count,
-      ROUND(percentile_cont(0.50) WITHIN GROUP (ORDER BY s.duration_ms)
-        FILTER (WHERE s.recorded_at < s.split_at))::int AS prior_p50_ms
-    FROM samples s
-    GROUP BY s.route
-    HAVING COUNT(*) FILTER (WHERE s.recorded_at >= s.split_at) > 0
-  )
-  SELECT r.*, b.covered_from, b.covered_to
-  FROM routes r CROSS JOIN bounds b
-  ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;
   }
 });
 
@@ -165830,7 +165843,7 @@ function missingScopeBlock(apiMessage) {
     apiMessage
   };
 }
-async function verifyTableAccess(tables, run, principal = UNKNOWN_PRINCIPAL, options = {}) {
+async function verifyTableAccess(tables, run2, principal = UNKNOWN_PRINCIPAL, options = {}) {
   const budgetMs = options.budgetMs ?? VERIFICATION_BUDGET_MS;
   const now = options.now ?? Date.now;
   const startedAt = now();
@@ -165846,7 +165859,7 @@ async function verifyTableAccess(tables, run, principal = UNKNOWN_PRINCIPAL, opt
     }
     let result;
     try {
-      result = await run(table);
+      result = await run2(table);
     } catch (error48) {
       result = { ok: false, message: error48.message };
     }
@@ -166310,12 +166323,12 @@ function genieClause(genie2) {
   return `${head} ${unknown2.length} did not answer, so ${unknown2.length === 1 ? "it is" : "they are"} unknown rather than granted: ${unknown2.map((verdict) => verdict.label).join("; ")}.`;
 }
 function warehouseProbeFor(options) {
-  const run = statementExecutorFor(options);
-  return () => run("SELECT 1");
+  const run2 = statementExecutorFor(options);
+  return () => run2("SELECT 1");
 }
 function statementRunnerFor(options) {
-  const run = statementExecutorFor(options);
-  return (table) => run(probeStatement(table));
+  const run2 = statementExecutorFor(options);
+  return (table) => run2(probeStatement(table));
 }
 function genieSpaceProbeFor(options) {
   const call = options.fetchImpl ?? fetch;
@@ -166852,6 +166865,14 @@ var init_required_user_api_scopes = __esm({
   }
 });
 
+// shared/optional-user-api-scopes.ts
+var WORKSPACE_READ_USER_API_SCOPE;
+var init_optional_user_api_scopes = __esm({
+  "shared/optional-user-api-scopes.ts"() {
+    WORKSPACE_READ_USER_API_SCOPE = "workspace.workspace:read";
+  }
+});
+
 // server/lib/app-user-api-scopes.ts
 function text6(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -166883,7 +166904,7 @@ function failed(response, body) {
   }
   return { kind: "failed", status: response.status || 502, message };
 }
-async function allowRequiredUserApiScopes(options) {
+async function allowAstrolabeUserApiScopes(options) {
   const call = options.fetchImpl ?? fetch;
   const url2 = appUrl(options.host, options.appName);
   const headers = {
@@ -166899,7 +166920,7 @@ async function allowRequiredUserApiScopes(options) {
   const currentBody = await bodyOf(read2);
   if (!read2.ok) return failed(read2, currentBody);
   const current = scopesFrom(currentBody);
-  const merged = [.../* @__PURE__ */ new Set([...current, ...REQUIRED_USER_API_SCOPES])];
+  const merged = [.../* @__PURE__ */ new Set([...current, ...MANAGER_GRANT_USER_API_SCOPES])];
   if (merged.length === current.length) return { kind: "unchanged", scopes: current };
   let update;
   try {
@@ -166915,11 +166936,16 @@ async function allowRequiredUserApiScopes(options) {
   if (!update.ok) return failed(update, updatedBody);
   return { kind: "updated", scopes: merged };
 }
-var APPS_PATH;
+var APPS_PATH, MANAGER_GRANT_USER_API_SCOPES;
 var init_app_user_api_scopes = __esm({
   "server/lib/app-user-api-scopes.ts"() {
     init_required_user_api_scopes();
+    init_optional_user_api_scopes();
     APPS_PATH = "/api/2.0/apps";
+    MANAGER_GRANT_USER_API_SCOPES = [
+      ...REQUIRED_USER_API_SCOPES,
+      WORKSPACE_READ_USER_API_SCOPE
+    ];
   }
 });
 
@@ -167970,7 +167996,7 @@ function setupInsightsRoutes(appkit) {
         });
         return;
       }
-      const outcome = await allowRequiredUserApiScopes({
+      const outcome = await allowAstrolabeUserApiScopes({
         host: host2,
         appName,
         userToken
@@ -167987,7 +168013,7 @@ function setupInsightsRoutes(appkit) {
         updated: outcome.kind === "updated",
         scopes: outcome.scopes,
         signInAgain: true,
-        message: outcome.kind === "updated" ? "Access was added. Sign in again so the new access takes effect." : "This app already allows serving, SQL, and Genie. Sign in again so the access takes effect."
+        message: outcome.kind === "updated" ? "Access was added. Sign in again so the new access takes effect." : "This app already allows serving, SQL, Genie, and workspace browsing. Sign in again so the access takes effect."
       });
     });
     app.post("/api/access-mode", (req, res) => {
@@ -168286,12 +168312,12 @@ function setupInsightsRoutes(appkit) {
         });
         return;
       }
-      const run = read2.rows[0];
-      if (!run) {
+      const run2 = read2.rows[0];
+      if (!run2) {
         res.json(null);
         return;
       }
-      res.json({ ...run, stages: await readStageEvents(appkit, String(run.run_id)) });
+      res.json({ ...run2, stages: await readStageEvents(appkit, String(run2.run_id)) });
     });
     app.get("/api/conversations/:id/attachments", async (req, res) => {
       const read2 = await readStored(
@@ -169295,11 +169321,6 @@ var init_insights_routes = __esm({
       // one direction of the same walk.
       `CREATE INDEX IF NOT EXISTS messages_created_at_idx
      ON ${APP_SCHEMA}.messages (created_at DESC)`,
-      // App-owned route timings. This is deliberately Lakebase rather than OTEL:
-      // customer deployments leave billed telemetry off, while Ops still needs to
-      // report the API routes this server actually handled.
-      REQUEST_LATENCY_DDL,
-      REQUEST_LATENCY_INDEX_DDL,
       `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.attachments (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, user_email TEXT NOT NULL,
     filename TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL,
     extracted_text TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -170146,11 +170167,30 @@ function textOf3(value) {
 function objectOf(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
-function workspaceFolderUrl(host2, path19) {
-  const base = normalizeWorkspaceHost(host2);
-  const source = textOf3(path19);
-  if (!base || !source.startsWith("/Workspace/")) return "";
-  return `${base}/#workspace${encodeURI(source)}`;
+function workspaceIdFromAppUrl(url2) {
+  return /^https?:\/\/[^./]*?-(\d{6,})\.[^/]*databricksapps\.com/i.exec(textOf3(url2))?.[1] ?? "";
+}
+function withWorkspace(url2, workspaceId) {
+  const org = textOf3(workspaceId);
+  return org ? `${url2}?o=${encodeURIComponent(org)}` : url2;
+}
+function browseFolderUrl(input) {
+  const base = normalizeWorkspaceHost(input.host);
+  const id = textOf3(input.folderId);
+  if (!base || !id) return "";
+  return withWorkspace(`${base}/browse/folders/${encodeURIComponent(id)}`, input.workspaceId);
+}
+function appPageUrl(input) {
+  const base = normalizeWorkspaceHost(input.host);
+  const name2 = textOf3(input.appName);
+  if (!base || !name2) return "";
+  return withWorkspace(`${base}/apps/${encodeURIComponent(name2)}`, input.workspaceId);
+}
+function sourceFolderPath(body) {
+  const deployment = objectOf(body.active_deployment);
+  if (Object.keys(objectOf(deployment.git_source)).length > 0) return "";
+  const path19 = textOf3(deployment.source_code_path);
+  return path19.startsWith(WORKSPACE_PREFIX) ? path19 : "";
 }
 function appTags(raw2) {
   if (Array.isArray(raw2)) {
@@ -170180,6 +170220,7 @@ function appFacts(input) {
   const otelExport = input.otelExport ?? NO_EXPORTER_READING;
   if (input.read.kind !== "ok") return { ...NO_APP_FACTS, otelExporter, otelExport };
   const body = input.read.body;
+  const appUrl2 = textOf3(body.url);
   const deployment = objectOf(body.active_deployment);
   const gitSource = objectOf(deployment.git_source);
   const gitBacked = Object.keys(gitSource).length > 0;
@@ -170187,8 +170228,10 @@ function appFacts(input) {
   const appName = textOf3(body.name);
   const workspaceHost2 = normalizeWorkspaceHost(input.workspaceHost);
   const gitRef = textOf3(gitSource.branch) || textOf3(gitSource.tag) || textOf3(gitSource.commit);
+  const workspaceId = textOf3(input.workspaceId) || workspaceIdFromAppUrl(appUrl2);
+  const folderUrl = gitBacked ? "" : browseFolderUrl({ host: workspaceHost2, folderId: input.sourceFolderId ?? "", workspaceId });
   return {
-    url: textOf3(body.url),
+    url: appUrl2,
     answered: true,
     description: textOf3(body.description),
     compute: appCompute(body.compute_size),
@@ -170197,10 +170240,20 @@ function appFacts(input) {
     deployedBy: textOf3(deployment.creator) || textOf3(body.updater),
     source: {
       path: sourcePath,
-      // Git deployments are managed from the app's own workspace page. Uploaded
-      // deployments link to the exact input folder Apps reports, never to the
-      // generated deployment artifact or to a bundle path inferred elsewhere.
-      workspaceUrl: gitBacked && workspaceHost2 && appName ? `${workspaceHost2}/apps/${encodeURIComponent(appName)}` : workspaceFolderUrl(workspaceHost2, sourcePath),
+      // THE FOLDER WINS WHENEVER THE WORKSPACE RESOLVED ONE. That is the
+      // uploaded and the bundle-deployed case, and it is the link Sam asked
+      // for: `/browse/folders/<id>?o=<workspace>`, pointing at the folder that
+      // actually holds what is serving -- never at the generated snapshot in
+      // the service principal's home, and never at a bundle path inferred here
+      // instead of read.
+      //
+      // The app's own page is the fallback, and only where Apps named a source
+      // at all. It is the whole answer for a Git deployment, which has no
+      // workspace folder to open; it also covers an uploaded folder this app was
+      // refused the id for. A deployment that reported no source gets no link,
+      // because a row that goes somewhere unrelated is worse than a row that is
+      // not drawn.
+      workspaceUrl: folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost2, appName, workspaceId }) : ""),
       gitRef
     },
     serving: appServing(body),
@@ -170228,9 +170281,18 @@ async function readAppFacts(input = {}) {
   if (read2.kind !== "ok") {
     console.warn(`[settings] The workspace could not be asked about the app ${name2}:`, read2.message);
   }
-  return appFacts({ read: read2, workspaceHost: workspaceHost2, otelExporter, otelExport });
+  const folderPath = read2.kind === "ok" ? sourceFolderPath(read2.body) : "";
+  let sourceFolderId = "";
+  if (folderPath) {
+    try {
+      sourceFolderId = await (input.resolveFolderId ?? workspaceFolderIdResolver)(folderPath);
+    } catch (error48) {
+      console.warn(`[settings] The folder id for ${folderPath} could not be read:`, error48.message);
+    }
+  }
+  return appFacts({ read: read2, workspaceHost: workspaceHost2, otelExporter, otelExport, sourceFolderId });
 }
-var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, workspaceAppReader;
+var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, WORKSPACE_STATUS_PATH, WORKSPACE_PREFIX, workspaceAppReader, knownFolderIds, workspaceFolderIdResolver;
 var init_app_metadata = __esm({
   "server/lib/app-metadata.ts"() {
     init_app_facts();
@@ -170242,6 +170304,8 @@ var init_app_metadata = __esm({
     COMPUTE_ENVELOPES = {
       MEDIUM: { vcpus: 2, memoryGb: 6, dbuPerHour: 0.5 }
     };
+    WORKSPACE_STATUS_PATH = "/api/2.0/workspace/get-status";
+    WORKSPACE_PREFIX = "/Workspace/";
     workspaceAppReader = async (name2) => {
       try {
         const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
@@ -170260,6 +170324,33 @@ var init_app_metadata = __esm({
         if (Number.isFinite(status) && status >= 400) return { kind: "refused", status, message };
         return { kind: "no-response", message };
       }
+    };
+    knownFolderIds = /* @__PURE__ */ new Map();
+    workspaceFolderIdResolver = async (path19) => {
+      const wanted = path19.trim();
+      if (!wanted) return "";
+      const cached3 = knownFolderIds.get(wanted);
+      if (cached3 !== void 0) return cached3;
+      let id = "";
+      try {
+        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+        const client = new WorkspaceClient6({});
+        const body = await client.apiClient.request({
+          path: WORKSPACE_STATUS_PATH,
+          method: "GET",
+          query: { path: wanted },
+          headers: new Headers({ Accept: "application/json" }),
+          raw: false
+        });
+        const found = (body ?? {}).object_id ?? (body ?? {}).resource_id;
+        id = typeof found === "number" ? String(found) : textOf3(found);
+      } catch (error48) {
+        console.warn(
+          `[settings] The workspace could not resolve the folder id for ${wanted} (${error48.message}), so the App source row points at the app's own page.`
+        );
+      }
+      knownFolderIds.set(wanted, id);
+      return id;
     };
   }
 });
@@ -171080,12 +171171,6 @@ var init_dependency_probes = __esm({
       "insufficient privileges",
       "insufficient_permissions"
     ];
-  }
-});
-
-// shared/optional-user-api-scopes.ts
-var init_optional_user_api_scopes = __esm({
-  "shared/optional-user-api-scopes.ts"() {
   }
 });
 
@@ -173451,9 +173536,9 @@ function defaultNotebookPath(req) {
   const email3 = req.header("x-forwarded-email")?.trim();
   return email3 ? `/Users/${email3}` : "/";
 }
-async function sendBrowse(req, res, run) {
+async function sendBrowse(req, res, run2) {
   const ctx = browseRequestContext({ token: forwardedUserToken(req) });
-  const payload = await run(ctx);
+  const payload = await run2(ctx);
   res.status(200).json(payload);
 }
 function setupBrowseRoutes(appkit) {
@@ -173914,8 +173999,8 @@ function setupAdminRoutes(appkit) {
         return;
       }
       try {
-        const { run, unavailable: unavailable4 } = runnerFor(req);
-        const withdrawal = await withdrawAccess({ run, store: appkit.lakebase, email: email3, unavailable: unavailable4 });
+        const { run: run2, unavailable: unavailable4 } = runnerFor(req);
+        const withdrawal = await withdrawAccess({ run: run2, store: appkit.lakebase, email: email3, unavailable: unavailable4 });
         await removeAdmin(appkit.lakebase, email3);
         await recordAdminAction(appkit.lakebase, {
           actor,
@@ -173979,8 +174064,8 @@ function refuse(res, refusal) {
 }
 async function withdrawOnDemotion(input) {
   if (!opensAdminSurfaces(input.from) || opensAdminSurfaces(input.to)) return;
-  const { run, unavailable: unavailable4 } = runnerFor(input.req);
-  const withdrawal = await withdrawAccess({ run, store: input.store, email: input.email, unavailable: unavailable4 });
+  const { run: run2, unavailable: unavailable4 } = runnerFor(input.req);
+  const withdrawal = await withdrawAccess({ run: run2, store: input.store, email: input.email, unavailable: unavailable4 });
   if (withdrawal.revoked === 0 && withdrawal.refused.length === 0) return;
   await recordAdminAction(input.store, {
     actor: input.actor,
@@ -175785,10 +175870,10 @@ function key(schema, table) {
 function blank() {
   return { tags: /* @__PURE__ */ new Map(), masked: /* @__PURE__ */ new Set(), rowFilter: false, answered: false };
 }
-async function classifyTables(run, tables, options = {}) {
+async function classifyTables(run2, tables, options = {}) {
   const considered = tables.slice(0, CLASSIFY_TABLE_LIMIT);
   if (considered.length === 0) return { classifications: [], blocked: "" };
-  if (!run) {
+  if (!run2) {
     return {
       classifications: considered.map((table) => notChecked(table, options.unavailable ?? NO_TOKEN_REASON2)),
       blocked: options.unavailable ?? NO_TOKEN_REASON2
@@ -175810,9 +175895,9 @@ async function classifyTables(run, tables, options = {}) {
   const gathered = /* @__PURE__ */ new Map();
   for (const [catalog, group] of byCatalog) {
     const statements = classificationStatements(catalog, [...group.schemas], [...group.tables]);
-    const tagRows = await run(statements.tags);
-    const maskRows = await run(statements.masks);
-    const filterRows = await run(statements.filters);
+    const tagRows = await run2(statements.tags);
+    const maskRows = await run2(statements.masks);
+    const filterRows = await run2(statements.filters);
     const answered = tagRows.ok && maskRows.ok && filterRows.ok;
     if (!answered) {
       const refusal = [tagRows, maskRows, filterRows].find((outcome) => !outcome.ok);
@@ -176013,8 +176098,8 @@ function setupEgressRoutes(appkit, deps) {
     });
     app.get("/api/egress/admin/classification", async (req, res) => {
       const tables = accessDependenciesFrom({ env: process.env }).tables;
-      const { run, unavailable: unavailable4 } = runnerFor2(req);
-      const { classifications, blocked } = await classifyTables(run, tables, { unavailable: unavailable4 });
+      const { run: run2, unavailable: unavailable4 } = runnerFor2(req);
+      const { classifications, blocked } = await classifyTables(run2, tables, { unavailable: unavailable4 });
       res.json({
         tables: classifications,
         blocked,
@@ -176094,6 +176179,111 @@ var init_runtime_settings_routes = __esm({
     init_admin_roles();
     init_runtime_settings_store();
     init_insights_routes();
+  }
+});
+
+// server/lib/environment-info.ts
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+function isSensitiveEnvironmentKey(key2) {
+  return SECRET_KEY.test(key2);
+}
+function looksLikeSecretValue(value) {
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(value)) return true;
+  if (/^dapi[a-f0-9]{20,}$/i.test(value)) return true;
+  if (/^Bearer\s+\S+$/i.test(value)) return true;
+  if (/^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(value)) return true;
+  try {
+    const url2 = new URL(value);
+    return Boolean(url2.username || url2.password);
+  } catch {
+    return false;
+  }
+}
+function maskedEnvironment(environment = process.env) {
+  return Object.entries(environment).filter((entry) => typeof entry[1] === "string").map(([key2, value]) => ({
+    key: key2,
+    value: isSensitiveEnvironmentKey(key2) || looksLikeSecretValue(value) ? MASK : value
+  })).sort((left, right) => left.key.localeCompare(right.key));
+}
+function parsePipPackages(raw2) {
+  const parsed = JSON.parse(raw2);
+  if (!Array.isArray(parsed)) throw new Error("pip returned an invalid package list");
+  return parsed.filter(
+    (entry) => typeof entry === "object" && entry !== null && typeof entry.name === "string" && typeof entry.version === "string"
+  ).map(({ name: name2, version: version4 }) => ({ name: name2, version: version4 })).sort((left, right) => left.name.localeCompare(right.name));
+}
+async function run(command, arguments_, includeStderr) {
+  const { stdout, stderr } = await execFileAsync(command, arguments_, {
+    encoding: "utf8",
+    maxBuffer: 2 * 1024 * 1024,
+    timeout: 5e3
+  });
+  return (includeStderr ? `${stdout}${stderr}` : stdout).trim();
+}
+async function firstPython(arguments_, includeStderr = false) {
+  for (const command of ["python3", "python"]) {
+    try {
+      return await run(command, arguments_, includeStderr);
+    } catch {
+    }
+  }
+  return "";
+}
+async function readEnvironmentInfo(environment = process.env) {
+  const [pythonVersion, packagesJson] = await Promise.all([
+    firstPython(["--version"], true),
+    firstPython(["-m", "pip", "list", "--format=json", "--disable-pip-version-check"])
+  ]);
+  let packages = [];
+  if (packagesJson) {
+    try {
+      packages = parsePipPackages(packagesJson);
+    } catch (error48) {
+      console.warn("[environment] pip package list could not be parsed:", error48.message);
+    }
+  }
+  return {
+    runtime: {
+      python: pythonVersion.replace(/^Python\s+/i, ""),
+      node: process.version
+    },
+    variables: maskedEnvironment(environment),
+    packages
+  };
+}
+var execFileAsync, MASK, SECRET_KEY;
+var init_environment_info = __esm({
+  "server/lib/environment-info.ts"() {
+    execFileAsync = promisify(execFile);
+    MASK = "***";
+    SECRET_KEY = /(?:^|_)(?:ACCESS_KEY|API_KEY|AUTH|BEARER|CREDENTIAL|CREDENTIALS|PASSWORD|PASSWD|PRIVATE_KEY|SECRET|TOKEN)(?:_|$)/i;
+  }
+});
+
+// server/routes/environment-routes.ts
+var environment_routes_exports = {};
+__export(environment_routes_exports, {
+  setupEnvironmentRoutes: () => setupEnvironmentRoutes
+});
+function setupEnvironmentRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/environment", async (_req, res) => {
+      try {
+        res.json(await readEnvironmentInfo());
+      } catch (error48) {
+        console.error("[environment] Runtime details could not be read:", error48.message);
+        res.status(503).json({
+          error: "environment_unavailable",
+          detail: "Runtime details are not available just now."
+        });
+      }
+    });
+  });
+}
+var init_environment_routes = __esm({
+  "server/routes/environment-routes.ts"() {
+    init_environment_info();
   }
 });
 
@@ -181647,11 +181837,11 @@ var JobsConnector = class {
     return this._callApi("listRuns", async () => {
       const runs = [];
       const limit = Math.max(1, Math.min(request.limit ?? 100, 100));
-      for await (const run of workspaceClient2.jobs.listRuns({
+      for await (const run2 of workspaceClient2.jobs.listRuns({
         ...request,
         limit
       }, this._createContext(signal))) {
-        runs.push(run);
+        runs.push(run2);
         if (runs.length >= limit) break;
       }
       return runs;
@@ -184242,12 +184432,12 @@ var JobsPlugin = class JobsPlugin2 extends Plugin {
             cache: { enabled: false }
           } }, userKey);
           if (!runStatusResult.ok) throw new ExecutionError(`Failed to poll run status for run ${runId}`);
-          const run = runStatusResult.data;
-          const state = run.state?.life_cycle_state;
+          const run2 = runStatusResult.data;
+          const state = run2.state?.life_cycle_state;
           yield {
             status: state,
             timestamp: Date.now(),
-            run
+            run: run2
           };
           if (isTerminalRunState(state)) return;
           const { delay, next } = nextPollDelay(currentInterval, maxPollInterval);
@@ -188484,6 +188674,7 @@ createApp({
       { setupOpsRoutes: setupOpsRoutes2 },
       { setupEgressRoutes: setupEgressRoutes2 },
       { setupRuntimeSettingsRoutes: setupRuntimeSettingsRoutes2 },
+      { setupEnvironmentRoutes: setupEnvironmentRoutes2 },
       { setupAccountRoutes: setupAccountRoutes2 },
       { bootstrapSeedRoles: bootstrapSeedRoles2, isAdminRoute: isAdminRoute2 },
       { respondToHandlerFailures: respondToHandlerFailures2 }
@@ -188498,6 +188689,7 @@ createApp({
       Promise.resolve().then(() => (init_ops_routes(), ops_routes_exports)),
       Promise.resolve().then(() => (init_egress_routes(), egress_routes_exports)),
       Promise.resolve().then(() => (init_runtime_settings_routes(), runtime_settings_routes_exports)),
+      Promise.resolve().then(() => (init_environment_routes(), environment_routes_exports)),
       Promise.resolve().then(() => (init_account_routes(), account_routes_exports)),
       Promise.resolve().then(() => (init_admin_roles(), admin_roles_exports)),
       Promise.resolve().then(() => (init_handler_failures(), handler_failures_exports))
@@ -188507,6 +188699,7 @@ createApp({
     await bootstrapSeedRoles2(appkit.lakebase);
     setupSettingsRoutes2(appkit);
     setupRuntimeSettingsRoutes2(appkit);
+    setupEnvironmentRoutes2(appkit);
     setupAccountRoutes2(appkit);
     setupBrowseRoutes2(appkit);
     setupArchitectureRoutes2(appkit);

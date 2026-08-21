@@ -249,23 +249,15 @@ describe('the headline counts what was actually asked', () => {
    * checked" and four badged "Nothing to reach", and the old assertion was
    * satisfied by exactly that.
    *
-   * The rule now is the one a reader can hold the page to: the counts describe
-   * the ROWS, and their parts sum to the number of rows drawn. `checksHeadline`
-   * is kept for the case where there is no settings payload, because then there
-   * are no rows and the checks are all there is to report.
+   * The rows are the summary. A headline and a count strip restated what every
+   * row already said, whether the news was good or bad, so neither is drawn.
    */
-  it('summarises the rows a reader can count rather than the checks behind them', () => {
-    expect(PAGE).toMatch(/connectionsHeadline\(counts\)/);
-    expect(PAGE).toMatch(/checksHeadline\(checks\)/);
-    // The counts line must not be able to reach the check tally at all: leaving
-    // that derivation in scope is how the two populations got mixed once already.
+  it('does not summarise the rows under the title', () => {
+    expect(PAGE).not.toMatch(/connectionsHeadline\(/);
+    expect(PAGE).not.toMatch(/checksHeadline\(/);
     expect(PAGE).not.toMatch(/countPreflightChecks/);
-    // One derivation of the readings, and the counts taken off it. The sections
-    // are taken off the same `readings`, which is what makes the count line and
-    // the list below it arithmetically the same population rather than two that
-    // agree by inspection.
+    expect(PAGE).not.toMatch(/connections-status-headline/);
     expect(PAGE).toMatch(/readConnections\(payload, reported\)/);
-    expect(PAGE).toMatch(/countConnections\(readings\)/);
     expect(PAGE).toMatch(/groupConnections\(readings\)/);
   });
 });
