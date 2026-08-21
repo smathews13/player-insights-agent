@@ -64,9 +64,43 @@
 
 .account-menu-identity strong {
   font-weight: 600;
+  /* The name is what gives when the row is tight, because the mark and the rank
+     beside it are both fixed-width and neither can be shortened usefully. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.account-menu-identity span {
+/* Mark, name, rank -- the trigger's own three, so pressing the chip does not
+   replace the reader's icon and badge with two lines of text. */
+.account-menu-who {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.account-menu-who > svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: #6f6f6f;
+}
+
+.account-menu-who > .role-badge {
+  flex: none;
+}
+
+/*
+ * The address under the name.
+ *
+ * SELECTED BY CLASS AND NOT AS `.account-menu-identity span`, which is what this
+ * used to be. That selector is a descendant match, so once the row above it held
+ * a wrapper and a role pill -- both spans -- it painted the reader's rank in
+ * 11.5px grey and clipped it to one ellipsised line.
+ */
+.account-menu-address {
   overflow: hidden;
   color: #6f6f6f;
   font-size: 11.5px;

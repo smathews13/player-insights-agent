@@ -14,7 +14,9 @@ const IDENTITY: Identity = {
 
 describe('account menu', () => {
   it('opens with the live identity and the fixed menu order', () => {
-    const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} onSignOut={() => {}} />);
+    const markup = renderToStaticMarkup(
+      <AccountMenuPanel identity={IDENTITY} role="super_admin" onSignOut={() => {}} />
+    );
     const labels = [
       'jordan.lee',
       'jordan.lee@example.com',
@@ -33,11 +35,51 @@ describe('account menu', () => {
   });
 
   it('opens Slack DMs addressed to Sam for feedback and Garrett for escalation', () => {
-    const markup = renderToStaticMarkup(<AccountMenuPanel identity={IDENTITY} onSignOut={() => {}} />);
+    const markup = renderToStaticMarkup(
+      <AccountMenuPanel identity={IDENTITY} role="super_admin" onSignOut={() => {}} />
+    );
     expect(accountSlackHref('feedback')).toBe('https://slack.com/app_redirect?team=T02EPKPG3&channel=U04H3555WMB');
     expect(accountSlackHref('escalation')).toBe('https://slack.com/app_redirect?team=T02EPKPG3&channel=U06BV72N4KY');
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noopener noreferrer"');
+  });
+
+  /**
+   * The dropdown used to open on a bare name and an address, so pressing the
+   * identity chip replaced the reader's own mark and rank with two lines of text
+   * and the panel read as somebody else's account.
+   *
+   * It is not merely a repetition of the header, which is the part worth recording:
+   * responsive.css hides the cluster's informational members below 800px, so at
+   * narrow widths this is the only place on the page the rank appears at all.
+   */
+  it('heads the panel with the reader’s mark, name and rank', () => {
+    const markup = renderToStaticMarkup(
+      <AccountMenuPanel identity={IDENTITY} role="super_admin" onSignOut={() => {}} />
+    );
+    expect(markup).toContain('account-menu-who');
+    expect(markup).toContain('Super admin');
+    expect(markup).toContain('data-role-state="super_admin"');
+    // The mark, the name and the rank in that order -- the trigger's own order.
+    expect(markup.indexOf('<svg')).toBeLessThan(markup.indexOf('jordan.lee'));
+    expect(markup.indexOf('jordan.lee<')).toBeLessThan(markup.indexOf('Super admin'));
+    // And the address is no longer selected as `.account-menu-identity span`, which
+    // was a descendant match: with a wrapper and a pill in the row above it, that
+    // selector painted the rank in 11.5px grey and ellipsised it.
+    expect(markup).toContain('account-menu-address');
+  });
+
+  it('draws the pill without a second live region', () => {
+    // Two `RoleBadge`s on the page would be two `aria-live` regions, so losing the
+    // admin role would be announced to a screen reader twice. The announcement
+    // belongs to the header's badge; the panel takes the pill alone.
+    const source = readFileSync(new URL('./AccountMenu.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('<RoleBadgePill state={role} />');
+    expect(source).not.toContain('<RoleBadge ');
+    const markup = renderToStaticMarkup(
+      <AccountMenuPanel identity={IDENTITY} role="admin" onSignOut={() => {}} />
+    );
+    expect(markup).not.toContain('aria-live');
   });
 
   it('does not send Slack messages through the Astrolabe server', () => {

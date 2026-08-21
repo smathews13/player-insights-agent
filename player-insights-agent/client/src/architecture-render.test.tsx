@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles } from './ArchitecturePage';
+import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles, ChainBoundTiles } from './ArchitecturePage';
+import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
 import {
   ARCHITECTURE_EDGES,
   ARCHITECTURE_NODES,
@@ -42,6 +43,15 @@ import type { PreflightCheck } from './preflight';
  * a claim about it has to be made against the code that would issue it.
  */
 const PAGE_SOURCE = readFileSync(fileURLToPath(new URL('./ArchitecturePage.tsx', import.meta.url)), 'utf8');
+
+/**
+ * The Settings pane's source, for one claim that spans the two files.
+ *
+ * The loop-bound tiles are labelled in the gear's own words so that a reader who
+ * wants to change one has a string to search for. A second phrasing of the same
+ * number is the defect, and it is invisible in either file on its own.
+ */
+const RUNTIME_PANEL = readFileSync(fileURLToPath(new URL('./RuntimeSettingsPanel.tsx', import.meta.url)), 'utf8');
 
 /** The markup a reader gets on a fresh page load, before anything is fetched. */
 function pageMarkup(): string {
@@ -668,6 +678,99 @@ describe('the drawing is reachable and readable without seeing it', () => {
     for (const node of ARCHITECTURE_NODES) {
       expect(text(equivalent), node.id).toContain(node.label);
     }
+  });
+
+  /**
+   * The chain rail and the answer contract.
+   *
+   * WHAT WAS ON SCREEN BEFORE THESE ASSERTIONS was a four-row rail describing the
+   * run as it worked before the chain was reworked: browser, orchestrator,
+   * warehouse, browser. It had no approval plan in it, so the plan card a reader
+   * meets on their first real question appeared to come from nowhere on the page
+   * whose job is to explain the app; no step loop and none of the bounds that stop
+   * one; and synthesis and charts folded into a single row, which hid that charts
+   * are the first thing dropped when a run runs out of budget.
+   *
+   * Asserted against the rendered page rather than the module, because the module
+   * was never the problem -- a fully correct stage list that no page rendered would
+   * leave the screen exactly as wrong as it was.
+   */
+  it('draws every chain stage, in the order the agent opens them', () => {
+    const markup = pageMarkup();
+    const rail = markup.slice(markup.indexOf('arch-rail-answer'), markup.indexOf('arch-rail-contract'));
+    for (const stage of AGENT_CHAIN) {
+      expect(rail, stage.stage).toContain(stage.title);
+      // The MLflow stage id, verbatim. This is the whole point of the row carrying
+      // it: a reader holding this rail against a run in the Run Explorer is
+      // comparing two strings, and a friendly paraphrase would not match.
+      expect(rail, stage.stage).toContain(`data-stage="${stage.stage}"`);
+    }
+    for (let index = 1; index < AGENT_CHAIN.length; index += 1) {
+      expect(
+        rail.indexOf(AGENT_CHAIN[index - 1].title),
+        `${AGENT_CHAIN[index - 1].stage} before ${AGENT_CHAIN[index].stage}`
+      ).toBeLessThan(rail.indexOf(AGENT_CHAIN[index].title));
+    }
+  });
+
+  it('says which stages a run may skip', () => {
+    // Three of the seven do not run on every question. A rail that draws seven rows
+    // for a run that had four is a rail a reader takes for a fault, so the row says
+    // so rather than the prose under it.
+    const rail = pageMarkup();
+    const optional = AGENT_CHAIN.filter((stage) => stage.optional);
+    expect(optional.map((stage) => stage.stage)).toEqual(['plan', 'attachment', 'plot']);
+    expect(rail).toContain('If needed');
+  });
+
+  it('states the answer contract in the agent’s own field names', () => {
+    const markup = pageMarkup();
+    const contract = markup.slice(markup.indexOf('arch-rail-contract'));
+    for (const section of ANSWER_CONTRACT) {
+      expect(contract, section.field).toContain(section.field);
+      expect(text(contract), section.label).toContain(section.label);
+    }
+    // `derivation` and `sources` carry no Optional badge, because there is no switch
+    // for them: a figure without the source it came from is the one thing the
+    // contract does not allow, whatever the gear is set to.
+    for (const field of ['derivation', 'sources']) {
+      const section = ANSWER_CONTRACT.find((entry) => entry.field === field);
+      expect(section?.optional, field).toBeUndefined();
+    }
+  });
+
+  /**
+   * The loop bounds, above the drawing.
+   *
+   * They were readable only by opening the gear, on the page whose whole job is to
+   * say what this deployment does -- and they are the numbers a reader needs to
+   * explain a run that stopped early.
+   */
+  it('heads the page with the three loop bounds, in the gear’s own words', () => {
+    const strip = pageMarkup();
+    expect(strip).toContain('data-testid="architecture-loop-tiles"');
+    for (const bound of CHAIN_BOUNDS) {
+      expect(text(strip), bound).toContain(CHAIN_BOUND_LABEL[bound]);
+    }
+    // The labels are the Settings pane's, so a reader who wants to change one has a
+    // string to search the gear for. Asserted from both ends, because a second
+    // phrasing for the same number is the defect and it is invisible in either file
+    // on its own.
+    for (const bound of CHAIN_BOUNDS) {
+      expect(RUNTIME_PANEL, bound).toContain(CHAIN_BOUND_LABEL[bound]);
+    }
+  });
+
+  it('shows an em-dash rather than the shared defaults before the settings land', () => {
+    // 12/12/90 are the defaults and it would be easy to print them here. A stored
+    // setting is what the agent actually uses, so a number on a page that has not
+    // read the store is a claim about something nobody checked -- the same rule the
+    // dependency tiles above follow for `Reachable`.
+    const strip = pageMarkup();
+    const tiles = strip.slice(strip.indexOf('architecture-loop-tiles'));
+    expect(tiles).toContain('\u2014');
+    expect(text(tiles.slice(0, tiles.indexOf('arch-flow')))).not.toContain('12');
+    expect(renderToStaticMarkup(<ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />)).toContain('>9<');
   });
 
   it('draws the two stores at the bottom of the canvas the sub-line describes', () => {

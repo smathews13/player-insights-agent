@@ -122,13 +122,15 @@ describe('the composer wires the control to that one decision', () => {
 
 describe('the four states the control is painted in', () => {
   it('tints on hover, because the variant’s own hover is invisible here', () => {
-    // AppKit's `ghost` is `hover:bg-accent`, --accent is `var(--db-wash)`, and
-    // .composer-actions is `background: var(--db-wash)`. The variant has been
-    // painting the strip's own colour onto the strip. This is the root cause of
-    // the report and it is invisible in both files that cause it, so it is
-    // asserted from both ends.
+    // AppKit's `ghost` is `hover:bg-accent` and --accent is `var(--db-wash)`, which
+    // was the strip's own fill: the variant painted the strip's colour onto the
+    // strip, so hover was invisible. The strip is transparent now -- the grey band
+    // went with every other band on the sky -- so the wash would in fact show. The
+    // explicit hover tint stays anyway, because a control's hover state should not
+    // depend on the fill of whatever it happens to be sitting on, which is the
+    // mistake that produced the original report.
     expect(TOKENS).toMatch(/--accent:\s*var\(--db-wash\)/);
-    expect(body('.composer-actions')).toMatch(/background:\s*var\(--db-wash\)/);
+    expect(body('.composer-actions')).toMatch(/background:\s*transparent/);
     expect(body('.composer-attach:hover')).toMatch(/background:\s*var\(--db-hover-tint\)/);
   });
 

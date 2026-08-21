@@ -35,7 +35,7 @@
  * dependency; where the reference this was modelled on prints a number, this
  * prints what it is waiting for.
  */
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';
@@ -43,6 +43,17 @@ import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 // The word, the icon and the pending state, decided once for the whole app.
 import { RefreshControl } from './RefreshControl';
+// The chain and the answer's shape, as data rather than as prose in this file.
+// See the note at the top of agent-chain.ts for why they moved out of here.
+import {
+  AGENT_CHAIN,
+  ANSWER_CONTRACT,
+  CHAIN_BOUND_LABEL,
+  CHAIN_BOUND_NOTE,
+  CHAIN_BOUNDS,
+} from './agent-chain';
+import { runtimeSettingsFromResponse } from './runtime-settings-api';
+import type { RuntimeSettings } from '../../shared/runtime-settings';
 import {
   ARCHITECTURE_NODES,
   dependencyNodes,
@@ -564,24 +575,76 @@ export function ArchitectureTiles({
   );
 }
 
-/** One step in a rail, which is a stage of a run rather than a dependency. */
+/**
+ * The loop bounds, as a strip of tiles above the drawing.
+ *
+ * THE THREE NUMBERS THAT DECIDE HOW LONG AN ANSWER MAY TAKE, which were readable
+ * only by opening the gear -- on a page whose whole job is to say what the
+ * deployment does. They sit beside the dependency counts because they are the same
+ * kind of fact: a property of this deployment that a reader may need before they
+ * can explain a run that stopped early.
+ *
+ * AN EM-DASH RATHER THAN THE DEFAULTS when the read fails. The shared defaults are
+ * 12/12/90 and it would be easy to print them here, but a stored setting is what
+ * the agent actually uses and "12" on a page that could not read the store is a
+ * claim about a number nobody checked. Same rule as the tiles above: not knowing
+ * and knowing zero are different, and the page says which one it is in.
+ *
+ * Labelled in the Settings pane's own words, so a reader who wants to change one
+ * has a string to search the gear for. See CHAIN_BOUND_LABEL.
+ */
+export function ChainBoundTiles({ loop }: { loop: RuntimeSettings['loop'] | null }) {
+  const unknown = '\u2014';
+  return (<ul className="arch-tiles arch-tiles-loop" data-testid="architecture-loop-tiles">
+      {CHAIN_BOUNDS.map((bound) => (<li key={bound} title={CHAIN_BOUND_NOTE[bound]}>
+          <span>{CHAIN_BOUND_LABEL[bound]}</span>
+          <strong className="ast-num">{loop ? loop[bound] : unknown}</strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * One step in a rail, which is a stage of a run rather than a dependency.
+ *
+ * `stage` is the MLflow stage id, drawn as a mono chip. It is here so a reader can
+ * hold this rail against a run in the Run Explorer and match them line for line;
+ * before the chain was written down, the two used different names for the same
+ * stage and there was no way to tell that `data_source_finder` in a trace was the
+ * row this rail called "Orchestrator on Model Serving".
+ */
 function RailRow({
   accent,
   badge,
+  boundNote,
   children,
+  optional,
+  stage,
   title,
 }: {
   accent: ArchitectureAccent;
   badge?: string;
+  /** The bound that stops this stage, already formatted, or undefined. */
+  boundNote?: string;
   children: string;
+  /** Whether the stage is skipped on a run that does not need it. */
+  optional?: boolean;
+  stage?: string;
   title: string;
 }) {
-  return (<li className="arch-rail-row" data-accent={accent}>
+  return (<li className="arch-rail-row" data-accent={accent} data-stage={stage}>
       <p className="arch-rail-title">
         {title}
         {badge ? <span className="arch-rail-badge">{badge}</span> : null}
+        {/* Said on the row rather than left to the prose. Three of these stages do
+            not run on every question, and a rail drawing six rows for a run that
+            had three is a rail that gets read as a fault. */}
+        {optional ? <span className="arch-rail-badge" data-optional="true">If needed</span> : null}
+        {stage ? <code className="arch-rail-stage">{stage}</code> : null}
       </p>
       <p className="arch-rail-body">{children}</p>
+      {boundNote ? <p className="arch-rail-bound">{boundNote}</p> : null}
     </li>
   );
 }
@@ -633,6 +696,39 @@ export function ArchitecturePage() {
               'The identifiers below are missing.'
           );
         }
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /**
+   * The loop bounds, for the strip above the drawing.
+   *
+   * A THIRD READ ON MOUNT AND THE CHEAPEST OF THE THREE: it is the app's own
+   * stored row, not a probe of the workspace, so it costs nothing that the info
+   * row's promise about checks depends on. Held as null until it lands, and null
+   * is what the strip draws an em-dash for -- a failed read must not be reported
+   * as the shared defaults, because the number the agent uses is whatever is
+   * stored and nobody checked it.
+   *
+   * The public read rather than the admin one. `/api/runtime-settings` answers
+   * every signed-in reader, and this page is on the consumer navigation; the
+   * admin route is the write.
+   */
+  const [loop, setLoop] = useState<RuntimeSettings['loop'] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const response = await fetchWithTimeout('/api/runtime-settings', {}, ARCHITECTURE_DESCRIPTION_TIMEOUT_MS);
+        const settings = await runtimeSettingsFromResponse(response, 'loaded');
+        if (live) setLoop(settings.loop);
+      } catch {
+        // Deliberately silent. The strip says it does not know, which is the whole
+        // of what a reader can do about it, and this page already has three alerts
+        // that matter more than a fourth about a tooltip's numbers.
       }
     })();
     return () => {
@@ -712,6 +808,7 @@ export function ArchitecturePage() {
       ))}
 
       <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawn} />
+      <ChainBoundTiles loop={loop} />
 
       <section className="arch-flow" aria-labelledby="arch-flow-title">
         <div className="arch-flow-head">
@@ -725,29 +822,76 @@ export function ArchitecturePage() {
       </section>
 
       <div className="arch-rails">
+        {/*
+          THE CHAIN, FROM agent-chain.ts RATHER THAN WRITTEN HERE. This rail used to
+          be four hand-written rows describing the run as it was before the chain was
+          reworked -- browser, orchestrator, warehouse, browser. It had no approval
+          plan, so the plan card a reader meets on their first real question appeared
+          to come from nowhere on this page; no step loop and none of the three bounds
+          that stop it; and synthesis and charts folded into one row, which hid that
+          charts are dropped first when a run is out of budget.
+
+          Generated from the stage list so the names on screen are the agent's own
+          span ids. See the note at the top of that module.
+        */}
         <section className="arch-rail" aria-labelledby="arch-rail-answer">
           <h3 className="section-label" id="arch-rail-answer">
-            Answer path &middot; per question
+            Chain &middot; per question
           </h3>
           <ol className="arch-rail-rows">
-            <RailRow accent="question" title="Browser to Databricks App">
-              The question leaves the browser; the app stores the turn and invokes the orchestrator.
-            </RailRow>
-            <RailStep label="invoke" />
-            <RailRow accent="agent" title="Orchestrator on Model Serving">
-              Always owns the run. It plans and writes the answer, optionally delegates governed
-              discovery to the Data Source Finder, and may search the semantic index.
-            </RailRow>
-            <RailStep label="generated SQL" />
-            <RailRow accent="governed" badge="Governed" title="SQL warehouse to Unity Catalog">
-              The warehouse runs the query read-only; row filters and column masks apply per person
-              at the catalog.
-            </RailRow>
-            <RailStep label="answer prose" />
-            <RailRow accent="question" title="Back to the browser">
-              Takeaway, figures, sources and caveats render in the answer card.
-            </RailRow>
+            {AGENT_CHAIN.map((stage, index) => (<Fragment key={stage.stage}>
+                <RailRow
+                  accent={stage.accent}
+                  badge={stage.badge}
+                  boundNote={
+                    stage.bound && loop
+                      ? `${CHAIN_BOUND_LABEL[stage.bound]} \u00b7 ${loop[stage.bound]}`
+                      : undefined
+                  }
+                  optional={stage.optional}
+                  stage={stage.stage}
+                  title={stage.title}
+                >
+                  {stage.body}
+                </RailRow>
+                {/* No arrow after the last row: it would point at the section's own
+                    bottom edge and name something that is not below it. */}
+                {stage.passes && index < AGENT_CHAIN.length - 1 ? <RailStep label={stage.passes} /> : null}
+              </Fragment>
+            ))}
           </ol>
+        </section>
+
+        {/*
+          What comes back, which is the other half of what the chain spec fixes. The
+          fields are `AnswerContract`'s own wire names, because the app renders them
+          and the agent fills them and the two have disagreed before -- `derivation`
+          in particular is called provenance by everybody who discusses it and
+          `derivation` on the wire, so a reader opening a raw trace looks for the
+          wrong key.
+        */}
+        <section className="arch-rail" aria-labelledby="arch-rail-contract">
+          <h3 className="section-label" id="arch-rail-contract">
+            Answer contract
+          </h3>
+          <ul className="arch-contract-rows">
+            {ANSWER_CONTRACT.map((section) => (<li className="arch-contract-row" key={section.field}>
+                <p className="arch-contract-head">
+                  <code className="arch-rail-stage">{section.field}</code>
+                  <span>{section.label}</span>
+                  {/* The sections the gear can switch off. Derivation and sources
+                      carry no badge because there is no switch for them: a figure
+                      without its source is the one thing the contract does not
+                      allow. */}
+                  {section.optional ? (<span className="arch-rail-badge" data-optional="true">
+                      Optional
+                    </span>
+                  ) : null}
+                </p>
+                <p className="arch-rail-body">{section.body}</p>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="arch-rail" aria-labelledby="arch-rail-storage">

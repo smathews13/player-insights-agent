@@ -146,6 +146,55 @@ export function OpenInDatabricks({ name, object }: { name: string; object?: Data
 }
 
 /**
+ * The same link with the words taken off, for a list of names.
+ *
+ * WHY NOT JUST USE `OpenInDatabricks`. Twelve rows of declared tables would carry
+ * twelve copies of the phrase "Open in Databricks", which is 19 characters of
+ * repeated boilerplate against a 40-character table name in a column that has to
+ * hold both. The phrase earns its width where there is one of them -- on a card, or
+ * at the end of a sentence -- and loses it in a table.
+ *
+ * THE NAME IS STILL SPOKEN. The mark is `aria-hidden` and the accessible name is
+ * the whole sentence including the table, so a screen reader gets "Open
+ * a_catalog.a_schema.a_table in Databricks" rather than twelve links called
+ * "Open". A row of identical link names is the standard way to make a table
+ * unusable without a pointer.
+ *
+ * Renders nothing when no link can be built, for the reason above: no host, or a
+ * name that is not a three-level Unity Catalog object.
+ */
+export function VisitInDatabricks({ name, object }: { name: string; object?: DatabricksObject }) {
+  const host = useWorkspaceHost();
+  const href = databricksLink(host, object ?? { kind: 'table', table: name });
+  if (!href) return null;
+  return <VisitLink href={href} name={name} />;
+}
+
+/**
+ * The mark itself, handed a href.
+ *
+ * SEPARATE SO IT CAN BE RENDERED IN A TEST. `useWorkspaceHost` reads
+ * `/api/architecture` in an effect, and `renderToStaticMarkup` runs no effects --
+ * so a test that renders the wrapper gets `host: ''`, no href, and null. That is
+ * the correct behaviour and it means the wrapper can never be used to check what
+ * the link looks like or what it is called. Everything worth asserting is in here.
+ */
+export function VisitLink({ href, name }: { href: string; name: string }) {
+  const label = `Open ${name} in Databricks`;
+  return (<a
+      className="visit-in-databricks"
+      href={href}
+      rel="noopener noreferrer"
+      target="_blank"
+      title={label}
+    >
+      <ExternalLink aria-hidden="true" />
+      <span className="sr-only">{label}</span>
+    </a>
+  );
+}
+
+/**
  * One text leaf, with its linked runs as links.
  *
  * Keyed by where the run starts in the answer rather than by array index. The

@@ -6,11 +6,17 @@
  * is half padding, and inside an answer card that is already padded it reads as a
  * second page rather than as a panel on this one.
  */
+/* TRANSPARENT, NOT WHITE, and the same goes for every panel and band below it.
+   These sit on `--ast-pane`, which is the sky showing faintly through a white
+   sheet; a panel that repaints itself opaque white cancels the sheet over its own
+   area and leaves the translucency visible only as a grey seam around it. On the
+   Run Explorer, where the same panel sits on an opaque page, transparent is that
+   page's white and nothing changes. */
 .chart-card {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
   box-shadow: none;
-  background: var(--ast-white);
+  background: transparent;
   padding-block: 16px;
   gap: 10px;
 }
@@ -339,7 +345,10 @@
   flex-wrap: wrap;
   gap: 4px 10px;
   padding: 10px 16px;
-  background: var(--ast-fill-band);
+  /* The hairline under it is the whole of the separation now. The #F7F7F7 fill
+     that used to be here is a grey band, which is the one thing this card was
+     asked to stop having. */
+  background: transparent;
   border-bottom: 1px solid var(--ast-hairline);
 }
 /* Geometry only. The mark's own file carries the ink, which is what makes it the
@@ -574,7 +583,11 @@
   flex-wrap: wrap;
   gap: 4px 10px;
   padding: 10px 16px;
-  background: var(--ast-fill-band);
+  /* A hairline is ADDED here rather than the fill merely removed. This band had no
+     border of its own, so dropping the grey would have left the head and the body
+     as one undivided box with a heading floating in it. */
+  background: transparent;
+  border-bottom: 1px solid var(--ast-hairline);
 }
 /* 700, against the 500 the label carries as a utility class. */
 .run-process-head > p:first-child {
@@ -627,14 +640,14 @@
 .code-panel {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
-  background: var(--ast-white);
+  background: transparent;
   color: var(--ast-text);
   overflow: hidden;
 }
 .code-panel > div {
   padding: 8px 14px;
   border-bottom: 1px solid var(--ast-hairline);
-  background: var(--ast-fill-band);
+  background: transparent;
   color: var(--ast-text-secondary);
   display: flex;
   gap: 8px;

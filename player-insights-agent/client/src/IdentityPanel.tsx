@@ -53,7 +53,7 @@
  * is the difference as a row and the action as a line, which is the shape of
  * every other fact here.
  */
-import { Lock } from 'lucide-react';
+import { Check, Lock } from 'lucide-react';
 import { Card } from './ui';
 import { OAuthBadge } from './OAuthBadge';
 import { UserIdentityChip } from './UserIdentityChip';
@@ -121,12 +121,36 @@ export function identityTableScopes(declared: readonly string[] | null | undefin
 }
 
 /**
+ * What the green check on each scope means, said in the tooltip.
+ *
+ * THE PRECISE CLAIM, because a green tick beside a permission is the easiest thing
+ * on this page to over-read. It says the scope is IN THE GRANT this app's sign-in
+ * carries -- declared in app.yaml, or a Databricks platform default. It is not the
+ * result of a probe, it does not mean the reader personally can reach any
+ * particular table, and it says nothing about whether the sign-in is currently
+ * valid. That last question is the OAuth badge at the top of this same card, which
+ * is why the check reuses that badge's mark rather than inventing one: same glyph,
+ * same green, and a reader who wants to know if the sign-in works looks at the
+ * thing that has always answered it.
+ */
+const SCOPE_GRANTED_TITLE =
+  'In this app\u2019s OAuth grant. Not a probe: whether the sign-in currently works is the badge above.';
+
+/**
  * The scope contract as a two-column reference table.
  *
- * Exact names remain monospace, but the pills are gone: these are permissions
- * with meaning, not tags. Postgres is conditional because some deployments do
- * not request Lakebase browsing; the two IAM scopes are always shown and marked
- * as Databricks platform defaults.
+ * PILLS ARE BACK, AND THE REASON THEY LEFT NO LONGER APPLIES. The note here used
+ * to read "the pills are gone: these are permissions with meaning, not tags", and
+ * that was right about what a pill had been doing -- it was decoration on a name,
+ * and a bare monospace name reads as the exact string it is. What Sam asked for is
+ * a different object in the same place: a status chip saying every row in this list
+ * is granted, which is a fact about the scope rather than a restatement of it. So
+ * it takes the app's one positive pill recipe and the OAuth badge's own mark, and
+ * `SCOPE_GRANTED_TITLE` above holds the claim to what is actually true.
+ *
+ * Postgres is conditional because some deployments do not request Lakebase
+ * browsing; the two IAM scopes are always shown and marked as Databricks platform
+ * defaults.
  */
 function ScopeTable({ scopes }: { scopes: readonly string[] }) {
   return (
@@ -142,7 +166,18 @@ function ScopeTable({ scopes }: { scopes: readonly string[] }) {
           {scopes.map((scope) => (
             <tr key={scope} data-scope={scope}>
               <td>
-                <code>{scope}</code>
+                {/* The mark leads, per the ask, and it is `aria-hidden` for the
+                    reason every mark in this app is: the pill's `title` carries the
+                    whole claim in words, and a tick announced before the scope name
+                    is a wordless duplicate of it. */}
+                <span className="ast-pill ast-pill--pos identity-scope-pill" title={SCOPE_GRANTED_TITLE}>
+                  <Check size={11} strokeWidth={3} aria-hidden="true" />
+                  <code>{scope}</code>
+                </span>
+                {/* Outside the pill. A platform default is granted exactly like the
+                    rest -- that is what the tick says -- and "(default)" qualifies
+                    where it came from, which is a different fact and must not be
+                    drawn inside the chip that states the first one. */}
                 {isPlatformDefaultUserApiScope(scope) ? (
                   <span className="identity-scope-default"> (default)</span>
                 ) : null}

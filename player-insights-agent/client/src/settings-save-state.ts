@@ -22,6 +22,29 @@ export type SettingsSaveState =
 
 export const SETTINGS_SAVE_IDLE: SettingsSaveState = { kind: 'idle' };
 
+/**
+ * How long Save holds its pressed paint, and how long the modal waits after a
+ * save lands before it closes.
+ *
+ * ONE NUMBER BECAUSE IT IS ONE GESTURE. The press and the close are the whole of
+ * the confirmation now: the "Saved." line used to be it, and it is gone from the
+ * footer at Sam's request. If the modal closed on the same frame as the click,
+ * there would be nothing at all to see -- the button would never visibly press,
+ * because the element drawing the press would already have been unmounted.
+ */
+export const SAVE_PRESS_MS = 180;
+
+/**
+ * Whether a save has landed, which is when the modal may close.
+ *
+ * A REFUSAL IS DELIBERATELY NOT THIS. The only place a refusal is drawn is the
+ * footer, so closing on `failed` would take the message off screen at the moment
+ * it was written and report a refused save as a successful one.
+ */
+export function saveLanded(state: SettingsSaveState): boolean {
+  return state.kind === 'saved';
+}
+
 /** The word on the button, so a click is visibly in progress. */
 export function saveButtonLabel(state: SettingsSaveState): string {
   return state.kind === 'saving' ? 'Saving...' : 'Save';

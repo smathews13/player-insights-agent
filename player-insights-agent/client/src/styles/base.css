@@ -27,6 +27,76 @@ svg {
 }
 
 /*
+ * ONE SCROLLBAR TREATMENT FOR THE WHOLE APP: thin, and invisible until the
+ * reader is in the thing that scrolls.
+ *
+ * This lived on `.conversation-rail` alone, which is why the Ask rail was quiet
+ * and every other scroller in the app was not. There are around thirty of them
+ * -- the Run Explorer's run list, the trace inspector, the settings modal, the
+ * wide tables, the payload blocks -- and each one painted the platform's grey
+ * slab. The Run Explorer's was the loudest because its list is sticky and full
+ * height, so the bar was a permanent dark stripe down the middle of the page,
+ * next to the cards it was scrolling and competing with them for the eye.
+ * Nothing about it is information: the rows already say there are more rows.
+ *
+ * THE DEFAULT IS ON `*` AND NOT ON `:root`, and that is the whole of why this
+ * works. `scrollbar-color` is an INHERITED property, so declaring the
+ * transparent default once at the root and revealing it with `*:hover` reveals
+ * every bar on the page at once: the pointer being anywhere in the window makes
+ * `html` hovered, and the visible colour then inherits down to scrollers the
+ * pointer is nowhere near. Declaring the default on every element instead means
+ * a scroller that is not itself hovered has its own value to fall back on and
+ * inherits nothing, so only the scroller under the pointer lights up.
+ *
+ * Hover is also, on this platform, exactly the "actively scrolling" case: a
+ * wheel or trackpad scroll requires the pointer to be over the thing scrolling.
+ * `:focus-within` covers the keyboard reader who never hovers.
+ *
+ * `--db-line-strong` rather than the hairline `--db-line`: most of these
+ * scrollers are on `--ast-white`, and a hairline thumb there is #ebebeb on
+ * #ffffff -- a bar that is technically shown and practically invisible, which is
+ * a hover affordance that does not afford anything. The control-border grey is
+ * the lightest token that reads against white, and it is still a long way from
+ * the platform's slab.
+ *
+ * NO `scrollbar-gutter` HERE. Reserving a strip on every scroller in the app
+ * would move the contents of all thirty. The one place it is reserved is the Ask
+ * rail, which pays for it out of its own padding; see the note there.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover,
+*:focus-within {
+  scrollbar-color: var(--db-line-strong) transparent;
+}
+/*
+ * The same states again for WebKit, which is a duplicate only where the standard
+ * properties above are unimplemented: Chrome ignores these pseudo-elements
+ * entirely once `scrollbar-color` or `scrollbar-width` is set on the element, so
+ * this block is what older Safari reads and nothing else. It is also the only
+ * way to ask for a specific size -- `thin` is the platform's choice, 6px is
+ * ours, and `height` is the horizontal bar's `width`, which the app needs
+ * because a good half of these scrollers are wide tables rather than tall lists.
+ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
+  background: var(--db-line-strong);
+}
+
+/*
  * Every dropdown uses the Monitoring filter format: "Label · Value" in one
  * white, neutral field. The menu is Radix Select, so this shared paint does not
  * replace its keyboard navigation, typeahead or selected-item semantics.
@@ -71,6 +141,35 @@ svg {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/*
+ * EVERY DROPDOWN IN THE APP, LIFTED ABOVE EVERY SURFACE THAT CAN HOLD ONE.
+ *
+ * Radix renders select and menu content into a portal on `document.body`, not
+ * inside the element that opened it, and AppKit ships that content at `z-50`.
+ * The app's own ladder runs well past 50 -- the composer is 20, the sticky
+ * chrome 40, the first-open panel 60, the Settings modal 80 -- so a dropdown
+ * opened inside Settings was painting UNDERNEATH the modal that opened it. The
+ * report was that the Roles pane's role control "doesn't work when clicked,
+ * causes stutter, dead end", and all three halves of that are this: the menu
+ * opened where it could not be seen, Radix's scroll lock shifted the page
+ * behind it, and there was nothing to click.
+ *
+ * THE WRAPPER AND NOT THE CONTENT. `[data-radix-popper-content-wrapper]` is the
+ * positioned div Radix owns; it carries a `transform`, which makes it a stacking
+ * context, so a `z-index` on the content inside it is resolved against the
+ * wrapper and cannot lift the menu out from under anything. The wrapper is the
+ * only element in the stack that can.
+ *
+ * 90 IS A POSITION IN A LADDER, not a big number. It clears the Settings modal
+ * at 80, which is the highest surface a dropdown is opened from, and it stays
+ * under the access gate and the account menu at 100 -- neither of which contains
+ * one, and both of which are meant to be the last thing on screen. A surface
+ * added above 90 that holds a dropdown moves this, and the comment in
+ * settings.css by the overlay's own z-index says so.
+ */
+[data-radix-popper-content-wrapper] {
+  z-index: 90;
 }
 .app-select-content {
   min-width: var(--radix-select-trigger-width);

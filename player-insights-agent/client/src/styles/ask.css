@@ -112,9 +112,11 @@
      are cards that happen to be pressable, not buttons that happen to be large. */
   border: 1px solid var(--db-line);
   border-radius: var(--radius-md);
-  /* Keep the starter cards light and fully readable while letting only a hint of
-     the navy empty-state sky show through. */
-  background: rgba(255, 255, 255, 0.95);
+  /* The sky's own pane, so the starter cards, the reader's bubble and the answer
+     card are one surface rather than three whites that nearly agree. This was a
+     hand-written 0.95 -- a second alpha next to the token's, close enough that the
+     difference read as a mistake and far enough to be one. */
+  background: var(--ast-pane);
   color: var(--foreground);
   cursor: pointer;
   font-weight: 500;
@@ -163,12 +165,15 @@
      --primary was ink. The reader's own question is not an action, and a blue
      speech bubble on the right of the transcript reads as a button.
 
-     THE SURFACE IS `--ast-white`, OPAQUE, and it is the same one the app header,
-     the conversation rail and the answer card are drawn on. It was
-     `rgba(245, 246, 248, 0.85)`: a light neutral let the navy tint it, and 15%
-     of the sky through a light fill is a mid-grey slab rather than a tinted one.
-     The bubble reads as a card because the sky is behind it, not through it. */
-  background: var(--ast-white);
+     THE SURFACE IS `--ast-pane`, the sky's own sheet, which is what the answer
+     card below it is drawn on. Two earlier tries are worth keeping apart: this was
+     `rgba(245, 246, 248, 0.85)`, where a light NEUTRAL let the navy tint it and 15%
+     of the sky through a grey fill is a mid-grey slab -- the fault there was the
+     base colour and the alpha together. Then it was opaque `--ast-white`, which
+     fixed the slab and created the reason this file is being edited again: an
+     opaque bubble directly above a translucent card is what made the card look
+     grey. The base is pure white and the alpha is the token's. */
+  background: var(--ast-pane);
   color: var(--foreground);
   /* The customer could select this text but saw no I-beam over it, so nothing
      said it was selectable. */

@@ -147,15 +147,23 @@ describe('opening the tab having never checked anything', () => {
    * argument for gating the probes was right; the conclusion that a reader should
    * therefore find an unchecked page was not.
    *
-   * What survives is the part that was actually load-bearing: the page still owns
-   * exactly one fetch, the cheap one, and the expensive pair is somebody else's
-   * decision. Restoring is still not the same as re-running -- that is now
-   * enforced by the latch in this module, exercised for real in
+   * What survives is the part that was actually load-bearing: THE EXPENSIVE PAIR IS
+   * SOMEBODY ELSE'S DECISION. Restoring is still not the same as re-running -- that
+   * is now enforced by the latch in this module, exercised for real in
    * session-checks.test.ts, rather than by reading this page's source.
+   *
+   * IT USED TO ASSERT THE PAGE OWNED EXACTLY ONE FETCH, which was a proxy for the
+   * real rule and stopped being one: the loop-bounds strip above the diagram reads
+   * the app's own stored settings row, which costs no round trip to the workspace
+   * and is the same kind of read `/api/architecture` is. Naming the two forbidden
+   * paths says what the rule is rather than counting, so a third cheap read does
+   * not have to argue with this test.
    */
-  it('keeps the cheap read for itself and the expensive pair for the session', () => {
+  it('leaves the expensive pair to the session and keeps only cheap reads', () => {
     const fetches = [...PAGE.matchAll(/fetchWithTimeout\('([^']+)'/g)].map((match) => match[1]);
-    expect(fetches).toEqual(['/api/architecture']);
+    expect(fetches).toContain('/api/architecture');
+    expect(fetches).not.toContain('/api/settings');
+    expect(fetches).not.toContain('/api/preflight');
     expect(PAGE).toContain('useSessionChecks()');
   });
 });

@@ -715,26 +715,14 @@
   padding: 10px 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* `flex-end` and not `space-between`. The footer had two children -- a note on
+     the left and the actions on the right -- and `space-between` was what held
+     them apart. The note is gone, so `space-between` on a single child would put
+     Cancel and Save against the LEFT edge of the modal. */
+  justify-content: flex-end;
   gap: 16px;
   border-top: 1px solid #ebebeb;
   background: #f7f7f7;
-}
-
-.settings-footer-note {
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  color: #6f6f6f;
-  font-size: 11px;
-}
-
-.settings-footer-note svg {
-  width: 13px;
-  height: 13px;
-  flex: none;
-  margin-top: 2px;
 }
 
 .settings-footer-actions {
@@ -742,6 +730,26 @@
   align-items: center;
   gap: 8px;
   flex: none;
+}
+
+/*
+ * Save, held down for a beat.
+ *
+ * THIS IS THE CONFIRMATION NOW, together with the modal closing. The "Saved."
+ * line that used to be the confirmation is still written for a screen reader but
+ * the reader's own signal is this: AppKit paints `:active` the same as `:hover`,
+ * so a click and a hover on this button were the same pixels, and the modal
+ * leaving on its own would have been the only feedback -- indistinguishable from
+ * the modal being dismissed. `--db-blue-800` is the palette's press weight and
+ * the same pair of declarations the Run Explorer's primary button presses to.
+ *
+ * Driven by an attribute rather than `:active` because the press outlasts the
+ * mouse-up: it has to still be on screen while the save is in flight.
+ */
+.settings-footer-actions [data-slot='button'][data-pressed='true'] {
+  border-color: var(--db-blue-800);
+  background: var(--db-blue-800);
+  color: var(--primary-foreground);
 }
 
 /*

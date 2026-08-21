@@ -90,6 +90,30 @@
 .arch-tiles [data-tile='drift'] span {
   color: var(--ast-warn-deep);
 }
+/*
+ * The loop bounds, three across rather than four.
+ *
+ * A SECOND STRIP AND NOT THREE MORE TILES IN THE FIRST. The four above are counts
+ * of dependencies, recounted on every Refresh; these are stored settings and change
+ * only when somebody edits them in the gear. Seven tiles in one row would invite a
+ * reader to compare "Reachable 9" against "Run budget 90", which are not the same
+ * kind of number and share no unit.
+ *
+ * It inherits the strip's tile, label and figure treatment, because it should read
+ * as the same kind of object one row down. Only the column count differs, and the
+ * two share the 2-across collapse in responsive.css.
+ */
+.arch-tiles-loop {
+  grid-template-columns: repeat(3, 1fr);
+}
+/* Sentence case, unlike the counts above. These are the Settings pane's own
+   labels -- "Max DSF steps", "Run budget (s)" -- and upper-casing them breaks the
+   one thing they are for, which is being searchable in the gear. `DSF` is already
+   capitals and `(s)` is not a word. */
+.arch-tiles-loop span {
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
 /* ---------------------------------------------------------------------------
    The flow panel
    --------------------------------------------------------------------------- */
@@ -519,6 +543,81 @@ a.arch-node-main:hover .arch-node-label {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--muted-foreground);
+}
+/* The stage id, in mono for the same reason the connector below is: it is a name
+   the trace carries verbatim rather than prose about it, and a reader matching this
+   rail against a run in the Run Explorer is comparing two strings. */
+.arch-rail-stage {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+/* Quieter than a badge that names a property of the stage. "If needed" and
+   "Optional" say a row may not appear at all, which is a caveat on the row rather
+   than a label for it, so it takes no border. */
+.arch-rail-badge[data-optional='true'] {
+  border-style: dashed;
+  border-color: var(--ast-hairline);
+  color: var(--muted-foreground);
+}
+/* The bound under the stage it stops, at the label the gear uses. */
+.arch-rail-bound {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--ast-neutral-text);
+}
+
+/* ---------------------------------------------------------------------------
+   The answer contract
+   ---------------------------------------------------------------------------
+   The other half of the chain: what comes back. Rows rather than a rail, because
+   these are the sections of one answer and not stages in a sequence -- there is no
+   arrow between `figures` and `charts` and drawing one would claim an order the
+   agent does not run in.
+   --------------------------------------------------------------------------- */
+
+.arch-contract-rows {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.arch-contract-row {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--ast-hairline);
+  padding-top: 10px;
+  min-width: 0;
+}
+.arch-contract-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.arch-contract-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+/* The wire name leads and the readable label follows it, which is the opposite of
+   the rail rows above. It is deliberate: the field name is what a reader is
+   matching against a trace, and the label is the gloss on it. */
+.arch-contract-head > code {
+  margin-left: 0;
+  font-weight: 400;
+}
+.arch-contract-head > span {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.arch-contract-head > .arch-rail-badge {
+  margin-left: auto;
 }
 /* The connector between two steps, in mono because it names what passes rather
    than describing it. */

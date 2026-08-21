@@ -1,5 +1,5 @@
 import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
-import { Lock, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
@@ -8,9 +8,11 @@ import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSetting
 import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsUserRoster, type RoleResolution } from './role';
 import {
+  SAVE_PRESS_MS,
   SETTINGS_SAVE_IDLE,
   saveButtonLabel,
   saveInFlight,
+  saveLanded,
   saveNotice,
   type SettingsSaveState,
 } from './settings-save-state';
@@ -96,6 +98,9 @@ export function SettingsPage({
   // screen: `.settings-modal-content` scrolls, so an outcome drawn at the end of
   // the Runtime form was a thousand pixels below the button that caused it.
   const [saveState, setSaveState] = useState<SettingsSaveState>(SETTINGS_SAVE_IDLE);
+  // The press paint, held for a beat so the click is visible before the modal
+  // goes. See SAVE_PRESS_MS.
+  const [pressed, setPressed] = useState(false);
   const close = onClose ?? noopClose;
   // `?? ` rather than a default parameter, because a default parameter only
   // covers `undefined`. A caller handing down a value it fetched can hand down
@@ -114,6 +119,28 @@ export function SettingsPage({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [close]);
+
+  /** Let go of the press paint whether or not the save ever comes back. */
+  useEffect(() => {
+    if (!pressed) return;
+    const timer = window.setTimeout(() => setPressed(false), SAVE_PRESS_MS);
+    return () => window.clearTimeout(timer);
+  }, [pressed]);
+
+  /**
+   * Close once the save has landed.
+   *
+   * ON `saved` AND NOT ON THE CLICK, and the difference only shows when the server
+   * refuses: the refusal is drawn in this footer, so closing on the click would
+   * take the message off screen at the moment it was written and a refused save
+   * would look exactly like a successful one. A save that works is fast enough
+   * that the two are the same gesture to a reader.
+   */
+  useEffect(() => {
+    if (!saveLanded(saveState)) return;
+    const timer = window.setTimeout(() => close(), SAVE_PRESS_MS);
+    return () => window.clearTimeout(timer);
+  }, [saveState, close]);
 
   const form =
     active === 'runtime' || active === 'appearance'
@@ -225,17 +252,15 @@ export function SettingsPage({
           </div>
         </div>
 
+        {/* NO NOTE ON THE LEFT. The Runtime pane used to carry a locked line here
+            reading "Dictionary-first field binding and never-invent-figures are
+            mandatory safeguards, not switches." It is gone at Sam's request, in
+            every state and on every pane -- the two safeguards it described are
+            still mandatory and still not switches, which is why there is no
+            control for them to sit beside and nothing on this screen it was
+            qualifying. The footer is the actions now, and settings.css ends the
+            `space-between` that used to need a left-hand child. */}
         <footer className="settings-modal-footer">
-          <div className="settings-footer-note">
-            {active === 'runtime' ? (
-              <>
-                <Lock aria-hidden="true" />
-                <span>
-                  Dictionary-first field binding and never-invent-figures are mandatory safeguards, not switches.
-                </span>
-              </>
-            ) : null}
-          </div>
           <div className="settings-footer-actions">
             {/* THE OUTCOME GOES BESIDE THE BUTTON THAT CAUSED IT. Drawn in the
                 footer, which does not scroll, so a save that worked, a save the
@@ -253,7 +278,14 @@ export function SettingsPage({
               Cancel
             </Button>
             {form ? (
-              <Button type="submit" form={form} disabled={saving} aria-busy={saving}>
+              <Button
+                type="submit"
+                form={form}
+                disabled={saving}
+                aria-busy={saving}
+                data-pressed={pressed ? 'true' : undefined}
+                onClick={() => setPressed(true)}
+              >
                 {saveButtonLabel(saveState)}
               </Button>
             ) : null}

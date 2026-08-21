@@ -18,11 +18,19 @@
   max-width: 720px;
   margin-inline: auto;
   z-index: 20;
-  /* The one element in the app that genuinely sits over scrolling content, so it
-     has to be opaque; it was 96% white with a 40px drop shadow and a translucent
-     white halo, which is the frosted treatment rather than an honest surface. The
-     strong border rung is what separates it from the transcript now. */
-  background: var(--background);
+  /*
+   * The sky's pane, asked for explicitly, and THE ONE PLACE IN THE APP WHERE THIS
+   * TOKEN IS NOT FREE. Every other surface it paints has the sky behind it and
+   * nothing else, so the 6% coming through is stars. This one is fixed over the
+   * transcript, so on a long conversation the 6% is scrolling prose rather than
+   * sky, and prose moving faintly under a control is the frosted treatment this
+   * rule was once reverted for -- it was 96% white with a 40px drop shadow and a
+   * translucent halo. What is different now is that the halo and the shadow are
+   * gone and the strong border rung separates it, so the surface is honest even
+   * where what is behind it is not sky. If the moving text reads as a smudge, this
+   * is the declaration to put back to `var(--background)`, and only this one.
+   */
+  background: var(--ast-pane);
   border: 1px solid var(--db-line-strong);
   border-radius: var(--radius-md);
   /*
@@ -88,7 +96,9 @@
   gap: 8px 12px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--db-line);
-  background: var(--db-wash);
+  /* Inside the composer, so it takes the composer's sheet rather than a wash of its
+     own. See `.composer-actions` below. */
+  background: transparent;
   font-size: 12px;
 }
 /* The link takes the right-hand end, so it is where the submit button below it is
@@ -238,7 +248,11 @@
   gap: 12px;
   padding: 8px 8px 8px 16px;
   border-top: 1px solid var(--db-line);
-  background: var(--db-wash);
+  /* The rule above is the separation. The wash was a grey band across the bottom of
+     the composer, which on the sky is the one thing this pass removed everywhere
+     else -- and it is the band a reader sees most, because it is on screen before
+     they have asked anything. */
+  background: transparent;
 }
 /* The caveat line takes the slack, which is what puts the submit button hard right
    however many ghost controls are to its left. */

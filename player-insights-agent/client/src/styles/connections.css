@@ -623,6 +623,35 @@
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
+/*
+ * The visit mark, to the left of the name it opens.
+ *
+ * `inline` on the cell rather than a flex row, deliberately: a table name here wraps
+ * -- `overflow-wrap: anywhere` above says so -- and a flex row would hold the mark
+ * vertically centred against a two-line name, floating in the middle of the cell
+ * beside nothing. Inline keeps it on the first line where the name starts.
+ *
+ * Quiet until pointed at. Twelve of these down a column at full ink would read as
+ * the column's content rather than as an affordance on it, and the name is what the
+ * reader came to read.
+ */
+.visit-in-databricks {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--muted-foreground);
+  vertical-align: baseline;
+}
+.visit-in-databricks > svg {
+  width: 13px;
+  height: 13px;
+  /* Sits on the text's baseline rather than the line box's, which for a 13px glyph
+     on a 14px mono line is about two pixels low without this. */
+  vertical-align: -2px;
+}
+.visit-in-databricks:hover > svg,
+.visit-in-databricks:focus-visible > svg {
+  color: var(--db-blue-600);
+}
 /* The row an entity link asked for, in the app's one selected-row treatment: a
    blue tint and a 3px blue inset edge. The 3px is inset rather than a border so
    that selecting a row cannot move the text in it, and it outranks the accent
@@ -844,6 +873,46 @@
 .identity-scope-table code {
   font-size: var(--text-sm);
   color: var(--ast-text-long);
+  overflow-wrap: anywhere;
+}
+/*
+ * The scope, as a granted chip.
+ *
+ * It carries `.ast-pill--pos` for the fill, the edge and the green, so there is no
+ * colour declared here -- the app has one positive family and this is it. What this
+ * rule does is let a chip hold a monospace string, which the recipe was not written
+ * for: the pill sets its own 11px label face, and a scope name has to stay in the
+ * mono face at the table's own size or it stops being the exact string a reader
+ * copies into app.yaml.
+ *
+ * `align-items: baseline` rather than `center`, which the pill sets: a mono
+ * descender against an 11px tick is the one case where centring the box leaves the
+ * text looking a pixel low.
+ *
+ * Wrapping is allowed. `vectorsearch.vector-search-indexes:read` is 38 characters
+ * in a column that is 36% of a card, and a chip that refuses to wrap either
+ * overflows the cell or forces the Details column into two words per line.
+ */
+.identity-scope-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 100%;
+  white-space: normal;
+}
+.identity-scope-pill > svg {
+  flex: none;
+  /* Held to the first line of a wrapped name rather than floated to the middle of
+     the chip, which is what `baseline` on a two-line flex item would otherwise do. */
+  align-self: flex-start;
+  margin-top: 3px;
+}
+.identity-scope-pill > code {
+  /* The family's green, not the table's grey. Inherited rather than restated so the
+     chip cannot end up a different green from the OAuth badge it borrows its mark
+     from. */
+  color: inherit;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 .identity-scope-default {

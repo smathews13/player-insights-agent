@@ -300,11 +300,14 @@ describe('the ask home is the geometry the mockup gives it', () => {
   });
 
   it('separates what you type from what you press', () => {
-    // A washed strip under a hairline. Before it, the attach control, the caveat
-    // and the submit sat on the same white as the text being typed.
+    // THE HAIRLINE IS THE WHOLE SEPARATION NOW. This was a washed strip, and the
+    // wash was a grey band across the bottom of the composer -- the most-seen band
+    // in the app, because it is on screen before the reader has asked anything, and
+    // it went with every other grey band on the sky. The rule stays; the fill does
+    // not.
     const strip = body('.composer-actions');
     expect(strip).toMatch(/border-top:\s*1px solid var\(--db-line\)/);
-    expect(strip).toMatch(/background:\s*var\(--db-wash\)/);
+    expect(strip).toMatch(/background:\s*transparent/);
     expect(strip).toMatch(/padding:\s*8px 8px 8px 16px/);
   });
 });
@@ -416,12 +419,14 @@ describe('the two marks that sign a transcript', () => {
     // 8/8/2/8, per the handoff. It was 14/14/3/14, and a 14px bubble beside an 8px
     // answer card reads as two different applications.
     expect(body('.user-bubble')).toMatch(/border-radius:\s*8px 8px 2px 8px/);
-    // The app's one light surface, opaque: the same token the header, the rail
-    // and the answer card are drawn on. It was `rgba(245, 246, 248, 0.85)`, and
-    // letting 15% of the navy sky through a light fill produced the mid-grey
-    // slab Sam reported. No alpha here at all, deliberately -- the sky belongs
-    // behind the bubble, not in it.
-    expect(body('.user-bubble')).toMatch(/background:\s*var\(--ast-white\)/);
+    // THE SKY'S PANE, which is the same token the answer card below it takes, and
+    // the two earlier surfaces here are worth keeping apart because they failed for
+    // different reasons. `rgba(245, 246, 248, 0.85)` was a light NEUTRAL: 15% of the
+    // navy through a grey fill is the mid-grey slab Sam reported, and the fault was
+    // the base colour as much as the alpha. Opaque `--ast-white` fixed the slab and
+    // caused the next report: an opaque bubble directly above a translucent card is
+    // what made the card read as grey. Pure white base, one shared alpha.
+    expect(body('.user-bubble')).toMatch(/background:\s*var\(--ast-pane\)/);
     expect(body('.user-avatar')).toMatch(/max-width:\s*none/);
     expect(body('.user-avatar .identity-chip-text')).toMatch(/overflow:\s*visible/);
   });

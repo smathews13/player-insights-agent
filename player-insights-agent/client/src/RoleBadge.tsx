@@ -64,7 +64,20 @@ const BADGE_ICON: Partial<Record<RoleState, ComponentType<{ size?: number; strok
  * TRANSITION rather than of the state, so something has to remember the previous
  * value, and the badge is the only thing on the page that needs to.
  */
-export function RoleBadge({ state }: { state: RoleState }) {
+/**
+ * The pill on its own, without the live region.
+ *
+ * SPLIT OUT BECAUSE THE ACCOUNT MENU DRAWS A SECOND COPY. The badge is one of the
+ * header members responsive.css hides below 800px, so at narrow widths the pill in
+ * the account dropdown is the only place the reader's rank appears at all -- which
+ * is the reason it was asked for. Two `RoleBadge`s on the page would mean two
+ * `aria-live` regions, and losing the admin role would be announced to a screen
+ * reader twice.
+ *
+ * The announcement belongs to the page rather than to either copy, so it stays
+ * with the header's badge and this is what everything else renders.
+ */
+export function RoleBadgePill({ state }: { state: RoleState }) {
   const label = badgeLabel(state);
   const title = badgeTitle(state);
   const accessibleName = badgeAccessibleName(state);
@@ -73,16 +86,6 @@ export function RoleBadge({ state }: { state: RoleState }) {
   // returning ''. Read that rather than re-testing the state here, so the two
   // cannot come apart if a fifth state is ever added.
   const resolving = label === '';
-
-  const [announcement, setAnnouncement] = useState('');
-  const previous = useRef<RoleState>(state);
-  useEffect(() => {
-    const said = badgeAnnouncement(previous.current, state);
-    previous.current = state;
-    // Only assign when there is something to say. Writing '' on every render
-    // would clear a message a screen reader may still be part-way through.
-    if (said) setAnnouncement(said);
-  }, [state]);
 
   return (
     <>
@@ -122,11 +125,32 @@ export function RoleBadge({ state }: { state: RoleState }) {
         {Icon ? <Icon size={11} strokeWidth={2.5} aria-hidden="true" /> : null}
         {label}
       </span>
+    </>
+  );
+}
+
+export function RoleBadge({ state }: { state: RoleState }) {
+  const [announcement, setAnnouncement] = useState('');
+  const previous = useRef<RoleState>(state);
+  useEffect(() => {
+    const said = badgeAnnouncement(previous.current, state);
+    previous.current = state;
+    // Only assign when there is something to say. Writing '' on every render
+    // would clear a message a screen reader may still be part-way through.
+    if (said) setAnnouncement(said);
+  }, [state]);
+
+  return (
+    <>
+      <RoleBadgePill state={state} />
       {/*
         Polite, and empty until a role is LOST or downgraded. role.ts holds the
         rule that the first resolve says nothing: announcing on every page load
         trains people to ignore the region, and the change actually worth
         speaking is the one where four tabs and the gear disappear at once.
+
+        THE ONLY COPY ON THE PAGE. The account menu renders `RoleBadgePill`
+        instead of this component for that reason; see the note on it.
       */}
       <span className="sr-only" role="status" aria-live="polite">
         {announcement}

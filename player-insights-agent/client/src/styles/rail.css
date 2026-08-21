@@ -99,25 +99,18 @@
    */
   padding: 16px 8px 16px 16px;
   overflow-y: auto;
-  scrollbar-gutter: stable;
   /*
-   * Thin, and INVISIBLE UNTIL THE READER IS IN THIS COLUMN.
+   * THE ONE SCROLLER IN THE APP THAT RESERVES ITS BAR A STRIP.
    *
-   * The bar is a permanent grey stripe otherwise: the gutter below reserves its
-   * strip whether or not the rail overflows, so a rail that overflows painted a
-   * light slab down the full height of the column at all times, next to eleven
-   * white cards, competing with them for the eye. Nothing about it is
-   * information -- the rows already say there are more rows.
-   *
-   * So both halves of `scrollbar-color` are transparent by default and the thumb
-   * is coloured only on `:hover` / `:focus-within` below. The gutter stays
-   * reserved either way, so the thumb appearing moves nothing and covers
-   * nothing. Hover is also, on this platform, exactly the "actively scrolling"
-   * case: a wheel or trackpad scroll of this column requires the pointer to be
-   * over it, and `:focus-within` covers the keyboard reader who never hovers.
+   * Thin and hidden-until-hovered is every scroller's treatment now and lives on
+   * `*` in base.css -- this column is where that was worked out, and keeping a
+   * copy here would be a second place to be wrong about it. What stays is the
+   * reserve, which is this rail's alone: the gutter holds the strip whether or
+   * not the rail currently overflows, so the thumb appearing moves nothing and
+   * covers nothing. It is paid for out of the padding on this edge, which is why
+   * that edge is 8px where the other three are 16px.
    */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
   /* THE RAIL IS THE HEADER'S SURFACE, not the Ask page's sky. It was 94% of the
      ink structure colour with white text on it, which put a near-black column
      under a white header and left the eyebrow, the filter chips and the cards'
@@ -130,42 +123,6 @@
      there is one token behind all four rather than four values that agree. */
   background: var(--ast-white);
   color: var(--foreground);
-}
-/*
- * The thumb, and ONLY while the reader is in the column.
- *
- * `--db-line-strong` rather than the hairline `--db-line`: the rail is
- * `--ast-white` now, and a hairline thumb on white is #ebebeb on #ffffff --
- * a bar that is technically shown and practically invisible, which is a hover
- * affordance that does not afford anything. The control-border grey is the
- * lightest token that reads against this surface, and it is still a long way
- * from the platform's slab.
- */
-.conversation-rail:hover,
-.conversation-rail:focus-within {
-  scrollbar-color: var(--db-line-strong) transparent;
-}
-/*
- * The same two states again for WebKit, which is a duplicate only where the
- * standard properties above are unimplemented: Chrome ignores these
- * pseudo-elements entirely once `scrollbar-color` or `scrollbar-width` is set
- * on the element, so this block is what older Safari reads and nothing else.
- * It is also the only way to ask for a specific width -- `thin` is the
- * platform's choice, 6px is ours.
- */
-.conversation-rail::-webkit-scrollbar {
-  width: 6px;
-}
-.conversation-rail::-webkit-scrollbar-track {
-  background: transparent;
-}
-.conversation-rail::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 999px;
-}
-.conversation-rail:hover::-webkit-scrollbar-thumb,
-.conversation-rail:focus-within::-webkit-scrollbar-thumb {
-  background: var(--db-line-strong);
 }
 /* 8px, because the inspector's head is a title with a pill beside it and then the
    run: three things that belong to each other, unlike the rail's three blocks. */

@@ -4,6 +4,22 @@ import { describe, expect, it } from 'vitest';
 
 const source = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
+const styles = fs.readFileSync(path.join(__dirname, 'styles', 'settings.css'), 'utf8');
+
+/**
+ * The file with its commentary taken out.
+ *
+ * Needed by exactly one assertion below: the note this modal used to draw is
+ * quoted verbatim in the comment that records its removal, so a test asserting
+ * the sentence is absent from the source finds it in the explanation of why it is
+ * absent. The quote is worth keeping -- it is the only record of what the line
+ * said -- so the assertion reads the markup instead.
+ */
+const markupOf = (file: string): string =>
+  file
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
 
 describe('runtime and appearance modal sections', () => {
   it('mounts both sections behind one modal settings form', () => {
@@ -65,9 +81,39 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('entityStyles');
   });
 
-  it('keeps one footer Save and the mandatory safeguards note in the modal shell', () => {
-    expect(page).toContain('type="submit" form={form}');
-    expect(page).toContain('Dictionary-first field binding and never-invent-figures are mandatory safeguards, not switches.');
+  it('keeps one footer Save, in the shell rather than in the pane', () => {
+    expect(page).toMatch(/type="submit"\s+form=\{form\}/);
     expect(source).not.toContain('Save runtime settings');
+  });
+
+  it('carries no safeguards note, on any pane or in any state', () => {
+    // The Runtime pane used to draw a locked line in the footer: "Dictionary-first
+    // field binding and never-invent-figures are mandatory safeguards, not
+    // switches." Removed at Sam's request, and asserted three ways because there
+    // are three ways for it to come back -- the sentence, the element that held it,
+    // and the rule that painted it.
+    const markup = markupOf(page);
+    expect(markup).not.toContain('mandatory safeguards');
+    expect(markup).not.toContain('settings-footer-note');
+    expect(styles).not.toContain('.settings-footer-note');
+    // The footer had two children and `space-between` held them apart. With one
+    // child left, `space-between` puts Cancel and Save against the modal's LEFT
+    // edge, so the removal of the note and this declaration are one change.
+    expect(styles).toMatch(/\.settings-modal-footer \{[^}]*justify-content:\s*flex-end/);
+  });
+
+  it('presses Save and closes the modal once the save has landed', () => {
+    // The press and the close are the whole of the confirmation now that the line
+    // beside the button is gone. AppKit paints `:active` the same as `:hover`, so
+    // the press is driven by an attribute that outlasts the mouse-up -- it has to
+    // still be on screen while the save is in flight.
+    expect(page).toContain("data-pressed={pressed ? 'true' : undefined}");
+    expect(page).toContain('onClick={() => setPressed(true)}');
+    expect(styles).toMatch(/\[data-pressed='true'\] \{[^}]*background:\s*var\(--db-blue-800\)/);
+    // ON `saved` AND NOT ON THE CLICK. The refusal is drawn in the footer, so
+    // closing on the click would take the message off screen as it was written and
+    // a refused save would look exactly like a successful one.
+    expect(page).toContain('if (!saveLanded(saveState)) return;');
+    expect(page).toMatch(/setTimeout\(\(\) => close\(\), SAVE_PRESS_MS\)/);
   });
 });

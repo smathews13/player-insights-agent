@@ -6,6 +6,8 @@ import { BrandIcon } from './BrandIcon';
 import { DATABRICKS_SYMBOL } from './brand-icons';
 import { signOutOfAstrolabe } from './first-open';
 import { accountSlackHref } from './account-slack-links';
+import { RoleBadgePill } from './RoleBadge';
+import type { RoleState } from './role';
 import { identityName } from './user-identity';
 
 function DatabricksSymbol({ className }: { className?: string }) {
@@ -20,17 +22,36 @@ function DatabricksSymbol({ className }: { className?: string }) {
 
 export function AccountMenuPanel({
   identity,
+  role,
   onSignOut,
 }: {
   identity: Identity;
+  role: RoleState;
   onSignOut: () => void;
 }) {
   const name = identityName(identity.signedInAs);
   return (
     <div className="account-menu" role="menu" aria-label="Account menu">
       <div className="account-menu-identity">
-        <strong>{name}</strong>
-        <span>{identity.signedInAs}</span>
+        {/*
+          THE SAME THREE THINGS THE TRIGGER CARRIES, in the same order: the mark,
+          the name, then the rank. The panel used to open on a bare name and an
+          address, so pressing the chip replaced the reader's own icon and badge
+          with two lines of text and the dropdown read as somebody else's account.
+
+          It matters most at narrow widths, which is where it is not merely a
+          repetition: responsive.css hides the header cluster's informational
+          members below 800px, so this is the only place the rank appears at all.
+
+          `RoleBadgePill` and not `RoleBadge` -- the second live region would
+          announce a lost role twice. See the note on the pill.
+        */}
+        <span className="account-menu-who">
+          <UserRound aria-hidden="true" />
+          <strong>{name}</strong>
+          <RoleBadgePill state={role} />
+        </span>
+        <span className="account-menu-address">{identity.signedInAs}</span>
       </div>
       <div className="account-menu-group">
         <a href={accountSlackHref('feedback')} target="_blank" rel="noopener noreferrer" role="menuitem">
@@ -58,7 +79,7 @@ export function AccountMenuPanel({
   );
 }
 
-export function AccountMenu({ identity }: { identity: Identity }) {
+export function AccountMenu({ identity, role }: { identity: Identity; role: RoleState }) {
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -110,7 +131,7 @@ export function AccountMenu({ identity }: { identity: Identity }) {
         </button>
         {open ? (
           <div id={menuId}>
-            <AccountMenuPanel identity={identity} onSignOut={signOut} />
+            <AccountMenuPanel identity={identity} role={role} onSignOut={signOut} />
           </div>
         ) : null}
       </div>

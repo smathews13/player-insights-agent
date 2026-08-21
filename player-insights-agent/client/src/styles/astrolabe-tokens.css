@@ -107,17 +107,28 @@
    * to lose, so a further pitch-up of this value is what would take it under -- see the
    * same note at the head of constellation.css, which is where those two are drawn.
    *
-   * --ast-pane is the answer card's white, and the alpha is the whole point of it: 4% of
-   * the sky reads through the card so the starfield behind it is faintly present. This
-   * was tried once as `rgba(255, 255, 255, 0.95)` on the near-black navy and reverted --
-   * 5% of black is a grey pane, and it swallowed the card's own hairlines. It is asked
-   * for again against a sky that is blue rather than black, at 96% rather than 95%: the
-   * card surface lands at #F6F6F7, ink on it is 16.4:1, and the hairline inside it is 11
-   * steps below the surface rather than 20. That last figure is the cost, and it is the
-   * one to look at first if the card ever reads as flat again.
+   * --ast-pane IS EVERY LIGHT SURFACE THE SKY CARRIES, and the alpha is the whole point
+   * of it: 6% of the sky reads through so the starfield behind is faintly present.
+   *
+   * THIS IS THE THIRD ATTEMPT AND THE FIRST TWO FAILED THE SAME WAY, which is worth
+   * more than the number. At 95% on the near-black navy the card read as a grey pane
+   * beside the white header and rail. At 96% on the blue sky it read as a grey pane
+   * again -- and the reason was not the alpha. Only the CARD was translucent: the answer
+   * body, the chart panels, the Sources module, the run-process panel and every header
+   * band inside it painted their own opaque white or #F7F7F7 on top. So the only
+   * translucent pixels on screen were the few millimetres of card showing around opaque
+   * children, and a 4% wash reads as a grey border when it is bounded by pure white on
+   * one side and navy on the other.
+   *
+   * The fix was structural rather than numeric: everything drawn inside a pane is
+   * `transparent` now and the pane is the one sheet under all of it, so the translucency
+   * covers whole panels and the stars are visible across them instead of in a seam. 94%
+   * is what that sheet can afford once it is actually being seen -- the surface lands
+   * near #F1F2F4, ink on it is well past 15:1, and the #EBEBEB hairlines inside it stay
+   * readable. Pitch it further and the hairlines are what go first.
    */
   --ast-sky-fill: #16202e; /* the dark surfaces: Ask, the harness, the bands, the login canvas */
-  --ast-pane: rgba(255, 255, 255, 0.96); /* the answer card, letting 4% of the sky through */
+  --ast-pane: rgba(255, 255, 255, 0.94); /* every light surface on the sky, letting 6% through */
 
   /*
    * ---- The star field the sky carries ----

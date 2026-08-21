@@ -162,6 +162,56 @@ describe('IdentityCard', () => {
     }
   });
 
+  /**
+   * The scope column, as granted chips.
+   *
+   * PILLS WERE DELIBERATELY REMOVED FROM THIS COLUMN ONCE and this is not that
+   * change being undone. The note in `ScopeTable` read "the pills are gone: these
+   * are permissions with meaning, not tags", and it was right about what a pill had
+   * been doing there -- decorating a name that reads perfectly well as the exact
+   * string it is. What Sam asked for is a different object in the same place: a
+   * status chip saying every row in this list is granted, which is a fact ABOUT the
+   * scope rather than a restatement of it.
+   *
+   * The claim is the narrow one, and the tooltip is where it is held: in the app's
+   * OAuth grant, not the result of a probe, and not a statement that the sign-in
+   * currently works. That last question is the OAuth badge at the top of the same
+   * card, which is why the tick is that badge's own mark and green rather than a
+   * second vocabulary for the same idea.
+   */
+  it('draws each scope as a granted chip with the OAuth badge’s mark', () => {
+    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
+    // The app's one positive family, so the chip cannot end up a different green
+    // from the badge above it.
+    expect(markup).toContain('ast-pill--pos identity-scope-pill');
+    // ONE CHIP PER ROW, counted against the rows this card actually drew rather than
+    // against a scope list computed from other inputs. Every row in this table is
+    // granted, so a row without a chip would be a row a reader reads as refused.
+    const rows = [...markup.matchAll(/data-scope="/g)].length;
+    expect(rows).toBeGreaterThan(2);
+    expect([...markup.matchAll(/identity-scope-pill/g)]).toHaveLength(rows);
+    // The name stays monospace inside the chip. It is the exact string a reader
+    // copies into app.yaml, and a pill's own label face would stop it being that.
+    expect(markup).toMatch(/identity-scope-pill[^>]*>.*?<svg[\s\S]*?<code>/);
+  });
+
+  it('says what the tick claims, and what it does not', () => {
+    // A green tick beside a permission is the easiest thing on this card to
+    // over-read, so the precise claim is in the tooltip rather than left to the
+    // colour: granted, not probed, and not a statement about the current sign-in.
+    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
+    expect(markup).toContain('In this app');
+    expect(markup).toContain('Not a probe');
+  });
+
+  it('leaves (default) outside the granted chip', () => {
+    // A platform default is granted exactly like the rest -- that is what the tick
+    // says -- and "(default)" qualifies where it came from, which is a different
+    // fact and must not be drawn inside the chip stating the first one.
+    const markup = renderToStaticMarkup(<IdentityCard read={SIGNED_IN} />);
+    expect(markup).toMatch(/<\/span>\s*<span class="identity-scope-default">/);
+  });
+
   it('marks both Databricks-provided IAM scopes as defaults', () => {
     const text = textOf(SIGNED_IN);
     for (const scope of PLATFORM_DEFAULT_USER_API_SCOPES) {

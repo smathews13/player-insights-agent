@@ -1,6 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
+
+/**
+ * The page's own source, for the one claim that cannot be rendered.
+ *
+ * The visit mark needs a workspace host, `useWorkspaceHost` reads one in an effect,
+ * and `renderToStaticMarkup` runs no effects -- so whether the mark is wired into
+ * the name cell, and whether it leads the name, is a fact about the code rather
+ * than about any markup this file can produce. What the link looks like is asserted
+ * against `VisitLink`, which is split out for exactly that reason.
+ */
+const PAGE_SOURCE = readFileSync(fileURLToPath(new URL('./ConnectionsPage.tsx', import.meta.url)), 'utf8');
 
 import {
   BuildFactRow,
@@ -13,6 +26,7 @@ import {
   PreflightRemedyBlock,
   PreflightRemedyRow,
 } from './ConnectionsPage';
+import { VisitLink } from './DataEntityLinks';
 import { BRAND_THEME_MARKS } from './brand-icons';
 import { sourceRows } from './build-card';
 import { GithubMark } from './GithubMark';
@@ -1389,6 +1403,44 @@ describe('the Unity Catalog tables section', () => {
     // Not lost, though: the whole sentence is still on the cell for anyone who
     // wants it, and the explanation is stated once in What to fix above.
     expect(rendered).toMatch(/title="The workspace refused the metadata read/);
+  });
+
+  /**
+   * The visit mark, to the left of the name it opens.
+   *
+   * The status column already said reachable or blocked; what a reader could not do
+   * from this list was go and look at the table. It is the icon-only link rather than
+   * the phrase `OpenInDatabricks` renders: twelve rows would carry twelve copies of
+   * "Open in Databricks" against 40-character names, in a column that has to hold
+   * both.
+   */
+  it('offers each declared table a way into Databricks, ahead of its name', () => {
+    // Asserted from the source, because the mark cannot be rendered here: it needs a
+    // workspace host, `useWorkspaceHost` reads one in an effect, and
+    // `renderToStaticMarkup` runs no effects. What the link looks like is asserted on
+    // `VisitLink` below, which is why that component is split out.
+    expect(PAGE_SOURCE).toContain('<VisitInDatabricks name={check.name} />');
+    const cell = PAGE_SOURCE.slice(PAGE_SOURCE.indexOf('className="connections-table-name"'));
+    expect(cell.indexOf('VisitInDatabricks')).toBeLessThan(cell.indexOf('{check.name}'));
+  });
+
+  it('names the visit link after the table, not after itself', () => {
+    // Twelve links all called "Open" is the standard way to make a table unusable
+    // without a pointer, so the mark is hidden and the accessible name carries the
+    // table. The green tick's neighbour on the Identity card does the same thing.
+    const markup = renderToStaticMarkup(<VisitLink href="https://example.invalid/explore/data/a/b/c" name="a.b.c" />);
+    expect(markup).toContain('Open a.b.c in Databricks');
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain('rel="noopener noreferrer"');
+    expect(markup).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  it('offers nothing at all when the app was given no workspace host', () => {
+    // A supported deployment, and the reason this is not a disabled-looking control:
+    // the row still names its table, it just does not claim to be able to open it.
+    const markup = render(<DeclaredTablesTable tableChecks={tables} requestedEntity="" />);
+    expect(markup).not.toContain('visit-in-databricks');
+    expect(text(markup)).toContain('gold_title_daily_summary');
   });
 
   /**

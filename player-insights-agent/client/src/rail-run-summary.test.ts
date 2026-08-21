@@ -254,11 +254,41 @@ describe('the row is the run card, not a third style', () => {
   it('reserves the scrollbar a strip rather than letting it sit on the rows', () => {
     const rail = body('.conversation-rail');
     expect(rail).toMatch(/scrollbar-gutter:\s*stable/);
-    expect(rail).toMatch(/scrollbar-width:\s*thin/);
     // The reserve is paid for out of this edge's padding, so the rows are no
     // narrower than they were: 8px of padding plus the thin bar is the 16px of
     // clearance the other three sides have.
     expect(withoutComments(rail)).toMatch(/padding:\s*16px 8px 16px 16px/);
+  });
+
+  it('takes the thin hidden-until-hovered bar from the global rule, not a copy', () => {
+    // This column is where the treatment was worked out and for a while it was
+    // the only scroller that had it, so the Run Explorer's sticky full-height run
+    // list painted the platform's grey slab down the middle of the page. It is on
+    // `*` in base.css now. A copy here would not merely be duplication: rail.css
+    // is imported after base.css at equal specificity, so a local
+    // `scrollbar-color: transparent` would outrank the global `*:hover` and this
+    // column alone would stop revealing its thumb.
+    const rail = withoutComments(body('.conversation-rail'));
+    expect(rail).not.toMatch(/scrollbar-width|scrollbar-color/);
+    expect(withoutComments(RAIL_CSS)).not.toMatch(/-webkit-scrollbar/);
+
+    // The default is declared on every element rather than once at the root,
+    // which is load-bearing: `scrollbar-color` is inherited, so a root default
+    // revealed by `*:hover` lights up every bar on the page at once -- the
+    // pointer being anywhere in the window makes `html` hovered and the visible
+    // colour inherits down to scrollers the pointer is nowhere near.
+    const base = withoutComments(partial('base.css'));
+    // The `*` rule that carries the default, which is not the `*` rule that carries
+    // `box-sizing`: base.css has two, and the helper at the top of this file returns
+    // whichever comes first.
+    const universal = base.match(/\*\s*\{[^{}]*scrollbar-width[^{}]*\}/)?.[0] ?? '';
+    expect(universal).toMatch(/scrollbar-width:\s*thin/);
+    expect(universal).toMatch(/scrollbar-color:\s*transparent transparent/);
+    expect(base).toMatch(/\*:hover,\s*\*:focus-within \{[^}]*scrollbar-color:\s*var\(--db-line-strong\) transparent/);
+    // 6px on both axes, because half these scrollers are wide tables rather than
+    // tall lists and a horizontal bar takes its size from `height`.
+    expect(base).toMatch(/::-webkit-scrollbar \{[^}]*width:\s*6px[^}]*height:\s*6px/);
+    expect(base).toMatch(/::-webkit-scrollbar-thumb \{[^}]*background:\s*transparent/);
   });
 });
 

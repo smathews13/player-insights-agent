@@ -575,12 +575,19 @@ describe('the run process is one panel rather than a bar and a box', () => {
     expect(rule).toContain('border-radius: var(--ast-radius-card)');
   });
 
-  it('washes the head instead of drawing a second edge under it', () => {
-    // Two edges read as two sections of which the first happens to be a heading
-    // for the second, which is what shipped.
+  it('rules the head instead of washing it', () => {
+    // THIS ASSERTION IS THE INVERSE OF WHAT IT USED TO BE, and the decision it
+    // pinned no longer has two options to choose between. It read "washes the head
+    // instead of drawing a second edge under it", because a wash and a rule together
+    // are two separations doing one job. Every grey band on the sky has since gone:
+    // the card is a translucent white sheet and a #F7F7F7 band on it is the exact
+    // thing that made the sheet read as grey. With no wash to pick, the hairline is
+    // the only thing left that can say the head is a heading and not the first line
+    // of the body -- and this head, unlike the Sources module's, had no rule of its
+    // own to fall back on, so one is added rather than merely uncovered.
     const rule = ruleFor(BODY_CSS, '.run-process-head {');
-    expect(rule).toContain('background: var(--ast-fill-band)');
-    expect(rule).not.toMatch(/\bborder/);
+    expect(rule).toContain('background: transparent');
+    expect(rule).toContain('border-bottom: 1px solid var(--ast-hairline)');
   });
 
   it('pushes the control to the end of the head row', () => {
@@ -805,10 +812,11 @@ describe('the advanced panel is a row and a code block, on the shared recipes', 
   });
 
   it('chips the SQL panel’s read-only note on the one pill recipe, outlined', () => {
-    // Outlined and not tinted: the chip sits on the code panel's own
-    // `--ast-fill-band` header, and a neutral tint on that band is a tint on a
-    // tint, which reads as a rendering fault rather than as a chip. That is the
-    // case `--ast-pill--neutral-outline` exists for.
+    // Outlined and not tinted: the chip sits on the code panel's header, which is
+    // the card's translucent sheet, and a neutral tint on a tinted surface reads as
+    // a rendering fault rather than as a chip. That is the case
+    // `--ast-pill--neutral-outline` exists for. The header used to carry
+    // `--ast-fill-band` and the reasoning was the same then -- a tint on a tint.
     expect(CARD).toContain('className="ast-pill ast-pill--neutral-outline"');
   });
 
@@ -970,7 +978,10 @@ describe('the card holds text it did not write', () => {
     // happens to sit above it.
     const head = ruleFor(BODY_CSS, '.sources-module-head {');
     expect(head).toContain('border-bottom: 1px solid var(--ast-hairline)');
-    expect(head).toContain('background: var(--ast-fill-band)');
+    // And nothing else: the hairline was always the separation here, so dropping the
+    // grey fill costs this head nothing. See `.run-process-head`, which had no rule
+    // and needed one added.
+    expect(head).toContain('background: transparent');
   });
 
   it('gives the role chip the app’s one pill recipe rather than a recipe of its own', () => {

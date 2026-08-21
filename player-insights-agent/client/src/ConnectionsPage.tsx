@@ -87,7 +87,7 @@ import { astPill } from './astrolabe-pill';
 import { deploymentRows, telemetryRows, type BuildRow } from './build-card';
 import { UserIdentityChip } from './UserIdentityChip';
 import { NO_APP_FACTS } from '../../shared/app-facts';
-import { EntityHighlight } from './DataEntityLinks';
+import { EntityHighlight, VisitInDatabricks } from './DataEntityLinks';
 import { entityRowProps, isRequestedEntity, useRequestedEntity } from './data-entity-state';
 import { entityRowId } from './data-entities';
 import {
@@ -620,7 +620,16 @@ export function DeclaredTablesTable({
             // the entry an entity link lands on, so it carries the id rather than
             // the block around it.
             <TableRow key={check.id} {...entityRowProps(check.name, requestedEntity)}>
-              <TableCell className="connections-table-name">{check.name}</TableCell>
+              {/* THE MARK LEADS THE NAME, per the ask, and it is the icon-only link
+                  rather than the phrase: twelve rows would otherwise carry twelve
+                  copies of "Open in Databricks" against 40-character table names in
+                  a column that has to hold both. It renders nothing at all when the
+                  app was given no workspace host, which is a supported deployment
+                  and the reason this is not a disabled-looking control. */}
+              <TableCell className="connections-table-name">
+                <VisitInDatabricks name={check.name} />
+                {check.name}
+              </TableCell>
               {/* THE WORD, NOT THE STATUS. Every row here read `Not checked`
                 beside a Detail of `HTTP 403`, which contradicts itself on one
                 line: a call the workspace refused was made. `checkVerdict`

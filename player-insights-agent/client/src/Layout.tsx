@@ -330,7 +330,7 @@ export function IdentityChips({
   return (
     <div className={`identity-chips ${className ?? ''}`}>
       <RoleBadge state={role.state} />
-      <AccountMenu identity={identity} />
+      <AccountMenu identity={identity} role={role.state} />
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       {gear}
       <span className="app-chrome-rule" aria-hidden="true" />

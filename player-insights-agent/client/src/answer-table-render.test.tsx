@@ -252,10 +252,11 @@ describe('the table is styled as part of the answer, not as a new design', () =>
   });
 
   it('takes the app’s own table treatment rather than inventing a second one', () => {
-    // The band, the hairline rules and the tinted header are `.sources-module`'s
-    // and the results table's. An answer's table is the same kind of object and
-    // must not be a third look.
-    expect(rule('.answer-table thead th')).toContain('background: var(--ast-fill-band)');
+    // The hairline rules are `.sources-module`'s and the results table's. An answer's
+    // table is the same kind of object and must not be a third look -- which is why
+    // the tinted header went when theirs did: a #F7F7F7 band on the card's
+    // translucent sheet is what made the sheet read as grey.
+    expect(rule('.answer-table thead th')).toContain('background: transparent');
     expect(rule('.answer-table thead th')).toContain('border-bottom: 1px solid var(--ast-hairline)');
     expect(rule('.answer-table tbody tr + tr td')).toContain('border-top: 1px solid var(--ast-hairline)');
     expect(rule('.answer-table')).toContain('border-collapse: collapse');
