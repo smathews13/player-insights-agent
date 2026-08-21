@@ -739,8 +739,34 @@
 
 .settings-footer-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex: none;
+}
+
+/*
+ * The save outcome, in the footer beside the button.
+ *
+ * It used to be drawn at the end of the Runtime form, and that form is about a
+ * thousand pixels tall inside a pane that scrolls -- so every "Saved" and every
+ * save error landed below the fold while the button stayed in view. Pressing
+ * Save looked identical whether it had worked or been refused.
+ *
+ * Allowed to shrink and wrap rather than pushing Cancel and Save off the row: a
+ * server error is a sentence of unknown length and the two controls are what the
+ * reader needs to keep reaching.
+ */
+.settings-save-notice {
+  min-width: 0;
+  max-width: 46ch;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #6f6f6f;
+}
+
+.settings-save-notice.settings-error {
+  color: #b3253a;
 }
 
 .runtime-section {

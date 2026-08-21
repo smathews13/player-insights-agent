@@ -16,10 +16,13 @@
   border-top: 3px solid var(--ast-blue);
   border-radius: var(--ast-radius-card);
   box-shadow: none;
-  /* Stated here rather than left to AppKit's opaque card surface: the transcript
-     sits on the navy sky, and a very high white alpha lets only a hint of that
-     sky read through while preserving the contrast of an ordinary white card. */
-  background: rgba(255, 255, 255, 0.95);
+  /* `--ast-white`, opaque, and the same surface as the app header, the
+     conversation rail and the reader's own question bubble. It was
+     `rgba(255, 255, 255, 0.95)`, and 5% of the sky through it was enough to
+     read as a grey pane next to the white chrome around it -- and enough to
+     swallow the hairlines inside it, which is the repair a250610 had to make
+     with a stronger edge. The sky stays behind the card. */
+  background: var(--ast-white);
   margin-bottom: 26px;
 }
 
@@ -85,14 +88,15 @@
   box-shadow: none;
   /* Ice, which replaces oat as the AI-context surface. The plan is the one card
      in the transcript that is waiting on the reader, and the wash is what says
-     so until it resolves. Carried at the same alpha as the answer card so the two
-     take the navy behind them by the same subtle amount. */
-  background: color-mix(in srgb, var(--ast-ice) 95%, transparent);
+     so until it resolves. Opaque, like the answer card beside it: it was held at
+     95% to take the sky by the same amount, and the amount was the defect. */
+  background: var(--ast-ice);
   margin-bottom: 26px;
 }
+/* A resolved plan is an answer surface, so it takes the answer card's own. */
 .plan-card.resolved {
   border: 1px solid var(--ast-hairline);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--ast-white);
 }
 /*
  * The transcript's own gutters, over AppKit's.

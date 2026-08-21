@@ -79,12 +79,22 @@
 }
 /*
  * The measured run is one envelope, not a header followed by an unrelated
- * grid. The solid blue edge remains on the Orchestrator run card; this quieter
- * dotted perimeter groups that card with every numbered stage beneath it.
+ * grid. The solid 2px blue edge remains on the Orchestrator run card; this
+ * quieter 1px dashed perimeter groups that card with every numbered stage
+ * beneath it, and it is the SAME blue -- one envelope inside one identity,
+ * rather than a grey rule that reads as chrome the run happens to sit in.
+ *
+ * DASHED AND NOT DOTTED, at 1px. A 1px dotted border is drawn as 1px dots at a
+ * 1px pitch, which resolves to a half-tone haze rather than a line and turns
+ * fuzzier still on a fractional-DPR display. A dash is a segment the renderer
+ * can land on whole pixels, so the perimeter stays a line at any zoom.
+ *
+ * The radius matches the cards inside it, because --radius-md is the only card
+ * radius this design has.
  */
 .trace-dag.map.has-run-envelope {
   padding: 14px;
-  border: 1px dotted var(--db-connector);
+  border: 1px dashed var(--primary);
   border-radius: var(--radius-md);
 }
 /* The rail: one column, in the order the run happened, and no wrapping to undo. */

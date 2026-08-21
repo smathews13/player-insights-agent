@@ -27,6 +27,7 @@ import type { Run } from './app-types';
  * fits at a given width, and whether the clipboard actually receives the id.
  */
 const SOURCE = readFileSync(new URL('./RunHeader.tsx', import.meta.url), 'utf8');
+const COPY_CONTROL = readFileSync(new URL('./copy-id.ts', import.meta.url), 'utf8');
 const RUNS_CSS = partial('runs.css');
 
 /** The declarations of one rule, so a claim can be made about one block. */
@@ -76,8 +77,13 @@ describe('the run header names the run without spelling it out', () => {
   it('puts the whole id on the clipboard, which is the only form it is wanted in', () => {
     // The rendered tree is the assertion for what is SHOWN; this is the one claim
     // about the id that a rendered tree cannot make, because there is no
-    // clipboard here to read back.
-    expect(SOURCE).toContain('writeText(run.id)');
+    // clipboard here to read back. The chip hands the WHOLE id to the shared
+    // copy control -- which awaits the write and falls back to the selection
+    // copy when the frame refuses the async clipboard, the failure that made
+    // every copy icon in this header look inert.
+    expect(SOURCE).toContain('value={run.id}');
+    expect(COPY_CONTROL).toContain('await navigator.clipboard.writeText(value)');
+    expect(COPY_CONTROL).toContain("document.execCommand('copy')");
     // Not in a title either. A title holding the full id would render it -- as a
     // tooltip and into the accessibility tree -- which is the one thing the chip
     // exists to avoid.

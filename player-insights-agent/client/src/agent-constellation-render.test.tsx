@@ -103,7 +103,7 @@ function statusLine(markup: string): string {
 
 /** The body of the band's one effect, up to its dependency list. */
 function effectBody(source: string): string {
-  const open = source.indexOf('useEffect(() => {');
+  const open = source.indexOf('useFollowEffect(() => {');
   expect(open, 'the band has an effect').toBeGreaterThan(-1);
   const body = source.slice(open);
   return body.slice(0, body.indexOf('}, ['));
@@ -563,9 +563,33 @@ describe('the column follows the step the band is marking', () => {
    * is relative to the box around it. What IS checkable here is the wiring, and
    * the wiring is the half that breaks.
    */
-  it('holds the followed star, and marks only the one it follows', () => {
-    expect(PATH_SOURCE).toContain('const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;');
-    expect(PATH_SOURCE).toContain('ref={followIndex === index ? followRef : undefined}');
+  it('aims at where the geometry put the star, not at the box around the beat', () => {
+    /*
+     * THE STUTTER, AS REPORTED. The followed star is the one carrying the beat --
+     * a scale animation on a 1.6s loop -- so `getBoundingClientRect` on it
+     * answers a different size depending on when in that loop it is read, and
+     * the follow aimed somewhere slightly different every step.
+     *
+     * `pathStarY` is the number the geometry module placed the star at, and the
+     * canvas scales its viewBox to its own width, so the conversion is exact and
+     * the animation cannot move the target.
+     */
+    const body = effectBody(PATH_SOURCE);
+    expect(body).toContain('pathStarY(followIndex)');
+    expect(body).toContain('canvasBox.width / PATH_WIDTH');
+    expect(body).not.toMatch(/star\.getBoundingClientRect/);
+  });
+
+  it('lands the correction in the commit that grew the band, not a frame later', () => {
+    /*
+     * The other half of the stutter. In a passive effect the browser paints the
+     * taller band at the old offset and the correction arrives a frame after, so
+     * every step was a paint and then a jump. A layout effect writes before the
+     * paint, and a `requestAnimationFrame` would put the lag straight back.
+     */
+    expect(PATH_SOURCE).toContain('useFollowEffect(() => {');
+    expect(PATH_SOURCE).toContain("typeof document === 'undefined' ? useEffect : useLayoutEffect");
+    expect(PATH_SOURCE).not.toMatch(/requestAnimationFrame\(/);
   });
 
   it('scrolls on a change of step rather than on every tick of the clock', () => {
@@ -576,12 +600,39 @@ describe('the column follows the step the band is marking', () => {
     expect(effectBody(PATH_SOURCE)).not.toContain('elapsedMs');
   });
 
+  it('writes nothing at all for a correction too small to see', () => {
+    // A follow that writes a fraction of a pixel writes on every step for no
+    // visible gain, and the writes are what reads as a twitch.
+    expect(effectBody(PATH_SOURCE)).toContain('if (Math.abs(drop) < FOLLOW_DEAD_ZONE) return;');
+    expect(PATH_SOURCE).toMatch(/const FOLLOW_DEAD_ZONE = 1;/);
+  });
+
+  it('reads every measurement before it writes the one it decided on', () => {
+    // A read after a write in the same pass is what makes a scroll correction
+    // thrash: the write invalidates layout and the next read forces it again.
+    const body = effectBody(PATH_SOURCE);
+    const write = body.indexOf('scroller.scrollTop +=');
+    expect(write).toBeGreaterThan(-1);
+    expect(body.slice(write)).not.toContain('getBoundingClientRect');
+    expect(body.match(/scroller\.scrollTop \+?=/g)).toHaveLength(1);
+  });
+
+  it('takes the browser off the same scroll, so the two cannot fight', () => {
+    /*
+     * Scroll anchoring adjusts `scrollTop` to hold its anchor still when content
+     * around it changes size, and this column changes size on every step. So a
+     * step produced two moves -- the browser's compensation and the band's own
+     * follow -- and two moves per step is what a reader sees as stutter.
+     */
+    expect(partial('rail.css')).toMatch(/\.trace-inspector \{[^}]*overflow-anchor: none/);
+  });
+
   it('leaves the pinned reader where they are', () => {
     // A pin is the reader opening a settled step while the run goes on past it.
     // Scrolling them off it is the same defect the pin was written to end, so a
     // pinned band follows nothing until it is released.
     expect(PATH_SOURCE).toContain('const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;');
-    expect(effectBody(PATH_SOURCE)).toContain('if (followIndex < 0 || star === null) return;');
+    expect(effectBody(PATH_SOURCE)).toContain('if (followIndex < 0 || canvas === null) return;');
   });
 
   it('moves the nearest scroller only, and never the page under it', () => {
@@ -595,8 +646,7 @@ describe('the column follows the step the band is marking', () => {
     expect(PATH_SOURCE).toContain('function scrollParent(');
     expect(PATH_SOURCE).toMatch(/box\.scrollHeight > box\.clientHeight/);
     const body = effectBody(PATH_SOURCE);
-    expect(body).toContain('scroller.scrollTop +=');
-    expect(body).toContain('scroller.scrollTop -=');
+    expect(body).toContain('scroller.scrollTop += drop;');
     expect(body).not.toContain('window.scroll');
   });
 
@@ -613,7 +663,6 @@ describe('the column follows the step the band is marking', () => {
     // The follow is layout, not drawing: no attribute, no class and no wrapper
     // arrives with it, so nothing above the status line moved.
     const markup = path(runOf(18), 17, 12_000);
-    expect(markup).not.toContain('followRef');
     expect(markup).not.toContain('ref=');
     expect(selectedStar(markup)).toBe(17);
   });

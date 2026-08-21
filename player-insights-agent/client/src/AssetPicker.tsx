@@ -62,6 +62,20 @@ import {
 } from './asset-picker';
 
 /**
+ * The row a pick came from, and the list it was found in.
+ *
+ * Optional on every `onPick`, because most callers want only the string. Two
+ * things need more than the string: a caller that has to LABEL what was picked
+ * (a Genie space stores a hex id and is recognised by its title), and a caller
+ * that has to build an identifier a leaf name alone does not carry (a volume is
+ * named by the catalog and schema it sits in).
+ */
+export interface PickedRow {
+  item: BrowseItem;
+  cursor: PickerCursor;
+}
+
+/**
  * The permission a list needs, as a prompt rather than as a finding.
  *
  * Neutral pill, and the same one the login gate gives an ungranted optional
@@ -124,7 +138,7 @@ export function AssetPickerRow({
   item: BrowseItem;
   current: string;
   onOpen: (next: PickerCursor) => void;
-  onPick: (value: string) => void;
+  onPick: (value: string, picked?: PickedRow) => void;
 }) {
   const kind = cursorKind(spec, cursor);
   const text = pickerRowText(kind, item);
@@ -155,7 +169,13 @@ export function AssetPickerRow({
                 variant="outline"
                 size="sm"
                 disabled={alreadyHeld(spec, current, action.value)}
-                onClick={() => onPick(applyPick(spec, current, action.value))}
+                // The row and where it was found travel with the value. The
+                // setting stores an id; what a reader recognises is the name
+                // beside it, and a caller that keeps only the id has to print
+                // the id back at them. The cursor is here for the same reason:
+                // a volume row is a leaf name, and only the catalog and schema
+                // it was found in make it into an identifier.
+                onClick={() => onPick(applyPick(spec, current, action.value), { item, cursor })}
                 aria-label={`${action.label}: ${action.value}`}
               >
                 {action.label}
@@ -205,7 +225,7 @@ export function AssetPickerPanel({
   query: string;
   onQuery: (next: string) => void;
   onOpen: (next: PickerCursor) => void;
-  onPick: (value: string) => void;
+  onPick: (value: string, picked?: PickedRow) => void;
   onRetry: () => void;
   onMore: () => void;
   loadingMore?: boolean;
@@ -357,7 +377,7 @@ export function AssetPicker({
    * catalog to list. Passed down from the page, which holds every row.
    */
   catalog?: string;
-  onPick: (value: string) => void;
+  onPick: (value: string, picked?: PickedRow) => void;
 }) {
   const [cursor, setCursor] = useState<PickerCursor>(() => initialCursor(spec, { current, catalog }));
   /** Bumped by Try again, so a retry is a new key rather than a re-run. */
@@ -475,7 +495,7 @@ export function AssetPickerField({
   field: string;
   current: string;
   catalog?: string;
-  onPick: (value: string) => void;
+  onPick: (value: string, picked?: PickedRow) => void;
 }) {
   const spec = pickerForField(field);
   if (!spec) return null;

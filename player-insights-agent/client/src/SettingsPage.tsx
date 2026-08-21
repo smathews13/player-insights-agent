@@ -7,6 +7,13 @@ import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } fro
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
 import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsUserRoster, type RoleResolution } from './role';
+import {
+  SETTINGS_SAVE_IDLE,
+  saveButtonLabel,
+  saveInFlight,
+  saveNotice,
+  type SettingsSaveState,
+} from './settings-save-state';
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
 
@@ -85,6 +92,10 @@ export function SettingsPage({
   role?: RoleResolution | null;
 }) {
   const [active, setActive] = useState<SettingsSection>(initialSection);
+  // Held here rather than in the panel because the footer is what stays on
+  // screen: `.settings-modal-content` scrolls, so an outcome drawn at the end of
+  // the Runtime form was a thousand pixels below the button that caused it.
+  const [saveState, setSaveState] = useState<SettingsSaveState>(SETTINGS_SAVE_IDLE);
   const close = onClose ?? noopClose;
   // `?? ` rather than a default parameter, because a default parameter only
   // covers `undefined`. A caller handing down a value it fetched can hand down
@@ -110,6 +121,8 @@ export function SettingsPage({
       : active === 'egress'
         ? EGRESS_SETTINGS_FORM_ID
         : undefined;
+  const notice = saveNotice(saveState);
+  const saving = saveInFlight(saveState);
 
   return (
     <div
@@ -142,7 +155,12 @@ export function SettingsPage({
                 type="button"
                 className={active === section.id ? 'active' : ''}
                 aria-current={active === section.id ? 'page' : undefined}
-                onClick={() => setActive(section.id)}
+                onClick={() => {
+                  setActive(section.id);
+                  // A "Saved" from the pane being left must not be read as an
+                  // outcome for the one being opened.
+                  setSaveState(SETTINGS_SAVE_IDLE);
+                }}
               >
                 {section.label}
               </button>
@@ -159,7 +177,9 @@ export function SettingsPage({
                   {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
                 </div>
               ) : null}
-              {active === 'runtime' || active === 'appearance' ? <RuntimeSettingsPanel section={active} /> : null}
+              {active === 'runtime' || active === 'appearance' ? (
+                <RuntimeSettingsPanel section={active} onSaveState={setSaveState} />
+              ) : null}
               {active === 'environment' ? <EnvironmentPanel /> : null}
               {active === 'egress' ? <EgressPanel /> : null}
               {active === 'experimental' ? (
@@ -217,12 +237,24 @@ export function SettingsPage({
             ) : null}
           </div>
           <div className="settings-footer-actions">
+            {/* THE OUTCOME GOES BESIDE THE BUTTON THAT CAUSED IT. Drawn in the
+                footer, which does not scroll, so a save that worked, a save the
+                server refused, and a pane that never loaded are three visibly
+                different things instead of one motionless button. */}
+            {notice ? (
+              <p
+                className={`settings-save-notice${notice.tone === 'error' ? ' settings-error' : ''}`}
+                role={notice.tone === 'error' ? 'alert' : 'status'}
+              >
+                {notice.text}
+              </p>
+            ) : null}
             <Button variant="outline" type="button" onClick={close}>
               Cancel
             </Button>
             {form ? (
-              <Button type="submit" form={form}>
-                Save
+              <Button type="submit" form={form} disabled={saving} aria-busy={saving}>
+                {saveButtonLabel(saveState)}
               </Button>
             ) : null}
           </div>

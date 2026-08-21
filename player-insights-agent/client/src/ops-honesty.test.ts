@@ -591,20 +591,21 @@ describe('the latency shared-facts line', () => {
   it('says the whole window is thin when no route crosses the floor', () => {
     const facts = latencySharedFacts([thin(), thin({ route: 'GET /api/ops/cost' })]);
     expect(facts.showPercentiles).toBe(false);
-    expect(facts.line).toContain('Every route is under 20 recorded requests: no p95, p99, or trend yet.');
-    expect(facts.line).toContain('No error responses recorded across these routes. Refusals are not reported.');
+    expect(facts.line).toBe('Every route is under 20 recorded requests: no p95, p99, or trend yet.');
+    expect(facts.line).not.toContain('error responses recorded');
+    expect(facts.line).not.toContain('Refusals are not reported');
   });
 
   it('brings the columns back and drops the claim once a route crosses the floor', () => {
     const facts = latencySharedFacts([thin(), route({ spans: 40, p95Ms: 200, p99Ms: 250 })]);
     expect(facts.showPercentiles).toBe(true);
-    expect(facts.line).not.toContain('no p95');
+    expect(facts.line).toBe('');
   });
 
-  it('names a real error count rather than hiding it in a grid with no column', () => {
+  it('does not narrate errors or refusals on the shared-facts line', () => {
     const facts = latencySharedFacts([thin({ errorCount: 3 })]);
-    expect(facts.line).toContain('3 error responses recorded across these routes');
-    expect(facts.line).toContain('Refusals are not reported.');
+    expect(facts.line).not.toContain('error responses recorded');
+    expect(facts.line).not.toContain('Refusals are not reported');
   });
 
   it('says nothing at all when there are no routes', () => {

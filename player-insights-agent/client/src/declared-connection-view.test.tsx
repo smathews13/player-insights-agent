@@ -11,6 +11,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ADDABLE_KINDS,
+  ADD_CONNECTION_PICKERS,
+  addedConnectionLabel,
+  addedConnectionValue,
   CONNECTION_LIST_TITLE,
   CONNECTION_SCOPE_NOTE,
   EMPTY_SCOPES_LABEL,
@@ -18,10 +21,13 @@ import {
   comparisonBadge,
   comparisonNote,
   connectionCounts,
+  connectionRowView,
   emptyScopesNote,
+  isOpaqueAssetId,
   notebookIsBlocked,
   notebookSummary,
   orderConnections,
+  pickerForAddKind,
 } from './declared-connection-view';
 import { NotebookCard } from './NotebookCard';
 import { notebookPathView, persistNotebookPath } from './notebook-card-state';
@@ -367,6 +373,156 @@ describe('the list of assets the agent may consider', () => {
   it('draws no empty wrapper for a read-only empty list', () => {
     const markup = renderToStaticMarkup(<DeclaredConnectionsCard onChanged={() => {}} />);
     expect(markup).toBe('');
+  });
+});
+
+/**
+ * Only Genie spaces browsed. The other four kinds mapped to no picker at all,
+ * so choosing one left the reader with the bare text box and no way to find the
+ * identifier it wanted. Every kind in the dropdown now reaches a real list.
+ */
+describe('every addable kind browses', () => {
+  it.each([
+    ['table', 'tables'],
+    ['genie-space', 'genie-spaces'],
+    ['catalog', 'catalogs'],
+    ['sql-warehouse', 'warehouses'],
+    ['volume', 'volumes'],
+    ['vector-search', 'vector-search-indexes'],
+    ['model', 'serving-endpoints'],
+  ])('opens the %s picker on the %s list', (kindId, leaf) => {
+    const spec = pickerForAddKind(kindId);
+    expect(spec).not.toBeNull();
+    expect(spec!.levels.at(-1)).toBe(leaf);
+  });
+
+  it('leaves no kind in the dropdown without a list behind it', () => {
+    for (const option of ADDABLE_KINDS) {
+      expect.soft(ADD_CONNECTION_PICKERS[option.browse], option.label).toBeTruthy();
+    }
+  });
+
+  /** Two kinds share the catalog chain, so the field ids must still be distinct. */
+  it('gives each picker its own field id', () => {
+    const fields = Object.values(ADD_CONNECTION_PICKERS).map((spec) => spec.field);
+    expect(new Set(fields).size).toBe(fields.length);
+  });
+
+  /** Notebooks were hidden from this dropdown, and stay hidden. */
+  it('offers no notebook browse here', () => {
+    for (const spec of Object.values(ADD_CONNECTION_PICKERS)) {
+      expect.soft(spec.levels, spec.field).not.toContain('notebooks');
+    }
+  });
+
+  /**
+   * The volumes list carries a leaf name, because the deployment's own volume
+   * setting takes one. A declared connection takes the whole path, and a row
+   * holding `checkpoints` alone names nothing that can be reached.
+   */
+  it('stores a volume as its whole path, not the leaf the list carried', () => {
+    expect(addedConnectionValue('volume', 'checkpoints', { catalog: 'analytics', schema: 'player' })).toBe(
+      '/Volumes/analytics/player/checkpoints'
+    );
+    expect(addedConnectionValue('volume', '/Volumes/analytics/player/checkpoints', {})).toBe(
+      '/Volumes/analytics/player/checkpoints'
+    );
+    expect(addedConnectionValue('volume', 'checkpoints', {})).toBe('checkpoints');
+  });
+
+  it('stores every other kind exactly as the row offered it', () => {
+    expect(addedConnectionValue('table', 'analytics.player.sessions', { catalog: 'analytics' })).toBe(
+      'analytics.player.sessions'
+    );
+    expect(addedConnectionValue('genie-space', '01f19cd4502f1f6dbfb79bf6e63a1b2c')).toBe(
+      '01f19cd4502f1f6dbfb79bf6e63a1b2c'
+    );
+  });
+
+  /** Deriving a label from a minted id is what put hex on the row. */
+  it('labels a pick with the name the list showed, never with a fragment of the id', () => {
+    expect(addedConnectionLabel('01f19cd4502f1f6dbfb79bf6e63a1b2c', 'Player performance')).toBe(
+      'Player performance'
+    );
+    expect(addedConnectionLabel('01f19cd4502f1f6dbfb79bf6e63a1b2c', '')).toBe('');
+    expect(addedConnectionLabel('analytics.player.sessions', '')).toBe('sessions');
+  });
+});
+
+/**
+ * The row printed one string, and for anything picked from a list of Genie
+ * spaces that string was the space's hex id. A row titled with a hex id has
+ * named nothing.
+ */
+describe('how a listed asset reads on its row', () => {
+  it('knows a minted id from a name', () => {
+    expect(isOpaqueAssetId('01f19cd4502f1f6dbfb79bf6e63a1b2c')).toBe(true);
+    expect(isOpaqueAssetId('<sql-warehouse-id>')).toBe(true);
+    expect(isOpaqueAssetId('analytics.player.sessions')).toBe(false);
+    expect(isOpaqueAssetId('Season roster')).toBe(false);
+  });
+
+  it('titles the row with the picked name and keeps the id beside it', () => {
+    const row = connectionRowView({
+      id: 'genie-space-01f1',
+      kind: 'genie-space',
+      label: 'Player performance',
+      value: '01f19cd4502f1f6dbfb79bf6e63a1b2c',
+    });
+    expect(row.kindLabel).toBe('Genie space');
+    expect(row.name).toBe('Player performance');
+    expect(row.identifier).toBe('01f19cd4502f1f6dbfb79bf6e63a1b2c');
+  });
+
+  it('uses a readable identifier as the name rather than repeating it', () => {
+    const row = connectionRowView({
+      id: 'roster-table',
+      kind: 'unity-catalog',
+      label: '',
+      value: 'gamesight_share_prod.analytics.title_roster',
+    });
+    expect(row.name).toBe('gamesight_share_prod.analytics.title_roster');
+    expect(row.identifier).toBe('');
+  });
+
+  /** The rows in the screenshot: stored with the id as their label. */
+  it('never titles a row with a hex id, and says what kind it is instead', () => {
+    const row = connectionRowView({
+      id: '01f19cd4502f1f6dbfb79bf6e63a1b2c',
+      kind: 'genie-space',
+      label: '01f19cd4502f1f6dbfb79bf6e63a1b2c',
+      value: '01f19cd4502f1f6dbfb79bf6e63a1b2c',
+    });
+    expect(row.name).toBe('');
+    expect(row.kindLabel).toBe('Genie space');
+    expect(row.identifier).toMatch(/^01f19cd4502f\u2026$/);
+    expect(row.fullIdentifier).toBe('01f19cd4502f1f6dbfb79bf6e63a1b2c');
+  });
+
+  it('names the kind of every row it can be handed', () => {
+    for (const option of ADDABLE_KINDS) {
+      const row = connectionRowView({ id: 'x', kind: option.kind, label: '', value: '' });
+      expect.soft(row.kindLabel, option.kind).not.toBe('Connection');
+    }
+  });
+
+  it('draws the kind and the name on the card, not the hex alone', () => {
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard
+        entries={[
+          entry({
+            id: 'genie-space-01f1',
+            kind: 'genie-space',
+            label: 'Player performance',
+            value: '01f19cd4502f1f6dbfb79bf6e63a1b2c',
+          }),
+        ]}
+        allowMutations
+        onChanged={() => {}}
+      />
+    );
+    expect(markup).toContain('Genie space');
+    expect(markup).toContain('Player performance');
   });
 });
 

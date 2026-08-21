@@ -2,9 +2,80 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
+import { wholeNumberFrom } from './runtime-number';
+import { SETTINGS_SAVE_IDLE, type SettingsSaveState } from './settings-save-state';
 import { Input, Switch } from './ui';
 
 export const RUNTIME_SETTINGS_FORM_ID = 'settings-runtime-form';
+
+/**
+ * One numeric field, and it is a component rather than a helper for a reason.
+ *
+ * ── WHY THIS IS NOT A PLAIN NUMBER INPUT BOUND TO A NUMBER ──
+ *
+ * Two faults compounded, and together they are the "I have to type a leading
+ * zero to make it take" report.
+ *
+ * Coercing the raw field text with `Number` turns an EMPTY box into 0, because
+ * that is what `Number` does with an empty string. Clearing the field to
+ * retype it therefore did not clear it; it set the value to zero, React drew the
+ * "0" back, and the digits the reader typed next landed after it.
+ *
+ * Then the zero could never be got rid of, because react-dom compares a number
+ * input's DOM value with the incoming prop using loose equality -- `'0180' !=
+ * 180` is FALSE, so having decided the two agree it leaves the box alone. No
+ * value this component can pass will normalise `0180` back to `180`. That is why
+ * the padding survived every re-render and every reload of the pane.
+ *
+ * So the box is text with a numeric keypad, where React compares strings
+ * strictly and a normalised value actually lands. A local draft holds what the
+ * reader is part-way through typing -- including empty -- while the committed
+ * settings only ever receive a whole number inside `min`/`max`. On blur the
+ * draft is dropped and the box shows the value that will be saved, so what is on
+ * screen and what goes to the server cannot disagree.
+ *
+ * Losing the number type also removes the native `min`/`max` constraint, which
+ * is a gain here: a value out of range used to make the browser silently refuse
+ * to submit the form and report it on a field scrolled out of view, which is a
+ * second way for Save to look like it did nothing.
+ */
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  onCommit,
+  className = '',
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (value: number) => void;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <label className={`runtime-field ${className}`}>
+      <span className="runtime-field-label">{label}</span>
+      <Input
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        aria-label={label}
+        value={draft ?? String(value)}
+        onChange={(event) => {
+          const typed = event.target.value.replace(/[^0-9]/g, '');
+          setDraft(typed);
+          // Nothing to commit for an empty box: the last good value stands until
+          // the reader types a digit, which is what makes clearing-to-retype work.
+          if (typed !== '') onCommit(wholeNumberFrom(typed, min, max, value));
+        }}
+        onBlur={() => setDraft(null)}
+      />
+    </label>
+  );
+}
 
 function AnswerRow({
   label,
@@ -37,7 +108,14 @@ const ENTITY_SAMPLES = {
   tag: 'certified',
 } as const;
 
-export function RuntimeSettingsPanel({ section }: { section: 'runtime' | 'appearance' }) {
+export function RuntimeSettingsPanel({
+  section,
+  onSaveState = () => {},
+}: {
+  section: 'runtime' | 'appearance';
+  /** Reports Save's progress to the modal footer, which is the part on screen. */
+  onSaveState?: (state: SettingsSaveState) => void;
+}) {
   const [settings, setSettings] = useState<RuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
@@ -62,12 +140,26 @@ export function RuntimeSettingsPanel({ section }: { section: 'runtime' | 'appear
   }, [load]);
 
   const save = async () => {
+    /*
+     * A failed load turns Save into a retry, and now it SAYS so.
+     *
+     * It already behaved this way and reported nothing, so pressing Save on a
+     * pane whose load had failed re-fetched in silence and looked like a dead
+     * button -- one of the three things "Save does nothing" turned out to mean.
+     */
     if (failure?.operation === 'load') {
+      onSaveState({ kind: 'saving' });
       await load();
+      onSaveState(
+        failure.operation === 'load' && state === 'failed'
+          ? { kind: 'failed', message: 'These settings could not be read, so there is nothing to save yet.' }
+          : SETTINGS_SAVE_IDLE
+      );
       return;
     }
     setState('saving');
     setFailure(null);
+    onSaveState({ kind: 'saving' });
     try {
       const response = await fetch('/api/admin/runtime-settings', {
         method: 'PUT',
@@ -76,9 +168,11 @@ export function RuntimeSettingsPanel({ section }: { section: 'runtime' | 'appear
       });
       setSettings(await runtimeSettingsFromResponse(response, 'saved'));
       setState('saved');
+      onSaveState({ kind: 'saved' });
     } catch (caught) {
       setState('failed');
       setFailure({ operation: 'save', message: (caught as Error).message });
+      onSaveState({ kind: 'failed', message: (caught as Error).message });
     }
   };
 
@@ -95,17 +189,15 @@ export function RuntimeSettingsPanel({ section }: { section: 'runtime' | 'appear
     update: (value: number) => void,
     className = ''
   ) => (
-    <label className={`runtime-field ${className}`}>
-      <span className="runtime-field-label">{label}</span>
-      <Input
-        type="number"
-        aria-label={label}
-        value={value}
-        min={min}
-        max={max}
-        onChange={(event) => update(Number(event.target.value))}
-      />
-    </label>
+    <NumberField
+      key={label}
+      label={label}
+      value={value}
+      min={min}
+      max={max}
+      onCommit={update}
+      className={className}
+    />
   );
 
   const guidance = (label: string, value: string, update: (value: string) => void) => (

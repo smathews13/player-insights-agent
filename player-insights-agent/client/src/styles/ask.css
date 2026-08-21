@@ -163,12 +163,12 @@
      --primary was ink. The reader's own question is not an action, and a blue
      speech bubble on the right of the transcript reads as a button.
 
-     A light neutral held just off full opacity instead, so the navy transcript
-     behind it tints the fill without showing through it: the bubble reads as
-     part gray, part navy, which is what it is, rather than as glass. The alpha
-     is the floor that keeps it on the gray side -- below about 0.8 the navy
-     dominates and ink on it drops under the 4.5:1 the design asks for. */
-  background: rgba(245, 246, 248, 0.85);
+     THE SURFACE IS `--ast-white`, OPAQUE, and it is the same one the app header,
+     the conversation rail and the answer card are drawn on. It was
+     `rgba(245, 246, 248, 0.85)`: a light neutral let the navy tint it, and 15%
+     of the sky through a light fill is a mid-grey slab rather than a tinted one.
+     The bubble reads as a card because the sky is behind it, not through it. */
+  background: var(--ast-white);
   color: var(--foreground);
   /* The customer could select this text but saw no I-beam over it, so nothing
      said it was selectable. */

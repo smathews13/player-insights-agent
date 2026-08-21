@@ -33,12 +33,18 @@ const RUN: Run = {
 };
 
 describe('Sam’s second feedback wave', () => {
-  it('continues the navy sky beneath the Ask transcript and conversation rail', () => {
+  it('continues the navy sky beneath the Ask transcript but not the conversation rail', () => {
     expect(rule(RAIL, '.ask-layout')).toContain('background-color: var(--ast-navy)');
     expect(rule(RAIL, '.ask-layout')).toContain('radial-gradient');
     expect(rule(ASK, '.conversation-main')).toContain('background: transparent');
-    expect(rule(RAIL, '.conversation-rail')).toContain('var(--ast-navy)');
     expect(rule(ASK, '.ask-hero h2')).toContain('color: var(--ast-white)');
+    // The rail is chrome, on the header's own surface. It was navy with white ink
+    // and read as a near-black column beside a white header. `--ast-white` is the
+    // one light surface the bubble and the answer card now share with it.
+    const rail = rule(RAIL, '.conversation-rail');
+    expect(rail).toContain('background: var(--ast-white)');
+    expect(rail).toContain('color: var(--foreground)');
+    expect(rail).not.toContain('--ast-navy');
   });
 
   it('widens result surfaces without removing horizontal overflow', () => {
@@ -65,10 +71,13 @@ describe('Sam’s second feedback wave', () => {
         groundedness={null}
       />
     );
-    expect(markup).toContain('Conversation <span class="ast-num">conv-5</span>');
+    // The chip is the id and nothing else. "Conversation" in front of `conv-5`
+    // spent a third of the chip repeating what the value already says.
+    expect(markup).toContain('<span class="ast-num">conv-5</span>');
+    expect(markup).not.toContain('Conversation <span');
     expect(markup).toContain('conversation-context-badge ast-pill ast-pill--pos');
     expect(markup).toContain('Run <span class="ast-num">1</span>');
-    expect(markup).toContain(`title="Conversation ${full}"`);
+    expect(markup).toContain(`title="${full}"`);
     expect(markup).toContain(`aria-label="Copy full conversation id ${full}"`);
     expect(LIVE_PROGRESS).not.toContain('writeText(abbreviatedConversationId');
   });

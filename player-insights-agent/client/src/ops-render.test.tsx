@@ -1452,19 +1452,16 @@ describe('the latency block', () => {
   });
 
   /**
-   * ERRORS AND REFUSALS ARE SAID ONCE ABOVE THE TABLE, NEVER SUMMED. The compact
-   * grid has no error or refusal column; a genuine 5xx count is named in the
-   * shared-facts strip so it is not hidden, and refusals stay "not reported".
+   * ERRORS AND REFUSALS ARE NOT NARRATED ABOVE THE TABLE. The compact grid has
+   * no error or refusal column, and the shared-facts strip no longer restates
+   * those absences as copy.
    */
-  it('states errors and refusals once above the grid and never sums them', () => {
+  it('does not narrate errors or refusals above the grid', () => {
     const rendered = render(<LatencyBody block={block(latency())} />);
 
-    // The fixture carries two error spans (preflight) and null refusals.
-    expect(rendered).toContain('2 error responses recorded across these routes');
-    expect(rendered).toContain('Refusals are not reported');
-    // Never merged into one "problems" figure.
+    expect(rendered).not.toContain('error responses recorded across these routes');
+    expect(rendered).not.toContain('Refusals are not reported');
     expect(rendered).not.toMatch(/2 errors? and \d+ refus/i);
-    // And no per-row errors/refusals columns survive in the compact grid.
     const markup = markupOf(<LatencyBody block={block(latency())} />);
     expect(markup).not.toMatch(/<th[^>]*>Errors<\/th>/);
     expect(markup).not.toMatch(/<th[^>]*>Refusals<\/th>/);
@@ -1510,7 +1507,8 @@ describe('the latency block', () => {
     const rendered = text(markup);
 
     expect(rendered).toContain('Every route is under 20 recorded requests: no p95, p99, or trend yet.');
-    expect(rendered).toContain('No error responses recorded across these routes. Refusals are not reported.');
+    expect(rendered).not.toContain('No error responses recorded');
+    expect(rendered).not.toContain('Refusals are not reported');
     // The columns are gone, not merely blank.
     expect(markup).not.toMatch(/<th[^>]*>p95<\/th>/);
     expect(markup).not.toMatch(/<th[^>]*>Trend<\/th>/);

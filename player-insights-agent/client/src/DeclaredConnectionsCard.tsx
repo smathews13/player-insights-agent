@@ -22,46 +22,18 @@ import { BrandIcon } from './BrandIcon';
 import { RESOURCE_PRODUCT } from './connections-view';
 import {
   ADDABLE_KINDS,
+  ADD_CONNECTION_PICKERS,
+  addedConnectionLabel,
+  addedConnectionValue,
   JUST_ADDED_LABEL,
   REMOVE_LABEL,
   RESTORE_LABEL,
-  connectionDisplayName,
-  connectionSecondaryId,
+  connectionRowView,
   orderConnections,
 } from './declared-connection-view';
 import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
-import type { AssetPickerSpec } from './asset-picker';
-
-const ADD_CONNECTION_PICKERS: Record<'tables' | 'genie-spaces' | 'catalogs', AssetPickerSpec> = {
-  tables: {
-    field: 'add-table',
-    levels: ['catalogs', 'schemas', 'tables'],
-    pickAt: 'last',
-    multi: false,
-    title: 'Tables your sign-in can see',
-    typeLabel: 'Or type a three-part table name',
-    typeNote: '',
-  },
-  'genie-spaces': {
-    field: 'add-genie-space',
-    levels: ['genie-spaces'],
-    pickAt: 'last',
-    multi: false,
-    title: 'Genie spaces your sign-in can see',
-    typeLabel: 'Or type a Genie space ID',
-    typeNote: '',
-  },
-  catalogs: {
-    field: 'add-catalog',
-    levels: ['catalogs'],
-    pickAt: 'last',
-    multi: false,
-    title: 'Catalogs your sign-in can see',
-    typeLabel: 'Or type a catalog name',
-    typeNote: '',
-  },
-};
+import { StatusBadge } from './StatusBadge';
 
 export interface DeclaredConnectionsCardProps {
   entries?: ConnectionEntry[];
@@ -100,7 +72,7 @@ export function DeclaredConnectionsCard({
       ]
     : ordered;
   const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
-  const picker = chosenKind.browse ? ADD_CONNECTION_PICKERS[chosenKind.browse] : null;
+  const picker = ADD_CONNECTION_PICKERS[chosenKind.browse];
 
   async function add() {
     const duplicate = listed.some(
@@ -187,25 +159,38 @@ export function DeclaredConnectionsCard({
               className="plane-field-select"
             />
           </div>
-          {picker ? (
-            <AssetPicker
-              spec={picker}
-              current={value}
-              onPick={(picked) => {
-                setValue(picked);
-                setLabel((current) => current || picked.split(/[./]/).filter(Boolean).at(-1) || picked);
-                setId(
-                  (current) =>
-                    current || `${chosenKind.id}-${picked.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
-                );
-              }}
-            />
-          ) : null}
+          {/* Every kind browses. The list is keyed by the chosen kind so that
+              switching kinds opens a new browser rather than re-filtering the
+              last one. */}
+          <AssetPicker
+            key={chosenKind.id}
+            spec={picker}
+            current={value}
+            onPick={(picked, row) => {
+              // A volume row carries a leaf name, and only the catalog and
+              // schema it was browsed through make it into a path the agent
+              // can be pointed at.
+              const stored = addedConnectionValue(chosenKind.id, picked, row?.cursor);
+              setValue(stored);
+              // THE NAME THE LIST SHOWED, not a fragment of the id. A Genie
+              // space and a warehouse both store a hex string, and deriving a
+              // label from one is how this list ended up printing hex at the
+              // reader. The picked row already carries the human name.
+              const named = addedConnectionLabel(stored, row?.item.label);
+              setLabel((current) => current || named);
+              setId(
+                (current) =>
+                  current || `${chosenKind.id}-${stored.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
+              );
+            }}
+          />
           <input
             className="plane-field ast-mono"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="catalog.schema.table"
+            // Named for the kind on screen. It read "catalog.schema.table" for
+            // every kind, including the six that do not take one.
+            placeholder={picker.typeLabel.replace(/^Or type (an?|a) /i, '')}
             aria-label="Identifier"
           />
           <input
@@ -232,14 +217,23 @@ export function DeclaredConnectionsCard({
 
       {listed.map((entry) => {
         const removed = entry.connection.state === 'withdrawn';
-        const name = connectionDisplayName(entry.connection);
-        const identifier = connectionSecondaryId(entry.connection);
+        const row = connectionRowView(entry.connection);
         return (
           <div key={entry.connection.id} className="plane-stack">
             <div className="plane-row" data-state={entry.connection.state}>
+              {/* READS LIKE THE ROWS ABOVE IT. The connected-resources list
+                  names its product, shows the value as a pill and puts the raw
+                  id beside it. These rows printed one string, which for an
+                  asset picked from a list of Genie spaces was the space's hex
+                  id and nothing else. */}
               <span className="plane-row-name">
                 <BrandIcon product={RESOURCE_PRODUCT[entry.connection.kind]} className="plane-row-product" />
-                <span className="plane-row-title">{name}</span>
+                <span className="plane-row-kind">{row.kindLabel}</span>
+                {row.name ? (
+                  <span className="plane-row-title" title={row.name}>
+                    <StatusBadge value={row.name} tone="plain" title={row.name} />
+                  </span>
+                ) : null}
                 {/* Said on the row somebody just added, because the list it
                     joins is long enough that a new entry at the foot of it is
                     otherwise indistinguishable from the rest. */}
@@ -247,8 +241,8 @@ export function DeclaredConnectionsCard({
                   <span className="plane-row-new">{JUST_ADDED_LABEL}</span>
                 ) : null}
               </span>
-              <span className="plane-row-value ast-mono" title={identifier}>
-                {identifier}
+              <span className="plane-row-value ast-mono" title={row.fullIdentifier}>
+                {row.identifier}
               </span>
               {/* A removed asset keeps its way back. This app is usually mid
                   demonstration when somebody removes the wrong thing, so the

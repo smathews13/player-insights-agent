@@ -7,7 +7,8 @@ const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
 
 describe('runtime and appearance modal sections', () => {
   it('mounts both sections behind one modal settings form', () => {
-    expect(page).toContain('<RuntimeSettingsPanel section={active} />');
+    // Handed `onSaveState` as well, so the footer can say what Save did.
+    expect(page).toContain('<RuntimeSettingsPanel section={active} onSaveState={setSaveState} />');
     expect(source).toContain("section: 'runtime' | 'appearance'");
     expect(source).toContain("export const RUNTIME_SETTINGS_FORM_ID = 'settings-runtime-form'");
   });

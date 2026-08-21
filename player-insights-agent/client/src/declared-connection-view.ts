@@ -14,6 +14,7 @@
  */
 import { DECLARABLE_KEYS, SCOPES_KEY } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
+import type { AssetPickerSpec } from './asset-picker';
 
 /** The badge a compared setting carries. */
 export interface ComparisonBadge {
@@ -132,21 +133,180 @@ export const CONNECTION_SCOPE_NOTE =
 /** The heading for the list of assets the agent may consider. */
 export const CONNECTION_LIST_TITLE = 'Assets the agent may consider';
 
+/**
+ * The list each addable kind browses.
+ *
+ * EVERY KIND BROWSES. Four of these were `null` until now, and a reader who
+ * chose SQL warehouse, Volume, Vector Search index or Model endpoint got the
+ * bare text box: they had to know the identifier before they could add the
+ * asset, which is the exact problem the Genie space list solved. The lists
+ * behind all seven already existed as `/api/browse/*` routes and as
+ * `shared/browse-contract.ts` kinds; only this mapping was missing.
+ */
+export type AddableBrowse =
+  | 'tables'
+  | 'genie-spaces'
+  | 'catalogs'
+  | 'warehouses'
+  | 'volumes'
+  | 'vector-search-indexes'
+  | 'serving-endpoints';
+
 /** The kinds a reader may choose from, with the words the tab uses for them. */
 export const ADDABLE_KINDS: ReadonlyArray<{
   id: string;
   kind: string;
   label: string;
-  browse: 'tables' | 'genie-spaces' | 'catalogs' | null;
+  browse: AddableBrowse;
 }> = [
   { id: 'table', kind: 'unity-catalog', label: 'Tables', browse: 'tables' },
   { id: 'genie-space', kind: 'genie-space', label: 'Genie spaces', browse: 'genie-spaces' },
   { id: 'catalog', kind: 'unity-catalog', label: 'Catalogs', browse: 'catalogs' },
-  { id: 'sql-warehouse', kind: 'sql-warehouse', label: 'SQL warehouse', browse: null },
-  { id: 'volume', kind: 'volume', label: 'Volume', browse: null },
-  { id: 'vector-search', kind: 'vector-search', label: 'Vector Search index', browse: null },
-  { id: 'model', kind: 'model', label: 'Model endpoint', browse: null },
+  { id: 'sql-warehouse', kind: 'sql-warehouse', label: 'SQL warehouse', browse: 'warehouses' },
+  { id: 'volume', kind: 'volume', label: 'Volume', browse: 'volumes' },
+  {
+    id: 'vector-search',
+    kind: 'vector-search',
+    label: 'Vector Search index',
+    browse: 'vector-search-indexes',
+  },
+  { id: 'model', kind: 'model', label: 'Model endpoint', browse: 'serving-endpoints' },
 ];
+
+/**
+ * The browser each addable kind opens, keyed by the kind's own browse name.
+ *
+ * Here rather than in the card so a test can assert that every entry in
+ * {@link ADDABLE_KINDS} reaches a real list without mounting React. The chains
+ * are the ones the Connections fields already use: a volume is reached through
+ * its catalog and schema, an index through its endpoint, and the three flat
+ * lists stop at one level.
+ */
+export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
+  tables: {
+    field: 'add-table',
+    levels: ['catalogs', 'schemas', 'tables'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Tables your sign-in can see',
+    typeLabel: 'Or type a three-part table name',
+    typeNote: '',
+  },
+  'genie-spaces': {
+    field: 'add-genie-space',
+    levels: ['genie-spaces'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Genie spaces your sign-in can see',
+    typeLabel: 'Or type a Genie space ID',
+    typeNote: '',
+  },
+  catalogs: {
+    field: 'add-catalog',
+    levels: ['catalogs'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Catalogs your sign-in can see',
+    typeLabel: 'Or type a catalog name',
+    typeNote: '',
+  },
+  warehouses: {
+    field: 'add-sql-warehouse',
+    levels: ['warehouses'],
+    pickAt: 'last',
+    multi: false,
+    title: 'SQL warehouses your sign-in can see',
+    typeLabel: 'Or type a warehouse id',
+    typeNote: '',
+  },
+  volumes: {
+    field: 'add-volume',
+    levels: ['catalogs', 'schemas', 'volumes'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Volumes your sign-in can see',
+    typeLabel: 'Or type a volume name',
+    typeNote: '',
+  },
+  'vector-search-indexes': {
+    field: 'add-vector-search',
+    levels: ['vector-search-endpoints', 'vector-search-indexes'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Vector Search indexes your sign-in can see',
+    typeLabel: 'Or type a three-part index name',
+    typeNote: '',
+  },
+  'serving-endpoints': {
+    field: 'add-model',
+    levels: ['serving-endpoints'],
+    pickAt: 'last',
+    multi: false,
+    title: 'Serving endpoints your sign-in can see',
+    typeLabel: 'Or type an endpoint name',
+    typeNote: '',
+  },
+};
+
+/** The browser for a chosen kind, by the kind's id in {@link ADDABLE_KINDS}. */
+export function pickerForAddKind(kindId: string): AssetPickerSpec | null {
+  const chosen = ADDABLE_KINDS.find((entry) => entry.id === kindId);
+  return chosen ? ADD_CONNECTION_PICKERS[chosen.browse] : null;
+}
+
+/**
+ * The identifier a pick stores, which is not always the string the row carried.
+ *
+ * Volumes are the exception, and they are the reason this function exists. The
+ * volumes list stores a LEAF name, because the deployment's own volume setting
+ * takes one; a declared connection takes the whole `/Volumes/catalog/schema/name`
+ * path, and a row holding `checkpoints` alone names nothing that can be reached.
+ * The catalog and the schema are in the cursor the reader browsed through.
+ *
+ * Every other kind stores exactly what the row offered: a three-part table or
+ * index name, a catalog name, an endpoint name, or a minted id.
+ */
+export function addedConnectionValue(
+  kindId: string,
+  picked: string,
+  where: { catalog?: string; schema?: string } = {}
+): string {
+  const value = picked.trim();
+  if (kindId !== 'volume' || !value || value.startsWith('/Volumes/')) return value;
+  const catalog = (where.catalog ?? '').trim();
+  const schema = (where.schema ?? '').trim();
+  if (!catalog || !schema) return value;
+  return `/Volumes/${catalog}/${schema}/${value}`;
+}
+
+/**
+ * The name a freshly picked asset is listed under.
+ *
+ * The name the list showed, and never a fragment of the identifier. Deriving
+ * one from the id is how this list came to print hex at the reader: a Genie
+ * space id has no last segment worth reading, so splitting it produced the id
+ * back again and stored it as the label.
+ */
+export function addedConnectionLabel(picked: string, rowLabel = ''): string {
+  const named = rowLabel.trim();
+  if (named && !isOpaqueAssetId(named)) return named;
+  const leaf = picked.split(/[./]/).filter(Boolean).at(-1) ?? '';
+  return isOpaqueAssetId(leaf) || !leaf ? '' : leaf;
+}
+
+/** What a listed asset's kind is called, in the words the rest of the tab uses. */
+const KIND_LABEL: Record<string, string> = {
+  'genie-space': 'Genie space',
+  'sql-warehouse': 'SQL warehouse',
+  'unity-catalog': 'Unity Catalog',
+  volume: 'Volume',
+  'vector-search': 'Vector Search index',
+  model: 'Model endpoint',
+};
+
+export function connectionKindLabel(kind: string): string {
+  return KIND_LABEL[kind] ?? 'Connection';
+}
 
 /** Declared assets first, withdrawn ones after, each in the order given. */
 export function orderConnections(entries: readonly ConnectionEntry[]): ConnectionEntry[] {
@@ -181,6 +341,72 @@ export function connectionDisplayName(connection: { label: string; value: string
 export function connectionSecondaryId(connection: { label: string; value: string; id: string }): string {
   const value = connection.value.trim();
   return value && value !== connectionDisplayName(connection) ? value : '';
+}
+
+/**
+ * An identifier with no human reading in it.
+ *
+ * A Genie space id and a SQL warehouse id are long hex strings the workspace
+ * mints. Nothing about one tells a reader which asset it is, so a row that
+ * prints one as its title has named nothing. Three-part table names, volume
+ * paths and endpoint names all fail this test, correctly: they ARE readable.
+ */
+export function isOpaqueAssetId(value: string): boolean {
+  return /^[0-9a-f]{16,}$/i.test(value.trim());
+}
+
+/** An opaque id shortened to something that fits a row without wrapping. */
+export function shortenAssetId(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > 16 ? `${trimmed.slice(0, 12)}\u2026` : trimmed;
+}
+
+/**
+ * How one listed asset reads on its row.
+ *
+ * The rows above this list name their product, then show the value as a pill,
+ * then the raw id beside it where the two differ. These rows did none of that:
+ * they printed {@link connectionDisplayName}, which falls back to the stored
+ * value, so an asset added by picking a Genie space showed a truncated hex
+ * string as its whole title and nothing else.
+ *
+ * The order the name is looked for: the label a reader typed or the picker
+ * carried over, then the stored value where the value is itself readable. When
+ * both are opaque there is no name to show, and the row says what KIND of thing
+ * it is and offers the shortened id as context rather than as a title.
+ */
+export interface ConnectionRowView {
+  /** Always present. The product word, as on the connected-resources rows. */
+  kindLabel: string;
+  /** The pill. Empty when nothing human could be resolved. */
+  name: string;
+  /** The grey identifier beside the pill, or '' when it would repeat it. */
+  identifier: string;
+  /** The full identifier, for the row's title attribute. */
+  fullIdentifier: string;
+}
+
+export function connectionRowView(connection: {
+  label: string;
+  value: string;
+  id: string;
+  kind: string;
+}): ConnectionRowView {
+  const kindLabel = connectionKindLabel(connection.kind);
+  const label = connection.label.trim();
+  const value = connection.value.trim();
+  const fullIdentifier = value || connection.id;
+
+  const named = label && !isOpaqueAssetId(label) ? label : value && !isOpaqueAssetId(value) ? value : '';
+  if (named) {
+    return {
+      kindLabel,
+      name: named,
+      identifier: value && value !== named ? value : '',
+      fullIdentifier,
+    };
+  }
+  return { kindLabel, name: '', identifier: shortenAssetId(fullIdentifier), fullIdentifier };
 }
 
 /** The badge on a row added in this sitting, so a reader can see what they just did. */

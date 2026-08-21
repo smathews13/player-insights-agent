@@ -23,7 +23,7 @@
  * rendered tree.
  */
 import { Badge } from './ui';
-import { Check, Copy } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { ratingLabel } from './benchmark-summary';
 import { astPill, shortRunId, statusFamily } from './run-header';
 import { runLabel } from './run-label';
@@ -31,6 +31,7 @@ import { reportEgress } from './egress-policy';
 import type { Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import { abbreviatedConversationId } from './display-id';
+import { CopyIdChip } from './CopyIdChip';
 
 export function RunHeader({
   run,
@@ -63,39 +64,37 @@ export function RunHeader({
         {run && (
           <div className="run-detail-ident">
             {conversationId && (
-              <button
-                type="button"
+              /* The id alone. "Conversation" was a word of chrome in front of a
+                 value that already reads as one -- `conv-7` says what it is --
+                 and it took a third of the chip to repeat the column. */
+              <CopyIdChip
                 className={`run-context-badge conversation-context-badge ${astPill(displayedStatus)}`}
-                title={`Conversation ${conversationId}`}
-                aria-label={`Copy full conversation id ${conversationId}`}
-                onClick={() => void navigator.clipboard?.writeText(conversationId)}
+                value={conversationId}
+                title={conversationId}
+                label={`Copy full conversation id ${conversationId}`}
               >
-                Conversation <span className="ast-num">{abbreviatedConversationId(conversationId)}</span>
-                <Copy aria-hidden="true" />
-              </button>
+                <span className="ast-num">{abbreviatedConversationId(conversationId)}</span>
+              </CopyIdChip>
             )}
             {conversationRun !== undefined && (
               <span className="run-context-badge" title={`Run ${conversationRun} in this conversation`}>
                 Run <span className="ast-num">{conversationRun}</span>
               </span>
             )}
-            <button
-              type="button"
+            {/* The label rather than a title, because a title holding the full
+                id would render it -- as a tooltip, and into the accessibility
+                tree -- which is the one thing this chip exists to avoid. */}
+            <CopyIdChip
               className="run-id-chip"
-              onClick={() => {
-                void navigator.clipboard?.writeText(run.id);
-                // The run is named, because this is the one copy affordance
-                // where the thing copied IS the pointer the record would use.
-                reportEgress({ channel: 'identifier', runId: run.id, itemCount: 1 });
-              }}
-              /* The label rather than a title, because a title holding the full
-                 id would render it -- as a tooltip, and into the accessibility
-                 tree -- which is the one thing this chip exists to avoid. */
-              aria-label="Copy the full run id"
+              value={run.id}
+              label="Copy the full run id"
+              // The run is named, because this is the one copy affordance where
+              // the thing copied IS the pointer the record would use. Reported
+              // on the copy that landed, not on the click that attempted one.
+              onCopied={() => reportEgress({ channel: 'identifier', runId: run.id, itemCount: 1 })}
             >
               <span className="run-id-short">{shortRunId(run.id)}</span>
-              <Copy aria-hidden="true" />
-            </button>
+            </CopyIdChip>
             <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
             <Badge variant="outline" className={`run-status-pill ${astPill(displayedStatus)}`}>
               {/* The tick only on the family that earns it. A run that failed does

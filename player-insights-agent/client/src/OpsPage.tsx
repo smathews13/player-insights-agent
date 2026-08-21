@@ -976,9 +976,9 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
         ) : payload ? (
           <>
             {/* THE FACT TRUE OF EVERY ROW, SAID ONCE. Replaces the columns of
-                repeated dashes p95/p99/errors/refusals/trend became on a quiet
-                window. When a route crosses the span floor the columns come
-                back and this line stops claiming there are none. */}
+                repeated dashes p95/p99/trend became on a quiet window. When a
+                route crosses the span floor the columns come back and this
+                line stops claiming there are none. */}
             {facts.line ? (
               <p className="ops-latency-facts">
                 <Info className="size-3.5" aria-hidden="true" />

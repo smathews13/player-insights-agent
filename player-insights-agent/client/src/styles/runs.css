@@ -460,6 +460,18 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   width: 12px;
   height: 12px;
 }
+/* The moment after a copy lands. What is on screen is a six-character prefix
+   and what went to the clipboard is the whole id, so a reader given no
+   confirmation cannot tell a working button from a dead one -- which is how
+   these chips came to be reported as broken. */
+.run-context-badge[data-copied='true'],
+.run-id-chip[data-copied='true'] {
+  border-color: var(--ast-pos-border);
+}
+.run-context-badge[data-copied='true'] > svg,
+.run-id-chip[data-copied='true'] > svg {
+  color: var(--ast-pos-text);
+}
 /*
  * The id, as much of it as is worth showing.
  *
@@ -478,6 +490,9 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   background: transparent;
   color: var(--muted-foreground);
   font: inherit;
+}
+.run-id-chip {
+  cursor: pointer;
 }
 .run-id-chip:hover {
   background: var(--db-hover-tint);

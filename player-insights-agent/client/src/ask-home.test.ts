@@ -406,12 +406,12 @@ describe('the two marks that sign a transcript', () => {
     // 8/8/2/8, per the handoff. It was 14/14/3/14, and a 14px bubble beside an 8px
     // answer card reads as two different applications.
     expect(body('.user-bubble')).toMatch(/border-radius:\s*8px 8px 2px 8px/);
-    // A light fill held just off full opacity, so the navy transcript tints it
-    // instead of showing through it. It was the darkest neutral in the app at
-    // full opacity, which read as a charcoal slab rather than as part of the
-    // page. The alpha is pinned as well as the colour because the whole point
-    // is the amount: opaque loses the tint, and glass loses the text.
-    expect(body('.user-bubble')).toMatch(/background:\s*rgba\(245, 246, 248, 0\.85\)/);
+    // The app's one light surface, opaque: the same token the header, the rail
+    // and the answer card are drawn on. It was `rgba(245, 246, 248, 0.85)`, and
+    // letting 15% of the navy sky through a light fill produced the mid-grey
+    // slab Sam reported. No alpha here at all, deliberately -- the sky belongs
+    // behind the bubble, not in it.
+    expect(body('.user-bubble')).toMatch(/background:\s*var\(--ast-white\)/);
     expect(body('.user-avatar')).toMatch(/max-width:\s*none/);
     expect(body('.user-avatar .identity-chip-text')).toMatch(/overflow:\s*visible/);
   });

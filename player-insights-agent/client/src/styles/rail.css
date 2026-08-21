@@ -87,13 +87,72 @@
   padding: 16px 8px 16px 16px;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  /* Thin, and the app's own line grey on no track at all, rather than the
-     platform's default slab. The track is transparent so the rail's background is
-     what shows behind the thumb. */
+  /*
+   * Thin, and INVISIBLE UNTIL THE READER IS IN THIS COLUMN.
+   *
+   * The bar is a permanent grey stripe otherwise: the gutter below reserves its
+   * strip whether or not the rail overflows, so a rail that overflows painted a
+   * light slab down the full height of the column at all times, next to eleven
+   * white cards, competing with them for the eye. Nothing about it is
+   * information -- the rows already say there are more rows.
+   *
+   * So both halves of `scrollbar-color` are transparent by default and the thumb
+   * is coloured only on `:hover` / `:focus-within` below. The gutter stays
+   * reserved either way, so the thumb appearing moves nothing and covers
+   * nothing. Hover is also, on this platform, exactly the "actively scrolling"
+   * case: a wheel or trackpad scroll of this column requires the pointer to be
+   * over it, and `:focus-within` covers the keyboard reader who never hovers.
+   */
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  /* THE RAIL IS THE HEADER'S SURFACE, not the Ask page's sky. It was 94% of the
+     ink structure colour with white text on it, which put a near-black column
+     under a white header and left the eyebrow, the filter chips and the cards'
+     own light surface all fighting it. The dark sky belongs to `.ask-layout`,
+     behind the middle column.
+
+     `--ast-white` is the app's one light surface, and it is the same #ffffff the
+     header paints as `--background`. The rows inside this column already draw
+     from it, and so now do the reader's question bubble and the answer card, so
+     there is one token behind all four rather than four values that agree. */
+  background: var(--ast-white);
+  color: var(--foreground);
+}
+/*
+ * The thumb, and ONLY while the reader is in the column.
+ *
+ * `--db-line-strong` rather than the hairline `--db-line`: the rail is
+ * `--ast-white` now, and a hairline thumb on white is #ebebeb on #ffffff --
+ * a bar that is technically shown and practically invisible, which is a hover
+ * affordance that does not afford anything. The control-border grey is the
+ * lightest token that reads against this surface, and it is still a long way
+ * from the platform's slab.
+ */
+.conversation-rail:hover,
+.conversation-rail:focus-within {
   scrollbar-color: var(--db-line-strong) transparent;
-  background: color-mix(in srgb, var(--ast-navy) 94%, transparent);
-  color: var(--ast-white);
+}
+/*
+ * The same two states again for WebKit, which is a duplicate only where the
+ * standard properties above are unimplemented: Chrome ignores these
+ * pseudo-elements entirely once `scrollbar-color` or `scrollbar-width` is set
+ * on the element, so this block is what older Safari reads and nothing else.
+ * It is also the only way to ask for a specific width -- `thin` is the
+ * platform's choice, 6px is ours.
+ */
+.conversation-rail::-webkit-scrollbar {
+  width: 6px;
+}
+.conversation-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+.conversation-rail::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+.conversation-rail:hover::-webkit-scrollbar-thumb,
+.conversation-rail:focus-within::-webkit-scrollbar-thumb {
+  background: var(--db-line-strong);
 }
 /* 8px, because the inspector's head is a title with a pill beside it and then the
    run: three things that belong to each other, unlike the rail's three blocks. */
@@ -104,6 +163,20 @@
   gap: 14px;
   padding: 20px;
   overflow-y: auto;
+  /*
+   * THE BROWSER DOES NOT ALSO GET A VOTE ON THIS COLUMN'S SCROLL.
+   *
+   * Scroll anchoring keeps whatever the browser picked as the anchor visually
+   * still by adjusting `scrollTop` when content around it changes size, and this
+   * column changes size on every reported step: the band's drawing grows by a
+   * hop and the status line under it moves down. So a step produced two moves --
+   * the browser's compensation and the band's own follow (AgentConstellation.tsx)
+   * -- which is the stutter a reader sees while steps stream in.
+   *
+   * The follow is the one that should win: this column exists to show the step
+   * the run is on, which is the opposite of holding an older step still.
+   */
+  overflow-anchor: none;
   background: var(--ast-navy);
   color: var(--ast-white);
 }
@@ -679,22 +752,10 @@
   border-color: var(--primary);
   background: var(--ast-white);
 }
-.conversation-rail > .ast-eyebrow,
-.conversation-rail .section-label-scope {
-  color: var(--ast-text-on-dark-secondary);
-}
-.conversation-rail .conversation-filter-chip.is-all {
-  border-color: rgba(255, 255, 255, 0.38);
-  color: var(--ast-white);
-}
-.conversation-rail .conversation-filter-chip.is-all:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-.conversation-rail .conversation-filter-chip.is-all[aria-pressed='true'] {
-  border-color: var(--ast-white);
-  background: var(--ast-white);
-  color: var(--ast-navy);
-}
+/* The eyebrow, its scope note and the All chip had a set of on-dark overrides
+   here -- secondary-on-navy ink, a white hairline, a white pressed fill. They go
+   with the navy: on `--background` the shared recipes are already the readable
+   ones, and a white-on-white chip is invisible. */
 .conversation-row.active .conversation-title {
   font-weight: 600;
 }

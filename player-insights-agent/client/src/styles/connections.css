@@ -1309,6 +1309,14 @@
   min-width: 0;
   font-weight: 500;
 }
+/* The product word, as the connected-resources rows above this list carry it.
+   Present on every row, including one whose identifier is an opaque hex id and
+   has no name to show: "Genie space" is the least a row may say about itself. */
+.plane-row-kind {
+  flex: none;
+  white-space: nowrap;
+  color: var(--ast-text-secondary);
+}
 .plane-row-title {
   min-width: 0;
   overflow: hidden;

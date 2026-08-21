@@ -242,8 +242,20 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(rule('.trace-dag.map .dag-step.run-envelope')).toMatch(/grid-column: 1 \/ -1/);
     expect(markup).toContain('class="trace-dag map has-run-envelope"');
     const wholeRun = rule('.trace-dag.map.has-run-envelope');
-    expect(wholeRun).toMatch(/border: 1px dotted var\(--db-connector\)/);
-    expect(wholeRun).toMatch(/padding: 14px/);
+    // The envelope is the app's action blue, the same token the open card's 2px
+    // edge and every other primary outline take -- not a second blue mixed for
+    // this one rule, and not the grey connector it used to be, which read as
+    // chrome around the run rather than a boundary belonging to it.
+    expect(wholeRun).toMatch(/border: 1px dashed var\(--primary\)/);
+    // DASHED, NOT DOTTED. 1px dots at a 1px pitch are a half-tone haze rather
+    // than a line, and that fuzz is what this rule was changed to remove.
+    expect(wholeRun).not.toMatch(/dotted/);
+    expect(wholeRun).toMatch(/border-radius: var\(--radius-md\)/);
+    // Even padding on all four sides: the gap between the perimeter and the
+    // cards is the same everywhere, so a single shorthand and no per-side
+    // override is the assertion.
+    expect(wholeRun).toMatch(/padding: 14px;/);
+    expect(wholeRun).not.toMatch(/padding-(top|right|bottom|left)/);
   });
 });
 

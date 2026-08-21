@@ -839,15 +839,10 @@ export function p50BarWidths(values: number[]): number[] {
  *
  * A FACT TRUE OF EVERY ROW IS SAID ONCE, NEVER PER ROW. On a quiet window every
  * route is under the span floor, so p95, p99 and the trend verdict are withheld
- * on all of them, refusals are never on a span, and the error column is empty
- * everywhere. Five columns of the same dash is five columns saying nothing, so
- * this collapses them into one sentence above the table. When even one route
+ * on all of them. Five columns of the same dash is five columns saying nothing,
+ * so this collapses them into one sentence above the table. When even one route
  * crosses the floor its p95/p99/trend are worth a column again, so the columns
  * come back and this line stops claiming there are none.
- *
- * Errors are summarised rather than hidden. The compact grid has no error
- * column, so a genuine 5xx count is named here rather than dropped: honesty over
- * tidiness, the rule the rest of this file is held to.
  */
 export interface LatencySharedFacts {
   /** The strip's sentence, or '' when nothing is universally empty. */
@@ -862,21 +857,10 @@ export function latencySharedFacts(routes: RouteLatency[]): LatencySharedFacts {
   // empty set.
   if (routes.length === 0) return { line: '', showPercentiles: false };
   const showPercentiles = routes.some((route) => route.p95Ms !== null);
-  const parts: string[] = [];
-  if (routes.length > 0 && !showPercentiles) {
-    parts.push(`Every route is under ${SPAN_PERCENTILE_FLOOR} recorded requests: no p95, p99, or trend yet.`);
-  }
-  const errorTotal = routes.reduce((sum, route) => sum + (route.errorCount > 0 ? route.errorCount : 0), 0);
-  const refusalsAllUnreported = routes.every((route) => route.refusalCount === null);
-  if (errorTotal === 0 && refusalsAllUnreported) {
-    parts.push('No error responses recorded across these routes. Refusals are not reported.');
-  } else if (refusalsAllUnreported) {
-    parts.push(
-      `${count(errorTotal)} error ${errorTotal === 1 ? 'response' : 'responses'} recorded across these routes. ` +
-        'Refusals are not reported.'
-    );
-  }
-  return { line: parts.join(' '), showPercentiles };
+  const line = showPercentiles
+    ? ''
+    : `Every route is under ${SPAN_PERCENTILE_FLOOR} recorded requests: no p95, p99, or trend yet.`;
+  return { line, showPercentiles };
 }
 
 export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()): LatencyRouteView {

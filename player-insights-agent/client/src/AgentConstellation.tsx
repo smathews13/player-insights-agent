@@ -42,6 +42,8 @@ import { AstrolabeMark } from './AstrolabeMark';
 import {
   buildMapConstellation,
   buildPathConstellation,
+  pathStarY,
+  PATH_WIDTH,
   SELECTED_RING,
   type ConstellationLabel,
   type ConstellationLink,
@@ -56,7 +58,7 @@ import {
 } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
 import { ConceptFlicker } from './ConceptFlicker';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TraceStage } from './answer-shape';
 import { formatDuration } from './benchmark-summary';
 
@@ -173,6 +175,33 @@ function lastUnfinished(stages: TraceStage[]): number {
 const FOLLOW_MARGIN = 16;
 
 /**
+ * Under this much correction, the column is left alone.
+ *
+ * A follow that writes a fraction of a pixel is a follow that writes on every
+ * step for no visible gain, and the writes are what a reader sees as a twitch.
+ * One pixel is also below what the scale factor below can be trusted to, since
+ * it is a ratio of a measured width to a constant.
+ */
+const FOLLOW_DEAD_ZONE = 1;
+
+/**
+ * BEFORE THE PAINT, and on the server not at all.
+ *
+ * A scroll correction is layout, so it belongs in the commit that changed the
+ * layout: in a passive effect the browser paints the taller band at the old
+ * offset first and the correction lands a frame later, which is the jump Sam
+ * saw as stutter -- one per step, at streaming speed. The same reason a
+ * `requestAnimationFrame` is not used here: a frame of coalescing IS the frame
+ * of lag, and this runs once per step already.
+ *
+ * `useLayoutEffect` warns when there is no DOM to lay out, and this band is
+ * rendered to static markup all over the suite, so the choice is made once at
+ * module scope. A module constant rather than a condition inside the component,
+ * because the two hooks have to be the same hook on every render.
+ */
+const useFollowEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
+
+/**
  * The one box around the band that scrolls, or null when nothing around it does.
  *
  * THE NEAREST ONE AND ONLY THAT ONE. The band's seating is `.trace-inspector`,
@@ -275,29 +304,49 @@ export function AgentPathConstellation({
    * called on one of those renders and skipped on the other.
    */
   const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;
-  const followRef = useRef<SVGGElement | null>(null);
+  const canvasRef = useRef<SVGSVGElement | null>(null);
   const statusRef = useRef<HTMLParagraphElement | null>(null);
-  useEffect(() => {
-    const star = followRef.current;
-    if (followIndex < 0 || star === null) return;
-    const scroller = scrollParent(star);
+  useFollowEffect(() => {
+    const canvas = canvasRef.current;
+    if (followIndex < 0 || canvas === null) return;
+    const scroller = scrollParent(canvas);
     if (scroller === null) return;
+    /*
+     * THE STAR'S PLACE IN THE DRAWING, not the box the browser measures around
+     * it. The followed star is the one carrying the beat -- a scale animation on
+     * a 1.6s loop -- so its own rect is a different size depending on when in
+     * that loop it is read, and a follow keyed on it would aim somewhere slightly
+     * different every step. `pathStarY` is the number the geometry module placed
+     * it at, and the canvas scales its viewBox to its own width, so one rect read
+     * converts that number into the column's pixels exactly.
+     *
+     * Every read happens here, before the one write below: a read after a write
+     * is what makes a scroll correction thrash.
+     */
     const view = scroller.getBoundingClientRect();
-    const box = star.getBoundingClientRect();
+    const canvasBox = canvas.getBoundingClientRect();
+    const scale = canvasBox.width / PATH_WIDTH;
+    const middle = canvasBox.top + pathStarY(followIndex) * scale;
+    const reach = SELECTED_RING * scale;
     /*
      * The status line is RESERVED rather than covered: it is the one sentence
      * naming the step this star is, so parking the star on the column's bottom
      * edge would scroll its own caption out of view.
-     *
-     * A minimal correction in both directions, so a star already in view is left
-     * where it is, and instant rather than smoothed -- an easing scroll under a
-     * drawing that is drawing itself reads as the panel drifting.
      */
     const reserve = statusRef.current?.getBoundingClientRect().height ?? 0;
     const floor = view.top + FOLLOW_MARGIN;
     const ceiling = view.bottom - reserve - FOLLOW_MARGIN;
-    if (box.bottom > ceiling) scroller.scrollTop += box.bottom - ceiling;
-    else if (box.top < floor) scroller.scrollTop -= floor - box.top;
+    /*
+     * A minimal correction in one direction or the other, so a star already in
+     * view is left exactly where it is, and instant rather than smoothed: a
+     * smooth scroll restarted by the next step fights the one still running, and
+     * what Sam asked for is that the newest step be visible rather than that it
+     * glide there.
+     */
+    const drop =
+      middle + reach > ceiling ? middle + reach - ceiling : middle - reach < floor ? middle - reach - floor : 0;
+    if (Math.abs(drop) < FOLLOW_DEAD_ZONE) return;
+    scroller.scrollTop += drop;
   }, [followIndex]);
   if (stages.length === 0) return null;
   const shown = stages[shownIndex];
@@ -360,6 +409,7 @@ export function AgentPathConstellation({
   return (
     <div className="ast-sky ast-sky-path">
       <svg
+        ref={canvasRef}
         role="group"
         aria-label="Agent steps"
         className="ast-sky-canvas"
@@ -389,10 +439,6 @@ export function AgentPathConstellation({
         {path.stars.map((star, index) => (
           <g
             key={star.id}
-            // The one star the column follows, and only while it is the followed
-            // one: a ref on every group would leave the effect reading whichever
-            // node React happened to attach last.
-            ref={followIndex === index ? followRef : undefined}
             className={`ast-star-select ${shownIndex === index ? 'selected' : ''}`}
             role="button"
             tabIndex={0}
