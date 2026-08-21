@@ -1819,7 +1819,6 @@ export function ConnectionsPage() {
     <div className="page-shell connections-page">
       <div className="page-heading">
         <div>
-          <p className="section-label">Deployment</p>
           <h2>Connections</h2>
         </div>
         {/* The one control on the page, and it is the shared one: the word, the

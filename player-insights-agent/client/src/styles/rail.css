@@ -157,7 +157,10 @@
 /* 8px, because the inspector's head is a title with a pill beside it and then the
    run: three things that belong to each other, unlike the rail's three blocks. */
 .trace-inspector {
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  /* No hairline against the middle column. The navy panel is its own edge, and a
+     translucent white rule on the dark sky read as a seam rather than a
+     boundary. The column's width and the grid's gap are untouched: they are
+     `--trace-width` and the `.ask-layout` grid above. */
   display: flex;
   flex-direction: column;
   gap: 14px;

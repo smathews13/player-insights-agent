@@ -665,7 +665,6 @@ export function ArchitecturePage() {
   return (<div className="page-shell architecture-page">
       <div className="page-heading">
         <div>
-          <p className="section-label">Deployment</p>
           <h2>Architecture</h2>
         </div>
         {/* The shared control, on the same clock as the tiles below it, so the
