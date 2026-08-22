@@ -55,7 +55,7 @@ describe('Sam’s second feedback wave', () => {
     // and read as a near-black column beside a white header. `--ast-white` is the
     // one light surface the bubble and the answer card now share with it.
     const rail = rule(RAIL, '.conversation-rail');
-    expect(rail).toContain('background: var(--ast-white)');
+    expect(rail).toContain('background: var(--card)');
     expect(rail).toContain('color: var(--foreground)');
     expect(rail).not.toContain('--ast-navy');
   });

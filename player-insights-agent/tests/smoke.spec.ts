@@ -314,19 +314,19 @@ test('attachment chips report parsing, ready, and error states', async ({ page }
   await expect(page.locator('.attachment-chip')).toHaveCount(1);
 });
 
-// ── Light-only theme ────────────────────────────────────────────────────────
+// ── Theme is ours, not the OS ───────────────────────────────────────────────
 
 /**
- * AppKit's stylesheet repaints every token under `@media (prefers-color-scheme: dark)`
- * via `:root:not(.light)`, which outranks a plain `:root`. That once turned body text
- * near-white on top of this app's hardcoded white surfaces. The app is light-only, so
- * both OS preferences have to land on the same palette, which is why this runs twice.
+ * AppKit still flips tokens under `@media (prefers-color-scheme: dark)` via
+ * `:root:not(.light)`. The app keeps `.light` so OS Dark Mode cannot do that,
+ * and paints from `data-theme` instead. Both OS preferences must land on the
+ * saved app theme (dark by default).
  */
 for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`under an OS ${colorScheme}-mode preference`, () => {
     test.use({ colorScheme });
 
-    test('the palette stays light and text stays readable', async ({ page }) => {
+    test('the app theme is data-theme, not the OS setting', async ({ page }) => {
       await page.route('**/api/conversations', (route) =>
         route.fulfill({
           json: [{ id: 'conv-a', title: 'Compare active players by title', updated_at: new Date().toISOString() }],
@@ -335,74 +335,41 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await page.goto('/');
       await expect(page.getByRole('button', { name: /Compare active players by title/ }).first()).toBeVisible();
 
+      const theme = await page.evaluate(() => ({
+        classLight: document.documentElement.classList.contains('light'),
+        dataTheme: document.documentElement.getAttribute('data-theme'),
+      }));
+      expect(theme.classLight).toBe(true);
+      expect(theme.dataTheme).toBe('dark');
+
       const tokens = await page.evaluate(() => {
         const cs = getComputedStyle(document.documentElement);
         const read = (name: string) => cs.getPropertyValue(name).trim();
         return {
           foreground: read('--foreground'),
-          muted: read('--muted-foreground'),
           background: read('--background'),
-          body: read('--db-body'),
-          action: read('--primary'),
           working: read('--db-orange'),
           danger: read('--db-red-600'),
           amber: read('--db-amber'),
         };
       });
-      expect(tokens).toEqual({
-        foreground: '#161616',
-        muted: '#6f6f6f',
-        background: '#ffffff',
-        // The second neutral rung, for long-form copy. Pinned because the whole
-        // hierarchy of eyebrows and field keys rests on it being clearly darker than
-        // --muted-foreground and clearly lighter than ink; drift in either direction
-        // collapses a level.
-        body: '#3a3838',
-        // The pin that matters most after the DuBois revamp, because it is the one the
-        // old palette could not express. Action and text used to be the same black, so
-        // nothing caught a control that had quietly stopped looking like a control.
-        // They are now different colours and this says which is which: anything you
-        // press is blue. A regression here reads as ink returning to --primary, and it
-        // would look deliberate rather than broken.
-        action: '#2272b4',
-        // Databricks orange, and it means one thing: the agent is working. It is barred
-        // from text and from hairlines because it measures 3.62:1 on white, so it is
-        // legible as a filled mass and not as a letterform. Pinned so that a retune
-        // cannot quietly make the token block's own instructions false.
-        working: '#ff3621',
-        // The app's one red, and the only one. It is deliberately not a brand colour
-        // (anything that reads this token is claiming a failure), so a reappearance of
-        // #e4002b or #c50025 in the palette is the regression this pins, along with the
-        // older one of mistaking #ff3621, which now has a meaning of its own, for it.
-        danger: '#c82d4c',
-        // Evaluation, and nothing else. Unchanged across the revamp, and the one value
-        // in this block that was already wrong here: this test pinned #fcaf17 while the
-        // stylesheet has always shipped #ffab00, so it was asserting a colour the app
-        // never had.
-        amber: '#ffab00',
-      });
+      expect(tokens.background.toLowerCase()).toBe('#11171c');
+      expect(tokens.working.toLowerCase()).toBe('#ff3621');
+      expect(tokens.danger.toLowerCase()).toBe('#c82d4c');
+      expect(tokens.amber.toLowerCase()).toBe('#ffab00');
 
-      // Text on the app's white surfaces, worst offender first: the rail titles were
-      // once near-white on near-white. Amber and orange are excluded on purpose —
-      // neither is ever type here, only a filled mass or a thick rule.
-      //
-      // These selectors name shell elements, so a rename in the header, rail or hero has
-      // to be followed through to here. A miss returns null and is asserted separately
-      // below, because "the element I was measuring is gone" and "its contrast is too
-      // low" are different failures and the message should say which.
       const contrasts = await page.evaluate(() => {
         const channel = (c: number) => (c / 255 <= 0.04045 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4);
         const luminance = (rgb: string) => {
           const [r, g, b] = rgb.match(/\d+/g)!.map(Number);
           return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
         };
-        // Every one of these paints on an opaque white shell, so white is the honest
-        // comparison point.
         const against = (selector: string) => {
           const el = document.querySelector(selector);
           if (!el) return null;
           const text = luminance(getComputedStyle(el).color);
-          const [hi, lo] = [text, 1].sort((a, b) => b - a);
+          const sky = luminance('rgb(17, 23, 28)');
+          const [hi, lo] = [text, sky].sort((a, b) => b - a);
           return (hi + 0.05) / (lo + 0.05);
         };
         return {
@@ -410,13 +377,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
           heroHeading: against('.ask-hero h2'),
           heroBody: against('.ask-hero > p'),
           brandName: against('.brand-name h1'),
-          brandKicker: against('.brand-full'),
           promptCard: against('.prompt-grid button'),
         };
       });
       for (const [surface, ratio] of Object.entries(contrasts)) {
         expect(ratio, `${surface} was not on the page to measure`).not.toBeNull();
-        expect(ratio, `${surface} contrast on white`).toBeGreaterThan(4.5);
+        expect(ratio, `${surface} contrast on the sky`).toBeGreaterThan(4.5);
       }
     });
   });

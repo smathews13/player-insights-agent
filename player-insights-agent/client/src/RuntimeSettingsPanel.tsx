@@ -353,10 +353,19 @@ export function RuntimeSettingsPanel({
         <>
           <div className="settings-pane-heading">
             <h3>Appearance</h3>
-            <p>
-              Answer entity colors, shared by Ask and Run Explorer. Quote colors style date windows; Tag colors
-              style labels.
-            </p>
+            <p>Answer entity colors, shared by Ask and Run Explorer.</p>
+          </div>
+          <div className="runtime-answer-row appearance-theme-row">
+            <div className="runtime-answer-head">
+              <span className="runtime-answer-name">Dark</span>
+              <Switch
+                checked={settings.colorScheme === 'dark'}
+                onCheckedChange={(on) =>
+                  setSettings((current) => ({ ...current, colorScheme: on ? 'dark' : 'light' }))
+                }
+                aria-label="Dark"
+              />
+            </div>
           </div>
           <div className="appearance-grid" role="table" aria-label="Answer entity colors">
             <div className="appearance-grid-head" role="row">

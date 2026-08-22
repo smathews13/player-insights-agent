@@ -12,8 +12,8 @@
   padding: 0 10px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: #fff;
-  color: #11171c;
+  background: var(--card);
+  color: var(--foreground);
   font: inherit;
   white-space: nowrap;
   cursor: pointer;
@@ -21,7 +21,7 @@
 
 .account-menu-trigger[aria-expanded='true'],
 .account-menu-trigger:hover {
-  background: #f7f7f7;
+  background: var(--muted);
 }
 
 .account-menu-trigger > svg {
@@ -49,9 +49,9 @@
   padding: 6px;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--card);
   box-shadow: 0 12px 32px color-mix(in oklab, var(--db-ink-deep) 16%, transparent);
-  color: #11171c;
+  color: var(--foreground);
   font-size: 13px;
 }
 
@@ -136,7 +136,7 @@
 .account-menu-group > button:focus-visible,
 .account-menu-group > a:hover,
 .account-menu-group > a:focus-visible {
-  background: #f7f7f7;
+  background: var(--muted);
   outline: none;
 }
 
@@ -188,9 +188,9 @@
   width: min(420px, 100%);
   overflow: hidden;
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--card);
   box-shadow: 0 16px 48px color-mix(in oklab, var(--db-ink-deep) 35%, transparent);
-  color: #11171c;
+  color: var(--foreground);
 }
 
 .account-composer-header {
@@ -271,7 +271,7 @@
   padding: 10px 12px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  color: #11171c;
+  color: var(--foreground);
   font: inherit;
 }
 
@@ -305,7 +305,7 @@
   gap: 8px;
   padding: 14px 28px;
   border-top: 1px solid #ebebeb;
-  background: #f7f7f7;
+  background: var(--muted);
 }
 
 .account-composer-footer button {
@@ -322,15 +322,15 @@
 }
 
 .account-composer-cancel {
-  border: 1px solid #cbcbcb;
-  background: #fff;
-  color: #11171c;
+  border: 1px solid var(--input);
+  background: var(--card);
+  color: var(--foreground);
 }
 
 .account-composer-send {
-  border: 1px solid #2272b4;
-  background: #2272b4;
-  color: #fff;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: var(--ast-white);
 }
 
 .account-composer-send:disabled {

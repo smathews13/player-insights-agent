@@ -8,6 +8,7 @@ import { HomePage } from './HomePage';
 import { Layout } from './Layout';
 import { BenchmarkingVisibility } from './BenchmarkingVisibility';
 import { kickWarehouseWarmup } from './warehouse-warmup';
+import { applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
 
 /**
  * The five pages that are fetched when somebody opens them, not when the app
@@ -71,10 +72,10 @@ function LazyRoute({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
 }
 
-// PIA is a light-only surface. AppKit's stylesheet flips its whole palette to dark tokens
-// under `@media (prefers-color-scheme: dark)`, guarded by `:root:not(.light)`, so opting
-// in here is what keeps a Dark Mode machine from rendering white text on white cards.
-document.documentElement.classList.add('light');
+// AppKit flips its palette under `@media (prefers-color-scheme: dark)` via
+// `:root:not(.light)`. That is not this app's theme: `.light` stays on so OS
+// Dark Mode cannot repaint AppKit, and `data-theme` is what we paint from.
+applyColorScheme(DEFAULT_COLOR_SCHEME);
 
 /**
  * A moved page, without losing what the URL was asking for.

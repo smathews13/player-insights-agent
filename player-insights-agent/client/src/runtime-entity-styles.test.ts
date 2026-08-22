@@ -22,4 +22,27 @@ describe('saved Appearance colors', () => {
     expect(setProperty).toHaveBeenCalledWith('--entity-tag-fg', '#334455');
     expect(setProperty).toHaveBeenCalledWith('--entity-tag-bg', '#eeffdd');
   });
+
+  it('applies the saved color scheme to the document', () => {
+    const attrs = new Map<string, string>();
+    const classes = new Set<string>();
+    const root = {
+      classList: {
+        add: (name: string) => {
+          classes.add(name);
+        },
+        contains: (name: string) => classes.has(name),
+      },
+      style: { setProperty: vi.fn() },
+      setAttribute: (name: string, value: string) => attrs.set(name, value),
+      getAttribute: (name: string) => attrs.get(name) ?? null,
+    };
+    vi.stubGlobal('document', { documentElement: root, querySelector: () => null });
+    adoptRuntimeEntityStyles({ ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' }, root.style);
+    expect(root.getAttribute('data-theme')).toBe('light');
+    expect(root.classList.contains('light')).toBe(true);
+    adoptRuntimeEntityStyles(DEFAULT_RUNTIME_SETTINGS, root.style);
+    expect(root.getAttribute('data-theme')).toBe('dark');
+    vi.unstubAllGlobals();
+  });
 });

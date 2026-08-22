@@ -22,6 +22,12 @@ describe('runtime settings contract', () => {
     });
   });
 
+  it('defaults missing colorScheme to dark so older rows stay parseable', () => {
+    const { colorScheme: _ignored, ...withoutTheme } = DEFAULT_RUNTIME_SETTINGS;
+    expect(RuntimeSettingsSchema.parse(withoutTheme).colorScheme).toBe('dark');
+    expect(DEFAULT_RUNTIME_SETTINGS.colorScheme).toBe('dark');
+  });
+
   it('refuses unsafe or ineffective values', () => {
     expect(() =>
       RuntimeSettingsSchema.parse({

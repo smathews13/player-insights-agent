@@ -448,3 +448,56 @@
   --text-kpi: 22px; /* metric tile values, 700, tabular-nums */
   --text-hero: 32px; /* Ask hero h2, 700, -0.015em */
 }
+
+/*
+ * Night-sky theme. `data-theme` is ours; `.light` still defeats AppKit's OS
+ * media query. Hex primitives used here are declared in astrolabe-tokens.css
+ * so palette.test.ts can see them.
+ */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --db-ink: var(--ast-ink-on-dark);
+  --db-body: var(--ast-ink-on-dark);
+  --db-slate: var(--ast-text-on-dark-secondary);
+  --db-slate-icon: var(--ast-text-on-dark-secondary);
+  --db-grey-blue: var(--ast-ink-on-dark);
+  --db-chip: rgba(255, 255, 255, 0.12);
+  --db-wash: rgba(255, 255, 255, 0.03);
+  --db-warm: rgba(255, 255, 255, 0.03);
+  --db-line: rgba(255, 255, 255, 0.12);
+  --db-line-strong: rgba(255, 255, 255, 0.22);
+  --db-code-bg: rgba(255, 255, 255, 0.08);
+  --db-skeleton: rgba(255, 255, 255, 0.12);
+  --db-row-hover: rgba(255, 255, 255, 0.05);
+  --db-selected-tint: rgba(143, 193, 232, 0.12);
+  --db-hover-tint: rgba(143, 193, 232, 0.16);
+  --db-press-tint: rgba(143, 193, 232, 0.24);
+  --db-blue-faint: rgba(143, 193, 232, 0.08);
+  --db-blue-tint: rgba(34, 114, 180, 0.28);
+  --db-red-wash: rgba(232, 169, 184, 0.1);
+  --db-red-line: rgba(232, 169, 184, 0.4);
+  --db-green-wash: rgba(154, 214, 206, 0.1);
+  --db-green-line: rgba(154, 214, 206, 0.4);
+  --db-amber-wash: rgba(255, 171, 0, 0.12);
+  --db-amber-line: rgba(255, 171, 0, 0.35);
+  --background: var(--ast-navy);
+  --foreground: var(--ast-ink-on-dark);
+  --card: rgba(255, 255, 255, 0.05);
+  --card-foreground: var(--ast-ink-on-dark);
+  --popover: rgba(255, 255, 255, 0.07);
+  --popover-foreground: var(--ast-ink-on-dark);
+  --primary: var(--ast-ice-accent);
+  --primary-foreground: var(--ast-navy);
+  --secondary: rgba(255, 255, 255, 0.12);
+  --secondary-foreground: var(--ast-ink-on-dark);
+  --muted: rgba(255, 255, 255, 0.03);
+  --muted-foreground: var(--ast-text-on-dark-secondary);
+  --accent: rgba(255, 255, 255, 0.05);
+  --accent-foreground: var(--ast-ink-on-dark);
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.22);
+  --ring: var(--ast-ice-accent);
+  --chart-1: var(--ast-ice-accent);
+  --chart-3: var(--ast-blue-on-dark);
+}
+

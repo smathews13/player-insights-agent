@@ -40,6 +40,7 @@ export const RuntimeSettingsSchema = z.strictObject({
     timezone: z.string().trim().max(80),
     injectCurrentDate: z.boolean(),
   }),
+  colorScheme: z.enum(['dark', 'light']).default('dark'),
   entityStyles: z.strictObject({
     catalog: EntityStyleSchema,
     schema: EntityStyleSchema,
@@ -83,6 +84,7 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
     timezone: '',
     injectCurrentDate: false,
   },
+  colorScheme: 'dark',
   entityStyles: {
     catalog: { foreground: '#ffffff', background: '#0e538b' },
     schema: { foreground: '#16324f', background: '#ddeaf4' },

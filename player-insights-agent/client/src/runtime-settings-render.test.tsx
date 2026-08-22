@@ -80,12 +80,14 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-grid');
     expect(source).toContain('appearance-sample');
     expect(source).toContain('entityStyles');
+    expect(source).toContain('colorScheme');
+    expect(source).toContain('aria-label="Dark"');
+    expect(source).toContain("on ? 'dark' : 'light'");
   });
 
-  it('makes the date and label badge mapping visible and applies a save immediately', () => {
-    expect(source).toContain('Quote colors style date windows');
-    expect(source).toContain('Tag colors');
-    expect(source).toContain('style labels');
+  it('keeps the Appearance caption and applies a save immediately', () => {
+    expect(source).toContain('Answer entity colors, shared by Ask and Run Explorer.');
+    expect(source).not.toContain('Limits how many reasoning passes');
     expect(source).toContain('2026-07-22 – 2026-08-03');
     expect(source).toContain('Northwind, Contoso');
     expect(source).toContain('adoptRuntimeEntityStyles(saved)');

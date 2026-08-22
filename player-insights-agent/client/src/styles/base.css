@@ -109,7 +109,7 @@ svg {
   gap: 4px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--ast-white);
+  background: var(--card);
   color: var(--ast-text-long);
   font-size: var(--text-sm);
   font-weight: 400;
@@ -117,7 +117,7 @@ svg {
 }
 .app-select-trigger:hover {
   border-color: var(--ast-text-secondary);
-  background: var(--ast-white);
+  background: var(--card);
 }
 .app-select-trigger:focus-visible {
   outline: 2px solid var(--ast-blue);
@@ -175,7 +175,7 @@ svg {
   min-width: var(--radix-select-trigger-width);
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--ast-white);
+  background: var(--card);
   color: var(--ast-text-long);
   font-size: var(--text-sm);
 }

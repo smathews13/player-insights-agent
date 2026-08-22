@@ -682,7 +682,7 @@
   grid-column: 1 / -1;
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
-  background: var(--ast-white);
+  background: var(--ast-pane);
   overflow: hidden;
   min-width: 0;
 }

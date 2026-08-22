@@ -4,6 +4,7 @@ import {
   runtimeEntityCssVariables,
   type RuntimeSettings,
 } from '../../shared/runtime-settings';
+import { applyColorScheme } from './color-scheme';
 
 let settingsRequest: Promise<RuntimeSettings | null> | null = null;
 
@@ -25,11 +26,16 @@ async function readRuntimeEntityStyles(): Promise<RuntimeSettings | null> {
  */
 export function adoptRuntimeEntityStyles(
   settings: RuntimeSettings,
-  target: Pick<CSSStyleDeclaration, 'setProperty'> = document.documentElement.style
+  target: Pick<CSSStyleDeclaration, 'setProperty'> | null = typeof document === 'undefined'
+    ? null
+    : document.documentElement.style
 ): void {
-  for (const [name, value] of Object.entries(runtimeEntityCssVariables(settings))) {
-    target.setProperty(name, value);
+  if (target) {
+    for (const [name, value] of Object.entries(runtimeEntityCssVariables(settings))) {
+      target.setProperty(name, value);
+    }
   }
+  applyColorScheme(settings.colorScheme);
   settingsRequest = Promise.resolve(settings);
 }
 

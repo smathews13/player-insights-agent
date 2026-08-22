@@ -42,6 +42,7 @@ import { AdminOnly, RoleLostNotice } from './GatePanel';
 import { SettingsPage } from './SettingsPage';
 import { UserIdentityChip } from './UserIdentityChip';
 import { AccountMenu } from './AccountMenu';
+import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
 import { navEntries, roleFrom, showsSettingsGear, type AppOutletContext, type RoleResolution } from './role';
 
@@ -405,7 +406,8 @@ export function Layout() {
   if (!drawsAppShell(firstOpen.stage)) return <>{firstOpen.gate}</>;
 
   return (
-    <div className={`min-h-screen flex flex-col${arriving ? ' ast-anim-x-app' : ''}`}>
+    <div className={`min-h-screen flex flex-col app-frame${arriving ? ' ast-anim-x-app' : ''}`}>
+      <AppSky />
       {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
           the app, which is the soft-ground treatment DuBois replaces with
           hairlines on a solid surface.

@@ -24,7 +24,7 @@ describe('app-wide dropdown recipe', () => {
   it('shares the white field, neutral border, focus, hover and menu states', () => {
     const css = style('base.css');
     expect(css).toMatch(/\.app-select-trigger \{[^}]*height: 32px/);
-    expect(css).toMatch(/\.app-select-trigger \{[^}]*background: var\(--ast-white\)/);
+    expect(css).toMatch(/\.app-select-trigger \{[^}]*background: var\(--card\)/);
     expect(css).toMatch(/\.app-select-trigger \{[^}]*border: 1px solid var\(--ast-border-input\)/);
     expect(css).toMatch(/\.app-select-trigger:hover \{/);
     expect(css).toMatch(/\.app-select-trigger:focus-visible \{/);

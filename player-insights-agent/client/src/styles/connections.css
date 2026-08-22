@@ -1557,7 +1557,7 @@
   padding: 4px 10px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-control);
-  background: var(--ast-white);
+  background: var(--card);
   color: var(--ast-blue);
   font-size: var(--ast-fs-12);
   cursor: pointer;

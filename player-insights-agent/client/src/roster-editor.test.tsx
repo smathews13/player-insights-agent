@@ -151,7 +151,7 @@ describe('the #24a Roles geometry', () => {
     expect(css).toMatch(/\.settings-page \{[^}]*max-width:\s*820px/);
     expect(css).toMatch(/\.settings-page \{[^}]*padding:\s*24px 32px/);
     expect(css).toMatch(/\.settings-page \[data-slot='card'\] \{[^}]*border-radius:\s*8px/);
-    expect(css).toMatch(/\.admin-row \{[^}]*border:\s*1px solid #ebebeb/);
+    expect(css).toMatch(/\.admin-row \{[^}]*border:\s*1px solid var\(--ast-hairline\)/);
     expect(css).toMatch(/\.admin-row \{[^}]*border-radius:\s*var\(--radius-sm\)/);
     expect(css).toMatch(/\.admin-row-email \{[^}]*font-family:\s*var\(--font-mono\)/);
   });

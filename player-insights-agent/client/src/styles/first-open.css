@@ -67,7 +67,7 @@
      overlay's 24px padding, top and bottom. */
   max-height: calc(100vh - 48px);
   overflow-y: auto;
-  background: var(--ast-white);
+  background: var(--card);
   border: 1px solid var(--ast-hairline);
   border-radius: 8px;
   padding: 28px;

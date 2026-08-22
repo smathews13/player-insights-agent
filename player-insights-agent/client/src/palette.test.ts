@@ -182,6 +182,16 @@ describe('the palette is the palette, and nothing is painted beside it', () => {
     expect(RETIRED_LITERALS.filter((hex) => SOURCE.toLowerCase().includes(hex))).toEqual([]);
   });
 
+  it('declares the night-sky literals in the dark token block', () => {
+    const dark = TOKENS.split("html[data-theme='dark']")[1] ?? '';
+    const astDark = ASTROLABE_TOKENS.split("html[data-theme='dark']")[1] ?? '';
+    expect(ASTROLABE_TOKENS).toMatch(/--ast-ice-accent:\s*#8fc1e8/i);
+    expect(ASTROLABE_TOKENS).toMatch(/--ast-ink-on-dark:\s*#f2f6fa/i);
+    expect(ASTROLABE_TOKENS).toMatch(/--ast-navy:\s*#11171c/i);
+    expect(dark).toContain('--background: var(--ast-navy)');
+    expect(astDark).toContain('--ast-sky-fill: var(--ast-navy)');
+  });
+
   it('writes every saturated colour as a token rather than by hand', () => {
     // The failure this catches is a second, slightly different orange. One hand-written
     // #ff3722 beside the token is invisible in a diff and reads on screen as a

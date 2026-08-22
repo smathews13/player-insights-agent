@@ -14,11 +14,11 @@
   max-width: 820px;
   margin-inline: auto;
   padding: 24px 32px;
-  background: #ffffff;
+  background: var(--card);
 }
 
 .settings-page [data-slot='card'] {
-  border: 1px solid #ebebeb;
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -427,7 +427,7 @@
 
 .admin-row {
   padding: 10px;
-  border: 1px solid #ebebeb;
+  border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-sm);
   display: grid;
   gap: 8px;
@@ -478,7 +478,7 @@
 
 .admin-row-seed {
   padding: 1px 5px;
-  border: 1px solid #cbcbcb;
+  border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   color: #46596b;
   white-space: nowrap;
@@ -523,7 +523,7 @@
 
 .roster-role-chip {
   padding: 2px 6px;
-  border: 1px solid #cbcbcb;
+  border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   color: #46596b;
   font-size: var(--text-xs);
@@ -582,9 +582,9 @@
   padding: 0;
   overflow: hidden;
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card);
   box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
-  color: #161616;
+  color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.5;
@@ -597,7 +597,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid #ebebeb;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-modal-header h2,
@@ -613,7 +613,7 @@
 
 .settings-pane-heading p {
   font-size: 12px;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
 }
 
 .settings-close {
@@ -626,12 +626,12 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #525252;
+  color: var(--db-slate-icon);
   cursor: pointer;
 }
 
 .settings-close:hover {
-  background: #f1f1f1;
+  background: var(--db-hover-tint);
 }
 
 .settings-close svg {
@@ -648,8 +648,8 @@
 
 .settings-rail {
   padding: 12px 8px;
-  border-right: 1px solid #ebebeb;
-  background: #f7f7f7;
+  border-right: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .settings-rail button {
@@ -658,7 +658,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #525252;
+  color: var(--db-slate-icon);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -669,11 +669,11 @@
 }
 
 .settings-rail button.active {
-  border-color: #ebebeb;
-  background: #ffffff;
-  color: #161616;
+  border-color: var(--border);
+  background: var(--card);
+  color: var(--foreground);
   font-weight: 500;
-  box-shadow: inset 2px 0 #2272b4;
+  box-shadow: inset 2px 0 var(--primary);
 }
 
 .settings-modal-content {
@@ -721,8 +721,8 @@
      Cancel and Save against the LEFT edge of the modal. */
   justify-content: flex-end;
   gap: 16px;
-  border-top: 1px solid #ebebeb;
-  background: #f7f7f7;
+  border-top: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .settings-footer-actions {
@@ -770,7 +770,7 @@
   margin: 0;
   font-size: 11px;
   line-height: 1.35;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
 }
 
 .settings-save-notice.settings-error {
@@ -782,12 +782,12 @@
 .runtime-section {
   gap: 10px;
   padding-bottom: 14px;
-  border-color: #ebebeb;
+  border-color: var(--border);
 }
 
 .runtime-section-label {
   font-size: 11px;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
 }
 
 .runtime-loop-row {
@@ -805,7 +805,7 @@
 
 .runtime-field-label {
   font-size: 12px;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
 }
 
 .runtime-field input {
@@ -827,20 +827,20 @@
 
 .runtime-answer-header > span {
   font-size: 12px;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
 }
 
 .runtime-answer-row {
   gap: 8px;
   padding: 9px 0;
-  border-color: #ebebeb;
+  border-color: var(--border);
 }
 
 .runtime-answer-body {
   display: flex;
   align-items: end;
   flex-wrap: wrap;
-  border-color: #ebebeb;
+  border-color: var(--border);
 }
 
 .runtime-answer-body .runtime-field {
@@ -857,7 +857,7 @@
 
 .runtime-inline-note {
   align-self: center;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -883,7 +883,7 @@
 
 .appearance-grid-head {
   padding: 0 0 6px;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -893,7 +893,7 @@
 .appearance-grid-row {
   min-height: 48px;
   padding: 8px 0;
-  border-top: 1px solid #ebebeb;
+  border-top: 1px solid var(--border);
 }
 
 .appearance-grid-row strong {
@@ -910,7 +910,7 @@
   width: 14px;
   height: 14px;
   flex: none;
-  border: 1px solid #cbcbcb;
+  border: 1px solid var(--input);
   border-radius: 3px;
 }
 
@@ -943,7 +943,7 @@
 .agent-code-row {
   align-items: center;
   padding-bottom: 12px;
-  border-bottom: 1px solid #ebebeb;
+  border-bottom: 1px solid var(--border);
 }
 
 /* A PLACE, NOT A VALUE, so it carries the same affordance as the two openable
@@ -967,9 +967,9 @@
 }
 
 .environment-runtime [data-slot='badge'] {
-  border-color: #cbcbcb;
-  background: #f7f7f7;
-  color: #161616;
+  border-color: var(--input);
+  background: var(--muted);
+  color: var(--foreground);
   font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 500;
@@ -978,7 +978,7 @@
 .environment-browser {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #ebebeb;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
 
@@ -989,8 +989,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #ebebeb;
-  background: #f7f7f7;
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .environment-tabs {
@@ -1005,7 +1005,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
   font: inherit;
   font-size: 11.5px;
   font-weight: 500;
@@ -1014,7 +1014,7 @@
 }
 
 .environment-tabs button.active {
-  color: #161616;
+  color: var(--foreground);
 }
 
 .environment-tabs button.active::after {
@@ -1023,7 +1023,7 @@
   bottom: 0;
   left: 0;
   height: 2px;
-  background: #2272b4;
+  background: var(--primary);
   content: '';
 }
 
@@ -1046,7 +1046,7 @@
   left: 8px;
   width: 14px;
   height: 14px;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
   pointer-events: none;
 }
 
@@ -1054,14 +1054,14 @@
   width: 170px;
   height: 30px;
   padding-left: 28px;
-  background: #ffffff;
+  background: var(--card);
   font-size: 12px;
 }
 
 .environment-tools [data-slot='button'] {
   width: 30px;
   height: 30px;
-  color: #525252;
+  color: var(--db-slate-icon);
 }
 
 .environment-tools [data-slot='button'] svg {
@@ -1076,7 +1076,7 @@
 }
 
 .environment-list:focus-visible {
-  box-shadow: inset 0 0 0 2px #2272b4;
+  box-shadow: inset 0 0 0 2px var(--primary);
 }
 
 .environment-list table {
@@ -1091,7 +1091,7 @@
 .environment-list td {
   padding: 5px 8px;
   overflow: hidden;
-  border-bottom: 1px solid #ebebeb;
+  border-bottom: 1px solid var(--border);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1101,8 +1101,8 @@
   position: sticky;
   z-index: 1;
   top: 0;
-  background: #ffffff;
-  color: #525252;
+  background: var(--card);
+  color: var(--db-slate-icon);
   font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 700;
@@ -1120,18 +1120,18 @@
 .environment-empty {
   margin: 0;
   padding: 20px 8px;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
   font-size: 12px;
   text-align: center;
 }
 
 .egress-list {
-  border-top: 1px solid #ebebeb;
+  border-top: 1px solid var(--border);
 }
 
 .egress-row {
   padding: 10px 0;
-  border-bottom: 1px solid #ebebeb;
+  border-bottom: 1px solid var(--border);
 }
 
 .egress-row-head {
@@ -1171,7 +1171,7 @@
 
 .settings-status {
   margin: 0;
-  color: #6f6f6f;
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -1181,7 +1181,7 @@
 
 .settings-resource-tags {
   padding-top: 16px;
-  border-top: 1px solid #ebebeb;
+  border-top: 1px solid var(--border);
 }
 
 .settings-resource-tags > [data-slot='button'] {

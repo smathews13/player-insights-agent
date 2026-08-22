@@ -250,5 +250,6 @@ describe('the partials are wired into the cascade', () => {
     // every assertion about it passes for the wrong reason.
     expect(partialNames()).toContain('astrolabe-tokens.css');
     expect(partialNames()).toContain('astrolabe-animation.css');
+    expect(partialNames()).toContain('dark-mode.css');
   });
 });

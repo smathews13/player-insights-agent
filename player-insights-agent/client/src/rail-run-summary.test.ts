@@ -139,8 +139,8 @@ describe('the row is the run card, not a third style', () => {
     expect(card).toMatch(/border:\s*1px solid var\(--border\)/);
     expect(body('.conversation-row:hover')).toMatch(/border-color:\s*var\(--primary\)/);
     expect(body('.conversation-row.active')).toMatch(/border-color:\s*var\(--primary\)/);
-    expect(row).toMatch(/background:\s*var\(--ast-white\)/);
-    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--ast-white\)/);
+    expect(row).toMatch(/background:\s*var\(--card\)/);
+    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--card\)/);
     expect(body('.conversation-row.active')).not.toMatch(/transparent|rgba|selected-tint|ast-navy/);
     // The 3px marker is gone from every state, including the delete confirmation,
     // and its absence is what gave the title back three of its pixels.
@@ -205,7 +205,7 @@ describe('the row is the run card, not a third style', () => {
     expect(railStatusTone('complete')).toBe('ast-pill--pos');
     // The selected row stays an opaque light card over the navy rail. Its status
     // stays outlined so the border, rather than a second fill, carries selection.
-    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--ast-white\)/);
+    expect(body('.conversation-row.active')).toMatch(/background:\s*var\(--card\)/);
     expect(railStatusTone('marinating')).toBe('ast-pill--neutral-outline');
     const outline = body('.ast-pill--neutral-outline', partial('astrolabe-tokens.css'));
     expect(outline).not.toMatch(/background/);

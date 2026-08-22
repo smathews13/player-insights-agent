@@ -57,7 +57,7 @@
   border: 1px solid var(--db-line);
   border-radius: var(--radius-sm);
   color: var(--db-slate);
-  background: #fff;
+  background: var(--card);
   cursor: pointer;
 }
 .copy-value:hover {

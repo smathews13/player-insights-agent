@@ -121,7 +121,7 @@
      header paints as `--background`. The rows inside this column already draw
      from it, and so now do the reader's question bubble and the answer card, so
      there is one token behind all four rather than four values that agree. */
-  background: var(--ast-white);
+  background: var(--card);
   color: var(--foreground);
 }
 /* 8px, because the inspector's head is a title with a pill beside it and then the
@@ -599,7 +599,7 @@
   border-radius: var(--radius-md);
   /* Keep the conversation cards on the same solid light surface as the top rail.
      The navy belongs behind the cards, not in their reading surface. */
-  background: var(--ast-white);
+  background: var(--card);
   transition:
     border-color 150ms ease-out,
     background-color 150ms ease-out;
@@ -756,7 +756,7 @@
 /* Selected keeps the same solid white card surface and changes only the border. */
 .conversation-row.active {
   border-color: var(--primary);
-  background: var(--ast-white);
+  background: var(--card);
 }
 /* The eyebrow, its scope note and the All chip had a set of on-dark overrides
    here -- secondary-on-navy ink, a white hairline, a white pressed fill. They go

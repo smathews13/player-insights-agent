@@ -39,6 +39,8 @@ describe('Settings modal', () => {
     expect(render('runtime')).toContain('Live behavior for the next ask.');
     expect(render('environment')).toContain('<h3>Environment</h3>');
     expect(render('appearance')).toContain('Answer entity colors, shared by Ask and Run Explorer.');
+    expect(render('appearance')).toContain('aria-label="Dark"');
+    expect(render('appearance')).not.toContain('Quote colors');
     expect(render('egress')).toContain('What can leave this deployment: downloads, copies, and outbound links.');
   });
 

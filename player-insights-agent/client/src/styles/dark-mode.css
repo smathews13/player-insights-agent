@@ -1,0 +1,147 @@
+/*
+ * Dark-theme surface treatment. Tokens live in tokens.css / astrolabe-tokens.css.
+ * This file only paints: sky, blur, ghost actions, overlays, and the lockup on navy.
+ * Layout, copy, and control structure are unchanged.
+ */
+
+.app-sky {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+html[data-theme='dark'] .app-sky {
+  display: block;
+}
+
+html[data-theme='dark'] .app-frame {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-theme='dark'] .app-frame > :not(.app-sky) {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme='dark'] .app-header {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(2px);
+  border-bottom-color: var(--border);
+}
+
+html[data-theme='dark'] .ast-mark--light {
+  --ast-mark-ink: var(--ast-white);
+  --ast-mark-accent: var(--ast-blue-on-dark);
+}
+
+html[data-theme='dark'] .app-nav-tab[aria-current='page'],
+html[data-theme='dark'] .app-nav-tab.active {
+  color: var(--ast-ice-accent);
+}
+
+html[data-theme='dark'] .conversation-rail,
+html[data-theme='dark'] .composer,
+html[data-theme='dark'] .live-agent-rail {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .ask-card,
+html[data-theme='dark'] .answer-card,
+html[data-theme='dark'] .run-card,
+html[data-theme='dark'] [data-slot='card'],
+html[data-theme='dark'] .page-shell,
+html[data-theme='dark'] .stat-card,
+html[data-theme='dark'] .architecture-node {
+  background: var(--card);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .account-menu-panel,
+html[data-theme='dark'] .settings-page.settings-modal,
+html[data-theme='dark'] [data-slot='sheet-content'] {
+  background: var(--popover);
+  backdrop-filter: blur(8px);
+  border-color: var(--ast-border-input);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme='dark'] .settings-modal-overlay {
+  background: color-mix(in srgb, var(--ast-scrim) 50%, transparent);
+}
+
+html[data-theme='dark'] .ast-flick-row {
+  background: var(--card);
+}
+
+html[data-theme='dark'] .trace-dag.map .dag-sql-more {
+  background: linear-gradient(to bottom, transparent, var(--card) 60%);
+}
+
+html[data-theme='dark'] .ast-btn-primary,
+html[data-theme='dark'] [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not([data-variant='destructive']) {
+  background: rgba(34, 114, 180, 0.28);
+  border-color: rgba(143, 193, 232, 0.55);
+  color: var(--ast-ghost-text);
+}
+
+html[data-theme='dark'] .run-card {
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+}
+
+html[data-theme='dark'] :focus-visible {
+  outline-color: var(--ast-ice-accent);
+}
+
+html[data-theme='dark'] .app-sky-line {
+  stroke: var(--ast-blue-on-dark);
+  stroke-width: 1;
+  opacity: 0.33;
+}
+
+html[data-theme='dark'] .app-sky-glyph {
+  stroke: var(--ast-blue-on-dark);
+  stroke-width: 1.6;
+  fill: none;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] {
+    --card: var(--ast-surface-solid);
+    --popover: var(--ast-surface-solid);
+    --muted: var(--ast-surface-solid);
+    --ast-pane: var(--ast-surface-solid);
+  }
+
+  html[data-theme='dark'] .app-header,
+  html[data-theme='dark'] .conversation-rail,
+  html[data-theme='dark'] .composer,
+  html[data-theme='dark'] .live-agent-rail,
+  html[data-theme='dark'] .ask-card,
+  html[data-theme='dark'] .answer-card,
+  html[data-theme='dark'] .run-card,
+  html[data-theme='dark'] [data-slot='card'],
+  html[data-theme='dark'] .page-shell,
+  html[data-theme='dark'] .account-menu-panel,
+  html[data-theme='dark'] .settings-page.settings-modal {
+    backdrop-filter: none;
+    background: var(--ast-surface-solid);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='dark'] .app-header,
+  html[data-theme='dark'] .conversation-rail,
+  html[data-theme='dark'] .composer,
+  html[data-theme='dark'] [data-slot='card'] {
+    transition: none;
+  }
+}

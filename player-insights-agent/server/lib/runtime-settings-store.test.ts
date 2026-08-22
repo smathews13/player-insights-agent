@@ -96,5 +96,13 @@ describe('runtime settings persistence', () => {
     expect(value.answer.takeawayGuidance).toBe('');
     expect(value.answer.figuresOrder).toBe('as-ranked');
     expect(value.answer.chartsTypes).toBe('auto');
+    expect(value.colorScheme).toBe('dark');
+  });
+
+  it('defaults a stored row without colorScheme to dark', async () => {
+    forgetRuntimeSettings();
+    const { colorScheme: _ignored, ...legacy } = DEFAULT_RUNTIME_SETTINGS;
+    const value = await readRuntimeSettings(client([{ settings: legacy }]) as never, { maxAgeMs: 0 });
+    expect(value.colorScheme).toBe('dark');
   });
 });
