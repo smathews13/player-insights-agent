@@ -2884,26 +2884,24 @@ def test_ranking_players_is_refused_through_genie_exactly_as_it_is_through_sql()
         tools_module.inspect_generated_sql(ranking)
 
 
-def test_genie_is_not_held_to_the_declared_table_set_the_way_run_sql_is():
-    """Deliberately looser on tables, and only on tables.
+def test_genie_cannot_widen_the_logged_manifest_after_release():
+    """A live space edit cannot silently widen a released model.
 
-    `readable_tables` is the manifest baked in at LOG time, what passthrough
-    granted the serving principal. The Genie space's own table set is configured
-    in Genie and is not the same object, so holding Genie's SQL to the manifest
-    would refuse legitimate answers over any table the space can read and the
-    manifest does not list. That is a policy the SQL path does not have a reason
-    to share, and getting it wrong is a live refusal of an ordinary question.
-
-    The COLUMN policy is shared exactly; the table policy is not.
+    `readable_tables` is the reviewed manifest baked at LOG time. Genie spaces
+    remain editable after that moment, so an attachment over a newly added table
+    must contribute no prose, rows, SQL, or source until a new model version
+    declares it.
     """
 
     outside = FakeGenie(
         MessageStatus.COMPLETED, sql=f"SELECT count(*) FROM {SECRET}"
     )
 
-    result = build(outside).data_genie("q")
+    with pytest.raises(tools_module.EvidenceRefused) as refusal:
+        build(outside).data_genie("q")
 
-    assert result.sources == [SECRET], "still attributed, so the answer discloses it"
+    assert refusal.value.verdicts[0].code == tools_module.failures.ASSET_NOT_IN_MANIFEST
+    assert outside.result_fetches == [], "an off-manifest attachment must never fetch rows"
     with pytest.raises(SqlRefused):
         tools_module.validate_sql(f"SELECT count(*) FROM {SECRET}", MANIFEST)
 

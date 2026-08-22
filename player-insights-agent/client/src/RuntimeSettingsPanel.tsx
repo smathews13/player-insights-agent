@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
+import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
 import { wholeNumberFrom } from './runtime-number';
 import { SETTINGS_SAVE_IDLE, type SettingsSaveState } from './settings-save-state';
 import { Input, Switch } from './ui';
@@ -104,8 +105,8 @@ const ENTITY_SAMPLES = {
   schema: 'sales',
   table: 'orders',
   column: 'revenue',
-  quote: '"Q3 grew"',
-  tag: 'certified',
+  quote: '2026-07-22 – 2026-08-03',
+  tag: 'Northwind, Contoso',
 } as const;
 
 export function RuntimeSettingsPanel({
@@ -166,7 +167,9 @@ export function RuntimeSettingsPanel({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(settings),
       });
-      setSettings(await runtimeSettingsFromResponse(response, 'saved'));
+      const saved = await runtimeSettingsFromResponse(response, 'saved');
+      setSettings(saved);
+      adoptRuntimeEntityStyles(saved);
       setState('saved');
       onSaveState({ kind: 'saved' });
     } catch (caught) {
@@ -350,7 +353,10 @@ export function RuntimeSettingsPanel({
         <>
           <div className="settings-pane-heading">
             <h3>Appearance</h3>
-            <p>Answer entity colors, shared by Ask and Run Explorer.</p>
+            <p>
+              Answer entity colors, shared by Ask and Run Explorer. Quote colors style date windows; Tag colors
+              style labels.
+            </p>
           </div>
           <div className="appearance-grid" role="table" aria-label="Answer entity colors">
             <div className="appearance-grid-head" role="row">

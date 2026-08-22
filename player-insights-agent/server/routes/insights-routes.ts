@@ -64,6 +64,7 @@ import {
   type WarehouseWarmup,
   type WarmupTransport,
 } from '../lib/warehouse-warmup';
+import { createGenieWarehouseWarmup } from '../lib/genie-warehouse-warmup';
 import { FAILURE_TAXONOMY, type FailureCode } from '../../shared/failure-taxonomy';
 import {
   type ExecutionIdentityClaim,
@@ -2160,6 +2161,7 @@ const appWarehouseWarmup = createWarehouseWarmup({
   warehouseId: appWarehouseId,
   transport: appWarmupTransport(),
 });
+const genieWarehouseWarmup = createGenieWarehouseWarmup();
 
 /**
  * Ping the warehouse for an arriving reader, and never let them wait for it.
@@ -2185,6 +2187,50 @@ function warmWarehouseForArrival(warmup: WarehouseWarmup): void {
       // here so that if it ever does, the result is one log line rather than an
       // unhandled rejection taking down the app that was trying to be quicker.
       console.warn(`[warmup] The warm-up threw, which it should not: ${(error as Error).message}`);
+    });
+}
+
+/**
+ * Discover the adopted spaces' warehouses from the served model configuration,
+ * then wake any warehouse that differs from the app binding.
+ *
+ * This intentionally uses the arriving reader's forwarded token. Customer
+ * spaces may point at warehouses the app principal is not and should not be
+ * granted, while that reader already needs CAN RUN and CAN USE to ask Genie.
+ */
+function warmGenieWarehousesForArrival(req: Request, served: unknown): void {
+  const token = forwardedUserToken(req);
+  const host = workspaceHost();
+  if (!token || !host) return;
+  const { genieSpaces } = accessDependenciesFrom({
+    configuration: extractServedConfiguration(served),
+    env: process.env,
+  });
+  const spaceIds = genieSpaces.map(({ id }) => id);
+  if (spaceIds.length === 0) return;
+
+  genieWarehouseWarmup
+    .warm({
+      host,
+      token,
+      spaceIds,
+      appWarehouseId: appWarehouseId(),
+    })
+    .then((outcomes) => {
+      for (const outcome of outcomes) {
+        if (outcome.kind === 'started') {
+          console.log(
+            `[warmup] Warming adopted Genie warehouse ${outcome.warehouseId}, which was ${outcome.from}.`
+          );
+        } else if (outcome.kind === 'failed') {
+          console.warn(
+            `[warmup] Adopted Genie warehouse could not be warmed (${outcome.at}, ${outcome.spaceId}): ${outcome.message}.`
+          );
+        }
+      }
+    })
+    .catch((error) => {
+      console.warn(`[warmup] The adopted Genie warm-up threw, which it should not: ${(error as Error).message}`);
     });
 }
 
@@ -3150,7 +3196,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       res.json({ verified: true, ...outcome, decision, servingPrincipal: serving });
     });
 
-    app.get('/api/preflight', async (_req, res) => {
+    app.get('/api/preflight', async (req, res) => {
       // Somebody has opened the app, so start the SQL warehouse while they are
       // still reading the screen rather than after they have typed a question.
       //
@@ -3187,6 +3233,12 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         });
         return;
       }
+
+      // The served configuration names the adopted Genie spaces. Once the
+      // endpoint has answered, discover their own warehouses and start them in
+      // the background under this reader's token; the response still never
+      // waits for a warehouse control-plane call.
+      warmGenieWarehousesForArrival(req, raw);
 
       const report = extractPreflightReport(raw);
       if (!report) {

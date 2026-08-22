@@ -330,6 +330,12 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # absence indistinguishable from any other import error.
             str(ROOT / "evidence.py"),
             str(ROOT / "failures.py"),
+            # Stable operating guidance travels with the artifact. The payload
+            # deliberately contains no customer facts; knowledge.py reads these
+            # markdown files at model load and the prompts keep governed tools
+            # as the only source of factual answers.
+            str(ROOT / "knowledge"),
+            str(ROOT / "knowledge.py"),
             # agent.py imports this at module scope and calls it on the return of
             # every LLM call, so it is a load-time dependency rather than an
             # observability nicety: a version logged without it fails to LOAD.

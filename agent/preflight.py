@@ -6,10 +6,7 @@ the logged model version, and `agents.deploy()` grants the serving principal
 SELECT on exactly those, so changing what this returns changes what the agent
 can read.
 
-Four things refuse a release:
-
-  The CEILING past `MAX_DECLARED_TABLES`, because each entry is a dependency on
-  the model version and Unity Catalog refuses a version with too many.
+Three things refuse a release:
 
   The PAYLOAD-TABLE EXCLUSION. An AI Gateway inference payload table holds the
   prompts and completions of every request, so declaring one would grant the
@@ -112,13 +109,9 @@ OBSERVED_DEPENDENCY_REFUSAL = 181
 #: structurally incapable of reaching the refusal above.
 MAX_GENIE_CURATED_TABLES = 30
 
-#: Where the manifest stops being generated and starts being refused. OUR
-#: BUDGET, NOT THE PLATFORM'S LIMIT: set below `OBSERVED_DEPENDENCY_REFUSAL` so
-#: this file fails before the registry does, and above the 60 two fully-curated
-#: Genie spaces can reach. It is NOT a claim that 90 passes and 91 does not.
-MAX_DECLARED_TABLES = 90
-
 #: Where the manifest becomes worth a second look, reported rather than refused.
+#: There is no local hard ceiling: Unity Catalog's own dependency cap is
+#: undocumented and has been seen to refuse at `OBSERVED_DEPENDENCY_REFUSAL`.
 WARN_DECLARED_TABLES = MAX_GENIE_CURATED_TABLES * 2
 
 #: Schemas that can be named but must never be declared. Reading
@@ -438,41 +431,22 @@ def exclusion_reason(settings: Settings, full_name: str, table: Any = None) -> s
 
 
 def ceiling_notes(manifest: Sequence[str]) -> list[str]:
-    """Notes about the manifest's size, or `ScopeError` when it is over budget.
+    """Notes about the manifest's size. Never truncates, and never refuses on count.
 
-    RAISES RATHER THAN TRUNCATING. A manifest trimmed to fit produces an endpoint
-    that silently cannot read the tables that fell off the end.
+    A local table ceiling used to stop logs that Unity Catalog might still accept.
+    Size is now a warning only; the registry remains the hard stop if a version
+    has too many dependencies.
     """
 
     count = len(manifest)
-    if count > MAX_DECLARED_TABLES:
-        raise ScopeError(
-            f"{count} tables is over the {MAX_DECLARED_TABLES}-table ceiling on the "
-            "manifest. Every entry becomes a DatabricksTable resource and a SELECT grant "
-            "to the serving principal.\n\n"
-            f"Unity Catalog refuses a model version with too many dependencies "
-            f"(observed at {OBSERVED_DEPENDENCY_REFUSAL}) and that limit is documented "
-            "nowhere, so this stops below the only refusal anyone has measured rather "
-            "than letting log_model fail opaquely after the log has run.\n\n"
-            "Two ways down, and the first is usually the right one:\n\n"
-            "  - Declare what will actually be asked. Set manifest_source=genie and the "
-            "manifest becomes the tables your Genie spaces curate rather than every table "
-            f"in a schema. A space holds at most {MAX_GENIE_CURATED_TABLES} tables, so two "
-            f"spaces cannot exceed {WARN_DECLARED_TABLES} however wide the schema is.\n"
-            "  - Narrow what is enumerated. catalog_allowlist should name the "
-            "'catalog.schema' scopes the agent is meant to analyse, and catalog_denylist "
-            "rules out tables inside them.\n\n"
-            "See the whole list, and every exclusion with its reason, without logging "
-            "anything:  cd agent && uv run --python 3.13 python manifest_dryrun.py"
-        )
     if count > WARN_DECLARED_TABLES:
         return [
             f"WARNING: {count} tables is past {WARN_DECLARED_TABLES} (more than two "
-            f"fully-curated Genie spaces could hold), and the ceiling is "
-            f"{MAX_DECLARED_TABLES}. Unity Catalog's own cap on dependencies per model "
-            f"version is undocumented and has been seen to refuse "
-            f"{OBSERVED_DEPENDENCY_REFUSAL}, so a manifest this size is being driven by "
-            "schema enumeration rather than by anything that will be asked. "
+            f"fully-curated Genie spaces could hold). There is no local table ceiling. "
+            f"Unity Catalog's own cap on dependencies per model version is undocumented "
+            f"and has been seen to refuse {OBSERVED_DEPENDENCY_REFUSAL}, so a log this "
+            "wide may still fail in the registry. A manifest this size is being driven "
+            "by schema enumeration rather than by anything that will be asked. "
             "manifest_source=genie declares the latter."
         ]
     return []

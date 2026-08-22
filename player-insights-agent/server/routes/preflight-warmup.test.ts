@@ -7,6 +7,7 @@
  * the response, and that nothing about it appears in the report a reader's screen
  * is drawn from.
  */
+import { readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
@@ -172,6 +173,13 @@ describe('the page never waits for the warm-up', () => {
     }
 
     expect(order).toEqual(['warmup', 'endpoint']);
+  });
+
+  it('asks adopted Genie spaces for their warehouse after the endpoint answers', () => {
+    const source = readFileSync(new URL('./insights-routes.ts', import.meta.url), 'utf8');
+    expect(source).toContain('warmGenieWarehousesForArrival(req, raw)');
+    expect(source).toContain('createGenieWarehouseWarmup');
+    expect(source).toContain('forwardedUserToken(req)');
   });
 });
 

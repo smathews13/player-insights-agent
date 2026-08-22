@@ -25,7 +25,7 @@ from config import ENV_VARS, MissingConfiguration, Settings
 from preflight import (
     MANIFEST_FROM_GENIE,
     MANIFEST_FROM_SCHEMA,
-    MAX_DECLARED_TABLES,
+    OBSERVED_DEPENDENCY_REFUSAL,
     ScopeError,
     WideningCheckUnavailable,
     declared_tables,
@@ -117,10 +117,10 @@ def main() -> int:
         )
     print("catalog_allowlist  ", ", ".join(settings.catalog_allowlist) or "(none)")
     print("catalog_denylist   ", ", ".join(settings.catalog_denylist) or "(none)")
-    # Labelled as ours because it is. Unity Catalog's own cap is undocumented and
-    # has refused 181; this sits below it so a release fails here, not in the
-    # registry.
-    print("ceiling            ", f"{MAX_DECLARED_TABLES} (ours, see MAX_DECLARED_TABLES)")
+    print(
+        "ceiling            ",
+        f"none locally; Unity Catalog has refused {OBSERVED_DEPENDENCY_REFUSAL} dependencies",
+    )
     print("execution identity ", user_auth.mode)
     if user_auth.enabled:
         print("api scopes         ", ", ".join(scopes_requested) or "(none)")

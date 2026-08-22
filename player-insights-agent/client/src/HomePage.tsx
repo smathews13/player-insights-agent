@@ -538,7 +538,14 @@ export function HomePage() {
    * rail falls back to the PREVIOUS answer's trace, and marking a card there
    * would light up a step of a finished run as though this one were inside it.
    */
-  const railActiveIndex = loading && liveStages.length > 0 ? railStages.length - 1 : -1;
+  /*
+   * A stopped run keeps its frontier marked without animating it. Dropping this
+   * to -1 in the same render that placed the error card removed the ring and
+   * made the path pop; AgentPathConstellation uses the absent clock to stop every
+   * beat while retaining the final observed step.
+   */
+  const railActiveIndex =
+    (loading || Boolean(runStopped)) && liveStages.length > 0 ? railStages.length - 1 : -1;
   /**
    * How long the step in progress has been going, for the one row that ticks.
    *

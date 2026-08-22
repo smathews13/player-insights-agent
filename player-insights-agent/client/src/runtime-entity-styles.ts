@@ -15,6 +15,24 @@ async function readRuntimeEntityStyles(): Promise<RuntimeSettings | null> {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Put one saved Appearance result on every answer surface immediately.
+ *
+ * The request cache used to keep the pre-save settings for the lifetime of the
+ * tab, so saving a new date or tag colour appeared to do nothing until reload.
+ * Adopting the server's parsed response makes both the document and every later
+ * mount agree on the value that actually landed.
+ */
+export function adoptRuntimeEntityStyles(
+  settings: RuntimeSettings,
+  target: Pick<CSSStyleDeclaration, 'setProperty'> = document.documentElement.style
+): void {
+  for (const [name, value] of Object.entries(runtimeEntityCssVariables(settings))) {
+    target.setProperty(name, value);
+  }
+  settingsRequest = Promise.resolve(settings);
+}
+
 /** Apply the saved shared entity tokens once for every answer surface. */
 export function useRuntimeEntityStyles(): void {
   useEffect(() => {
@@ -22,9 +40,7 @@ export function useRuntimeEntityStyles(): void {
     settingsRequest ??= readRuntimeEntityStyles().catch(() => null);
     void settingsRequest.then((settings) => {
       if (!live || !settings) return;
-      for (const [name, value] of Object.entries(runtimeEntityCssVariables(settings))) {
-        document.documentElement.style.setProperty(name, value);
-      }
+      adoptRuntimeEntityStyles(settings);
     });
     return () => {
       live = false;

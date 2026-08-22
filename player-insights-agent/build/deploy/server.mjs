@@ -165515,6 +165515,127 @@ var init_warehouse_warmup = __esm({
   }
 });
 
+// server/lib/genie-warehouse-warmup.ts
+function messageOf3(error48) {
+  return error48?.message ?? String(error48);
+}
+async function jsonRequest(call, url2, token, method, timeoutMs) {
+  const response = await call(url2, {
+    method,
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/json",
+      ...method === "POST" ? { "content-type": "application/json" } : {}
+    },
+    ...method === "POST" ? { body: "{}" } : {},
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!response.ok) throw new Error(`workspace returned HTTP ${response.status}`);
+  return await response.json() ?? {};
+}
+function createGenieWarehouseWarmup(options = {}) {
+  const call = options.fetchImpl ?? fetch;
+  const now = options.now ?? Date.now;
+  const cooldownMs = options.cooldownMs ?? GENIE_WARMUP_COOLDOWN_MS;
+  const timeoutMs = options.timeoutMs ?? GENIE_WARMUP_TIMEOUT_MS;
+  const lastAttempt = /* @__PURE__ */ new Map();
+  return {
+    async warm({ host: host2, token, spaceIds, appWarehouseId: appWarehouseId2 }) {
+      const base = host2.replace(/\/+$/, "");
+      if (!base || !token) return [];
+      const outcomes = [];
+      const warehouses = /* @__PURE__ */ new Map();
+      await Promise.all(
+        [...new Set(spaceIds.filter(Boolean))].map(async (spaceId) => {
+          const key2 = `${base}|${spaceId}`;
+          if (now() - (lastAttempt.get(key2) ?? Number.NEGATIVE_INFINITY) < cooldownMs) {
+            outcomes.push({ kind: "cooling-down", spaceId });
+            return;
+          }
+          lastAttempt.set(key2, now());
+          try {
+            const space = await jsonRequest(
+              call,
+              `${base}/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}`,
+              token,
+              "GET",
+              timeoutMs
+            );
+            const warehouseId2 = typeof space.warehouse_id === "string" ? space.warehouse_id.trim() : "";
+            if (!warehouseId2) {
+              outcomes.push({ kind: "failed", spaceId, at: "space", message: "space reported no warehouse" });
+              return;
+            }
+            warehouses.set(warehouseId2, [...warehouses.get(warehouseId2) ?? [], spaceId].sort());
+          } catch (error48) {
+            outcomes.push({ kind: "failed", spaceId, at: "space", message: messageOf3(error48) });
+          }
+        })
+      );
+      await Promise.all(
+        [...warehouses].map(async ([warehouseId2, resolvedSpaces]) => {
+          if (warehouseId2 === appWarehouseId2) {
+            outcomes.push({ kind: "app-warehouse", warehouseId: warehouseId2, spaceIds: resolvedSpaces });
+            return;
+          }
+          let state = "";
+          try {
+            const body = await jsonRequest(
+              call,
+              `${base}${warehouseStatePath(warehouseId2)}`,
+              token,
+              "GET",
+              timeoutMs
+            );
+            state = typeof body.state === "string" ? body.state.trim().toUpperCase() : "";
+            if (!state) throw new Error("warehouse reported no state");
+          } catch (error48) {
+            outcomes.push({
+              kind: "failed",
+              spaceId: resolvedSpaces.join(","),
+              at: "state",
+              message: messageOf3(error48)
+            });
+            return;
+          }
+          if (ALREADY_WARM2.has(state) || NOTHING_TO_WARM2.has(state)) {
+            outcomes.push({ kind: "already-warm", warehouseId: warehouseId2, spaceIds: resolvedSpaces, state });
+            return;
+          }
+          try {
+            await jsonRequest(
+              call,
+              `${base}${warehouseStartPath(warehouseId2)}`,
+              token,
+              "POST",
+              timeoutMs
+            );
+            outcomes.push({ kind: "started", warehouseId: warehouseId2, spaceIds: resolvedSpaces, from: state });
+          } catch (error48) {
+            outcomes.push({
+              kind: "failed",
+              spaceId: resolvedSpaces.join(","),
+              at: "start",
+              message: messageOf3(error48)
+            });
+          }
+        })
+      );
+      return outcomes;
+    }
+  };
+}
+var GENIE_WARMUP_COOLDOWN_MS, GENIE_WARMUP_TIMEOUT_MS, ALREADY_WARM2, NOTHING_TO_WARM2;
+var init_genie_warehouse_warmup = __esm({
+  "server/lib/genie-warehouse-warmup.ts"() {
+    init_warehouse_warmup();
+    GENIE_WARMUP_COOLDOWN_MS = 6e4;
+    GENIE_WARMUP_TIMEOUT_MS = 1e4;
+    ALREADY_WARM2 = /* @__PURE__ */ new Set(["RUNNING", "STARTING"]);
+    NOTHING_TO_WARM2 = /* @__PURE__ */ new Set(["DELETING", "DELETED"]);
+  }
+});
+
 // shared/terminal-response.ts
 function unavailableResult(input) {
   const definition = failureDefinition(input.code);
@@ -167954,6 +168075,37 @@ function warmWarehouseForArrival(warmup) {
     console.warn(`[warmup] The warm-up threw, which it should not: ${error48.message}`);
   });
 }
+function warmGenieWarehousesForArrival(req, served) {
+  const token = forwardedUserToken(req);
+  const host2 = workspaceHost();
+  if (!token || !host2) return;
+  const { genieSpaces } = accessDependenciesFrom({
+    configuration: extractServedConfiguration(served),
+    env: process.env
+  });
+  const spaceIds = genieSpaces.map(({ id }) => id);
+  if (spaceIds.length === 0) return;
+  genieWarehouseWarmup.warm({
+    host: host2,
+    token,
+    spaceIds,
+    appWarehouseId: appWarehouseId()
+  }).then((outcomes) => {
+    for (const outcome of outcomes) {
+      if (outcome.kind === "started") {
+        console.log(
+          `[warmup] Warming adopted Genie warehouse ${outcome.warehouseId}, which was ${outcome.from}.`
+        );
+      } else if (outcome.kind === "failed") {
+        console.warn(
+          `[warmup] Adopted Genie warehouse could not be warmed (${outcome.at}, ${outcome.spaceId}): ${outcome.message}.`
+        );
+      }
+    }
+  }).catch((error48) => {
+    console.warn(`[warmup] The adopted Genie warm-up threw, which it should not: ${error48.message}`);
+  });
+}
 function createServingTransport(resolveClient) {
   return async ({ path: path19, payload, onStage, userToken }) => {
     const client = await resolveClient(userToken);
@@ -168328,7 +168480,7 @@ function setupInsightsRoutes(appkit) {
       console.log(`[access] ${email3} \u2192 user-verified on warehouse ${warehouseId2} (${outcome.ok} tables)`);
       res.json({ verified: true, ...outcome, decision, servingPrincipal: serving2 });
     });
-    app.get("/api/preflight", async (_req, res) => {
+    app.get("/api/preflight", async (req, res) => {
       warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
       const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "";
       let raw2;
@@ -168353,6 +168505,7 @@ function setupInsightsRoutes(appkit) {
         });
         return;
       }
+      warmGenieWarehousesForArrival(req, raw2);
       const report = extractPreflightReport(raw2);
       if (!report) {
         const retired = withStorageCheck(
@@ -169396,7 +169549,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -169431,6 +169584,7 @@ var init_insights_routes = __esm({
     init_deadline();
     init_request_latency();
     init_warehouse_warmup();
+    init_genie_warehouse_warmup();
     init_failure_taxonomy();
     init_terminal_response();
     init_failure_evidence();
@@ -169997,6 +170151,7 @@ var init_insights_routes = __esm({
       warehouseId: appWarehouseId,
       transport: appWarmupTransport()
     });
+    genieWarehouseWarmup = createGenieWarehouseWarmup();
     workspaceServingTransport = createServingTransport(async (userToken) => {
       if (userToken) {
         const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");

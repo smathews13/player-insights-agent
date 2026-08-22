@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 const source = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(__dirname, 'styles', 'settings.css'), 'utf8');
+const answerStyles = fs.readFileSync(path.join(__dirname, 'styles', 'answer.css'), 'utf8');
 
 /**
  * The file with its commentary taken out.
@@ -79,6 +80,17 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-grid');
     expect(source).toContain('appearance-sample');
     expect(source).toContain('entityStyles');
+  });
+
+  it('makes the date and label badge mapping visible and applies a save immediately', () => {
+    expect(source).toContain('Quote colors style date windows');
+    expect(source).toContain('Tag colors');
+    expect(source).toContain('style labels');
+    expect(source).toContain('2026-07-22 – 2026-08-03');
+    expect(source).toContain('Northwind, Contoso');
+    expect(source).toContain('adoptRuntimeEntityStyles(saved)');
+    expect(answerStyles).toMatch(/\.answer-badge--date\s*\{[^}]*--ast-entity-quote-fg[^}]*--ast-entity-quote-bg/);
+    expect(answerStyles).toMatch(/\.answer-badge--tag\s*\{[^}]*--ast-entity-tag-fg[^}]*--ast-entity-tag-bg/);
   });
 
   it('keeps one footer Save, in the shell rather than in the pane', () => {

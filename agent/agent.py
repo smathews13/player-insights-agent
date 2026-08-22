@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 import correlation
 import execution_identity
+import knowledge
 import provenance
 import runtime_settings
 from charts import (
@@ -122,6 +123,10 @@ USER_AUTHORIZATION = announce(from_artifact(baked_config()), at_log_time=False)
 # bake into the Genie tool descriptions so the model names the space it is
 # about to call rather than a generic "Genie Space".
 _SETTINGS = Settings.from_env()
+
+# A real artifact payload, but intentionally governance-only. Customer and
+# business facts still have to arrive through governed tools during this turn.
+PACKAGED_KNOWLEDGE = knowledge.load_packaged_knowledge()
 
 # Resolved at import for the same reason, and empty for every deployment that
 # has not been given an AI Search index: it is an hourly charge nobody acquires
@@ -2889,7 +2894,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         # is this turn's own client, and asks outright when it is not.
         if self.user_authorization:
             log.executed_as = self._measured_identity(tools.workspace)
-        system = ORCHESTRATOR_INSTRUCTIONS
+        system = knowledge.add_packaged_knowledge(ORCHESTRATOR_INSTRUCTIONS, PACKAGED_KNOWLEDGE)
         runtime_prompt = runtime_settings.prompt_fragment()
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"
@@ -3689,7 +3694,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             )
         _, client = self._runtime()
         log.calls += 1
-        system = SYNTHESIS_INSTRUCTIONS
+        system = knowledge.add_packaged_knowledge(SYNTHESIS_INSTRUCTIONS, PACKAGED_KNOWLEDGE)
         runtime_prompt = runtime_settings.prompt_fragment()
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"

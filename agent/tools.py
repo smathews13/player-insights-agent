@@ -949,6 +949,11 @@ class PlayerInsightTools:
         return EvidenceGateway(
             self.settings.readable_tables,
             identity_mode=self.identity_mode(),
+            # The manifest is the reviewed release boundary for every SQL route.
+            # Genie spaces are live objects and may gain tables after this model
+            # was logged; accepting those attachments would silently widen the
+            # artifact without a model release.
+            enforce_genie_manifest=True,
             allow_unattributed_figures=self.allow_unattributed_figures,
         )
 

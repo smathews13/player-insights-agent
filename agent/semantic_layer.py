@@ -1,7 +1,7 @@
 """The semantic layer the agent searches to find out WHERE to look.
 
-WHAT THIS IS FOR. The agent's reach is a manifest of up to `MAX_DECLARED_TABLES`
-tables baked into the model artifact. Discovery today means `list_data_assets`
+WHAT THIS IS FOR. The agent's reach is a manifest of declared tables baked into
+the model artifact. Discovery today means `list_data_assets`
 returning every declared name and then one `describe_table` per candidate, so a
 wide deployment spends its prompt budget reciting an inventory before it has
 read a row. This table holds one searchable entry per piece of SEMANTICS, so a

@@ -341,8 +341,7 @@ class Settings:
     #: ``schema`` enumerates every table in each `catalog_allowlist` scope and
     #: unions the data contract in. ``genie`` declares what the Genie spaces
     #: curate and nothing else, which is what a customer whose warehouse does not
-    #: project onto our contract names needs. In ``genie`` mode the compiled
-    #: knowledge is withheld; see `preflight.governance_notes`.
+    #: project onto our contract names needs.
     manifest_source: str = MANIFEST_FROM_SCHEMA
     # THERE IS NO FIELD HERE DESCRIBING THE NATURE OF THE DATA, deliberately.
     # `synthetic_data` used to sit at this position and gate a sentence stating

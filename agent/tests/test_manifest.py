@@ -25,7 +25,6 @@ from preflight import (
     DECLARED_TABLES,
     DIRTY_SUFFIX,
     MANIFEST_FROM_SCHEMA,
-    MAX_DECLARED_TABLES,
     MAX_GENIE_CURATED_TABLES,
     OBSERVED_DEPENDENCY_REFUSAL,
     PAYLOAD_TABLE_SIGNATURE,
@@ -298,7 +297,7 @@ def test_genie_mode_cannot_silently_declare_nothing():
 
 
 def test_genie_mode_collapses_the_deployment_that_unity_catalog_refused():
-    """181 tables to 10, which is the whole reason to prefer this to a bigger ceiling.
+    """181 tables to 10, which is the reason to prefer genie over schema enumeration.
 
     The bound is the platform's rather than our arithmetic: a Genie space holds at
     most MAX_GENIE_CURATED_TABLES tables, so a manifest built from two of them
@@ -311,9 +310,9 @@ def test_genie_mode_collapses_the_deployment_that_unity_catalog_refused():
             *(f"unrelated_{index}" for index in range(OBSERVED_DEPENDENCY_REFUSAL)),
         ]
     }
-    with pytest.raises(ScopeError) as refused:
-        resolve_declared_manifest(settings(), FakeCatalog(wide))
-    assert str(MAX_DECLARED_TABLES) in str(refused.value)
+    schema_manifest, schema_notes = resolve_declared_manifest(settings(), FakeCatalog(wide))
+    assert len(schema_manifest) > OBSERVED_DEPENDENCY_REFUSAL
+    assert any("WARNING:" in note for note in schema_notes)
 
     curated = [f"test_catalog.test_schema.{name}" for name in DECLARED_TABLES]
     manifest, _ = resolve_declared_manifest(
@@ -1001,71 +1000,48 @@ def test_a_failed_listing_stops_the_log_rather_than_shrinking_the_manifest():
     assert "partial listing" in str(raised.value)
 
 
-def test_too_many_tables_is_refused_because_each_one_is_a_grant():
-    """The ceiling that stops a mis-scoped entry becoming a bulk grant.
+def test_a_wide_schema_is_logged_with_a_warning_rather_than_refused():
+    """The 90-table local ceiling is gone. Size is a warning, not a stop.
 
-    The demo's own catalog holds 5,446 tables across 421 unrelated schemas. With
-    no ceiling, one wrong entry grants the serving principal SELECT across all
-    of them and buries the six tables the agent is about.
+    Unity Catalog may still refuse a very wide dependency list at log time; that
+    remains the platform's undocumented cap rather than ours.
     """
 
     workspace = FakeCatalog(
-        {"test_catalog.test_schema": [f"table_{index}" for index in range(MAX_DECLARED_TABLES + 1)]}
+        {
+            "test_catalog.test_schema": [
+                *DECLARED_TABLES,
+                *(f"table_{index}" for index in range(WARN_DECLARED_TABLES)),
+            ]
+        }
     )
 
-    with pytest.raises(ScopeError) as raised:
-        resolve_declared_manifest(settings(), workspace)
+    manifest, notes = resolve_declared_manifest(settings(), workspace)
 
-    message = str(raised.value)
-    assert str(MAX_DECLARED_TABLES) in message
-    assert "catalog.schema" in message
+    assert len(manifest) > WARN_DECLARED_TABLES
+    warning = [note for note in notes if "no local table ceiling" in note]
+    assert warning
+    assert str(OBSERVED_DEPENDENCY_REFUSAL) in warning[0]
 
 
-def test_the_ceiling_sits_below_the_only_refusal_anyone_has_measured():
-    """The defect this pair of constants exists to close.
-
-    The ceiling was 250 and Unity Catalog refused a real customer deployment at
-    181 dependencies. A guard above the platform's own limit is not a guard: the
-    release died inside `mlflow.pyfunc.log_model` with an opaque registry error
-    instead of here, and `manifest_dryrun.py` reported 181 tables as fine on the
-    way in.
-
-    The assertion is deliberately an inequality rather than an equality on a
-    number. UC's cap is documented nowhere (no resource-limits row, no error
-    condition, no SDK docstring), and nobody has bisected it, so any specific
-    ceiling this file asserted would be a claim it cannot support. What it can
-    support is "below the one refusal we have seen".
-    """
-
-    assert MAX_DECLARED_TABLES < OBSERVED_DEPENDENCY_REFUSAL
-    # And above what a deployment has a documented reason to need, or the guard
-    # refuses correct configurations: a Genie space holds at most 30 tables, so
-    # two fully-curated spaces are the largest manifest genie mode can produce.
-    assert WARN_DECLARED_TABLES < MAX_DECLARED_TABLES
+def test_the_warning_threshold_is_two_fully_curated_spaces():
     assert WARN_DECLARED_TABLES == MAX_GENIE_CURATED_TABLES * 2
 
 
-def test_the_refusal_names_genie_mode_before_it_names_the_allowlist():
-    """Which fix is offered first is the substance, not the phrasing.
-
-    A deployment that hits the ceiling is usually one whose allowlist points at a
-    real schema of a real size. "Narrow catalog_allowlist" asks them to hide
-    their own data model; declaring what their Genie spaces already curate asks
-    them for nothing. The refusal has to lead with the second.
-    """
-
+def test_the_size_warning_names_genie_mode():
     workspace = FakeCatalog(
-        {"test_catalog.test_schema": [f"table_{index}" for index in range(MAX_DECLARED_TABLES + 1)]}
+        {
+            "test_catalog.test_schema": [
+                *DECLARED_TABLES,
+                *(f"table_{index}" for index in range(WARN_DECLARED_TABLES)),
+            ]
+        }
     )
 
-    with pytest.raises(ScopeError) as raised:
-        resolve_declared_manifest(settings(), workspace)
+    _, notes = resolve_declared_manifest(settings(), workspace)
 
-    message = str(raised.value)
-    assert message.index("manifest_source=genie") < message.index("catalog_allowlist")
-    # The measurement, so a reader can tell our budget from the platform's limit.
-    assert str(OBSERVED_DEPENDENCY_REFUSAL) in message
-    assert "documented nowhere" in message
+    warning = next(note for note in notes if note.startswith("WARNING:"))
+    assert "manifest_source=genie" in warning
 
 
 def test_a_manifest_past_two_spaces_worth_is_reported_not_refused():

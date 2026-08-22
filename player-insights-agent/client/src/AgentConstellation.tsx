@@ -392,14 +392,21 @@ export function AgentPathConstellation({
    * settled measurement. `railTiming` refuses the same substitution for the same
    * reason.
    */
-  const inFlight = current?.status === 'running';
-  // Nothing draws and nothing pulses on a run that has stopped. A line animating
-  // into the last step of a finished run is the panel saying the run is still going.
-  const path = buildPathConstellation(stages, inFlight ? activeIndex : -1, pathVariant(thread, turn));
+  /*
+   * MARKING THE FRONTIER AND ANIMATING IT ARE DIFFERENT CLAIMS.
+   *
+   * A failed stage remains the frontier while the run decides whether it can
+   * continue, so its ring stays seated. Only a stage that is both reported as
+   * running and backed by the caller's live clock may beat. The old single
+   * `inFlight` switch tore down the pulse wrapper, live connector, ring pulse and
+   * status loader in one render when an error landed, which was the visible pop.
+   */
+  const beating = current?.status === 'running' && elapsedMs !== null;
+  const path = buildPathConstellation(stages, beating ? activeIndex : -1, pathVariant(thread, turn));
   const currentStar = current ? path.stars[activeIndex] : null;
   const shownProduct = shownIndex >= 0 ? starProduct(path.stars[shownIndex]?.tool ?? '') : null;
   const statusDuration =
-    inFlight && elapsedMs !== null
+    beating
       ? `${Math.max(0, Math.floor(elapsedMs / 1000))}s`
       : activeIndex === -1 && totalMs !== null
         ? formatDuration(totalMs)
@@ -431,10 +438,9 @@ export function AgentPathConstellation({
   /*
    * Whether the foot's mark is a loader: the run is inside a step AND the line is
    * following it. Derived here beside the rest of the band's state rather than
-   * inline in the markup, so the one condition is readable next to `inFlight`,
-   * which is the thing it narrows.
+   * inline in the markup, so the one condition is readable next to `beating`.
    */
-  const flickering = inFlight && pinnedIndex === -1;
+  const flickering = beating && pinnedIndex === -1;
   return (
     <div className="ast-sky ast-sky-path">
       <svg
@@ -477,13 +483,17 @@ export function AgentPathConstellation({
               if (event.key === 'Enter' || event.key === ' ') pin(stages[index].id);
             }}
           >
-            {inFlight && activeIndex === index ? (
-              <g className="ast-anim-center-pulse" style={{ transformOrigin: `${star.x}px ${star.y}px` }}>
-                <Star star={star} tone="dark" path />
-              </g>
-            ) : (
+            {/* The wrapper is permanent. Switching between a wrapper and a bare
+                Star remounted the glyph exactly when a running step became an
+                error, so the path appeared to stutter at the error boundary. */}
+            <g
+              className={beating && activeIndex === index ? 'ast-anim-center-pulse' : undefined}
+              style={
+                beating && activeIndex === index ? { transformOrigin: `${star.x}px ${star.y}px` } : undefined
+              }
+            >
               <Star star={star} tone="dark" path />
-            )}
+            </g>
           </g>
         ))}
         {/* The step in progress is marked twice: its existing glyph beats and a
@@ -496,11 +506,11 @@ export function AgentPathConstellation({
         {currentStar && (
           <>
             <circle
-              className={`ast-star-ring ${inFlight ? 'ast-anim-star-pulse' : ''}`.trim()}
+              className={`ast-star-ring ${beating ? 'ast-anim-star-pulse' : ''}`.trim()}
               cx={currentStar.x}
               cy={currentStar.y}
               r={SELECTED_RING}
-              style={inFlight ? { transformOrigin: `${currentStar.x}px ${currentStar.y}px` } : undefined}
+              style={beating ? { transformOrigin: `${currentStar.x}px ${currentStar.y}px` } : undefined}
             />
           </>
         )}

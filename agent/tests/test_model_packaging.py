@@ -124,6 +124,15 @@ def test_release_programs_never_ship_inside_the_served_model():
     )
 
 
+def test_governed_knowledge_loader_and_payload_ship_together():
+    source = (AGENT / "log_model.py").read_text()
+    assert 'str(ROOT / "knowledge"),' in source
+    assert 'str(ROOT / "knowledge.py"),' in source
+    assert (AGENT / "knowledge.py").is_file()
+    payloads = sorted((AGENT / "knowledge").glob("*.md"))
+    assert payloads, "the declared knowledge directory must contain a governed payload"
+
+
 def _declared_requirements() -> set[str]:
     body = re.search(
         r"pip_requirements=\[(.*?)\n        \],",

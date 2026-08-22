@@ -67,6 +67,12 @@ const inFlight: TraceStage[] = [
   stage({ id: 'step-3-1-data_genie', name: 'Queried governed data', kind: 'tool', status: 'running', duration: 0 }),
 ];
 
+/** The same frontier after its call returned an error while the run stayed open. */
+const failedFrontier: TraceStage[] = [
+  ...finished.slice(0, 5),
+  stage({ id: 'step-3-1-data_genie', name: 'Queried governed data', kind: 'tool', status: 'failed', duration: 800 }),
+];
+
 const path = (
   stages: TraceStage[],
   activeIndex: number,
@@ -309,6 +315,22 @@ describe('what moves, and what stops moving (§5)', () => {
     const markup = path(finished, 5, null);
     expect(markup).not.toContain('ast-anim-');
     expect(markup).toContain('ast-star-ring');
+  });
+
+  it('keeps a failed frontier seated without leaving any animation running', () => {
+    const markup = path(failedFrontier, 5, null);
+    expect(markup).toContain('ast-star-ring');
+    expect(markup).not.toContain('ast-anim-center-pulse');
+    expect(markup).not.toContain('ast-anim-star-pulse');
+    expect(markup).not.toContain('ast-anim-draw');
+    expect(markup).not.toContain('ast-flick-slot');
+  });
+
+  it('keeps one star wrapper when a running frontier becomes an error', () => {
+    expect(PATH_SOURCE).toContain(
+      "className={beating && activeIndex === index ? 'ast-anim-center-pulse' : undefined}"
+    );
+    expect(PATH_SOURCE).not.toMatch(/beating && activeIndex === index \? \(\s*<g/);
   });
 
   it('draws the live connector with a normalised dash so one keyframe fits any length', () => {
@@ -817,7 +839,7 @@ describe('the mark is the agent, and there is one of it (§1)', () => {
     // claiming a finished step is happening -- the same substitution the ring
     // refuses. Read as source: the suite runs on `node` and a press cannot be
     // dispatched here, and the condition is the half that breaks.
-    expect(PATH_SOURCE).toContain('const flickering = inFlight && pinnedIndex === -1;');
+    expect(PATH_SOURCE).toContain('const flickering = beating && pinnedIndex === -1;');
     expect(PATH_SOURCE).toContain('{flickering ? (');
   });
 

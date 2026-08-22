@@ -547,7 +547,7 @@ describe('the inspector while a run is still going', () => {
      * keyed on `loading` alone would light a card of a run that ended.
      */
     expect(HOME_PAGE).toMatch(
-      /const railActiveIndex = loading && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
+      /\(loading \|\| Boolean\(runStopped\)\) && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
     );
     expect(HOME_PAGE).not.toMatch(/\(runningStep \|\| railStages\.length\) - 1/);
     // Still read, and still the number the pill's failure label needs: the step a
