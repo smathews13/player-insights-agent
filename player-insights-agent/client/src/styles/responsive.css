@@ -264,7 +264,8 @@
   .composer-actions {
     justify-content: space-between;
   }
-  .prompt-grid,
+  /* `.prompt-grid` was the other half of this rule and is retired -- see the note
+     where it used to be declared in ask.css. */
   .summary-grid {
     grid-template-columns: 1fr;
   }

@@ -1430,9 +1430,49 @@
   white-space: nowrap;
   color: var(--ast-text-secondary);
 }
-/* A removed asset is still listed, because removal here is never destructive
-   and the way back is the button in its own row. Dimmed rather than struck
-   through: it is a state, not a deletion. */
+/* Both row actions occupy the one trailing grid cell. Remove keeps a recovery
+   path; the trash control permanently forgets the row, so neither is allowed to
+   disappear behind the other when an identifier takes the remaining width. */
+.plane-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.plane-row-forget {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--ast-radius-control);
+  background: var(--card);
+  color: var(--ast-text-secondary);
+  cursor: pointer;
+}
+.plane-row-forget > svg {
+  width: 14px;
+  height: 14px;
+}
+.plane-row-forget:hover,
+.plane-row-forget:focus-visible {
+  border-color: var(--ast-neg-border);
+  background: var(--ast-neg-fill);
+  color: var(--ast-neg-text);
+}
+.plane-row-forget:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
+.plane-row-forget:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+/* An ordinarily removed asset is still listed, because the safe action is not
+   destructive and the way back is the button in its own row. Dimmed rather than
+   struck through: it is a state, not a deletion. The separate trash action does
+   delete the row and therefore never reaches this state. */
 .plane-row[data-state='withdrawn'] {
   opacity: 0.55;
 }
@@ -1486,6 +1526,10 @@
   font-weight: 500;
   color: var(--ast-warn-text);
 }
+.plane-confirm-detail {
+  font-size: var(--ast-fs-12);
+  color: var(--ast-text-secondary);
+}
 .plane-confirm-list {
   margin: 0;
   padding-left: 18px;
@@ -1495,6 +1539,28 @@
 .plane-confirm-actions {
   display: flex;
   gap: 8px;
+}
+/* Filled danger is reserved for the action whose confirmation says it cannot
+   be undone. The recoverable Remove and Put back controls remain quiet. */
+.plane-confirm-forever {
+  padding: 4px 10px;
+  border: 1px solid var(--ast-neg-text);
+  border-radius: var(--ast-radius-control);
+  background: var(--ast-neg-text);
+  color: var(--ast-white);
+  font-size: var(--ast-fs-12);
+  cursor: pointer;
+}
+.plane-confirm-forever:hover {
+  filter: brightness(0.9);
+}
+.plane-confirm-forever:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
+.plane-confirm-forever:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 /* The add form. Two fields on one line, then the two that need the width. */
 .plane-form {

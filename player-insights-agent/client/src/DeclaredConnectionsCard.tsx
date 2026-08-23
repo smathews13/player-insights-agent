@@ -1,9 +1,10 @@
 /**
  * Adding and removing declared assets.
  *
- * Removal is never destructive: a removed asset stays listed as removed with a way
- * to put it back, because this app is usually mid demonstration when somebody
- * removes the wrong thing.
+ * Ordinary removal is recoverable: a removed asset stays listed with a way to put
+ * it back, because this app is usually mid demonstration when somebody removes
+ * the wrong thing. A separate trash control permanently forgets stale remembered
+ * rows, and it asks an irreversible question before touching the store.
  *
  * THE PALETTE IS NO LONGER IN THIS FILE, and neither is the operating system's
  * menu. Both arrived with the plane as working markup to be restyled: the colours
@@ -14,9 +15,11 @@
  *
  * None of what the card DOES moved. Every string is still
  * `declared-connection-view.ts`'s, the list is still addable and removable, a
- * removal still offers "Put back", and adding still grants nobody anything.
+ * ordinary removal still offers "Put back", permanent removal is explicit, and
+ * adding still grants nobody anything.
  */
 import { useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
 import { RESOURCE_PRODUCT } from './connections-view';
@@ -27,8 +30,10 @@ import {
   addedConnectionValue,
   JUST_ADDED_LABEL,
   REMOVE_LABEL,
+  REMOVE_FOREVER_LABEL,
   RESTORE_LABEL,
   connectionRowView,
+  forgetConnectionDetail,
   orderConnections,
 } from './declared-connection-view';
 import type { ConnectionEntry } from './connection-model';
@@ -39,7 +44,7 @@ export interface DeclaredConnectionsCardProps {
   entries?: ConnectionEntry[];
   /** Whether the store that holds these is answering. */
   storeAvailable?: boolean;
-  /** Administrators only may add or withdraw. Consumers still see the list. */
+  /** Administrators only may add, withdraw or forget. Consumers still see the list. */
   allowMutations?: boolean;
   onChanged: () => void;
 }
@@ -59,6 +64,8 @@ export function DeclaredConnectionsCard({
   const [busy, setBusy] = useState(false);
   /** The id awaiting a confirmed removal, so the impact is read before it happens. */
   const [confirming, setConfirming] = useState('');
+  /** The id awaiting permanent deletion, kept separate from recoverable removal. */
+  const [forgetting, setForgetting] = useState('');
   /** The row added in this sitting, which carries the badge until the page is left. */
   const [justAdded, setJustAdded] = useState('');
 
@@ -122,6 +129,7 @@ export function DeclaredConnectionsCard({
         return;
       }
       setConfirming('');
+      setForgetting('');
       onChanged();
     } finally {
       setBusy(false);
@@ -248,25 +256,47 @@ export function DeclaredConnectionsCard({
                   demonstration when somebody removes the wrong thing, so the
                   row stays and offers "Put back" rather than disappearing. */}
               {allowMutations ? (
-                removed ? (
+                <span className="plane-row-actions">
+                  {removed ? (
+                    <button
+                      type="button"
+                      className="plane-button-quiet"
+                      disabled={busy || !storeAvailable}
+                      onClick={() => void act(entry.connection.id, 'POST', '/restore')}
+                    >
+                      {RESTORE_LABEL}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="plane-button-quiet"
+                      disabled={busy || !storeAvailable}
+                      onClick={() => {
+                        setForgetting('');
+                        setConfirming(entry.connection.id);
+                      }}
+                    >
+                      {REMOVE_LABEL}
+                    </button>
+                  )}
+                  {/* Permanent deletion is a distinct control, not a second
+                      meaning hidden behind Remove. The ordinary action keeps a
+                      restorable row; this one deletes the Lakebase record and
+                      therefore asks its own irreversible question first. */}
                   <button
                     type="button"
-                    className="plane-button-quiet"
+                    className="plane-row-forget"
                     disabled={busy || !storeAvailable}
-                    onClick={() => void act(entry.connection.id, 'POST', '/restore')}
+                    aria-label={`${REMOVE_FOREVER_LABEL}: ${row.name || row.kindLabel}`}
+                    title={REMOVE_FOREVER_LABEL}
+                    onClick={() => {
+                      setConfirming('');
+                      setForgetting(entry.connection.id);
+                    }}
                   >
-                    {RESTORE_LABEL}
+                    <Trash2 aria-hidden="true" />
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="plane-button-quiet"
-                    disabled={busy || !storeAvailable}
-                    onClick={() => setConfirming(entry.connection.id)}
-                  >
-                    {REMOVE_LABEL}
-                  </button>
-                )
+                </span>
               ) : null}
             </div>
 
@@ -292,6 +322,35 @@ export function DeclaredConnectionsCard({
                     className="plane-button-quiet"
                     disabled={busy}
                     onClick={() => setConfirming('')}
+                  >
+                    Keep
+                  </button>
+                </span>
+              </div>
+            ) : null}
+
+            {allowMutations && forgetting === entry.connection.id ? (
+              <div
+                className="plane-confirm"
+                role="group"
+                aria-label={`${REMOVE_FOREVER_LABEL}: ${row.name || row.kindLabel}`}
+              >
+                <span className="plane-confirm-headline">Remove this remembered connection forever?</span>
+                <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
+                <span className="plane-confirm-actions">
+                  <button
+                    type="button"
+                    className="plane-confirm-forever"
+                    disabled={busy}
+                    onClick={() => void act(entry.connection.id, 'DELETE', '/forever')}
+                  >
+                    {busy ? 'Removing\u2026' : REMOVE_FOREVER_LABEL}
+                  </button>
+                  <button
+                    type="button"
+                    className="plane-button-quiet"
+                    disabled={busy}
+                    onClick={() => setForgetting('')}
                   >
                     Keep
                   </button>

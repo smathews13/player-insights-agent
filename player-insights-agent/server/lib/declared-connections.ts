@@ -10,12 +10,14 @@
  * safety property rather than a gap). A reader will assume the opposite, so
  * `addedConnectionEffect` states it and the surface shows it on the row.
  *
- * WHY REMOVAL IS A STATE CHANGE AND NOT A DELETE. The demo this app runs is a
- * conversation, and an asset withdrawn halfway through one is exactly when
- * somebody needs it back. A withdrawn row keeps its value, so restoring it is a
- * click rather than a three-part table name recalled from memory. `removalImpact`
- * is the other half of the same idea: it says what stops working BEFORE the
- * withdrawal, because the alternative is finding out from the next question.
+ * WHY ORDINARY REMOVAL IS A STATE CHANGE AND NOT A DELETE. The demo this app
+ * runs is a conversation, and an asset withdrawn halfway through one is exactly
+ * when somebody needs it back. A withdrawn row keeps its value, so restoring it
+ * is a click rather than a three-part table name recalled from memory.
+ * `removalImpact` is the other half of the same idea: it says what stops working
+ * BEFORE the withdrawal, because the alternative is finding out from the next
+ * question. Permanent forgetting is a separate query and an explicitly
+ * destructive UI path; it does not weaken this safe default.
  */
 import { APP_SCHEMA } from '../../shared/app-schema';
 import {
@@ -78,6 +80,20 @@ export const RESTORE_DECLARED_CONNECTION_QUERY = `
      SET state = 'declared', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'withdrawn'
   RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+
+/**
+ * Forget one stored declaration rather than merely withdrawing it.
+ *
+ * This is deliberately separate from {@link WITHDRAW_DECLARED_CONNECTION_QUERY}.
+ * Withdrawal is the safe default during a demonstration and keeps a one-click
+ * recovery path. Permanent removal exists for stale remembered rows whose
+ * identifiers should no longer remain in the store, and `RETURNING` lets the
+ * route distinguish a completed deletion from an id that was never there.
+ */
+export const FORGET_DECLARED_CONNECTION_QUERY = `
+  DELETE FROM ${APP_SCHEMA}.declared_connections
+   WHERE id = $1
+  RETURNING id`;
 
 function text(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -176,6 +192,12 @@ export async function restoreDeclaredConnection(
   const result = await client.lakebase.query(RESTORE_DECLARED_CONNECTION_QUERY, [id, changedBy]);
   const row = (result?.rows ?? [])[0];
   return row ? storedFromRow(row) : null;
+}
+
+/** Permanently remove one remembered declaration. */
+export async function forgetDeclaredConnection(client: LakebaseReader, id: string): Promise<boolean> {
+  const result = await client.lakebase.query(FORGET_DECLARED_CONNECTION_QUERY, [id]);
+  return Boolean((result?.rows ?? [])[0]);
 }
 
 /** Characters an id may use, so it is safe as a URL path segment and a key. */

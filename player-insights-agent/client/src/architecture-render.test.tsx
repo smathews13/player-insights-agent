@@ -6,12 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles, ChainBoundTiles } from './ArchitecturePage';
 import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
-import {
-  ARCHITECTURE_EDGES,
-  ARCHITECTURE_NODES,
-  dependencyNodes,
-  drawnReadings,
-} from './architecture';
+import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes, drawnReadings } from './architecture';
 import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges } from './architecture-layout';
 import { readConnections, readingsById, type SettingsPayload } from './connection-model';
 import { connectedResource } from '../../shared/deployment-config';
@@ -55,7 +50,8 @@ const RUNTIME_PANEL = readFileSync(fileURLToPath(new URL('./RuntimeSettingsPanel
 
 /** The markup a reader gets on a fresh page load, before anything is fetched. */
 function pageMarkup(): string {
-  return renderToStaticMarkup(<MemoryRouter>
+  return renderToStaticMarkup(
+    <MemoryRouter>
       <ArchitecturePage />
     </MemoryRouter>
   );
@@ -150,7 +146,8 @@ function deployment() {
 
 /** The drawing, with readings in hand, and a host so the ↗ controls appear. */
 function canvasMarkup(byResource = deployment().byResource, now = Date.now()): string {
-  return renderToStaticMarkup(<MemoryRouter>
+  return renderToStaticMarkup(
+    <MemoryRouter>
       <ArchitectureCanvas
         byResource={byResource}
         now={now}
@@ -180,7 +177,8 @@ function card(markup: string, id: string): string {
   // The next card, or the text equivalent that follows the last one. Cards are
   // siblings, so the slice between two openings is one card and its contents.
   const next = markup.indexOf('data-testid="arch-node-', at + 1);
-  const stops = next === -1 ? markup.indexOf('data-testid="architecture-equivalent"') : markup.lastIndexOf('<div', next);
+  const stops =
+    next === -1 ? markup.indexOf('data-testid="architecture-equivalent"') : markup.lastIndexOf('<div', next);
   return markup.slice(opens, stops);
 }
 
@@ -283,10 +281,9 @@ describe('the page makes one cheap read of its own and delegates the expensive p
 
 describe('the tiles count what is drawn below them, and invent nothing', () => {
   function tiles(byResource = deployment().byResource) {
-    return text(renderToStaticMarkup(<ArchitectureTiles
-          dependencies={dependencyNodes().length}
-          readings={drawnReadings(byResource)}
-        />
+    return text(
+      renderToStaticMarkup(
+        <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawnReadings(byResource)} />
       )
     );
   }
@@ -323,10 +320,8 @@ describe('the tiles count what is drawn below them, and invent nothing', () => {
     // says how old the statuses are, right beside the button that changes it, and
     // two readings of one clock can disagree. Four also fills the row and the
     // narrow 2x2 exactly, which five did not.
-    const markup = renderToStaticMarkup(<ArchitectureTiles
-        dependencies={dependencyNodes().length}
-        readings={drawnReadings(deployment().byResource)}
-      />
+    const markup = renderToStaticMarkup(
+      <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawnReadings(deployment().byResource)} />
     );
 
     expect([...markup.matchAll(/<li/g)]).toHaveLength(4);
@@ -361,11 +356,13 @@ describe('every card on the drawing reports the live reading and not a literal',
 
   it('labels the answer model accurately and keeps it distinct from the benchmark judge', () => {
     const payload: SettingsPayload = {
-      resources: [row('llm-endpoint', {
-        configured: 'databricks-claude-sonnet-4-6',
-        actual: 'databricks-claude-sonnet-4-6',
-        actualObserved: true,
-      })],
+      resources: [
+        row('llm-endpoint', {
+          configured: 'databricks-claude-sonnet-4-6',
+          actual: 'databricks-claude-sonnet-4-6',
+          actualObserved: true,
+        }),
+      ],
       drift: [],
       status: 'ok',
       appBuildSha: '',
@@ -374,14 +371,13 @@ describe('every card on the drawing reports the live reading and not a literal',
       storeAvailable: true,
       checkedAt: '',
     };
-    const byResource = readingsById(readConnections(
-      payload,
-      [check('llm-endpoint', 'ok', 'databricks-claude-sonnet-4-6')],
-    ));
+    const byResource = readingsById(
+      readConnections(payload, [check('llm-endpoint', 'ok', 'databricks-claude-sonnet-4-6')])
+    );
     const model = card(canvasMarkup(byResource), 'llm-endpoint');
 
     expect(text(model)).toContain(
-      'Foundation model Reachable databricks-claude-sonnet-4-6 Reasons over prompts and writes answer prose.',
+      'Foundation model Reachable databricks-claude-sonnet-4-6 Reasons over prompts and writes answer prose.'
     );
     expect(text(model)).not.toContain('Judge');
     expect(model).toContain('Open in Databricks');
@@ -430,9 +426,7 @@ describe('every card on the drawing reports the live reading and not a literal',
     expect(markup).toContain('data-testid="arch-dot-pe12"');
     expect(markup).toContain('data-testid="arch-dot-pe13"');
     expect(markup).toContain('data-testid="arch-dot-pe14"');
-    expect(
-      ARCHITECTURE_EDGES.filter((edge) => edge.from === 'data-source-finder').map((edge) => edge.to),
-    ).toEqual([
+    expect(ARCHITECTURE_EDGES.filter((edge) => edge.from === 'data-source-finder').map((edge) => edge.to)).toEqual([
       'llm-endpoint',
       'genie-dictionary',
       'genie-data',
@@ -666,6 +660,36 @@ describe('the drawing is reachable and readable without seeing it', () => {
     expect(card(canvasMarkup(), 'llm-endpoint')).not.toContain('Open in Databricks');
   });
 
+  /**
+   * ONE DESCRIPTION OF ONE EDGE, all the way to the markup.
+   *
+   * The dot travelling along an edge and the line it travels on are two elements
+   * in two different element trees -- a `<span>` beside the `<svg>`, not inside it
+   * -- and the only thing keeping them together is that both are handed the same
+   * string. That is worth an assertion on the rendered output rather than on the
+   * module, because it is the kind of thing a later refactor "tidies" by giving
+   * the dot its own midpoint, at which point the dot is drawing an edge that is
+   * not there.
+   *
+   * What no test here can check is where the browser then PUTS it: positioning a
+   * motion path is the engine's arithmetic, and there is no engine in this suite.
+   * The CSS side of that -- the box at the canvas origin, anchored by its middle,
+   * displaced by nothing -- is pinned in architecture-layout.test.ts.
+   */
+  it('draws each dot from the same path string as its line', () => {
+    const markup = canvasMarkup();
+
+    for (const edge of drawnEdges()) {
+      const dot = markup.slice(markup.indexOf(`data-testid="arch-dot-${edge.id}"`));
+      const style = /style="([^"]*)"/.exec(dot)?.[1] ?? '';
+      // Entity-escaped in the attribute, so the comparison is against the same
+      // escaping the `d` attribute of the line gets.
+      const quoted = edge.d.replace(/'/g, '&#x27;');
+      expect(style, edge.id).toContain(`offset-path:path(&#x27;${quoted}&#x27;)`);
+      expect(markup, edge.id).toContain(`<path class="arch-edge" d="${quoted}"`);
+    }
+  });
+
   it('hides the lines and the dots from a screen reader, and says all of it in words', () => {
     const markup = canvasMarkup();
     const equivalent = markup.slice(markup.indexOf('data-testid="architecture-equivalent"'));
@@ -737,6 +761,12 @@ describe('the drawing is reachable and readable without seeing it', () => {
       const section = ANSWER_CONTRACT.find((entry) => entry.field === field);
       expect(section?.optional, field).toBeUndefined();
     }
+
+    // Optional is an action, not only a status: each optional section leads to
+    // the Runtime pane where that section can be switched on or off.
+    const optionalCount = ANSWER_CONTRACT.filter((section) => section.optional).length;
+    expect(contract.match(/href="\/settings#answer-contract-settings"/g)).toHaveLength(optionalCount);
+    expect(contract).toContain('open its answer content setting');
   });
 
   /**
@@ -770,7 +800,9 @@ describe('the drawing is reachable and readable without seeing it', () => {
     const tiles = strip.slice(strip.indexOf('architecture-loop-tiles'));
     expect(tiles).toContain('\u2014');
     expect(text(tiles.slice(0, tiles.indexOf('arch-flow')))).not.toContain('12');
-    expect(renderToStaticMarkup(<ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />)).toContain('>9<');
+    expect(
+      renderToStaticMarkup(<ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />)
+    ).toContain('>9<');
   });
 
   it('draws the two stores at the bottom of the canvas the sub-line describes', () => {

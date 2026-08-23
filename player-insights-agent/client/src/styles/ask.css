@@ -97,50 +97,21 @@
   font-weight: 700;
   text-wrap: pretty;
 }
-.prompt-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 32px;
-  text-align: left;
-}
-.prompt-grid button {
-  min-height: 108px;
-  padding: 14px 16px;
-  /* A hairline and 8px, which is what every card in the app is now. It was a 1.5px
-     control border at 14px radius, a shape the design does not have anywhere: these
-     are cards that happen to be pressable, not buttons that happen to be large. */
-  border: 1px solid var(--db-line);
-  border-radius: var(--radius-md);
-  /* The sky's own pane, so the starter cards, the reader's bubble and the answer
-     card are one surface rather than three whites that nearly agree. This was a
-     hand-written 0.95 -- a second alpha next to the token's, close enough that the
-     difference read as a mistake and far enough to be one. */
-  background: var(--ast-pane);
-  color: var(--foreground);
-  cursor: pointer;
-  font-weight: 500;
-  line-height: 1.4;
-  transition: border-color 0.15s ease;
-}
-/* Hovering a suggestion is the first action the app offers, so the card's border
-   goes to the action colour, which is what every outline control in the design does
-   under the pointer. The lift it used to do at the same time -- a one-pixel rise and
-   a larger drop shadow -- is gone with the rest of the elevation: nothing static in
-   this app floats above the page now, and the wash that replaced the lift went with
-   it: the border alone is the design's hover, and a fill under it made a card that
-   was merely pointed at look chosen. */
-.prompt-grid button:hover {
-  border-color: var(--db-blue-600);
-}
-/* The "Ask →" affordance, which is a link in everything but markup, so it is blue. */
-.prompt-grid button span {
-  display: block;
-  color: var(--primary);
-  font-size: 12px;
-  margin-top: 8px;
-  font-weight: 500;
-}
+/*
+ * THE FOUR SUGGESTION CARDS ARE GONE, and `.prompt-grid` with them.
+ *
+ * They were the whole of the empty state below the headline: four written-out
+ * questions about titles, a launch spike, null ratios and net bookings, each a
+ * card that asked itself when pressed. What they cost is the position of the
+ * composer. The grid is 108px of card, twice, plus its gaps, so the box a reader
+ * actually wants was held at the bottom of the window with a screenful of
+ * examples between it and the question above it -- and the examples answer a
+ * question nobody with data of their own is asking.
+ *
+ * What replaces them is nothing, which is the point: the headline asks, and the
+ * composer is directly under it. `.conversation-main.is-empty` in composer.css is
+ * what brings it up there.
+ */
 /* The bubble and the avatar that signs it, kept on one line and pushed right.
    The 22px that used to be the bubble's own bottom margin lives here now, so the
    avatar cannot sit outside the gap it creates. */

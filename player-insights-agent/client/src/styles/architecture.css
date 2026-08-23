@@ -226,6 +226,24 @@
  * the animation off, the dots are not eleven markers parked at the start of
  * eleven lines, they are simply absent, and the lines and captions carry the
  * drawing on their own.
+ *
+ * THE DOTS RODE BESIDE THEIR LINES RATHER THAN ON THEM, and it was this rule
+ * that moved them. A motion path positions the box's OFFSET ANCHOR -- which
+ * defaults to the transform origin, the middle of the box -- on the path, and it
+ * does that with a transform, on top of wherever the box was laid out. So the
+ * layout position has to be the origin of the coordinate system the path is
+ * written in, which is what `left: 0; top: 0` is for. `margin: -3.5px` was the
+ * other half of a DIFFERENT technique, the one for a marker whose top-left corner
+ * is being placed, and applying both centres the dot twice: the anchor lands on
+ * the path and the box is then shifted up and left by half its own width, so a
+ * 7px dot sat 3.5px off a 1.5px line in both axes and only just touched it. Every
+ * dot on the tab was offset by the same amount in the same direction, which is
+ * why it read as the dots belonging to a different drawing from the lines.
+ *
+ * `offset-anchor` is stated rather than left to `auto` for the same reason the
+ * geometry is derived rather than written down: the centring is then a property
+ * of this rule instead of a consequence of `transform-origin`'s default, which
+ * anything painting a transform on the canvas could change.
  */
 .arch-dot {
   position: absolute;
@@ -233,9 +251,9 @@
   top: 0;
   width: 7px;
   height: 7px;
-  margin: -3.5px;
   border-radius: 50%;
   offset-distance: 0%;
+  offset-anchor: 50% 50%;
   opacity: 0;
   z-index: 1;
   animation-name: arch-travel;
@@ -618,6 +636,22 @@ a.arch-node-main:hover .arch-node-label {
 }
 .arch-contract-head > .arch-rail-badge {
   margin-left: auto;
+}
+.arch-contract-settings-link {
+  text-decoration: none;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
+}
+.arch-contract-settings-link:hover {
+  border-color: var(--ast-link);
+  background: var(--db-hover-tint);
+  color: var(--ast-link);
+}
+.arch-contract-settings-link:focus-visible {
+  outline: 2px solid var(--ast-link);
+  outline-offset: 2px;
 }
 /* The connector between two steps, in mono because it names what passes rather
    than describing it. */

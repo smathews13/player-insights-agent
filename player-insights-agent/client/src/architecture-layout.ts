@@ -58,6 +58,29 @@
  * computed is how wide a glyph sets, and that is an explicit upper bound which
  * errs towards a taller card. Growing downwards is free, because the page scrolls
  * vertically and only the sideways scroll was ever the complaint.
+ *
+ * THE LINES WERE THE HALF NOBODY HAD A RULE FOR, and "the paths are very mixed
+ * and hard to follow, weirdly curved" is what that reads as. Every edge was a
+ * literal path string, so each one was drawn by hand against the card positions
+ * of the day it was written, and three habits followed from that:
+ *
+ *   - CUBICS WHOSE CONTROL POINTS WENT BACKWARDS. `C716 315 700 86` puts the
+ *     first handle to the RIGHT of the second, so the curve leaves the card,
+ *     turns back on itself and kinks. Four of the fourteen edges did this, each
+ *     by a different amount, which is why no two of them looked related.
+ *   - AN EDGE THAT SKIPPED A COLUMN AND WENT THROUGH IT. The finder's line to
+ *     the warehouse ran across the whole middle column at one y, threading a gap
+ *     between two cards that happened to be there, and crossed three other edges
+ *     on the way in.
+ *   - ENDS THAT HAD TO BE RE-TYPED WHENEVER A CARD MOVED, which the old comment
+ *     on the geometry table says out loud.
+ *
+ * So the edges are DERIVED too. Each one names the card edge it leaves, the card
+ * edge it arrives at, and which of four shapes it is -- see {@link Route} and
+ * {@link edgePath} -- and the path string is computed from the placement table
+ * above it. A card that moves takes its lines with it, every diagonal is the
+ * same monotone cubic, and the one edge that has to cross a column crosses it in
+ * a stated channel rather than wherever its handles happened to fall.
  */
 import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES } from './architecture';
 
@@ -145,20 +168,54 @@ export const CANVAS_FIT_SLACK = 2;
  * about 1425 and the panel offers about 1279 rather than the 1294 above. The
  * ceiling is the no-scrollbar case; the slack is what makes the real one fit.
  *
- * HEIGHT: 912, which is the middle column stacked and a 36px margin under it,
- * matching the 36 it starts at. That column is the tallest: four cards of 173,
- * 157, 157 and 245 with {@link ROW_GAP_MIN} between them, so 36 + 173 + 36 + 157
- * + 36 + 157 + 36 + 245 = 876, and 36 under that.
+ * THE FOUR CORRIDORS ARE NOW ONE NUMBER, {@link COLUMN_GAP}, and the widths were
+ * left alone to pay for it. They were 86, 74, 80 and 88, which is four
+ * separations a reader compares across one drawing and finds four answers to; a
+ * column pitch that changes as the eye travels right is read as the columns
+ * meaning different amounts of distance. Nothing had to shrink for this: the five
+ * card widths already summed to 912 and the four gaps to 328, and 328 divides by
+ * four exactly. So every card keeps the width its copy was measured against --
+ * and therefore its height, which is derived from that width -- and only the
+ * lefts moved.
  *
- * It was 760, then 832, and 760 was not a margin short, it was a CLIP: the
- * scroller around this canvas is `overflow-y: hidden` and the canvas is given
+ * HEIGHT: derived from the placement table, and it has to be recomputed by hand
+ * whenever a top moves, which is what architecture-layout.test.ts asserts rather
+ * than trusts: the lowest card's bottom plus the margin the highest card starts
+ * at. The tallest column is no longer the one that decides it -- Lakebase hangs
+ * lowest, on the storage row -- so the figure is a fact about the whole table
+ * rather than about one stack.
+ *
+ * It was 760, then 832, then 939, and is 861 now that the re-space has taken the
+ * slack out of the columns. 760 was not a margin short, it was a CLIP:
+ * the scroller around this canvas is `overflow-y: hidden` and the canvas is given
  * this height in pixels, so the 33px by which the right-hand column overran it
  * were not reachable by scrolling. Height is the cheap dimension here -- the page
  * itself scrolls, and sideways scroll was the whole of the complaint -- which is
  * why the answer to a card that needs more room is always to give it more room.
  */
 export const CANVAS_WIDTH = 1264;
-export const CANVAS_HEIGHT = 939;
+export const CANVAS_HEIGHT = 861;
+
+/**
+ * The white between one column and the next, everywhere.
+ *
+ * 82, which is the 328px the five columns leave over divided by the four gaps
+ * between them, and it is a floor as well as a pitch: every corridor has to seat
+ * the longest caption standing in it plus {@link LABEL_CLEAR_MIN} at each end, so
+ * a caption of more than 58px of 10px mono -- nine characters -- has to be placed
+ * in a column's own vertical gap instead. Three are: "plan + prose",
+ * "resolve + SQL" and "governed reads".
+ */
+export const COLUMN_GAP = 82;
+
+/**
+ * The air above the first card and below the last one.
+ *
+ * One number for both ends, because the canvas is a frame: 36 of white at the top
+ * and 12 at the bottom reads as a drawing that slipped, and the check that the two
+ * agree is the only thing that keeps the canvas height honest as cards move.
+ */
+export const CANVAS_MARGIN = 36;
 
 /**
  * The smallest the drawing may be drawn at before scrolling is the better answer.
@@ -417,11 +474,12 @@ export function nodeHeight(id: string): number {
   if (!node) return 0;
   const content = (NODE_PLACEMENTS[id]?.width ?? 0) - CARD_CHROME_WIDTH;
   const dependency = node.presence === 'connection';
-  const pills = node.presence !== 'connection'
-    ? [PILL_CHARS.status]
-    : node.rebuilt
-      ? [PILL_CHARS.status, PILL_CHARS.drift, PILL_CHARS.age]
-      : [PILL_CHARS.status, PILL_CHARS.drift];
+  const pills =
+    node.presence !== 'connection'
+      ? [PILL_CHARS.status]
+      : node.rebuilt
+        ? [PILL_CHARS.status, PILL_CHARS.drift, PILL_CHARS.age]
+        : [PILL_CHARS.status, PILL_CHARS.drift];
   const rows = pillRows(pills, content);
 
   const title = wrappedLines(node.label, CARD_TITLE_TEXT, SANS_BOLD_ADVANCE, content) * lineBox(CARD_TITLE_TEXT);
@@ -530,43 +588,60 @@ export interface NodeBox {
  *
  * THE TOPS ARE SPACED OFF THE HEIGHTS rather than off a pitch, which is the fix
  * for the overlap. Every one of them is still a literal, because where a card
- * sits is a decision the design made, and a computed top would drift away from
- * the literal paths below it. What is no longer a decision is how much room a
- * card needs; architecture-layout.test.ts checks each column against
+ * sits is a decision the design made. What is no longer a decision is how much
+ * room a card needs; architecture-layout.test.ts checks each column against
  * {@link nodeHeight} plus {@link ROW_GAP_MIN} rather than trusting the
  * arithmetic that produced these:
  *
- *     x=226   app 300 + 181 = 481       ->  lakebase 541     (60, for a caption)
- *     x=472   agent 290 + 157 = 447     ->  experiment 541   (94; the two stores
- *                                                             share a row)
- *     x=748   llm 36 + 173 = 209        ->  dictionary 245   (36)
- *             dictionary 245 + 157 = 402 -> data 438         (36)
- *             data 438 + 157 = 595      ->  index 631        (36)
- *     x=1042  warehouse 260 + 173 = 433 ->  catalog 485      (52, for a caption)
- *             catalog 485 + 157 = 642   ->  endpoint 686     (44)
+ *     x=222    app 190 + 105 = 295      ->  lakebase 644     (349, the drop to
+ *                                                             the storage row)
+ *     x=476    agent 160 + 148 = 308    ->  finder 352       (44)
+ *              finder 352 + 105 = 457   ->  experiment 644   (187, same drop)
+ *     x=754    llm 36 + 126 = 162       ->  dictionary 206   (44)
+ *              dictionary 206 + 126 = 332 -> data 396        (64, the channel)
+ *              data 396 + 126 = 522     ->  index 566        (44)
+ *     x=1054   warehouse 260 + 148 = 408 -> catalog 452      (44)
+ *              catalog 452 + 148 = 600  ->  endpoint 644     (44)
  *
  * The columns do not overlap sideways, so those seven pairs are the whole of the
- * collision question for the cards. THE 60 AND THE 52 ARE NOT SLACK:
- * "governed reads" is fourteen characters placed inside the right column's own x
- * range, so the only thing keeping it out from under a card is the gap it sits
- * in, and the same is true of "conversation" and "trace" above the storage row.
- * A gap holding a caption is sized for the caption plus {@link LABEL_CLEAR_MIN}
- * above and below it, which is why those three are wider than the rest.
+ * collision question for the cards.
+ *
+ * 44 IS THE RHYTHM AND THE TWO EXCEPTIONS BOTH SAY SOMETHING. The 64 between the
+ * two Genie cards is the corridor the finder's line to the warehouse runs along:
+ * that edge has to cross this column, so it crosses it in a gap widened to leave
+ * 32px of white above and below the line rather than threading whatever the
+ * minimum happened to leave. The 349 and the 187 are the drop to the storage row,
+ * which is the one place in this drawing where distance carries meaning -- see
+ * below.
+ *
+ * THE STORAGE ROW IS A ROW AGAIN. Lakebase, the experiment and the Vector Search
+ * endpoint share one top, 644, so the bottom of the canvas reads as a single band
+ * rather than as three cards that each drifted low by a different amount. 644 is
+ * not chosen: it is where the right-hand column's own 44px rhythm puts the
+ * endpoint, and the two stores are brought to it. Their tops have to be below
+ * every card on the answer path for architecture-layout.test.ts to accept them as
+ * the bottom row, and the lowest of those is the catalog at 452, so the band could
+ * not have been raised much further anyway.
+ *
+ * THE LEFT SPINE IS FLAT. Browser, app and orchestrator are placed so that one y
+ * -- 242 -- lies inside all three, which is what lets the first two edges be
+ * straight horizontal lines instead of curves that correct for a 20px difference
+ * nobody chose. The tops differ because the heights do.
  */
 const NODE_PLACEMENTS: Readonly<Record<string, Omit<NodeBox, 'height'>>> = {
-  browser: { left: 12, top: 320, width: 128, accent: 'question' },
-  app: { left: 226, top: 300, width: 172, accent: 'question' },
-  'agent-endpoint': { left: 472, top: 290, width: 196, accent: 'agent' },
-  'data-source-finder': { left: 472, top: 485, width: 196, accent: 'agent' },
-  lakebase: { left: 226, top: 541, width: 172, accent: 'kept' },
-  'experiment-id': { left: 472, top: 740, width: 196, accent: 'kept' },
-  'llm-endpoint': { left: 748, top: 36, width: 218, accent: 'agent' },
-  'genie-dictionary': { left: 748, top: 245, width: 218, accent: 'genie' },
-  'genie-data': { left: 748, top: 438, width: 218, accent: 'genie' },
-  'semantic-index': { left: 748, top: 631, width: 218, accent: 'search' },
+  browser: { left: 12, top: 186, width: 128, accent: 'question' },
+  app: { left: 222, top: 190, width: 172, accent: 'question' },
+  'agent-endpoint': { left: 476, top: 160, width: 196, accent: 'agent' },
+  'data-source-finder': { left: 476, top: 352, width: 196, accent: 'agent' },
+  lakebase: { left: 222, top: 644, width: 172, accent: 'kept' },
+  'experiment-id': { left: 476, top: 644, width: 196, accent: 'kept' },
+  'llm-endpoint': { left: 754, top: 36, width: 218, accent: 'agent' },
+  'genie-dictionary': { left: 754, top: 206, width: 218, accent: 'genie' },
+  'genie-data': { left: 754, top: 396, width: 218, accent: 'genie' },
+  'semantic-index': { left: 754, top: 566, width: 218, accent: 'search' },
   'sql-warehouse': { left: 1054, top: 260, width: 198, accent: 'governed' },
-  catalog: { left: 1054, top: 485, width: 198, accent: 'governed' },
-  'semantic-index-endpoint': { left: 1054, top: 686, width: 198, accent: 'search' },
+  catalog: { left: 1054, top: 452, width: 198, accent: 'governed' },
+  'semantic-index-endpoint': { left: 1054, top: 644, width: 198, accent: 'search' },
 };
 
 /**
@@ -609,14 +684,159 @@ export interface DrawnEdge {
   delay: number;
 }
 
+/* ---------------------------------------------------------------------------
+   How a line gets from one card to another
+   --------------------------------------------------------------------------- */
+
+/** Which of a card's four edges a line leaves from, or arrives at. */
+export type CardSide = 'top' | 'right' | 'bottom' | 'left';
+
 /**
- * The geometry of each edge, keyed by the pair of nodes it joins.
+ * A point on a card's border, as the card's own measurement.
  *
- * Stated as literal paths rather than derived from the boxes, because the design
- * chose where each line leaves a card and where each caption sits in the gaps
- * between them. A generated orthogonal route would put four of these on top of
- * one another in the corridor between the orchestrator and the four services it
- * calls, which is the one part of this drawing that is genuinely crowded.
+ * `along` is the distance from the card's TOP-LEFT CORNER down its side, or
+ * across its top or bottom. Stated that way rather than as a canvas coordinate
+ * because it is the quantity that stays true when the card moves: "the second
+ * line out of the finder leaves 32px down its right edge" survives a re-space,
+ * and `y: 535` does not. Every arrival coordinate in the old table had to be
+ * re-typed when the middle column was re-spaced, and the comment that said so
+ * was sitting in this file.
+ */
+export interface EdgeEnd {
+  side: CardSide;
+  along: number;
+}
+
+/**
+ * How far down a card a line arrives, by default.
+ *
+ * Under the title and level with the status pill, which is the row a reader's
+ * eye is already on when they follow a line into a card. A card with two lines
+ * into it gives the second one its own arrival further down; a card entered from
+ * above or below is entered at the middle of that edge instead.
+ */
+export const ENTRY_DROP = 50;
+
+/**
+ * The four shapes an edge may be, and there are deliberately only four.
+ *
+ * A drawing whose connectors are each a one-off is a drawing a reader cannot
+ * learn: fourteen hand-written cubics were fourteen different relationships
+ * between a line's start, its handles and its end, and the reported symptom was
+ * exactly that -- "the paths are very mixed and hard to follow, weirdly curved".
+ *
+ *   - `straight`  the two ends share an axis, so the line is one `H` or one `V`.
+ *                 The plainest connector there is, and the first two edges of the
+ *                 question path are now both of them.
+ *   - `curve`     one cubic, with BOTH handles on the vertical line half way
+ *                 between the two ends. That is the only cubic in this file, and
+ *                 the constraint is what makes it readable: x moves one way for
+ *                 the whole curve, the tangent is horizontal at both ends, and
+ *                 two of them side by side are the same shape at different
+ *                 scales. The old handles were at 716 and 700 -- the first to the
+ *                 RIGHT of the second -- which is a curve that leaves the card,
+ *                 turns back on itself, and kinks in the middle.
+ *   - `channel`   for the one edge that skips a column. A `curve`'s worth of bend
+ *                 in the corridor, onto the y it will arrive at, then a straight
+ *                 run across the column it has to cross. A skip edge cannot avoid
+ *                 crossing a column, so it crosses it as a horizontal line
+ *                 through a gap widened for it rather than as a diagonal through
+ *                 whatever room was left.
+ *   - `bracket`   for the one edge that has to get past a card in its own column.
+ *                 Out sideways into the corridor, down it, and back in at the
+ *                 same x it left -- square, with rounded corners. The old path
+ *                 did this as a single cubic bulging 120px left, which reads as a
+ *                 line that has come loose rather than as a line going round
+ *                 something.
+ */
+export type Route =
+  | { kind: 'straight' }
+  | { kind: 'curve' }
+  | { kind: 'channel' }
+  | { kind: 'bracket'; channelX: number };
+
+/** The radius the `bracket` corners turn on. */
+export const BRACKET_RADIUS = 14;
+
+/** Whole pixels where the arithmetic gives them, and no trailing zeros. */
+function coordinate(value: number): string {
+  return `${Number(value.toFixed(2))}`;
+}
+
+/** Where an {@link EdgeEnd} lands on the canvas. */
+export function edgePoint(box: NodeBox, end: EdgeEnd): { x: number; y: number } {
+  switch (end.side) {
+    case 'top':
+      return { x: box.left + end.along, y: box.top };
+    case 'bottom':
+      return { x: box.left + end.along, y: box.top + box.height };
+    case 'left':
+      return { x: box.left, y: box.top + end.along };
+    case 'right':
+      return { x: box.left + box.width, y: box.top + end.along };
+  }
+}
+
+/**
+ * The path string for one edge, from the two cards it joins.
+ *
+ * Derived rather than written down, which is the whole of the fix for lines that
+ * disagreed with the cards they claimed to touch. The dot travelling along an
+ * edge is given THIS string as its motion path -- see ArchitecturePage -- so a
+ * path derived from the boxes is also the only way the dot and the line cannot
+ * be drawn from different ideas of where the edge is.
+ */
+export function edgePath(from: NodeBox, to: NodeBox, edge: { from: EdgeEnd; to: EdgeEnd; route: Route }): string {
+  const start = edgePoint(from, edge.from);
+  const end = edgePoint(to, edge.to);
+  const open = `M ${coordinate(start.x)} ${coordinate(start.y)}`;
+
+  switch (edge.route.kind) {
+    case 'straight':
+      return start.y === end.y ? `${open} H ${coordinate(end.x)}` : `${open} V ${coordinate(end.y)}`;
+    case 'curve': {
+      const handle = coordinate((start.x + end.x) / 2);
+      return `${open} C ${handle} ${coordinate(start.y)} ${handle} ${coordinate(end.y)} ${coordinate(end.x)} ${coordinate(end.y)}`;
+    }
+    // The bend is spent in the corridor the edge leaves into, so the straight
+    // run begins exactly at the column boundary and the crossing is level.
+    case 'channel': {
+      const sideways = end.x > start.x ? COLUMN_GAP : -COLUMN_GAP;
+      const handle = coordinate(start.x + sideways / 2);
+      const join = coordinate(start.x + sideways);
+      return (
+        `${open} C ${handle} ${coordinate(start.y)} ${handle} ${coordinate(end.y)} ${join} ${coordinate(end.y)}` +
+        ` H ${coordinate(end.x)}`
+      );
+    }
+    case 'bracket': {
+      const channel = edge.route.channelX;
+      // Which way the detour leaves, so one helper draws the mirror image too.
+      const inward = channel < start.x ? BRACKET_RADIUS : -BRACKET_RADIUS;
+      return [
+        open,
+        `H ${coordinate(channel + inward)}`,
+        `Q ${coordinate(channel)} ${coordinate(start.y)} ${coordinate(channel)} ${coordinate(start.y + BRACKET_RADIUS)}`,
+        `V ${coordinate(end.y - BRACKET_RADIUS)}`,
+        `Q ${coordinate(channel)} ${coordinate(end.y)} ${coordinate(channel + inward)} ${coordinate(end.y)}`,
+        `H ${coordinate(end.x)}`,
+      ].join(' ');
+    }
+  }
+}
+
+/**
+ * Where each edge leaves, where it arrives, what shape it is, and what it says.
+ *
+ * Keyed by the pair of nodes it joins, so this table answers the geometry
+ * question for a connection the model already declares -- it does not decide
+ * which connections exist.
+ *
+ * THE CAPTIONS ARE STILL PLACED BY HAND, and they are the one thing here that
+ * should be: where a word reads best is a judgement, and the checks in
+ * architecture-layout.test.ts are what keep the judgement honest -- every caption
+ * has to stand {@link LABEL_CLEAR_MIN} clear of every card and of every other
+ * caption, at every scale the drawing is fitted to.
  *
  * The captions name the RELATIONSHIP and never a measurement. Nothing in this
  * app times an individual dependency, so a duration on an edge would be a number
@@ -628,7 +848,9 @@ const EDGE_GEOMETRY: Readonly<
     {
       id: string;
       label: string;
-      d: string;
+      from: EdgeEnd;
+      to: EdgeEnd;
+      route: Route;
       labelX: number;
       labelY: number;
       labelAnchor?: LabelAnchor;
@@ -638,12 +860,16 @@ const EDGE_GEOMETRY: Readonly<
     }
   >
 > = {
+  // The two straight ones. 242 lies inside all three cards of the left spine, so
+  // these are horizontal lines and not corrections for a difference nobody chose.
   'browser->app': {
     id: 'pe1',
     label: 'question',
-    d: 'M140 400 H226',
-    labelX: 183,
-    labelY: 390,
+    from: { side: 'right', along: 56 },
+    to: { side: 'left', along: 52 },
+    route: { kind: 'straight' },
+    labelX: 181,
+    labelY: 232,
     labelAnchor: 'middle',
     accent: 'question',
     duration: 2.4,
@@ -652,35 +878,45 @@ const EDGE_GEOMETRY: Readonly<
   'app->agent-endpoint': {
     id: 'pe2',
     label: 'invoke',
-    d: 'M398 380 H472',
+    from: { side: 'right', along: 52 },
+    to: { side: 'left', along: 82 },
+    route: { kind: 'straight' },
     labelX: 435,
-    labelY: 370,
+    labelY: 232,
     labelAnchor: 'middle',
     accent: 'question',
     duration: 2.4,
     delay: 0.9,
   },
-  // Both of these leave a card's real bottom edge rather than a point part-way
-  // down it. They used to stop at 415 and 427, which was inside the card on the
-  // old 140px estimate and is inside it on the real height too -- the card paints
-  // over the line, so the drawn result was a connector that started at the
-  // border either way. Stated at the edge now so the geometry says what is drawn.
+  // Both stores hang off the middle of the card that writes them, which is what
+  // makes the drop read as "this is kept" rather than as another hop on the way
+  // to an answer.
   'app->lakebase': {
     id: 'pe3',
     label: 'conversation',
-    d: 'M312 405 V541',
-    labelX: 328,
-    labelY: 478,
+    from: { side: 'bottom', along: 86 },
+    to: { side: 'top', along: 86 },
+    route: { kind: 'straight' },
+    labelX: 322,
+    labelY: 470,
     accent: 'kept',
     duration: 3.2,
     delay: 0,
   },
+  // THE ONE EDGE WITH A CARD IN ITS WAY. The finder sits between the orchestrator
+  // and the experiment in the same column, so the trace cannot go straight down;
+  // it goes out into the corridor at 435, which is clear of the column by 41 on
+  // one side and of the app's column by 41 on the other, and comes back in at the
+  // x it left. Leaving from the LEFT edge rather than the bottom keeps it out of
+  // the 44px gap that holds "delegate".
   'agent-endpoint->experiment-id': {
     id: 'pe4',
     label: 'trace',
-    d: 'M570 438 C450 438 450 740 570 740',
-    labelX: 584,
-    labelY: 715,
+    from: { side: 'left', along: 120 },
+    to: { side: 'left', along: ENTRY_DROP },
+    route: { kind: 'bracket', channelX: 435 },
+    labelX: 480,
+    labelY: 560,
     accent: 'kept',
     duration: 3.2,
     delay: 1.4,
@@ -688,9 +924,15 @@ const EDGE_GEOMETRY: Readonly<
   'agent-endpoint->llm-endpoint': {
     id: 'pe5',
     label: 'plan + prose',
-    d: 'M668 315 C716 315 700 86 748 86',
-    labelX: 645,
-    labelY: 170,
+    from: { side: 'right', along: 40 },
+    to: { side: 'left', along: ENTRY_DROP },
+    route: { kind: 'curve' },
+    // Above the orchestrator rather than beside the line: twelve characters do
+    // not fit in an 82px corridor, and the space over the top of that column is
+    // the nearest white this caption has.
+    labelX: 700,
+    labelY: 140,
+    labelAnchor: 'middle',
     accent: 'agent',
     duration: 2.8,
     delay: 0,
@@ -698,33 +940,47 @@ const EDGE_GEOMETRY: Readonly<
   'agent-endpoint->data-source-finder': {
     id: 'pe12',
     label: 'delegate',
-    d: 'M570 438 V485',
-    labelX: 582,
-    labelY: 468,
+    from: { side: 'bottom', along: 98 },
+    to: { side: 'top', along: 98 },
+    route: { kind: 'straight' },
+    labelX: 586,
+    labelY: 333,
     accent: 'agent',
     duration: 2.4,
     delay: 0.4,
   },
+  /*
+   * THE FAN, AND THE ONE RULE THAT KEEPS IT UNTANGLED. Five lines leave the
+   * finder's right edge and the order they leave in is the order they arrive in,
+   * top to bottom: the model at 14, the dictionary at 32, the warehouse channel
+   * at 50, the data space at 68, the index at 86. Two lines out of one card
+   * cross if and only if that ordering is broken, so the `along` figures below
+   * are not spacing, they are the reason nothing here crosses anything.
+   */
   'data-source-finder->llm-endpoint': {
     id: 'pe13',
     label: 'reason',
-    d: 'M668 510 C724 510 700 110 748 110',
-    labelX: 696,
-    labelY: 222,
+    from: { side: 'right', along: 14 },
+    // 74 rather than 50: the model is the one card two lines arrive at, and the
+    // second one takes its own row so the two do not meet at the border.
+    to: { side: 'left', along: 74 },
+    route: { kind: 'curve' },
+    labelX: 713,
+    labelY: 226,
+    labelAnchor: 'middle',
     accent: 'agent',
     duration: 2.8,
     delay: 0.5,
   },
-  // The lines out of the finder arrive 50px down each card they point
-  // at, which is under its title and level with its status pill. That is why
-  // every one of these end coordinates moved when the middle column was
-  // re-spaced: the arrival point is relative to a card, not to the canvas.
   'data-source-finder->genie-dictionary': {
     id: 'pe6',
     label: 'terms',
-    d: 'M668 535 C716 535 700 295 748 295',
-    labelX: 692,
-    labelY: 318,
+    from: { side: 'right', along: 32 },
+    to: { side: 'left', along: ENTRY_DROP },
+    route: { kind: 'curve' },
+    labelX: 713,
+    labelY: 320,
+    labelAnchor: 'middle',
     accent: 'genie',
     duration: 2.8,
     delay: 0.7,
@@ -732,10 +988,12 @@ const EDGE_GEOMETRY: Readonly<
   'data-source-finder->genie-data': {
     id: 'pe7',
     label: 'metrics',
-    d: 'M668 560 C716 560 700 488 748 488',
-    labelX: 736,
-    labelY: 480,
-    labelAnchor: 'end',
+    from: { side: 'right', along: 68 },
+    to: { side: 'left', along: ENTRY_DROP },
+    route: { kind: 'curve' },
+    labelX: 713,
+    labelY: 433,
+    labelAnchor: 'middle',
     accent: 'genie',
     duration: 2.8,
     delay: 1.4,
@@ -743,34 +1001,45 @@ const EDGE_GEOMETRY: Readonly<
   'data-source-finder->semantic-index': {
     id: 'pe8',
     label: 'search',
-    d: 'M668 585 C716 585 700 681 748 681',
-    labelX: 692,
-    labelY: 560,
+    from: { side: 'right', along: 86 },
+    to: { side: 'left', along: ENTRY_DROP },
+    route: { kind: 'curve' },
+    labelX: 713,
+    labelY: 527,
+    labelAnchor: 'middle',
     accent: 'search',
     duration: 2.8,
-    delay: 2.1,
+    delay: 1.8,
   },
+  // The skip. It arrives 104 down the warehouse -- not the usual 50 -- because
+  // the arrival y IS the channel: the run across the Genie column is level, and
+  // the channel is the middle of the 64px gap those two cards are spaced by.
   'data-source-finder->sql-warehouse': {
     id: 'pe14',
     label: 'resolve + SQL',
-    d: 'M668 520 C710 520 700 220 1010 220 C1034 220 1028 300 1054 300',
-    labelX: 870,
-    labelY: 210,
+    from: { side: 'right', along: ENTRY_DROP },
+    to: { side: 'left', along: 104 },
+    route: { kind: 'channel' },
+    // In the gap it runs through rather than in a corridor: thirteen characters
+    // need 105px of white and no corridor here is wider than 82.
+    labelX: 863,
+    labelY: 356,
     labelAnchor: 'middle',
     accent: 'governed',
     duration: 3,
     delay: 1.8,
   },
-  // Drawn from the endpoint to the index, in the same shape as the warehouse
-  // pairing above it, because the endpoint is what a search of the index runs
-  // on. The caption sits in the 62px corridor between the two columns, which is
-  // "serves" plus LABEL_CLEAR_MIN at each end.
+  // Drawn from the endpoint to the index, in the same shape as everything else
+  // in that corridor and simply reversed, because the endpoint is what a search
+  // of the index runs on.
   'semantic-index-endpoint->semantic-index': {
     id: 'pe11',
     label: 'serves',
-    d: 'M1054 746 C1010 746 1010 681 966 681',
-    labelX: 1010,
-    labelY: 670,
+    from: { side: 'left', along: ENTRY_DROP },
+    to: { side: 'right', along: 94 },
+    route: { kind: 'curve' },
+    labelX: 1013,
+    labelY: 645,
     labelAnchor: 'middle',
     accent: 'search',
     duration: 2.8,
@@ -779,23 +1048,29 @@ const EDGE_GEOMETRY: Readonly<
   'genie-data->sql-warehouse': {
     id: 'pe9',
     label: 'SQL',
-    d: 'M966 483 C1010 483 1010 320 1054 320',
-    labelX: 1010,
-    labelY: 400,
+    from: { side: 'right', along: 64 },
+    // Below the channel the finder's line arrives on, so the warehouse's two
+    // incoming lines stay 20px apart at the border instead of meeting on it.
+    to: { side: 'left', along: 124 },
+    route: { kind: 'curve' },
+    labelX: 1013,
+    labelY: 405,
     labelAnchor: 'middle',
     accent: 'governed',
     duration: 2.4,
     delay: 0,
   },
   // The one connector with a card above it AND a card below it, which is what
-  // makes the 52px gap between the warehouse and the catalog load-bearing: this
-  // line is 48 of it and its caption stands beside it in the same space.
+  // makes the 44px gap between the warehouse and the catalog load-bearing: this
+  // line is all of it and its caption stands beside it in the same space.
   'sql-warehouse->catalog': {
     id: 'pe10',
     label: 'governed reads',
-    d: 'M1153 408 V485',
+    from: { side: 'bottom', along: 99 },
+    to: { side: 'top', along: 99 },
+    route: { kind: 'straight' },
     labelX: 1165,
-    labelY: 450,
+    labelY: 432,
     accent: 'governed',
     duration: 2.4,
     delay: 1.2,
@@ -815,13 +1090,16 @@ export function drawnEdges(): DrawnEdge[] {
   for (const edge of ARCHITECTURE_EDGES) {
     const geometry = EDGE_GEOMETRY[`${edge.from}->${edge.to}`];
     if (!geometry) continue;
+    const from = NODE_BOXES[edge.from];
+    const to = NODE_BOXES[edge.to];
+    if (!from || !to) continue;
     drawn.push({
       id: geometry.id,
       from: edge.from,
       to: edge.to,
       meaning: edge.meaning,
       label: geometry.label,
-      d: geometry.d,
+      d: edgePath(from, to, geometry),
       labelX: geometry.labelX,
       labelY: geometry.labelY,
       labelAnchor: geometry.labelAnchor ?? 'start',
@@ -839,37 +1117,265 @@ export function pathPoints(d: string): number[] {
 }
 
 /**
+ * A path as a run of straight segments, close enough to measure.
+ *
+ * THE CHECK THIS FILE COULD NOT MAKE. Everything about an edge was asserted from
+ * the NUMBERS IN ITS PATH STRING -- the first pair, the last pair, and whether
+ * any of them left the canvas -- and a curve is not its control points. That is
+ * how an edge came to run across the whole middle column, over the gap between
+ * two cards, crossing three other edges: every number in it was inside the
+ * canvas and its ends were on the two cards it joined, and nothing here could
+ * ask where it went in between.
+ *
+ * Flattened rather than solved, at 24 steps a curve, because the questions being
+ * asked of it are "does this line cross a card" and "does this line cross that
+ * line" and both are answered to the pixel by a fine enough polyline. Nothing
+ * measures a path in the browser; this is the same arithmetic the engine does,
+ * done here where a test can see it.
+ */
+export function pathPolyline(d: string, perCurve = 24): Array<{ x: number; y: number }> {
+  const tokens = d.match(/[A-Za-z]|-?\d+(?:\.\d+)?/g) ?? [];
+  const points: Array<{ x: number; y: number }> = [];
+  let at = { x: 0, y: 0 };
+  let read = 0;
+  const next = () => Number(tokens[read++]);
+
+  while (read < tokens.length) {
+    const command = tokens[read++];
+    switch (command) {
+      case 'M':
+      case 'L':
+        at = { x: next(), y: next() };
+        points.push(at);
+        break;
+      case 'H':
+        at = { x: next(), y: at.y };
+        points.push(at);
+        break;
+      case 'V':
+        at = { x: at.x, y: next() };
+        points.push(at);
+        break;
+      case 'C': {
+        const first = { x: next(), y: next() };
+        const second = { x: next(), y: next() };
+        const end = { x: next(), y: next() };
+        for (let step = 1; step <= perCurve; step += 1) {
+          points.push(cubicPoint(at, first, second, end, step / perCurve));
+        }
+        at = end;
+        break;
+      }
+      case 'Q': {
+        const handle = { x: next(), y: next() };
+        const end = { x: next(), y: next() };
+        for (let step = 1; step <= perCurve; step += 1) {
+          const t = step / perCurve;
+          points.push(
+            cubicPoint(
+              at,
+              { x: at.x + (2 / 3) * (handle.x - at.x), y: at.y + (2 / 3) * (handle.y - at.y) },
+              { x: end.x + (2 / 3) * (handle.x - end.x), y: end.y + (2 / 3) * (handle.y - end.y) },
+              end,
+              t
+            )
+          );
+        }
+        at = end;
+        break;
+      }
+      default:
+        throw new Error(`the architecture paths use no ${command} command`);
+    }
+  }
+  return points;
+}
+
+function cubicPoint(
+  from: { x: number; y: number },
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  to: { x: number; y: number },
+  t: number
+): { x: number; y: number } {
+  const inverse = 1 - t;
+  const a = inverse * inverse * inverse;
+  const b = 3 * inverse * inverse * t;
+  const c = 3 * inverse * t * t;
+  const e = t * t * t;
+  return {
+    x: a * from.x + b * first.x + c * second.x + e * to.x,
+    y: a * from.y + b * first.y + c * second.y + e * to.y,
+  };
+}
+
+/**
  * Where a path starts and where it ends.
  *
- * `H` and `V` carry one coordinate rather than two, so the end point of a
- * horizontal or vertical segment inherits the other axis from where it started.
- * Reading that back is what lets the tests check both ends of every edge against
- * the cards it is supposed to join.
+ * Read off the flattened path rather than off its numbers, which is what lets an
+ * edge be any of the four shapes above: the old version tested the string for an
+ * `H` or a `V` and inherited the other axis from the start point, so a path with
+ * both -- which the bracket and the channel are -- came back with an end point
+ * that was never on it.
  */
 export function pathEnds(d: string): { start: { x: number; y: number }; end: { x: number; y: number } } {
-  const numbers = pathPoints(d);
-  const start = { x: numbers[0], y: numbers[1] };
-  const horizontal = /H\s*-?\d/.test(d);
-  const vertical = /V\s*-?\d/.test(d);
-  const last = numbers[numbers.length - 1];
-  if (horizontal) return { start, end: { x: last, y: start.y } };
-  if (vertical) return { start, end: { x: start.x, y: last } };
-  return { start, end: { x: numbers[numbers.length - 2], y: last } };
+  const points = pathPolyline(d);
+  return { start: points[0], end: points[points.length - 1] };
 }
 
 /** Whether a point falls inside a card's footprint. */
 export function insideBox(box: NodeBox, point: { x: number; y: number }): boolean {
-  return (
-    point.x > box.left &&
-    point.x < box.left + box.width &&
-    point.y > box.top &&
-    point.y < box.top + box.height
-  );
+  return point.x > box.left && point.x < box.left + box.width && point.y > box.top && point.y < box.top + box.height;
 }
 
 /** Whether two cards would be drawn over one another. */
 export function boxesOverlap(a: NodeBox, b: NodeBox): boolean {
   return rectsOverlap(a, b);
+}
+
+/**
+ * Whether a straight run of a path passes through a rectangle's inside.
+ *
+ * Liang-Barsky, against a rectangle pulled in by half a pixel at every edge,
+ * because every edge on this drawing deliberately TOUCHES two cards -- it starts
+ * on one border and ends on another. Without the inset, every line would be
+ * reported as running through both of the cards it joins and the check would be
+ * useless.
+ */
+function segmentEntersRect(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  rect: Rect,
+  inset = 0.5
+): boolean {
+  const bounds: Array<[number, number]> = [
+    [-(to.x - from.x), from.x - (rect.left + inset)],
+    [to.x - from.x, rect.left + rect.width - inset - from.x],
+    [-(to.y - from.y), from.y - (rect.top + inset)],
+    [to.y - from.y, rect.top + rect.height - inset - from.y],
+  ];
+  let enters = 0;
+  let leaves = 1;
+  for (const [along, room] of bounds) {
+    if (along === 0) {
+      if (room < 0) return false;
+      continue;
+    }
+    const at = room / along;
+    if (along < 0) {
+      if (at > leaves) return false;
+      if (at > enters) enters = at;
+    } else {
+      if (at < enters) return false;
+      if (at < leaves) leaves = at;
+    }
+  }
+  return enters < leaves;
+}
+
+/**
+ * Every edge that is drawn over a card, and which card.
+ *
+ * THE DEFECT NOTHING IN THIS FILE COULD SEE. A path was checked at its two ends
+ * and at its control points, so an edge could leave the finder, cross the whole
+ * Genie column and arrive at the warehouse while every assertion about it passed.
+ * A line under a card is worse than a missing line: the card is opaque, so the
+ * reader sees a connector that stops at one border and starts again at another
+ * and reads it as two connections.
+ */
+export function edgesThroughCards(): Array<{ edge: string; node: string }> {
+  const through: Array<{ edge: string; node: string }> = [];
+  for (const edge of drawnEdges()) {
+    for (const [id, box] of Object.entries(NODE_BOXES)) {
+      if (edgeEntersCard(edge.d, box)) through.push({ edge: `${edge.id} "${edge.label}"`, node: id });
+    }
+  }
+  return through;
+}
+
+/** Whether one path is drawn across the inside of one card. */
+export function edgeEntersCard(d: string, box: Rect): boolean {
+  const points = pathPolyline(d);
+  return points.some((point, at) => at > 0 && segmentEntersRect(points[at - 1], point, box));
+}
+
+/**
+ * Where two straight runs meet, if they meet anywhere.
+ *
+ * The point rather than a yes/no, because whether a meeting is a defect depends
+ * on WHERE it is: two lines are allowed to meet on a card they both touch and are
+ * not allowed to meet anywhere else. An earlier form of this answered "do they
+ * properly cross" and dismissed anything that merely grazed, which threw away the
+ * case it most needed to catch -- two curves that are each other's mirror image
+ * meet at exactly one point in the middle, and a graze there is a crossing.
+ *
+ * Parallel runs return nothing. Two edges laid along the same corridor at the
+ * same x would be an overlap rather than a crossing, and it is the rectangle
+ * checks further down that are shaped to catch things drawn on top of each other.
+ */
+function segmentsMeet(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  c: { x: number; y: number },
+  d: { x: number; y: number }
+): { x: number; y: number } | null {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const cdx = d.x - c.x;
+  const cdy = d.y - c.y;
+  const denominator = abx * cdy - aby * cdx;
+  if (denominator === 0) return null;
+  const along = ((c.x - a.x) * cdy - (c.y - a.y) * cdx) / denominator;
+  const across = ((c.x - a.x) * aby - (c.y - a.y) * abx) / denominator;
+  if (along < 0 || along > 1 || across < 0 || across > 1) return null;
+  return { x: a.x + abx * along, y: a.y + aby * along };
+}
+
+/**
+ * Every pair of edges that cross each other on the canvas.
+ *
+ * Zero is the answer this layout is arranged for, and it is arranged for it in
+ * three ways rather than by luck: the five lines out of the finder leave in the
+ * order they arrive, the edge that skips a column crosses it in its own channel,
+ * and the edge that has to get past a card in its own column goes round it in the
+ * corridor. Each of those is one decision in the tables above, and each of them
+ * is undone by a plausible-looking edit -- so the consequence is asserted here
+ * rather than left as three comments hoping to be read together.
+ */
+export function crossingEdges(): Array<[string, string]> {
+  const lines = drawnEdges().map((edge) => ({ id: `${edge.id} "${edge.label}"`, d: edge.d }));
+  const crossings: Array<[string, string]> = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    for (let j = i + 1; j < lines.length; j += 1) {
+      if (pathsCross(lines[i].d, lines[j].d)) crossings.push([lines[i].id, lines[j].id]);
+    }
+  }
+  return crossings;
+}
+
+/**
+ * Whether two paths cross, as opposed to meeting on a card they both touch.
+ *
+ * Two lines into one card meet at that card, and that is the drawing working: it
+ * is how a reader sees that two things talk to the same thing. So a meeting is
+ * only reported when it is somewhere other than a point that ends both paths.
+ */
+export function pathsCross(a: string, b: string): boolean {
+  const one = pathPolyline(a);
+  const other = pathPolyline(b);
+  const terminals = [one[0], one[one.length - 1]];
+  const far = [other[0], other[other.length - 1]];
+  const shared = (point: { x: number; y: number }) =>
+    terminals.some((end) => Math.hypot(end.x - point.x, end.y - point.y) < 0.001) &&
+    far.some((end) => Math.hypot(end.x - point.x, end.y - point.y) < 0.001);
+
+  for (let at = 1; at < one.length; at += 1) {
+    for (let past = 1; past < other.length; past += 1) {
+      const met = segmentsMeet(one[at - 1], one[at], other[past - 1], other[past]);
+      if (met && !shared(met)) return true;
+    }
+  }
+  return false;
 }
 
 /* ---------------------------------------------------------------------------
@@ -894,10 +1400,7 @@ export interface Rect {
 /** Whether two rectangles share any pixels. Touching edges do not count. */
 export function rectsOverlap(a: Rect, b: Rect): boolean {
   const apart =
-    a.left + a.width <= b.left ||
-    b.left + b.width <= a.left ||
-    a.top + a.height <= b.top ||
-    b.top + b.height <= a.top;
+    a.left + a.width <= b.left || b.left + b.width <= a.left || a.top + a.height <= b.top || b.top + b.height <= a.top;
   return !apart;
 }
 
@@ -946,7 +1449,11 @@ export const LABEL_CLEAR_MIN = 12;
 export function labelRect(edge: DrawnEdge): Rect {
   const width = edge.label.length * EDGE_LABEL_TEXT * MONO_ADVANCE;
   const left =
-    edge.labelAnchor === 'end' ? edge.labelX - width : edge.labelAnchor === 'middle' ? edge.labelX - width / 2 : edge.labelX;
+    edge.labelAnchor === 'end'
+      ? edge.labelX - width
+      : edge.labelAnchor === 'middle'
+        ? edge.labelX - width / 2
+        : edge.labelX;
   return { left, top: edge.labelY - LABEL_ASCENT, width, height: LABEL_ASCENT + LABEL_DESCENT };
 }
 

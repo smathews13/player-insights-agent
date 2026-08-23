@@ -43,6 +43,33 @@
   padding: 0;
   overflow: hidden;
 }
+/*
+ * An empty transcript, where the composer is the page rather than a control over
+ * it.
+ *
+ * `position: static` rather than a raised `top`, and that is the whole trick. The
+ * form is already the last child of `.conversation-main`, so returning it to the
+ * flow puts it directly under the hero -- and the hero is the only thing above it
+ * when the transcript is empty. `max-width` and `margin-inline: auto` still hold,
+ * so it keeps the same 720px measure, centred in the same column, and lands in the
+ * same place a reader's eye already is.
+ *
+ * A `top` in the tens of vh was the alternative and it is the version that breaks:
+ * the hero is a chip, a headline that wraps to two lines at some widths and one at
+ * others, and any number chosen for it is wrong at some window height. Under the
+ * headline is a relationship, not a coordinate.
+ *
+ * The 180px of bottom padding on the column goes with it -- that room exists only
+ * because a fixed composer reserves no space in the scroll flow, and this one does.
+ */
+.conversation-main.is-empty {
+  padding-bottom: 56px;
+}
+.conversation-main.is-empty .composer {
+  position: static;
+  margin-top: 28px;
+}
+
 /* Typing a question is the app's main action, so the composer wears the action
    colour while it has focus. The ring sits on the container rather than the
    textarea, so the whole thing reads as one surface, and it is the same 2px solid

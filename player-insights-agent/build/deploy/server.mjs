@@ -172593,6 +172593,10 @@ async function restoreDeclaredConnection(client, id, changedBy) {
   const row2 = (result?.rows ?? [])[0];
   return row2 ? storedFromRow2(row2) : null;
 }
+async function forgetDeclaredConnection(client, id) {
+  const result = await client.lakebase.query(FORGET_DECLARED_CONNECTION_QUERY, [id]);
+  return Boolean((result?.rows ?? [])[0]);
+}
 function addFault(input) {
   if (!ID_PATTERN.test(input.id)) {
     return "A name may use lower-case letters, digits and hyphens, must start with a letter or digit, and is between 2 and 61 characters.";
@@ -172633,7 +172637,7 @@ function removalImpact(connection, liveValues) {
     recoverable: true
   };
 }
-var DECLARED_CONNECTIONS_QUERY, UPSERT_DECLARED_CONNECTION_QUERY, WITHDRAW_DECLARED_CONNECTION_QUERY, RESTORE_DECLARED_CONNECTION_QUERY, ID_PATTERN;
+var DECLARED_CONNECTIONS_QUERY, UPSERT_DECLARED_CONNECTION_QUERY, WITHDRAW_DECLARED_CONNECTION_QUERY, RESTORE_DECLARED_CONNECTION_QUERY, FORGET_DECLARED_CONNECTION_QUERY, ID_PATTERN;
 var init_declared_connections = __esm({
   "server/lib/declared-connections.ts"() {
     init_app_schema();
@@ -172667,6 +172671,10 @@ var init_declared_connections = __esm({
      SET state = 'declared', changed_by = $2, changed_at = now()
    WHERE id = $1 AND state = 'withdrawn'
   RETURNING id, label, kind, value, note, state, origin, created_at, created_by, changed_at, changed_by`;
+    FORGET_DECLARED_CONNECTION_QUERY = `
+  DELETE FROM ${APP_SCHEMA}.declared_connections
+   WHERE id = $1
+  RETURNING id`;
     ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,60}$/;
   }
 });
@@ -173544,6 +173552,25 @@ function setupSettingsRoutes(appkit) {
       } catch (error48) {
         console.error("[connections] The connection could not be restored:", error48.message);
         res.status(503).json({ error: "settings_store_unavailable", detail: "The connection was not restored." });
+      }
+    });
+    app.delete("/api/settings/connections/:id/forever", async (req, res) => {
+      try {
+        const forgotten = await forgetDeclaredConnection(appkit, req.params.id);
+        if (!forgotten) {
+          res.status(404).json({
+            error: "no_such_connection",
+            detail: "There is no remembered connection under that name."
+          });
+          return;
+        }
+        res.json({ forgotten: { id: req.params.id }, restorable: false });
+      } catch (error48) {
+        console.error("[connections] The connection could not be forgotten:", error48.message);
+        res.status(503).json({
+          error: "settings_store_unavailable",
+          detail: "The remembered connection was not removed. Nothing changed."
+        });
       }
     });
     app.put("/api/settings/values/:resourceId", async (req, res) => {

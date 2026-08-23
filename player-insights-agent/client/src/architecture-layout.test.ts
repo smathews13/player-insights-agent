@@ -8,8 +8,10 @@ import {
   BOTTOM_ROW_NODES,
   CANVAS_FIT_SLACK,
   CANVAS_HEIGHT,
+  CANVAS_MARGIN,
   CANVAS_MAX_WIDTH,
   CANVAS_WIDTH,
+  COLUMN_GAP,
   CARD_CHROME_HEIGHT,
   CARD_CHROME_WIDTH,
   CARD_LINE_HEIGHT,
@@ -29,8 +31,12 @@ import {
   NODE_BOXES,
   boxesOverlap,
   columnStacks,
+  crossingEdges,
   drawnEdges,
   drawnRects,
+  edgeEntersCard,
+  edgePath,
+  edgesThroughCards,
   fittedSpan,
   insideBox,
   labelClearances,
@@ -41,6 +47,8 @@ import {
   overlappingRects,
   pathEnds,
   pathPoints,
+  pathPolyline,
+  pathsCross,
   rectGap,
   rectsOverlap,
   wrappedLines,
@@ -81,8 +89,8 @@ const CSS = readFileSync(fileURLToPath(new URL('./styles/architecture.css', impo
  * with the direction of travel rather than catching anything.
  */
 const TOKENS =
-  readFileSync(fileURLToPath(new URL('./styles/tokens.css', import.meta.url)), 'utf8')
-  + readFileSync(fileURLToPath(new URL('./styles/astrolabe-tokens.css', import.meta.url)), 'utf8');
+  readFileSync(fileURLToPath(new URL('./styles/tokens.css', import.meta.url)), 'utf8') +
+  readFileSync(fileURLToPath(new URL('./styles/astrolabe-tokens.css', import.meta.url)), 'utf8');
 /*
  * The shared pill recipe, which is where a status pill's border and vertical
  * padding live now. The three pills on a node card compose `.ast-pill` and
@@ -260,6 +268,43 @@ describe('no two cards are drawn on top of each other', () => {
     expect(dictionary.height).toBeLessThan(140);
     expect(data.top - (dictionary.top + dictionary.height)).toBeGreaterThan(ROW_GAP_MIN + 20);
   });
+
+  /**
+   * FIVE COLUMNS, ONE PITCH, and the pitch is a number rather than four.
+   *
+   * "The paths are very mixed and hard to follow" was reported about the lines,
+   * but a reader traces a line by the columns it crosses, and the corridors were
+   * 86, 74, 80 and 88 wide. Four separations across one drawing are read as four
+   * different amounts of distance, so the line that crosses the narrow one looks
+   * like a different kind of connection from the line that crosses the wide one.
+   *
+   * The gap is asserted exactly rather than as a floor: a floor is what let them
+   * drift apart in the first place, one column at a time, each edit locally
+   * reasonable.
+   */
+  it('separates every column from the next by the same corridor', () => {
+    const columns = [...new Set(Object.values(NODE_BOXES).map((box) => box.left))].sort((a, b) => a - b);
+    expect(columns).toHaveLength(5);
+    for (let at = 1; at < columns.length; at += 1) {
+      const width = Math.max(
+        ...Object.values(NODE_BOXES)
+          .filter((box) => box.left === columns[at - 1])
+          .map((box) => box.width)
+      );
+      expect(columns[at] - (columns[at - 1] + width), `the corridor left of x=${columns[at]}`).toBe(COLUMN_GAP);
+    }
+  });
+
+  it('starts every column at the same height, so the drawing has a top edge', () => {
+    // Not that every card starts there -- the columns are different lengths --
+    // but that the highest card in the drawing sits exactly {@link CANVAS_MARGIN}
+    // down, and the canvas ends the same distance below the lowest. A frame with
+    // 36 of white above and 12 below reads as a drawing that has slipped in it.
+    const tops = Object.values(NODE_BOXES).map((box) => box.top);
+    const bottoms = Object.values(NODE_BOXES).map((box) => box.top + box.height);
+    expect(Math.min(...tops)).toBe(CANVAS_MARGIN);
+    expect(CANVAS_HEIGHT - Math.max(...bottoms)).toBe(CANVAS_MARGIN);
+  });
 });
 
 /**
@@ -428,10 +473,7 @@ describe('storage is the bottom row, which is what the page says it is', () => {
   it('keeps the exception to two cards, both of them semantic and both drawn', () => {
     // The lane the rule above exempts. Naming it here means a node added to it
     // has to be a deliberate act rather than a way past the bottom-row check.
-    expect(nodesInLane('semantic').map((node) => node.id)).toEqual([
-      'semantic-index',
-      'semantic-index-endpoint',
-    ]);
+    expect(nodesInLane('semantic').map((node) => node.id)).toEqual(['semantic-index', 'semantic-index-endpoint']);
     for (const node of nodesInLane('semantic')) {
       expect(nodeBox(node.id), `${node.id} is placed`).toBeDefined();
     }
@@ -441,7 +483,11 @@ describe('storage is the bottom row, which is what the page says it is', () => {
     // Not a second list. `lane: 'record'` is the model's own statement about what
     // is written during a run and never read to answer one, and the bottom row is
     // that set drawn.
-    expect([...BOTTOM_ROW_NODES].sort()).toEqual(nodesInLane('record').map((node) => node.id).sort());
+    expect([...BOTTOM_ROW_NODES].sort()).toEqual(
+      nodesInLane('record')
+        .map((node) => node.id)
+        .sort()
+    );
   });
 
   it('hangs each store below the thing that writes it', () => {
@@ -537,9 +583,7 @@ describe('every connection in the model is drawn', () => {
     // lost the words that say what each line means.
     for (const edge of drawnEdges()) {
       for (const [id, box] of Object.entries(NODE_BOXES)) {
-        expect(insideBox(box, { x: edge.labelX, y: edge.labelY }), `${edge.id} caption is clear of ${id}`).toBe(
-          false
-        );
+        expect(insideBox(box, { x: edge.labelX, y: edge.labelY }), `${edge.id} caption is clear of ${id}`).toBe(false);
       }
     }
   });
@@ -562,6 +606,208 @@ describe('every connection in the model is drawn', () => {
       // while its neighbours are busy, which reads as a connection that stopped.
       expect(edge.delay, edge.id).toBeLessThanOrEqual(edge.duration);
     }
+  });
+});
+
+/**
+ * WHERE A LINE GOES, not just where it starts and stops.
+ *
+ * Everything above this reads an edge's path as the numbers in its string: the
+ * first pair, the last pair, and whether any of them left the canvas. A curve is
+ * not its control points, so all of that passed while one edge ran from the
+ * finder across the entire Genie column to the warehouse -- over the gap between
+ * two cards, across three other edges -- and while four edges were cubics whose
+ * first handle sat to the RIGHT of their second and therefore kinked. "The paths
+ * are very mixed and hard to follow, weirdly curved" is what that looks like, and
+ * nothing in this file could see any of it.
+ *
+ * So the paths are flattened and measured. These are the claims the arrangement
+ * is FOR, rather than descriptions of it, and each of them is undone by a
+ * plausible-looking edit to the tables in architecture-layout.ts.
+ */
+describe('every line can be followed from one card to the other', () => {
+  it('draws no line across a card', () => {
+    expect(edgesThroughCards()).toEqual([]);
+  });
+
+  it('would notice one, on a line moved over a card on purpose', () => {
+    // The detector before it is trusted over the real table. A straight run
+    // through the middle of a card is caught; the same run along the card's own
+    // border is not, which is the case every edge on this drawing depends on --
+    // each of them starts on one card's border and ends on another's.
+    const box = NODE_BOXES['genie-data'];
+    const across = `M 0 ${box.top + 40} H ${CANVAS_WIDTH}`;
+    expect(pathPolyline(across).some((point, at) => at > 0 && point.y === box.top + 40)).toBe(true);
+    expect(edgeEntersCard(across, box)).toBe(true);
+    expect(edgeEntersCard(`M 0 ${box.top} H ${CANVAS_WIDTH}`, box)).toBe(false);
+  });
+
+  it('crosses no other line', () => {
+    expect(crossingEdges()).toEqual([]);
+  });
+
+  it('would notice a crossing, on two lines drawn over each other', () => {
+    // Two straight runs through the same corridor, one of them inverted, which
+    // is exactly what breaking the fan's departure order does.
+    const down = 'M 672 300 C 713 300 713 500 754 500';
+    const up = 'M 672 500 C 713 500 713 300 754 300';
+    expect(pathsCross(down, up)).toBe(true);
+    expect(pathsCross(down, 'M 672 520 C 713 520 713 600 754 600')).toBe(false);
+  });
+
+  /**
+   * NO LINE TURNS BACK ON ITSELF. The other half of "weirdly curved".
+   *
+   * A cubic whose handles are both on the vertical half way between its ends is
+   * monotone in x by construction, which is the property that makes two of them
+   * side by side read as the same shape. The old ones were not: handles at 716
+   * and 700 make the curve leave the card, come back, and kink in the middle at
+   * an amount that differed per edge.
+   *
+   * The bracket is the one exception and has to be, because going round a card
+   * means going back the way you came. It is named here so that a second
+   * non-monotone edge is a failure rather than a precedent.
+   */
+  it('moves each line one way across the canvas, bar the one that goes round a card', () => {
+    const wandering: string[] = [];
+    for (const edge of drawnEdges()) {
+      const xs = pathPolyline(edge.d).map((point) => point.x);
+      const rising = xs.every((x, at) => at === 0 || x >= xs[at - 1] - 0.001);
+      const falling = xs.every((x, at) => at === 0 || x <= xs[at - 1] + 0.001);
+      if (!rising && !falling) wandering.push(edge.id);
+    }
+    const bracket = drawnEdges().find((edge) => edge.from === 'agent-endpoint' && edge.to === 'experiment-id')!;
+    expect(wandering).toEqual([bracket.id]);
+  });
+
+  it('leaves and arrives on the borders themselves, because the ends are derived', () => {
+    // The old table stated every coordinate by hand, so the check above this one
+    // allows six pixels of slack for a line that stops short of the card it
+    // points at. Nothing needs that slack now: an end is a side of a card and a
+    // distance along it, so it is ON the border or the arithmetic is wrong.
+    for (const edge of drawnEdges()) {
+      const from = nodeBox(edge.from)!;
+      const to = nodeBox(edge.to)!;
+      const ends = pathEnds(edge.d);
+      const onBorder = (box: typeof from, point: { x: number; y: number }) =>
+        ((point.x === box.left || point.x === box.left + box.width) &&
+          point.y >= box.top &&
+          point.y <= box.top + box.height) ||
+        ((point.y === box.top || point.y === box.top + box.height) &&
+          point.x >= box.left &&
+          point.x <= box.left + box.width);
+      expect(onBorder(from, ends.start), `${edge.id} leaves ${edge.from}`).toBe(true);
+      expect(onBorder(to, ends.end), `${edge.id} arrives on ${edge.to}`).toBe(true);
+    }
+  });
+
+  it('reads the ends off the path rather than off its string, for all four shapes', () => {
+    // The old `pathEnds` tested the string for an `H` or a `V` and inherited the
+    // other axis from the start point. That is right for a path with one of them
+    // and wrong for a path with both, which the channel and the bracket are: the
+    // channel's end came back as the start's y, on a line that changes y.
+    expect(pathEnds('M 10 20 H 40')).toEqual({ start: { x: 10, y: 20 }, end: { x: 40, y: 20 } });
+    expect(pathEnds('M 10 20 V 50')).toEqual({ start: { x: 10, y: 20 }, end: { x: 10, y: 50 } });
+    expect(pathEnds('M 10 20 C 30 20 30 60 50 60')).toEqual({ start: { x: 10, y: 20 }, end: { x: 50, y: 60 } });
+    expect(pathEnds('M 10 20 C 30 20 30 60 50 60 H 90')).toEqual({ start: { x: 10, y: 20 }, end: { x: 90, y: 60 } });
+    expect(pathEnds('M 50 20 H 24 Q 10 20 10 34 V 76 Q 10 90 24 90 H 50')).toEqual({
+      start: { x: 50, y: 20 },
+      end: { x: 50, y: 90 },
+    });
+  });
+
+  it('derives each path from the boxes, so a card that moves takes its line with it', () => {
+    // The claim the whole derivation is for. The same route against a card moved
+    // down by 100 draws the same shape 100 lower, rather than a line pointing at
+    // where the card used to be -- which is the failure the old table's own
+    // comment described.
+    const from = NODE_BOXES['agent-endpoint'];
+    const to = NODE_BOXES['llm-endpoint'];
+    const route = {
+      from: { side: 'right', along: 40 },
+      to: { side: 'left', along: 50 },
+      route: { kind: 'curve' },
+    } as const;
+    expect(edgePath(from, to, route)).toBe('M 672 200 C 713 200 713 86 754 86');
+    expect(edgePath(from, { ...to, top: to.top + 100 }, route)).toBe('M 672 200 C 713 200 713 186 754 186');
+  });
+});
+
+/**
+ * THE DOT AND THE LINE ARE ONE THING, and they were drawn as two.
+ *
+ * The dot travelling along an edge is a `<span>` with the edge's own path string
+ * as its `offset-path`, so the two cannot disagree about where the edge is. What
+ * they CAN disagree about is where on the box the path is measured from, and that
+ * is what shipped: `.arch-dot` carried both halves of two different centring
+ * techniques at once and every dot on the tab was drawn 3.5px up and 3.5px left
+ * of the line it belongs to -- half its own diameter, in both axes, on a 1.5px
+ * line. It read as the dots belonging to a different drawing.
+ *
+ * A browser is the only thing that can position a motion path, and there is none
+ * here. What can be checked is that the rule says what it means to: the box is at
+ * the origin of the coordinate system the path is written in, its anchor is its
+ * middle, and nothing else displaces it.
+ */
+describe('the travelling dot rides the line it belongs to', () => {
+  const dot = rule(CSS, '.arch-dot');
+
+  it('places the box at the origin the path coordinates are stated in', () => {
+    // A motion path is applied as a transform on top of the layout position, so
+    // the layout position has to be (0, 0) of the canvas or every coordinate in
+    // the path is out by wherever the box happened to sit.
+    expect(dot).toMatch(/position:\s*absolute/);
+    expect(px(dot, 'left')).toBe(0);
+    expect(px(dot, 'top')).toBe(0);
+  });
+
+  it('displaces the box by nothing at all, which is what put the dots beside the lines', () => {
+    // `margin: -3.5px` is the idiom for a marker whose TOP-LEFT is being placed.
+    // With an anchor in the middle of the box it is applied on top of the
+    // centring rather than instead of it, and the dot lands half its own width
+    // off the path in both axes. Stated as an absence because the property is
+    // harmless-looking and reappears every time somebody centres a dot from
+    // memory.
+    expect(pxList(dot, 'margin'), 'no margin on a box a motion path positions').toEqual([]);
+    expect(dot, 'and no transform to fight the offset transform').not.toMatch(/[;{]\s*transform:/);
+    expect(dot, 'and no inset beyond the origin').not.toMatch(/[;{]\s*(right|bottom):/);
+  });
+
+  it('anchors the middle of the dot to the path, and says so', () => {
+    // `auto` resolves to `transform-origin`, which is the middle by default. The
+    // default is not the claim being made, so the claim is written down.
+    expect(dot).toMatch(/offset-anchor:\s*50%\s*50%/);
+    expect(px(dot, 'width'), 'a round dot, so the anchor is its centre either way').toBe(px(dot, 'height'));
+  });
+
+  it('measures the dot and the line in the same coordinate space', () => {
+    // The line is drawn in SVG user units and the dot is positioned in the
+    // canvas's own pixels, and the two are only the same numbers because the
+    // `<svg>` covers the canvas exactly and the viewBox is the canvas's size. A
+    // padding on the canvas, a border, or an inset on the `<svg>` would shift one
+    // of those spaces relative to the other and every dot would be off by that
+    // amount -- the same symptom as the margin, from the other direction.
+    const canvas = rule(CSS, '.arch-canvas');
+    const edges = rule(CSS, '.arch-edges');
+    expect(canvas).toMatch(/position:\s*relative/);
+    expect(canvas, 'no padding or border to push the SVG off the canvas origin').not.toMatch(/padding|border/);
+    expect(edges).toMatch(/inset:\s*0/);
+    expect(edges).toMatch(/width:\s*100%/);
+    expect(edges).toMatch(/height:\s*100%/);
+
+    const page = readFileSync(fileURLToPath(new URL('./ArchitecturePage.tsx', import.meta.url)), 'utf8');
+    expect(page).toMatch(/viewBox=\{`0 0 \$\{CANVAS_WIDTH\} \$\{CANVAS_HEIGHT\}`\}/);
+  });
+
+  it('gives the dot the path itself rather than a second copy of the geometry', () => {
+    // The page hands each dot `edge.d` -- the same string the `<path>` is drawn
+    // from -- and the assertion is on the source because there is no browser here
+    // to read a computed motion path back out of. A dot positioned from its
+    // node's box coordinates instead would be the same class of defect one level
+    // up: two descriptions of one edge.
+    const page = readFileSync(fileURLToPath(new URL('./ArchitecturePage.tsx', import.meta.url)), 'utf8');
+    expect(page).toMatch(/offsetPath: `path\('\$\{edge\.d\}'\)`/);
+    expect(page).toMatch(/<path className="arch-edge" d=\{edge\.d\} \/>/);
   });
 });
 
@@ -1112,10 +1358,9 @@ describe('nothing on the canvas is drawn over anything else', () => {
       }));
       for (let i = 0; i < scaled.length; i += 1) {
         for (let j = i + 1; j < scaled.length; j += 1) {
-          expect(
-            rectsOverlap(scaled[i].rect, scaled[j].rect),
-            `${scaled[i].id} and ${scaled[j].id} at ${scale}`
-          ).toBe(false);
+          expect(rectsOverlap(scaled[i].rect, scaled[j].rect), `${scaled[i].id} and ${scaled[j].id} at ${scale}`).toBe(
+            false
+          );
         }
       }
     }

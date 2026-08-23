@@ -204,12 +204,37 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(measure).toBeGreaterThanOrEqual(1100);
   });
 
-  it('gives the hero, the suggestions and the composer one width to share', () => {
-    // Three elements centred in the same column at three different widths is the
-    // sort of thing nobody can name and everybody can see.
+  it('gives the headline and the composer one width to share', () => {
+    // The suggestion grid that used to sit between these two is gone. The two
+    // remaining parts of the empty state still need one centre line and one
+    // measure; otherwise removing the cards would leave the input visibly
+    // unrelated to the question that introduces it.
     expect(body('.ask-hero')).toMatch(/max-width:\s*720px/);
     expect(body('.composer')).toMatch(/max-width:\s*720px/);
     expect(body('.composer')).toMatch(/margin-inline:\s*auto/);
+  });
+
+  it('makes the empty state a headline followed by an in-flow composer, with no suggestion cards', () => {
+    /*
+     * THE CARDS WERE NOT REPLACED BY BLANK SPACE. Their removal changes the
+     * empty-state geometry: while there is no transcript and no load in flight,
+     * the page marks the main column `is-empty` and returns the composer from its
+     * fixed seat to normal flow directly under the headline. Once a question is
+     * appended, that class leaves and the fixed transcript control comes back.
+     *
+     * Comments are stripped from both sources because ask.css deliberately keeps
+     * the retired selector's name in the explanation of why it must stay gone.
+     */
+    const home = withoutComments(HOME_PAGE);
+    const ask = withoutComments(partial('ask.css'));
+    expect(home).toContain('const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;');
+    expect(home).toContain("className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}");
+    expect(home).toContain('{transcriptEmpty && (');
+    expect(body('.conversation-main.is-empty')).toMatch(/padding-bottom:\s*56px/);
+    expect(body('.conversation-main.is-empty .composer')).toMatch(/position:\s*static/);
+    expect(body('.conversation-main.is-empty .composer')).toMatch(/margin-top:\s*28px/);
+    expect(home).not.toContain('prompt-grid');
+    expect(ask).not.toContain('.prompt-grid');
   });
 
   it('carries the agent’s mark on Ice, with no accent anywhere near it', () => {

@@ -23,6 +23,7 @@ import {
   connectionCounts,
   connectionRowView,
   emptyScopesNote,
+  forgetConnectionDetail,
   isOpaqueAssetId,
   notebookIsBlocked,
   notebookSummary,
@@ -364,6 +365,30 @@ describe('the list of assets the agent may consider', () => {
       />
     );
     expect(markup).toContain('Put back');
+  });
+
+  it('offers an administrator a keyboard-reachable permanent removal on every remembered row', () => {
+    const markup = renderToStaticMarkup(
+      <DeclaredConnectionsCard
+        entries={[entry(), entry({ id: 'gone', state: 'withdrawn' })]}
+        allowMutations
+        onChanged={() => {}}
+      />
+    );
+    expect(markup.match(/aria-label="Remove forever:/g)).toHaveLength(2);
+    expect(markup.match(/class="plane-row-forget"/g)).toHaveLength(2);
+    expect(markup).toContain('title="Remove forever"');
+  });
+
+  it('does not advertise a permanent mutation the server would refuse to a consumer', () => {
+    const markup = renderToStaticMarkup(<DeclaredConnectionsCard entries={[entry()]} onChanged={() => {}} />);
+    expect(markup).not.toContain('Remove forever');
+    expect(markup).not.toContain('plane-row-forget');
+  });
+
+  it('states that permanent removal cannot be undone and names the notebook exception', () => {
+    expect(forgetConnectionDetail('app')).toMatch(/cannot be undone/i);
+    expect(forgetConnectionDetail('notebook')).toMatch(/Publishing the notebook again may add it back/);
   });
 
   it('says nothing can be changed when the store is not answering', () => {

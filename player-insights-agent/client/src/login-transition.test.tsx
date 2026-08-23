@@ -122,10 +122,12 @@ describe('the flicker: nothing of the app is drawn before the gate decision', ()
 
   /*
    * WHY THE SHELL IS BEHIND THE GATE RATHER THAN UNMOUNTED UNTIL CONTINUE. The
-   * spec's landing is explicit: "the Ask tab is already fully rendered under the
-   * crossfade: top bar, hero chip, headline, suggestion cards, composer. No
-   * skeleton, no spinner, no second load." Mounting the page at the click would put
-   * a first paint inside the crossfade, which is the skeleton it forbids.
+   * landing is explicit: the Ask tab is already fully rendered under the
+   * crossfade -- top bar, hero chip, headline and the composer now seated directly
+   * beneath it. The suggestion cards named by the earlier spec no longer exist;
+   * removing them does not relax the real requirement here: no skeleton, no
+   * spinner and no second load. Mounting the page at the click would put a first
+   * paint inside the crossfade, which is the skeleton it forbids.
    */
   it('lets the app mount behind the gate once the gate is up', () => {
     expect(drawsAppShell('gate')).toBe(true);

@@ -44,6 +44,7 @@ import { UserIdentityChip } from './UserIdentityChip';
 import { AccountMenu } from './AccountMenu';
 import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
+import { settingsOriginPath } from './settings-origin';
 import { navEntries, roleFrom, showsSettingsGear, type AppOutletContext, type RoleResolution } from './role';
 
 /**
@@ -374,10 +375,27 @@ export function Layout() {
   const role = roleFrom(identity);
   const settingsDeepLink = location.pathname === '/settings';
   const settingsVisible = settingsOpen || settingsDeepLink;
+  /**
+   * Closing settings returns the reader to the page that sent them, when a page
+   * did.
+   *
+   * `/settings` is a route as well as a gear, so closing it has to navigate
+   * somewhere, and it went to Ask unconditionally. That is right for a reader who
+   * typed the address and wrong for one who followed a link out of a page they
+   * were reading: Architecture links the Optional badges on the answer contract
+   * to the switches that set them, and being dropped on Ask afterwards loses the
+   * diagram they were looking at.
+   *
+   * The origin travels in the link's own router state rather than in a store,
+   * because it belongs to one arrival -- the same reason `RoleLostNotice` reads
+   * its sentence from there. A reader who reaches `/settings` any other way has
+   * no state and still lands on Ask.
+   */
+  const settingsOrigin = settingsOriginPath(location.state);
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
-    if (settingsDeepLink) void navigate('/', { replace: true });
-  }, [navigate, settingsDeepLink]);
+    if (settingsDeepLink) void navigate(settingsOrigin, { replace: true });
+  }, [navigate, settingsDeepLink, settingsOrigin]);
   // Read once, when the app opens, and held here. `useState(fn)` rather than
   // `useState(readExperimentalFeatures())` so the read happens on mount instead
   // of on every render of the header.

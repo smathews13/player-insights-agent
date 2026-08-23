@@ -417,3 +417,20 @@ export const RESTORE_LABEL = 'Put back';
 
 /** The label on the button that removes one. */
 export const REMOVE_LABEL = 'Remove';
+
+/** The accessible name and confirmation label for deleting the stored row. */
+export const REMOVE_FOREVER_LABEL = 'Remove forever';
+
+/**
+ * What permanent removal says before it runs.
+ *
+ * A notebook-origin row can return on the next publish, so “forever” may describe
+ * only this stored copy. Naming that exception in the confirmation is what keeps
+ * an irreversible database delete from promising control over a separate source.
+ */
+export function forgetConnectionDetail(origin: 'app' | 'notebook'): string {
+  if (origin === 'notebook') {
+    return 'This deletes the remembered row and cannot be undone here. Publishing the notebook again may add it back.';
+  }
+  return 'This deletes the remembered row and cannot be undone. Add the connection again if you need it later.';
+}

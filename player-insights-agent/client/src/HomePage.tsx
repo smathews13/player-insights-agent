@@ -544,8 +544,7 @@ export function HomePage() {
    * made the path pop; AgentPathConstellation uses the absent clock to stop every
    * beat while retaining the final observed step.
    */
-  const railActiveIndex =
-    (loading || Boolean(runStopped)) && liveStages.length > 0 ? railStages.length - 1 : -1;
+  const railActiveIndex = (loading || Boolean(runStopped)) && liveStages.length > 0 ? railStages.length - 1 : -1;
   /**
    * How long the step in progress has been going, for the one row that ticks.
    *
@@ -1688,6 +1687,22 @@ export function HomePage() {
     </>
   );
 
+  /*
+   * Nothing has been asked yet, which is a layout as well as a state.
+   *
+   * The hero and the composer both read it: on an empty transcript the composer
+   * leaves its fixed seat at the bottom of the window and sits in the flow under
+   * the headline, where the thing a reader has come to do is the thing in front of
+   * them. Once there is a transcript it goes back to the bottom, because then it
+   * is a control over a document rather than the document.
+   *
+   * `loading` is in the test so the composer does not travel the height of the
+   * window between submitting the first question and the answer arriving. The
+   * first question is appended to `messages` immediately, so this goes false on
+   * the same render that draws the reader's own bubble.
+   */
+  const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;
+
   return (
     <div className="ask-layout">
       <aside className="conversation-rail">{renderRail('rail')}</aside>
@@ -1718,8 +1733,8 @@ export function HomePage() {
         </SheetContent>
       </Sheet>
 
-      <section className="conversation-main">
-        {messages.length === 0 && !loading && !conversationLoading && (
+      <section className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
+        {transcriptEmpty && (
           <div className="ask-hero">
             {/* The chip that introduces the agent, carrying the small cut of the
                 mark on Ice. THE MARK IS THE AGENT (§1): the orange robot is
@@ -1734,19 +1749,6 @@ export function HomePage() {
               astrolabe player intelligence
             </div>
             <h2>What would you like to understand about your players?</h2>
-            <div className="prompt-grid">
-              {[
-                'Compare active players by title over the last 30 days.',
-                'Show the Hoops 26 season launch engagement spike.',
-                'Check null ratios in the latest player activity data.',
-                'Compare recurrent consumer spending with full-game net bookings by title.',
-              ].map((suggestion) => (
-                <button key={suggestion} onClick={() => void ask(suggestion)}>
-                  {suggestion}
-                  <span>Ask →</span>
-                </button>
-              ))}
-            </div>
           </div>
         )}
 

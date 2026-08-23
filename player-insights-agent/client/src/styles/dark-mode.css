@@ -4,11 +4,33 @@
  * Layout, copy, and control structure are unchanged.
  */
 
+/*
+ * The sky is behind everything in the frame and asks nothing of it.
+ *
+ * A negative layer inside the frame's own stacking context, rather than layer 0
+ * plus a rule lifting every sibling to layer 1. That second rule is the one this
+ * replaces, and it was a decision about a background that reached four things it
+ * had no business touching, because `> :not(.app-sky)` also matches the frame's
+ * fixed-position overlays:
+ *
+ *   - the login gate lost `position: fixed` and rendered inline in the page, so
+ *     the app it is supposed to be holding back was visible above it and the
+ *     composer floated over the card,
+ *   - App settings did the same and laid itself out below the footer, which read
+ *     as a gear that does nothing,
+ *   - the access gate did the same,
+ *   - and `position: relative; z-index: 1` on the header made the header a
+ *     stacking context, which trapped the account menu inside it and painted the
+ *     page over the menu the moment the reader tried to aim at it.
+ *
+ * `isolation` on the frame is what keeps a negative layer from sinking behind
+ * the page's own background and disappearing.
+ */
 .app-sky {
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -21,11 +43,6 @@ html[data-theme='dark'] .app-sky {
 html[data-theme='dark'] .app-frame {
   position: relative;
   isolation: isolate;
-}
-
-html[data-theme='dark'] .app-frame > :not(.app-sky) {
-  position: relative;
-  z-index: 1;
 }
 
 html[data-theme='dark'] .ask-layout {
@@ -42,6 +59,101 @@ html[data-theme='dark'] .app-header {
 html[data-theme='dark'] .ast-mark--light {
   --ast-mark-ink: var(--ast-white);
   --ast-mark-accent: var(--ast-blue-on-dark);
+}
+
+/*
+ * The wordmark, which the rule above cannot reach: it is type beside the drawing
+ * rather than part of it, and astrolabe-mark.css only whitens it inside a lockup
+ * that contains the dark or mono mark. The dark theme seats the LIGHT mark, so
+ * the name kept the navy it takes on a white page -- and navy here is the page.
+ */
+html[data-theme='dark'] .ast-wordmark {
+  color: var(--ast-white);
+}
+
+/*
+ * The corporate lockup, reversed.
+ *
+ * The committed asset paints its wordmark in #0B2026, as the full-colour logo
+ * should on white, and a presentation attribute loses to any rule at all -- so
+ * the type goes to currentColor and the bricks are restated. The bricks keep
+ * their own colour because that is what "reversed" means in the Databricks
+ * brand: the mark is never recoloured, only what surrounds it.
+ *
+ * --db-orange IS the brand red, #FF3621, which is why this does not reach past
+ * the token block for a hex the palette already holds.
+ */
+html[data-theme='dark'] .fo-databricks-logo {
+  color: var(--ast-white);
+}
+
+html[data-theme='dark'] .fo-databricks-logo svg path {
+  fill: currentColor;
+}
+
+html[data-theme='dark'] .fo-databricks-logo svg path:first-of-type {
+  fill: var(--db-orange);
+}
+
+/*
+ * The reader's own name, everywhere it is drawn.
+ *
+ * --db-ink-deep is the darkest fill in the palette -- scrims, drop shadows, the
+ * dark chips -- and it is deliberately NOT remapped for dark, because those uses
+ * still need to be black on a night sky. It is also, at six call sites across
+ * shell.css, gate.css, rail.css and time-range.css, a TEXT colour, and those are
+ * what this corrects: without it a person's own address is #11171C on #11171C in
+ * the header, on the login gate, in the conversation rail's filter chips, in Run
+ * Explorer, in Monitoring and on Connections. The chip's own fill was the page
+ * background, which drew a black box where a name goes.
+ *
+ * Mirrored selectors rather than one loose rule, because each original is more
+ * specific than a bare `.identity-chip` and would otherwise keep winning.
+ *
+ * The chip's border is left alone: --db-line-strong already remaps to the same
+ * 22% white this file would have asked for by name.
+ */
+html[data-theme='dark'] .identity-chip {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+html[data-theme='dark'] .conversation-filter-chip[aria-pressed='true'],
+html[data-theme='dark'] .conversation-filter-chip:not(.is-all)[aria-pressed='true'] > .identity-chip,
+html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']),
+html[data-theme='dark'] .time-range-segment[aria-checked='true'] {
+  color: var(--foreground);
+}
+
+html[data-theme='dark'] .access-gate-actions button:not(.refresh-button) {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+/*
+ * The super rank, on the identity chip's colours rather than on its own.
+ *
+ * In light the two administrator pills are the info family, and the super rank is
+ * that family inverted: the deep rung #0E538B as the fill with white on it, which
+ * says "more of what Admin says" without adding a hue. Inverted stops meaning
+ * that here. --ast-info-text is the ICE ACCENT on the night sky, so the same rule
+ * paints a pale blue lozenge with white type on it -- the loudest object in the
+ * header, and barely readable -- immediately left of the reader's own name.
+ *
+ * So it takes the chip beside it: the same fill, the same border rung, the same
+ * ink. The two members of the cluster then read as one pair, which is what they
+ * are, and rank is carried by the shield and the word rather than by being the
+ * brightest thing on the page.
+ *
+ * THE BORDER DOES NOT PUT THIS BACK IN THE BUTTON FAMILY, which is the one thing
+ * role-badge.md asks of this pill. That rule turns on the geometry: every button
+ * in this app is 4px, and the 999px radius in shell.css is untouched. The chip
+ * this now matches is bordered, is 4px, and is not a button either.
+ */
+html[data-theme='dark'] .role-badge[data-role-state='super_admin'] {
+  background: var(--card);
+  border: 1px solid var(--ast-border-input);
+  color: var(--foreground);
 }
 
 html[data-theme='dark'] .app-nav-tab[aria-current='page'],
@@ -64,20 +176,85 @@ html[data-theme='dark'] .ast-sky {
   background-image: none;
 }
 
-html[data-theme='dark'] .prompt-grid button,
+/*
+ * The login overlay is a backdrop, not a scrim, and in dark it is the night sky.
+ *
+ * `--ast-ice` is the AI-context surface and it is 3% white here, so the Ice
+ * backdrop first-open.css asks for was effectively transparent: the reader met
+ * the entire app shell through the card that is supposed to be holding them at
+ * the door. `.on-sky` is left alone -- the opening sequence's own navy is behind
+ * it and the constellation goes on drawing through the card.
+ */
+html[data-theme='dark'] .first-open:not(.on-sky) {
+  background: var(--ast-sky-fill);
+}
+
+/*
+ * THE FROSTED PANE, AND WHAT HAS TO BE ON THIS LIST.
+ *
+ * The constellation is behind the PAGE rather than behind each surface, so any
+ * block holding figures or prose has to dull what is under it or the stars come
+ * through the content. A pane painted `--card` alone is 5% white over the sky:
+ * the fill is there and the stars are still legible through it.
+ *
+ * Everything below the original set was found missing by an audit of the whole
+ * stylesheet rather than by looking at a screen, which is the only way this list
+ * can be complete -- a surface is on it if a reader can be asked to read
+ * something on it, and several of these are states nobody screenshots: a plan
+ * card while the agent is still deciding, a failed Ops block, an absence, an
+ * alert. `--ast-ice`, `--ast-fill-band`, `--muted` and `--db-wash` all remap to
+ * 3% white, which is why a surface can look declared and be transparent.
+ */
 html[data-theme='dark'] .answer-card,
+html[data-theme='dark'] .plan-card,
+html[data-theme='dark'] .user-bubble,
 html[data-theme='dark'] .monitoring-tile,
+html[data-theme='dark'] .monitoring-list-pane,
+html[data-theme='dark'] .ops-block,
+html[data-theme='dark'] .ops-block-failed,
+html[data-theme='dark'] .ops-absence,
 html[data-theme='dark'] .trace-timeline,
 html[data-theme='dark'] .trace-gantt,
 html[data-theme='dark'] .trace-dag.map .dag-detail,
 html[data-theme='dark'] .arch-flow,
 html[data-theme='dark'] .arch-node,
+html[data-theme='dark'] .arch-rail,
+html[data-theme='dark'] .connection-rows,
+html[data-theme='dark'] .plane-card,
+html[data-theme='dark'] .bench-ledger,
+html[data-theme='dark'] .first-open-card,
 html[data-theme='dark'] .access-gate-panel,
+html[data-theme='dark'] [data-slot='alert'],
 html[data-theme='dark'] [data-slot='card'],
 html[data-theme='dark'] .live-step {
   background: var(--card);
   backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
+}
+
+/*
+ * The portaled menus, at the overlay weight rather than the pane weight.
+ *
+ * A select menu is rendered into the body, so it floats over the live sky with
+ * nothing between: at 5% white the options sit on stars. Both take the popover's
+ * 7% and the heavier blur every other floating surface here uses.
+ *
+ * `.monitoring-chip-menu` also has to restate its INK. It sets `--background` as
+ * its fill and `--ast-navy` as its text, which on white is a white menu with navy
+ * options and here is navy on navy: the filter list opened empty. It is the one
+ * surface in the app whose contents disappeared completely.
+ */
+html[data-theme='dark'] .app-select-content,
+html[data-theme='dark'] .monitoring-chip-menu {
+  background: var(--popover);
+  backdrop-filter: blur(6px);
+  border-color: var(--ast-border-input);
+  color: var(--foreground);
+}
+
+html[data-theme='dark'] .monitoring-chip-menu [data-slot='select-item'][data-highlighted] {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--foreground);
 }
 
 html[data-theme='dark'] .account-menu {
@@ -138,11 +315,96 @@ html[data-theme='dark'] .trace-dag.map .dag-sql-more {
   background: linear-gradient(to bottom, transparent, var(--card) 60%);
 }
 
+/*
+ * The filled action, which on the night sky is a wash of the action blue rather
+ * than the solid.
+ *
+ * THE HOVER AND PRESS STATES ARE HERE BECAUSE THIS RULE TOOK THEM AWAY. AppKit
+ * states its own hover as a Tailwind utility, and a utility lives in
+ * `@layer utilities` while this file is unlayered -- unlayered wins, so setting
+ * `background` here silently defeated `hover:bg-primary/90` and left New
+ * conversation with no hover, no press and nothing to tell a reader the click
+ * landed.
+ *
+ * Up the alpha rather than across the palette: 0.28 → 0.40 → 0.52 is one colour
+ * getting more present, which is what a control under the pointer and then under
+ * the finger should do. Going darker on hover is what the light theme does and it
+ * is the wrong direction here -- darker on a dark page reads as receding.
+ *
+ * The release is what a reader actually sees. `:active` cuts the transition to
+ * zero so the press is instant, and letting go returns over 220ms, which is the
+ * post-click highlight fading out rather than a state snapping off.
+ */
 html[data-theme='dark'] .ast-btn-primary,
-html[data-theme='dark'] [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not([data-variant='destructive']) {
+html[data-theme='dark']
+  [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not(
+    [data-variant='destructive']
+  ) {
   background: rgba(34, 114, 180, 0.28);
   border-color: rgba(143, 193, 232, 0.55);
   color: var(--ast-ghost-text);
+  transition:
+    background-color 220ms ease-out,
+    border-color 220ms ease-out;
+}
+
+html[data-theme='dark'] .ast-btn-primary:hover:not(:disabled),
+html[data-theme='dark']
+  [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not(
+    [data-variant='destructive']
+  ):hover:not(:disabled) {
+  background: rgba(34, 114, 180, 0.4);
+  border-color: rgba(143, 193, 232, 0.75);
+}
+
+html[data-theme='dark'] .ast-btn-primary:active:not(:disabled),
+html[data-theme='dark']
+  [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not(
+    [data-variant='destructive']
+  ):active:not(:disabled) {
+  background: rgba(34, 114, 180, 0.52);
+  border-color: var(--ast-ice-accent);
+  transition-duration: 0ms;
+}
+
+/*
+ * Refresh, whose states ran the wrong way.
+ *
+ * page-shell.css takes the solid blue to --db-blue-700 on hover and -800 on
+ * press, which is correct on white and backwards here: both rungs are darker
+ * than the resting fill, so on a navy page pressing Refresh made it fade into
+ * the page. Neither rung is remapped for dark, because the solid blue itself is
+ * still the right resting colour -- only the direction of travel is wrong.
+ */
+html[data-theme='dark'] .refresh-button:hover:not(:disabled) {
+  background: var(--db-blue-500);
+}
+
+html[data-theme='dark'] .refresh-button:active:not(:disabled) {
+  background: var(--ast-ice-accent);
+  color: var(--ast-navy);
+}
+
+/*
+ * Attach context. The hover wash it has is 5% white, which on the composer's own
+ * 3% pane is a difference of two percent of white: real, and not something a
+ * reader notices happening. Same asymmetric release as the filled action.
+ */
+html[data-theme='dark'] .composer-attach {
+  transition:
+    background-color 220ms ease-out,
+    color 220ms ease-out;
+}
+
+html[data-theme='dark'] .composer-attach:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ast-white);
+}
+
+html[data-theme='dark'] .composer-attach:active:not(:disabled) {
+  background: rgba(143, 193, 232, 0.28);
+  color: var(--ast-white);
+  transition-duration: 0ms;
 }
 
 html[data-theme='dark'] .answer-card:has(.live-progress) {
@@ -189,6 +451,136 @@ html[data-theme='dark'] .app-sky-glyph {
   opacity: 0.55;
 }
 
+/*
+ * Selecting text, which is the one of these that copies correctly and cannot be
+ * seen at all.
+ *
+ * ask.css records this exact defect happening once already, in the other
+ * direction: there was no ::selection rule anywhere, the browser default left the
+ * foreground alone, and white text on a pale wash was invisible. The rule written
+ * to fix it names `--db-ink` as the fill with white glyphs -- and `--db-ink`
+ * remaps to #F2F6FA here, so the fix reproduces the bug it was written for. The
+ * ice accent with navy on it is the same relationship the light rule has, stated
+ * for a page whose ink is already near-white.
+ */
+html[data-theme='dark'] .user-bubble::selection,
+html[data-theme='dark'] .user-bubble ::selection,
+html[data-theme='dark'] .answer-card::selection,
+html[data-theme='dark'] .answer-card ::selection,
+html[data-theme='dark'] .plan-card::selection,
+html[data-theme='dark'] .plan-card ::selection {
+  background: var(--ast-ice-accent);
+  color: var(--ast-navy);
+}
+
+/*
+ * Two hovers that paint a light fill and leave light type on it.
+ *
+ * `--ast-white` is not remapped, and it cannot be: it is white, and half the
+ * app's reversed treatments name it. So a hover that reaches for it directly gets
+ * a solid white row under near-white text -- the asset picker's table names
+ * disappeared under the pointer, which is the worst possible moment for them to.
+ * The search field's clear mark went the other way and hovered to navy on navy.
+ */
+html[data-theme='dark'] .asset-picker-row:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--foreground);
+}
+
+html[data-theme='dark'] .monitoring-search-clear:hover {
+  color: var(--ast-white);
+}
+
+/*
+ * The roster's role chips, which were written as literals rather than as tokens
+ * and so could not follow the palette anywhere.
+ *
+ * #46596B is the astrolabe neutral ink and #DDEAF4/#0E538B the info pair, all
+ * three typed by hand into settings.css. On the dark modal the neutral chip is
+ * ink on ink, and the super-admin chip is the one bright object in a dark pane --
+ * the same loudness the header's own Super admin pill was corrected for, so it is
+ * corrected the same way and for the same reason.
+ */
+html[data-theme='dark'] .roster-role-chip,
+html[data-theme='dark'] .roster-role-chip-super-admin {
+  background: var(--card);
+  border-color: var(--ast-border-input);
+  color: var(--foreground);
+}
+
+/*
+ * Schema marks in an answer.
+ *
+ * The entity colours are a reader's own setting, so each is a token with a
+ * fallback, and schema's fallback is --ast-navy -- correct on white, invisible
+ * here. Only the FALLBACK moves: a deployment that has set a schema colour keeps
+ * it, because that value is a decision somebody made and not a theme default.
+ */
+html[data-theme='dark'] {
+  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-ink-on-dark));
+}
+
+/*
+ * Two more controls whose feedback ran backwards, for the reason Refresh did:
+ * the -700 and -800 rungs are hover and press on white and are both darker than
+ * the resting fill, and nothing remaps them, so on a navy page the control
+ * recedes at the moment it is pressed. Explore this run is the way into a trace
+ * and Save is the end of editing settings -- the two presses in the app most
+ * worth confirming.
+ */
+html[data-theme='dark'] .trace-inspector .trace-explore:hover:not(:disabled) {
+  background: var(--db-blue-500);
+  border-color: var(--db-blue-500);
+  color: var(--ast-white);
+}
+
+html[data-theme='dark'] .trace-inspector .trace-explore:active:not(:disabled) {
+  background: var(--ast-ice-accent);
+  border-color: var(--ast-ice-accent);
+  color: var(--ast-navy);
+}
+
+html[data-theme='dark'] .settings-footer-actions [data-slot='button'][data-pressed='true'] {
+  background: rgba(34, 114, 180, 0.52);
+  border-color: var(--ast-ice-accent);
+  color: var(--ast-ghost-text);
+}
+
+/*
+ * The ghost hover, at a step a reader can see.
+ *
+ * --db-hover-tint is 5% white here and most of these sit on a 3% pane, so the
+ * pointer feedback across the whole app was two percent of white: present in the
+ * computed style and absent on screen. 12% is the same step the pressed chips and
+ * the menus use, so hover, selected and highlighted stay one family.
+ */
+html[data-theme='dark'] .app-nav-tab:hover,
+html[data-theme='dark'] .conversation-filter-chip:hover,
+html[data-theme='dark'] .access-gate-actions button:not(.refresh-button):hover:not(:disabled),
+html[data-theme='dark'] .settings-close:hover,
+html[data-theme='dark'] .run-id-chip:hover,
+html[data-theme='dark'] .conversation-confirm-cancel:hover,
+html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/*
+ * The two destructive controls, which both hovered DARKER.
+ *
+ * Deleting a conversation and forgetting a connection are the presses that most
+ * need to feel like they landed, and both dimmed instead -- one to the red -700
+ * rung, one through `brightness(0.9)`. Lightening the same red keeps the colour
+ * saying what it says; a different hue would be a different warning.
+ */
+html[data-theme='dark'] .conversation-confirm-delete:hover {
+  background: color-mix(in srgb, var(--db-red-600) 70%, white);
+  border-color: color-mix(in srgb, var(--db-red-600) 70%, white);
+}
+
+html[data-theme='dark'] .plane-confirm-forever:hover {
+  filter: brightness(1.15);
+}
+
 @media (prefers-reduced-transparency: reduce) {
   html[data-theme='dark'] {
     --card: var(--ast-surface-solid);
@@ -202,18 +594,31 @@ html[data-theme='dark'] .app-sky-glyph {
   html[data-theme='dark'] .composer,
   html[data-theme='dark'] .live-steps,
   html[data-theme='dark'] .trace-inspector,
-  html[data-theme='dark'] .prompt-grid button,
   html[data-theme='dark'] .answer-card,
+  html[data-theme='dark'] .plan-card,
+  html[data-theme='dark'] .user-bubble,
   html[data-theme='dark'] .monitoring-tile,
+  html[data-theme='dark'] .monitoring-list-pane,
+  html[data-theme='dark'] .ops-block,
+  html[data-theme='dark'] .ops-block-failed,
+  html[data-theme='dark'] .ops-absence,
   html[data-theme='dark'] .trace-timeline,
   html[data-theme='dark'] .trace-gantt,
   html[data-theme='dark'] .trace-dag.map .dag-detail,
   html[data-theme='dark'] .arch-flow,
   html[data-theme='dark'] .arch-node,
+  html[data-theme='dark'] .arch-rail,
+  html[data-theme='dark'] .connection-rows,
+  html[data-theme='dark'] .plane-card,
+  html[data-theme='dark'] .bench-ledger,
+  html[data-theme='dark'] .first-open-card,
   html[data-theme='dark'] .access-gate-panel,
   html[data-theme='dark'] .live-step,
+  html[data-theme='dark'] [data-slot='alert'],
   html[data-theme='dark'] [data-slot='card'],
   html[data-theme='dark'] .account-menu,
+  html[data-theme='dark'] .app-select-content,
+  html[data-theme='dark'] .monitoring-chip-menu,
   html[data-theme='dark'] .settings-page.settings-modal,
   html[data-theme='dark'] .monitoring-drawer,
   html[data-theme='dark'] [data-slot='sheet-content'] {

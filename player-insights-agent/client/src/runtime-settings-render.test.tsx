@@ -57,6 +57,10 @@ describe('runtime and appearance modal sections', () => {
     expect(source).not.toContain('Changes how relative dates');
   });
 
+  it('gives the Architecture answer-contract links a stable destination', () => {
+    expect(source).toContain('id="answer-contract-settings"');
+  });
+
   it('keeps all answer values wired while toggled sections hide their controls', () => {
     for (const field of [
       'takeawayGuidance',

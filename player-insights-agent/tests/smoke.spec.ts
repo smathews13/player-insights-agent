@@ -79,11 +79,11 @@ test('smoke test - Ask route reports a question it could not answer', async ({ p
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Player Insights Agent' })).toBeVisible();
   await expect(page.getByRole('heading', { name: routes[0].heading })).toBeVisible();
-  // Scope to the welcome suggestions: saved conversations in the rail can carry the same title.
-  await page
-    .locator('.prompt-grid')
-    .getByRole('button', { name: /Compare active players by title/ })
-    .click();
+  // The welcome suggestion cards are retired. Ask through the same composer a
+  // reader now meets directly under the headline, which keeps this smoke on the
+  // real submission path instead of depending on example content.
+  await page.getByPlaceholder(/Ask about player behavior/).fill('Compare active players by title');
+  await page.getByRole('button', { name: 'Ask astrolabe' }).click();
 
   // What the reader is owed, in the order they read it: that the question went
   // unanswered, then that the blank space is not an answer.
@@ -377,7 +377,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
           heroHeading: against('.ask-hero h2'),
           heroBody: against('.ask-hero > p'),
           brandName: against('.brand-name h1'),
-          promptCard: against('.prompt-grid button'),
+          // The cards that used to answer here are gone. The empty-state
+          // composer is their replacement, so its editable text colour is the
+          // contrast obligation that matters on the sky now.
+          composerText: against('.composer textarea'),
         };
       });
       for (const [surface, ratio] of Object.entries(contrasts)) {

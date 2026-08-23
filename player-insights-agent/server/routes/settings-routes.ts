@@ -51,6 +51,7 @@ import { compareDeclaration, type DeclarationComparison } from '../../shared/not
 import {
   addFault,
   addedConnectionEffect,
+  forgetDeclaredConnection,
   readDeclaredConnections,
   removalImpact,
   restoreDeclaredConnection,
@@ -526,6 +527,34 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
       } catch (error) {
         console.error('[connections] The connection could not be restored:', (error as Error).message);
         res.status(503).json({ error: 'settings_store_unavailable', detail: 'The connection was not restored.' });
+      }
+    });
+
+    /**
+     * Permanently forget one stored connection.
+     *
+     * The ordinary DELETE above is intentionally recoverable and leaves a
+     * withdrawn row behind. This narrower route backs the explicitly destructive
+     * confirmation in the client; success therefore means the Lakebase row is
+     * gone, not merely hidden from the active list.
+     */
+    app.delete('/api/settings/connections/:id/forever', async (req, res) => {
+      try {
+        const forgotten = await forgetDeclaredConnection(appkit, req.params.id);
+        if (!forgotten) {
+          res.status(404).json({
+            error: 'no_such_connection',
+            detail: 'There is no remembered connection under that name.',
+          });
+          return;
+        }
+        res.json({ forgotten: { id: req.params.id }, restorable: false });
+      } catch (error) {
+        console.error('[connections] The connection could not be forgotten:', (error as Error).message);
+        res.status(503).json({
+          error: 'settings_store_unavailable',
+          detail: 'The remembered connection was not removed. Nothing changed.',
+        });
       }
     });
 

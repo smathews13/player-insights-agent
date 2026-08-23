@@ -45,13 +45,7 @@ import { BrandIcon } from './BrandIcon';
 import { RefreshControl } from './RefreshControl';
 // The chain and the answer's shape, as data rather than as prose in this file.
 // See the note at the top of agent-chain.ts for why they moved out of here.
-import {
-  AGENT_CHAIN,
-  ANSWER_CONTRACT,
-  CHAIN_BOUND_LABEL,
-  CHAIN_BOUND_NOTE,
-  CHAIN_BOUNDS,
-} from './agent-chain';
+import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUND_NOTE, CHAIN_BOUNDS } from './agent-chain';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import {
@@ -78,12 +72,7 @@ import {
   type ArchitectureAccent,
   type NodeBox,
 } from './architecture-layout';
-import {
-  countConnections,
-  readConnections,
-  readingsById,
-  type ConnectionReading,
-} from './connection-model';
+import { countConnections, readConnections, readingsById, type ConnectionReading } from './connection-model';
 import { DRIFT_MARKER_LABEL } from './connection-status';
 import { checkedAtOf } from './check-session';
 import { useSessionChecks } from './session-checks';
@@ -132,7 +121,8 @@ class ArchitectureDiagramBoundary extends Component<{ children: ReactNode }, { f
 
   render() {
     if (!this.state.failed) return this.props.children;
-    return (<div data-testid="architecture-diagram-fallback">
+    return (
+      <div data-testid="architecture-diagram-fallback">
         <Alert>
           <CircleAlert />
           <AlertDescription>
@@ -140,7 +130,8 @@ class ArchitectureDiagramBoundary extends Component<{ children: ReactNode }, { f
           </AlertDescription>
         </Alert>
         <ul className="arch-equivalent">
-          {ARCHITECTURE_NODES.map((node) => (<li key={node.id}>
+          {ARCHITECTURE_NODES.map((node) => (
+            <li key={node.id}>
               <strong>{node.label}</strong>: status unavailable. {node.role}
             </li>
           ))}
@@ -157,7 +148,8 @@ class ArchitectureDiagramBoundary extends Component<{ children: ReactNode }, { f
  * somewhere other than the value beside it. Null wherever the value is unknown,
  * which is most of them until the checks have run.
  */
-function workspaceObject(node: ArchitectureNode,
+function workspaceObject(
+  node: ArchitectureNode,
   reading: ConnectionReading | undefined,
   payload: ArchitecturePayload | null
 ): DatabricksObject | null {
@@ -254,7 +246,8 @@ function ArchitectureNodeCard({
   const object = workspaceObject(node, reading, payload);
   const deepLink = object && payload?.workspaceHost ? databricksLink(payload.workspaceHost, object) : null;
 
-  const body = (<>
+  const body = (
+    <>
       {/* The product's own mark at the handoff's 18px, left of the title, on
           every node that IS a Databricks product. Which product that is comes
           off the node in architecture.ts, so this draws what the node declares
@@ -271,7 +264,8 @@ function ArchitectureNodeCard({
         <span className={astPill(NODE_FAMILY[report.tone], 'arch-node-status')} data-tone={report.tone}>
           {report.label}
         </span>
-        {reading && reading.marker !== 'none' ? (<span
+        {reading && reading.marker !== 'none' ? (
+          <span
             className={astPill(reading.marker === 'drift' ? 'warn' : 'neutral-outline', 'arch-node-drift')}
             data-drift={reading.marker}
           >
@@ -285,7 +279,8 @@ function ArchitectureNodeCard({
           calling it Blocked would say something false about a word that means
           "this identity cannot get to it" everywhere else on the page.
         */}
-        {age ? (<span
+        {age ? (
+          <span
             className={astPill(age.state === 'stale' ? 'warn' : 'neutral-outline', 'arch-node-age')}
             data-age={age.state}
             title={age.note}
@@ -294,14 +289,16 @@ function ArchitectureNodeCard({
           </span>
         ) : null}
       </span>
-      {value ? (<span className="arch-node-value" data-measured={value.measured ? 'true' : undefined}>
+      {value ? (
+        <span className="arch-node-value" data-measured={value.measured ? 'true' : undefined}>
           {value.value}
         </span>
       ) : null}
     </>
   );
 
-  return (<div
+  return (
+    <div
       className="arch-node"
       data-testid={`arch-node-${node.id}`}
       data-node={node.id}
@@ -310,19 +307,22 @@ function ArchitectureNodeCard({
       data-drift={reading && reading.marker !== 'none' ? reading.marker : undefined}
       style={{ left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px` }}
     >
-      {node.resourceId ? (<Link
+      {node.resourceId ? (
+        <Link
           className="arch-node-main"
           to={entityHref(node.resourceId)}
           aria-label={`${nodeAccessibleName(node, reading, indexReading, now)}. Open on Connections.`}
         >
           {body}
         </Link>
-      ) : (<div className="arch-node-main" data-static="true">
+      ) : (
+        <div className="arch-node-main" data-static="true">
           {body}
         </div>
       )}
       <p className="arch-node-role">{node.role}</p>
-      {deepLink ? (<a className="arch-node-open" href={deepLink} rel="noopener noreferrer" target="_blank">
+      {deepLink ? (
+        <a className="arch-node-open" href={deepLink} rel="noopener noreferrer" target="_blank">
           Open in Databricks <ExternalLink className="size-3" aria-hidden="true" />
           <span className="sr-only"> ({node.label})</span>
         </a>
@@ -400,7 +400,7 @@ export function ArchitectureCanvas({
     if (!element || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 0;
-      setPanelWidth((current) => current === width ? current : width);
+      setPanelWidth((current) => (current === width ? current : width));
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -420,69 +420,69 @@ export function ArchitectureCanvas({
    */
   const fits = canvasFits(panelWidth);
 
-  return (<>
+  return (
+    <>
       <div className="arch-canvas-scroll" ref={scroller} data-fits={fits ? undefined : 'false'}>
-        {fits ? (<div
-          className="arch-canvas"
-          data-testid="architecture-canvas"
-          role="group"
-          aria-label="Live data flow. Each card links to that dependency on the Connections page."
-          style={{
-            width: `${CANVAS_WIDTH}px`,
-            height: `${CANVAS_HEIGHT}px`,
-            // Omitted entirely at full size, so the common case carries no
-            // property at all and the rendered markup is the one the geometry
-            // checks were written against.
-            ...(scale < 1 ? { zoom: scale } : {}),
-          }}
-        >
-          <svg
-            className="arch-edges"
-            viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-            aria-hidden="true"
-            focusable="false"
+        {fits ? (
+          <div
+            className="arch-canvas"
+            data-testid="architecture-canvas"
+            role="group"
+            aria-label="Live data flow. Each card links to that dependency on the Connections page."
+            style={{
+              width: `${CANVAS_WIDTH}px`,
+              height: `${CANVAS_HEIGHT}px`,
+              // Omitted entirely at full size, so the common case carries no
+              // property at all and the rendered markup is the one the geometry
+              // checks were written against.
+              ...(scale < 1 ? { zoom: scale } : {}),
+            }}
           >
-            {edges.map((edge) => (<g key={edge.id}>
-                <path className="arch-edge" d={edge.d} />
-                <text
-                  className="arch-edge-label"
-                  x={edge.labelX}
-                  y={edge.labelY}
-                  textAnchor={edge.labelAnchor}
-                >
-                  {edge.label}
-                </text>
-              </g>
-            ))}
-          </svg>
-          {edges.map((edge) => (<span
-              className="arch-dot"
-              key={edge.id}
-              data-testid={`arch-dot-${edge.id}`}
+            <svg
+              className="arch-edges"
+              viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
               aria-hidden="true"
-              style={{
-                offsetPath: `path('${edge.d}')`,
-                background: `var(${ACCENT_TOKEN[edge.accent]})`,
-                animationDuration: `${edge.duration}s`,
-                animationDelay: `${edge.delay}s`,
-              }}
-            />
-          ))}
-          {ARCHITECTURE_NODES.map((node) => {
-            const box = nodeBox(node.id);
-            if (!box) return null;
-            return (<ArchitectureNodeCard
-                box={box}
-                indexReading={byResource.get('semantic-index')}
-                key={node.id}
-                node={node}
-                now={now}
-                payload={payload}
-                reading={node.resourceId ? byResource.get(node.resourceId) : undefined}
+              focusable="false"
+            >
+              {edges.map((edge) => (
+                <g key={edge.id}>
+                  <path className="arch-edge" d={edge.d} />
+                  <text className="arch-edge-label" x={edge.labelX} y={edge.labelY} textAnchor={edge.labelAnchor}>
+                    {edge.label}
+                  </text>
+                </g>
+              ))}
+            </svg>
+            {edges.map((edge) => (
+              <span
+                className="arch-dot"
+                key={edge.id}
+                data-testid={`arch-dot-${edge.id}`}
+                aria-hidden="true"
+                style={{
+                  offsetPath: `path('${edge.d}')`,
+                  background: `var(${ACCENT_TOKEN[edge.accent]})`,
+                  animationDuration: `${edge.duration}s`,
+                  animationDelay: `${edge.delay}s`,
+                }}
               />
-            );
-          })}
-        </div>
+            ))}
+            {ARCHITECTURE_NODES.map((node) => {
+              const box = nodeBox(node.id);
+              if (!box) return null;
+              return (
+                <ArchitectureNodeCard
+                  box={box}
+                  indexReading={byResource.get('semantic-index')}
+                  key={node.id}
+                  node={node}
+                  now={now}
+                  payload={payload}
+                  reading={node.resourceId ? byResource.get(node.resourceId) : undefined}
+                />
+              );
+            })}
+          </div>
         ) : null}
       </div>
 
@@ -497,14 +497,17 @@ export function ArchitectureCanvas({
         nobody checks, which is what the old 1024px collapse was.
       */}
       <ul className="arch-equivalent" data-testid="architecture-equivalent">
-        {description.map((line) => (<li key={line}>{line}</li>
+        {description.map((line) => (
+          <li key={line}>{line}</li>
         ))}
       </ul>
 
       {/* The legend maps a colour to a kind of connection, so it has nothing to
           say when the drawing is not on screen. */}
-      {fits ? (<ul className="arch-legend">
-          {LEGEND.map((entry) => (<li key={entry.accent} data-accent={entry.accent}>
+      {fits ? (
+        <ul className="arch-legend">
+          {LEGEND.map((entry) => (
+            <li key={entry.accent} data-accent={entry.accent}>
               <span aria-hidden="true" />
               {entry.label}
             </li>
@@ -542,7 +545,8 @@ export function ArchitectureTiles({
   const ran = readings.length > 0;
   const counts = countConnections(readings);
   const unknown = '\u2014';
-  return (<ul className="arch-tiles" data-testid="architecture-tiles">
+  return (
+    <ul className="arch-tiles" data-testid="architecture-tiles">
       {/* `.ast-num` on all four, because four tiles in a row are read across and
           a reader compares them. The rule they carried asked for tabular figures
           with `font-variant-numeric` on DM Sans, which declares no `tnum`
@@ -595,8 +599,10 @@ export function ArchitectureTiles({
  */
 export function ChainBoundTiles({ loop }: { loop: RuntimeSettings['loop'] | null }) {
   const unknown = '\u2014';
-  return (<ul className="arch-tiles arch-tiles-loop" data-testid="architecture-loop-tiles">
-      {CHAIN_BOUNDS.map((bound) => (<li key={bound} title={CHAIN_BOUND_NOTE[bound]}>
+  return (
+    <ul className="arch-tiles arch-tiles-loop" data-testid="architecture-loop-tiles">
+      {CHAIN_BOUNDS.map((bound) => (
+        <li key={bound} title={CHAIN_BOUND_NOTE[bound]}>
           <span>{CHAIN_BOUND_LABEL[bound]}</span>
           <strong className="ast-num">{loop ? loop[bound] : unknown}</strong>
         </li>
@@ -633,14 +639,19 @@ function RailRow({
   stage?: string;
   title: string;
 }) {
-  return (<li className="arch-rail-row" data-accent={accent} data-stage={stage}>
+  return (
+    <li className="arch-rail-row" data-accent={accent} data-stage={stage}>
       <p className="arch-rail-title">
         {title}
         {badge ? <span className="arch-rail-badge">{badge}</span> : null}
         {/* Said on the row rather than left to the prose. Three of these stages do
             not run on every question, and a rail drawing six rows for a run that
             had three is a rail that gets read as a fault. */}
-        {optional ? <span className="arch-rail-badge" data-optional="true">If needed</span> : null}
+        {optional ? (
+          <span className="arch-rail-badge" data-optional="true">
+            If needed
+          </span>
+        ) : null}
         {stage ? <code className="arch-rail-stage">{stage}</code> : null}
       </p>
       <p className="arch-rail-body">{children}</p>
@@ -651,7 +662,8 @@ function RailRow({
 
 /** The mono line between two rows, which names what passes between them. */
 function RailStep({ label }: { label: string }) {
-  return (<li className="arch-rail-step" aria-hidden="true">
+  return (
+    <li className="arch-rail-step" aria-hidden="true">
       {'\u2193'} {label}
     </li>
   );
@@ -692,7 +704,8 @@ export function ArchitecturePage() {
         if (live) setPayload(body);
       } catch (caught) {
         if (live) {
-          setPayloadError(`The app could not describe its own deployment: ${(caught as Error).message}. ` +
+          setPayloadError(
+            `The app could not describe its own deployment: ${(caught as Error).message}. ` +
               'The identifiers below are missing.'
           );
         }
@@ -758,7 +771,8 @@ export function ArchitecturePage() {
    */
   const checkedAt = checkedAtOf(session);
 
-  return (<div className="page-shell architecture-page">
+  return (
+    <div className="page-shell architecture-page">
       <div className="page-heading">
         <div>
           <h2>Architecture</h2>
@@ -768,19 +782,22 @@ export function ArchitecturePage() {
         <RefreshControl busy={checking} checkedAt={checkedAt} now={now} onRefresh={() => void refresh()} />
       </div>
 
-      {payloadError ? (<Alert>
+      {payloadError ? (
+        <Alert>
           <CircleAlert />
           <AlertDescription>{payloadError}</AlertDescription>
         </Alert>
       ) : null}
 
-      {checkError ? (<Alert data-testid="architecture-check-error">
+      {checkError ? (
+        <Alert data-testid="architecture-check-error">
           <CircleAlert />
           <AlertDescription>{checkError}</AlertDescription>
         </Alert>
       ) : null}
 
-      {drifted.length > 0 ? (<Alert data-testid="architecture-drift">
+      {drifted.length > 0 ? (
+        <Alert data-testid="architecture-drift">
           <CircleAlert />
           <AlertDescription>
             <span>
@@ -795,7 +812,8 @@ export function ArchitecturePage() {
         </Alert>
       ) : null}
 
-      {stale.map((entry) => (<Alert data-testid={`architecture-stale-${entry.node.id}`} key={entry.node.id}>
+      {stale.map((entry) => (
+        <Alert data-testid={`architecture-stale-${entry.node.id}`} key={entry.node.id}>
           <CircleAlert />
           <AlertDescription>
             <span>
@@ -839,14 +857,13 @@ export function ArchitecturePage() {
             Chain &middot; per question
           </h3>
           <ol className="arch-rail-rows">
-            {AGENT_CHAIN.map((stage, index) => (<Fragment key={stage.stage}>
+            {AGENT_CHAIN.map((stage, index) => (
+              <Fragment key={stage.stage}>
                 <RailRow
                   accent={stage.accent}
                   badge={stage.badge}
                   boundNote={
-                    stage.bound && loop
-                      ? `${CHAIN_BOUND_LABEL[stage.bound]} \u00b7 ${loop[stage.bound]}`
-                      : undefined
+                    stage.bound && loop ? `${CHAIN_BOUND_LABEL[stage.bound]} \u00b7 ${loop[stage.bound]}` : undefined
                   }
                   optional={stage.optional}
                   stage={stage.stage}
@@ -875,7 +892,8 @@ export function ArchitecturePage() {
             Answer contract
           </h3>
           <ul className="arch-contract-rows">
-            {ANSWER_CONTRACT.map((section) => (<li className="arch-contract-row" key={section.field}>
+            {ANSWER_CONTRACT.map((section) => (
+              <li className="arch-contract-row" key={section.field}>
                 <p className="arch-contract-head">
                   <code className="arch-rail-stage">{section.field}</code>
                   <span>{section.label}</span>
@@ -883,9 +901,16 @@ export function ArchitecturePage() {
                       carry no badge because there is no switch for them: a figure
                       without its source is the one thing the contract does not
                       allow. */}
-                  {section.optional ? (<span className="arch-rail-badge" data-optional="true">
+                  {section.optional ? (
+                    <Link
+                      className="arch-rail-badge arch-contract-settings-link"
+                      data-optional="true"
+                      to="/settings#answer-contract-settings"
+                      state={{ settingsFrom: '/architecture' }}
+                      aria-label={`Optional ${section.label}; open its answer content setting`}
+                    >
                       Optional
-                    </span>
+                    </Link>
                   ) : null}
                 </p>
                 <p className="arch-rail-body">{section.body}</p>
@@ -906,8 +931,7 @@ export function ArchitecturePage() {
                 the middle of it. §7 has no em dash in it, and the list this one
                 interrupted itself to give reads better as its own sentence. */}
             <RailRow accent="kept" badge="Trace" title="Orchestrator to MLflow experiment">
-              The trace of each run lands here: tools called, SQL, timings. It is what the Run
-              Explorer reads.
+              The trace of each run lands here: tools called, SQL, timings. It is what the Run Explorer reads.
             </RailRow>
           </ol>
         </section>

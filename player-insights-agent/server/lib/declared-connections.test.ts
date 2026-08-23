@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   addFault,
   addedConnectionEffect,
+  forgetDeclaredConnection,
   readDeclaredConnections,
   removalImpact,
   restoreDeclaredConnection,
@@ -158,6 +159,15 @@ describe('reading and writing declarations', () => {
       'analyst@example.invalid'
     );
     expect(restored?.state).toBe('declared');
+  });
+
+  it('forgets a declaration only when the store deleted a row', async () => {
+    const params: unknown[][] = [];
+    await expect(forgetDeclaredConnection(client([{ id: 'roster-table' }], params), 'roster-table')).resolves.toBe(
+      true
+    );
+    expect(params).toEqual([['roster-table']]);
+    await expect(forgetDeclaredConnection(client([]), 'absent')).resolves.toBe(false);
   });
 });
 

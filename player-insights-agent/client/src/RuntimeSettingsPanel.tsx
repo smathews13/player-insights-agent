@@ -192,15 +192,7 @@ export function RuntimeSettingsPanel({
     update: (value: number) => void,
     className = ''
   ) => (
-    <NumberField
-      key={label}
-      label={label}
-      value={value}
-      min={min}
-      max={max}
-      onCommit={update}
-      className={className}
-    />
+    <NumberField key={label} label={label} value={value} min={min} max={max} onCommit={update} className={className} />
   );
 
   const guidance = (label: string, value: string, update: (value: string) => void) => (
@@ -235,16 +227,14 @@ export function RuntimeSettingsPanel({
             <h4 className="runtime-section-label">Loop structure</h4>
             <div className="runtime-loop-row">
               {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value))}
-              {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) =>
-                setLoop('maxToolCalls', value)
-              )}
+              {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value))}
               {number('Run budget (s)', settings.loop.maxRunSeconds, 30, 180, (value) =>
                 setLoop('maxRunSeconds', value)
               )}
             </div>
           </section>
 
-          <section className="runtime-section">
+          <section className="runtime-section" id="answer-contract-settings">
             <div className="runtime-answer-header">
               <h4 className="runtime-section-label">Answer content</h4>
               <span>Guidance goes to the agent with every ask.</span>
@@ -254,9 +244,7 @@ export function RuntimeSettingsPanel({
               checked={settings.answer.takeaway}
               onToggle={(value) => setAnswer('takeaway', value)}
             >
-              {guidance('Guidance', settings.answer.takeawayGuidance, (value) =>
-                setAnswer('takeawayGuidance', value)
-              )}
+              {guidance('Guidance', settings.answer.takeawayGuidance, (value) => setAnswer('takeawayGuidance', value))}
             </AnswerRow>
             <AnswerRow
               label="Narrative"
@@ -281,9 +269,7 @@ export function RuntimeSettingsPanel({
               checked={settings.answer.figures}
               onToggle={(value) => setAnswer('figures', value)}
             >
-              {number('Max figures', settings.answer.maxFigures, 0, 12, (value) =>
-                setAnswer('maxFigures', value)
-              )}
+              {number('Max figures', settings.answer.maxFigures, 0, 12, (value) => setAnswer('maxFigures', value))}
               <label className="runtime-field">
                 <span className="runtime-field-label">Order</span>
                 <AppSelect
@@ -299,11 +285,7 @@ export function RuntimeSettingsPanel({
                 />
               </label>
             </AnswerRow>
-            <AnswerRow
-              label="Charts"
-              checked={settings.answer.charts}
-              onToggle={(value) => setAnswer('charts', value)}
-            >
+            <AnswerRow label="Charts" checked={settings.answer.charts} onToggle={(value) => setAnswer('charts', value)}>
               {number('Max charts', settings.answer.maxCharts, 0, 6, (value) => setAnswer('maxCharts', value))}
               <label className="runtime-field">
                 <span className="runtime-field-label">Types</span>
@@ -325,9 +307,7 @@ export function RuntimeSettingsPanel({
               checked={settings.answer.caveats}
               onToggle={(value) => setAnswer('caveats', value)}
             >
-              {number('Max caveats', settings.answer.maxCaveats, 0, 20, (value) =>
-                setAnswer('maxCaveats', value)
-              )}
+              {number('Max caveats', settings.answer.maxCaveats, 0, 20, (value) => setAnswer('maxCaveats', value))}
               <span className="runtime-inline-note">0 = all. Governance and outage warnings always remain.</span>
             </AnswerRow>
           </section>
@@ -360,9 +340,7 @@ export function RuntimeSettingsPanel({
               <span className="runtime-answer-name">Dark</span>
               <Switch
                 checked={settings.colorScheme === 'dark'}
-                onCheckedChange={(on) =>
-                  setSettings((current) => ({ ...current, colorScheme: on ? 'dark' : 'light' }))
-                }
+                onCheckedChange={(on) => setSettings((current) => ({ ...current, colorScheme: on ? 'dark' : 'light' }))}
                 aria-label="Dark"
               />
             </div>
@@ -411,8 +389,16 @@ export function RuntimeSettingsPanel({
       )}
       {state === 'loading' ? <p className="settings-status">Loading settings.</p> : null}
       {state === 'saving' ? <p className="settings-status">Saving settings.</p> : null}
-      {state === 'saved' ? <p className="settings-status" role="status">Saved. The next ask uses these settings.</p> : null}
-      {failure ? <p className="settings-status settings-error" role="alert">{failure.message}</p> : null}
+      {state === 'saved' ? (
+        <p className="settings-status" role="status">
+          Saved. The next ask uses these settings.
+        </p>
+      ) : null}
+      {failure ? (
+        <p className="settings-status settings-error" role="alert">
+          {failure.message}
+        </p>
+      ) : null}
     </form>
   );
 }

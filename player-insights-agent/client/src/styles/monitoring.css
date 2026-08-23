@@ -331,6 +331,28 @@
 
 /* ── The question list ─────────────────────────────────────────────────── */
 
+/*
+ * The surface the list lives on, and it is the tile's recipe on purpose: the
+ * strip of figures above it and the rows below it are the same page, and two
+ * different card treatments in one column reads as two components that happen to
+ * be adjacent.
+ *
+ * The padding is 14px either side to match a tile's, and 0 top and bottom because
+ * the table draws its own first and last rules -- a tile's vertical padding here
+ * would put a gap between the header row's rule and the pane's own edge.
+ *
+ * dark-mode.css gives this the frosted fill. That is where it belongs rather than
+ * here: on the night sky the constellation is behind the page, so any surface
+ * holding a run of figures has to dull what is behind it, and the blur is a
+ * property of that theme rather than of this list.
+ */
+.monitoring-list-pane {
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  padding: 0 14px;
+  min-width: 0;
+}
+
 .monitoring-table {
   width: 100%;
   border-collapse: collapse;

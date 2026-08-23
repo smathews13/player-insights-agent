@@ -1134,13 +1134,29 @@ export function MonitoringBody({
           asked, and Unity Catalog is still the boundary either way. */}
       {payload?.grantsResolution === 'failed' ? <p className="monitoring-note">{GRANTS_UNRESOLVED_LINE}</p> : null}
 
-      {state === 'loading' ? (
-        <SkeletonRows />
-      ) : state === 'empty-range' || state === 'empty-filters' || state === 'empty-search' ? (
-        <EmptyList state={state} filters={filters} onClearFilters={onClearFilters} onChangeFilters={onChangeFilters} />
-      ) : (
-        <QuestionList questions={questions} selectedId={selectedId} now={now} onOpen={onOpen} />
-      )}
+      {/* The list is a pane, on the same recipe as the tiles above it.
+          
+          It used to sit bare on the page, which on white reads as a table and on
+          the night sky reads as a table with a constellation running through it:
+          the stars are behind the page rather than behind a surface, so a row of
+          figures had points of light between the digits. The three states share
+          the pane deliberately -- skeletons, an emptiness and the rows themselves
+          are the same block of the page, and a surface that appears only once
+          there is data makes the read look like a layout change. */}
+      <div className="monitoring-list-pane">
+        {state === 'loading' ? (
+          <SkeletonRows />
+        ) : state === 'empty-range' || state === 'empty-filters' || state === 'empty-search' ? (
+          <EmptyList
+            state={state}
+            filters={filters}
+            onClearFilters={onClearFilters}
+            onChangeFilters={onChangeFilters}
+          />
+        ) : (
+          <QuestionList questions={questions} selectedId={selectedId} now={now} onOpen={onOpen} />
+        )}
+      </div>
     </>
   );
 }
