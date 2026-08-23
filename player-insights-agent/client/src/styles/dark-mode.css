@@ -46,31 +46,52 @@ html[data-theme='dark'] .app-nav-tab.active {
 
 html[data-theme='dark'] .conversation-rail,
 html[data-theme='dark'] .composer,
-html[data-theme='dark'] .live-agent-rail {
+html[data-theme='dark'] .live-steps {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
 }
 
-html[data-theme='dark'] .ask-card,
+html[data-theme='dark'] .prompt-grid button,
 html[data-theme='dark'] .answer-card,
-html[data-theme='dark'] .run-card,
+html[data-theme='dark'] .monitoring-tile,
+html[data-theme='dark'] .trace-timeline,
+html[data-theme='dark'] .trace-gantt,
+html[data-theme='dark'] .trace-dag.map .dag-detail,
+html[data-theme='dark'] .arch-flow,
+html[data-theme='dark'] .arch-node,
+html[data-theme='dark'] .access-gate-panel,
 html[data-theme='dark'] [data-slot='card'],
-html[data-theme='dark'] .page-shell,
-html[data-theme='dark'] .stat-card,
-html[data-theme='dark'] .architecture-node {
+html[data-theme='dark'] .live-step {
   background: var(--card);
   backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
 }
 
-html[data-theme='dark'] .account-menu-panel,
-html[data-theme='dark'] .settings-page.settings-modal,
-html[data-theme='dark'] [data-slot='sheet-content'] {
+html[data-theme='dark'] .account-menu {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+  border-color: var(--ast-border-input);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme='dark'] .settings-page.settings-modal {
   background: var(--popover);
   backdrop-filter: blur(8px);
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme='dark'] .monitoring-drawer,
+html[data-theme='dark'] [data-slot='sheet-content'] {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+  border-color: var(--ast-border-input);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+}
+
+html[data-theme='dark'] .monitoring-page:has(.monitoring-drawer) > :not(.monitoring-drawer) {
+  opacity: 0.55;
 }
 
 html[data-theme='dark'] .settings-modal-overlay {
@@ -92,18 +113,36 @@ html[data-theme='dark'] [data-slot='button']:not([data-variant]):not([data-varia
   color: var(--ast-ghost-text);
 }
 
-html[data-theme='dark'] .run-card {
+html[data-theme='dark'] .answer-card:has(.live-progress) {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
 }
 
+html[data-theme='dark'] .arch-edge {
+  stroke: var(--ast-ice-accent);
+  opacity: 0.8;
+}
+
+html[data-theme='dark'] .trace-bar {
+  opacity: 0.8;
+}
+
+html[data-theme='dark'] .ops-lat-bar-track {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme='dark'] .ops-lat-bar-fill {
+  background: rgba(143, 193, 232, 0.75);
+}
+
 html[data-theme='dark'] :focus-visible {
-  outline-color: var(--ast-ice-accent);
+  outline: 1px solid var(--ast-ice-accent);
+  outline-offset: 1px;
 }
 
 html[data-theme='dark'] .app-sky-line {
   stroke: var(--ast-blue-on-dark);
   stroke-width: 1;
-  opacity: 0.33;
+  opacity: 0.6;
 }
 
 html[data-theme='dark'] .app-sky-glyph {
@@ -124,14 +163,22 @@ html[data-theme='dark'] .app-sky-glyph {
   html[data-theme='dark'] .app-header,
   html[data-theme='dark'] .conversation-rail,
   html[data-theme='dark'] .composer,
-  html[data-theme='dark'] .live-agent-rail,
-  html[data-theme='dark'] .ask-card,
+  html[data-theme='dark'] .live-steps,
+  html[data-theme='dark'] .prompt-grid button,
   html[data-theme='dark'] .answer-card,
-  html[data-theme='dark'] .run-card,
+  html[data-theme='dark'] .monitoring-tile,
+  html[data-theme='dark'] .trace-timeline,
+  html[data-theme='dark'] .trace-gantt,
+  html[data-theme='dark'] .trace-dag.map .dag-detail,
+  html[data-theme='dark'] .arch-flow,
+  html[data-theme='dark'] .arch-node,
+  html[data-theme='dark'] .access-gate-panel,
+  html[data-theme='dark'] .live-step,
   html[data-theme='dark'] [data-slot='card'],
-  html[data-theme='dark'] .page-shell,
-  html[data-theme='dark'] .account-menu-panel,
-  html[data-theme='dark'] .settings-page.settings-modal {
+  html[data-theme='dark'] .account-menu,
+  html[data-theme='dark'] .settings-page.settings-modal,
+  html[data-theme='dark'] .monitoring-drawer,
+  html[data-theme='dark'] [data-slot='sheet-content'] {
     backdrop-filter: none;
     background: var(--ast-surface-solid);
   }
@@ -141,7 +188,8 @@ html[data-theme='dark'] .app-sky-glyph {
   html[data-theme='dark'] .app-header,
   html[data-theme='dark'] .conversation-rail,
   html[data-theme='dark'] .composer,
-  html[data-theme='dark'] [data-slot='card'] {
+  html[data-theme='dark'] [data-slot='card'],
+  html[data-theme='dark'] .monitoring-drawer {
     transition: none;
   }
 }

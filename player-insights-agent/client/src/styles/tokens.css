@@ -458,8 +458,8 @@ html[data-theme='dark'] {
   color-scheme: dark;
   --db-ink: var(--ast-ink-on-dark);
   --db-body: var(--ast-ink-on-dark);
-  --db-slate: var(--ast-text-on-dark-secondary);
-  --db-slate-icon: var(--ast-text-on-dark-secondary);
+  --db-slate: rgba(232, 237, 242, 0.68);
+  --db-slate-icon: rgba(232, 237, 242, 0.68);
   --db-grey-blue: var(--ast-ink-on-dark);
   --db-chip: rgba(255, 255, 255, 0.12);
   --db-wash: rgba(255, 255, 255, 0.03);
@@ -491,7 +491,7 @@ html[data-theme='dark'] {
   --secondary: rgba(255, 255, 255, 0.12);
   --secondary-foreground: var(--ast-ink-on-dark);
   --muted: rgba(255, 255, 255, 0.03);
-  --muted-foreground: var(--ast-text-on-dark-secondary);
+  --muted-foreground: rgba(232, 237, 242, 0.68);
   --accent: rgba(255, 255, 255, 0.05);
   --accent-foreground: var(--ast-ink-on-dark);
   --border: rgba(255, 255, 255, 0.12);

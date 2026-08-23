@@ -291,7 +291,7 @@ html[data-theme='dark'] {
   --ast-ice: rgba(255, 255, 255, 0.03);
   --ast-text: var(--ast-ink-on-dark);
   --ast-text-long: var(--ast-ink-on-dark);
-  --ast-text-secondary: var(--ast-text-on-dark-secondary);
+  --ast-text-secondary: rgba(232, 237, 242, 0.68);
   --ast-hairline: rgba(255, 255, 255, 0.12);
   --ast-border-input: rgba(255, 255, 255, 0.22);
   --ast-fill-band: rgba(255, 255, 255, 0.03);
@@ -304,7 +304,7 @@ html[data-theme='dark'] {
   --ast-warn-text: var(--db-amber);
   --ast-warn-border: rgba(255, 171, 0, 0.4);
   --ast-warn-fill: rgba(255, 171, 0, 0.12);
-  --ast-neutral-text: var(--ast-text-on-dark-secondary);
+  --ast-neutral-text: rgba(232, 237, 242, 0.68);
   --ast-neutral-fill: rgba(255, 255, 255, 0.12);
   --ast-info-text: var(--ast-ice-accent);
   --ast-info-fill: rgba(143, 193, 232, 0.16);

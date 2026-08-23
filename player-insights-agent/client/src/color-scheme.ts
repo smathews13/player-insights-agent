@@ -13,6 +13,11 @@ export const DEFAULT_COLOR_SCHEME: ColorScheme = 'dark';
 export const DARK_THEME_COLOR = '#11171c';
 export const LIGHT_THEME_COLOR = '#ffffff';
 
+type ThemeRoot = {
+  classList: Pick<DOMTokenList, 'add'>;
+  setAttribute(name: string, value: string): void;
+};
+
 export function isColorScheme(value: unknown): value is ColorScheme {
   return value === 'dark' || value === 'light';
 }
@@ -23,7 +28,7 @@ function liveDocument(): Document | null {
 
 export function applyColorScheme(
   scheme: ColorScheme,
-  root: Pick<HTMLElement, 'classList' | 'setAttribute'> | null = liveDocument()?.documentElement ?? null,
+  root: ThemeRoot | null = liveDocument()?.documentElement ?? null,
   themeColor: { setAttribute(name: string, value: string): void } | null = liveDocument()?.querySelector(
     'meta[name="theme-color"]'
   ) ?? null

@@ -85,7 +85,7 @@
   width: 15px;
   height: 15px;
   flex: none;
-  color: #6f6f6f;
+  color: var(--ast-text-secondary);
 }
 
 .account-menu-who > .role-badge {
@@ -102,7 +102,7 @@
  */
 .account-menu-address {
   overflow: hidden;
-  color: #6f6f6f;
+  color: var(--ast-text-secondary);
   font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -111,7 +111,7 @@
 .account-menu-group {
   margin: 0 -6px;
   padding: 8px 12px;
-  border-top: 1px solid #ebebeb;
+  border-top: 1px solid var(--ast-hairline);
 }
 
 .account-menu-group > button,
@@ -145,7 +145,7 @@
   height: 14px;
   margin-left: auto;
   flex: none;
-  color: #525252;
+  color: var(--db-slate-icon);
 }
 
 .account-menu .account-menu-databricks,
@@ -199,7 +199,7 @@
   justify-content: space-between;
   min-height: 58px;
   padding: 0 20px 0 28px;
-  border-bottom: 1px solid #ebebeb;
+  border-bottom: 1px solid var(--ast-hairline);
 }
 
 .account-composer-header h2 {
@@ -216,7 +216,7 @@
   border: 0;
   place-items: center;
   background: transparent;
-  color: #525252;
+  color: var(--db-slate-icon);
   cursor: pointer;
 }
 
@@ -232,7 +232,7 @@
 }
 
 .account-composer-body label {
-  color: #6f6f6f;
+  color: var(--ast-text-secondary);
   font-size: 12px;
 }
 
@@ -261,7 +261,7 @@
 }
 
 .account-composer-recipient span {
-  color: #6f6f6f;
+  color: var(--ast-text-secondary);
   font-size: 12px;
 }
 
@@ -271,12 +271,13 @@
   padding: 10px 12px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
+  background: var(--card);
   color: var(--foreground);
   font: inherit;
 }
 
 .account-composer textarea::placeholder {
-  color: #8f8f8f;
+  color: var(--muted-foreground);
 }
 
 .account-composer-context {
@@ -284,7 +285,7 @@
   align-items: center;
   gap: 8px;
   margin: 7px 0 0;
-  color: #6f6f6f;
+  color: var(--ast-text-secondary);
   font-size: 12px;
 }
 
@@ -304,7 +305,7 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 28px;
-  border-top: 1px solid #ebebeb;
+  border-top: 1px solid var(--ast-hairline);
   background: var(--muted);
 }
 

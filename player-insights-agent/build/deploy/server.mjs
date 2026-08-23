@@ -164048,6 +164048,7 @@ var init_runtime_settings = __esm({
         timezone: external_exports.string().trim().max(80),
         injectCurrentDate: external_exports.boolean()
       }),
+      colorScheme: external_exports.enum(["dark", "light"]).default("dark"),
       entityStyles: external_exports.strictObject({
         catalog: EntityStyleSchema,
         schema: EntityStyleSchema,
@@ -164087,6 +164088,7 @@ var init_runtime_settings = __esm({
         timezone: "",
         injectCurrentDate: false
       },
+      colorScheme: "dark",
       entityStyles: {
         catalog: { foreground: "#ffffff", background: "#0e538b" },
         schema: { foreground: "#16324f", background: "#ddeaf4" },
