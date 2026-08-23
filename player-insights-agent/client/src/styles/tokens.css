@@ -468,10 +468,10 @@ html[data-theme='dark'] {
   --db-line-strong: rgba(255, 255, 255, 0.22);
   --db-code-bg: rgba(255, 255, 255, 0.08);
   --db-skeleton: rgba(255, 255, 255, 0.12);
-  --db-row-hover: rgba(255, 255, 255, 0.05);
+  --db-row-hover: rgba(255, 255, 255, 0.07);
   --db-selected-tint: rgba(143, 193, 232, 0.12);
-  --db-hover-tint: rgba(143, 193, 232, 0.16);
-  --db-press-tint: rgba(143, 193, 232, 0.24);
+  --db-hover-tint: rgba(255, 255, 255, 0.05);
+  --db-press-tint: rgba(255, 255, 255, 0.07);
   --db-blue-faint: rgba(143, 193, 232, 0.08);
   --db-blue-tint: rgba(34, 114, 180, 0.28);
   --db-red-wash: rgba(232, 169, 184, 0.1);

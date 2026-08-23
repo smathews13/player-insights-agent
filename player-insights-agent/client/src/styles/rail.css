@@ -196,7 +196,7 @@
 }
 
 .trace-inspector .ast-eyebrow {
-  color: #8a9aa3;
+  color: var(--ast-text-secondary);
 }
 
 .trace-inspector .ast-sky {
@@ -427,7 +427,7 @@
 .trace-empty p {
   font-size: 12px;
   line-height: 1.5;
-  color: #8a9aa3;
+  color: var(--ast-caption);
 }
 
 .trace-inspector .ast-flick-row {
@@ -440,7 +440,7 @@
 }
 
 .trace-inspector .ast-flick-row-count {
-  color: #8a9aa3;
+  color: var(--ast-text-secondary);
 }
 
 .trace-inspector .trace-divider {
@@ -453,7 +453,7 @@
 }
 
 .trace-inspector .metric-row span {
-  color: #8a9aa3;
+  color: var(--ast-caption);
   font-size: 11px;
 }
 

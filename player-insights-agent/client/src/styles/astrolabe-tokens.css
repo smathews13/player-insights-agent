@@ -182,6 +182,7 @@
   --ast-text: #161616; /* body */
   --ast-text-long: #3a3838; /* long-form copy */
   --ast-text-secondary: #6f6f6f; /* secondary, placeholders, eyebrows */
+  --ast-caption: var(--ast-text-secondary); /* 11–12px explanatory copy */
   --ast-text-on-dark-secondary: #8a9aa3; /* secondary, on a navy surface */
 
   /* ---- Borders and fills (§2) ---- */
@@ -292,6 +293,7 @@ html[data-theme='dark'] {
   --ast-text: var(--ast-ink-on-dark);
   --ast-text-long: var(--ast-ink-on-dark);
   --ast-text-secondary: rgba(232, 237, 242, 0.68);
+  --ast-caption: rgba(232, 237, 242, 0.8);
   --ast-hairline: rgba(255, 255, 255, 0.12);
   --ast-border-input: rgba(255, 255, 255, 0.22);
   --ast-fill-band: rgba(255, 255, 255, 0.03);

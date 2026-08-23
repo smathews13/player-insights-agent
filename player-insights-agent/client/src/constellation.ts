@@ -35,6 +35,7 @@
 export type StarGlyph =
   | 'dot'
   | 'cross'
+  | 'circle'
   | 'square'
   | 'triangle'
   | 'dpad'

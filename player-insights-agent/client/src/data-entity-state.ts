@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { readPreflightOnce } from './agent-readiness';
 import { ENTITY_PARAM, entityRowId, trackedTables } from './data-entities';
-import { useRuntimeEntityStyles } from './runtime-entity-styles';
 
 let trackedRequest: Promise<string[]> | null = null;
 let workspaceRequest: Promise<string> | null = null;
 
 export function useTrackedTables(): string[] {
-  useRuntimeEntityStyles();
   const [tables, setTables] = useState<string[]>([]);
   useEffect(() => {
     let live = true;

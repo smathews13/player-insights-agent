@@ -4,7 +4,7 @@
  */
 import { OPENING_CONSTELLATION, glyphPath, type Star } from './constellation';
 
-const MARGIN_GLYPHS = new Set(['triangle', 'cross', 'square']);
+const MARGIN_GLYPHS = new Set(['triangle', 'circle', 'cross', 'square']);
 
 function inSkyMargin(star: Star): boolean {
   if (!MARGIN_GLYPHS.has(star.glyph)) return false;
@@ -14,7 +14,10 @@ function inSkyMargin(star: Star): boolean {
 
 export function AppSky() {
   const { width, height, backdrop, stars, hops } = OPENING_CONSTELLATION;
-  const glyphs = stars.filter(inSkyMargin);
+  const glyphs: Star[] = [
+    ...stars.filter(inSkyMargin),
+    { x: width - 36, y: height * 0.58, glyph: 'circle', delay: 0, size: 5, opacity: 0.55 },
+  ];
   return (
     <svg
       className="app-sky"
@@ -52,6 +55,17 @@ export function AppSky() {
           />
         ))}
       {glyphs.map((star) => {
+        if (star.glyph === 'circle') {
+          return (
+            <circle
+              key={`g-${star.x}-${star.y}`}
+              className="app-sky-glyph"
+              cx={star.x}
+              cy={star.y}
+              r={star.size}
+            />
+          );
+        }
         if (star.glyph === 'square') {
           return (
             <rect

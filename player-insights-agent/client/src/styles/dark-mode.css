@@ -28,6 +28,11 @@ html[data-theme='dark'] .app-frame > :not(.app-sky) {
   z-index: 1;
 }
 
+html[data-theme='dark'] .ask-layout {
+  background-color: transparent;
+  background-image: none;
+}
+
 html[data-theme='dark'] .app-header {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(2px);
@@ -46,10 +51,17 @@ html[data-theme='dark'] .app-nav-tab.active {
 
 html[data-theme='dark'] .conversation-rail,
 html[data-theme='dark'] .composer,
-html[data-theme='dark'] .live-steps {
+html[data-theme='dark'] .live-steps,
+html[data-theme='dark'] .trace-inspector {
   background: rgba(255, 255, 255, 0.03);
+  background-image: none;
   backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
+}
+
+html[data-theme='dark'] .ast-sky {
+  background-color: transparent;
+  background-image: none;
 }
 
 html[data-theme='dark'] .prompt-grid button,
@@ -92,6 +104,26 @@ html[data-theme='dark'] [data-slot='sheet-content'] {
 
 html[data-theme='dark'] .monitoring-page:has(.monitoring-drawer) > :not(.monitoring-drawer) {
   opacity: 0.55;
+}
+
+html[data-theme='dark'] .trace-empty-mark {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ast-white);
+}
+
+html[data-theme='dark'] .settings-rail button.active {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+html[data-theme='dark'] .appearance-grid {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='dark'] .monitoring-tile-caption,
+html[data-theme='dark'] .settings-save-notice,
+html[data-theme='dark'] .runtime-field-label,
+html[data-theme='dark'] .run-item-date {
+  color: var(--ast-caption);
 }
 
 html[data-theme='dark'] .settings-modal-overlay {
@@ -139,6 +171,11 @@ html[data-theme='dark'] :focus-visible {
   outline-offset: 1px;
 }
 
+html[data-theme='dark'] :is(input, textarea, select, .app-select-trigger):focus-visible {
+  border-color: var(--ast-ice-accent);
+  outline: none;
+}
+
 html[data-theme='dark'] .app-sky-line {
   stroke: var(--ast-blue-on-dark);
   stroke-width: 1;
@@ -164,6 +201,7 @@ html[data-theme='dark'] .app-sky-glyph {
   html[data-theme='dark'] .conversation-rail,
   html[data-theme='dark'] .composer,
   html[data-theme='dark'] .live-steps,
+  html[data-theme='dark'] .trace-inspector,
   html[data-theme='dark'] .prompt-grid button,
   html[data-theme='dark'] .answer-card,
   html[data-theme='dark'] .monitoring-tile,

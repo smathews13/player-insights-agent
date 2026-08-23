@@ -9,6 +9,7 @@ import { Layout } from './Layout';
 import { BenchmarkingVisibility } from './BenchmarkingVisibility';
 import { kickWarehouseWarmup } from './warehouse-warmup';
 import { applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
+import { useRuntimeEntityStyles } from './runtime-entity-styles';
 
 /**
  * The five pages that are fetched when somebody opens them, not when the app
@@ -156,6 +157,11 @@ const router = createBrowserRouter([
 ]);
 
 export default function App() {
+  // Adopt the saved Appearance settings at the shell, not only after an answer
+  // mounts an entity link. This preserves the dark first paint while allowing a
+  // saved Light choice to take over on every route.
+  useRuntimeEntityStyles();
+
   // After the first paint, while the opening concepts and login gate occupy the
   // screen, ask the server to start the SQL warehouse. This is independent of
   // the Ask page's preflight/readiness request: that page may not mount until
