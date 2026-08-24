@@ -7,6 +7,7 @@
  *
  * Every identifier is invented.
  */
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -36,6 +37,9 @@ import { notebookPathView, persistNotebookPath } from './notebook-card-state';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { DECLARABLE_KEYS, DECLARABLE_KINDS } from '../../shared/notebook-declaration';
 import type { ConnectionEntry, DeclarationComparisonRow, NotebookPanel } from './connection-model';
+
+const CARD_SOURCE = readFileSync(new URL('./DeclaredConnectionsCard.tsx', import.meta.url), 'utf8');
+const CONNECTIONS_CSS = readFileSync(new URL('./styles/connections.css', import.meta.url), 'utf8');
 
 function comparison(overrides: Partial<DeclarationComparisonRow> = {}): DeclarationComparisonRow {
   return {
@@ -188,10 +192,12 @@ describe('the notebook row', () => {
 
   it('persists a reviewed notebook path and surfaces validation failures', async () => {
     const accepted = vi.fn(() =>
-      Promise.resolve(new Response(JSON.stringify({ path: '/Shared/accepted' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })),
+      Promise.resolve(
+        new Response(JSON.stringify({ path: '/Shared/accepted' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
     ) as unknown as typeof fetch;
     await expect(persistNotebookPath('/Shared/accepted', accepted)).resolves.toEqual({
       ok: true,
@@ -199,14 +205,16 @@ describe('the notebook row', () => {
     });
     expect(accepted).toHaveBeenCalledWith(
       '/api/settings/notebook-path',
-      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ path: '/Shared/accepted' }) }),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ path: '/Shared/accepted' }) })
     );
 
     const denied = vi.fn(() =>
-      Promise.resolve(new Response(JSON.stringify({ detail: 'Choose a notebook, not a workspace folder.' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      })),
+      Promise.resolve(
+        new Response(JSON.stringify({ detail: 'Choose a notebook, not a workspace folder.' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
     ) as unknown as typeof fetch;
     await expect(persistNotebookPath('/Shared/folder', denied)).resolves.toEqual({
       ok: false,
@@ -430,6 +438,49 @@ describe('every addable kind browses', () => {
     }
   });
 
+  /**
+   * A reader must choose what they are adding before the form asks them to name
+   * it. Source order is keyboard order here because the form uses no tabindex
+   * overrides and CSS does not reorder its children.
+   */
+  it('puts kind before every field whose meaning depends on kind', () => {
+    const kind = CARD_SOURCE.indexOf('label="Kind"');
+    expect(kind).toBeGreaterThan(0);
+    for (const field of ['-identifier`}', '-label`}', '-key`}']) {
+      expect.soft(CARD_SOURCE.indexOf(field), field).toBeGreaterThan(kind);
+    }
+  });
+
+  it('only asks for a separate display name when the workspace identifier is opaque', () => {
+    expect(CARD_SOURCE).toContain(
+      "const needsDisplayName = chosenKind.id === 'genie-space' || chosenKind.id === 'sql-warehouse'"
+    );
+    expect(CARD_SOURCE).toMatch(/\{needsDisplayName \? \([\s\S]*Display name \(optional\)/);
+  });
+
+  /**
+   * An empty catalog browser used to leave a titled panel and a dead Load more
+   * action above the manual field. It now disappears from both visual and
+   * accessibility order, while the short fallback line remains.
+   */
+  it('replaces an empty browser with the Unity Catalog grants explanation', () => {
+    expect(CONNECTIONS_CSS).toMatch(
+      /\.plane-picker:has\(\.asset-picker-empty\) > \.asset-picker\s*\{[\s\S]*display:\s*none/
+    );
+    expect(CONNECTIONS_CSS).toMatch(
+      /\.plane-picker:has\(\.asset-picker-empty\) > \.plane-picker-empty-note\s*\{[\s\S]*display:\s*block/
+    );
+    expect(CARD_SOURCE).toContain('no Unity Catalog grants');
+    expect(CARD_SOURCE).toContain('still enter the name manually');
+  });
+
+  it('associates the disabled Add reason with the button that needs it', () => {
+    expect(CARD_SOURCE).toContain('aria-describedby={disabledReason ? `${formId}-add-reason` : undefined}');
+    expect(CARD_SOURCE).toContain('id={`${formId}-add-reason`}');
+    expect(CARD_SOURCE).toMatch(/!value\.trim\(\)[\s\S]*Enter or choose a/);
+    expect(CARD_SOURCE).toMatch(/!id\.trim\(\)[\s\S]*Enter a connection key/);
+  });
+
   /** Two kinds share the catalog chain, so the field ids must still be distinct. */
   it('gives each picker its own field id', () => {
     const fields = Object.values(ADD_CONNECTION_PICKERS).map((spec) => spec.field);
@@ -469,9 +520,7 @@ describe('every addable kind browses', () => {
 
   /** Deriving a label from a minted id is what put hex on the row. */
   it('labels a pick with the name the list showed, never with a fragment of the id', () => {
-    expect(addedConnectionLabel('01f19cd4502f1f6dbfb79bf6e63a1b2c', 'Player performance')).toBe(
-      'Player performance'
-    );
+    expect(addedConnectionLabel('01f19cd4502f1f6dbfb79bf6e63a1b2c', 'Player performance')).toBe('Player performance');
     expect(addedConnectionLabel('01f19cd4502f1f6dbfb79bf6e63a1b2c', '')).toBe('');
     expect(addedConnectionLabel('analytics.player.sessions', '')).toBe('sessions');
   });

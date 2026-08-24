@@ -71,7 +71,7 @@ describe('the three things on this page that are allowed to be coloured', () => 
     expect(disagreeing).toMatch(/border-color:\s*var\(--ast-neg-border\)/);
     expect(disagreeing).toMatch(/background:\s*var\(--ast-neg-fill\)/);
     expect(rule(".connection-tile[data-disagrees='true'] .connection-tile-value")).toMatch(
-      /color:\s*var\(--ast-neg-text\)/,
+      /color:\s*var\(--ast-neg-text\)/
     );
     // The tile in agreement is an ordinary hairline tile. A page that tints both
     // has spent the colour on the comparison rather than on its outcome.
@@ -179,7 +179,10 @@ describe('the parts a reader has to be able to use', () => {
     expect(rule('.connections-table th')).toMatch(/background:\s*var\(--ast-fill-band\)/);
     expect(rule('.connections-table tbody tr')).toMatch(/border-bottom:\s*1px solid var\(--border\)/);
     expect(rule('.connections-table tbody tr:hover')).toMatch(/background:\s*var\(--db-row-hover\)/);
-    expect(rule('.connections-table-name')).toMatch(/font-weight:\s*700/);
+    // The repeated catalog and schema are context; the table is the scanning
+    // anchor and is the only segment that should carry the full weight.
+    expect(rule('.connections-table-name')).toMatch(/font-weight:\s*400/);
+    expect(rule(".connections-entity-name [data-entity-part='table']")).toMatch(/font-weight:\s*700/);
   });
 
   it('uses the destructive control token only for permanent removal', () => {
@@ -249,9 +252,7 @@ describe('two radii, and no third', () => {
     // Either spelling of the same two corners: astrolabe-tokens.test.ts holds
     // --ast-radius-control equal to --radius-sm and --ast-radius-card equal to
     // --radius-md, so a rule in the rebuild's spelling is not a third radius.
-    const stray = radii.filter(
-      (value) => !/^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card))\)$/.test(value),
-    );
+    const stray = radii.filter((value) => !/^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card))\)$/.test(value));
     expect(stray).toEqual([]);
   });
 });

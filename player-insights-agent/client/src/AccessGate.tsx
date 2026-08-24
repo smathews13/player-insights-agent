@@ -4,6 +4,7 @@ import { principalLabel } from './execution-identity';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
 import { UserIdentityChip } from './UserIdentityChip';
 import { GATE_FOCUSABLE, gateKeyIntent, gateTabTarget, tableCountLine } from './access-gate-state';
+import { identityRequest } from './app-state';
 
 /**
  * Asks, once per session, under whose authority the answers should be taken.
@@ -30,6 +31,23 @@ interface GateIdentity {
   executionMode: AccessMode;
   accessDecision: AccessDecision | null;
   servingPrincipal: ServingPrincipal | null;
+}
+
+function gateIdentityFromResponse(value: unknown): GateIdentity {
+  if (!value || typeof value !== 'object') throw new Error('Identity unavailable');
+  const identity = value as Partial<GateIdentity>;
+  if (
+    typeof identity.signedInAs !== 'string' ||
+    typeof identity.executionIdentity !== 'string' ||
+    typeof identity.executionMode !== 'string'
+  ) {
+    throw new Error('Identity unavailable');
+  }
+  return {
+    ...identity,
+    accessDecision: identity.accessDecision ?? null,
+    servingPrincipal: identity.servingPrincipal ?? null,
+  } as GateIdentity;
 }
 
 interface Remedy {
@@ -209,8 +227,7 @@ function BlockedReport({ blocked }: { blocked: Blocked }) {
       <p>{blocked.summary}</p>
       {blocked.missing && (
         <p>
-          Missing: <code>{blocked.missing.permission}</code> on{' '}
-          <code>{blocked.missing.object}</code>
+          Missing: <code>{blocked.missing.permission}</code> on <code>{blocked.missing.object}</code>
           {blocked.missing.objectKind ? ` (${blocked.missing.objectKind})` : ''}
         </p>
       )}
@@ -369,8 +386,7 @@ export function LimitsReport({ limits }: { limits: readonly NotChecked[] }) {
     <details className="access-gate-result access-gate-result-neutral access-gate-limits">
       <summary>What this check does not tell you</summary>
       <p className="access-gate-detail">
-        A pass establishes that you <em>could</em> have read the data behind an answer, not that you
-        did.
+        A pass establishes that you <em>could</em> have read the data behind an answer, not that you did.
       </p>
       <ul>
         {limits.map((limit) => (
@@ -407,9 +423,9 @@ export function LimitsReport({ limits }: { limits: readonly NotChecked[] }) {
 export function GateIntro({ signedInAs }: { signedInAs: string }) {
   return (
     <p>
-      <UserIdentityChip identity={signedInAs} label="Signed in as" compact />. This checks your access under your own token: the
-      SQL warehouse, the tables behind answers, and the Genie spaces. It does not decide who runs
-      the questions that follow; that is reported on Connections.
+      <UserIdentityChip identity={signedInAs} label="Signed in as" compact />. This checks your access under your own
+      token: the SQL warehouse, the tables behind answers, and the Genie spaces. It does not decide who runs the
+      questions that follow; that is reported on Connections.
     </p>
   );
 }
@@ -487,12 +503,8 @@ export function AccessGate({
 
   useEffect(() => {
     if (!enabled) return;
-    fetch('/api/identity')
-      .then((response) =>
-        response.ok
-          ? (response.json() as Promise<GateIdentity>)
-          : Promise.reject(new Error(`/api/identity answered HTTP ${response.status}`))
-      )
+    identityRequest()
+      .then(gateIdentityFromResponse)
       .then(setIdentity)
       // A gate that cannot reach the server must not become a locked door in
       // front of a working app. It stands aside and says nothing it cannot back.
@@ -512,7 +524,12 @@ export function AccessGate({
       const body = (await response.json()) as { decision: AccessDecision; servingPrincipal: ServingPrincipal | null };
       setIdentity((current) =>
         current
-          ? { ...current, executionMode: body.decision.mode, accessDecision: body.decision, servingPrincipal: body.servingPrincipal }
+          ? {
+              ...current,
+              executionMode: body.decision.mode,
+              accessDecision: body.decision,
+              servingPrincipal: body.servingPrincipal,
+            }
           : current
       );
     } catch (error) {
@@ -572,7 +589,7 @@ export function AccessGate({
    * them should have their focus moved by a component that rendered nothing.
    */
   const shown = Boolean(
-    !unreachable && identity && identity.identitySource !== 'development-fallback' && !identity.accessDecision,
+    !unreachable && identity && identity.identitySource !== 'development-fallback' && !identity.accessDecision
   );
 
   /*
@@ -632,7 +649,10 @@ export function AccessGate({
   // has been removed, and nothing records a mode on the way past.
   if (!enabled) return <>{children}</>;
   if (unreachable) return <>{children}</>;
-  if (!identity) return null;
+  // The identity read decides whether a gate must cover the app; it does not
+  // decide whether the app has pixels. Keeping the shell mounted removes the
+  // blank cold-open second and lets this fixed overlay take over if needed.
+  if (!identity) return <>{children}</>;
 
   // Nobody is signed in, so there is no second authority to weigh the service
   // principal against and nothing to forward a token for. The question the gate
@@ -701,8 +721,8 @@ export function AccessGate({
                 fact that taking it establishes nothing about their own access.
               */}
               <p className="access-gate-fallback">
-                <strong>You can still go in.</strong> <em>Proceed as the service principal</em> below
-                grants you nothing and claims nothing about your own access.
+                <strong>You can still go in.</strong> <em>Proceed as the service principal</em> below grants you nothing
+                and claims nothing about your own access.
               </p>
             </div>
             {result.notChecked?.length ? <LimitsReport limits={result.notChecked} /> : null}
@@ -738,7 +758,8 @@ export function AccessGate({
             So the door keeps its own label and its own explanation there, and this
             is the one place the wording is state-dependent on purpose.
           */}
-          {checkFailed ? (<div className="access-gate-recheck">
+          {checkFailed ? (
+            <div className="access-gate-recheck">
               {/* `void`, because both handlers below are their own error
                   boundary: each ends in a `catch` that puts the failure on
                   screen and a `finally` that clears `busy`, so there is no
@@ -748,12 +769,7 @@ export function AccessGate({
               <span>Runs the same probe again, once the grant above has been made.</span>
             </div>
           ) : (
-            <button
-              type="button"
-              className="access-gate-primary"
-              disabled={busy}
-              onClick={() => void verify()}
-            >
+            <button type="button" className="access-gate-primary" disabled={busy} onClick={() => void verify()}>
               <span className="access-gate-action-label">
                 {busy ? 'Checking your access\u2026' : 'Verify my access first'}
               </span>

@@ -54,13 +54,24 @@ createApp({
       import('./lib/admin-roles'),
       import('./lib/handler-failures'),
     ]);
-    const { storeReady } = await setupInsightsRoutes(appkit);
-    // Role bootstrap is the one boot task that must wait for Lakebase migrations.
-    // The database is authoritative at runtime; deployment config may insert the
-    // first rows only when the migrated roster is genuinely empty. Waiting keeps a
-    // greenfield app from accepting requests before that one-time insert finishes.
-    await storeReady;
-    await bootstrapSeedRoles(appkit.lakebase);
+    // Assigned before AppKit can listen. The route closure reads the promise only
+    // when an admin request arrives, so health, static assets and consumer routes
+    // do not wait for Lakebase DDL while role-bearing requests still wait for the
+    // authoritative roster to be settled.
+    const readiness: { roles?: Promise<void> } = {};
+    const { storeReady } = await setupInsightsRoutes(appkit, {
+      rolesReady: () =>
+        readiness.roles ?? Promise.reject(new Error('Role bootstrap was requested before it was scheduled.')),
+    });
+    readiness.roles = storeReady
+      .then(() => bootstrapSeedRoles(appkit.lakebase))
+      .then(() => undefined)
+      .catch((error: Error) => {
+        // A failed bootstrap must not become an unhandled background rejection.
+        // The role guards still read Lakebase and deny when no role can be
+        // established, preserving the fail-closed posture during an outage.
+        console.error(`[admin] Background role bootstrap failed: ${error.message}`);
+      });
     // After the insights routes, deliberately: they register the identity gate,
     // and Express applies middleware to whatever is added afterwards. Registering
     // the settings routes first would leave the write route unguarded.

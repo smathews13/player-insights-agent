@@ -22,12 +22,7 @@ import { carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer
 import { VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
 import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
 import { credentialLifetime } from '../lib/benchmark-identity';
-import {
-  BENCHMARK_CASE_CATALOG,
-  CANONICAL_SUITE,
-  canonicalSuite,
-  resolveSuiteCases,
-} from '../lib/benchmark-suite';
+import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
 import { DEPLOYMENT_SETTINGS_DDL, resolveExperimentId, resolveJudgeEndpoint } from '../lib/app-settings';
 import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
@@ -39,7 +34,7 @@ import {
   preserveEnvDecision,
 } from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
-import { requireAdmin, requireSuperAdmin, rolePayload } from '../lib/admin-roles';
+import { isAdminRoute, requireAdmin, requireSuperAdmin, rolePayload } from '../lib/admin-roles';
 import {
   admitRun,
   executorName,
@@ -55,9 +50,7 @@ import { isUsableIdempotencyKey } from '../lib/run-request-hash';
 import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
 import { withDeadline } from '../lib/deadline';
-import {
-  requestLatencyRecorder,
-} from '../lib/request-latency';
+import { requestLatencyRecorder } from '../lib/request-latency';
 import {
   createWarehouseWarmup,
   describeWarmup,
@@ -66,11 +59,7 @@ import {
 } from '../lib/warehouse-warmup';
 import { createGenieWarehouseWarmup } from '../lib/genie-warehouse-warmup';
 import { FAILURE_TAXONOMY, type FailureCode } from '../../shared/failure-taxonomy';
-import {
-  type ExecutionIdentityClaim,
-  unavailableHttpStatus,
-  unavailableResult,
-} from '../../shared/terminal-response';
+import { type ExecutionIdentityClaim, unavailableHttpStatus, unavailableResult } from '../../shared/terminal-response';
 import {
   carriedStatus,
   providerFailure,
@@ -411,7 +400,8 @@ const DerivationSchema = z.looseObject({
  * answer.
  */
 const DerivationEntrySchema = DerivationSchema.catch((ctx) => {
-  console.warn('[contract] An answer carried a provenance entry this app could not read, so that entry ' +
+  console.warn(
+    '[contract] An answer carried a provenance entry this app could not read, so that entry ' +
       `states nothing. Entry: ${JSON.stringify(ctx.value).slice(0, 200)}`
   );
   return { source: '', metric: '', window: '', filter: '' };
@@ -884,7 +874,8 @@ export function discloseAnswerProvenance<
  * the stronger thing, and two caveats about provenance contradict each other
  * more than either informs.
  */
-export function discloseExecutingIdentity<T extends { caveats: string[]; trace: { id: string } }>(answer: T,
+export function discloseExecutingIdentity<T extends { caveats: string[]; trace: { id: string } }>(
+  answer: T,
   ranAsSignedInUser: boolean
 ): T {
   if (ranAsSignedInUser) return answer;
@@ -951,7 +942,8 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
   const record = payload as Record<string, unknown>;
   const mode = record.mode === 'representative' ? 'representative' : record.mode === 'live' ? 'live' : null;
   if (record.type === 'plan') {
-    return runWithoutTrace(identity,
+    return runWithoutTrace(
+      identity,
       'This turn proposed an analysis plan and the plan was never approved, so no run was executed and there is no trace.',
       mode
     );
@@ -985,7 +977,8 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
         undeclaredKeys: [],
       };
     }
-    return runWithoutTrace(identity,
+    return runWithoutTrace(
+      identity,
       'This turn asked the user for a missing detail, and stored no trace of the steps that led there.',
       mode
     );
@@ -1021,9 +1014,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     // browser indexes into, like the sources above and unlike the caveats, and a
     // half-shaped one read straight off a drifted record would render as a
     // labelled fact with nothing beside the label.
-    ...(answer.success && answer.data.derivation.length > 0
-      ? { derivation: answer.data.derivation }
-      : {}),
+    ...(answer.success && answer.data.derivation.length > 0 ? { derivation: answer.data.derivation } : {}),
     trace: trace.data,
     toolStages: toolStagesFromTrace(trace.data.stages),
     mlflow: mlflowReference(trace.data.id, experimentId),
@@ -1055,7 +1046,8 @@ export function benchmarkRunTrace(row: Record<string, unknown>): RunTrace {
     stakeholder: text(row.user_email),
   };
   return {
-    ...runWithoutTrace(identity,
+    ...runWithoutTrace(
+      identity,
       'A benchmark run records a per-case outcome for every case in the suite rather than one set of agent ' +
         'stages, so there is no single trace to walk. Each case carries its own MLflow trace id, open one of ' +
         'those, or a conversation run, to inspect a live trace.'
@@ -1138,37 +1130,40 @@ function withGuidance(value: unknown): unknown {
   return { ...rest, guidance: note };
 }
 
-const PreflightRemedySchema = z.preprocess(withGuidance, z.looseObject({
-  /**
-   * `ui` is a third kind and not a cosmetic one: it is something the READER
-   * does, in their own browser, with no workspace authority at all. The only
-   * one is opening the app in a private window, which is the whole remedy for a
-   * sign-in that is behind the app's declared scopes. Rendering it as a command
-   * would put it in a code block and send somebody looking for a terminal.
-   */
-  kind: z.enum(['sql', 'cli', 'ui']),
-  statement: z.string(),
-  /**
-   * The one line a reader needs to carry the statement out correctly, or `''`.
-   *
-   * NOT THE "WHY THIS IS THE FIX" PARAGRAPH, which is what this field held under
-   * its old name `note` and which is gone. See `DiagnosisRemedy.guidance` in
-   * `shared/stated-cause.ts` for the test a sentence has to pass to be here, and
-   * `remedy-guidance.test.ts` for the check that holds every producer to it.
-   */
-  guidance: z.string(),
-  /**
-   * Who can actually run this, when `kind` does not imply it.
-   *
-   * Empty means the default for the kind, which is what almost every remedy
-   * wants: a `sql` remedy is a GRANT for a metastore admin, and a `cli` remedy
-   * is for someone who can manage the object. The exception is a remedy about
-   * the APP rather than about the workspace -- a scope the app never declared --
-   * where both defaults send the reader to an admin who cannot help, because the
-   * fix is a line in this repository's bundle and a restart.
-   */
-  run_by: z.string().optional(),
-}));
+const PreflightRemedySchema = z.preprocess(
+  withGuidance,
+  z.looseObject({
+    /**
+     * `ui` is a third kind and not a cosmetic one: it is something the READER
+     * does, in their own browser, with no workspace authority at all. The only
+     * one is opening the app in a private window, which is the whole remedy for a
+     * sign-in that is behind the app's declared scopes. Rendering it as a command
+     * would put it in a code block and send somebody looking for a terminal.
+     */
+    kind: z.enum(['sql', 'cli', 'ui']),
+    statement: z.string(),
+    /**
+     * The one line a reader needs to carry the statement out correctly, or `''`.
+     *
+     * NOT THE "WHY THIS IS THE FIX" PARAGRAPH, which is what this field held under
+     * its old name `note` and which is gone. See `DiagnosisRemedy.guidance` in
+     * `shared/stated-cause.ts` for the test a sentence has to pass to be here, and
+     * `remedy-guidance.test.ts` for the check that holds every producer to it.
+     */
+    guidance: z.string(),
+    /**
+     * Who can actually run this, when `kind` does not imply it.
+     *
+     * Empty means the default for the kind, which is what almost every remedy
+     * wants: a `sql` remedy is a GRANT for a metastore admin, and a `cli` remedy
+     * is for someone who can manage the object. The exception is a remedy about
+     * the APP rather than about the workspace -- a scope the app never declared --
+     * where both defaults send the reader to an admin who cannot help, because the
+     * fix is a line in this repository's bundle and a restart.
+     */
+    run_by: z.string().optional(),
+  })
+);
 const PreflightCheckSchema = z.looseObject({
   id: z.string(),
   kind: z.string(),
@@ -1287,12 +1282,10 @@ export type PreflightReport = z.infer<typeof PreflightReportSchema> & {
  * The flag stays a bare `true` when there is no candidate, so a version logged
  * before any of this existed receives the same bytes it always did.
  */
-export function buildPreflightServingBody(candidate?: Record<string, unknown>
-): Record<string, unknown> {
+export function buildPreflightServingBody(candidate?: Record<string, unknown>): Record<string, unknown> {
   // The agent short-circuits on this flag before it looks for a question, but
   // a user turn is sent anyway so the payload stays a valid agent request.
-  const preflight =
-    candidate && Object.keys(candidate).length > 0 ? { candidate } : true;
+  const preflight = candidate && Object.keys(candidate).length > 0 ? { candidate } : true;
   return {
     input: [{ role: 'user', content: 'preflight' }],
     custom_inputs: { preflight },
@@ -1376,9 +1369,7 @@ export function extractConfigurationReport(value: unknown): PreflightConfigurati
       ? (record.custom_outputs as Record<string, unknown>)
       : null;
   const nestedReport =
-    custom?.preflight && typeof custom.preflight === 'object'
-      ? (custom.preflight as Record<string, unknown>)
-      : null;
+    custom?.preflight && typeof custom.preflight === 'object' ? (custom.preflight as Record<string, unknown>) : null;
   // Newest shape first, then the one inside a full report, then a bare top-level
   // list. A version that sends both is sending the same thing twice.
   for (const candidate of [custom?.configuration, nestedReport?.configuration, record.configuration]) {
@@ -1407,7 +1398,8 @@ function appPrincipal() {
  * Whether this server can invoke the agent: the one link in the chain the
  * agent cannot report on, because a failure here is why it never ran.
  */
-export function agentEndpointCheck(endpointName: string,
+export function agentEndpointCheck(
+  endpointName: string,
   outcome: { status: 'ok' | 'failed'; detail: string; error?: string; remedy?: PreflightRemedy }
 ): PreflightCheck {
   return {
@@ -1554,7 +1546,8 @@ function isDeployed() {
  */
 export class IdentityUnavailableError extends Error {
   constructor() {
-    super('This request carries no end-user identity. Databricks Apps sets x-forwarded-email on ' +
+    super(
+      'This request carries no end-user identity. Databricks Apps sets x-forwarded-email on ' +
         'authenticated traffic, so its absence means there is no user to act as and no rows ' +
         'that may be read or written.'
     );
@@ -1607,7 +1600,8 @@ export function requireIdentity(req: Request, res: Response, next: NextFunction)
     userEmail(req);
   } catch (error) {
     if (!(error instanceof IdentityUnavailableError)) throw error;
-    console.error(`[identity] REFUSED ${req.method} ${req.path}: no x-forwarded-email on the request, so there is ` +
+    console.error(
+      `[identity] REFUSED ${req.method} ${req.path}: no x-forwarded-email on the request, so there is ` +
         'no user to scope conversations, attachments, feedback or benchmark runs to. Serving no data ' +
         'rather than guessing an owner. Expected for non-interactive calls; if a signed-in browser ' +
         'sees this, the app is behind a proxy path that drops the header.'
@@ -1670,7 +1664,8 @@ export function sharedConversationRail() {
 function announceSharedConversationRail(resolution: SharedRailResolution) {
   sharedRail = resolution;
   if (resolution.reason === 'unrecognised') {
-    console.error(`[rail] ${SHARED_CONVERSATION_RAIL_ENV} is set to ${JSON.stringify(resolution.raw)}, which is not a ` +
+    console.error(
+      `[rail] ${SHARED_CONVERSATION_RAIL_ENV} is set to ${JSON.stringify(resolution.raw)}, which is not a ` +
         'value this app recognises, so it has been IGNORED and the rail stays scoped to each user. ' +
         'The only value that turns sharing on is "true". Nothing is broken and nothing is exposed: ' +
         'but if a shared rail was intended, it is not on.'
@@ -1678,14 +1673,16 @@ function announceSharedConversationRail(resolution: SharedRailResolution) {
     return;
   }
   if (resolution.shared) {
-    console.warn(`[rail] SHARED CONVERSATION RAIL IS ON (${SHARED_CONVERSATION_RAIL_ENV}=${JSON.stringify(resolution.raw)}). ` +
-        'Every signed-in user can see, and open, every other user\'s conversations and the questions and ' +
+    console.warn(
+      `[rail] SHARED CONVERSATION RAIL IS ON (${SHARED_CONVERSATION_RAIL_ENV}=${JSON.stringify(resolution.raw)}). ` +
+        "Every signed-in user can see, and open, every other user's conversations and the questions and " +
         'answers inside them. This is a deliberate setting for a shared evaluation workspace and it is not ' +
         'the default. Deleting, asking and uploading remain scoped to the owner.'
     );
     return;
   }
-  console.log(`[rail] Conversations are scoped to each user (${SHARED_CONVERSATION_RAIL_ENV} ` +
+  console.log(
+    `[rail] Conversations are scoped to each user (${SHARED_CONVERSATION_RAIL_ENV} ` +
       `${resolution.reason === 'unset' ? 'is unset' : `= ${JSON.stringify(resolution.raw)}`}).`
   );
 }
@@ -1730,8 +1727,9 @@ async function settleSharedConversationRail(appkit: InsightsAppKit): Promise<voi
   });
   if (!preserved.restored) return;
   const resolution = resolveSharedConversationRail(preserved.value);
-  console.warn(`[rail] This deploy carried ${SHARED_CONVERSATION_RAIL_ENV}=${JSON.stringify(preserved.authored ?? '')} ` +
-      'because Deploy-from-Git replaces app.yaml with the public artifact\'s copy, which cannot state a ' +
+  console.warn(
+    `[rail] This deploy carried ${SHARED_CONVERSATION_RAIL_ENV}=${JSON.stringify(preserved.authored ?? '')} ` +
+      "because Deploy-from-Git replaces app.yaml with the public artifact's copy, which cannot state a " +
       `deployment's own decision. The recorded decision is ${JSON.stringify(preserved.value ?? '')}, so that is ` +
       'what the rail uses. Release the bundle to change it; a Git deploy never records one.'
   );
@@ -1741,16 +1739,20 @@ async function settleSharedConversationRail(appkit: InsightsAppKit): Promise<voi
 /**
  * The rail read, and the read of one conversation's messages.
  */
+export const CONVERSATION_RAIL_LIMIT = 100;
+
 function conversationListQuery(email: string) {
   return sharedRail.shared
     ? {
-        sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ORDER BY updated_at DESC`,
+        sql:
+          `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ` +
+          `ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
         params: [] as unknown[],
       }
     : {
         sql:
           `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ` +
-          'WHERE user_email = $1 ORDER BY updated_at DESC',
+          `WHERE user_email = $1 ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
         params: [email] as unknown[],
       };
 }
@@ -1829,9 +1831,8 @@ export const CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, 
 
 function isEndpointError(record: Record<string, unknown>) {
   const status = record.status ?? record.statusCode;
-  return (Boolean(record.error) ||
-    typeof record.error_code === 'string' ||
-    (typeof status === 'number' && status >= 400)
+  return (
+    Boolean(record.error) || typeof record.error_code === 'string' || (typeof status === 'number' && status >= 400)
   );
 }
 
@@ -1876,9 +1877,7 @@ export function extractStructuredAnswer(value: unknown): LiveAnswer | null {
     if (undeclared.length > 0) {
       // Forwarded, not dropped, but the app renders nothing for these, so the
       // agent contract has moved ahead of the UI and someone needs to catch up.
-      console.warn('[serving] Answer contains fields the app does not read:',
-        undeclared.join(', ')
-      );
+      console.warn('[serving] Answer contains fields the app does not read:', undeclared.join(', '));
     }
     return parsed.data;
   }
@@ -1910,7 +1909,8 @@ export function extractClarification(value: unknown): Clarification | null {
     if (customRecord.type === 'clarification') {
       const parsed = ClarificationSchema.safeParse(customRecord.clarification);
       if (parsed.success) return parsed.data;
-      console.warn('[serving] Endpoint asked for clarification in a shape the app cannot read:',
+      console.warn(
+        '[serving] Endpoint asked for clarification in a shape the app cannot read:',
         parsed.error.issues.map((issue) => issue.path.join('.')).join(', ')
       );
     }
@@ -1961,7 +1961,8 @@ interface HistoryRow {
 
 export function buildServingHistory(rows: HistoryRow[]) {
   return rows
-    .filter((row): row is HistoryRow & { role: 'user' | 'assistant'; content: string } =>
+    .filter(
+      (row): row is HistoryRow & { role: 'user' | 'assistant'; content: string } =>
         (row.role === 'user' || row.role === 'assistant') && typeof row.content === 'string'
     )
     .slice(-12)
@@ -2219,9 +2220,7 @@ function warmGenieWarehousesForArrival(req: Request, served: unknown): void {
     .then((outcomes) => {
       for (const outcome of outcomes) {
         if (outcome.kind === 'started') {
-          console.log(
-            `[warmup] Warming adopted Genie warehouse ${outcome.warehouseId}, which was ${outcome.from}.`
-          );
+          console.log(`[warmup] Warming adopted Genie warehouse ${outcome.warehouseId}, which was ${outcome.from}.`);
         } else if (outcome.kind === 'failed') {
           console.warn(
             `[warmup] Adopted Genie warehouse could not be warmed (${outcome.at}, ${outcome.spaceId}): ${outcome.message}.`
@@ -2261,7 +2260,8 @@ interface ServingApiClient {
  * regression back to `servingEndpoints.query()` has to change this factory,
  * which the test then fails on.
  */
-export function createServingTransport(resolveClient: (userToken?: string) => Promise<ServingApiClient>
+export function createServingTransport(
+  resolveClient: (userToken?: string) => Promise<ServingApiClient>
 ): ServingTransport {
   return async ({ path, payload, onStage, userToken }) => {
     const client = await resolveClient(userToken);
@@ -2297,7 +2297,8 @@ export function createServingTransport(resolveClient: (userToken?: string) => Pr
       // worth one attempt, where re-asking an unreachable endpoint would not
       // be. The alternative is what the user saw: a representative answer
       // presented over a question that really did run.
-      console.warn(`[serving] ${error.message} Asking again without streaming, which does not ` +
+      console.warn(
+        `[serving] ${error.message} Asking again without streaming, which does not ` +
           'depend on the connection surviving the whole run.'
       );
       // `stream: true` lives inside the body, so it has to come back out or the
@@ -2449,7 +2450,8 @@ export const PREFLIGHT_TIMEOUT_MS = 60_000;
 // Exported for the settings route, which asks the orchestrator the same question
 // this one does. A second implementation of the invoke path is how `custom_inputs`
 // got dropped once already, see the ServingTransport comment above.
-export async function invokeServing(appkit: InsightsAppKit,
+export async function invokeServing(
+  appkit: InsightsAppKit,
   payload: Record<string, unknown>,
   onStage?: StageSink,
   timeoutMs: number = SERVING_INVOKE_TIMEOUT_MS,
@@ -2460,7 +2462,8 @@ export async function invokeServing(appkit: InsightsAppKit,
     throw new Error('DATABRICKS_SERVING_ENDPOINT_NAME is not set.');
   }
   const transport = appkit.servingTransport ?? workspaceServingTransport;
-  return withDeadline(transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken }),
+  return withDeadline(
+    transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken }),
     timeoutMs,
     `The agent endpoint did not answer within ${timeoutMs} ms. The call was abandoned rather than ` +
       'cancelled, so it may still be running at the endpoint.'
@@ -2519,9 +2522,7 @@ function isRunningStage(stage: Record<string, unknown>): boolean {
  * is the operator's copy rather than the reader's. Making that an option here
  * would mean the safe behaviour depended on remembering to pass it.
  */
-function agentEndpointEvidence(error: unknown,
-  context: { principal?: string; stage?: FailureStage }
-): FailureEvidence {
+function agentEndpointEvidence(error: unknown, context: { principal?: string; stage?: FailureStage }): FailureEvidence {
   const { status, providerCode, providerMessage } = providerFailure(error);
   return {
     dependency: agentEndpointDependency(),
@@ -2623,8 +2624,7 @@ export class AuthorizationRefused extends Error {
  * as noise. Reading it as absent says the same thing honestly.
  */
 export function rejectionStatus(error: unknown): number | null {
-  const carried =
-    (error as { statusCode?: number })?.statusCode ?? (error as { status?: number })?.status;
+  const carried = (error as { statusCode?: number })?.statusCode ?? (error as { status?: number })?.status;
   if (typeof carried === 'number') return carried;
   const message = error instanceof Error ? error.message : (text(error) ?? '');
   if (/\b403\b|permission denied|not authorized|forbidden/i.test(message)) return 403;
@@ -2648,7 +2648,8 @@ export function rejectionStatus(error: unknown): number | null {
  * this function having no second call in it rather than of a flag somebody could
  * set back.
  */
-export async function invokeServingAsUser(appkit: InsightsAppKit,
+export async function invokeServingAsUser(
+  appkit: InsightsAppKit,
   payload: Record<string, unknown>,
   userToken: string,
   onStage?: StageSink,
@@ -2660,7 +2661,8 @@ export async function invokeServingAsUser(appkit: InsightsAppKit,
     const code = authorizationFailureFor(rejectionStatus(error) ?? 0);
     if (!code) throw error;
     const detail = error instanceof Error ? error.message : String(error);
-    console.warn(`[identity] The endpoint refused this request under the signed-in user's own credential ` +
+    console.warn(
+      `[identity] The endpoint refused this request under the signed-in user's own credential ` +
         `(${code}): ${detail}. Nothing was retried: the app's service principal is not an ` +
         'identity any analytical request may be executed under.'
     );
@@ -2706,12 +2708,7 @@ async function safeQuery(appkit: InsightsAppKit, sql: string, params: unknown[] 
  * answers with nothing and declares itself unavailable, which is a different
  * response from a store that answered and holds nothing; see `chooseRows`.
  */
-async function respondWithStored(appkit: InsightsAppKit,
-  res: Response,
-  route: string,
-  sql: string,
-  params: unknown[]
-) {
+async function respondWithStored(appkit: InsightsAppKit, res: Response, route: string, sql: string, params: unknown[]) {
   const read = await readStored(appkit, route, sql, params);
   const { rows, substitution } = chooseRows(route, read);
   markResponse(res, substitution);
@@ -2804,7 +2801,8 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
   try {
     await applySchema(appkit);
   } catch (error) {
-    console.error(`[lakebase] SCHEMA SETUP THREW rather than reporting: ${(error as Error).message}. The app is ` +
+    console.error(
+      `[lakebase] SCHEMA SETUP THREW rather than reporting: ${(error as Error).message}. The app is ` +
         'serving already, and every read of the store will report itself unavailable until this is fixed.'
     );
   } finally {
@@ -2825,7 +2823,8 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
   try {
     await repairTruncatedTitles(appkit);
   } catch (error) {
-    console.warn(`[lakebase] The conversation-title repair did not run: ${(error as Error).message}. Titles cut to ` +
+    console.warn(
+      `[lakebase] The conversation-title repair did not run: ${(error as Error).message}. Titles cut to ` +
         '80 characters by an older version stay cut; nothing else is affected.'
     );
   }
@@ -2852,7 +2851,10 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
  * missing GRANT produces. `markSchemaPending` is what stops that being
  * misdiagnosed as "run the grant script" during the second it is true.
  */
-export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeReady: Promise<void> }> {
+export function setupInsightsRoutes(
+  appkit: InsightsAppKit,
+  options: { rolesReady?: () => Promise<void> } = {}
+): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
   // than tidy. `prepareStore` asks the store whether this deployment recorded a
   // different rail scope (see `settleSharedConversationRail`), and the scope in
@@ -2869,12 +2871,14 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
   startLakebaseWatchdog(appkit);
 
   if (isDeployed()) {
-    console.log('[identity] Requiring x-forwarded-email on user-scoped routes; unidentified requests are refused with 401.'
+    console.log(
+      '[identity] Requiring x-forwarded-email on user-scoped routes; unidentified requests are refused with 401.'
     );
   } else if (process.env.NODE_ENV !== 'test') {
     // Every test boots the app, and a warning on each would be noise nobody
     // reads. A developer running the server is the audience for this.
-    console.warn(`[identity] DEVELOPMENT MODE: requests without x-forwarded-email act as ${DEVELOPMENT_IDENTITY}, and ` +
+    console.warn(
+      `[identity] DEVELOPMENT MODE: requests without x-forwarded-email act as ${DEVELOPMENT_IDENTITY}, and ` +
         'rows written now are owned by that address. This path does not exist when NODE_ENV=production, ' +
         'which is what app.yaml runs.'
     );
@@ -2886,6 +2890,20 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     // throws instead of rejecting into an unhandled promise and exiting Node.
     answerRatherThanExit(app);
     app.use(requireIdentity);
+    if (options.rolesReady) {
+      app.use((req, _res, next) => {
+        if (!isAdminRoute(req.path)) {
+          next();
+          return;
+        }
+        // Only role-bearing routes wait. Without this gate a greenfield request
+        // could read the empty roster between schema creation and seed insertion,
+        // while awaiting the same promise in onPluginsReady kept the entire app
+        // dark. A rejected bootstrap still continues into the existing role guard,
+        // which denies when Lakebase cannot establish the caller's role.
+        options.rolesReady?.().then(() => next(), next);
+      });
+    }
     // Immediately after the identity gate and before any route, so every admin
     // path registered anywhere below is refused for a consumer without the
     // handler's author doing anything. THIS IS THE PERMISSION MODEL: hiding a tab
@@ -2946,9 +2964,10 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
      */
     app.post('/api/app-user-api-scopes', async (req, res) => {
       const requestedScope = (req.body as { scope?: unknown } | undefined)?.scope;
-      if (requestedScope !== undefined && (
-        typeof requestedScope !== 'string' || !isOptionalUserApiScope(requestedScope)
-      )) {
+      if (
+        requestedScope !== undefined &&
+        (typeof requestedScope !== 'string' || !isOptionalUserApiScope(requestedScope))
+      ) {
         res.status(400).json({
           error: 'unsupported_scope',
           message: 'Only a known optional Databricks scope can be requested here.',
@@ -3022,7 +3041,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         return;
       }
       const email = userEmail(req);
-      const decision = declareAccessMode(email,
+      const decision = declareAccessMode(
+        email,
         requested,
         requested === 'skipped'
           ? 'The user skipped the access gate. Nothing was checked under their token. Who runs questions is set by the deployment, not by this choice.'
@@ -3095,9 +3115,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       try {
         configuration = extractServedConfiguration(await invokePreflight(appkit));
       } catch (error) {
-        console.warn(
-          `[access] Served configuration could not be read for verification: ${(error as Error).message}`
-        );
+        console.warn(`[access] Served configuration could not be read for verification: ${(error as Error).message}`);
       }
       const { tables, genieSpaces } = accessDependenciesFrom({
         configuration,
@@ -3141,7 +3159,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
 
       const userToken = forwardedUserToken(req)!;
       const statementOptions = { host, token: userToken, warehouseId };
-      const outcome = await verifyAccess({
+      const outcome = await verifyAccess(
+        {
           tables,
           warehouseId,
           principal: email,
@@ -3171,7 +3190,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       const serving = observedServingPrincipal();
       if (!isVerified(outcome)) {
         const genieDenied = (outcome.genie ?? []).filter((verdict) => verdict.status === 'denied').length;
-        console.warn(`[access] ${email} not verified: ${
+        console.warn(
+          `[access] ${email} not verified: ${
             outcome.blocked
               ? outcome.blocked.kind
               : `${outcome.denied} denied, ${outcome.errored} unknown, ${genieDenied} Genie space(s) refused`
@@ -3220,7 +3240,9 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         const message = (error as Error).message;
         console.warn('[preflight] Agent endpoint could not be invoked:', message);
         res.status(503).json({
-          ...withStorageCheck(preflightFailure(agentEndpointCheck(endpointName, {
+          ...withStorageCheck(
+            preflightFailure(
+              agentEndpointCheck(endpointName, {
                 status: 'failed',
                 detail: 'The app could not invoke the agent endpoint, so nothing behind it was checked.',
                 error: message,
@@ -3253,7 +3275,9 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // a fault: there is nothing here for an operator to fix, and answering
         // 503 for it would mark every deployment down. What can still fail on
         // this path is Lakebase, and that is a real one.
-        const retired = withStorageCheck(preflightFailure(agentEndpointCheck(endpointName, {
+        const retired = withStorageCheck(
+          preflightFailure(
+            agentEndpointCheck(endpointName, {
               status: 'ok',
               detail: 'The app invoked the agent endpoint and it answered.',
             }),
@@ -3310,7 +3334,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       const conversationId = req.params.id;
       const email = userEmail(req);
 
-      const ownership = await readStored(appkit,
+      const ownership = await readStored(
+        appkit,
         'DELETE /api/conversations/:id (owner)',
         `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
         [conversationId]
@@ -3320,7 +3345,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // failed read is indistinguishable from a conversation that does not
         // exist. Answering 404 here would report someone's conversation as
         // already gone during an outage.
-        console.warn(`[lakebase] Conversation ${conversationId} could not be deleted: ownership unreadable (${ownership.code}).`
+        console.warn(
+          `[lakebase] Conversation ${conversationId} could not be deleted: ownership unreadable (${ownership.code}).`
         );
         res.status(503).json({
           error: 'conversation_delete_failed',
@@ -3334,8 +3360,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       const owner = ownership.rows[0]?.user_email;
       if (owner !== email) {
         if (typeof owner === 'string') {
-          console.warn(`[tenancy] Refused delete of conversation ${conversationId}: it belongs to another user.`
-          );
+          console.warn(`[tenancy] Refused delete of conversation ${conversationId}: it belongs to another user.`);
         }
         res.status(404).json({
           error: 'conversation_not_found',
@@ -3353,7 +3378,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // resolve. Not filtered by the caller's address: the rows are being
         // removed because their target is being removed, and one left behind
         // because somebody else wrote it is an orphan nothing can reach.
-        const feedback = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.feedback
+        const feedback = await appkit.lakebase.query(
+          `DELETE FROM ${APP_SCHEMA}.feedback
            WHERE message_id IN (SELECT id FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1
            )
            RETURNING id`,
@@ -3364,10 +3390,12 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // left behind here would be unreachable (every read of it is scoped
         // through a conversation that no longer exists), while the document's
         // contents stayed in the store indefinitely.
-        const attachments = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.attachments WHERE conversation_id = $1 RETURNING id`,
+        const attachments = await appkit.lakebase.query(
+          `DELETE FROM ${APP_SCHEMA}.attachments WHERE conversation_id = $1 RETURNING id`,
           [conversationId]
         );
-        const messages = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1 RETURNING id`,
+        const messages = await appkit.lakebase.query(
+          `DELETE FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1 RETURNING id`,
           [conversationId]
         );
         // The conversation row last, so that a failure part-way through leaves
@@ -3375,7 +3403,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // orphaned children under an id the rail can no longer name. Every
         // statement above is keyed on the conversation id alone, so a retry
         // removes whatever the first attempt did not.
-        const conversation = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.conversations WHERE id = $1 AND user_email = $2 RETURNING id`,
+        const conversation = await appkit.lakebase.query(
+          `DELETE FROM ${APP_SCHEMA}.conversations WHERE id = $1 AND user_email = $2 RETURNING id`,
           [conversationId, email]
         );
 
@@ -3389,9 +3418,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
           },
         });
       } catch (error) {
-        console.warn(`[lakebase] Conversation ${conversationId} could not be deleted:`,
-          (error as Error).message
-        );
+        console.warn(`[lakebase] Conversation ${conversationId} could not be deleted:`, (error as Error).message);
         res.status(503).json({
           error: 'conversation_delete_failed',
           conversationId,
@@ -3436,12 +3463,10 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
      * reported, a run that has finished beside the steps of one that had not.
      */
     app.get('/api/conversations/:id/run', async (req, res) => {
-      const read = await readStored(
-        appkit,
-        'GET /api/conversations/:id/run',
-        CONVERSATION_RUN_STATUS_QUERY,
-        [req.params.id, userEmail(req)]
-      );
+      const read = await readStored(appkit, 'GET /api/conversations/:id/run', CONVERSATION_RUN_STATUS_QUERY, [
+        req.params.id,
+        userEmail(req),
+      ]);
       if (!read.available) {
         res.status(503).json({
           error: 'conversation_run_unavailable',
@@ -3471,7 +3496,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
      * third.
      */
     app.get('/api/conversations/:id/attachments', async (req, res) => {
-      const read = await readStored(appkit,
+      const read = await readStored(
+        appkit,
         'GET /api/conversations/:id/attachments',
         `SELECT id, filename, mime_type, size_bytes, created_at
          FROM ${APP_SCHEMA}.attachments
@@ -3496,7 +3522,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     /**
      * Attach a document to a conversation the caller owns.
      */
-    app.post('/api/conversations/:id/attachments',
+    app.post(
+      '/api/conversations/:id/attachments',
       raw({ type: 'application/octet-stream', limit: MAX_ATTACHMENT_BYTES }),
       async (req, res) => {
         const encodedName = req.header('x-file-name');
@@ -3508,13 +3535,15 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         }
 
         const conversationId = req.params.id;
-        const owner = await readStored(appkit,
+        const owner = await readStored(
+          appkit,
           'POST /api/conversations/:id/attachments (owner)',
           `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
           [conversationId]
         );
         if (!owner.available) {
-          console.warn(`[lakebase] Attachment for ${conversationId} was not stored: ownership unreadable (${owner.code}).`
+          console.warn(
+            `[lakebase] Attachment for ${conversationId} was not stored: ownership unreadable (${owner.code}).`
           );
           res.status(503).json({
             error: 'attachment_owner_unreadable',
@@ -3530,7 +3559,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // conversation is new and about to be claimed legitimately, which is how
         // the first upload in a fresh chat works.
         if (typeof ownerEmail === 'string' && ownerEmail !== userEmail(req)) {
-          console.warn(`[tenancy] Refused attachment upload to conversation ${conversationId}: it belongs to another user.`
+          console.warn(
+            `[tenancy] Refused attachment upload to conversation ${conversationId}: it belongs to another user.`
           );
           // 404 rather than 403, as everywhere else here: confirming the id
           // exists but is somebody else's is itself a disclosure.
@@ -3557,11 +3587,13 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         const id = crypto.randomUUID();
         const email = userEmail(req);
         try {
-          await appkit.lakebase.query(`INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title)
+          await appkit.lakebase.query(
+            `INSERT INTO ${APP_SCHEMA}.conversations (id, user_email, title)
              VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()`,
             [conversationId, email, PLACEHOLDER_CONVERSATION_TITLE]
           );
-          await appkit.lakebase.query(`INSERT INTO ${APP_SCHEMA}.attachments
+          await appkit.lakebase.query(
+            `INSERT INTO ${APP_SCHEMA}.attachments
              (id, conversation_id, user_email, filename, mime_type, size_bytes, extracted_text)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
             [
@@ -3603,7 +3635,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     app.delete('/api/conversations/:conversationId/attachments/:attachmentId', async (req, res) => {
       const { conversationId, attachmentId } = req.params;
       try {
-        const result = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.attachments
+        const result = await appkit.lakebase.query(
+          `DELETE FROM ${APP_SCHEMA}.attachments
            WHERE id = $1 AND conversation_id = $2 AND user_email = $3
            RETURNING id`,
           [attachmentId, conversationId, userEmail(req)]
@@ -3637,7 +3670,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     app.delete('/api/conversations/:conversationId/attachments', async (req, res) => {
       const conversationId = req.params.conversationId;
       try {
-        const result = await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.attachments
+        const result = await appkit.lakebase.query(
+          `DELETE FROM ${APP_SCHEMA}.attachments
            WHERE conversation_id = $1 AND user_email = $2
            RETURNING id`,
           [conversationId, userEmail(req)]
@@ -3675,7 +3709,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       const identity = decideIdentity(req, { signedInAs: email, required: isDeployed() });
       if (!identity.ok) {
         console.error(describeRefusal(identity));
-        reply.status(unavailableHttpStatus(identity.code)).json(unavailableResult({
+        reply.status(unavailableHttpStatus(identity.code)).json(
+          unavailableResult({
             code: identity.code,
             requestId: identity.correlationId,
             // Null rather than the request id. Nothing was run, so there is no
@@ -3709,7 +3744,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
        */
       const idempotencyKey = (req.header('idempotency-key') ?? '').trim();
       if (idempotencyKey !== '' && !isUsableIdempotencyKey(idempotencyKey)) {
-        reply.status(unavailableHttpStatus('IDEMPOTENCY_KEY_MALFORMED')).json(unavailableResult({
+        reply.status(unavailableHttpStatus('IDEMPOTENCY_KEY_MALFORMED')).json(
+          unavailableResult({
             code: 'IDEMPOTENCY_KEY_MALFORMED',
             requestId: identity.correlationId,
             // No run to name: this is refused before the ledger is reached.
@@ -3729,7 +3765,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       // conversation and then read that user's history straight back as the
       // context for their own question. That is the write-side twin of the
       // unscoped read this route used to do.
-      const ownership = await readStored(appkit,
+      const ownership = await readStored(
+        appkit,
         'POST /api/insights/ask (conversation owner)',
         `SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`,
         [conversationId]
@@ -3738,14 +3775,21 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       if (typeof owner === 'string' && owner !== email) {
         // 404 rather than 403: confirming the id exists but belongs to someone
         // else is itself a disclosure.
-        console.warn(`[tenancy] Refused ask on conversation ${conversationId}: it belongs to another user.`
-        );
+        console.warn(`[tenancy] Refused ask on conversation ${conversationId}: it belongs to another user.`);
         reply.status(404).json({
           error: 'conversation_not_found',
           message: 'No conversation with this id belongs to you.',
         });
         return;
       }
+
+      // Identity, idempotency-key syntax and ownership are the checks that can
+      // reject this caller before accepting the turn. Open the SSE response now,
+      // before persistence and context reads, so those Lakebase round trips are
+      // visible as accepted work rather than a frozen "sending" state. Later
+      // admission refusals use AskResponder's typed `error` event; JSON callers
+      // are unchanged because begin() is a no-op for them.
+      reply.begin();
 
       // `messages` carries no owner, so every read of a turn resolves through
       // this row, including `RUNS_QUERY`, which joins it to scope runs to the
@@ -3755,7 +3799,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       // exists the upsert only moves `updated_at`, so losing it costs an ordering
       // and nothing else, which is why this is not simply "did the write work".
       const conversationExisted = ownership.available && ownership.rows.length > 0;
-      const conversationWrite = await readStored(appkit,
+      const conversationWrite = await readStored(
+        appkit,
         'POST /api/insights/ask (conversation)',
         // The title is claimed on conflict, but ONLY while it is still the placeholder.
         // Attaching a document creates the conversation before any question is asked,
@@ -3770,32 +3815,35 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         [conversationId, email, conversationTitle(prompt), PLACEHOLDER_CONVERSATION_TITLE]
       );
       const conversationAddressable = conversationExisted || conversationWrite.available;
-      await safeQuery(appkit,
+      await safeQuery(
+        appkit,
         `INSERT INTO ${APP_SCHEMA}.messages (id, conversation_id, role, content) VALUES ($1,$2,$3,$4)`,
-        [
-          userMessageId,
-          conversationId,
-          'user',
-          approvedPlanId ? PLAN_APPROVAL_MESSAGE : prompt,
-        ]
+        [userMessageId, conversationId, 'user', approvedPlanId ? PLAN_APPROVAL_MESSAGE : prompt]
       );
 
-      const historyRead = await readStored(appkit,
-        'POST /api/insights/ask (history)',
-        `SELECT role, content, response_json FROM (SELECT m.role, m.content, m.response_json, m.created_at
-           FROM ${APP_SCHEMA}.messages m
-           JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
-           WHERE m.conversation_id = $1 AND c.user_email = $2
-           ORDER BY m.created_at DESC LIMIT 12
-         ) recent ORDER BY created_at`,
-        [conversationId, email]
-      );
-      const attachmentRead = await readStored(appkit,
-        'POST /api/insights/ask (attachments)',
-        `SELECT filename, extracted_text FROM ${APP_SCHEMA}.attachments
-         WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
-        [conversationId, email]
-      );
+      // Neither read depends on the other. Keeping them serial made every ask pay
+      // both Lakebase latencies before admission even though they are two views of
+      // context that was already fixed by the writes above.
+      const [historyRead, attachmentRead] = await Promise.all([
+        readStored(
+          appkit,
+          'POST /api/insights/ask (history)',
+          `SELECT role, content, response_json FROM (SELECT m.role, m.content, m.response_json, m.created_at
+             FROM ${APP_SCHEMA}.messages m
+             JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
+             WHERE m.conversation_id = $1 AND c.user_email = $2
+             ORDER BY m.created_at DESC LIMIT 12
+           ) recent ORDER BY created_at`,
+          [conversationId, email]
+        ),
+        readStored(
+          appkit,
+          'POST /api/insights/ask (attachments)',
+          `SELECT filename, extracted_text FROM ${APP_SCHEMA}.attachments
+           WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
+          [conversationId, email]
+        ),
+      ]);
       const missingContext = [
         ...(historyRead.available ? [] : ['conversation history']),
         ...(attachmentRead.available ? [] : ['uploaded documents']),
@@ -3870,12 +3918,28 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // client that thinks it is protected against duplicate execution and is
         // not can only be told now.
         console.warn(`[run-ledger] Refused ${identity.requestId} with ${admission.code}: ${admission.detail}`);
+        /*
+         * The user turn was written so admission could hash the history this
+         * request would have run against. A refusal means that turn is not an
+         * answer and must not sit in the rail as one. Leaving it was how a
+         * reused Idempotency-Key produced a question with no run.
+         */
+        await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.messages WHERE id = $1`, [userMessageId]);
+        if (!conversationExisted) {
+          await appkit.lakebase.query(
+            `DELETE FROM ${APP_SCHEMA}.conversations WHERE id = $1 AND user_email = $2
+               AND NOT EXISTS (SELECT 1 FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1)
+               AND NOT EXISTS (SELECT 1 FROM ${APP_SCHEMA}.attachments WHERE conversation_id = $1)`,
+            [conversationId, email]
+          );
+        }
         // Every admission refusal is a taxonomy code now, so they all leave in
         // the same shape. The hand-rolled `{ error: 'idempotency_conflict' }`
         // body that used to serve the two idempotency refusals went with the
         // local constant behind them: it labelled a malformed header a
         // conflict, which is the conflation the split exists to end.
-        reply.status(admission.status).json(unavailableResult({
+        reply.status(admission.status).json(
+          unavailableResult({
             code: admission.code,
             requestId: identity.correlationId,
             runId: admission.runId,
@@ -3897,16 +3961,19 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // through would run the question again, which is exactly what enforce
         // is for stopping, so it is refused with what the first run recorded.
         const code = replay.kind === 'failure' && replay.code ? replay.code : 'PERSISTENCE_UNAVAILABLE';
-        console.warn(`[run-ledger] Run ${admission.run.runId} was asked again and has no answer to replay ` +
+        console.warn(
+          `[run-ledger] Run ${admission.run.runId} was asked again and has no answer to replay ` +
             `(${replay.kind}). Answering with ${code} rather than running it a second time.`
         );
-        reply.status(unavailableHttpStatus(code)).json(unavailableResult({
+        reply.status(unavailableHttpStatus(code)).json(
+          unavailableResult({
             code,
             requestId: identity.correlationId,
             runId: admission.run.runId,
             persistence: 'stored',
             executionIdentity: executionIdentityClaim(identity),
-            detail: replay.kind === 'failure' ? `This question already ran and ended as ${replay.state}.` : replay.detail,
+            detail:
+              replay.kind === 'failure' ? `This question already ran and ended as ${replay.state}.` : replay.detail,
           })
         );
         return;
@@ -3949,12 +4016,6 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         if (approvedPlanId && servingHistory.length > 0) {
           servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
         }
-        // Opened before the call rather than at the first stage, so the wait
-        // before the agent's first step is inside the stream too. A turn that
-        // is about to answer with a plan produces no stages at all, and the
-        // client needs to be able to tell that from a request that never
-        // arrived.
-        reply.begin();
         const payload = buildAskServingBody({
           history: servingHistory,
           prompt,
@@ -4036,7 +4097,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
          */
         const refused = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
         if (refused) {
-          console.warn(`[identity] Agent refused request ${identity.correlationId} with ${refused.code}` +
+          console.warn(
+            `[identity] Agent refused request ${identity.correlationId} with ${refused.code}` +
               `${refused.execution_identity ? `, executing as ${refused.execution_identity.mode}` : ''}. ` +
               'Returning unavailable rather than an answer.'
           );
@@ -4051,7 +4113,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
           // approve, receive the identical plan, approve. Falling through is worse
           //. That was the old behaviour, and it answered a plan-approval request
           // with canned figures. So: neither, and say what happened.
-          console.error(`[serving] Approved plan ${approvedPlanId} was re-proposed unchanged instead of being ` +
+          console.error(
+            `[serving] Approved plan ${approvedPlanId} was re-proposed unchanged instead of being ` +
               'run. Refusing to loop the approval, and refusing to answer with representative ' +
               'figures the user did not ask for.'
           );
@@ -4084,7 +4147,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
            */
           const reissued = Boolean(approvedPlanId);
           if (reissued) {
-            console.warn(`[serving] Approval for plan ${approvedPlanId} was refused by the agent, which ` +
+            console.warn(
+              `[serving] Approval for plan ${approvedPlanId} was refused by the agent, which ` +
                 `re-issued plan ${plan.id}. Returning the new plan for approval rather than ` +
                 'answering a question the user has not authorised yet.'
             );
@@ -4098,7 +4162,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
             // approval did not run.
             ...(reissued ? { supersededApprovalId: approvedPlanId } : {}),
           };
-          await safeQuery(appkit,
+          await safeQuery(
+            appkit,
             `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
@@ -4132,7 +4197,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
             mode: 'live' as const,
             clarification,
           };
-          await safeQuery(appkit,
+          await safeQuery(
+            appkit,
             `INSERT INTO ${APP_SCHEMA}.messages
              (id, conversation_id, role, content, response_json, trace_id,
               app_principal, serving_principal, serving_principal_observed_at, access_mode,
@@ -4190,7 +4256,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
           // which is two artifacts released separately and in either order, and
           // this line is the only record of which shape actually arrived.
           const shape = describePayloadShape(endpointResult);
-          console.error('[serving] The endpoint answered, but with none of the four shapes this app can read ' +
+          console.error(
+            '[serving] The endpoint answered, but with none of the four shapes this app can read ' +
               `(plan, clarification, structured answer, live text). ${shape}. Payload: ` +
               JSON.stringify(endpointResult).slice(0, 1200)
           );
@@ -4198,7 +4265,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
             to: terminalStateFor('OUTPUT_SCHEMA_VIOLATION'),
             code: 'OUTPUT_SCHEMA_VIOLATION',
           });
-          reply.status(unavailableHttpStatus('OUTPUT_SCHEMA_VIOLATION')).json(unavailableResult({
+          reply.status(unavailableHttpStatus('OUTPUT_SCHEMA_VIOLATION')).json(
+            unavailableResult({
               code: 'OUTPUT_SCHEMA_VIOLATION',
               requestId: identity.correlationId,
               runId: null,
@@ -4232,7 +4300,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // reader gets, which is the thing it was always for.
         if (error instanceof AuthorizationRefused) {
           await settleRun(appkit, admission, { to: terminalStateFor(error.code), code: error.code });
-          reply.status(error.httpStatus).json(unavailableResult({
+          reply.status(error.httpStatus).json(
+            unavailableResult({
               code: error.code,
               requestId: identity.correlationId,
               runId: null,
@@ -4272,7 +4341,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
           to: terminalStateFor('DEPENDENCY_UNAVAILABLE'),
           code: 'DEPENDENCY_UNAVAILABLE',
         });
-        reply.status(unavailableHttpStatus('DEPENDENCY_UNAVAILABLE')).json(unavailableResult({
+        reply.status(unavailableHttpStatus('DEPENDENCY_UNAVAILABLE')).json(
+          unavailableResult({
             code: 'DEPENDENCY_UNAVAILABLE',
             requestId: identity.correlationId,
             runId: null,
@@ -4309,7 +4379,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       // The answer is still returned. It is the agent's own work and the user
       // watched it happen; withholding it because a row was lost would be a
       // worse trade. What it must not do is claim to be addressable.
-      const persisted = await readStored(appkit,
+      const persisted = await readStored(
+        appkit,
         'POST /api/insights/ask (answer)',
         `INSERT INTO ${APP_SCHEMA}.messages
          (id, conversation_id, role, content, response_json, trace_id,
@@ -4334,7 +4405,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
           (!persisted.available && persisted.error) ||
           (!conversationWrite.available && conversationWrite.error) ||
           'the write reported no error';
-        console.error(`[lakebase] The answer to this question was not stored, so run ${disclosed.id} does not ` +
+        console.error(
+          `[lakebase] The answer to this question was not stored, so run ${disclosed.id} does not ` +
             'exist for the Run Explorer to open and this turn is absent from the conversation ' +
             `history. The answer itself was returned. Last error: ${cause}`
         );
@@ -4343,7 +4415,9 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       // answered, naming a message that was never written, is a ledger that
       // disagrees with itself and a replay that finds nothing; PERSISTENCE_FAILED
       // is the state that says an answer happened and was not kept.
-      await settleRun(appkit, admission,
+      await settleRun(
+        appkit,
+        admission,
         runStored
           ? { to: 'SUCCEEDED', traceId: disclosed.trace.id, messageId: disclosed.id }
           : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: disclosed.trace.id }
@@ -4364,10 +4438,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
     });
 
     app.get('/api/runs', async (req, res) => {
-      await respondWithStored(appkit, res, 'GET /api/runs', RUNS_QUERY, [
-        PLAN_APPROVAL_MESSAGE,
-        userEmail(req),
-      ]);
+      await respondWithStored(appkit, res, 'GET /api/runs', RUNS_QUERY, [PLAN_APPROVAL_MESSAGE, userEmail(req)]);
     });
 
     /**
@@ -4405,11 +4476,7 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       const experimentId = await resolveExperimentId(appkit);
       let resolved: RunTrace | null = null;
       try {
-        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [
-          runId,
-          PLAN_APPROVAL_MESSAGE,
-          email,
-        ]);
+        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [runId, PLAN_APPROVAL_MESSAGE, email]);
         if (message.rows[0]) {
           resolved = conversationRunTrace(message.rows[0], experimentId);
         } else {
@@ -4421,7 +4488,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // A trace nobody could read is reported as unreadable rather than
         // answered from a fixture, because a reference trace under a run id the
         // user clicked reads as that run's own stages.
-        res.status(unavailableHttpStatus('PERSISTENCE_UNAVAILABLE')).json(unavailableResult({
+        res.status(unavailableHttpStatus('PERSISTENCE_UNAVAILABLE')).json(
+          unavailableResult({
             code: 'PERSISTENCE_UNAVAILABLE',
             requestId: traceRequestId(req),
             runId,
@@ -4446,12 +4514,14 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       // never drop the body over it.
       const parsed = RunTraceSchema.safeParse(resolved);
       if (!parsed.success) {
-        console.warn(`[runs] Trace for ${runId} does not match the run-trace contract:`,
+        console.warn(
+          `[runs] Trace for ${runId} does not match the run-trace contract:`,
           parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
         );
       }
       if (resolved.undeclaredKeys.length > 0) {
-        console.warn(`[runs] Stored answer for ${runId} contains fields the app does not read:`,
+        console.warn(
+          `[runs] Stored answer for ${runId} contains fields the app does not read:`,
           resolved.undeclaredKeys.join(', ')
         );
       }
@@ -4479,7 +4549,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         return;
       }
       const feedback = { id: crypto.randomUUID(), ...parsed.data, userEmail: userEmail(req) };
-      const written = await readStored(appkit,
+      const written = await readStored(
+        appkit,
         'POST /api/feedback',
         `INSERT INTO ${APP_SCHEMA}.feedback
          (id, message_id, user_email, sentiment, usefulness, comment) VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -4528,10 +4599,9 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         });
         return;
       }
-      const stored = await safeQuery(appkit,
-        `SELECT cases_json FROM ${APP_SCHEMA}.benchmark_suites WHERE id = $1`,
-        [suite.id]
-      );
+      const stored = await safeQuery(appkit, `SELECT cases_json FROM ${APP_SCHEMA}.benchmark_suites WHERE id = $1`, [
+        suite.id,
+      ]);
       const resolved = resolveSuiteCases(parseStoredJson(stored.rows[0]?.cases_json) ?? []);
       // Falls back to the catalog when the store cannot be read, and says which
       // it served, so a case list is never quietly a different one.
@@ -4590,7 +4660,8 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
       const identity = decideIdentity(req, { signedInAs: email, required: isDeployed() });
       if (!identity.ok) {
         console.error(describeRefusal(identity));
-        res.status(unavailableHttpStatus(identity.code)).json(unavailableResult({
+        res.status(unavailableHttpStatus(identity.code)).json(
+          unavailableResult({
             code: identity.code,
             requestId: identity.correlationId,
             runId: null,
@@ -4679,7 +4750,12 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
             // the run's stored metrics, and those metrics are returned to the
             // browser whole. Nothing renders this field today, which is what
             // kept it from being noticed and is not what makes it safe.
-            return { type: 'refused', code: error.code, message: FAILURE_TAXONOMY[error.code].uiMessage, detail: error.disclosable };
+            return {
+              type: 'refused',
+              code: error.code,
+              message: FAILURE_TAXONOMY[error.code].uiMessage,
+              detail: error.disclosable,
+            };
           }
           /**
            * BEFORE the three shapes below, exactly as the ask route reads it
@@ -4758,10 +4834,11 @@ export function setupInsightsRoutes(appkit: InsightsAppKit): Promise<{ storeRead
         // The runner refused on identity grounds, so it is answered in the same
         // terminal shape the ask route uses rather than as a bare error body.
         // One event, one vocabulary, whichever page it happened on.
-        console.error(`[identity] REFUSED ${started.refusal.code} (${identity.correlationId}): ` +
-            `${started.refusal.detail}`
+        console.error(
+          `[identity] REFUSED ${started.refusal.code} (${identity.correlationId}): ` + `${started.refusal.detail}`
         );
-        res.status(unavailableHttpStatus(started.refusal.code)).json(unavailableResult({
+        res.status(unavailableHttpStatus(started.refusal.code)).json(
+          unavailableResult({
             code: started.refusal.code,
             requestId: identity.correlationId,
             runId: null,

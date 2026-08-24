@@ -49,7 +49,34 @@ from contracts import Chart
 
 INK = "#161616"  # --db-ink: text on the figure, and the outline drawn around a pale fill
 SLATE = "#6F6F6F"  # --db-slate: axis and tick labels
-LINE = "#EBEBEB"  # --db-line: gridlines, axis lines, hover-label border, bar tracks
+LINE = "#EBEBEB"  # --db-line: the hairline on a white surface — the hover label's border
+
+# Gridlines, axis lines and the zero line, as a wash of SLATE rather than a fixed grey.
+#
+# THE BUG THIS FIXES. These three keys used to be `LINE`, which is #EBEBEB. On a white
+# card that is a gridline. On the night sky it is a 12.6:1 near-white rule against a panel
+# whose own bars only reach about 6:1, so the grid was the highest-contrast thing in the
+# figure and read as the subject of it — the data was drawn *behind* the scaffolding.
+#
+# AN ALPHA RATHER THAN A HEX, and that is the whole trick. A chart spec is written by the
+# agent and stored beside the answer, so the colour in it is fixed at write time while the
+# surface it lands on is not: the same spec is drawn on a white card and on a dark one. A
+# hex has to lose on one of them. A mid grey at low alpha composites against whatever is
+# behind it, so it darkens white and lightens navy by the same amount and comes out a
+# gridline on both. Measured, SLATE at 28%:
+#
+#   over #FFFFFF (light card)  -> #D7D7D7, 1.44:1 against the card
+#   over #1F252A (dark card)   -> #353A3D, 1.35:1 against the card
+#
+# Visible enough to read a value against on either surface, and far enough below the marks
+# that it cannot compete with them. The near-symmetry is the property worth having: it is
+# what lets one baked value serve two themes.
+#
+# The client re-themes this key at draw time — client/src/plotly-config.ts maps `gridcolor`
+# onto `--border` — so in the browser this value is replaced rather than used. It is still
+# the right value to write, because it is what every surface WITHOUT that pass gets: a
+# figure rendered without a document, and these tests, whose fallback theme is this file.
+GRID = "rgba(111, 111, 111, 0.28)"
 
 BLUE = "#2272B4"  # --chart-1 / --db-blue-600: the primary series and every ordinary bar
 TEAL = "#04867D"  # --chart-2: second series
@@ -666,9 +693,13 @@ def _rgba(colour: str, alpha: float) -> str:
 
 def _axis_defaults(traces: list[dict[str, Any]]) -> dict[str, Any]:
     shared = {
-        "gridcolor": LINE,
-        "zerolinecolor": LINE,
-        "linecolor": LINE,
+        "gridcolor": GRID,
+        # The same wash as the grid, so the zero line can never outrank it. Plotly draws
+        # this one INSTEAD of the gridline at zero, and at its own default it came out as a
+        # second, brighter rule across the panel — a line with no more to say than any
+        # other and more weight than all of them.
+        "zerolinecolor": GRID,
+        "linecolor": GRID,
         # Ticks are mostly numerals, and the design sets them in the mono face so digits
         # line up down the axis the way they do in the value column beside a bar.
         "tickfont": {"family": FONT_MONO, "color": SLATE, "size": 11},
@@ -677,7 +708,10 @@ def _axis_defaults(traces: list[dict[str, Any]]) -> dict[str, Any]:
     horizontal = any(str(t.get("orientation") or "").lower() == "h" for t in traces)
     value_axis, category_axis = ("xaxis", "yaxis") if horizontal else ("yaxis", "xaxis")
     return {
-        category_axis: dict(shared, showgrid=False),
+        # No zero on an axis of names, so there is nothing for a zero line to mark. Left
+        # on, Plotly ruled the panel at the first category's edge, which reads as a
+        # threshold somebody chose rather than as the edge of the plot.
+        category_axis: dict(shared, showgrid=False, zeroline=False),
         # Audience counts: thousands separators read far better than 8.413k.
         value_axis: dict(shared, showgrid=True, tickformat=","),
     }
@@ -778,8 +812,16 @@ def _hold_the_label_space(layout: dict[str, Any], traces: list[dict[str, Any]]) 
     figure, does not know the card's width, and cannot measure how wide a title renders.
 
     So the legend keeps the edge it was given, both axes keep measuring their own labels,
-    and a tick angle the model asked for is dropped rather than honoured. Only Plotly can
-    pick that angle, because only Plotly has the drawn text in front of it.
+    a tick angle the model asked for is dropped rather than honoured, and every axis title
+    is held clear of the tick labels underneath it.
+
+    THE ANGLE IS NOW DECIDED RATHER THAN ONLY REFUSED. Leaving it entirely to Plotly is
+    what produced the 90-degree pile-up: handed more names than the axis was wide, Plotly
+    rotated until they fit, and a rotated long name is unreadable. So the names get a flat
+    axis wherever a flat axis is known to hold them — always on a horizontal bar, where
+    every category has its own row, and on the bottom axis while the labels stay inside
+    `FLAT_TICK_CHAR_BUDGET`. Past that the angle goes back to Plotly, because forcing zero
+    onto an axis that cannot hold it trades rotated names for overlapping ones.
     """
 
     cartesian = all(_trace_type(t) != "pie" for t in traces)
@@ -792,6 +834,30 @@ def _hold_the_label_space(layout: dict[str, Any], traces: list[dict[str, Any]]) 
         if isinstance(axis, dict):
             axis["automargin"] = True
             axis.pop("tickangle", None)
+            _stand_the_title_off(axis)
+    if not cartesian:
+        return
+    horizontal = _is_horizontal(traces)
+    categories = layout.get("yaxis" if horizontal else "xaxis")
+    if isinstance(categories, dict) and (horizontal or _ticks_fit_flat(traces)):
+        categories["tickangle"] = 0
+
+
+def _stand_the_title_off(axis: dict[str, Any]) -> None:
+    """Reserve a gap between one axis title and its tick labels, if it has a title at all.
+
+    Only when there is a title: a standoff on an axis with nothing to stand off is a key
+    that reads as though a rule fired where none did. A bare string title is promoted to
+    the object form, since that is the only place Plotly takes the distance.
+    """
+
+    title = axis.get("title")
+    if isinstance(title, str):
+        if title.strip():
+            axis["title"] = {"text": title.strip(), "standoff": AXIS_TITLE_STANDOFF}
+        return
+    if isinstance(title, dict) and _title_text(title):
+        title["standoff"] = AXIS_TITLE_STANDOFF
 
 
 # --------------------------------------------------------------------------------------
@@ -906,6 +972,183 @@ def _order_bars_by_value(layout: dict[str, Any], traces: list[dict[str, Any]]) -
     layout[name] = axis
 
 
+# --------------------------------------------------------------------------------------
+# Orientation
+#
+# Which way the bars run, and it is a legibility decision rather than a preference.
+#
+# THE BUG. A ranked breakdown of game titles came back as eleven vertical bars with the
+# names along the bottom. Wrapping (above) bounds how tall one label can get but it cannot
+# create width, and the panel is now half the answer column, so eleven names could not sit
+# side by side however they were broken up. Plotly did the only thing left and rotated them
+# to 90 degrees: a row of tall vertical strings, unreadable one character at a time, with
+# the axis title stranded in the middle of them.
+#
+# Turning the chart on its side removes the constraint instead of negotiating with it. A
+# horizontal bar gives every category its own ROW, so the name reads left to right at its
+# full length and the axis grows sideways to hold it — and sideways is the cheap direction,
+# because `automargin` can spend the panel's width on the left margin while height is fixed
+# by the card.
+#
+# DECIDED FROM THE DATA, NOT ASKED FOR. The model has never seen the figure and cannot
+# measure drawn text, which is the same reason it does not get to pick the tick angle or the
+# legend's edge. What this module has is the result set: how many categories there are and
+# how long their names run.
+# --------------------------------------------------------------------------------------
+
+#: Categories past which there is no room for a name under every bar.
+#:
+#: Six, because the panel is half the answer column wide. Up to five bars there is width
+#: for a short name beneath each one; from six the names start sharing space with their
+#: neighbours and Plotly begins tilting them to fit. Deliberately a count of categories
+#: rather than of bars: several series over the same categories occupy the same axis.
+HORIZONTAL_BAR_MIN_CATEGORIES = 6
+
+#: The length at which a category name stops fitting under its own bar.
+#:
+#: Twelve is just under `TICK_LINE_CHARS`, and the gap is the point. Wrapping only helps a
+#: name with a space in it to break at, so a single twelve-character word is exactly as wide
+#: as it arrived. Below twelve a name is short enough that six or eight of them still fit
+#: across the bottom; at or above it the axis has to rotate, wrap, or turn on its side, and
+#: only the last of those is readable at every length.
+HORIZONTAL_BAR_LONGEST_LABEL_CHARS = 12
+
+
+def _category_names(traces: list[dict[str, Any]]) -> set[str] | None:
+    """The names on the bottom axis, or `None` for a figure that has none to read.
+
+    Bars, and every trace has to be one, for the reason `_sortable_categories` gives: a
+    line or a histogram over the same axis is a different claim and is left as it was sent.
+    """
+
+    if any(_trace_type(trace) != "bar" for trace in traces):
+        return None
+    names: set[str] = set()
+    for trace in traces:
+        values = trace.get("x")
+        if not isinstance(values, list) or not values:
+            return None
+        if any(not isinstance(value, str) for value in values):
+            return None
+        # Both axes, because the flip SWAPS them. A bar carrying names and no measure has
+        # nothing to rank anyway, and turning it round would write a missing axis back onto
+        # the one that had the data on it.
+        if not isinstance(trace.get("y"), list):
+            return None
+        names.update(values)
+    return names or None
+
+
+def _should_read_down_the_left(traces: list[dict[str, Any]], layout: dict[str, Any]) -> bool:
+    """Whether this figure's category names are too many and too long for the bottom axis."""
+
+    if _is_horizontal(traces):
+        return False
+    names = _category_names(traces)
+    if names is None:
+        return False
+    if len(names) < HORIZONTAL_BAR_MIN_CATEGORIES:
+        return False
+    if max(len(name) for name in names) < HORIZONTAL_BAR_LONGEST_LABEL_CHARS:
+        return False
+    # A bar chart of periods is a time series drawn with bars. Down the left it would run
+    # bottom to top, which is not a direction anybody reads a date in, so it stays along
+    # the bottom and takes the rotation. Checked with `any` rather than `all` for the same
+    # reason the ordering rule does it: one month among the names is enough.
+    if any(_TEMPORAL_CATEGORY.match(name.strip()) for name in names):
+        return False
+    # A declared numeric or date axis is not an axis of names, whatever the values look
+    # like, and the model saying so is better evidence than the regex above.
+    declared = layout.get("xaxis")
+    if isinstance(declared, dict) and str(declared.get("type") or "").lower() in {
+        "date",
+        "linear",
+        "log",
+    }:
+        return False
+    return True
+
+
+def _read_the_names_down_the_left(traces: list[dict[str, Any]], layout: dict[str, Any]) -> bool:
+    """Turn a crowded ranked bar chart on its side, axis titles and all.
+
+    Both halves have to move together or the figure lies about itself. The points swap
+    axes, and so does everything the model said about an axis: it described a vertical
+    chart, so its `x_title` belongs to the categories and follows them to the left, and its
+    `y_title` belongs to the measure and follows it along the bottom. A flip that moved the
+    data and left the titles behind would label the values with the name of the categories,
+    which is worse than the rotation it was meant to fix.
+    """
+
+    if not _should_read_down_the_left(traces, layout):
+        return False
+    for trace in traces:
+        trace["orientation"] = "h"
+        trace["x"], trace["y"] = trace.get("y"), trace.get("x")
+    along_the_bottom, down_the_left = layout.get("xaxis"), layout.get("yaxis")
+    for name, moved in (("xaxis", down_the_left), ("yaxis", along_the_bottom)):
+        if moved is None:
+            layout.pop(name, None)
+        else:
+            layout[name] = moved
+    return True
+
+
+#: Characters of category label the bottom of a panel can hold side by side.
+#:
+#: The one number in this module that is a guess about width, and it is here because the
+#: alternative is worse. `tickangle=0` is what stops Plotly tilting a short axis for
+#: nothing, but forced onto an axis whose labels genuinely do not fit it produces the other
+#: failure: names overlapping each other, which is less readable than the rotation was.
+#: Sixty characters is roughly what fits across a half-width panel at the tick size the
+#: client draws. Over that, the angle goes back to Plotly, which is the only thing holding
+#: the drawn text. Under it, a flat axis is guaranteed rather than hoped for.
+FLAT_TICK_CHAR_BUDGET = 60
+
+#: Pixels between an axis title and the tick labels it sits beyond.
+#:
+#: THE OTHER HALF OF THE PILE-UP. Plotly measures an axis title's position from the AXIS,
+#: not from the text hanging off it, so a stack of tall tick labels grows straight past the
+#: title and the title ends up drawn among the names instead of under them — which is
+#: exactly how `title_name` came to sit in the middle of a column of rotated game titles.
+#: An explicit standoff is measured from the outside of the tick labels once `automargin`
+#: is on, so the gap is a promise the layout keeps at any label length.
+AXIS_TITLE_STANDOFF = 12
+
+
+def _flat_tick_width(values: list[Any]) -> int:
+    """The widest line of each label, added up across the labels.
+
+    The widest LINE and not the whole string, because `_wrap_category_ticks` has already
+    broken long names over `<br>`, and what an axis has to find room for side by side is
+    how wide each block of text is rather than how many characters are in it.
+    """
+
+    total = 0
+    for value in values:
+        # A numeric or date axis: Plotly decides how many ticks to draw there, so the width
+        # is its own to manage and not a property of the result set.
+        if isinstance(value, str):
+            total += max(len(line) for line in value.split("<br>"))
+    return total
+
+
+def _ticks_fit_flat(traces: list[dict[str, Any]]) -> bool:
+    """Whether the category names can sit unrotated along the bottom.
+
+    The widest single trace rather than the sum of them: several series share one set of
+    categories, so the axis has one trace's worth of labels on it however many traces there
+    are. Summing would rotate a grouped bar chart that had plenty of room.
+    """
+
+    widest = 0
+    for trace in traces:
+        values = trace.get("x")
+        if isinstance(values, list):
+            widest = max(widest, _flat_tick_width(values))
+    return widest <= FLAT_TICK_CHAR_BUDGET
+
+
 def _kind(traces: list[dict[str, Any]]) -> str:
     """The chart's shape, for the client's badge: derived, never taken from the model."""
 
@@ -942,6 +1185,10 @@ def new_plot(
         raise EmptyChartError("the plotting step found no applicable chart")
     traces = _validate(data, supplied_layout)
     _paint(traces)
+    # Before the wrap and before the layout is built, because both of them ask which axis
+    # carries the names: wrapping is for the bottom axis only, and the axis defaults put the
+    # gridlines and the value format on whichever axis is left holding the measure.
+    _read_the_names_down_the_left(traces, supplied_layout)
     _wrap_category_ticks(traces)
 
     # The card header renders the title, so it is lifted out of the layout rather than

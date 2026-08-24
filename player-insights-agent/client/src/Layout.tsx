@@ -6,7 +6,7 @@
  * App.tsx is the router, and this is the element it wraps every route in.
  */
 import { NavLink, Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { storageBannerNotice } from './storage-banner-copy';
 import {
   persistExperimentalFeatures,
@@ -39,13 +39,22 @@ import { BuiltOnDatabricks } from './BuiltOnDatabricks';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
 import { AdminOnly, RoleLostNotice } from './GatePanel';
-import { SettingsPage } from './SettingsPage';
 import { UserIdentityChip } from './UserIdentityChip';
 import { AccountMenu } from './AccountMenu';
 import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
 import { settingsOriginPath } from './settings-origin';
 import { navEntries, roleFrom, showsSettingsGear, type AppOutletContext, type RoleResolution } from './role';
+
+const SettingsPage = lazy(() => import('./SettingsPage').then((loaded) => ({ default: loaded.SettingsPage })));
+
+function SettingsFallback() {
+  return (
+    <div className="settings-overlay" data-testid="settings-loading">
+      <section className="settings-modal settings-page" aria-busy="true" aria-label="Loading settings" />
+    </div>
+  );
+}
 
 /**
  * The app-wide statement that stored data is not what is being shown.
@@ -431,7 +440,7 @@ export function Layout() {
           would leave the sky up over a daylight page after an Appearance preview.
           The two `display` rules -- dark-mode.css's opt-in, base.css's ban outside
           dark -- are the whole of it. */}
-      <AppSky />
+      {firstOpen.stage === 'open' ? <AppSky /> : null}
       {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
           the app, which is the soft-ground treatment DuBois replaces with
           hairlines on a solid surface.
@@ -538,6 +547,7 @@ export function Layout() {
               <Button
                 type="button"
                 variant="ghost"
+                data-variant="ghost"
                 size="icon"
                 className="header-settings text-muted-foreground hover:text-foreground"
                 aria-label="App settings"
@@ -637,7 +647,9 @@ export function Layout() {
           could not be displayed" instead of a Settings pane. */}
       {settingsVisible ? (
         <AdminOnly role={role}>
-          <SettingsPage onClose={closeSettings} features={features} setFeature={setFeature} role={role} />
+          <Suspense fallback={<SettingsFallback />}>
+            <SettingsPage onClose={closeSettings} features={features} setFeature={setFeature} role={role} />
+          </Suspense>
         </AdminOnly>
       ) : null}
     </div>

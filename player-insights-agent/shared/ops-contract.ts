@@ -20,7 +20,7 @@
  */
 
 /**
- * How good a cost figure is. Four qualities, and they are never added together.
+ * How good a cost figure is. Five qualities, and they are never added together.
  *
  * Section 7.3 of the plan names them and says why a total that mixes them is
  * worse than no total: a reader who cannot tell a measurement from an
@@ -34,7 +34,9 @@ export type CostQuality =
   /** An hour's spend apportioned across the work in that hour. An apportionment. */
   | 'estimate'
   /** Billed by wall-clock time. Not divisible across runs at all. */
-  | 'rate';
+  | 'rate'
+  /** No defensible attribution exists with the identifiers recorded today. */
+  | 'unknown';
 
 /** The words each quality is shown as. One place, so two tiles cannot disagree. */
 export const COST_QUALITY_LABEL: Record<CostQuality, string> = {
@@ -42,6 +44,7 @@ export const COST_QUALITY_LABEL: Record<CostQuality, string> = {
   'per-token': 'Per token',
   estimate: 'Estimate',
   rate: 'Rate',
+  unknown: 'Not knowable',
 };
 
 /**
@@ -97,6 +100,64 @@ export interface GrantRemedy {
  */
 export type CostState = 'ready' | 'no-rows' | 'no-grant' | 'unreadable' | 'no-warehouse';
 
+/**
+ * One component's contribution to one recorded question.
+ *
+ * UNKNOWN IS A DIFFERENT SHAPE, not a nullable measured figure. The discriminant
+ * makes it impossible to put a number on a component whose billing rows cannot
+ * be joined to a run: a renderer narrowing `quality === 'unknown'` receives only
+ * `amount: null`, while every other quality must carry a finite amount.
+ */
+export type QuestionCostPart =
+  | {
+      id: string;
+      label: string;
+      quality: Exclude<CostQuality, 'unknown' | 'rate'>;
+      amount: number;
+      unavailable: '';
+    }
+  | {
+      id: string;
+      label: string;
+      quality: 'unknown';
+      amount: null;
+      unavailable: string;
+    };
+
+/** One completed run, named without exposing the question text. */
+export interface QuestionCostRun {
+  runId: string;
+  correlationId: string;
+  traceId: string;
+  completedAt: string;
+  totalTokens: number | null;
+  parts: QuestionCostPart[];
+}
+
+/**
+ * Per-question attribution over the same complete-day range as the billing read.
+ *
+ * THERE IS DELIBERATELY NO TOTAL. The parts have incompatible qualities:
+ * token-apportioned model serving, evenly allocated warehouse spend, and
+ * components that cannot be joined to a question. Adding the first two would
+ * turn an estimate into a measured-looking headline; adding either while
+ * silently dropping the unknown parts would call an incomplete number "cost per
+ * question". The list is the answer until every component has a defensible join.
+ */
+export interface QuestionCostAttribution {
+  runs: QuestionCostRun[];
+  /** All completed runs in range, including rows omitted by the display limit. */
+  runsInRange: number;
+  /** Runs whose answer recorded a usable token count. */
+  tokenCoveredRuns: number;
+  /** Tokens across every covered run, used as the serving allocation denominator. */
+  totalRecordedTokens: number;
+  /** True when only the newest runs are returned but the denominators still cover all. */
+  limited: boolean;
+  /** Why attribution is absent or partial. Empty only when the read itself answered. */
+  reason: string;
+}
+
 export interface OpsCostPayload {
   state: CostState;
   /** Present only when `state` is 'no-grant'. */
@@ -107,25 +168,18 @@ export interface OpsCostPayload {
   currency: string;
   /** The last complete day the range covers, ISO date. Billing rows arrive late. */
   throughDay: string;
+  /** The complete-day range the server actually queried, after validation and clamping. */
+  range: OpsDayRange;
+  /**
+   * Complete days between the requested end and the newest billing row, or null
+   * when no billing row established freshness.
+   */
+  billingLagDays: number | null;
   /** ISO stamp of this read. Per block, because the three will differ. */
   readAt: string;
   tiles: CostTile[];
-  /*
-   * THERE IS NO PER-QUESTION FIGURE ON THIS PAYLOAD, and its absence is declared
-   * here rather than left as a field nothing reads.
-   *
-   * `headline` carried spend in range, questions in range and the division of
-   * one by the other. The row that drew it is gone and so is the computation
-   * behind it: most of what it summed is billed by TIME, so dividing a range's
-   * idle warehouse and endpoint hours by the questions somebody happened to ask
-   * produced a figure that FELL as the deployment was used more, and read as
-   * fifty-seven dollars a question at sixteen questions.
-   *
-   * It stayed on the wire for a while after the row went, which is the reason
-   * for this note: a plausible-looking figure sitting on a contract is an
-   * invitation to put it back on screen. A cost per question needs a numerator
-   * that is actually per question, not a label and a denominator.
-   */
+  /** Component-by-component attribution, never a cross-quality total. */
+  perQuestion: QuestionCostAttribution;
 }
 
 /**

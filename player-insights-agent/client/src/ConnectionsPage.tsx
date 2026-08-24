@@ -107,12 +107,7 @@ import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ApplyDeclarationCard } from './ApplyDeclarationCard';
 import { configurationValue, RESOURCE_PRODUCT, tableReachabilityCopy } from './connections-view';
 import { useSessionChecks } from './session-checks';
-import {
-  DRIFT_MARKER_LABEL,
-  truncateHead,
-  visibleCounts,
-  type ConnectionCounts,
-} from './connection-status';
+import { DRIFT_MARKER_LABEL, truncateHead, visibleCounts, type ConnectionCounts } from './connection-status';
 // One cause said once over every check that shares it, and one remedy said once
 // over every cause it clears. See connection-causes.ts for why the cause key is
 // a verdict, a sentence and a whole remedy rather than something looser.
@@ -469,9 +464,7 @@ export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
           title={artifact.full || NOT_SET}
           testId={`build-${artifact.key}`}
         />
-        {artifact.full ? (
-          <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} />
-        ) : null}
+        {artifact.full ? <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} /> : null}
         {/* Nothing at all where nothing was measured. A neutral pill there would
             put a verdict-shaped element on a row that has no verdict, which is
             how a page teaches a reader that its badges mean nothing. */}
@@ -628,7 +621,7 @@ export function DeclaredTablesTable({
                   and the reason this is not a disabled-looking control. */}
               <TableCell className="connections-table-name">
                 <VisitInDatabricks name={check.name} />
-                {check.name}
+                <ConnectionEntityName name={check.name} />
               </TableCell>
               {/* THE WORD, NOT THE STATUS. Every row here read `Not checked`
                 beside a Detail of `HTTP 403`, which contradicts itself on one
@@ -658,6 +651,45 @@ export function DeclaredTablesTable({
         )}
       </TableBody>
     </Table>
+  );
+}
+
+/**
+ * A three-part Unity Catalog name in the same vocabulary as an entity in an
+ * answer.
+ *
+ * THE DOTS STAY OUTSIDE THE TOKENS. The Appearance pane owns a foreground and
+ * background for catalog, schema and table separately, and putting the whole
+ * name in one token would throw two of those choices away. Keeping each literal
+ * segment in the shared `.entity-*` classes also means a saved palette reaches
+ * this diagnostics table on the same frame as Ask and Run Explorer.
+ *
+ * THE LAST SEGMENT IS THE SCANNING ANCHOR. Catalog and schema disambiguate the
+ * object, but the table is the part that changes down this list. Its class gives
+ * it real weight without a relative `<strong>` that could compound inside a
+ * weighted table cell.
+ */
+export function ConnectionEntityName({ name }: { name: string }) {
+  const parts = name.split('.');
+  return (
+    <span className="connections-entity-name" title={name}>
+      {parts.map((part, index) => {
+        const kind =
+          index === 0 && parts.length >= 3
+            ? 'catalog'
+            : index === parts.length - 2 && parts.length >= 2
+              ? 'schema'
+              : 'table';
+        return (
+          <span key={`${index}-${part}`}>
+            {index > 0 ? <span className="connections-entity-separator">.</span> : null}
+            <span className={`entity-token entity-${kind}`} data-entity-part={kind}>
+              {part}
+            </span>
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
@@ -2081,11 +2113,7 @@ export function ConnectionsPage() {
       {groups.some((group) => group.key === 'reachable') ? null : declaredConnections}
 
       {tableChecks.length > 0 ? (
-        <DeclaredTablesSection
-          tableChecks={tableChecks}
-          requestedEntity={requestedEntity}
-          checkedAt={lastCheckedAt}
-        />
+        <DeclaredTablesSection tableChecks={tableChecks} requestedEntity={requestedEntity} checkedAt={lastCheckedAt} />
       ) : null}
     </div>
   );

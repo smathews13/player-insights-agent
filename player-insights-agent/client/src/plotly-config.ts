@@ -51,11 +51,17 @@ export const CHART_THEME_ATTRIBUTE = 'data-theme';
 /**
  * The paints one figure needs, resolved from the document rather than from a spec.
  *
- * Seven slots and no more: everything else in a spec is geometry, which is the same
- * in both themes. The three series slots exist because a spec names the agent's
+ * Eight slots and no more: everything else in a spec is geometry, which is the same
+ * in both themes. The four series slots exist because a spec names the agent's
  * palette by value, and mapping slot for slot is what lets the token layer move a
  * series colour -- as the dark theme already moves `--chart-1` and `--chart-3` -- and
  * have the charts follow.
+ *
+ * THERE WERE THREE, AND THE AGENT EMITS FOUR. A fourth series was painted in the
+ * light theme's grey-blue whatever the surface, which is 2.31:1 on the night sky --
+ * under the 3:1 a graphic needs to be seen at all. So a four-series chart had one
+ * line the reader simply could not find, and it was the slot with no mapping rather
+ * than the slot with a bad colour: nothing here was reading `--chart-4`.
  */
 export interface ChartTheme {
   /** Figure text: the legend, the hover label, any value a spec prints beside a bar. */
@@ -72,6 +78,8 @@ export interface ChartTheme {
   second: string;
   /** The third series. */
   third: string;
+  /** The fourth series, past which `agent/charts.py` separates by dash rather than hue. */
+  fourth: string;
   /** The face every numeral on an axis is set in. */
   mono: string;
 }
@@ -85,6 +93,7 @@ const THEME_TOKENS: Record<keyof ChartTheme, string> = {
   accent: '--chart-1',
   second: '--chart-2',
   third: '--chart-3',
+  fourth: '--chart-4',
   mono: '--font-mono',
 };
 
@@ -104,11 +113,12 @@ const FALLBACK_THEME: ChartTheme = {
   accent: '#2272b4',
   second: '#04867d',
   third: '#4299e0',
+  fourth: '#445461',
   mono: "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
 };
 
-/** The palette `agent/charts.py` assigns, in slot order: `--chart-1`, `-2`, `-3`. */
-const AGENT_SERIES = ['#2272b4', '#04867d', '#4299e0'];
+/** The palette `agent/charts.py` assigns, in slot order: `--chart-1`, `-2`, `-3`, `-4`. */
+const AGENT_SERIES = ['#2272b4', '#04867d', '#4299e0', '#445461'];
 
 /** `INK` in `agent/charts.py`: the outline it draws around a pale fill, and label text. */
 const AGENT_INK = '#161616';
@@ -222,7 +232,7 @@ function withAlpha(colour: unknown, alpha: number): string | null {
 function themedSeries(colour: unknown, theme: ChartTheme): string | null {
   const slot = AGENT_SERIES.indexOf(text(colour));
   if (slot < 0) return null;
-  return [theme.accent, theme.second, theme.third][slot];
+  return [theme.accent, theme.second, theme.third, theme.fourth][slot];
 }
 
 /** A spec field as comparable text, and empty for anything that is not a string. */

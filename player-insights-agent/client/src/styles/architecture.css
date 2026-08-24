@@ -565,9 +565,33 @@ a.arch-node-main:hover .arch-node-label {
 }
 
 /* ---------------------------------------------------------------------------
-   The two rails
+   The rails
    --------------------------------------------------------------------------- */
 
+/*
+ * THERE ARE THREE RAILS AND TWO COLUMNS, and until the span below existed the
+ * third one went wherever auto-placement put it. Auto-placement fills a row at a
+ * time, so the chain took the first cell, the answer contract the second, and
+ * Storage began a new row underneath the chain -- in the LEFT column, at the
+ * bottom of a rail seven stages tall. The chain is far taller than the contract,
+ * so the first row was as tall as the chain, and the right-hand column was a
+ * short card with several hundred pixels of nothing under it while the reader
+ * scrolled past the pipeline to reach a two-row explanation of where
+ * conversations are kept.
+ *
+ * So the chain is given both rows of the left column and the other two rails
+ * stack down the right one, which is auto-placement doing the rest: the contract
+ * takes row one of column two and Storage the only cell left. Nothing is
+ * positioned, nothing is nudged by a margin and no rail is given a height. The
+ * rows are auto-sized, so the two columns still settle against whichever half is
+ * taller -- a stage added to agent-chain.ts lengthens the left column, a section
+ * added to the answer contract lengthens the right one, and neither can push the
+ * other's content out of its column.
+ *
+ * At 1180px responsive.css takes this to one column and the span becomes two
+ * empty tracks the chain occupies, which changes nothing a reader sees: the
+ * stacked order is the source order, chain then contract then Storage.
+ */
 .arch-rails {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -583,13 +607,20 @@ a.arch-node-main:hover .arch-node-label {
   padding: 16px;
   min-width: 0;
 }
+.arch-rail[data-rail='chain'] {
+  grid-row: span 2;
+}
 .arch-rail .section-label {
   margin: 0;
 }
-/* The left rail is the live half and takes the blue eyebrow, matching the
-   drawing's head. The right one stays slate: storage is not a stage of anything
-   the reader is waiting for. */
-.arch-rail:first-child .section-label {
+/* The chain is the live half and takes the blue eyebrow, matching the drawing's
+   head. The other two stay slate: neither what the answer contains nor where it
+   is kept is a stage of anything the reader is waiting for.
+   Selected on the rail's own name rather than as `:first-child`, which said "the
+   section that happens to be written first" -- true of the chain today, and a
+   rule that would have painted the answer contract blue the moment the markup
+   was reordered. */
+.arch-rail[data-rail='chain'] .section-label {
   color: var(--ast-blue);
 }
 .arch-rail-rows {

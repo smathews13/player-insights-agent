@@ -123,6 +123,7 @@
 @import './styles/astrolabe-chrome.css';
 @import './styles/astrolabe-loaders.css';
 @import './styles/dark-mode.css';
+@import './styles/star-motion.css';
 
 /*
  * `dark:` applies only under a `.dark` ancestor, never from the OS setting.

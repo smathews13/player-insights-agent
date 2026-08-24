@@ -10,6 +10,7 @@ import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes, drawnReadings 
 import { ARCHITECTURE_CONTROL_SCOPES } from './architecture-control-scopes';
 import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges } from './architecture-layout';
 import { readConnections, readingsById, type SettingsPayload } from './connection-model';
+import { partial } from './styles/stylesheet';
 import { connectedResource } from '../../shared/deployment-config';
 import type { PreflightCheck } from './preflight';
 
@@ -68,6 +69,17 @@ function text(markup: string): string {
     .replace(/&middot;/g, '\u00b7')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * A stylesheet with its comments taken out.
+ *
+ * The notes in architecture.css quote the selectors and the properties they are
+ * about, at length and deliberately, so a claim made against the raw text is
+ * satisfied by the prose explaining why a rule is NOT written that way.
+ */
+function withoutComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
 function row(id: string, over: Record<string, unknown> = {}) {
@@ -854,6 +866,69 @@ describe('the drawing is reachable and readable without seeing it', () => {
     const markup = canvasMarkup();
     for (const id of BOTTOM_ROW_NODES) {
       expect(card(markup, id), id).toContain(`top:${NODE_BOXES[id].top}px`);
+    }
+  });
+});
+
+/**
+ * WHICH COLUMN EACH RAIL IS IN, which is a fact about the markup and the grid
+ * together and therefore invisible in either one alone.
+ *
+ * Storage used to be drawn at the foot of the LEFT column, because three rails
+ * auto-placing into two columns puts the third one under the first, and the left
+ * column is the seven-stage chain. The right column was a short card with several
+ * hundred pixels of white beneath it, and where conversations are kept was
+ * reachable only by scrolling past the whole pipeline. Nothing could see that:
+ * every rail rendered, in the right order, with the right words in it.
+ *
+ * So the placement is asserted from both ends. The source order is what a reader
+ * gets when the columns stack, and the span in architecture.css is what puts
+ * Storage beside the chain rather than below it -- and either one on its own is
+ * satisfied by the arrangement that was reported.
+ */
+describe('storage sits under the answer contract rather than under the chain', () => {
+  const ARCHITECTURE = withoutComments(partial('architecture.css'));
+
+  it('writes the three rails in the order they stack in one column', () => {
+    const markup = pageMarkup();
+    const chain = markup.indexOf('id="arch-rail-answer"');
+    const contract = markup.indexOf('id="arch-rail-contract"');
+    const storage = markup.indexOf('id="arch-rail-storage"');
+
+    expect(chain).toBeGreaterThan(-1);
+    // The chain, then what comes back, then where it is kept. Storage last is the
+    // whole of why it is written last: below 1180px this order IS the page, and a
+    // rail moved into the second column by the stylesheet alone would come between
+    // the pipeline stages and the answer they produce.
+    expect(chain).toBeLessThan(contract);
+    expect(contract).toBeLessThan(storage);
+  });
+
+  it('names each rail in the markup, so the stylesheet places rather than counts', () => {
+    const markup = pageMarkup();
+    for (const rail of ['chain', 'contract', 'storage']) {
+      expect(markup, rail).toContain(`data-rail="${rail}"`);
+    }
+    // `:first-child` meant "whichever rail is written first", which is the chain
+    // today and would have been the answer contract after any reordering.
+    expect(ARCHITECTURE).not.toMatch(/\.arch-rail:first-child/);
+  });
+
+  it('gives the chain both rows of the left column so the third rail lands beside it', () => {
+    expect(ARCHITECTURE).toMatch(/\.arch-rails\s*\{[^}]*grid-template-columns:\s*1fr 1fr/);
+    expect(ARCHITECTURE).toMatch(/\.arch-rail\[data-rail='chain'\]\s*\{[^}]*grid-row:\s*span 2/);
+  });
+
+  it('places storage with the grid and not with a nudge', () => {
+    // A negative margin, an absolute position or a stated height would each put the
+    // block in the same pixels today and come apart the moment a stage is added to
+    // the chain or a section to the answer contract. The rows are auto-sized, which
+    // is what lets either column be the taller one.
+    const storage = ARCHITECTURE.match(/\.arch-rail\[data-rail='storage'\][^{]*\{([^}]*)\}/g) ?? [];
+    for (const rule of storage) {
+      expect(rule).not.toMatch(/position:\s*(absolute|fixed)/);
+      expect(rule).not.toMatch(/margin[^:]*:\s*-/);
+      expect(rule).not.toMatch(/(^|[^-])height:/);
     }
   });
 });

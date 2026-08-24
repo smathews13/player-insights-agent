@@ -158857,10 +158857,21 @@ var init_deployment_decisions = __esm({
 });
 
 // shared/ops-contract.ts
-var SPAN_PERCENTILE_FLOOR;
+function opsDayRange(from, to, now) {
+  const day = (at) => new Date(at).toISOString().slice(0, 10);
+  const start = Date.parse(from);
+  const end = Date.parse(to);
+  const lastComplete = now - DAY_MS;
+  if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
+    return { from: day(start), to: day(Math.min(end, lastComplete)) };
+  }
+  return { from: day(lastComplete - 6 * DAY_MS), to: day(lastComplete) };
+}
+var SPAN_PERCENTILE_FLOOR, DAY_MS;
 var init_ops_contract = __esm({
   "shared/ops-contract.ts"() {
     SPAN_PERCENTILE_FLOOR = 20;
+    DAY_MS = 864e5;
   }
 });
 
@@ -167290,6 +167301,7 @@ var insights_routes_exports = {};
 __export(insights_routes_exports, {
   APP_SCHEMA: () => APP_SCHEMA,
   AuthorizationRefused: () => AuthorizationRefused,
+  CONVERSATION_RAIL_LIMIT: () => CONVERSATION_RAIL_LIMIT,
   CONVERSATION_RUN_STATUS_QUERY: () => CONVERSATION_RUN_STATUS_QUERY,
   DEVELOPMENT_IDENTITY: () => DEVELOPMENT_IDENTITY,
   IdentityUnavailableError: () => IdentityUnavailableError,
@@ -167783,10 +167795,10 @@ async function settleSharedConversationRail(appkit) {
 }
 function conversationListQuery(email3) {
   return sharedRail.shared ? {
-    sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ORDER BY updated_at DESC`,
+    sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
     params: []
   } : {
-    sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations WHERE user_email = $1 ORDER BY updated_at DESC`,
+    sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations WHERE user_email = $1 ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
     params: [email3]
   };
 }
@@ -167861,10 +167873,7 @@ function extractStructuredAnswer(value) {
     if (!parsed.success) continue;
     const undeclared = undeclaredAnswerKeys(parsed.data);
     if (undeclared.length > 0) {
-      console.warn(
-        "[serving] Answer contains fields the app does not read:",
-        undeclared.join(", ")
-      );
+      console.warn("[serving] Answer contains fields the app does not read:", undeclared.join(", "));
     }
     return parsed.data;
   }
@@ -168095,9 +168104,7 @@ function warmGenieWarehousesForArrival(req, served) {
   }).then((outcomes) => {
     for (const outcome of outcomes) {
       if (outcome.kind === "started") {
-        console.log(
-          `[warmup] Warming adopted Genie warehouse ${outcome.warehouseId}, which was ${outcome.from}.`
-        );
+        console.log(`[warmup] Warming adopted Genie warehouse ${outcome.warehouseId}, which was ${outcome.from}.`);
       } else if (outcome.kind === "failed") {
         console.warn(
           `[warmup] Adopted Genie warehouse could not be warmed (${outcome.at}, ${outcome.spaceId}): ${outcome.message}.`
@@ -168270,7 +168277,7 @@ async function prepareStore(appkit) {
     );
   }
 }
-function setupInsightsRoutes(appkit) {
+function setupInsightsRoutes(appkit, options = {}) {
   announceSharedConversationRail(resolveSharedConversationRail(process.env[SHARED_CONVERSATION_RAIL_ENV]));
   const storeReady = prepareStore(appkit);
   startLakebaseWatchdog(appkit);
@@ -168286,6 +168293,15 @@ function setupInsightsRoutes(appkit) {
   appkit.server.extend((app) => {
     answerRatherThanExit(app);
     app.use(requireIdentity);
+    if (options.rolesReady) {
+      app.use((req, _res, next) => {
+        if (!isAdminRoute(req.path)) {
+          next();
+          return;
+        }
+        options.rolesReady?.().then(() => next(), next);
+      });
+    }
     app.use(requireAdmin(appkit.lakebase, userEmail));
     app.use(requireSuperAdmin(appkit.lakebase, userEmail));
     app.use(requestLatencyRecorder(appkit.lakebase));
@@ -168403,9 +168419,7 @@ function setupInsightsRoutes(appkit) {
       try {
         configuration = extractServedConfiguration(await invokePreflight(appkit));
       } catch (error48) {
-        console.warn(
-          `[access] Served configuration could not be read for verification: ${error48.message}`
-        );
+        console.warn(`[access] Served configuration could not be read for verification: ${error48.message}`);
       }
       const { tables, genieSpaces } = accessDependenciesFrom({
         configuration,
@@ -168571,9 +168585,7 @@ function setupInsightsRoutes(appkit) {
       const owner = ownership.rows[0]?.user_email;
       if (owner !== email3) {
         if (typeof owner === "string") {
-          console.warn(
-            `[tenancy] Refused delete of conversation ${conversationId}: it belongs to another user.`
-          );
+          console.warn(`[tenancy] Refused delete of conversation ${conversationId}: it belongs to another user.`);
         }
         res.status(404).json({
           error: "conversation_not_found",
@@ -168612,10 +168624,7 @@ function setupInsightsRoutes(appkit) {
           }
         });
       } catch (error48) {
-        console.warn(
-          `[lakebase] Conversation ${conversationId} could not be deleted:`,
-          error48.message
-        );
+        console.warn(`[lakebase] Conversation ${conversationId} could not be deleted:`, error48.message);
         res.status(503).json({
           error: "conversation_delete_failed",
           conversationId,
@@ -168628,12 +168637,10 @@ function setupInsightsRoutes(appkit) {
       await respondWithStored(appkit, res, "GET /api/conversations/:id/messages", sql3, params);
     });
     app.get("/api/conversations/:id/run", async (req, res) => {
-      const read2 = await readStored(
-        appkit,
-        "GET /api/conversations/:id/run",
-        CONVERSATION_RUN_STATUS_QUERY,
-        [req.params.id, userEmail(req)]
-      );
+      const read2 = await readStored(appkit, "GET /api/conversations/:id/run", CONVERSATION_RUN_STATUS_QUERY, [
+        req.params.id,
+        userEmail(req)
+      ]);
       if (!read2.available) {
         res.status(503).json({
           error: "conversation_run_unavailable",
@@ -168857,15 +168864,14 @@ function setupInsightsRoutes(appkit) {
       );
       const owner = ownership.available ? ownership.rows[0]?.user_email : void 0;
       if (typeof owner === "string" && owner !== email3) {
-        console.warn(
-          `[tenancy] Refused ask on conversation ${conversationId}: it belongs to another user.`
-        );
+        console.warn(`[tenancy] Refused ask on conversation ${conversationId}: it belongs to another user.`);
         reply.status(404).json({
           error: "conversation_not_found",
           message: "No conversation with this id belongs to you."
         });
         return;
       }
+      reply.begin();
       const conversationExisted = ownership.available && ownership.rows.length > 0;
       const conversationWrite = await readStored(
         appkit,
@@ -168886,31 +168892,28 @@ function setupInsightsRoutes(appkit) {
       await safeQuery(
         appkit,
         `INSERT INTO ${APP_SCHEMA}.messages (id, conversation_id, role, content) VALUES ($1,$2,$3,$4)`,
-        [
-          userMessageId,
-          conversationId,
-          "user",
-          approvedPlanId ? PLAN_APPROVAL_MESSAGE : prompt
-        ]
+        [userMessageId, conversationId, "user", approvedPlanId ? PLAN_APPROVAL_MESSAGE : prompt]
       );
-      const historyRead = await readStored(
-        appkit,
-        "POST /api/insights/ask (history)",
-        `SELECT role, content, response_json FROM (SELECT m.role, m.content, m.response_json, m.created_at
-           FROM ${APP_SCHEMA}.messages m
-           JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
-           WHERE m.conversation_id = $1 AND c.user_email = $2
-           ORDER BY m.created_at DESC LIMIT 12
-         ) recent ORDER BY created_at`,
-        [conversationId, email3]
-      );
-      const attachmentRead = await readStored(
-        appkit,
-        "POST /api/insights/ask (attachments)",
-        `SELECT filename, extracted_text FROM ${APP_SCHEMA}.attachments
-         WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
-        [conversationId, email3]
-      );
+      const [historyRead, attachmentRead] = await Promise.all([
+        readStored(
+          appkit,
+          "POST /api/insights/ask (history)",
+          `SELECT role, content, response_json FROM (SELECT m.role, m.content, m.response_json, m.created_at
+             FROM ${APP_SCHEMA}.messages m
+             JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
+             WHERE m.conversation_id = $1 AND c.user_email = $2
+             ORDER BY m.created_at DESC LIMIT 12
+           ) recent ORDER BY created_at`,
+          [conversationId, email3]
+        ),
+        readStored(
+          appkit,
+          "POST /api/insights/ask (attachments)",
+          `SELECT filename, extracted_text FROM ${APP_SCHEMA}.attachments
+           WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
+          [conversationId, email3]
+        )
+      ]);
       const missingContext = [
         ...historyRead.available ? [] : ["conversation history"],
         ...attachmentRead.available ? [] : ["uploaded documents"]
@@ -168960,6 +168963,15 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       });
       if (admission.kind === "refuse") {
         console.warn(`[run-ledger] Refused ${identity.requestId} with ${admission.code}: ${admission.detail}`);
+        await appkit.lakebase.query(`DELETE FROM ${APP_SCHEMA}.messages WHERE id = $1`, [userMessageId]);
+        if (!conversationExisted) {
+          await appkit.lakebase.query(
+            `DELETE FROM ${APP_SCHEMA}.conversations WHERE id = $1 AND user_email = $2
+               AND NOT EXISTS (SELECT 1 FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1)
+               AND NOT EXISTS (SELECT 1 FROM ${APP_SCHEMA}.attachments WHERE conversation_id = $1)`,
+            [conversationId, email3]
+          );
+        }
         reply.status(admission.status).json(
           unavailableResult({
             code: admission.code,
@@ -169003,7 +169015,6 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         if (approvedPlanId && servingHistory.length > 0) {
           servingHistory[servingHistory.length - 1] = { role: "user", content: prompt };
         }
-        reply.begin();
         const payload = buildAskServingBody({
           history: servingHistory,
           prompt,
@@ -169272,10 +169283,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       });
     });
     app.get("/api/runs", async (req, res) => {
-      await respondWithStored(appkit, res, "GET /api/runs", RUNS_QUERY, [
-        PLAN_APPROVAL_MESSAGE,
-        userEmail(req)
-      ]);
+      await respondWithStored(appkit, res, "GET /api/runs", RUNS_QUERY, [PLAN_APPROVAL_MESSAGE, userEmail(req)]);
     });
     app.get("/api/storage", (_req, res) => {
       const health2 = lakebaseHealth();
@@ -169288,11 +169296,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       const experimentId = await resolveExperimentId(appkit);
       let resolved = null;
       try {
-        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [
-          runId,
-          PLAN_APPROVAL_MESSAGE,
-          email3
-        ]);
+        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [runId, PLAN_APPROVAL_MESSAGE, email3]);
         if (message.rows[0]) {
           resolved = conversationRunTrace(message.rows[0], experimentId);
         } else {
@@ -169381,11 +169385,9 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         });
         return;
       }
-      const stored = await safeQuery(
-        appkit,
-        `SELECT cases_json FROM ${APP_SCHEMA}.benchmark_suites WHERE id = $1`,
-        [suite.id]
-      );
+      const stored = await safeQuery(appkit, `SELECT cases_json FROM ${APP_SCHEMA}.benchmark_suites WHERE id = $1`, [
+        suite.id
+      ]);
       const resolved = resolveSuiteCases(parseStoredJson(stored.rows[0]?.cases_json) ?? []);
       const source = resolved.length > 0 ? "suite-row" : "catalog";
       const cases = resolved.length > 0 ? resolved.map((entry) => ({
@@ -169474,7 +169476,12 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
             raw2 = identity.token ? await invokeServingAsUser(appkit, payload, identity.token) : await invokeServing(appkit, payload);
           } catch (error48) {
             if (!(error48 instanceof AuthorizationRefused)) throw error48;
-            return { type: "refused", code: error48.code, message: FAILURE_TAXONOMY[error48.code].uiMessage, detail: error48.disclosable };
+            return {
+              type: "refused",
+              code: error48.code,
+              message: FAILURE_TAXONOMY[error48.code].uiMessage,
+              detail: error48.disclosable
+            };
           }
           const refused2 = readAgentRefusal(raw2, { requestId: identity.correlationId });
           if (refused2) {
@@ -169551,7 +169558,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -170009,37 +170016,40 @@ var init_insights_routes = __esm({
   FROM ${APP_SCHEMA}.benchmark_runs b
   WHERE b.id = $1`;
     PreflightStatus = external_exports.enum(["ok", "failed", "unverified"]);
-    PreflightRemedySchema = external_exports.preprocess(withGuidance, external_exports.looseObject({
-      /**
-       * `ui` is a third kind and not a cosmetic one: it is something the READER
-       * does, in their own browser, with no workspace authority at all. The only
-       * one is opening the app in a private window, which is the whole remedy for a
-       * sign-in that is behind the app's declared scopes. Rendering it as a command
-       * would put it in a code block and send somebody looking for a terminal.
-       */
-      kind: external_exports.enum(["sql", "cli", "ui"]),
-      statement: external_exports.string(),
-      /**
-       * The one line a reader needs to carry the statement out correctly, or `''`.
-       *
-       * NOT THE "WHY THIS IS THE FIX" PARAGRAPH, which is what this field held under
-       * its old name `note` and which is gone. See `DiagnosisRemedy.guidance` in
-       * `shared/stated-cause.ts` for the test a sentence has to pass to be here, and
-       * `remedy-guidance.test.ts` for the check that holds every producer to it.
-       */
-      guidance: external_exports.string(),
-      /**
-       * Who can actually run this, when `kind` does not imply it.
-       *
-       * Empty means the default for the kind, which is what almost every remedy
-       * wants: a `sql` remedy is a GRANT for a metastore admin, and a `cli` remedy
-       * is for someone who can manage the object. The exception is a remedy about
-       * the APP rather than about the workspace -- a scope the app never declared --
-       * where both defaults send the reader to an admin who cannot help, because the
-       * fix is a line in this repository's bundle and a restart.
-       */
-      run_by: external_exports.string().optional()
-    }));
+    PreflightRemedySchema = external_exports.preprocess(
+      withGuidance,
+      external_exports.looseObject({
+        /**
+         * `ui` is a third kind and not a cosmetic one: it is something the READER
+         * does, in their own browser, with no workspace authority at all. The only
+         * one is opening the app in a private window, which is the whole remedy for a
+         * sign-in that is behind the app's declared scopes. Rendering it as a command
+         * would put it in a code block and send somebody looking for a terminal.
+         */
+        kind: external_exports.enum(["sql", "cli", "ui"]),
+        statement: external_exports.string(),
+        /**
+         * The one line a reader needs to carry the statement out correctly, or `''`.
+         *
+         * NOT THE "WHY THIS IS THE FIX" PARAGRAPH, which is what this field held under
+         * its old name `note` and which is gone. See `DiagnosisRemedy.guidance` in
+         * `shared/stated-cause.ts` for the test a sentence has to pass to be here, and
+         * `remedy-guidance.test.ts` for the check that holds every producer to it.
+         */
+        guidance: external_exports.string(),
+        /**
+         * Who can actually run this, when `kind` does not imply it.
+         *
+         * Empty means the default for the kind, which is what almost every remedy
+         * wants: a `sql` remedy is a GRANT for a metastore admin, and a `cli` remedy
+         * is for someone who can manage the object. The exception is a remedy about
+         * the APP rather than about the workspace -- a scope the app never declared --
+         * where both defaults send the reader to an admin who cannot help, because the
+         * fix is a line in this repository's bundle and a restart.
+         */
+        run_by: external_exports.string().optional()
+      })
+    );
     PreflightCheckSchema = external_exports.looseObject({
       id: external_exports.string(),
       kind: external_exports.string(),
@@ -170144,6 +170154,7 @@ var init_insights_routes = __esm({
     ]);
     SHARED_CONVERSATION_RAIL_ENV = "PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL";
     sharedRail = { shared: false, raw: "", reason: "unset" };
+    CONVERSATION_RAIL_LIMIT = 100;
     CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code
   FROM ${APP_SCHEMA}.runs
   WHERE conversation_id = $1 AND user_email = $2
@@ -175583,7 +175594,7 @@ function workspaceEstimateRow(component) {
 function canAsk(component, ids) {
   return Boolean(ids[MATCHERS[component].parameter]);
 }
-function buildCostStatement(ids) {
+function buildCostStatement(ids, range) {
   const covered = COST_COMPONENTS.filter((component) => canAsk(component, ids));
   const estimated = ids.workspaceId ? COST_COMPONENTS.filter((component) => !canAsk(component, ids) && MATCHERS[component].column !== null) : [];
   if (covered.length === 0 && estimated.length === 0) return null;
@@ -175595,6 +175606,8 @@ function buildCostStatement(ids) {
     parameters.push({ name: marker, value, type });
     bound.add(marker);
   };
+  bind("from_day", range.from, "DATE");
+  bind("to_day", range.to, "DATE");
   for (const component of covered) {
     const matcher = MATCHERS[component];
     const marker = String(matcher.parameter);
@@ -175625,7 +175638,9 @@ ${branches.join("\n")}
    AND u.cloud = p.cloud
    AND u.usage_end_time >= p.price_start_time
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
-  WHERE u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
+  WHERE u.usage_date >= :from_day
+    AND u.usage_date <= :to_day
+    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
 )
 SELECT
   component,
@@ -175700,6 +175715,15 @@ function buildTiles(ids, rows) {
     }
     const row2 = byComponent.get(component);
     if (!row2 || row2.spend === null || !Number.isFinite(row2.spend)) {
+      if (component === "app-compute") {
+        return {
+          ...base,
+          amount: null,
+          note: "",
+          unavailable: "Billing tag match unverified",
+          remedy: "Verify whether app compute propagates the Astrolabe billing tag."
+        };
+      }
       return { ...base, amount: null, note: "", unavailable: "No billing rows", remedy: "" };
     }
     const amount = description.basis === "per-day" ? row2.spend / Math.max(row2.billedDays, 1) : row2.spend;
@@ -175707,7 +175731,78 @@ function buildTiles(ids, rows) {
     return { ...base, amount, note, unavailable: "", remedy: "" };
   });
 }
-var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, DESCRIPTIONS;
+function unknownPart(id, label, unavailable4) {
+  return { id, label, quality: "unknown", amount: null, unavailable: unavailable4 };
+}
+function buildQuestionAttribution(runs, tiles, limit) {
+  const newest = runs.slice(0, limit);
+  const first = runs[0];
+  const runsInRange = first?.runsInRange ?? 0;
+  const tokenCoveredRuns = first?.tokenCoveredRuns ?? 0;
+  const totalRecordedTokens = first?.totalRecordedTokens ?? 0;
+  const servingTile = tiles.find((tile) => tile.id === "serving-endpoint");
+  const servingSpend = servingTile?.amount;
+  const sqlSpend = tiles.find((tile) => tile.id === "sql-warehouse")?.amount;
+  const attributed = newest.map((run2) => {
+    const parts = [];
+    if (run2.totalTokens !== null && run2.totalTokens >= 0 && typeof servingSpend === "number" && Number.isFinite(servingSpend) && totalRecordedTokens > 0) {
+      parts.push({
+        id: "serving-endpoint",
+        label: "Model serving",
+        /*
+         * Token shares of an endpoint total are per-token. Token shares of a
+         * workspace-wide estimate are still that estimate, divided. Labelling
+         * the second per-token was the same quality lie the tile itself already
+         * refuses when the endpoint name is missing.
+         */
+        quality: servingTile?.quality === "real" ? "per-token" : "estimate",
+        amount: servingSpend * run2.totalTokens / totalRecordedTokens,
+        unavailable: ""
+      });
+    } else {
+      parts.push(
+        unknownPart(
+          "serving-endpoint",
+          "Model serving",
+          run2.totalTokens === null ? "This run recorded no token count." : "No endpoint spend was measured for this range."
+        )
+      );
+    }
+    if (typeof sqlSpend === "number" && Number.isFinite(sqlSpend) && runsInRange > 0) {
+      parts.push({
+        id: "sql-warehouse",
+        label: "SQL warehouse",
+        quality: "estimate",
+        amount: sqlSpend / runsInRange,
+        unavailable: ""
+      });
+    } else {
+      parts.push(
+        unknownPart("sql-warehouse", "SQL warehouse", "No warehouse spend was available to allocate in this range.")
+      );
+    }
+    parts.push(
+      ...UNKNOWN_QUESTION_PARTS.map((part) => ({ ...part, quality: "unknown", amount: null }))
+    );
+    return {
+      runId: run2.runId,
+      correlationId: run2.correlationId,
+      traceId: run2.traceId,
+      completedAt: run2.completedAt,
+      totalTokens: run2.totalTokens,
+      parts
+    };
+  });
+  return {
+    runs: attributed,
+    runsInRange,
+    tokenCoveredRuns,
+    totalRecordedTokens,
+    limited: runsInRange > attributed.length,
+    reason: runsInRange === 0 ? "No completed runs were recorded in this billing range." : ""
+  };
+}
+var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, DESCRIPTIONS, UNKNOWN_QUESTION_PARTS;
 var init_ops_billing = __esm({
   "server/lib/ops-billing.ts"() {
     COST_COMPONENTS = [
@@ -175759,7 +175854,11 @@ var init_ops_billing = __esm({
     DESCRIPTIONS = {
       "serving-endpoint": {
         label: "Serving endpoint",
-        quality: "per-token",
+        // This tile is the endpoint's measured total. `per-token` belongs only on
+        // the run rows built below, after that total has actually been apportioned
+        // by recorded tokens. Calling the numerator per-token before doing that was
+        // the precise estimate-as-measurement failure this module forbids.
+        quality: "real",
         population: "This endpoint",
         basis: "total-in-range",
         variable: "DATABRICKS_SERVING_ENDPOINT_NAME"
@@ -175800,6 +175899,38 @@ var init_ops_billing = __esm({
         variable: "PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID"
       }
     };
+    UNKNOWN_QUESTION_PARTS = [
+      {
+        id: "genie",
+        label: "Genie spaces",
+        unavailable: "Billing exposes workspace spend but no run or space attribution key."
+      },
+      {
+        id: "vector-search",
+        label: "Vector search",
+        unavailable: "Endpoint time is billed as a rate and cannot be joined to one query."
+      },
+      {
+        id: "app-compute",
+        label: "App compute",
+        unavailable: "Compute time cannot be joined to one run; billing-tag propagation also needs live verification."
+      },
+      {
+        id: "index-rebuild-job",
+        label: "Index rebuild job",
+        unavailable: "A rebuild is shared maintenance work rather than work caused by one question."
+      },
+      {
+        id: "foundation-model",
+        label: "Foundation model",
+        unavailable: "The foundation-model endpoint identifier is not recorded with the run today."
+      },
+      {
+        id: "lakebase",
+        label: "Lakebase Postgres",
+        unavailable: "No documented billing row in this app can be joined to a Lakebase query or run."
+      }
+    ];
   }
 });
 
@@ -175808,6 +175939,7 @@ var ops_routes_exports = {};
 __export(ops_routes_exports, {
   OPS_ROUTES: () => OPS_ROUTES,
   QUESTIONS_PER_DAY_QUERY: () => QUESTIONS_PER_DAY_QUERY,
+  QUESTION_COST_RUNS_QUERY: () => QUESTION_COST_RUNS_QUERY,
   RUN_OUTCOMES_QUERY: () => RUN_OUTCOMES_QUERY,
   TOOL_CALLS_QUERY: () => TOOL_CALLS_QUERY,
   causeLabel: () => causeLabel,
@@ -176068,6 +176200,28 @@ function unreadNote(charts, message) {
 function toBars(counts) {
   return [...counts.entries()].map(([key2, count4]) => ({ key: key2, label: causeLabel(key2), count: count4 })).sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
 }
+function questionRun(row2) {
+  const nullableNumber = (value) => {
+    const parsed = Number(text15(value));
+    return text15(value) !== "" && Number.isFinite(parsed) ? parsed : null;
+  };
+  return {
+    runId: text15(row2.run_id),
+    correlationId: text15(row2.correlation_id),
+    traceId: text15(row2.trace_id),
+    completedAt: text15(row2.completed_at),
+    totalTokens: nullableNumber(row2.total_tokens),
+    runsInRange: count3(row2.runs_in_range),
+    tokenCoveredRuns: count3(row2.token_covered_runs),
+    totalRecordedTokens: count3(row2.total_recorded_tokens)
+  };
+}
+function lagDays(rangeEnd, newestBillingDay) {
+  const end = Date.parse(`${rangeEnd}T00:00:00Z`);
+  const newest = Date.parse(`${newestBillingDay}T00:00:00Z`);
+  if (!Number.isFinite(end) || !Number.isFinite(newest)) return null;
+  return Math.max(0, Math.round((end - newest) / 864e5));
+}
 function setupOpsRoutes(appkit, deps) {
   if (typeof deps?.isAdminRoute !== "function") {
     console.error(
@@ -176121,6 +176275,7 @@ function setupOpsRoutes(appkit, deps) {
     });
     app.get("/api/ops/cost", async (req, res) => {
       const readAt = new Date(clock()).toISOString();
+      const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       const workspace = host();
       const warehouse = warehouseId();
       const token = forwardedUserToken(req);
@@ -176135,10 +176290,26 @@ function setupOpsRoutes(appkit, deps) {
         // Read off a response header rather than taken from configuration.
         // Nothing hands the container a workspace id, and a literal in a tracked
         // file would be a real workspace id in a repository that is published.
-        workspaceId: token ? await resolveWorkspaceId({ host: workspace, token }) : "",
+        workspaceId: token ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl }) : "",
         telemetryEnabled: Boolean(telemetrySchema())
       };
-      const empty = { grant: null, reason: "", currency: "", throughDay: "", readAt };
+      const empty = {
+        grant: null,
+        reason: "",
+        currency: "",
+        throughDay: "",
+        range,
+        billingLagDays: null,
+        readAt,
+        perQuestion: {
+          runs: [],
+          runsInRange: 0,
+          tokenCoveredRuns: 0,
+          totalRecordedTokens: 0,
+          limited: false,
+          reason: ""
+        }
+      };
       if (!workspace || !warehouse || !token) {
         res.json({
           ...empty,
@@ -176148,7 +176319,7 @@ function setupOpsRoutes(appkit, deps) {
         });
         return;
       }
-      const built = buildCostStatement(ids);
+      const built = buildCostStatement(ids, range);
       if (!built) {
         res.json({
           ...empty,
@@ -176163,7 +176334,8 @@ function setupOpsRoutes(appkit, deps) {
           token,
           warehouseId: warehouse,
           statement: built.statement,
-          parameters: built.parameters
+          parameters: built.parameters,
+          fetchImpl: deps.fetchImpl
         });
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, "system.billing.usage");
@@ -176194,16 +176366,35 @@ function setupOpsRoutes(appkit, deps) {
             state: "no-rows",
             tiles: buildTiles(ids, []),
             currency: meta3?.currency ?? "",
-            throughDay: meta3?.lastDay || ""
+            throughDay: meta3?.lastDay || "",
+            billingLagDays: lagDays(range.to, meta3?.lastDay || ""),
+            reason: "No billing rows matched the Astrolabe tag in this range. Whether Databricks Apps propagates that tag onto app-compute billing must be verified in the live workspace."
           });
           return;
+        }
+        const tiles = buildTiles(ids, componentRows);
+        let perQuestion = {
+          ...empty.perQuestion,
+          reason: "Per-question attribution could not be read from the run ledger."
+        };
+        try {
+          const result = await appkit.lakebase.query(QUESTION_COST_RUNS_QUERY, [range.from, range.to]);
+          perQuestion = buildQuestionAttribution(
+            result.rows.map((row2) => questionRun(row2)),
+            tiles,
+            QUESTION_COST_LIMIT
+          );
+        } catch (error48) {
+          perQuestion.reason = `Per-question attribution could not be read from the run ledger: ${error48.message}`;
         }
         res.json({
           ...empty,
           state: "ready",
           currency: meta3?.currency ?? "",
           throughDay: meta3?.lastDay || "",
-          tiles: buildTiles(ids, componentRows)
+          billingLagDays: lagDays(range.to, meta3?.lastDay || ""),
+          tiles,
+          perQuestion
         });
       } catch (error48) {
         res.json({
@@ -176321,7 +176512,7 @@ function setupOpsRoutes(appkit, deps) {
   });
   console.log("[ops] Registered the Ops read routes. The admin guard's prefix list covers all of them.");
 }
-var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, OPS_ROUTES;
+var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, QUESTION_COST_RUNS_QUERY, QUESTION_COST_LIMIT, OPS_ROUTES;
 var init_ops_routes = __esm({
   "server/routes/ops-routes.ts"() {
     init_app_schema();
@@ -176334,6 +176525,7 @@ var init_ops_routes = __esm({
     init_run_failure_codes();
     init_insights_routes();
     init_request_latency();
+    init_ops_contract();
     STATEMENT_TIMEOUT_MS2 = 45e3;
     ORG_ID_HEADER = "x-databricks-org-id";
     knownWorkspaceId = "";
@@ -176358,12 +176550,38 @@ var init_ops_routes = __esm({
   GROUP BY 1
   ORDER BY 2 DESC`;
     FAILURE_STATES = /* @__PURE__ */ new Set(["FAILED", "DEADLINE_EXCEEDED", "PERSISTENCE_FAILED"]);
-    OPS_ROUTES = [
-      "/api/ops/health",
-      "/api/ops/cost",
-      "/api/ops/traffic",
-      "/api/ops/latency"
-    ];
+    QUESTION_COST_RUNS_QUERY = `
+  WITH completed AS (
+    SELECT r.run_id, COALESCE(r.correlation_id, '') AS correlation_id,
+           COALESCE(r.trace_id, '') AS trace_id, r.completed_at,
+           CASE
+             WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
+               THEN (m.response_json->'trace'->>'total_tokens')::bigint
+             WHEN COALESCE(m.response_json->'trace'->>'prompt_tokens', '') ~ '^[0-9]+$'
+              AND COALESCE(m.response_json->'trace'->>'completion_tokens', '') ~ '^[0-9]+$'
+               THEN (m.response_json->'trace'->>'prompt_tokens')::bigint
+                  + (m.response_json->'trace'->>'completion_tokens')::bigint
+             ELSE NULL
+           END AS total_tokens
+    FROM ${APP_SCHEMA}.runs r
+    LEFT JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
+    WHERE r.completed_at >= $1::date
+      AND r.completed_at < ($2::date + INTERVAL '1 day')
+  ),
+  counted AS (
+    SELECT *,
+           COUNT(*) OVER ()::int AS runs_in_range,
+           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL) OVER ()::int AS token_covered_runs,
+           COALESCE(SUM(total_tokens) OVER (), 0)::bigint AS total_recorded_tokens
+    FROM completed
+  )
+  SELECT run_id, correlation_id, trace_id, completed_at, total_tokens,
+         runs_in_range, token_covered_runs, total_recorded_tokens
+  FROM counted
+  ORDER BY completed_at DESC
+  LIMIT 100`;
+    QUESTION_COST_LIMIT = 100;
+    OPS_ROUTES = ["/api/ops/health", "/api/ops/cost", "/api/ops/traffic", "/api/ops/latency"];
   }
 });
 
@@ -189223,9 +189441,13 @@ createApp({
       Promise.resolve().then(() => (init_admin_roles(), admin_roles_exports)),
       Promise.resolve().then(() => (init_handler_failures(), handler_failures_exports))
     ]);
-    const { storeReady } = await setupInsightsRoutes2(appkit);
-    await storeReady;
-    await bootstrapSeedRoles2(appkit.lakebase);
+    const readiness = {};
+    const { storeReady } = await setupInsightsRoutes2(appkit, {
+      rolesReady: () => readiness.roles ?? Promise.reject(new Error("Role bootstrap was requested before it was scheduled."))
+    });
+    readiness.roles = storeReady.then(() => bootstrapSeedRoles2(appkit.lakebase)).then(() => void 0).catch((error48) => {
+      console.error(`[admin] Background role bootstrap failed: ${error48.message}`);
+    });
     setupSettingsRoutes2(appkit);
     setupRuntimeSettingsRoutes2(appkit);
     setupEnvironmentRoutes2(appkit);

@@ -134,14 +134,16 @@ describe('every admin route is wrapped, and the router is where that is decided'
     // added to one and not the other is a page served to everybody. Asserted
     // against the source because the router is built at module load.
     for (const path of ADMIN_PATHS) {
-      expect(APP, `App.tsx gates ${path}`).toMatch(
-        new RegExp(`path: '${path}', element: <AdminOnly>`)
-      );
+      const route = APP.match(new RegExp(`path: '${path}',[\\s\\S]*?errorElement:`));
+      expect(route, `${path} is registered`).not.toBeNull();
+      expect(route![0], `App.tsx gates ${path}`).toContain('<AdminOnly>');
     }
   });
 
   it('wraps nothing else, so a page nobody decided was admin cannot become one', () => {
-    const wrapped = [...APP.matchAll(/path: '([^']+)', element: <AdminOnly>/g)].map((match) => match[1]);
+    const wrapped = [...APP.matchAll(/path: '([^']+)',[\s\S]*?errorElement:/g)]
+      .filter((match) => match[0].includes('<AdminOnly>'))
+      .map((match) => match[1]);
     expect(wrapped.sort()).toEqual([...ADMIN_PATHS].sort());
   });
 });
@@ -182,9 +184,7 @@ describe('losing the role mid-session is a different event from never having it'
     // rewrite back to a ref has to come past this case.
     const source = readFileSync(new URL('GatePanel.tsx', import.meta.url), 'utf8');
     expect(source).toMatch(/\[heldRoleHere, setHeldRoleHere\]\s*=\s*useState\(false\)/);
-    expect(source).toMatch(
-      /if \(!heldRoleHere && showsAdminSurfaces\(role\.state\)\) setHeldRoleHere\(true\)/
-    );
+    expect(source).toMatch(/if \(!heldRoleHere && showsAdminSurfaces\(role\.state\)\) setHeldRoleHere\(true\)/);
     expect(source).toMatch(/gateOutcome\(role\.state, heldRoleHere\)/);
     // And not the old mechanism, under any name.
     expect(source).not.toMatch(/useRef/);

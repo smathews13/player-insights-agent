@@ -103,6 +103,7 @@ export function AdminRows({
               {entry.removable ? (
                 <Button
                   variant="destructive"
+                  data-variant="destructive"
                   className="settings-destructive"
                   size="sm"
                   disabled={busy}

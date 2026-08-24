@@ -152,7 +152,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // by having been retyped identically. That is the failure --app-header-pad-x
     // was made a token to prevent, one page over.
     expect(partial('tokens.css')).toMatch(/--conversation-inset:\s*clamp\(/);
-    expect(body('.conversation-main')).toMatch(/padding:\s*56px var\(--conversation-inset\) 180px/);
+    expect(body('.conversation-main')).toMatch(/padding:\s*56px var\(--conversation-inset\) var\(--composer-reserve\)/);
     expect(body('.composer')).toMatch(/left:\s*calc\(var\(--conversation-width\) \+ var\(--conversation-inset\)\)/);
     expect(body('.composer')).toMatch(/right:\s*calc\(var\(--trace-width\) \+ var\(--conversation-inset\)\)/);
     // And the narrow band's restatement, which is where a second literal would
@@ -162,6 +162,69 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // No copy of the old literal left anywhere. A single survivor is worse than
     // none of this, because it would be the one rule that stopped moving.
     expect(withoutComments(STYLESHEET)).not.toMatch(/clamp\(28px,\s*3\.5vw,\s*64px\)/);
+  });
+
+  it('reserves the composer its room from a token, and lets a scroll read the same one', () => {
+    /*
+     * The reported defect was that answer cards "clip behind various surfaces".
+     * Nothing clipped. Two separate faults put an answer under a bar:
+     *
+     * The transcript reserved a flat 180px for a `position: fixed` composer,
+     * which covers the composer at rest -- 105px of box floating 20px up -- and
+     * not the composer holding an attachment chip and a parse notice.
+     *
+     * Worse, the reserve was a padding only, and `padding` is invisible to
+     * `scrollIntoView`. HomePage ends a turn with `block: 'end'`, aligning the
+     * transcript's end with the bottom of the scrollport, which is behind the
+     * composer -- so the arithmetic being right would not have helped.
+     *
+     * One token, read by the padding and by `scroll-padding-bottom`, is what
+     * makes the two agree by construction.
+     */
+    expect(partial('tokens.css')).toMatch(/--composer-reserve:\s*\d+px/);
+    expect(body('html')).toMatch(/scroll-padding-bottom:\s*var\(--composer-reserve\)/);
+    // And the top half of the same fault: an answer is scrolled in with
+    // `block: 'start'`, which aligns its top edge with a scrollport that begins
+    // behind the 52px sticky header. Every answer opened with its provenance
+    // chip and the first line of its takeaway covered by the nav tabs.
+    expect(body('html')).toMatch(/scroll-padding-top:\s*var\(--app-header-h\)/);
+    expect(HOME_PAGE).toContain("block: 'start'");
+    // The reserve has to clear the composer's own occupied height. It floats
+    // 20px up and stands 105px tall at rest, so anything at or under that is a
+    // reserve that hides the last rows of an answer at the end of every scroll.
+    const reserve = Number(partial('tokens.css').match(/--composer-reserve:\s*(\d+)px/)?.[1] ?? 0);
+    expect(reserve).toBeGreaterThan(125);
+  });
+
+  it('keeps the chrome the transcript scrolls under opaque, and only that chrome', () => {
+    /*
+     * The other half of "clipping behind various surfaces", and the literal half:
+     * in dark the header and the composer were both `rgba(255, 255, 255, 0.03)`
+     * with `backdrop-filter: blur(2px)`. Three percent of white is a tint and a
+     * two-pixel Gaussian does not turn 13px type into a wash, so a reader could
+     * READ the answer card through the nav tabs and through the box they type in.
+     *
+     * The distinction is geometric: prose passes behind the header (`sticky
+     * top-0`) and behind the composer (`position: fixed`), so both are opaque.
+     * It does not pass behind the two side columns, which are their own grid
+     * tracks in `.ask-layout`, so those keep the frosted pane §2 asks for.
+     */
+    const dark = partial('dark-mode.css');
+    for (const selector of ["html[data-theme='dark'] .app-header", "html[data-theme='dark'] .composer"]) {
+      const rule = body(selector, dark);
+      expect(rule, `${selector} is opaque`).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+      expect(rule, `${selector} does not frost`).toMatch(/backdrop-filter:\s*none/);
+    }
+    // The panes beside the transcript are deliberately untouched. Asserted so
+    // that "make the chrome opaque" is not later applied to the whole group,
+    // which would flatten the night sky the design is built on.
+    // Read off the grouped rule the three of them share, which `body()` cannot
+    // address: it matches a selector standing alone before its brace.
+    const group = withoutComments(dark).match(/([^{}]*\.conversation-rail[^{]*)\{([^{}]*)\}/);
+    const [selectors, declarations] = [group?.[1] ?? '', group?.[2] ?? ''];
+    expect(selectors, 'the inspector shares the rail’s rule').toContain('.trace-inspector');
+    expect(selectors, 'and the composer no longer does').not.toContain('.composer');
+    expect(declarations, 'the side panes stay frosted').toMatch(/backdrop-filter:\s*blur\(2px\)/);
   });
 
   it('spends less of the middle column on empty side gutters', () => {
@@ -543,6 +606,22 @@ describe('the owner filter chips are the one control that may not move when pres
 });
 
 describe('the inspector while a run is still going', () => {
+  it('polls the small run record and reloads the transcript only when work finishes', () => {
+    const reconnect = HOME_PAGE.slice(
+      HOME_PAGE.indexOf('Follow a run whose original stream belonged to another view'),
+      HOME_PAGE.indexOf('The rail, in one round trip rather than two')
+    );
+    const statusRead = reconnect.indexOf('readConversationRun(');
+    const workingCheck = reconnect.indexOf('isWorkingConversationRun(status)');
+    const transcriptRead = reconnect.indexOf('/messages');
+
+    expect(statusRead).toBeGreaterThan(-1);
+    expect(workingCheck).toBeGreaterThan(statusRead);
+    expect(transcriptRead).toBeGreaterThan(workingCheck);
+    expect(reconnect.match(/\/messages/g)).toHaveLength(1);
+    expect(reconnect).not.toContain('Promise.all');
+  });
+
   it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
     // The answer pane reports live steps in text; only the inspector draws their
     // expanding numbered path.

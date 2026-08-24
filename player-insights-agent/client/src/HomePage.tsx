@@ -781,17 +781,8 @@ export function HomePage() {
     };
     const poll = async () => {
       try {
-        const [status, response] = await Promise.all([
-          readConversationRun(activeConversationRun.conversationId),
-          fetch(`/api/conversations/${encodeURIComponent(activeConversationRun.conversationId)}/messages`),
-        ]);
+        const status = await readConversationRun(activeConversationRun.conversationId);
         if (!live || activeConversationRef.current !== activeConversationRun.conversationId) return;
-        if (response.ok) {
-          const stored = (await response.json()) as ConversationMessage[];
-          if (!live || activeConversationRef.current !== activeConversationRun.conversationId) return;
-          setMessages(stored);
-          setFeedback(feedbackFromStored(stored));
-        }
         if (isWorkingConversationRun(status)) {
           setActiveConversationRun({ ...status, conversationId: activeConversationRun.conversationId });
           // The steps the run has taken since the last poll. This is what makes a
@@ -805,6 +796,20 @@ export function HomePage() {
           });
           schedule();
           return;
+        }
+        // The status row and its stages are the only data that can change while
+        // work is in flight. The transcript includes every stored response JSON;
+        // rereading and replacing that whole list every 1.5 seconds made a long
+        // reconnect progressively more expensive. Read it once, after the run
+        // reaches a terminal state and an assistant message may actually exist.
+        const response = await fetch(
+          `/api/conversations/${encodeURIComponent(activeConversationRun.conversationId)}/messages`
+        );
+        if (response.ok) {
+          const stored = (await response.json()) as ConversationMessage[];
+          if (!live || activeConversationRef.current !== activeConversationRun.conversationId) return;
+          setMessages(stored);
+          setFeedback(feedbackFromStored(stored));
         }
         setActiveConversationRun(null);
         setLoading(false);

@@ -113,4 +113,46 @@ describe('boot does not wait for the schema before it serves', () => {
     // above and leave the app with no tables.
     expect(store.completed).toEqual([...schemaStatements]);
   });
+
+  it('holds only role-bearing requests until the roster bootstrap settles', async () => {
+    const store = gatedStore();
+    const app = express();
+    app.use(express.json());
+    let releaseRoles!: () => void;
+    const rolesReady = new Promise<void>((resolve) => {
+      releaseRoles = resolve;
+    });
+
+    const { storeReady } = await setupInsightsRoutes(
+      {
+        lakebase: store.lakebase,
+        server: { extend: (fn: (target: typeof app) => void) => fn(app) },
+        servingTransport: () => Promise.reject(new Error('not used')),
+      } as unknown as InsightsAppKit,
+      { rolesReady: () => rolesReady }
+    );
+    server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server?.once('listening', () => resolve()));
+    const port = (server.address() as { port: number }).port;
+    const headers = { 'x-forwarded-email': 'an.admin@example.test' };
+
+    const adminResponse = fetch(`http://127.0.0.1:${port}/api/admins`, { headers });
+    const beforeRoles = await Promise.race([
+      adminResponse.then(() => 'answered'),
+      new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), 20)),
+    ]);
+    expect(beforeRoles).toBe('pending');
+
+    // Consumer and health-adjacent routes remain available while only the role
+    // decision waits. This is the distinction the old boot-wide await erased.
+    expect((await fetch(`http://127.0.0.1:${port}/api/identity`, { headers })).status).toBe(200);
+
+    releaseRoles();
+    // The empty fixture roster denies. Waiting never turns "not resolved yet"
+    // into authorization, and the actual role guard still makes the decision.
+    expect((await adminResponse).status).toBe(403);
+
+    store.release();
+    await storeReady;
+  });
 });

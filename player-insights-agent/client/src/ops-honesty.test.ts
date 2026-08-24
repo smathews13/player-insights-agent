@@ -29,6 +29,7 @@ import {
   P50_BAR_MIN_WIDTH,
   p50BarWidths,
   productForCostTile,
+  questionPartView,
   splitMethod,
   telemetryNotice,
   tileView,
@@ -83,8 +84,18 @@ function costPayload(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
     reason: '',
     currency: 'USD',
     throughDay: '2026-08-14',
+    range: { from: '2026-08-08', to: '2026-08-14' },
+    billingLagDays: 0,
     readAt: '2026-08-15T12:00:00Z',
     tiles: [tile()],
+    perQuestion: {
+      runs: [],
+      runsInRange: 0,
+      tokenCoveredRuns: 0,
+      totalRecordedTokens: 0,
+      limited: false,
+      reason: '',
+    },
     ...overrides,
   };
 }
@@ -145,6 +156,22 @@ describe('the quality of a number', () => {
     // `tileView` is given no way to disagree with the tile. If this ever takes a
     // quality argument, a call site can pass the wrong one.
     expect(tileView(tile({ quality: 'estimate' }), 'USD').qualityLabel).toBe('Estimate');
+  });
+
+  it('cannot render an unknowable per-question component as a figure', () => {
+    const view = questionPartView(
+      {
+        id: 'genie',
+        label: 'Genie spaces',
+        quality: 'unknown',
+        amount: null,
+        unavailable: 'No run attribution key.',
+      },
+      'USD'
+    );
+    expect(view.figure).toBe('');
+    expect(view.absence).toBe('No run attribution key.');
+    expect(view.qualityLabel).toBe('Not knowable');
   });
 
   /**
@@ -228,13 +255,13 @@ describe('the quality of a number', () => {
     // it or not. Its daily rate read as a range total understates it by however
     // many days the range covers.
     expect(tileView(tile({ basis: 'per-day' }), 'USD').basisLabel).toBe(BASIS_LABEL['per-day']);
-    expect(tileView(tile({ basis: 'total-in-range' }), 'USD').basisLabel).toBe('all time');
+    expect(tileView(tile({ basis: 'total-in-range' }), 'USD').basisLabel).toBe('in range');
     expect(BASIS_LABEL['per-day']).not.toBe(BASIS_LABEL['total-in-range']);
   });
 });
 
 /*
- * ── There is no headline any more ────────────────────────────────────────────
+ * ── There is no cross-quality headline ───────────────────────────────────────
  *
  * Five tests lived here and every one of them passed: the label said "average",
  * the denominator travelled with the figure, a division by no questions was
@@ -248,7 +275,9 @@ describe('the quality of a number', () => {
  * earlier passes over this block: green assertions about a number's arithmetic
  * look like assurance about the number. If a per-question figure is ever
  * proposed again, it needs a numerator that is actually per question, not a
- * label and a denominator.
+ * label and a denominator. The component breakdown now has that numerator for
+ * model serving, labels the warehouse allocation as an estimate, and refuses a
+ * total while the remaining components have no join.
  */
 
 /* ── No grant and no rows are different states ───────────────────────────── */

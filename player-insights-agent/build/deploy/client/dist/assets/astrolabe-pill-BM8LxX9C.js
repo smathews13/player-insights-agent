@@ -1,0 +1,1 @@
+function e(e,t){return[`ast-pill`,`ast-pill--${e}`,t].filter(Boolean).join(` `)}function t(e,t){return e===`plain`?[`ast-num`,t].filter(Boolean).join(` `):[`ast-pill`,`ast-pill--${e}`,`ast-num`,t].filter(Boolean).join(` `)}export{t as n,e as t};

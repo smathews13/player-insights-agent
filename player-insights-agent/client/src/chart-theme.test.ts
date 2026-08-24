@@ -42,6 +42,7 @@ const LIGHT: ChartTheme = {
   accent: '#2272b4',
   second: '#04867d',
   third: '#4299e0',
+  fourth: '#445461',
   mono: MONO,
 };
 
@@ -52,12 +53,43 @@ const DARK: ChartTheme = {
   grid: 'rgba(255, 255, 255, 0.12)',
   surface: '#11171c',
   accent: '#8fc1e8',
+  // The teal is the one of the four that is not a blue, and it clears the contrast
+  // floor on navy unaided, so the dark theme leaves it where it is.
   second: '#04867d',
   third: '#6faedd',
+  fourth: '#8a9aa3',
   mono: MONO,
 };
 
-/** The frame `agent/charts.py` writes around every cartesian figure. */
+/**
+ * WCAG 2.1 contrast between two hex colours.
+ *
+ * A local copy of the pair in `palette.test.ts`, which does not export them. Six lines
+ * of arithmetic from a published formula is cheaper to repeat than a shared test helper
+ * is to reach for, and a test that computes its own floor cannot drift from the one the
+ * other file computes.
+ */
+function luminance(hex: string) {
+  const channels = [1, 3, 5]
+    .map((at) => parseInt(hex.slice(at, at + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrast(a: string, b: string) {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * The frame `agent/charts.py` writes around every cartesian figure.
+ *
+ * The three rule colours are what a spec stored BEFORE the grid was muted carries --
+ * `charts.py` writes a translucent wash there now. Both are real inputs, since specs
+ * are stored beside the answer that produced them and old answers are still read, and
+ * the point of this fixture is that neither survives: the pass below overwrites all
+ * three from the theme regardless of what it found.
+ */
 function cartesianLayout(): Record<string, unknown> {
   const axis = () => ({
     gridcolor: '#EBEBEB',
@@ -237,6 +269,45 @@ describe('the theme is resolved into the figure, one slot at a time', () => {
       DARK
     );
     expect(at(at(chosen.data[0]).marker).color).toBe('#7a5e32');
+  });
+
+  it('maps the fourth series too, which had no slot and so stayed a light-theme colour', () => {
+    /*
+     * The bug: `agent/charts.py` assigns four series colours and this file mapped
+     * three, so a fourth line kept #445461 on the night sky. That measures 2.0:1
+     * against the dark card, under the 3:1 a graphic needs to be seen at all --
+     * a line that is present, correct, and invisible.
+     *
+     * Asserted on a line rather than a bar because four series is where lines are:
+     * `charts.py` separates past four by dash weight, not by inventing a hue.
+     */
+    const four: FigureSpec = {
+      kind: 'line',
+      data: ['#2272B4', '#04867D', '#4299E0', '#445461'].map((color, index) => ({
+        type: 'scatter',
+        mode: 'lines',
+        x: ['2026-01-01', '2026-01-02'],
+        y: [index, index + 1],
+        line: { color },
+      })),
+      layout: cartesianLayout(),
+    };
+    const { data } = themedFigure(four, DARK);
+    expect(data.map((trace) => at(at(trace).line).color)).toEqual([DARK.accent, DARK.second, DARK.third, DARK.fourth]);
+  });
+
+  it('gives every dark series enough contrast on the night sky to be seen', () => {
+    // 3:1 is the floor for a graphical object, and the fourth series was the one
+    // under it. Computed rather than asserted as a hex, so a future repaint of any
+    // slot has to clear the same bar instead of only matching a literal.
+    for (const [slot, colour] of Object.entries({
+      accent: DARK.accent,
+      second: DARK.second,
+      third: DARK.third,
+      fourth: DARK.fourth,
+    })) {
+      expect(contrast(colour, DARK.surface), `${slot} on the night sky`).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it('follows the surface with a pie’s slice separators, which the spec draws in white', () => {
@@ -497,6 +568,7 @@ describe('the theme is read off the document, and re-read when it changes', () =
       '--chart-1': '#2272b4',
       '--chart-2': '#04867d',
       '--chart-3': '#4299e0',
+      '--chart-4': '#445461',
       '--font-mono': MONO,
     });
     expect(readChartTheme()).toEqual(LIGHT);
@@ -511,6 +583,7 @@ describe('the theme is read off the document, and re-read when it changes', () =
       '--chart-1': '#8fc1e8',
       '--chart-2': '#04867d',
       '--chart-3': '#6faedd',
+      '--chart-4': '#8a9aa3',
       '--font-mono': MONO,
     });
     expect(readChartTheme()).toEqual(DARK);

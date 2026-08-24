@@ -10,6 +10,7 @@ assistant turn, so a test states the exact sequence of tool calls it is about.
 
 import inspect
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -33,6 +34,7 @@ from agent import (
     PlayerInsightsResponsesAgent,
     _needs_dictionary,
     _plan_id,
+    reader_facing_findings,
 )
 from charts import BLUE, MAX_CHARTS, PLOT_INSTRUCTIONS
 from config import Settings
@@ -2787,7 +2789,11 @@ def test_the_plot_step_turns_a_new_plot_call_into_a_branded_chart():
     # The spec carried no colours; the palette came from the tool. Asserted through the
     # constant rather than a literal, so a repaint moves in one place.
     assert chart["data"][0]["marker"]["color"] == BLUE
-    assert chart["layout"]["yaxis"]["title"] == {"text": "players"}
+    # The label the tool was given, however the theme spaces it. This compared the
+    # whole title dict and so failed when the axis gained a standoff -- reporting a
+    # readability fix as a lost axis label. What this test is about is that the
+    # tool's wording survives the branding, not how far it sits from its ticks.
+    assert chart["layout"]["yaxis"]["title"]["text"] == "players"
     assert llm.calls[-1]["tools"][0]["function"]["name"] == "new_plot"
 
 
@@ -3256,6 +3262,127 @@ def test_tabular_content_is_one_complete_evidence_table():
     assert "one unified Markdown table" in SYNTHESIS_INSTRUCTIONS
     assert "earliest date first and the latest date last" in SYNTHESIS_INSTRUCTIONS
     assert "Do not split one\n  result into several small tables" in SYNTHESIS_INSTRUCTIONS
+
+
+PACKAGE = """## DATA PACKAGE
+- **Interpretation:** Show the Hoops 26 season launch engagement spike.
+- **Sources used:** data_genie on <your_catalog>.<your_schema>.gold_title_daily_summary
+- **Columns:**
+- **Findings / data:** Data spans 2026-02-05 to 2026-08-03 (179 days).
+
+| Date | Sessions |
+| --- | ---: |
+| 2026-08-03 | 482 |
+- **Provenance:** Query 1 — data_genie, ordered by event_date.
+- **Quality assessment:** net_bookings_usd has negative values on two days.
+- **Caveats & rules applied:**
+  - launch_campaign_sessions has no governed definition.
+  - Treat the final day as incomplete.
+- **Gaps:** No country-level split was requested.
+"""
+
+
+class TestTheInternalPackageIsNotShownAsAnAnswer:
+    """The finder's package is a handoff and says so.
+
+    `FINDER_SYSTEM_PROMPT` opens with "You never present the final answer to the user"
+    and calls its own output "an internal handoff, not a report". When a turn ran out
+    of budget before synthesis, `_synthesize` used that string as the answer's
+    narrative verbatim -- so a customer got the scratchpad, and got it faithfully
+    formatted now that the client renders Markdown: an internal `## DATA PACKAGE`
+    heading, a column inventory of null ratios, one provenance line per SQL query, and
+    a bulleted "Columns:" label with nothing after it.
+    """
+
+    def test_the_apparatus_sections_do_not_reach_the_reader(self):
+        narrative, _ = reader_facing_findings(PACKAGE)
+        # How the figures were obtained, which the card states in its source line.
+        assert "Provenance" not in narrative
+        assert "Query 1" not in narrative
+        assert "Quality assessment" not in narrative
+        assert "Sources used" not in narrative
+        # And the internal heading, which is the thing that made an answer card look
+        # like somebody's notebook.
+        assert "DATA PACKAGE" not in narrative
+        assert not narrative.lstrip().startswith("#")
+
+    def test_a_label_with_no_body_leaves_nothing_behind(self):
+        """The empty "Columns:" bullet, which rendered as a dot and a word.
+
+        The finder emits the lead-in whether or not it has anything to put after it,
+        so a section has to be dropped on its BODY being empty rather than on its
+        name being one this path keeps.
+        """
+
+        narrative, caveats = reader_facing_findings(PACKAGE)
+        assert "Columns" not in narrative
+        assert all("Columns" not in caveat for caveat in caveats)
+
+    def test_the_findings_and_their_table_survive_whole(self):
+        """The rows are the whole value of this path: there is no synthesis to
+        summarise them, so a table dropped here is a figure the run measured and
+        nobody ever saw."""
+
+        narrative, _ = reader_facing_findings(PACKAGE)
+        assert "Data spans 2026-02-05 to 2026-08-03" in narrative
+        assert "| Date | Sessions |" in narrative
+        assert "| 2026-08-03 | 482 |" in narrative
+        # Interpretation leads, because this path writes no takeaway from evidence.
+        assert narrative.index("Show the Hoops 26") < narrative.index("Data spans")
+
+    def test_limits_become_caveats_rather_than_prose(self):
+        """Caveats and gaps are conditions ON the answer, and every other answer states
+        them under the figures. The finder writes them as nested bullets, so the
+        markers come off: the card is what makes them a list."""
+
+        _, caveats = reader_facing_findings(PACKAGE)
+        assert "launch_campaign_sessions has no governed definition." in caveats
+        assert "Treat the final day as incomplete." in caveats
+        assert "No country-level split was requested." in caveats
+        assert all(not caveat.startswith(("-", "*")) for caveat in caveats)
+
+    def test_an_overview_is_already_prose_and_only_loses_its_heading(self):
+        """`## DATA OVERVIEW` and `## CLARIFICATION NEEDED` have no lead-ins in them.
+        They are written for a reader already, so there is nothing to take out but the
+        internal heading -- and a section-based reduction applied to them would return
+        an empty narrative, which is an answer deleted for a format."""
+
+        overview = "## DATA OVERVIEW\nEleven titles are declared, all in one gold table."
+        narrative, caveats = reader_facing_findings(overview)
+        assert narrative == "Eleven titles are declared, all in one gold table."
+        assert caveats == []
+
+    def test_no_path_out_of_synthesis_pastes_the_package(self):
+        """Read off the source: each branch needs an exhausted budget or an unreachable
+        endpoint, and what has to be pinned is that NONE of the three ways out of this
+        method hands the raw package over.
+
+        There were three, which is why this is asserted as an absence rather than per
+        branch: the budget check at the top, the structured-output fallback with no
+        time for a second attempt, and the endpoint failure. The last was the worst --
+        its takeaway already says the question was not answered, so the apparatus
+        underneath was the only thing on the card and read as the answer.
+        """
+
+        source = inspect.getsource(agent.PlayerInsightsResponsesAgent._synthesize)
+        assert "narrative=findings" not in source
+        assert source.count("reader_facing_findings(findings)") == 3
+        assert source.count("*package_caveats") == 3
+        # And in each branch the run's own reason is the caveat BEFORE the package's,
+        # because it governs how everything under it should be read: these are
+        # findings, not an answer written from them. Asserted on the shape of the
+        # list rather than on a distance in characters, so reformatting the branch
+        # cannot fail it and reordering the list still does.
+        leads = re.findall(r"caveats=\[\s*([^\[\]]*?),\s*\*package_caveats", source, re.S)
+        assert len(leads) == 3
+        for lead in leads:
+            assert lead.strip(), "the package's caveats are not first in the list"
+        for reason in (
+            "The turn deadline was reached before the answer could be written",
+            "The turn deadline left no time for a second formatting attempt",
+            "The model that writes the answer was not reachable",
+        ):
+            assert reason in source
 
 
 def test_headline_figures_are_bounded_without_fabricating_them():

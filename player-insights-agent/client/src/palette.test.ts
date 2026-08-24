@@ -161,6 +161,9 @@ const PALETTE = {
   greyBlue: '#445461',
   chip: '#e8ecf0',
   white: '#ffffff',
+  darkInk: '#f2f6fa',
+  primaryControlFill: '#1b3049',
+  primaryControlBorder: '#4a8cbf',
 };
 
 /** Every surface a foreground can find itself on, other than the neutral chip. */
@@ -188,6 +191,8 @@ describe('the palette is the palette, and nothing is painted beside it', () => {
     expect(ASTROLABE_TOKENS).toMatch(/--ast-ice-accent:\s*#8fc1e8/i);
     expect(ASTROLABE_TOKENS).toMatch(/--ast-ink-on-dark:\s*#f2f6fa/i);
     expect(ASTROLABE_TOKENS).toMatch(/--ast-navy:\s*#11171c/i);
+    expect(ASTROLABE_TOKENS).toMatch(/--ast-primary-control-fill:\s*#1b3049/i);
+    expect(ASTROLABE_TOKENS).toMatch(/--ast-primary-control-border:\s*#4a8cbf/i);
     expect(dark).toContain('--background: var(--ast-navy)');
     expect(astDark).toContain('--ast-sky-fill: var(--ast-navy)');
   });
@@ -336,6 +341,18 @@ describe('the arithmetic the token block claims', () => {
   it('makes the action colour safe as type, which is why it could take ink’s job', () => {
     expect(contrast(PALETTE.blue, PALETTE.white)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(PALETTE.blueHover, PALETTE.white)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps the dark primary label readable while moving blue onto its edge', () => {
+    /*
+     * The dark control is deliberately not the action hue as a solid mass. The
+     * deep panel still has to carry ordinary-size type at AA, and its blue edge
+     * has to remain distinguishable from that panel rather than collapsing into
+     * a decorative line nobody can see.
+     */
+    expect(contrast(PALETTE.darkInk, PALETTE.primaryControlFill)).toBeCloseTo(12.352, 3);
+    expect(contrast(PALETTE.darkInk, PALETTE.primaryControlFill)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(PALETTE.primaryControlBorder, PALETTE.primaryControlFill)).toBeGreaterThanOrEqual(3);
   });
 
   it('leaves the working colour a mass colour and not a label colour', () => {

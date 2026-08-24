@@ -15,6 +15,39 @@ import type { StorageHealth } from './storage-banner-copy';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
 
+let identityPromise: Promise<unknown> | null = null;
+
+/**
+ * The session's one read of who is signed in.
+ *
+ * AccessGate and the shell both need the same payload. Keeping the promise at
+ * module scope means React Strict Mode, and two consumers mounting together,
+ * cannot turn that into two Lakebase role reads whose answers may race.
+ */
+export function identityRequest(): Promise<unknown> {
+  if (!identityPromise) {
+    identityPromise = fetch('/api/identity')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Identity unavailable'))))
+      .catch((error: unknown) => {
+        /*
+         * A refused or failed read is not "who this session is". Holding it would
+         * make every later caller, including a retry after the network recovers,
+         * replay that one failure until a full reload. Drop the cache on the way
+         * out so the next ask is a new request; in-flight callers still share
+         * this same rejection.
+         */
+        identityPromise = null;
+        throw error;
+      });
+  }
+  return identityPromise;
+}
+
+/** Tests that stub `fetch` must forget a prior answer, or they read that answer. */
+export function forgetIdentityRequest() {
+  identityPromise = null;
+}
+
 /**
  * How long this read may go unanswered before it is called unavailable.
  *
@@ -116,10 +149,7 @@ export function useIdentity(deadlineMs = IDENTITY_DEADLINE_MS) {
       settled = true;
       setIdentity(identityAfterDeadline);
     }, deadlineMs);
-    fetch('/api/identity')
-      .then((response) =>
-        response.ok ? (response.json() as Promise<Identity>) : Promise.reject(new Error('Identity unavailable'))
-      )
+    identityRequest()
       .then((next) => {
         settled = true;
         setIdentity(identityFromResponse(next));

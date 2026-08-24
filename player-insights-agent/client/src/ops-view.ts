@@ -39,6 +39,7 @@ import {
   type OpsCostPayload,
   type OpsLatencyPayload,
   type PlatformReading,
+  type QuestionCostPart,
   type RouteLatency,
   type TelemetryState,
   type TrafficBar,
@@ -89,7 +90,7 @@ export interface TileView {
   figure: string;
   /** The STATE in place of a figure, e.g. 'Not attributable'. '' when there is one. */
   absence: string;
-  /** 'Real', 'Per token', 'Estimate' or 'Rate'. The word the badge carries. */
+  /** The contract's quality label. The renderer never invents one. */
   qualityLabel: string;
   /**
    * Whether this card carries the estimate badge.
@@ -130,12 +131,15 @@ export interface TileView {
 
 /** The words for the two bases. A rate drawn as a total is the whole hazard. */
 export const BASIS_LABEL: Record<CostTile['basis'], string> = {
-  'total-in-range': 'all time',
+  'total-in-range': 'in range',
   'per-day': 'per day',
 };
 
 export function tileView(tile: CostTile, currency: string): TileView {
-  const figure = money(tile.amount, currency);
+  // `CostTile` predates the discriminated per-question part, so defend the wire
+  // boundary here too: an unknown tile never becomes a number even if malformed
+  // JSON happens to carry one.
+  const figure = tile.quality === 'unknown' ? '' : money(tile.amount, currency);
   return {
     id: tile.id,
     label: tile.label,
@@ -150,6 +154,35 @@ export function tileView(tile: CostTile, currency: string): TileView {
     // Only ever beside an absence. A figure that arrived needs nothing set.
     remedy: figure ? '' : tile.remedy,
     note: tile.note,
+  };
+}
+
+/**
+ * A per-question part rendered without weakening its discriminated contract.
+ *
+ * `unknown` cannot carry an amount in the shared type, and it stays an absence
+ * here even if an untyped caller fabricates one at runtime. That second guard is
+ * intentional: Ops is an admin surface reading JSON, not a TypeScript function
+ * call, and wire data does not become true because the compiler trusted it.
+ */
+export function questionPartView(
+  part: QuestionCostPart,
+  currency: string
+): { figure: string; absence: string; qualityLabel: string; estimate: boolean } {
+  if (part.quality === 'unknown') {
+    return {
+      figure: '',
+      absence: part.unavailable || 'Not knowable from the identifiers recorded today.',
+      qualityLabel: COST_QUALITY_LABEL.unknown,
+      estimate: false,
+    };
+  }
+  const figure = money(part.amount, currency);
+  return {
+    figure,
+    absence: figure ? '' : 'Not attributable',
+    qualityLabel: COST_QUALITY_LABEL[part.quality],
+    estimate: part.quality === 'estimate',
   };
 }
 
@@ -263,7 +296,7 @@ export function costAbsence(payload: OpsCostPayload): Absence | null {
     // they already hold.
     return {
       title: 'No billing rows yet',
-      body: 'This is not a permission problem and there is nothing to grant.',
+      body: `${payload.reason ? `${payload.reason} ` : ''}This is not a permission problem and there is nothing to grant.`,
     };
   }
   if (payload.state === 'no-warehouse') {
@@ -410,11 +443,13 @@ function noteFor(reason: string, result: DependencyResult): string {
  * its own, so no resource can appear both as a probe row and as a synthesised
  * one.
  */
-export function healthRows(payload: {
-  dependencies?: readonly HealthDependency[];
-  platform?: readonly PlatformReading[];
-  checkedAt?: string;
-} | null): HealthRow[] {
+export function healthRows(
+  payload: {
+    dependencies?: readonly HealthDependency[];
+    platform?: readonly PlatformReading[];
+    checkedAt?: string;
+  } | null
+): HealthRow[] {
   if (!payload) return [];
   const readings = payload.platform ?? [];
   const spokenFor = new Map<string, PlatformReading>();
@@ -447,22 +482,24 @@ export function healthRows(payload: {
 
   const ownRows = readings
     .filter((reading) => (reading.rows ?? []).length === 0)
-    .map((reading): HealthRow => ({
-      id: reading.id,
-      kind: reading.id,
-      label: reading.label,
-      name: '',
-      connectionsId: '',
-      // The reading was taken on the same pass as the probes, so it is as old as
-      // the check the band is dated by. Nothing here invents a fresher time.
-      lastCheckedAt: payload.checkedAt ?? '',
-      notes: noteFor(reading.reason ?? '', reading.read ? 'answered' : 'not-checked'),
-      pill: {
+    .map(
+      (reading): HealthRow => ({
+        id: reading.id,
+        kind: reading.id,
         label: reading.label,
-        value: reading.read && reading.state ? reading.state : 'Not checked',
-        tone: platformTone(reading),
-      },
-    }));
+        name: '',
+        connectionsId: '',
+        // The reading was taken on the same pass as the probes, so it is as old as
+        // the check the band is dated by. Nothing here invents a fresher time.
+        lastCheckedAt: payload.checkedAt ?? '',
+        notes: noteFor(reading.reason ?? '', reading.read ? 'answered' : 'not-checked'),
+        pill: {
+          label: reading.label,
+          value: reading.read && reading.state ? reading.state : 'Not checked',
+          tone: platformTone(reading),
+        },
+      })
+    );
 
   return [...probed, ...ownRows];
 }
@@ -670,9 +707,7 @@ export function trafficCaption(series: TrafficBar[], singular: string, plural: s
    */
   if (total === 0) return `No ${plural}`;
   const noun = total === 1 ? singular : plural;
-  return runs > 0
-    ? `${count(total)} ${noun} out of ${count(runs)} recorded runs.`
-    : `${count(total)} ${noun}.`;
+  return runs > 0 ? `${count(total)} ${noun} out of ${count(runs)} recorded runs.` : `${count(total)} ${noun}.`;
 }
 
 /* ── Latency ─────────────────────────────────────────────────────────────── */

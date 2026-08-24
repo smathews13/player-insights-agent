@@ -472,10 +472,30 @@
   gap: 6px;
   min-width: 0;
 }
+/*
+ * 190px, up from 172, and the eighteen pixels are a legibility fix rather than a
+ * preference.
+ *
+ * The agent writes a figure's `display` string with its unit in it -- "3,118
+ * player-days", "$1,381 net bookings" -- and the value below is set in DM Mono,
+ * whose every glyph has an advance of 0.6em. At 172px the box has 152px of inner
+ * width, and seventeen mono glyphs at the old 18px rung need 184. So the string
+ * wrapped, and it did not wrap where a reader would put the break: the last
+ * opportunity that fitted was the HYPHEN, so the rail printed "3,118 player-"
+ * above "days". A figure that has to be reassembled across a line break is the
+ * one thing a scan column must not do, and it was reported as the rail being too
+ * narrow, which it was.
+ *
+ * 190px of box is 170px of text, and the value rung drops to 16px below, which
+ * puts that same string at 163px -- one line, with room, and the unit intact.
+ * Neither number is a magic constant: they are the two terms of "the longest unit
+ * string this agent writes fits on one line", and if the agent starts writing
+ * longer ones this is the pair to move.
+ */
 .answer-stat-rail {
   display: grid;
-  flex: 0 0 172px;
-  width: 172px;
+  flex: 0 0 190px;
+  width: 190px;
   gap: 6px;
 }
 .answer-stat {
@@ -496,9 +516,18 @@
 }
 .answer-stat-value {
   color: var(--ast-text);
-  font-size: var(--ast-fs-18);
+  /* 16px rather than 18: see the width note on `.answer-stat-rail`. The two are
+     one decision and moving either alone brings the mid-word break back. */
+  font-size: var(--ast-fs-16);
   font-weight: 500;
   line-height: 1.25;
+  /* The floor, not the plan. The rail is sized so the figures this agent writes
+     fit, and `break-word` is what stops an unforeseen long one from painting
+     outside the rounded box instead of wrapping inside it. `break-word` and not
+     `anywhere` on purpose: `anywhere` also lowers the element's min-content
+     width, which would let the grid track below collapse under the width this
+     rail was just widened to. */
+  overflow-wrap: break-word;
 }
 .answer-stat-context {
   overflow: hidden;
@@ -589,12 +618,52 @@
   vertical-align: baseline;
 }
 
-@container answer-card (max-width: 639px) {
+/*
+ * ============================================================================
+ * WHEN THE FIGURES MAY TAKE A COLUMN OFF THE PROSE, AND WHEN THEY MAY NOT.
+ * ============================================================================
+ *
+ * 839px, up from 639px, and this is the whole of "the answer cards are too
+ * narrow".
+ *
+ * The main row is a two-column flex: the narrative takes the slack and the stat
+ * rail takes a fixed 190px beside it. The old threshold only stacked them below
+ * 639px, and `.answer-card` carries `min-width: min(640px, 100%)` -- so the
+ * stacked arrangement was unreachable on any ordinary window and the side rail
+ * was effectively unconditional.
+ *
+ * What that costs is the reading column, because the card never gets the measure
+ * the transcript promises it. `--conversation-measure` is 1120px, but the middle
+ * column is `100vw` less a 264px rail and a 340px inspector, so on a 1440px
+ * laptop the card is about 730px wide and the measure is never reached. Take the
+ * card's own 24px insets, the 190px rail and its 18px gap off that and the
+ * narrative is left with roughly 450px: a bulleted claim about six game titles
+ * wrapping every eight words, and any evidence table inside it reduced to a
+ * horizontal scroller. Two of the four screenshots that prompted this were of
+ * exactly that column.
+ *
+ * The threshold is therefore derived rather than chosen: the narrative is worth
+ * a side rail only once it still clears a real measure with the rail beside it.
+ * 190px of rail + 18px gap + 48px of card inset + 2px of border is 258px of
+ * furniture, and 580px is a defensible measure for 13px prose, so the rail may
+ * sit beside the narrative from 838px of card upward and not below it. Every
+ * window narrower than that gives the prose the full card and drops the figures
+ * underneath it, which is the arrangement the third screenshot happened to catch
+ * and the one that read correctly.
+ *
+ * `auto-fit` rather than the flat two columns it had: stacked, the rail is as
+ * wide as the card, and two 340px cells holding a 163px figure is a scan row with
+ * half its width unused. `minmax(190px, 1fr)` lays five figures out in as many
+ * columns as fit -- three on a 690px card, two when the card is narrower -- and
+ * 190px is the same figure the side rail uses, for the same reason: it is the
+ * width the unit strings fit on one line in.
+ */
+@container answer-card (max-width: 839px) {
   .answer-main-row {
     display: grid;
   }
   .answer-stat-rail {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     width: 100%;
   }
 }

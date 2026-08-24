@@ -47,14 +47,7 @@ function labels(markup: string): string[] {
   return [...markup.matchAll(/<\/svg>\s*([^<]+?)\s*<\/(?:a|button)>/g)].map((match) => match[1].trim());
 }
 
-const EVERY_TAB = [
-  'Ask',
-  'Run Explorer',
-  'Monitoring',
-  'Ops',
-  'Connections',
-  'Architecture',
-];
+const EVERY_TAB = ['Ask', 'Run Explorer', 'Monitoring', 'Ops', 'Connections', 'Architecture'];
 
 describe('the review flag is on', () => {
   it('is on, which every assertion below depends on', () => {
@@ -118,7 +111,7 @@ describe('nothing about permission has moved', () => {
     // clicks Monitoring gets "Not available on your account" rather than a page
     // of requests the server refuses.
     for (const path of Object.keys(ADMIN_PAGE_NAMES)) {
-      const route = APP_SOURCE.match(new RegExp(`path: '${path}',[^\\n]*`));
+      const route = APP_SOURCE.match(new RegExp(`path: '${path}',[\\s\\S]*?errorElement:`));
 
       expect(route, `${path} is no longer registered in App.tsx`).not.toBeNull();
       expect(route![0], `${path} is no longer wrapped in AdminOnly`).toContain('<AdminOnly>');

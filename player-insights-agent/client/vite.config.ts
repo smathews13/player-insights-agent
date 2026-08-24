@@ -14,6 +14,16 @@ export default defineConfig({
     outDir: path.resolve(__dirname, './dist'),
     emptyOutDir: true,
     sourcemap: process.env.NODE_ENV === 'development',
+    rollupOptions: {
+      output: {
+        // AppKit is shared by the eager shell and every lazy page. Keeping it
+        // outside app code lets a shell-only change reuse the large vendor
+        // chunk instead of invalidating it, while route chunks stay independent.
+        manualChunks(id) {
+          if (id.includes('/node_modules/@databricks/appkit-ui/')) return 'appkit-ui';
+        },
+      },
+    },
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react/jsx-dev-runtime', 'react/jsx-runtime', 'recharts'],

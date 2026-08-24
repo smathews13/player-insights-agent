@@ -61,7 +61,7 @@ function card(value: Answer): string {
       saveFeedback={async () => {}}
       showFeedback={false}
       showRunProcess={false}
-    />,
+    />
   );
 }
 
@@ -74,9 +74,11 @@ describe('answer evidence variants', () => {
   });
 
   it('renders charts and folds the Markdown table away when a chart exists', () => {
-    const markup = card(answer({
-      charts: [{ id: 'chart-1', title: 'Daily sessions', kind: 'line', data: [], layout: {} }],
-    }));
+    const markup = card(
+      answer({
+        charts: [{ id: 'chart-1', title: 'Daily sessions', kind: 'line', data: [], layout: {} }],
+      })
+    );
     expect(markup).toContain('Daily sessions');
     expect(markup).toContain('aria-label="Chart evidence"');
     // Charts XOR tables still holds on screen: the rows are not drawn beside the
@@ -93,9 +95,11 @@ describe('answer evidence variants', () => {
      * before this control there was nowhere to go for them. It also matters when a
      * panel will not draw: see the boundary test below.
      */
-    const markup = card(answer({
-      charts: [{ id: 'chart-1', title: 'Daily sessions', kind: 'line', data: [], layout: {} }],
-    }));
+    const markup = card(
+      answer({
+        charts: [{ id: 'chart-1', title: 'Daily sessions', kind: 'line', data: [], layout: {} }],
+      })
+    );
     expect(markup).toContain('Show the rows behind this');
   });
 
@@ -111,14 +115,17 @@ describe('answer evidence variants', () => {
     /*
      * Read off the source rather than by throwing from Plotly: the boundary is a
      * class component reached through `lazy`, and what has to be pinned is the wiring
-     * -- the panel telling the card, and the card opening the fold. Rendered, this
-     * needs a failing dynamic import, which is a chunk fetch this suite has no way
-     * to fail honestly.
+     * -- the panel telling the evidence section, and that section opening the fold.
+     * Rendered, this needs a failing dynamic import, which is a chunk fetch this
+     * suite has no way to fail honestly.
+     *
+     * The wiring sits in AnswerEvidence.tsx, which the Run Explorer shows too, so
+     * a chart that will not draw reaches its rows on both surfaces.
      */
-    const cardSource = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+    const evidenceSource = readFileSync(new URL('./AnswerEvidence.tsx', import.meta.url), 'utf8');
     const chartSource = readFileSync(new URL('./AnswerCharts.tsx', import.meta.url), 'utf8');
     expect(chartSource).toContain('this.props.onFailure?.()');
-    expect(cardSource).toContain('onFailure={() => setShowRows(true)}');
+    expect(evidenceSource).toContain('onFailure={() => setShowRows(true)}');
   });
 
   it('keeps every figure in the stat rail, including historical extras', () => {
@@ -201,7 +208,7 @@ describe('compact provenance and caveats', () => {
         sources={[{ name: 'main.game.daily', freshness: '', role: 'reading' }]}
         caveats={[]}
         derivation={[{ source: 'main.game.daily', metric: 'sessions', window: '7 days', filter: 'title = A' }]}
-      />,
+      />
     );
     expect(markup.match(/<p class="source-line">/g)).toHaveLength(1);
     expect(markup).toContain('Queried for the figures');
@@ -221,8 +228,40 @@ describe('compact provenance and caveats', () => {
 describe('responsive answer rail', () => {
   const css = partial('answer-body.css');
   it('wraps the stat rail below the card breakpoint without viewport coupling', () => {
-    expect(css).toContain('@container answer-card (max-width: 639px)');
-    expect(css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
+    // Still a container query and not a media query: the card's width is what
+    // decides this, and the card is one column of a three-column page, so a
+    // viewport width cannot answer for it.
+    expect(css).toMatch(/@container answer-card \(max-width: \d+px\)/);
+    expect(css).toContain('grid-template-columns: repeat(auto-fit, minmax(190px, 1fr))');
     expect(css).not.toMatch(/@media[^{]*\{[^}]*\.answer-stat-rail/s);
+  });
+
+  it('gives the prose the whole card until a side rail still leaves it a measure', () => {
+    /*
+     * The threshold was 639px while `.answer-card` carries `min-width:
+     * min(640px, 100%)`, so the stacked arrangement was unreachable on any
+     * ordinary window and the 190px side rail was effectively unconditional.
+     *
+     * That is what "the answer cards are too narrow" was. The middle column is
+     * `100vw` less a 264px rail and a 340px inspector, so a 1440px laptop gets a
+     * card about 730px wide; take the card's insets, the rail and its gap off
+     * that and the narrative is reading in roughly 450px.
+     *
+     * The number is derived, so this test states the derivation rather than the
+     * number: furniture is the rail, its gap, both card insets and both borders,
+     * and what is left at the threshold has to clear a real measure for 13px
+     * prose.
+     */
+    const threshold = Number(css.match(/@container answer-card \(max-width: (\d+)px\)/)?.[1] ?? 0);
+    const rail = Number(css.match(/\.answer-stat-rail \{[^}]*flex: 0 0 (\d+)px/s)?.[1] ?? 0);
+    const gap = Number(css.match(/\.answer-main-row \{[^}]*gap: (\d+)px/s)?.[1] ?? 0);
+    expect(rail).toBe(190);
+    const furniture = rail + gap + 24 * 2 + 2;
+    expect(threshold + 1 - furniture, 'the measure a side rail leaves the prose').toBeGreaterThanOrEqual(580);
+    // And the rail's own width and value size are one decision: 190px of box is
+    // 170px of text, and 16px DM Mono puts "3,118 player-days" at 163px. At the
+    // old 172/18px pair the last break opportunity that fitted was the HYPHEN,
+    // so the rail printed "3,118 player-" above "days".
+    expect(css).toMatch(/\.answer-stat-value \{[^}]*font-size: var\(--ast-fs-16\)/s);
   });
 });

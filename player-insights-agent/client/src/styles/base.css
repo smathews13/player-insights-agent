@@ -1,6 +1,34 @@
 * {
   box-sizing: border-box;
 }
+/*
+ * WHERE A PROGRAMMATIC SCROLL IS ALLOWED TO STOP.
+ *
+ * The document is the scroller on every page in this app: `.ask-layout`'s two
+ * side columns are `position: sticky` and the header is `sticky top-0`, so the
+ * window scrolls and these two declarations are what the browser measures
+ * `scrollIntoView` against.
+ *
+ * Both existed as bugs before they existed as rules, and both were read as the
+ * answer card "clipping behind" something:
+ *
+ *   - HomePage scrolls each new answer into view with `block: 'start'`, which
+ *     aligns the card's top edge with the top of the scrollport. The scrollport
+ *     starts behind the 52px header, so every answer opened with its provenance
+ *     chip and the first line of its takeaway hidden under the nav tabs. Not
+ *     clipped -- covered, and by a bar the reader cannot scroll away.
+ *   - The same effect ends a turn with `block: 'end'`, aligning the transcript's
+ *     end with the viewport's bottom, which is behind the fixed composer.
+ *
+ * Padding the scrollport rather than adding `scroll-margin` to each target: the
+ * offsets are facts about this page's chrome, not about the cards, and a margin
+ * per target is a list to keep in step with two tokens. Anything scrolled into
+ * view anywhere in the app now clears both bars.
+ */
+html {
+  scroll-padding-top: var(--app-header-h);
+  scroll-padding-bottom: var(--composer-reserve);
+}
 body {
   margin: 0;
   min-width: 320px;

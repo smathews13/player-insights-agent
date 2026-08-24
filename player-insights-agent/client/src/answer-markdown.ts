@@ -125,10 +125,7 @@ export type AnswerBlockSelection = 'all' | 'prose' | 'tables';
  * every character in the surviving blocks and avoids regex rules that can eat
  * a pipe used as prose or part of a fenced code block.
  */
-export function selectAnswerBlocks(
-  blocks: readonly Block[],
-  selection: AnswerBlockSelection,
-): Block[] {
+export function selectAnswerBlocks(blocks: readonly Block[], selection: AnswerBlockSelection): Block[] {
   if (selection === 'all') return [...blocks];
   return blocks.filter((block) => (selection === 'tables' ? block.kind === 'table' : block.kind !== 'table'));
 }
@@ -152,7 +149,8 @@ export interface TableStoryMetadata {
 }
 
 const TIME_HEADER = /^(?:date|day|week|month|quarter|period|time|timestamp)$/i;
-const TIME_CELL = /^(?:\d{4}(?:-\d{1,2}){0,2}|q[1-4]\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?(?:\s+\d{1,2},?)?\s+\d{4})$/i;
+const TIME_CELL =
+  /^(?:\d{4}(?:-\d{1,2}){0,2}|q[1-4]\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?(?:\s+\d{1,2},?)?\s+\d{4})$/i;
 
 function numericCell(nodes: readonly Inline[]): number | null {
   const text = inlineValue(nodes).replace(/[$€£,%\s]/g, '');
@@ -175,23 +173,23 @@ function numericCell(nodes: readonly Inline[]): number | null {
  */
 export function tableStoryMetadata(block: Extract<Block, { kind: 'table' }>): TableStoryMetadata {
   const heading = block.header?.cells[0] ? inlineValue(block.header.cells[0].children) : '';
-  const values = block.rows.map((row) => row.cells[0] ? inlineValue(row.cells[0].children) : '');
+  const values = block.rows.map((row) => (row.cells[0] ? inlineValue(row.cells[0].children) : ''));
   const timeSeries =
-    block.rows.length >= 2 &&
-    TIME_HEADER.test(heading) &&
-    values.every((value) => TIME_CELL.test(value));
+    block.rows.length >= 2 && TIME_HEADER.test(heading) && values.every((value) => TIME_CELL.test(value));
   if (!timeSeries) return { timeSeries: false };
   const measure = block.align.findIndex((align, column) => column > 0 && align === 'right');
-  const measured = measure < 0
-    ? []
-    : block.rows.map((row) => ({
-        start: row.start,
-        value: row.cells[measure] ? numericCell(row.cells[measure].children) : null,
-      }));
+  const measured =
+    measure < 0
+      ? []
+      : block.rows.map((row) => ({
+          start: row.start,
+          value: row.cells[measure] ? numericCell(row.cells[measure].children) : null,
+        }));
   const valid = measured.filter((entry): entry is { start: number; value: number } => entry.value !== null);
-  const peak = valid.length === block.rows.length
-    ? valid.reduce((highest, entry) => entry.value > highest.value ? entry : highest)
-    : null;
+  const peak =
+    valid.length === block.rows.length
+      ? valid.reduce((highest, entry) => (entry.value > highest.value ? entry : highest))
+      : null;
   return {
     timeSeries: true,
     baselineRowStart: block.rows[0].start,
@@ -480,7 +478,11 @@ const NUMERIC_CELL = /^[-+\u2212(]?\s*[$€£]?\s*\d+(?:,\d{3})*(?:\.\d+)?\s*%?\
  * prose in a column of numbers means the column is a mixed column, and a mixed
  * column read as digits sets its sentence flush against the column to its right.
  */
-function alignFor(column: number, declared: readonly (CellAlign | undefined)[] | undefined, rows: readonly RawRow[]): CellAlign {
+function alignFor(
+  column: number,
+  declared: readonly (CellAlign | undefined)[] | undefined,
+  rows: readonly RawRow[]
+): CellAlign {
   const stated = declared?.[column];
   if (stated) return stated;
   let figures = 0;
@@ -525,7 +527,9 @@ function tableRow(row: RawRow, width: number): TableRow {
     // Truncated to the header's width, which is GFM's rule and is also the only
     // safe one: an extra cell has no column, so no alignment and no heading, and
     // rendering it would put a figure under a heading that does not describe it.
-    cells: row.cells.slice(0, width).map((cell) => ({ start: cell.start, children: parseInline(cell.text, cell.start) })),
+    cells: row.cells
+      .slice(0, width)
+      .map((cell) => ({ start: cell.start, children: parseInline(cell.text, cell.start) })),
   };
 }
 
@@ -554,7 +558,13 @@ function tableBlock(raw: readonly RawRow[]): Block | undefined {
     align.push(alignFor(column, declared, body));
     wrap.push(wrapFor(column, body));
   }
-  const block: Block = { kind: 'table', start: raw[0].line.start, align, wrap, rows: body.map((row) => tableRow(row, width)) };
+  const block: Block = {
+    kind: 'table',
+    start: raw[0].line.start,
+    align,
+    wrap,
+    rows: body.map((row) => tableRow(row, width)),
+  };
   return header ? { ...block, header: tableRow(header, width) } : block;
 }
 
@@ -610,7 +620,10 @@ function fencedCode(lines: readonly SourceLine[], from: number): { block: Block;
       kind: 'code',
       start: lines[from].start,
       language,
-      text: lines.slice(from + 1, close).map((line) => line.text).join('\n'),
+      text: lines
+        .slice(from + 1, close)
+        .map((line) => line.text)
+        .join('\n'),
     },
     next: close + 1,
   };
@@ -713,7 +726,14 @@ export function parseAnswerMarkdown(source: string): Block[] {
     for (; index < lines.length; index += 1) {
       const current = lines[index];
       if (!current.text.trim()) break;
-      if (HEADING.test(current.text) || BULLET.test(current.text) || NUMBERED.test(current.text) || THEMATIC_BREAK.test(current.text) || FENCE.test(current.text)) break;
+      if (
+        HEADING.test(current.text) ||
+        BULLET.test(current.text) ||
+        NUMBERED.test(current.text) ||
+        THEMATIC_BREAK.test(current.text) ||
+        FENCE.test(current.text)
+      )
+        break;
       // A table that opens on the line after a sentence, with no blank line
       // between them, is still a table. Without this the paragraph swallowed it
       // and every row of it came out as pipes inside a run of prose -- which is
@@ -735,7 +755,8 @@ export function parseAnswerMarkdown(source: string): Block[] {
   return blocks;
 }
 
-function linkifyRuns(runs: readonly ProseSegment[],
+function linkifyRuns(
+  runs: readonly ProseSegment[],
   declared: readonly string[],
   tracked: readonly string[],
   columns: readonly string[]
@@ -770,7 +791,8 @@ function linkifyRuns(runs: readonly ProseSegment[],
  * LINK LABELS ARE NOT. An `<a>` inside an `<a>` is invalid HTML and the browser
  * un-nests it, so a table name inside a link the agent wrote stays plain text.
  */
-function linkifyInline(nodes: readonly Inline[],
+function linkifyInline(
+  nodes: readonly Inline[],
   declared: readonly string[],
   tracked: readonly string[],
   columns: readonly string[]
@@ -792,7 +814,8 @@ function linkifyInline(nodes: readonly Inline[],
  * for. The plan card passes the columns its own steps list, which is the only
  * payload in the app that states them.
  */
-export function answerBlocks(source: string,
+export function answerBlocks(
+  source: string,
   declared: readonly string[],
   tracked: readonly string[],
   columns: readonly string[] = []
@@ -844,10 +867,23 @@ export function answerBlocks(source: string,
  * heading inside an alert, so those surfaces take the inline constructs --
  * bold, code, links -- and leave a `##` as the characters the agent wrote.
  */
-export function answerInline(source: string,
+export function answerInline(
+  source: string,
   declared: readonly string[],
   tracked: readonly string[],
   columns: readonly string[] = []
 ): Inline[] {
   return linkifyInline(parseInline(source, 0), declared, tracked, columns);
+}
+
+/**
+ * Whether any of these bodies carries a table.
+ *
+ * What decides, in AnswerEvidence.tsx, whether there is anything to fold in
+ * behind a chart -- and so whether a chart that fails to paint takes the only
+ * copy of the numbers with it. Absent and empty bodies count as carrying
+ * nothing, so a caller can pass an optional second body without guarding it.
+ */
+export function carriesTable(...bodies: (string | null | undefined)[]): boolean {
+  return bodies.some((body) => (body ? parseAnswerMarkdown(body).some((block) => block.kind === 'table') : false));
 }

@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate, useLocation } from 'react-router';
 import { AccessGate } from './AccessGate';
-import { ConnectionsPage } from './ConnectionsPage';
 import { RouteError } from './RouteError';
 import { AdminOnly } from './GatePanel';
 import { HomePage } from './HomePage';
@@ -12,14 +11,14 @@ import { applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
 import { useRuntimeEntityStyles } from './runtime-entity-styles';
 
 /**
- * The five pages that are fetched when somebody opens them, not when the app
+ * The six pages that are fetched when somebody opens them, not when the app
  * opens.
  *
  * ASK PIA IS DELIBERATELY NOT ONE OF THEM. It is the page nearly every visit
  * lands on, so splitting it would put a network round trip in front of the one
- * route that must be instant. Connections and Settings stay eager for the same
- * reason at a smaller scale: the storage banner links to Connections from every
- * page in the app, and the gear is one click from anywhere.
+ * route that must be instant. Connections is linked from every page, but a link
+ * is still an explicit navigation and its large diagnostics surface should not
+ * be paid for by an Ask-only visit. Settings is split at the click in Layout.
  *
  * These five are the opposite case. Monitoring and Ops are behind `AdminOnly`,
  * which renders nothing for a consumer -- so the import below is never even
@@ -33,8 +32,11 @@ import { useRuntimeEntityStyles } from './runtime-entity-styles';
  * BenchmarkLab is referenced here BY PATH ONLY and its contents are somebody
  * else's work in flight; this file must not be the reason that file changes.
  */
-const ArchitecturePage = lazy(() => import('./ArchitecturePage').then((loaded) => ({ default: loaded.ArchitecturePage })));
+const ArchitecturePage = lazy(() =>
+  import('./ArchitecturePage').then((loaded) => ({ default: loaded.ArchitecturePage }))
+);
 const BenchmarkLab = lazy(() => import('./BenchmarkLab').then((loaded) => ({ default: loaded.BenchmarkLab })));
+const ConnectionsPage = lazy(() => import('./ConnectionsPage').then((loaded) => ({ default: loaded.ConnectionsPage })));
 const MonitoringPage = lazy(() => import('./MonitoringPage').then((loaded) => ({ default: loaded.MonitoringPage })));
 const OpsPage = lazy(() => import('./OpsPage').then((loaded) => ({ default: loaded.OpsPage })));
 const RunExplorer = lazy(() => import('./RunExplorer').then((loaded) => ({ default: loaded.RunExplorer })));
@@ -109,10 +111,24 @@ const router = createBrowserRouter([
       // is off. Components and server routes stay in the tree either way.
       {
         path: '/benchmarks',
-        element: <BenchmarkingVisibility><LazyRoute><BenchmarkLab /></LazyRoute></BenchmarkingVisibility>,
+        element: (
+          <BenchmarkingVisibility>
+            <LazyRoute>
+              <BenchmarkLab />
+            </LazyRoute>
+          </BenchmarkingVisibility>
+        ),
         errorElement: <RouteError />,
       },
-      { path: '/runs', element: <LazyRoute><RunExplorer /></LazyRoute>, errorElement: <RouteError /> },
+      {
+        path: '/runs',
+        element: (
+          <LazyRoute>
+            <RunExplorer />
+          </LazyRoute>
+        ),
+        errorElement: <RouteError />,
+      },
       // THE THREE ADMIN ROUTES, and the wrapper is the whole of what makes them
       // different from the routes above.
       //
@@ -130,10 +146,46 @@ const router = createBrowserRouter([
       // page so there is one decision for all three, and so the wrapper reads
       // the page's name from the same record that decides which paths are admin
       // paths.
-      { path: '/monitoring', element: <AdminOnly><LazyRoute><MonitoringPage /></LazyRoute></AdminOnly>, errorElement: <RouteError /> },
-      { path: '/ops', element: <AdminOnly><LazyRoute><OpsPage /></LazyRoute></AdminOnly>, errorElement: <RouteError /> },
-      { path: '/settings', element: <AdminOnly><HomePage /></AdminOnly>, errorElement: <RouteError /> },
-      { path: '/connections', element: <ConnectionsPage />, errorElement: <RouteError /> },
+      {
+        path: '/monitoring',
+        element: (
+          <AdminOnly>
+            <LazyRoute>
+              <MonitoringPage />
+            </LazyRoute>
+          </AdminOnly>
+        ),
+        errorElement: <RouteError />,
+      },
+      {
+        path: '/ops',
+        element: (
+          <AdminOnly>
+            <LazyRoute>
+              <OpsPage />
+            </LazyRoute>
+          </AdminOnly>
+        ),
+        errorElement: <RouteError />,
+      },
+      {
+        path: '/settings',
+        element: (
+          <AdminOnly>
+            <HomePage />
+          </AdminOnly>
+        ),
+        errorElement: <RouteError />,
+      },
+      {
+        path: '/connections',
+        element: (
+          <LazyRoute>
+            <ConnectionsPage />
+          </LazyRoute>
+        ),
+        errorElement: <RouteError />,
+      },
       // The same connections as a diagram. Registered before the nav advertises
       // it, for the reason /benchmarks is: a URL that works is not contingent on
       // a header entry existing.
@@ -141,7 +193,15 @@ const router = createBrowserRouter([
       // code-split does not change that: the results live in the session store
       // `session-checks.ts` holds, outside any component, so this route's chunk
       // arriving late means the page mounts late -- not that it mounts empty.
-      { path: '/architecture', element: <LazyRoute><ArchitecturePage /></LazyRoute>, errorElement: <RouteError /> },
+      {
+        path: '/architecture',
+        element: (
+          <LazyRoute>
+            <ArchitecturePage />
+          </LazyRoute>
+        ),
+        errorElement: <RouteError />,
+      },
       // Sources & Capabilities was merged into Connections: it reported the same
       // preflight the settings route already runs, and the two pages were
       // indistinguishable to the people they were for. The redirect carries the
@@ -175,7 +235,8 @@ export default function App() {
   // Outside the router on purpose: the choice is about the session rather than
   // about a page, and asking again on every navigation would train people to
   // dismiss it without reading, which is the opposite of what it is for.
-  return (<AccessGate>
+  return (
+    <AccessGate>
       <RouterProvider router={router} />
     </AccessGate>
   );

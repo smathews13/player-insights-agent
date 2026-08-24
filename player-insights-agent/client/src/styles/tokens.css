@@ -348,6 +348,27 @@
    */
   --conversation-measure: 1120px;
 
+  /*
+   * The room the fixed composer needs at the bottom of the transcript.
+   *
+   * A TOKEN BECAUSE THREE RULES NEED THE SAME FIGURE AND ONE OF THEM IS NOT A
+   * PADDING. `.conversation-main` pads by it so the last card can be scrolled
+   * clear of the box; `html` uses it as `scroll-padding-bottom` so that the
+   * `scrollIntoView({ block: 'end' })` which follows a new question stops ABOVE
+   * the composer instead of aligning the transcript's end with the viewport's --
+   * which put the end of the answer underneath the box the reader types in.
+   *
+   * The arithmetic: the composer is a 54px field over a 49px action strip inside
+   * a 1px border, which is 105px, and it floats 20px off the bottom. That is
+   * 125px of occupied screen at its shortest. It grows: an attachment row adds
+   * about 60px, the "could not read that document" notice about 30, and below
+   * 1180px the run summary strip adds about 35 more. 220px covers the field with
+   * attachments and a notice at once, which is the tallest state a reader gets
+   * to without also being in the narrow band. It is deliberately generous --
+   * over-reserving costs a scroll of empty sky, under-reserving hides an answer.
+   */
+  --composer-reserve: 220px;
+
   /* ---- appkit-ui / shadcn semantic mapping ---- */
   --background: #ffffff;
   --foreground: var(--db-ink);
@@ -499,5 +520,17 @@ html[data-theme='dark'] {
   --ring: var(--ast-ice-accent);
   --chart-1: var(--ast-ice-accent);
   --chart-3: var(--ast-blue-on-dark);
+  /*
+   * The grey-blue's form on a navy surface, and the reason it is moved at all: the
+   * light value is #445461, which measures 2.31:1 against this theme's --background.
+   * A graphic needs 3:1 to be seen, so a fourth series was a line that was present,
+   * correct and invisible. The secondary text slate is already this hue's
+   * dark-surface counterpart and comes out at 6.22:1, so the palette keeps its shape
+   * rather than gaining a colour.
+   *
+   * --chart-2 is deliberately not moved. The teal measures 4.05:1 here, which clears
+   * the floor, and it is the one hue in the four that is not a blue -- lightening it
+   * would cost the separation that makes it worth having.
+   */
+  --chart-4: var(--ast-text-on-dark-secondary);
 }
-

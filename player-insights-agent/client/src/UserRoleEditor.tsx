@@ -161,6 +161,7 @@ export function RosterRows({
                 {entry.canRemove ? (
                   <Button
                     variant="destructive"
+                    data-variant="destructive"
                     className="settings-destructive"
                     size="sm"
                     disabled={busy}

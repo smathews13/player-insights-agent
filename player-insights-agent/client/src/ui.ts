@@ -7,7 +7,9 @@
  * is expected to extend it. `no-restricted-imports` in eslint.config.js keeps
  * the rest of the client importing from here rather than around it.
  *
- * Everything else AppKit exports passes straight through untouched.
+ * Only the components this app uses pass through. An export-star makes every
+ * future AppKit surface reachable from the shell barrel, including chart and
+ * Arrow code that no app import asked for.
  */
 
 import { createElement } from 'react';
@@ -16,7 +18,48 @@ import { Input as AppKitInput, Textarea as AppKitTextarea } from '@databricks/ap
 import { withPasswordManagerOptOut } from './password-manager-optout';
 import type { PasswordManagerOptOutProps } from './password-manager-optout';
 
-export * from '@databricks/appkit-ui/react';
+export {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  Progress,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  Separator,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  Skeleton,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@databricks/appkit-ui/react';
 export { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
 export type { PasswordManagerOptOutProps } from './password-manager-optout';
 

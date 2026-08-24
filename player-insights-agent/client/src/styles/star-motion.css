@@ -1,0 +1,167 @@
+/*
+ * Ambient star motion is isolated on the app's fixed decorative SVG. Nothing in
+ * the content tree inherits an animation, and every animated property below is
+ * either opacity or transform so a frame cannot change layout or repaint text.
+ */
+.app-sky[data-star-motion-field] {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
+ * The gate is the one sky that is a page in its own right rather than a dark
+ * theme decoration. It therefore paints navy in either theme and sits directly
+ * under the dialog's z-index 60. The two-class selector intentionally ties the
+ * light-theme ban in base.css and wins by later import order; changing that
+ * shared rule would make every app page eligible for stars in daylight.
+ */
+html .app-sky.gate-star-motion {
+  display: block;
+  z-index: 59;
+  background: var(--ast-sky-fill);
+}
+
+.app-sky[data-star-motion-field] circle,
+.app-sky[data-star-motion-field] circle.app-sky-glyph {
+  fill: var(--ast-white);
+  stroke: none;
+}
+
+.app-sky[data-star-motion-field] [data-star-motion='anchor'] {
+  animation-name: ast-tw;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.star-motion-faint {
+  animation-name: ast-tw2;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.star-motion-glow {
+  fill: none;
+  stroke: var(--ast-blue-on-dark);
+  stroke-width: 1px;
+  opacity: 0.35;
+  animation-name: ast-glow;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.star-motion-drift {
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+.star-motion-drift-anchor {
+  animation-name: ast-drift;
+  animation-duration: 90s;
+}
+
+.star-motion-drift-faint {
+  animation-name: ast-drift2;
+  animation-duration: 70s;
+}
+
+/*
+ * The login card is mounted over the Ask route, so its ambient SVG initially has
+ * the Ask treatment. The gate keeps twinkle and connector glow but stops drift:
+ * a fixed card against a sliding sky made the card appear to move. `:has` reads
+ * the real gate rather than introducing a second theme or route state in React.
+ */
+html:has(.first-open) .star-motion-drift {
+  animation: none;
+  transform: translate(0, 0);
+}
+
+/*
+ * The agent path is the motion owner while a step is live. The ambient layer is
+ * page-wide rather than nested in the panel, so pausing its faint stars pauses
+ * the portion visible through that panel without adding another SVG to the page.
+ */
+html:has(.ast-link-live) .star-motion-faint {
+  animation-play-state: paused;
+  opacity: 0.32;
+}
+
+@keyframes ast-tw {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes ast-tw2 {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes ast-drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(-14px, 8px);
+  }
+}
+
+@keyframes ast-drift2 {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(10px, -6px);
+  }
+}
+
+@keyframes ast-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+/*
+ * `animation: none` is intentional rather than a very long duration: reduced
+ * motion means no timeline exists. Explicit resting opacities prevent inline
+ * animation state or the old dark-mode sky rules from leaving a star frozen at
+ * an arbitrary point in its pulse.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .app-sky[data-star-motion-field] [data-star-motion='anchor'],
+  .app-sky[data-star-motion-field] [data-star-motion='anchor-still'] {
+    animation: none;
+    opacity: 0.7;
+  }
+
+  .app-sky[data-star-motion-field] .star-motion-faint {
+    animation: none;
+    opacity: 0.32;
+  }
+
+  .app-sky[data-star-motion-field] .star-motion-glow {
+    animation: none;
+    opacity: 0.35;
+  }
+
+  .app-sky[data-star-motion-field] .star-motion-drift {
+    animation: none;
+    transform: translate(0, 0);
+  }
+}

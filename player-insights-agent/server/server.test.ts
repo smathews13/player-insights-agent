@@ -32,7 +32,8 @@ describe('the serving plugin is not registered', () => {
     const plugins = /plugins:\s*\[([^\]]*)\]/.exec(source);
 
     expect(plugins, 'could not find the plugins array in server/server.ts').not.toBeNull();
-    expect(plugins?.[1],
+    expect(
+      plugins?.[1],
       'serving() is back in server/server.ts. It republishes /api/serving/invoke, ' +
         'which drops custom_inputs at two allowlists. Use the insights route transport instead.'
     ).not.toMatch(/\bserving\s*\(/);
@@ -48,12 +49,14 @@ describe('the serving plugin is not registered', () => {
 });
 
 describe('deployment config is not runtime role authority', () => {
-  it('persists the greenfield bootstrap before the app begins serving', () => {
+  it('starts the greenfield bootstrap in the background after migrations', () => {
     const source = serverSourceWithoutComments();
 
-    expect(source).toContain('await bootstrapSeedRoles(appkit.lakebase)');
+    expect(source).toContain('.then(() => bootstrapSeedRoles(appkit.lakebase))');
     expect(source).not.toContain('announceSeedAdmins(');
-    expect(source.indexOf('await storeReady')).toBeLessThan(source.indexOf('await bootstrapSeedRoles'));
+    expect(source).not.toContain('await storeReady');
+    expect(source.indexOf('storeReady')).toBeLessThan(source.indexOf('bootstrapSeedRoles(appkit.lakebase)'));
+    expect(source).toMatch(/rolesReady:\s*\(\)\s*=>\s*readiness\.roles/);
   });
 });
 
@@ -68,7 +71,8 @@ describe('the allowlist that made the plugin unsafe', () => {
     const appkit = require.resolve('@databricks/appkit');
     const filterPath = path.join(path.dirname(appkit), 'plugins/serving/schema-filter.js');
     const module = (await import(pathToFileURL(filterPath).href)) as {
-      filterRequestBody: (body: Record<string, unknown>,
+      filterRequestBody: (
+        body: Record<string, unknown>,
         allowlists: Map<string, Set<string>>,
         alias: string,
         filterMode?: 'strip' | 'reject'

@@ -56,6 +56,7 @@ import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // the two seatings cannot come apart. See GithubMark.tsx.
 import { GithubMark } from './GithubMark';
 import { OpeningSequence } from './OpeningSequence';
+import { StarField } from './StarField';
 import {
   RISE_SETTLE_MS,
   gateRiseMs,
@@ -670,7 +671,7 @@ export function useFirstOpen(identity: Identity): FirstOpen {
   const card = intro ? null : (
     <FirstOpenPanel
       report={report}
-      onSky={sequence}
+      onSky
       rising={rising}
       leaving={leaving}
       onContinue={leave(acknowledgeFirstOpen)}
@@ -696,11 +697,20 @@ export function useFirstOpen(identity: Identity): FirstOpen {
     stage,
     gate: (
       <>
-        {/* The sky stays for as long as the gate does, because the spec has the
-            constellation still drawing behind it. `intro` is what ends: the concepts
-            and the wordmark stop once the card is up, and `leaving` is what sends
-            the stars to the lockup and takes the whole layer with them. */}
-        {sequence ? <OpeningSequence intro={intro} leaving={leaving} /> : null}
+        {/*
+         * The opening animation is a loader and keeps its established drawing
+         * rules only while it is actually introducing the app. Once the gate is
+         * readable, the ambient field takes over: its travel is capped at 14px,
+         * its cycles are at least six seconds, and reduced motion is genuinely
+         * static. Keeping OpeningSequence behind the card made two independent
+         * star SVGs occupy one page and let its long login-transition travel
+         * violate the ambient sky's movement ceiling.
+         */}
+        {sequence && intro ? (
+          <OpeningSequence intro />
+        ) : (
+          <StarField pageId="login-gate" surface="ask" className="gate-star-motion" />
+        )}
         {card}
       </>
     ),

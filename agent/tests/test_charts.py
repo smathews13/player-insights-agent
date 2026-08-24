@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -7,13 +8,18 @@ import pytest
 from charts import (
     AMBER,
     AMBER_DEEP,
+    AXIS_TITLE_STANDOFF,
     BLUE,
     BLUE_LIGHT,
     EMPHASIS,
     FILL_SERIES,
+    FLAT_TICK_CHAR_BUDGET,
     FONT_MONO,
     FONT_SANS,
     GREY_BLUE,
+    GRID,
+    HORIZONTAL_BAR_LONGEST_LABEL_CHARS,
+    HORIZONTAL_BAR_MIN_CATEGORIES,
     INK,
     LINE,
     MAX_PIE_SLICES,
@@ -44,6 +50,48 @@ def _bar(**overrides):
     trace = {"type": "bar", "x": ["a", "b", "c"], "y": [3, 2, 1]}
     trace.update(overrides)
     return trace
+
+
+# The two cards one stored spec is drawn on.
+#
+# A chart's colours are fixed when the answer is produced and the surface is not: the same
+# spec is read back on a white card in daylight and on the night sky. Both are named here so
+# a colour can be checked against each of them rather than against white alone.
+LIGHT_CARD = "#ffffff"
+DARK_CARD = "#1f252a"  # --ast-navy (#11171c) under the dark theme's 5% white card wash
+
+
+def _over(colour: str, backdrop: str) -> str:
+    """`colour` composited onto an opaque `backdrop`, as a six-digit hex.
+
+    The gridline is deliberately an rgba wash rather than a hex, so that it resolves against
+    whatever card it lands on. Checking it therefore means doing the compositing a browser
+    would do; a test that read the alpha notation literally would be checking the string.
+    """
+
+    parts = re.fullmatch(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)", colour.strip())
+    assert parts, f"not an rgba colour: {colour!r}"
+    alpha = float(parts.group(4))
+    under = [int(backdrop.lstrip("#")[at : at + 2], 16) for at in (0, 2, 4)]
+    mixed = (round(int(parts.group(i + 1)) * alpha + under[i] * (1 - alpha)) for i in range(3))
+    return "#" + "".join(f"{channel:02x}" for channel in mixed)
+
+
+def _luminance(colour: str) -> float:
+    """Relative luminance, read back out of the one contrast helper the module exports.
+
+    `contrast_on_white` is `1.05 / (L + 0.05)`, so inverting it gives L without this file
+    reimplementing the sRGB curve or reaching for a private function to borrow it.
+    """
+
+    return 1.05 / contrast_on_white(colour) - 0.05
+
+
+def _contrast(one: str, other: str) -> float:
+    """WCAG contrast ratio between two opaque colours, in either order."""
+
+    lighter, darker = sorted((_luminance(one), _luminance(other)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
 
 
 # Real title names from the dataset the app is pointed at, at roughly the shares it
@@ -281,7 +329,127 @@ class TestType:
     def test_axis_and_tick_labels_are_the_secondary_ink(self):
         layout = new_plot([_bar()]).layout
         assert layout["yaxis"]["tickfont"]["color"] == SLATE
-        assert layout["yaxis"]["gridcolor"] == LINE
+        # `GRID` rather than `LINE`: see TestGridlinesSitUnderTheData. `LINE` is still the
+        # hairline on a white surface, and the hover label is what is left using it.
+        assert layout["yaxis"]["gridcolor"] == GRID
+        assert layout["hoverlabel"]["bordercolor"] == LINE
+
+
+class TestGridlinesSitUnderTheData:
+    """The bug Sam reported from the night sky: the grid was the brightest thing in the panel.
+
+    A bar chart of active players came back with horizontal gridlines in near-white. They
+    read as the subject of the figure and the bars read as something drawn behind the
+    scaffolding, which is the wrong way round — a gridline exists to let a reader put a value
+    on a mark, and it has finished its job the moment it can be seen.
+
+    The cause was that the spec named `#EBEBEB`, which is a gridline on a white card and a
+    12.6:1 rule on a dark one. These tests are about the value being a WASH instead, because
+    a wash is the only kind of colour that can be baked into a stored spec and still land
+    correctly on two different surfaces.
+    """
+
+    def test_the_gridline_is_a_wash_rather_than_a_fixed_grey(self):
+        """The property everything else here depends on. A hex has one lightness and has to
+        lose on one of the two cards; an alpha composites, so it darkens white and lightens
+        navy by the same amount and comes out a gridline on both."""
+
+        assert GRID.startswith("rgba(")
+        layout = new_plot([_bar()]).layout
+        assert layout["yaxis"]["gridcolor"] == GRID
+
+    def test_the_gridline_is_legible_on_both_cards_and_dominant_on_neither(self):
+        """The number that matters, measured on each surface rather than argued about.
+
+        Above 1.2:1 so a reader can see the line to measure against. Below 2:1 so it stays
+        under every series colour in the palette, the palest of which clears 3:1 on white.
+        """
+
+        for card in (LIGHT_CARD, DARK_CARD):
+            drawn = _contrast(_over(GRID, card), card)
+            assert 1.2 <= drawn <= 2.0, (card, drawn)
+
+    def test_the_two_cards_get_very_nearly_the_same_gridline(self):
+        """The property that lets ONE baked value serve two themes, and the reason an alpha
+        was chosen over picking a compromise grey. If these drifted apart, the chart would be
+        correct in one theme and wrong in the other, which is where it started."""
+
+        light = _contrast(_over(GRID, LIGHT_CARD), LIGHT_CARD)
+        dark = _contrast(_over(GRID, DARK_CARD), DARK_CARD)
+        assert abs(light - dark) < 0.2, (light, dark)
+
+    def test_the_near_white_gridline_that_caused_this_cannot_come_back(self):
+        """Stated as the defect rather than as the fix: `LINE` on the night sky is a rule at
+        more than ten to one against the card, brighter than any bar the palette can draw.
+        It is still the right hairline on a white tooltip, so it stays in the module — this
+        pins the one place it must not be used again."""
+
+        assert _contrast(LINE, DARK_CARD) > 10
+        assert _contrast(_over(GRID, DARK_CARD), DARK_CARD) < 2
+        for chart in _figures():
+            for path, value in _leaves(chart):
+                if path.endswith(("gridcolor", "zerolinecolor", "linecolor")):
+                    assert value != LINE, path
+
+    def test_the_grid_is_never_brighter_than_a_series_drawn_on_its_own_weight(self):
+        """The complaint in one assertion, over the colours it applies to: the four palette
+        hues, which are the ones `_paint` leaves bare. On either card each of them has to
+        out-contrast the lines drawn behind it, or the figure is scaffolding with data in it.
+        """
+
+        for card in (LIGHT_CARD, DARK_CARD):
+            grid = _contrast(_over(GRID, card), card)
+            for series in STROKE_SERIES:
+                assert _contrast(series, card) > grid, (card, series)
+
+    def test_a_pale_tint_is_carried_by_its_outline_and_not_by_its_own_weight(self):
+        """Series five to eight are tints, and they are PALER than the gridline on a white
+        card — `--chart-3` at 30% is 1.36:1 against the card where the grid is 1.44:1. That
+        is not a defect and it is why the outline rule exists: what separates a tint from the
+        card is the ink edge drawn round it, so the edge is what has to clear the grid.
+
+        Written down because the obvious version of the test above — every fill beats the
+        grid — is false here, and a reader who tightened it would be reverting a working rule.
+        """
+
+        tint = FILL_SERIES[6]
+        grid = _contrast(_over(GRID, LIGHT_CARD), LIGHT_CARD)
+        assert _contrast(tint, LIGHT_CARD) < grid
+        outline = new_plot([_bar(marker={"color": tint})]).data[0]["marker"]["line"]
+        assert outline["color"] == INK
+        assert _contrast(INK, LIGHT_CARD) > grid
+
+    def test_the_zero_line_cannot_outrank_the_grid_it_sits_among(self):
+        """Plotly draws the zero line INSTEAD of the gridline at zero, and at its own default
+        it came out as a second, brighter rule across the panel — a line with no more to say
+        than any other and more weight than all of them. Muted to the same wash, it reads as
+        one of the grid rather than as a threshold somebody chose."""
+
+        layout = new_plot([_bar()]).layout
+        assert layout["yaxis"]["zerolinecolor"] == GRID
+        assert layout["yaxis"]["gridcolor"] == layout["yaxis"]["zerolinecolor"]
+
+    def test_an_axis_of_names_has_no_zero_line_at_all(self):
+        """There is no zero on an axis of category names, so there is nothing for a zero line
+        to mark. Left on, Plotly ruled the panel at the first category's edge, which is a
+        line a reader has to work out the meaning of before dismissing it."""
+
+        vertical = new_plot([_bar()]).layout
+        assert vertical["xaxis"]["zeroline"] is False
+        assert "zeroline" not in vertical["yaxis"]
+        horizontal = new_plot([_bar(orientation="h")]).layout
+        assert horizontal["yaxis"]["zeroline"] is False
+        assert "zeroline" not in horizontal["xaxis"]
+
+    def test_the_grid_is_only_ever_on_the_axis_carrying_the_values(self):
+        """Gridlines across the categories measure nothing: a name has no magnitude to read
+        off a rule. This is the existing rule, pinned alongside the colour because the two
+        together are what stops the grid competing — fewer lines and quieter ones."""
+
+        assert new_plot([_bar()]).layout["xaxis"]["showgrid"] is False
+        assert new_plot([_bar()]).layout["yaxis"]["showgrid"] is True
+        assert new_plot([_bar(orientation="h")]).layout["yaxis"]["showgrid"] is False
+        assert new_plot([_bar(orientation="h")]).layout["xaxis"]["showgrid"] is True
 
 
 class TestValuesOffTheFills:
@@ -410,7 +578,9 @@ class TestLayout:
     def test_model_supplied_layout_survives_the_defaults(self):
         chart = new_plot([_bar()], {"barmode": "stack", "yaxis": {"title": {"text": "Players"}}})
         assert chart.layout["barmode"] == "stack"
-        assert chart.layout["yaxis"]["title"] == {"text": "Players"}
+        # The text is the model's and survives; the standoff beside it is the layout's, and
+        # is checked in TestTheFigureReservesItsOwnLabelSpace rather than pinned here.
+        assert chart.layout["yaxis"]["title"]["text"] == "Players"
         # ...and is merged with them rather than replacing them.
         assert chart.layout["yaxis"]["gridcolor"]
 
@@ -562,25 +732,41 @@ class TestTheFigureReservesItsOwnLabelSpace:
         assert len(margins) == 1
 
     def test_a_tick_angle_the_model_asked_for_is_dropped(self):
-        """A fixed angle is a guess about text width. Too shallow and long names collide,
-        too steep and short ones sprawl for nothing. Plotly picks it from the real text."""
+        """A fixed angle from the model is a guess about text width made by the one party
+        that has never seen the drawn text. Three short names have room to lie flat, so the
+        -45 is not honoured and not left to Plotly either: it becomes a flat axis."""
 
         layout = new_plot([_bar()], {"xaxis": {"tickangle": -45}}).layout
-        assert "tickangle" not in layout["xaxis"]
+        assert layout["xaxis"]["tickangle"] == 0
 
     def test_the_model_keeps_the_axis_titles_it_set(self):
         layout = new_plot([_bar()], {"xaxis": {"title": {"text": "Title"}, "tickangle": 90}}).layout
-        assert layout["xaxis"]["title"] == {"text": "Title"}
+        assert layout["xaxis"]["title"]["text"] == "Title"
 
 
 class TestLongCategoryNames:
-    """The policy is wrapping, not a rotation angle. Wrapping bounds the height the axis
-    can ask for whatever the names turn out to be, and leaves the angle to Plotly."""
+    """The policy is never a rotation angle. It is two rules that hand off to each other:
+    a crowded axis of long names turns the chart on its side (TestBarsTurnOnTheirSide), and
+    whatever stays on the bottom axis gets wrapped. Wrapping bounds the height the axis can
+    ask for whatever the names turn out to be."""
+
+    #: Few enough categories to stay vertical, so this class can test the wrap itself.
+    #:
+    #: Five and not eleven: at six long names the chart now turns on its side and there is
+    #: no bottom axis left to wrap. Wrapping is what serves the charts BELOW that threshold,
+    #: which is what these tests are about.
+    FEW_TITLES = [
+        "VLH Online",
+        "Hoops 26",
+        "Dynasty VII",
+        "Outfit: Old Harbor",
+        "Scrapline 4",
+    ]
 
     def test_a_long_name_is_broken_over_lines_rather_than_left_as_one_string(self):
-        chart = new_plot([{"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES}])
+        chart = new_plot([{"type": "bar", "x": self.FEW_TITLES, "y": [5, 4, 3, 2, 1]}])
         assert chart.data[0]["x"][2] == "Sid Meier's<br>Dynasty<br>VII"
-        assert chart.data[0]["x"][9] == "Outfit: The Old<br>Country"
+        assert chart.data[0]["x"][3] == "Outfit: The Old<br>Country"
 
     def test_a_short_name_is_left_exactly_as_it_arrived(self):
         chart = new_plot([{"type": "bar", "x": ["north", "south"], "y": [2, 1]}])
@@ -628,6 +814,371 @@ class TestLongCategoryNames:
             [{"type": "scatter", "mode": "lines", "x": ["2026-01-01", "2026-02-01"], "y": [1, 2]}]
         )
         assert chart.data[0]["x"] == ["2026-01-01", "2026-02-01"]
+
+
+class TestBarsTurnOnTheirSide:
+    """The other half of the bug Sam reported: the axis of vertical game titles.
+
+    Eleven titles along the bottom of a half-width panel could not fit side by side however
+    they were wrapped, so Plotly did the only thing left to it and rotated them to ninety
+    degrees. The result was a row of tall vertical strings read one character at a time, with
+    the axis title stranded in the middle of them.
+
+    Wrapping cannot fix that, because wrapping bounds HEIGHT and what the axis was short of
+    was WIDTH. Turning the chart on its side removes the constraint instead of negotiating
+    with it: every category gets its own row, so a name reads left to right at full length,
+    and the left margin can grow into the panel's width — which is the direction there is
+    room in, since the card fixes the height.
+
+    The decision is made from the result set, because that is what this module has. The model
+    has never seen the figure and cannot measure drawn text, which is the same reason it does
+    not choose the tick angle or the legend's edge.
+    """
+
+    #: Twelve characters, which is `HORIZONTAL_BAR_LONGEST_LABEL_CHARS` exactly.
+    LONG = [f"Category {index:03d}" for index in range(12)]
+    #: Eleven characters, one under the threshold.
+    SHORT = [f"Region {index:04d}" for index in range(12)]
+
+    def _names(self, chart) -> list[Any]:
+        """The category names, from whichever axis ended up carrying them."""
+
+        return chart.data[0]["y"] if chart.data[0].get("orientation") == "h" else chart.data[0]["x"]
+
+    def _flipped(self, names: list[str]) -> bool:
+        chart = new_plot([{"type": "bar", "x": names, "y": list(range(len(names), 0, -1))}])
+        return chart.data[0].get("orientation") == "h"
+
+    def test_the_reported_chart_reads_its_names_down_the_left(self):
+        """The figure that started this: eleven real game titles, one measure, ranked."""
+
+        chart = new_plot([{"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES}])
+        assert chart.data[0]["orientation"] == "h"
+        assert chart.data[0]["y"] == LONG_TITLES
+        assert chart.data[0]["x"] == LONG_SHARES
+
+    def test_a_flipped_name_is_left_whole_instead_of_being_wrapped_or_cut(self):
+        """The point of the flip. `Dynasty VII` was three wrapped lines
+        turned on its end; down the left it is one line of plain text."""
+
+        chart = new_plot([{"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES}])
+        assert "Dynasty VII" in chart.data[0]["y"]
+        assert not any("<br>" in name for name in chart.data[0]["y"])
+        assert not any(name.endswith("\u2026") for name in chart.data[0]["y"])
+
+    def test_five_long_names_stay_along_the_bottom_and_six_turn_the_chart_round(self):
+        """The category-count boundary, checked on both sides of it.
+
+        Up to five bars a half-width panel has room for a short name under each; from six the
+        names start sharing space and Plotly begins tilting them. A test either side is what
+        stops the threshold being quietly changed to whatever the current dataset needs.
+        """
+
+        assert self._flipped(self.LONG[:HORIZONTAL_BAR_MIN_CATEGORIES]) is True
+        assert self._flipped(self.LONG[: HORIZONTAL_BAR_MIN_CATEGORIES - 1]) is False
+
+    def test_eleven_character_names_stay_along_the_bottom_and_twelve_turn_it_round(self):
+        """The label-length boundary. Both sets have the same number of categories and differ
+        only in how long one name is, so nothing but the length can explain the difference."""
+
+        assert len(self.LONG[0]) == HORIZONTAL_BAR_LONGEST_LABEL_CHARS
+        assert len(self.SHORT[0]) == HORIZONTAL_BAR_LONGEST_LABEL_CHARS - 1
+        assert self._flipped(self.LONG) is True
+        assert self._flipped(self.SHORT) is False
+
+    def test_one_long_name_among_short_ones_is_enough_to_turn_it_round(self):
+        """The longest name sets the width the axis has to find, so the test is on the longest
+        and not on the average. A breakdown where a single title runs long is exactly the case
+        that rotated: Plotly tilts the whole axis to fit its worst label."""
+
+        assert self._flipped(self.SHORT[:5] + [self.LONG[0]]) is True
+
+    def test_a_bar_chart_of_periods_keeps_its_dates_along_the_bottom(self):
+        """A bar chart of months is a time series drawn with bars. Down the left it would run
+        bottom to top, which is not a direction anybody reads a date in, so it keeps the
+        bottom axis and takes the rotation. The same cautious `any` as the ordering rule:
+        one period among the names is enough."""
+
+        months = [f"2026-{month:02d}" for month in range(1, 13)]
+        assert self._flipped(months) is False
+        assert self._flipped(months[:5] + ["Unknown"] + self.LONG[:6]) is False
+
+    def test_a_declared_date_or_numeric_axis_is_never_turned_round(self):
+        """The model saying the axis is a date axis is better evidence than the shape of the
+        strings on it, so it is believed even where the regex above would not have fired."""
+
+        for kind in ("date", "linear", "log"):
+            chart = new_plot(
+                [{"type": "bar", "x": self.LONG, "y": list(range(12))}], {"xaxis": {"type": kind}}
+            )
+            assert chart.data[0].get("orientation") != "h", kind
+
+    def test_a_figure_with_anything_but_bars_in_it_is_left_as_it_was_sent(self):
+        """A line over the same categories is a trend, and a trend has a direction the model
+        chose. Turning it on its side is a different claim about the data, so a figure that is
+        not all bars keeps the bottom axis and the wrap that goes with it."""
+
+        chart = new_plot(
+            [
+                {"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES, "name": "measure"},
+                {
+                    "type": "scatter",
+                    "mode": "lines",
+                    "x": LONG_TITLES,
+                    "y": LONG_SHARES,
+                    "name": "trend",
+                },
+            ]
+        )
+        for trace in chart.data:
+            assert trace.get("orientation") != "h"
+        assert any("<br>" in tick for tick in chart.data[0]["x"])
+
+    def test_numbers_on_the_category_axis_are_not_names_to_read(self):
+        """A numeric axis has no long labels to rescue, and Plotly chooses its own ticks."""
+
+        chart = new_plot([{"type": "bar", "x": list(range(2000, 2012)), "y": list(range(12))}])
+        assert chart.data[0].get("orientation") != "h"
+
+    def test_a_chart_the_model_already_sent_horizontal_is_not_flipped_back(self):
+        chart = new_plot([{"type": "bar", "orientation": "h", "y": LONG_TITLES, "x": LONG_SHARES}])
+        assert chart.data[0]["orientation"] == "h"
+        assert chart.data[0]["y"] == LONG_TITLES
+
+    def test_the_axis_titles_follow_the_data_across(self):
+        """The failure this prevents is a mislabelled chart, which is worse than the rotation
+        it was fixing. The model described a vertical figure, so its `x_title` names the
+        categories and has to travel to the left with them, and its `y_title` names the
+        measure and has to travel to the bottom. A flip that moved the points and left the
+        titles behind would label the values with the name of the categories.
+        """
+
+        chart = new_plot(
+            spec={
+                "kind": "bar",
+                "series": [{"name": "players", "x": LONG_TITLES, "y": LONG_SHARES}],
+                "x_title": "Game title",
+                "y_title": "Total active players",
+            }
+        )
+        assert chart.data[0]["orientation"] == "h"
+        assert chart.layout["yaxis"]["title"]["text"] == "Game title"
+        assert chart.layout["xaxis"]["title"]["text"] == "Total active players"
+
+    def test_everything_else_the_model_said_about_an_axis_travels_with_it(self):
+        """Not just the title. An axis is described as a whole, so a `categoryarray` the model
+        set for its bottom axis has to arrive on the axis still carrying those categories, or
+        it is a key Plotly ignores and an order silently lost."""
+
+        chart = new_plot(
+            [{"type": "bar", "x": self.LONG, "y": list(range(12))}],
+            {"xaxis": {"categoryarray": self.LONG}, "yaxis": {"tickformat": ".1%"}},
+        )
+        assert chart.data[0]["orientation"] == "h"
+        assert chart.layout["yaxis"]["categoryarray"] == self.LONG
+        assert chart.layout["xaxis"]["tickformat"] == ".1%"
+
+    def test_the_value_format_and_the_gridlines_move_to_the_new_value_axis(self):
+        """The flip has to be visible to every rule that asks which axis holds the measure, or
+        the chart comes out with gridlines across its names and no thousands separators."""
+
+        chart = new_plot([{"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES}])
+        assert chart.layout["xaxis"]["tickformat"] == ","
+        assert chart.layout["xaxis"]["showgrid"] is True
+        assert chart.layout["yaxis"]["showgrid"] is False
+
+    def test_the_ranking_lands_on_the_axis_that_ends_up_with_the_names(self):
+        """Ascending, because Plotly lays the first category at the axis START, which is the
+        BOTTOM of a y axis — so ascending up the left is the same instruction as descending
+        along the bottom, and it puts the largest bar at the top where a reader looks first."""
+
+        chart = new_plot([{"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES}])
+        assert chart.layout["yaxis"]["categoryorder"] == "total ascending"
+        assert "categoryorder" not in chart.layout["xaxis"]
+
+    def test_the_parallel_arrays_stay_attached_to_their_own_bar(self):
+        """The flip swaps two arrays and must not disturb the others. A bar's colour, its
+        printed value and its full name for the tooltip are indexed alongside the points, so
+        anything that reorders rather than swaps is how a bar ends up wearing another's label.
+        """
+
+        colours = [EMPHASIS] + [BLUE] * (len(LONG_TITLES) - 1)
+        labels = [f"{share}%" for share in LONG_SHARES]
+        chart = new_plot(
+            [
+                {
+                    "type": "bar",
+                    "x": LONG_TITLES,
+                    "y": LONG_SHARES,
+                    "marker": {"color": colours},
+                    "text": labels,
+                }
+            ]
+        )
+        assert chart.data[0]["y"] == LONG_TITLES
+        assert chart.data[0]["x"] == LONG_SHARES
+        assert chart.data[0]["marker"]["color"] == colours
+        assert chart.data[0]["text"] == labels
+
+    def test_several_series_over_the_same_long_names_turn_round_together(self):
+        """The threshold counts categories rather than bars, because several series share one
+        axis. A grouped chart that flipped only its first trace would draw half the figure
+        sideways."""
+
+        chart = new_plot(
+            [
+                {"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES, "name": "first"},
+                {"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES, "name": "second"},
+            ],
+            {"barmode": "group"},
+        )
+        for trace in chart.data:
+            assert trace["orientation"] == "h"
+            assert trace["y"] == LONG_TITLES
+
+
+class TestTheTickAngleIsDecidedRatherThanOnlyRefused:
+    """Leaving the angle entirely to Plotly is what produced the ninety-degree pile-up.
+
+    The old rule was that only Plotly can pick a tick angle, because only Plotly has the
+    drawn text. That is still true of the case where the labels do not fit — and it is exactly
+    the case where its answer is unreadable. So the names now get a FLAT axis wherever a flat
+    axis is known to hold them, and Plotly keeps the decision only where forcing zero would
+    trade rotated names for overlapping ones.
+    """
+
+    def test_a_short_axis_is_flat_rather_than_tilted_for_nothing(self):
+        assert new_plot([_bar()]).layout["xaxis"]["tickangle"] == 0
+
+    def test_a_chart_turned_on_its_side_is_always_flat(self):
+        """Every category has its own row there, so there is no crowding to rotate away from
+        however long the names are — which is the point of having turned it round."""
+
+        chart = new_plot([{"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES}])
+        assert chart.layout["yaxis"]["tickangle"] == 0
+        assert "tickangle" not in chart.layout["xaxis"]
+
+    def test_an_axis_whose_labels_will_not_fit_flat_keeps_plotly_as_the_judge(self):
+        """The honest half of the old rule. Twelve months is more label than a half-width
+        panel holds side by side, and a bar chart of periods is not allowed to turn round, so
+        something has to give — and overlapping names are worse than tilted ones. No angle is
+        set, which leaves Plotly measuring the text, which is what it is for."""
+
+        months = [f"2026-{month:02d}" for month in range(1, 13)]
+        layout = new_plot([{"type": "bar", "x": months, "y": list(range(12))}]).layout
+        assert "tickangle" not in layout["xaxis"]
+
+    def test_the_budget_is_measured_on_the_widest_line_of_a_wrapped_label(self):
+        """What an axis needs room for side by side is how wide each block of text is, not how
+        many characters are in it. A wrapped name is a quarter of the width it was, so
+        counting the raw string would refuse a flat axis that had plenty of room."""
+
+        names = ["Alpha Beta Gamma Delta", "Epsilon Zeta Eta Theta", "Iota Kappa Lambda Mu"]
+        chart = new_plot([{"type": "bar", "x": names, "y": [3, 2, 1]}])
+        # Sixty-four characters as they arrived, which is over budget, and thirty-three once
+        # broken over lines, which is not. Counting the raw string would have rotated an axis
+        # that had half the room it needed.
+        assert sum(len(name) for name in names) > FLAT_TICK_CHAR_BUDGET
+        widest = sum(max(len(line) for line in tick.split("<br>")) for tick in chart.data[0]["x"])
+        assert widest <= FLAT_TICK_CHAR_BUDGET
+        assert chart.layout["xaxis"]["tickangle"] == 0
+
+    def test_several_series_do_not_add_up_to_a_crowded_axis(self):
+        """They share one set of categories, so the axis has one trace's worth of labels on it
+        however many traces there are. Summing across them would rotate a grouped chart that
+        had all the room it needed."""
+
+        names = ["north", "south", "east", "west"]
+        layout = new_plot(
+            [{"type": "bar", "x": names, "y": [4, 3, 2, 1], "name": f"s{i}"} for i in range(6)]
+        ).layout
+        assert layout["xaxis"]["tickangle"] == 0
+
+    def test_a_pie_is_not_given_an_axis_it_does_not_have(self):
+        layout = new_plot([_SLIVER_PIE]).layout
+        assert "xaxis" not in layout
+        assert "yaxis" not in layout
+
+
+class TestAxisTitlesKeepClearOfTheTickLabels:
+    """The axis title printed in the middle of the rotated category names.
+
+    Plotly measures an axis title's position from the AXIS, not from the text hanging off it,
+    so a stack of tall tick labels grows straight past the title and the title lands among the
+    names instead of under them. `automargin` does not help: it makes the FIGURE reserve room
+    for everything, which is a different question from how far the title sits from the ticks.
+    An explicit standoff is measured from the outside of the tick labels, so the gap holds at
+    any label length.
+    """
+
+    def test_an_axis_title_is_held_off_the_ticks_beneath_it(self):
+        layout = new_plot([_bar()], {"yaxis": {"title": {"text": "Players"}}}).layout
+        assert layout["yaxis"]["title"]["standoff"] == AXIS_TITLE_STANDOFF
+        assert layout["yaxis"]["title"]["text"] == "Players"
+
+    def test_both_axes_of_a_titled_figure_get_the_gap(self):
+        """The bug was on the category axis, but the rule is not about which axis: a value
+        axis title sits beyond a column of numerals with exactly the same geometry."""
+
+        chart = new_plot(
+            spec={
+                "kind": "bar",
+                "series": [{"name": "players", "x": ["north", "south"], "y": [2, 1]}],
+                "x_title": "Region",
+                "y_title": "Players",
+            }
+        )
+        for name in ("xaxis", "yaxis"):
+            assert chart.layout[name]["title"]["standoff"] == AXIS_TITLE_STANDOFF, name
+
+    def test_the_gap_survives_the_chart_being_turned_on_its_side(self):
+        """The two fixes are for the same screenshot and have to hold together: a flipped
+        figure whose titles travelled across must still have them standing off the ticks."""
+
+        chart = new_plot(
+            spec={
+                "kind": "bar",
+                "series": [{"name": "players", "x": LONG_TITLES, "y": LONG_SHARES}],
+                "x_title": "Game title",
+                "y_title": "Total active players",
+            }
+        )
+        assert chart.data[0]["orientation"] == "h"
+        for name in ("xaxis", "yaxis"):
+            assert chart.layout[name]["title"]["standoff"] == AXIS_TITLE_STANDOFF, name
+
+    def test_a_standoff_the_model_chose_is_replaced_like_the_tick_angle(self):
+        """Same reason, and it belongs in the same place: a distance is a measurement of drawn
+        text, and the model has not seen any. A zero here is the original bug written down as
+        a number."""
+
+        layout = new_plot([_bar()], {"xaxis": {"title": {"text": "Name", "standoff": 0}}}).layout
+        assert layout["xaxis"]["title"]["standoff"] == AXIS_TITLE_STANDOFF
+
+    def test_a_bare_string_title_is_promoted_so_it_can_carry_the_gap(self):
+        """Plotly takes both forms for a title and only the object form takes a distance, so
+        the string form is not a way to opt out of the rule."""
+
+        layout = new_plot([_bar()], {"xaxis": {"title": "Name"}}).layout
+        assert layout["xaxis"]["title"] == {"text": "Name", "standoff": AXIS_TITLE_STANDOFF}
+
+    def test_an_axis_with_no_title_gets_no_standoff(self):
+        """A gap reserved for nothing is a key that reads as though a rule fired where none
+        did — the same objection as a per-slice label list with nothing suppressed in it."""
+
+        layout = new_plot([_bar()]).layout
+        for name in ("xaxis", "yaxis"):
+            assert "title" not in layout[name], name
+
+    def test_every_titled_axis_in_every_shape_carries_the_gap(self):
+        """Stated over the shapes rather than over a bar chart, because the arrangement is one
+        shared layout function and a rule that only held for bars would not be that rule."""
+
+        for chart in _figures():
+            for name in ("xaxis", "yaxis"):
+                axis = chart.layout.get(name)
+                if isinstance(axis, dict) and isinstance(axis.get("title"), dict):
+                    assert axis["title"]["standoff"] == AXIS_TITLE_STANDOFF, (chart.kind, name)
 
 
 class TestSmallPieSlices:
@@ -866,18 +1417,26 @@ class TestRankedBarsAreOrderedByValue:
         assert chart.layout["xaxis"]["categoryorder"] == "total descending"
 
     def test_ordering_leaves_the_label_arrangement_where_it_was(self):
-        """Sorting is a separate concern from the layout fix that put the legend in its own
-        band and wrapped long names instead of rotating them. Ordering a chart must not
-        quietly pick any of that up."""
+        """Sorting is a separate concern from the layout rules that put the legend in its own
+        band, turned a crowded axis of long names on its side, and gave every axis title a
+        gap. Ordering a chart must not quietly pick any of that up, or drop it.
+
+        The eleven game titles, which is the figure that reported the bug: they are enough
+        long names to flip, so the order lands on the y axis and reads ascending — the
+        largest bar at the top, which is where Plotly puts the LAST category of a y axis.
+        """
 
         chart = new_plot([{"type": "bar", "x": LONG_TITLES, "y": LONG_SHARES, "name": "share"}])
-        assert chart.layout["xaxis"]["categoryorder"] == "total descending"
+        assert chart.data[0]["orientation"] == "h"
+        assert chart.layout["yaxis"]["categoryorder"] == "total ascending"
+        assert "categoryorder" not in chart.layout["xaxis"]
         assert chart.layout["legend"]["yref"] == "container"
         assert chart.layout["margin"] == {"l": 8, "r": 8, "t": 8, "b": 8}
-        assert chart.layout["xaxis"]["automargin"] is True
-        assert "tickangle" not in chart.layout["xaxis"]
-        for tick in chart.data[0]["x"]:
-            assert len(tick.split("<br>")) <= TICK_LINE_LIMIT
+        assert chart.layout["yaxis"]["automargin"] is True
+        assert chart.layout["yaxis"]["tickangle"] == 0
+        # Down the left the names are read at full length, on one line each, which is the
+        # whole reason for turning the chart round.
+        assert chart.data[0]["y"] == LONG_TITLES
 
     def test_the_brief_stops_asking_the_model_for_what_the_figure_guarantees(self):
         """And says what it does instead. A brief that still asked for a sort would leave a
@@ -1074,7 +1633,7 @@ class TestRendererNeutralContract:
         assert chart.kind == "bar"
         assert chart.data[0]["type"] == "bar"
         assert chart.data[0]["x"] == ["alpha", "beta"]
-        assert chart.layout["yaxis"]["title"] == {"text": "players"}
+        assert chart.layout["yaxis"]["title"]["text"] == "players"
 
     def test_the_model_contract_does_not_require_renderer_objects(self):
         function = NEW_PLOT_TOOL["function"]

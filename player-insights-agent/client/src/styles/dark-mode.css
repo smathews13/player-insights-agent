@@ -65,9 +65,39 @@ html[data-theme='dark'] .ask-layout {
   background-image: none;
 }
 
+/*
+ * ============================================================================
+ * CHROME THE TRANSCRIPT SCROLLS UNDER IS OPAQUE. THE PANES BESIDE IT ARE NOT.
+ * ============================================================================
+ *
+ * This header and the composer below were 3% white with `blur(2px)`, and the
+ * pair of them is what "the answer card is clipping behind various surfaces"
+ * turned out to be. Neither surface was clipping anything: the reader could
+ * READ THE CARD THROUGH THEM. Three percent of white is a tint, and a two-pixel
+ * Gaussian does not blur 13px type into a wash -- it smears it just enough to
+ * look like a rendering fault, so a takeaway sat legibly across the nav tabs and
+ * the last stat in the rail sat legibly across the composer's own placeholder.
+ *
+ * The distinction that decides which surfaces get this and which keep the frost
+ * is geometric, not stylistic: does scrolling prose pass BEHIND the surface?
+ *
+ *   - `.app-header` is `sticky top-0` over the transcript. It does.
+ *   - `.composer` is `position: fixed` at the bottom of the transcript. It does.
+ *   - `.conversation-rail` and `.trace-inspector` are their own grid tracks in
+ *     `.ask-layout`, so nothing passes behind them and 3% white over the sky is
+ *     a pane on the night sky, which is the treatment §2 asks for. They keep it.
+ *
+ * `--ast-surface-solid` rather than a fourth navy: it is the value the
+ * reduced-transparency block at the foot of this file already gives all of these
+ * surfaces, so a reader who asks their OS for less transparency and a reader who
+ * does not now see the same chrome, and there is one colour to maintain.
+ *
+ * Do not "restore" the frost on these two. If the flat surfaces read as heavy,
+ * the separation to reach for is the hairline each already draws, not alpha.
+ */
 html[data-theme='dark'] .app-header {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(2px);
+  background: var(--ast-surface-solid);
+  backdrop-filter: none;
   border-bottom-color: var(--border);
 }
 
@@ -133,6 +163,42 @@ html[data-theme='dark'] .identity-chip {
   color: var(--foreground);
 }
 
+/*
+ * The gear is the operable member of the identity cluster, not a primary action.
+ *
+ * Its previous AppKit default left a solid blue square between the Signed in
+ * badge and the attribution. Matching the badge's 30px surface, hairline, radius
+ * and ink makes the two neighbours one quiet group while the hover, press and
+ * focus states preserve the fact that only the gear can be activated.
+ */
+html[data-theme='dark'] .header-settings {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  transition:
+    background-color 220ms ease-out,
+    color 220ms ease-out;
+}
+
+html[data-theme='dark'] .header-settings:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ast-white);
+}
+
+html[data-theme='dark'] .header-settings:active:not(:disabled) {
+  background: rgba(143, 193, 232, 0.28);
+  color: var(--ast-white);
+  transition-duration: 0ms;
+}
+
+html[data-theme='dark'] .header-settings:focus-visible {
+  outline: 1px solid var(--ast-ice-accent);
+  outline-offset: 1px;
+}
+
 html[data-theme='dark'] .conversation-filter-chip[aria-pressed='true'],
 html[data-theme='dark'] .conversation-filter-chip:not(.is-all)[aria-pressed='true'] > .identity-chip,
 html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']),
@@ -176,13 +242,30 @@ html[data-theme='dark'] .app-nav-tab.active {
   color: var(--ast-ice-accent);
 }
 
+/* The panes BESIDE the transcript, which may stay frosted: see the header. */
 html[data-theme='dark'] .conversation-rail,
-html[data-theme='dark'] .composer,
 html[data-theme='dark'] .live-steps,
 html[data-theme='dark'] .trace-inspector {
   background: rgba(255, 255, 255, 0.03);
   background-image: none;
   backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+/*
+ * The composer, over the transcript rather than beside it.
+ *
+ * composer.css already says of its own `--ast-pane` fill that this is the one
+ * place that token is not free, because what is behind it is scrolling prose and
+ * not sky, and names `var(--background)` as the declaration to put back "if the
+ * moving text reads as a smudge". It did, and in dark the pane is 5% white
+ * rather than 94%, so it read as a hole in the page. Solid, from the same token
+ * the header takes.
+ */
+html[data-theme='dark'] .composer {
+  background: var(--ast-surface-solid);
+  background-image: none;
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 
@@ -307,8 +390,77 @@ html[data-theme='dark'] .trace-empty-mark {
   color: var(--ast-white);
 }
 
-html[data-theme='dark'] .settings-rail button.active {
-  background: rgba(255, 255, 255, 0.07);
+/*
+ * The selected settings section is a quiet tint of the pane, same family as a
+ * selected conversation, not a second accent colour. Ice text and an ice edge
+ * here were the leftover "blue highlight" the rest of this sheet had already
+ * been asked to drop.
+ */
+html[data-theme='dark'] .settings-rail button.active,
+html[data-theme='dark'] .settings-rail button[aria-current='page'] {
+  border-color: transparent;
+  background: var(--db-selected-tint);
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+/*
+ * The footer has one action and one dismissal. Cancel stays in the same quiet
+ * surface-and-hairline family as the modal chrome; Save alone enters the shared
+ * primary recipe above.
+ */
+html[data-theme='dark'] .settings-footer-actions .settings-cancel {
+  border-color: var(--ast-border-input);
+  background: var(--card);
+  color: var(--foreground);
+}
+
+html[data-theme='dark'] .settings-footer-actions .settings-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme='dark'] .settings-footer-actions .settings-cancel:active:not(:disabled) {
+  background: rgba(143, 193, 232, 0.16);
+}
+
+/*
+ * Environment is a table inside the modal, not a second branded surface. Its
+ * tab keeps the header navigation's thin ice rule, while the toolbar, column
+ * head and copy affordance remain on ordinary dark surfaces and hairlines.
+ */
+html[data-theme='dark'] .environment-tabs button.active {
+  color: var(--ast-ice-accent);
+}
+
+html[data-theme='dark'] .environment-tabs button.active::after {
+  background: var(--ast-ice-accent);
+}
+
+html[data-theme='dark'] .environment-list th {
+  background: var(--muted);
+  color: var(--ast-caption);
+}
+
+html[data-theme='dark'] .environment-tools [data-slot='button'] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+html[data-theme='dark'] .environment-tools [data-slot='button']:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--foreground);
+}
+
+html[data-theme='dark'] .environment-tools [data-slot='button']:active:not(:disabled) {
+  background: rgba(143, 193, 232, 0.28);
+  color: var(--ast-white);
+}
+
+html[data-theme='dark'] .environment-list:focus-visible {
+  outline: 1px solid var(--ast-ice-accent);
+  outline-offset: -1px;
+  box-shadow: none;
 }
 
 html[data-theme='dark'] .appearance-grid {
@@ -356,73 +508,56 @@ html[data-theme='dark'] .trace-dag.map .dag-seg button[aria-pressed='true'] {
 }
 
 /*
- * The filled action, which on the night sky is a wash of the action blue rather
- * than the solid.
+ * One dark primary button, wherever AppKit seats it.
  *
- * THE HOVER AND PRESS STATES ARE HERE BECAUSE THIS RULE TOOK THEM AWAY. AppKit
- * states its own hover as a Tailwind utility, and a utility lives in
- * `@layer utilities` while this file is unlayered -- unlayered wins, so setting
- * `background` here silently defeated `hover:bg-primary/90` and left New
- * conversation with no hover, no press and nothing to tell a reader the click
- * landed.
+ * THE ACTION BLUE IS THE EDGE, NOT THE MASS. A solid #2272B4 button is the
+ * brightest panel in a dark interface and makes every Save, Add and submit
+ * action compete with the answer it acts on. The Ask home mockup establishes
+ * the opposite relationship: a deep navy raised panel with a lighter blue
+ * hairline and near-white type. The two named tokens make that relationship one
+ * app-wide recipe rather than a Settings correction that the next primary
+ * button misses.
  *
- * Up the alpha rather than across the palette: 0.28 → 0.40 → 0.52 is one colour
- * getting more present, which is what a control under the pointer and then under
- * the finger should do. Going darker on hover is what the light theme does and it
- * is the wrong direction here -- darker on a dark page reads as receding.
+ * AppKit 0.38 emits no variant attribute, so its `bg-primary` utility is the
+ * stable marker for the default button; newer builds expose `default` or
+ * `primary`. The selector deliberately accepts all three representations.
+ * Ghost, outline and destructive controls never enter this rule, so a
+ * dismissal or deletion cannot inherit the action treatment.
  *
- * The release is what a reader actually sees. `:active` cuts the transition to
- * zero so the press is instant, and letting go returns over 220ms, which is the
- * post-click highlight fading out rather than a state snapping off.
+ * THE HOVER AND PRESS STATES ARE HERE BECAUSE THIS RULE TAKES APPKIT'S AWAY.
+ * AppKit states hover as a Tailwind utility, and this unlayered stylesheet wins
+ * that cascade. Mixing the same fill toward the border gives the control a
+ * visible rise on hover and an immediate press without turning it back into the
+ * saturated blue slab this rule removes.
  */
 html[data-theme='dark'] .ast-btn-primary,
-html[data-theme='dark']
-  [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not(
-    [data-variant='destructive']
-  ) {
-  background: rgba(34, 114, 180, 0.28);
-  border-color: rgba(143, 193, 232, 0.55);
-  color: var(--ast-ghost-text);
+html[data-theme='dark'] [data-slot='button'].bg-primary,
+html[data-theme='dark'] [data-slot='button'][data-variant='default'],
+html[data-theme='dark'] [data-slot='button'][data-variant='primary'] {
+  background: var(--ast-primary-control-fill);
+  border: 1px solid var(--ast-primary-control-border);
+  border-radius: var(--ast-radius-control);
+  color: var(--ast-ink-on-dark);
   transition:
     background-color 220ms ease-out,
     border-color 220ms ease-out;
 }
 
 html[data-theme='dark'] .ast-btn-primary:hover:not(:disabled),
-html[data-theme='dark']
-  [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not(
-    [data-variant='destructive']
-  ):hover:not(:disabled) {
-  background: rgba(34, 114, 180, 0.4);
-  border-color: rgba(143, 193, 232, 0.75);
+html[data-theme='dark'] [data-slot='button'].bg-primary:hover:not(:disabled),
+html[data-theme='dark'] [data-slot='button'][data-variant='default']:hover:not(:disabled),
+html[data-theme='dark'] [data-slot='button'][data-variant='primary']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ast-primary-control-fill) 82%, var(--ast-primary-control-border));
+  border-color: var(--ast-ice-accent);
 }
 
 html[data-theme='dark'] .ast-btn-primary:active:not(:disabled),
-html[data-theme='dark']
-  [data-slot='button']:not([data-variant]):not([data-variant='ghost']):not([data-variant='outline']):not(
-    [data-variant='destructive']
-  ):active:not(:disabled) {
-  background: rgba(34, 114, 180, 0.52);
+html[data-theme='dark'] [data-slot='button'].bg-primary:active:not(:disabled),
+html[data-theme='dark'] [data-slot='button'][data-variant='default']:active:not(:disabled),
+html[data-theme='dark'] [data-slot='button'][data-variant='primary']:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ast-primary-control-fill) 68%, var(--ast-primary-control-border));
   border-color: var(--ast-ice-accent);
   transition-duration: 0ms;
-}
-
-/*
- * Refresh, whose states ran the wrong way.
- *
- * page-shell.css takes the solid blue to --db-blue-700 on hover and -800 on
- * press, which is correct on white and backwards here: both rungs are darker
- * than the resting fill, so on a navy page pressing Refresh made it fade into
- * the page. Neither rung is remapped for dark, because the solid blue itself is
- * still the right resting colour -- only the direction of travel is wrong.
- */
-html[data-theme='dark'] .refresh-button:hover:not(:disabled) {
-  background: var(--db-blue-500);
-}
-
-html[data-theme='dark'] .refresh-button:active:not(:disabled) {
-  background: var(--ast-ice-accent);
-  color: var(--ast-navy);
 }
 
 /*
@@ -581,9 +716,9 @@ html[data-theme='dark'] .trace-inspector .trace-explore:active:not(:disabled) {
 }
 
 html[data-theme='dark'] .settings-footer-actions [data-slot='button'][data-pressed='true'] {
-  background: rgba(34, 114, 180, 0.52);
+  background: color-mix(in srgb, var(--ast-primary-control-fill) 68%, var(--ast-primary-control-border));
   border-color: var(--ast-ice-accent);
-  color: var(--ast-ghost-text);
+  color: var(--ast-ink-on-dark);
 }
 
 /*
@@ -616,6 +751,7 @@ html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']) {
  */
 html[data-theme='dark'] .conversation-confirm-delete,
 html[data-theme='dark'] .plane-confirm-forever,
+html[data-theme='dark'] [data-slot='button'].bg-destructive,
 html[data-theme='dark'] [data-slot='button'][data-variant='destructive'] {
   background: var(--ast-destructive-control);
   border-color: var(--ast-destructive-control);
@@ -631,6 +767,12 @@ html[data-theme='dark'] .plane-confirm-forever:hover {
   background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
   border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
   filter: none;
+}
+
+html[data-theme='dark'] [data-slot='button'].bg-destructive:hover:not(:disabled),
+html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
+  border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
 }
 
 @media (prefers-reduced-transparency: reduce) {

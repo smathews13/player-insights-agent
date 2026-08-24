@@ -1,7 +1,9 @@
 import express from 'express';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setupInsightsRoutes, type InsightsAppKit, type ServingTransport } from './insights-routes';
 import servingResponses from './__fixtures__/serving-responses.json';
+import { FakeStore } from '../lib/__fixtures__/fake-run-store';
+import { RUN_LEDGER_MODE_ENV } from '../lib/run-admission';
 
 /**
  * `/api/insights/ask` over Server-Sent Events, end to end through the real
@@ -13,11 +15,14 @@ interface SseFrame {
   data: unknown;
 }
 
-async function startApp(transport: ServingTransport) {
+async function startApp(
+  transport: ServingTransport,
+  lakebase: InsightsAppKit['lakebase'] = { query: () => Promise.resolve({ rows: [] }) }
+) {
   const app = express();
   app.use(express.json());
   await setupInsightsRoutes({
-    lakebase: { query: () => Promise.resolve({ rows: [] }) },
+    lakebase,
     server: { extend: (fn) => fn(app) },
     servingTransport: transport,
   } satisfies InsightsAppKit);
@@ -33,10 +38,10 @@ async function startApp(transport: ServingTransport) {
     port,
     close: () => new Promise((resolve) => server.close(resolve)),
     /** Posts asking for a stream and returns every frame, in arrival order. */
-    async askStreaming(body: Record<string, unknown>) {
+    async askStreaming(body: Record<string, unknown>, extraHeaders: Record<string, string> = {}) {
       const response = await fetch(`http://127.0.0.1:${port}/api/insights/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...extraHeaders },
         body: JSON.stringify(body),
       });
       const frames: SseFrame[] = [];
@@ -71,7 +76,15 @@ function narratingTransport(names: string[], answer: unknown = servingResponses.
   const transport: ServingTransport = ({ payload, onStage }) => {
     requests.push(payload);
     for (const [index, name] of names.entries()) {
-      onStage?.({ id: `step-${index + 1}`, name, kind: 'tool', status: 'complete', start: index * 10, duration: 10, calls: 1 });
+      onStage?.({
+        id: `step-${index + 1}`,
+        name,
+        kind: 'tool',
+        status: 'complete',
+        start: index * 10,
+        duration: 10,
+        calls: 1,
+      });
     }
     return Promise.resolve(answer);
   };
@@ -130,7 +143,15 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
       releaseAnswer = resolve;
     });
     const transport: ServingTransport = async ({ onStage }) => {
-      onStage?.({ id: 'step-1', name: 'Chose the next step', kind: 'agent', status: 'complete', start: 0, duration: 11, calls: 2 });
+      onStage?.({
+        id: 'step-1',
+        name: 'Chose the next step',
+        kind: 'agent',
+        status: 'complete',
+        start: 0,
+        duration: 11,
+        calls: 2,
+      });
       await answerGate;
       return servingResponses.liveAnswerResponse;
     };
@@ -173,12 +194,117 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
     await app.close();
   }, 10_000);
 
+  it('opens the stream before conversation context reads finish', async () => {
+    let releaseContext!: () => void;
+    const contextGate = new Promise<void>((resolve) => {
+      releaseContext = resolve;
+    });
+    const contextReads: string[] = [];
+    const lakebase = {
+      async query(sql: string) {
+        const normalised = sql.replace(/\s+/g, ' ').trim();
+        if (normalised.startsWith('SELECT role, content, response_json FROM (')) {
+          contextReads.push('history');
+          await contextGate;
+        }
+        if (normalised.includes('SELECT filename, extracted_text FROM player_insights.attachments')) {
+          contextReads.push('attachments');
+          await contextGate;
+        }
+        return { rows: [] as Record<string, unknown>[] };
+      },
+    };
+    const { transport } = narratingTransport(['Chose the next step']);
+    const app = await startApp(transport, lakebase);
+
+    const response = await fetch(`http://127.0.0.1:${app.port}/api/insights/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({
+        conversationId: 'conv-early-open',
+        prompt: 'Which titles lost the most active players?',
+        executePlan: true,
+        approvedPlanId: 'plan-1',
+      }),
+    });
+
+    // Fetch resolves on the flushed headers while both independent Lakebase
+    // reads are still blocked. If begin() moves below either await, this hangs
+    // until the gate is released and the assertion cannot be reached.
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    expect(contextReads.sort()).toEqual(['attachments', 'history']);
+
+    releaseContext();
+    expect(await response.text()).toContain('event: result');
+    await app.close();
+  });
+
+  it('reports an admission conflict as a typed stream error without running twice', async () => {
+    const previousMode = process.env[RUN_LEDGER_MODE_ENV];
+    process.env[RUN_LEDGER_MODE_ENV] = 'enforce';
+    const ledger = new FakeStore();
+    const userTurns = new Set<string>();
+    const lakebase = {
+      query: (sql: string, params: unknown[] = []) => {
+        if (/player_insights\.(runs|run_attempts|run_events)/.test(sql)) {
+          return ledger.lakebase.query(sql, params);
+        }
+        // Assistant answers are also INSERTs into messages. Only the user row
+        // is the ghost-turn bug: a refused ask left a question with no run.
+        if (/INSERT INTO \w+\.messages/.test(sql) && params[2] === 'user') {
+          userTurns.add(String(params[0]));
+        }
+        if (/DELETE FROM \w+\.messages WHERE id/.test(sql)) {
+          userTurns.delete(String(params[0]));
+        }
+        return Promise.resolve({ rows: [] as Record<string, unknown>[] });
+      },
+    };
+    const transport = vi.fn<ServingTransport>(() => Promise.resolve(servingResponses.liveAnswerResponse));
+    const app = await startApp(transport, lakebase);
+    const key = 'same-idempotency-key-1234567890';
+
+    try {
+      const first = await app.askStreaming(
+        { conversationId: 'conv-idempotent', prompt: 'Which titles lost the most active players?' },
+        { 'Idempotency-Key': key }
+      );
+      const firstTerminal: SseFrame | undefined = first.frames[first.frames.length - 1];
+      expect(firstTerminal?.event).toBe('result');
+
+      const conflict = await app.askStreaming(
+        { conversationId: 'conv-idempotent', prompt: 'Which titles gained the most active players?' },
+        { 'Idempotency-Key': key }
+      );
+      expect(conflict.contentType).toContain('text/event-stream');
+      const conflictTerminal: SseFrame | undefined = conflict.frames[conflict.frames.length - 1];
+      expect(conflictTerminal?.event).toBe('error');
+      expect((conflictTerminal?.data as { code?: string }).code).toBe('IDEMPOTENCY_CONFLICT');
+      expect(transport).toHaveBeenCalledTimes(1);
+      expect(userTurns.size).toBe(1);
+    } finally {
+      await app.close();
+      if (previousMode === undefined) delete process.env[RUN_LEDGER_MODE_ENV];
+      else process.env[RUN_LEDGER_MODE_ENV] = previousMode;
+    }
+  });
+
   it('asks the endpoint to stream only when the caller can read one', async () => {
     const { transport, requests } = narratingTransport(['Chose the next step']);
     const app = await startApp(transport);
 
-    await app.askStreaming({ conversationId: 'c1', prompt: 'A question about players.', executePlan: true, approvedPlanId: 'p' });
-    await app.askJson({ conversationId: 'c1', prompt: 'A question about players.', executePlan: true, approvedPlanId: 'p' });
+    await app.askStreaming({
+      conversationId: 'c1',
+      prompt: 'A question about players.',
+      executePlan: true,
+      approvedPlanId: 'p',
+    });
+    await app.askJson({
+      conversationId: 'c1',
+      prompt: 'A question about players.',
+      executePlan: true,
+      approvedPlanId: 'p',
+    });
 
     expect(requests[0].stream).toBe(true);
     // Absent, not false. A caller that did not ask for narration puts exactly
@@ -227,8 +353,24 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
 
   it('reports a run that died after some steps as an error, not as an answer', async () => {
     const transport: ServingTransport = ({ onStage }) => {
-      onStage?.({ id: 'step-1', name: 'Chose the next step', kind: 'agent', status: 'complete', start: 0, duration: 9, calls: 1 });
-      onStage?.({ id: 'step-2', name: 'Queried governed data', kind: 'tool', status: 'failed', start: 9, duration: 40, calls: 1 });
+      onStage?.({
+        id: 'step-1',
+        name: 'Chose the next step',
+        kind: 'agent',
+        status: 'complete',
+        start: 0,
+        duration: 9,
+        calls: 1,
+      });
+      onStage?.({
+        id: 'step-2',
+        name: 'Queried governed data',
+        kind: 'tool',
+        status: 'failed',
+        start: 9,
+        duration: 40,
+        calls: 1,
+      });
       return Promise.reject(new Error('the endpoint dropped the connection'));
     };
     const app = await startApp(transport);
@@ -263,9 +405,33 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
     // finished work -- but counts only completions, because the count exists to
     // say how far a failed run GOT.
     const transport: ServingTransport = ({ onStage }) => {
-      onStage?.({ id: 'step-1', name: 'Choosing the next step', kind: 'agent', status: 'running', start: 0, duration: 0, calls: 0 });
-      onStage?.({ id: 'step-1', name: 'Chose the next step', kind: 'agent', status: 'complete', start: 0, duration: 9, calls: 1 });
-      onStage?.({ id: 'step-2', name: 'Querying governed data', kind: 'tool', status: 'running', start: 9, duration: 0, calls: 0 });
+      onStage?.({
+        id: 'step-1',
+        name: 'Choosing the next step',
+        kind: 'agent',
+        status: 'running',
+        start: 0,
+        duration: 0,
+        calls: 0,
+      });
+      onStage?.({
+        id: 'step-1',
+        name: 'Chose the next step',
+        kind: 'agent',
+        status: 'complete',
+        start: 0,
+        duration: 9,
+        calls: 1,
+      });
+      onStage?.({
+        id: 'step-2',
+        name: 'Querying governed data',
+        kind: 'tool',
+        status: 'running',
+        start: 9,
+        duration: 0,
+        calls: 0,
+      });
       return Promise.reject(new Error('the endpoint dropped the connection'));
     };
     const app = await startApp(transport);
@@ -277,7 +443,9 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
       approvedPlanId: 'plan-1',
     });
 
-    const stages = frames.filter((frame) => frame.event === 'stage').map((frame) => frame.data as Record<string, unknown>);
+    const stages = frames
+      .filter((frame) => frame.event === 'stage')
+      .map((frame) => frame.data as Record<string, unknown>);
     expect(stages.map((stage) => [stage.name, stage.status])).toEqual([
       ['Choosing the next step', 'running'],
       ['Chose the next step', 'complete'],
@@ -287,10 +455,12 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
     expect(terminal?.event).toBe('error');
     // One step finished. Three stage frames went past, and two of them were
     // announcements of work that never returned.
-    expect((terminal?.data as { evidence?: { stage?: { completed: number; title: string } } }).evidence?.stage).toEqual({
-      title: 'Chose the next step',
-      completed: 1,
-    });
+    expect((terminal?.data as { evidence?: { stage?: { completed: number; title: string } } }).evidence?.stage).toEqual(
+      {
+        title: 'Chose the next step',
+        completed: 1,
+      }
+    );
 
     await app.close();
   });

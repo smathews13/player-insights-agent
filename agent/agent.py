@@ -385,6 +385,100 @@ class Synthesis(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Turning the finder's internal handoff into something a reader can be shown
+# ---------------------------------------------------------------------------
+#
+# THE PACKAGE IS NOT AN ANSWER, AND IT SAYS SO ITSELF. `FINDER_SYSTEM_PROMPT` in
+# data_source_finder.py opens with "You never present the final answer to the
+# user" and its output contract calls the package "an internal handoff, not a
+# report". It is written to be read by the synthesis step: a `## DATA PACKAGE`
+# heading over bulleted lead-ins for Interpretation, Sources used, Columns,
+# Findings / data, Provenance, Quality assessment, Caveats & rules applied and
+# Gaps.
+#
+# When a turn ran out of budget before synthesis, `_synthesize` used that string
+# as the answer's `narrative` verbatim, and the client renders Markdown properly
+# now -- so the customer got the scratchpad, faithfully formatted: an internal
+# heading, a column inventory of null ratios, a provenance line per SQL query, and
+# a bulleted "Columns:" lead-in with nothing after it on the runs where the finder
+# had emitted the label and no body. That is the "weirdly structured" answer card,
+# and it is the one screenshot of the four that was not a layout fault at all.
+#
+# What a reader is owed on that path is what the run actually established, which
+# is two of those eight sections. The rest is apparatus: it describes how the
+# figures were obtained rather than what they are, and the card already has places
+# for provenance (the source line) and for limits (Keep in mind).
+
+#: The sections a reader is shown, in the order they are shown in.
+#: Interpretation first because on this path there is no takeaway written from the
+#: evidence, so the one line stating what the question was taken to mean is the
+#: closest thing to an opening the answer has.
+_PACKAGE_PROSE_SECTIONS = ("Interpretation", "Findings / data")
+
+#: The sections that become caveats, which the card lists under "Keep in mind".
+#: Not narrative: these are conditions on the answer rather than part of it, and
+#: below the figures is where every other answer states them.
+_PACKAGE_CAVEAT_SECTIONS = ("Caveats & rules applied", "Gaps")
+
+#: One `- **Name:**` lead-in. The finder is inconsistent about whether the colon
+#: falls inside or outside the bold run, so both are accepted; a section's body
+#: continues until the next lead-in, which is what carries a Markdown table
+#: through under "Findings / data".
+_PACKAGE_LEAD_IN = re.compile(r"^\s{0,3}[-*]\s+\*\*(?P<name>[^*:]+?):?\*\*:?\s*(?P<rest>.*)$")
+
+
+def reader_facing_findings(findings: str) -> tuple[str, list[str]]:
+    """Split the finder's internal package into narrative prose and caveats.
+
+    Returns `(narrative, caveats)`. Sections that are apparatus are dropped, and
+    so is any section whose body is empty -- an empty lead-in is where the bulleted
+    label with nothing after it came from.
+
+    A package with no recognisable lead-ins is returned as its own prose with any
+    `##` heading line removed. That is the `## DATA OVERVIEW` and
+    `## CLARIFICATION NEEDED` shape, which is already written as plain language for
+    a reader, so there is nothing to take out of it but the internal heading.
+    """
+
+    sections: list[tuple[str, list[str]]] = []
+    preamble: list[str] = []
+    for line in findings.splitlines():
+        lead_in = _PACKAGE_LEAD_IN.match(line)
+        if lead_in:
+            sections.append((lead_in.group("name").strip(), [lead_in.group("rest")]))
+        elif sections:
+            sections[-1][1].append(line)
+        else:
+            preamble.append(line)
+
+    def body_of(names: Sequence[str]) -> list[str]:
+        found: list[str] = []
+        for wanted in names:
+            for name, lines in sections:
+                if name.casefold() != wanted.casefold():
+                    continue
+                body = "\n".join(lines).strip()
+                if body:
+                    found.append(body)
+        return found
+
+    if not sections:
+        kept = [line for line in preamble if not line.lstrip().startswith("#")]
+        return ("\n".join(kept).strip(), [])
+
+    caveats: list[str] = []
+    for body in body_of(_PACKAGE_CAVEAT_SECTIONS):
+        # One caveat per line, because the finder writes these as its own nested
+        # bullets. The list markers come off: the card is what makes them a list,
+        # and a leading dash inside a list item renders as a literal dash.
+        for entry in body.splitlines():
+            stripped = entry.strip().lstrip("-*").strip()
+            if stripped:
+                caveats.append(stripped)
+    return ("\n\n".join(body_of(_PACKAGE_PROSE_SECTIONS)).strip(), caveats)
+
+
+# ---------------------------------------------------------------------------
 # Asking the user instead of answering
 # ---------------------------------------------------------------------------
 
@@ -3705,18 +3799,31 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         findings: str,
     ) -> Synthesis:
         if log.remaining < 5.0:
+            # No budget left to write an answer, so the run reports what it
+            # established instead of inventing a voice for it. The package is an
+            # INTERNAL HANDOFF and is reduced to the two sections a reader is owed
+            # before it is shown; see reader_facing_findings for what comes out and
+            # why. It used to be passed through whole, which put the finder's column
+            # inventory and per-query provenance on the customer's screen under a
+            # `## DATA PACKAGE` heading.
+            narrative, package_caveats = reader_facing_findings(findings)
+            deadline = "The turn deadline was reached before the answer could be written."
             return Synthesis(
                 takeaway=(
                     "The analysis completed from assessed sources."
                     if log.readings
                     else "The turn ended before all required evidence was available."
                 ),
-                narrative=findings,
-                caveats=(
-                    []
+                narrative=narrative,
+                # The deadline is stated first because it governs how everything
+                # under it should be read: these are the run's own findings rather
+                # than an answer written from them.
+                caveats=[
+                    deadline
                     if log.readings
-                    else ["The turn deadline was reached before a governed data result returned."]
-                ),
+                    else "The turn deadline was reached before a governed data result returned.",
+                    *package_caveats,
+                ],
             )
         _, client = self._runtime()
         log.calls += 1
@@ -3801,13 +3908,19 @@ Tables actually read this run:
                 # model calls, and no recorded run could tell us which path it took.
                 structured = "fallback"
                 if log.remaining < 5.0:
+                    # Reduced, not pasted: the same argument as the budget branch at
+                    # the top of this method. See reader_facing_findings.
+                    narrative, package_caveats = reader_facing_findings(findings)
                     return Synthesis(
                         takeaway=(
                             "The analysis completed, but the structured presentation "
                             "was incomplete."
                         ),
-                        narrative=findings,
-                        caveats=["The turn deadline left no time for a second formatting attempt."],
+                        narrative=narrative,
+                        caveats=[
+                            "The turn deadline left no time for a second formatting attempt.",
+                            *package_caveats,
+                        ],
                     )
                 try:
                     response = client.chat.completions.create(**kwargs)
@@ -3823,10 +3936,18 @@ Tables actually read this run:
                     reason = gateway_refusal(
                         error, self.settings.llm_gateway
                     ) or reasoning_endpoint_failure(error)
+                    # Reduced here too. This is the worst of the three paths to paste
+                    # a scratchpad into -- the takeaway already says the question was
+                    # not answered, so the internal apparatus under it was the only
+                    # thing on the card and read as the answer.
+                    narrative, package_caveats = reader_facing_findings(findings)
                     return Synthesis(
                         takeaway="This question was not answered.",
-                        narrative=findings,
-                        caveats=[f"The model that writes the answer was not reachable: {reason}."],
+                        narrative=narrative,
+                        caveats=[
+                            f"The model that writes the answer was not reachable: {reason}.",
+                            *package_caveats,
+                        ],
                     )
             text = response.choices[0].message.content or ""
             span.set_outputs({"text": text[:6000], "structured_output": structured})

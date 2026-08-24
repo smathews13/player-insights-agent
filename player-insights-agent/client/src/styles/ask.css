@@ -2,10 +2,16 @@
   /* 56px above the hero's chip, which is the design's, and --conversation-inset
      either side -- the same token the fixed composer insets itself off, so the
      transcript and the box that writes into it cannot drift apart. It was the
-     clamp written out here in full, which is why they could. The 180px below is
-     the composer's own room: it is `position: fixed`, so nothing in the scroll
-     flow reserves space for it. */
-  padding: 56px var(--conversation-inset) 180px;
+     clamp written out here in full, which is why they could.
+
+     Below is the composer's own room, because it is `position: fixed` and
+     nothing in the scroll flow reserves space for it. It was a flat 180px, which
+     covers the composer at rest and not the composer holding an attachment chip
+     and a parse notice -- and the shortfall is invisible until it is an answer's
+     last rows under the box. `--composer-reserve` states the height once; see
+     tokens.css, and see the `scroll-padding` in base.css that reads the same
+     figure so a programmatic scroll stops where this padding ends. */
+  padding: 56px var(--conversation-inset) var(--composer-reserve);
   /*
    * A stated reading measure, centred in the column, with the inset as its
    * minimum gutter.

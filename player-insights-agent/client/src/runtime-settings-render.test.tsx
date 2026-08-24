@@ -103,7 +103,15 @@ describe('runtime and appearance modal sections', () => {
   });
 
   it('keeps one footer Save, in the shell rather than in the pane', () => {
-    expect(page).toMatch(/type="submit"\s+form=\{form\}/);
+    /*
+     * The two attributes, not their adjacency. This wanted them on consecutive
+     * lines and so broke when the button gained a styling attribute between them,
+     * reporting a formatting change as a missing Save button. What matters is that
+     * the shell's footer button submits, and submits the open pane's own form.
+     */
+    const save = /<Button\b[^>]*\btype="submit"[^>]*>/s.exec(page)?.[0] ?? '';
+    expect(save).toContain('type="submit"');
+    expect(save).toContain('form={form}');
     expect(source).not.toContain('Save runtime settings');
   });
 

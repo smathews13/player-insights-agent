@@ -50,6 +50,7 @@ import { conversationHref } from './conversation-links';
 import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
 import { AnswerProse } from './DataEntityLinks';
+import { AnswerEvidence } from './AnswerEvidence';
 import { SourcesModule } from './SourcesModule';
 import { AstrolabeMark } from './AstrolabeMark';
 import { ratingLabel, ratingOutOf } from './benchmark-summary';
@@ -519,8 +520,19 @@ export function RunExplorer() {
                     <h4 className="final-answer-takeaway">{runTrace.takeaway}</h4>
                     {/* The stored narrative of a past run is the same agent
                         Markdown the live card renders, and it was printing its
-                        own `##` and `**` here too. */}
-                    <AnswerProse text={runTrace.narrative} sources={runTrace.sources} />
+                        own `##` and `**` here too.
+
+                        Prose only, because the tables that came with it are
+                        evidence and are drawn below under the same charts-or-rows
+                        rule the live card uses. This printed the narrative whole
+                        while the run's charts went to the Agent map tab, so one
+                        answer was rows on this tab and pictures on another. */}
+                    <AnswerProse text={runTrace.narrative} sources={runTrace.sources} blocks="prose" />
+                    <AnswerEvidence
+                      narrative={runTrace.narrative}
+                      charts={runTrace.charts}
+                      sources={runTrace.sources}
+                    />
                     {/* Literally the same card as the live answer, links,
                         governance, chips and caveats included: a stored run
                         cites the same tables and carries the same

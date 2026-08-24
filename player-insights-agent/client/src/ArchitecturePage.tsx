@@ -891,6 +891,21 @@ export function ArchitecturePage() {
         </ArchitectureDiagramBoundary>
       </section>
 
+      {/*
+        THREE RAILS IN TWO COLUMNS, AND WHICH RAIL IS WHICH IS SAID HERE RATHER
+        THAN COUNTED IN THE STYLESHEET. `data-rail` is what architecture.css
+        places against, so the chain can be given the whole left column and the
+        other two can stack down the right one. It also carries the blue eyebrow,
+        which used to be selected as `.arch-rail:first-child` -- a rule that means
+        "whichever section happens to be written first" and would have followed a
+        reordering of this markup onto the wrong heading.
+
+        The order below is the order a reader gets when the columns stack at
+        1180px: the chain, then what comes back, then where it is kept. Storage is
+        last in both arrangements, which is the reason it is written last rather
+        than placed last -- a rail moved into the right column by the stylesheet
+        alone would stack in the middle of the pipeline stages.
+      */}
       <div className="arch-rails">
         {/*
           THE CHAIN, FROM agent-chain.ts RATHER THAN WRITTEN HERE. This rail used to
@@ -904,7 +919,7 @@ export function ArchitecturePage() {
           Generated from the stage list so the names on screen are the agent's own
           span ids. See the note at the top of that module.
         */}
-        <section className="arch-rail" aria-labelledby="arch-rail-answer">
+        <section className="arch-rail" data-rail="chain" aria-labelledby="arch-rail-answer">
           <h3 className="section-label" id="arch-rail-answer">
             Chain &middot; per question
           </h3>
@@ -939,7 +954,7 @@ export function ArchitecturePage() {
           `derivation` on the wire, so a reader opening a raw trace looks for the
           wrong key.
         */}
-        <section className="arch-rail" aria-labelledby="arch-rail-contract">
+        <section className="arch-rail" data-rail="contract" aria-labelledby="arch-rail-contract">
           <h3 className="section-label" id="arch-rail-contract">
             Answer contract
           </h3>
@@ -971,7 +986,7 @@ export function ArchitecturePage() {
           </ul>
         </section>
 
-        <section className="arch-rail" aria-labelledby="arch-rail-storage">
+        <section className="arch-rail" data-rail="storage" aria-labelledby="arch-rail-storage">
           <h3 className="section-label" id="arch-rail-storage">
             Storage
           </h3>

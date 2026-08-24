@@ -34,10 +34,9 @@ import {
   TabsTrigger,
 } from './ui';
 import { Check, ChevronDown, CircleAlert, ThumbsDown, ThumbsUp } from 'lucide-react';
-import { AnswerCharts } from './AnswerCharts';
+import { AnswerEvidence } from './AnswerEvidence';
 import { AstrolabeMark } from './AstrolabeMark';
 import { AnswerProse, EntityText } from './DataEntityLinks';
-import { parseAnswerMarkdown } from './answer-markdown';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
 import { TraceTimeline } from './TraceTimeline';
@@ -95,15 +94,6 @@ export function AnswerCard({
    * hidden the panel from exactly the readers who asked for it.
    */
   const [showProcess, setShowProcess] = useState(true);
-  /**
-   * Whether the Markdown evidence rows are unfolded under this answer's charts.
-   *
-   * Shut, because the charts are the evidence when an answer has them. A chart
-   * that fails to draw opens it (see the evidence section below), and it stays a
-   * control the reader can shut again afterwards: a failed panel is a reason to
-   * show the numbers, not a reason to take the choice away.
-   */
-  const [showRows, setShowRows] = useState(false);
   // A degradation is not a caveat about the answer, it is a statement about
   // whether the answer is the answer. Separated so it can be shown above the
   // figures instead of below them in a list of five, see degraded-answer.ts.
@@ -118,28 +108,6 @@ export function AnswerCard({
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
   const dataAccess = dataAccessDisclosure(answer.executionIdentity);
-  const hasCharts = Array.isArray(answer.charts) && answer.charts.length > 0;
-  const hasTables = [answer.narrative, answer.content ?? ''].some((text) =>
-    parseAnswerMarkdown(text).some((block) => block.kind === 'table')
-  );
-  const evidenceTables = (
-    <>
-      <AnswerProse
-        text={answer.narrative}
-        sources={answer.sources}
-        columns={mentionedIdentifiers([answer.narrative])}
-        blocks="tables"
-      />
-      {answer.content ? (
-        <AnswerProse
-          text={answer.content}
-          sources={answer.sources}
-          columns={mentionedIdentifiers([answer.content])}
-          blocks="tables"
-        />
-      ) : null}
-    </>
-  );
   /*
    * A label is not an id: two measures can both be called "Current", and keying
    * only on it makes React reconcile the second against the first. The content
@@ -259,23 +227,12 @@ export function AnswerCard({
 
             Folded, so the card still reads as one piece of evidence. Reachable,
             so nothing the agent measured is only in a picture. */}
-        {hasCharts || hasTables ? (
-          <section className="answer-evidence" aria-label={hasCharts ? 'Chart evidence' : 'Table evidence'}>
-            {hasCharts ? <AnswerCharts charts={answer.charts} onFailure={() => setShowRows(true)} /> : null}
-            {hasCharts && hasTables ? (
-              <Collapsible open={showRows} onOpenChange={setShowRows}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="answer-evidence-rows">
-                    {showRows ? 'Hide the rows' : 'Show the rows behind this'}
-                    <ChevronDown className={`transition-transform ${showRows ? 'rotate-180' : ''}`} />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>{evidenceTables}</CollapsibleContent>
-              </Collapsible>
-            ) : null}
-            {!hasCharts && hasTables ? evidenceTables : null}
-          </section>
-        ) : null}
+        <AnswerEvidence
+          narrative={answer.narrative}
+          content={answer.content}
+          charts={answer.charts}
+          sources={answer.sources}
+        />
         <SourcesModule sources={answer.sources} caveats={ordinaryCaveats} derivation={answer.derivation} />
         {answer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">

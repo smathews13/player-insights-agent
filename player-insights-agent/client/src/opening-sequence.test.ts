@@ -126,7 +126,19 @@ describe('the intro hands over to the real gate', () => {
     // And the gate's backdrop goes transparent so the sky shows through it. Opaque
     // Ice is right when the gate is the first thing on screen and wrong here.
     expect(body('.first-open.on-sky')).toMatch(/background:\s*transparent/);
-    expect(GATE).toContain('onSky={sequence}');
+    /*
+     * Unconditionally, where this once passed the opening-sequence latch. That
+     * made the backdrop transparent only on a session's FIRST open: every open
+     * after it drew an opaque card over a sky nobody could see, which is what
+     * "no stars on the login screen" was as a report.
+     *
+     * There is always something drawing back there now -- the intro while it is
+     * introducing, the ambient field once the card is readable -- so the card has
+     * nothing left to be opaque for.
+     */
+    expect(GATE).not.toContain('onSky={sequence}');
+    expect(GATE).toMatch(/<FirstOpenPanel[\s\S]*?\n\s+onSky\n/);
+    expect(GATE).toMatch(/\) : \(\s*<StarField pageId="login-gate"/);
   });
 
   it('layers the sky under the gate rather than over it', () => {

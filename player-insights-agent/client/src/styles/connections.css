@@ -640,8 +640,27 @@
 }
 .connections-table-name {
   font-family: var(--font-mono);
-  font-weight: 700;
+  font-weight: 400;
   overflow-wrap: anywhere;
+}
+/*
+ * The same entity tokens an answer uses, now in an identifier-shaped run.
+ * Appearance owns every foreground and background through `.entity-catalog`,
+ * `.entity-schema` and `.entity-table`; this rule owns only the Connections
+ * table's geometry and emphasis. The table segment is the value that changes
+ * from row to row, so it gets the weight instead of the repeated qualifier.
+ */
+.connections-entity-name {
+  line-height: 1.65;
+}
+.connections-entity-name .entity-token {
+  border-radius: var(--radius-sm);
+}
+.connections-entity-name [data-entity-part='table'] {
+  font-weight: 700;
+}
+.connections-entity-separator {
+  color: var(--ast-text-secondary);
 }
 /*
  * The visit mark, to the left of the name it opens.
@@ -1582,10 +1601,13 @@
   cursor: wait;
   opacity: 0.7;
 }
-/* The add form. Two fields on one line, then the two that need the width. */
+/* The add form follows the decision: kind, its identifier, then the two names
+   the stored row needs. A six-pixel gap made labels and controls from adjacent
+   decisions read as one dense stack, so the form uses the ordinary row gap and
+   each labelled field keeps its own tighter internal rhythm. */
 .plane-form {
   display: grid;
-  gap: 6px;
+  gap: 12px;
 }
 
 .notebook-path-editor {
@@ -1602,6 +1624,23 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.plane-form-pair > :only-child {
+  grid-column: 1 / -1;
+}
+.plane-kind-field {
+  display: grid;
+  gap: 4px;
+}
+.plane-identifier-field,
+.plane-field-group {
+  display: grid;
+  gap: 4px;
+}
+.plane-field-label {
+  font-size: var(--ast-fs-12);
+  font-weight: 500;
+  color: var(--ast-text);
+}
 .plane-field {
   min-width: 0;
   padding: 5px 8px;
@@ -1615,6 +1654,35 @@
 .plane-field-select {
   width: 100%;
   max-width: 320px;
+}
+/*
+ * An empty first page is not a browser. The old panel kept its all-caps title,
+ * empty-state sentence and sometimes a useless Load more control, which made a
+ * missing optional grant look like the form's main path. The manual field stays
+ * in place and this one line replaces the whole panel only after the browser
+ * has answered with no rows. `display: none` removes the dead controls from
+ * keyboard and accessibility order as well as from sight.
+ */
+.plane-picker-empty-note {
+  display: none;
+  margin: 0;
+  font-size: var(--ast-fs-12);
+  color: var(--ast-text-secondary);
+}
+.plane-picker:has(.asset-picker-empty) > .asset-picker {
+  display: none;
+}
+.plane-picker:has(.asset-picker-empty) > .plane-picker-empty-note {
+  display: block;
+}
+.plane-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.plane-add-reason {
+  font-size: var(--ast-fs-12);
+  color: var(--ast-text-secondary);
 }
 /* The listed / removed tally beside the heading. Secondary and 400, because the
    heading is the 700 in this band and two bold things in one row compete. */

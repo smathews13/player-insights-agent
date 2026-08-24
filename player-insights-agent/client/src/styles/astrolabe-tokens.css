@@ -81,6 +81,18 @@
   --ast-navy: #11171c; /* ink structure, dark bands, wordmark */
   --ast-blue: #2272b4; /* action, identity, agent-at-work. Same value as --db-blue-600 */
   --ast-blue-on-dark: #6faedd; /* blue's form on navy surfaces */
+  /*
+   * A dark primary control is a raised piece of the night surface, not a slab of
+   * the action hue. #1B3049 stays close enough to the sky to preserve that
+   * hierarchy while giving --ast-ink-on-dark 12.35:1 contrast for its label.
+   */
+  --ast-primary-control-fill: #1b3049;
+  /*
+   * The blue belongs on the control's one-pixel edge. #4A8CBF remains visibly
+   * distinct from both the fill and the surrounding navy without spending the
+   * brighter ice accent on the whole control.
+   */
+  --ast-primary-control-border: #4a8cbf;
   --ast-ice: #f0f6fb; /* AI-context surface. Replaces oat --db-warm #F9F7F4 everywhere */
   --ast-ice-accent: #8fc1e8; /* active tab, links, bars on the night sky */
   --ast-ink-on-dark: #f2f6fa;

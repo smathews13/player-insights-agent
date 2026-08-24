@@ -274,12 +274,20 @@ export function SettingsPage({
                 {notice.text}
               </p>
             ) : null}
-            <Button variant="outline" type="button" onClick={close}>
+            <Button
+              variant="outline"
+              data-variant="outline"
+              className="settings-cancel"
+              type="button"
+              onClick={close}
+            >
               Cancel
             </Button>
             {form ? (
               <Button
                 type="submit"
+                data-variant="primary"
+                className="settings-save"
                 form={form}
                 disabled={saving}
                 aria-busy={saving}

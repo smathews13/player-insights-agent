@@ -38,7 +38,13 @@
  * endpoint and warehouse ids out of the repository.
  */
 
-import type { CostQuality, CostTile } from '../../shared/ops-contract';
+import type {
+  CostQuality,
+  CostTile,
+  QuestionCostAttribution,
+  QuestionCostPart,
+  QuestionCostRun,
+} from '../../shared/ops-contract';
 
 /**
  * The components a deployment can be billed for, in the order they are shown.
@@ -229,7 +235,7 @@ export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean 
  * pinned to the current price. A range that crosses a price change would
  * otherwise be restated at today's rate, quietly, with no sign on the tile.
  */
-export function buildCostStatement(ids: CostIdentifiers): CostStatement | null {
+export function buildCostStatement(ids: CostIdentifiers, range: CostRange): CostStatement | null {
   const covered = COST_COMPONENTS.filter((component) => canAsk(component, ids));
   // Only where the workspace itself is identified. See the note on
   // WORKSPACE_ESTIMATE_SUFFIX: without that predicate there is nothing keeping
@@ -248,15 +254,14 @@ export function buildCostStatement(ids: CostIdentifiers): CostStatement | null {
     parameters.push({ name: marker, value, type });
     bound.add(marker);
   };
+  bind('from_day', range.from, 'DATE');
+  bind('to_day', range.to, 'DATE');
 
   for (const component of covered) {
     const matcher = MATCHERS[component];
     const marker = String(matcher.parameter);
     bind(marker, ids[matcher.parameter] as string, matcher.type);
-    const predicate =
-      matcher.column === null
-        ? `u.workspace_id = :${marker}`
-        : `${matcher.column} = :${marker}`;
+    const predicate = matcher.column === null ? `u.workspace_id = :${marker}` : `${matcher.column} = :${marker}`;
     branches.push(`      WHEN u.billing_origin_product = '${matcher.product}' AND ${predicate} THEN '${component}'`);
   }
 
@@ -288,7 +293,9 @@ ${branches.join('\n')}
    AND u.cloud = p.cloud
    AND u.usage_end_time >= p.price_start_time
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
-  WHERE u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
+  WHERE u.usage_date >= :from_day
+    AND u.usage_date <= :to_day
+    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
 )
 SELECT
   component,
@@ -384,7 +391,11 @@ const DESCRIPTIONS: Record<
 > = {
   'serving-endpoint': {
     label: 'Serving endpoint',
-    quality: 'per-token',
+    // This tile is the endpoint's measured total. `per-token` belongs only on
+    // the run rows built below, after that total has actually been apportioned
+    // by recorded tokens. Calling the numerator per-token before doing that was
+    // the precise estimate-as-measurement failure this module forbids.
+    quality: 'real',
     population: 'This endpoint',
     basis: 'total-in-range',
     variable: 'DATABRICKS_SERVING_ENDPOINT_NAME',
@@ -460,15 +471,10 @@ export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile
           ...base,
           quality: 'estimate',
           population: 'Whole workspace',
-          amount:
-            description.basis === 'per-day'
-              ? estimate.spend / Math.max(estimate.billedDays, 1)
-              : estimate.spend,
+          amount: description.basis === 'per-day' ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
           note: '',
           unavailable: '',
-          remedy: description.variable
-            ? `Set ${description.variable} to narrow this to this deployment.`
-            : '',
+          remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : '',
         };
       }
       // A state and, where one exists, the one thing that would change it. This
@@ -486,6 +492,15 @@ export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile
 
     const row = byComponent.get(component);
     if (!row || row.spend === null || !Number.isFinite(row.spend)) {
+      if (component === 'app-compute') {
+        return {
+          ...base,
+          amount: null,
+          note: '',
+          unavailable: 'Billing tag match unverified',
+          remedy: 'Verify whether app compute propagates the Astrolabe billing tag.',
+        };
+      }
       return { ...base, amount: null, note: '', unavailable: 'No billing rows', remedy: '' };
     }
 
@@ -518,3 +533,147 @@ export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile
  * per-question division was the only reason one was ever computed. Both are
  * gone. See the note on {@link OpsCostPayload} in the shared contract.
  */
+
+/** A completed run as read from Lakebase, before billing is apportioned to it. */
+export interface QuestionRunInput {
+  runId: string;
+  correlationId: string;
+  traceId: string;
+  completedAt: string;
+  totalTokens: number | null;
+  runsInRange: number;
+  tokenCoveredRuns: number;
+  totalRecordedTokens: number;
+}
+
+const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality: 'unknown' }>, 'amount' | 'quality'>[] =
+  [
+    {
+      id: 'genie',
+      label: 'Genie spaces',
+      unavailable: 'Billing exposes workspace spend but no run or space attribution key.',
+    },
+    {
+      id: 'vector-search',
+      label: 'Vector search',
+      unavailable: 'Endpoint time is billed as a rate and cannot be joined to one query.',
+    },
+    {
+      id: 'app-compute',
+      label: 'App compute',
+      unavailable: 'Compute time cannot be joined to one run; billing-tag propagation also needs live verification.',
+    },
+    {
+      id: 'index-rebuild-job',
+      label: 'Index rebuild job',
+      unavailable: 'A rebuild is shared maintenance work rather than work caused by one question.',
+    },
+    {
+      id: 'foundation-model',
+      label: 'Foundation model',
+      unavailable: 'The foundation-model endpoint identifier is not recorded with the run today.',
+    },
+    {
+      id: 'lakebase',
+      label: 'Lakebase Postgres',
+      unavailable: 'No documented billing row in this app can be joined to a Lakebase query or run.',
+    },
+  ];
+
+function unknownPart(id: string, label: string, unavailable: string): QuestionCostPart {
+  return { id, label, quality: 'unknown', amount: null, unavailable };
+}
+
+/**
+ * Apportion the two components for which the app has a defensible denominator.
+ *
+ * Serving uses each run's recorded token share of the endpoint total. SQL uses
+ * an explicitly even allocation of the warehouse total across completed runs:
+ * useful for understanding the range, but still an estimate and never eligible
+ * for a measured total. Every other component is returned as an unavailable
+ * part rather than silently omitted.
+ */
+export function buildQuestionAttribution(
+  runs: QuestionRunInput[],
+  tiles: CostTile[],
+  limit: number
+): QuestionCostAttribution {
+  const newest = runs.slice(0, limit);
+  const first = runs[0];
+  const runsInRange = first?.runsInRange ?? 0;
+  const tokenCoveredRuns = first?.tokenCoveredRuns ?? 0;
+  const totalRecordedTokens = first?.totalRecordedTokens ?? 0;
+  const servingTile = tiles.find((tile) => tile.id === 'serving-endpoint');
+  const servingSpend = servingTile?.amount;
+  const sqlSpend = tiles.find((tile) => tile.id === 'sql-warehouse')?.amount;
+
+  const attributed: QuestionCostRun[] = newest.map((run) => {
+    const parts: QuestionCostPart[] = [];
+    if (
+      run.totalTokens !== null &&
+      run.totalTokens >= 0 &&
+      typeof servingSpend === 'number' &&
+      Number.isFinite(servingSpend) &&
+      totalRecordedTokens > 0
+    ) {
+      parts.push({
+        id: 'serving-endpoint',
+        label: 'Model serving',
+        /*
+         * Token shares of an endpoint total are per-token. Token shares of a
+         * workspace-wide estimate are still that estimate, divided. Labelling
+         * the second per-token was the same quality lie the tile itself already
+         * refuses when the endpoint name is missing.
+         */
+        quality: servingTile?.quality === 'real' ? 'per-token' : 'estimate',
+        amount: (servingSpend * run.totalTokens) / totalRecordedTokens,
+        unavailable: '',
+      });
+    } else {
+      parts.push(
+        unknownPart(
+          'serving-endpoint',
+          'Model serving',
+          run.totalTokens === null
+            ? 'This run recorded no token count.'
+            : 'No endpoint spend was measured for this range.'
+        )
+      );
+    }
+
+    if (typeof sqlSpend === 'number' && Number.isFinite(sqlSpend) && runsInRange > 0) {
+      parts.push({
+        id: 'sql-warehouse',
+        label: 'SQL warehouse',
+        quality: 'estimate',
+        amount: sqlSpend / runsInRange,
+        unavailable: '',
+      });
+    } else {
+      parts.push(
+        unknownPart('sql-warehouse', 'SQL warehouse', 'No warehouse spend was available to allocate in this range.')
+      );
+    }
+
+    parts.push(
+      ...UNKNOWN_QUESTION_PARTS.map((part): QuestionCostPart => ({ ...part, quality: 'unknown', amount: null }))
+    );
+    return {
+      runId: run.runId,
+      correlationId: run.correlationId,
+      traceId: run.traceId,
+      completedAt: run.completedAt,
+      totalTokens: run.totalTokens,
+      parts,
+    };
+  });
+
+  return {
+    runs: attributed,
+    runsInRange,
+    tokenCoveredRuns,
+    totalRecordedTokens,
+    limited: runsInRange > attributed.length,
+    reason: runsInRange === 0 ? 'No completed runs were recorded in this billing range.' : '',
+  };
+}

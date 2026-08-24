@@ -132,6 +132,8 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
     reason: '',
     currency: 'USD',
     throughDay: '2026-08-14',
+    range: { from: '2026-08-08', to: '2026-08-14' },
+    billingLagDays: 0,
     readAt: '2026-08-15T12:00:00Z',
     tiles: [
       {
@@ -157,6 +159,14 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
         note: '',
       },
     ],
+    perQuestion: {
+      runs: [],
+      runsInRange: 0,
+      tokenCoveredRuns: 0,
+      totalRecordedTokens: 0,
+      limited: false,
+      reason: 'No completed runs were recorded in this billing range.',
+    },
     ...overrides,
   };
 }
@@ -796,7 +806,7 @@ describe('the cost block', () => {
 
   it('says whether a tile is a total or a daily rate', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('all time');
+    expect(markup).toContain('in range');
     expect(markup).toContain('per day');
   });
 
@@ -813,14 +823,13 @@ describe('the cost block', () => {
    * block rather than a tile, because they are as true of the cards with no
    * figure as of the amounts.
    *
-   * Two words now. "Experimental" is what the figures are worth — it replaced
-   * "Not production", which described the account they came from rather than the
-   * numbers — and "Under development" is the block's own stage.
+   * "Experimental" is what the figures are worth — it replaced "Not production",
+   * which described the account they came from rather than the numbers.
    */
   it('qualifies the whole block with badges rather than a paragraph', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).toContain('Experimental');
-    expect(markup).toContain('Under development');
+    expect(markup).not.toContain('Under development');
     expect(markup).not.toContain('Not production');
     expect(markup).not.toMatch(/List prices/);
     expect(markup).not.toMatch(/Complete through/);
@@ -837,10 +846,7 @@ describe('the cost block', () => {
       </MemoryRouter>
     );
     expect(markup).toContain('ast-pill ast-pill--warn ops-pill');
-    // The de-emphasis is a class on this section, and the rules that grey the
-    // block are descendants of it. A block showing measured data may never
-    // inherit it, and Traffic below asserts the other half of that.
-    expect(markup).toContain('ops-block ops-block-unfinished');
+    expect(markup).not.toContain('ops-block-unfinished');
   });
 
   /**
@@ -871,7 +877,7 @@ describe('the cost block', () => {
   });
 
   /**
-   * NO PER-QUESTION FIGURE, IN ANY WORDING.
+   * NO SINGLE PER-QUESTION TOTAL, IN ANY WORDING.
    *
    * Held against the arithmetic as well as the label, because the row was correct
    * by its own rules and wrong anyway: what it divided is billed by time, so the
@@ -879,13 +885,69 @@ describe('the cost block', () => {
    * sixteen questions. The payload no longer carries a spend total or a question
    * count for anything to divide, and the wording is asserted as well, so a
    * figure recomputed from the tiles could not arrive wearing the old label.
+   * The component breakdown may say "per-question"; the forbidden claim is one
+   * cross-quality total or average.
    */
-  it('puts no per-question average at the foot of the block', () => {
+  it('puts no per-question total or average at the foot of the block', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).not.toMatch(/average/i);
-    expect(markup).not.toMatch(/per question/i);
+    expect(markup).toContain('Per-question attribution');
+    expect(markup).toContain('No single total');
     expect(markup).not.toContain('3.00 USD');
     expect(markup).not.toContain('across 4 questions');
+  });
+
+  it('keeps token-apportioned, estimated, and unknowable parts visibly separate', () => {
+    const payload = cost({
+      perQuestion: {
+        runsInRange: 1,
+        tokenCoveredRuns: 1,
+        totalRecordedTokens: 1000,
+        limited: false,
+        reason: '',
+        runs: [
+          {
+            runId: 'run-1',
+            correlationId: 'req-1',
+            traceId: 'trace-1',
+            completedAt: '2026-08-14T12:00:00Z',
+            totalTokens: 1000,
+            parts: [
+              {
+                id: 'serving-endpoint',
+                label: 'Model serving',
+                quality: 'per-token',
+                amount: 1.25,
+                unavailable: '',
+              },
+              {
+                id: 'sql-warehouse',
+                label: 'SQL warehouse',
+                quality: 'estimate',
+                amount: 2,
+                unavailable: '',
+              },
+              {
+                id: 'genie',
+                label: 'Genie spaces',
+                quality: 'unknown',
+                amount: null,
+                unavailable: 'No run attribution key.',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).toContain('1.25 USD');
+    expect(markup).toContain('Per token');
+    expect(markup).toContain('2.00 USD');
+    expect(markup).toContain('Estimate');
+    expect(markup).toContain('allocated evenly');
+    expect(markup).toContain('Not knowable per question today');
+    expect(markup).toContain('No run attribution key.');
+    expect(markup).not.toMatch(/total per question|average per question/i);
   });
 
   it('renders a missing grant with the statement that fixes it', () => {
@@ -1250,7 +1312,7 @@ describe('the traffic block', () => {
   });
 });
 
-describe('Ops is all time', () => {
+describe('Ops cost uses complete billing days', () => {
   const at = (search: string) =>
     renderToStaticMarkup(
       <MemoryRouter initialEntries={[`/ops${search}`]}>
@@ -1258,25 +1320,21 @@ describe('Ops is all time', () => {
       </MemoryRouter>
     );
 
-  it('renders no date control, range chip, or latency window', () => {
+  it('renders the shared range control and the exact cost dates', () => {
     const markup = at('?range=24h&from=2026-03-02&to=2026-03-06');
-    expect(markup).not.toContain('ops-range-dates');
-    expect(markup).not.toContain('time-range-control');
-    expect(text(markup)).not.toMatch(/prior half|Aug \d|2026-03-0[26]/);
+    expect(markup).toContain('ops-range-dates');
+    expect(markup).toContain('time-range-segments');
+    expect(text(markup)).toContain('Cost billing window');
+    expect(text(markup)).toContain('Today is excluded because billing arrives late');
   });
 
-  it('fetches every block without date parameters', () => {
+  it('sends validated from and to dates to cost only', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
-    const reads = [...source.matchAll(/useBlock<\w+>\('(\/api\/ops\/\w+)',\s*(\w+)\)/g)];
-    expect(reads.map(([, path]) => path)).toEqual([
-      '/api/ops/health',
-      '/api/ops/cost',
-      '/api/ops/traffic',
-      '/api/ops/latency',
-    ]);
-    expect(new Set(reads.map(([, , argument]) => argument))).toEqual(new Set(['search']));
-    expect(source).toContain("const search = ''");
-    expect(source).not.toMatch(/TimeRangeControl|rangeWindow|opsRangeDates|[?&](?:from|to)=/);
+    expect(source).toContain("costParams.set('from', range.from)");
+    expect(source).toContain("costParams.set('to', range.to)");
+    expect(source).toContain("useBlock<OpsCostPayload>('/api/ops/cost', costSearch)");
+    expect(source).toContain("useBlock<OpsHealthPayload>('/api/ops/health', '')");
+    expect(source).toContain('TimeRangeControl page="Ops cost"');
     expect(source).toContain("params.set('range', 'all')");
     expect(source).toContain("const runsHref = () => '/runs?range=all'");
   });

@@ -35,7 +35,7 @@
  * cost money to look at.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Info, Search, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
@@ -59,6 +59,7 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
+  questionPartView,
   splitMethod,
   telemetryNotice,
   WITHHELD,
@@ -68,6 +69,8 @@ import {
   type Absence as AbsenceCopy,
   type HealthRow,
 } from './ops-view';
+import { TimeRangeControl } from './TimeRangeControl';
+import { rangeWindow } from './time-range';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -75,8 +78,10 @@ import type {
   OpsHealthPayload,
   OpsLatencyPayload,
   OpsTrafficPayload,
+  QuestionCostPart,
   RouteLatency,
 } from '../../shared/ops-contract';
+import { opsDayRange, opsRangeDates } from '../../shared/ops-contract';
 
 /* ── Loading one block ───────────────────────────────────────────────────── */
 
@@ -576,7 +581,20 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
  * both.
  */
 function costQualifiers(payload: OpsCostPayload): string {
-  const parts = ['At list price', payload.currency, spokenDay(payload.throughDay), 'read under your own grants'];
+  const lag =
+    payload.billingLagDays === null
+      ? 'billing freshness not established'
+      : payload.billingLagDays === 0
+        ? 'billing through range end'
+        : `${payload.billingLagDays} ${payload.billingLagDays === 1 ? 'day' : 'days'} billing lag`;
+  const parts = [
+    'At list price',
+    payload.currency,
+    opsRangeDates(payload.range),
+    spokenDay(payload.throughDay),
+    lag,
+    'read under your own grants',
+  ];
   return parts.filter(Boolean).join(' \u00b7 ');
 }
 
@@ -612,41 +630,11 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
   const absent = payload ? costAbsence(payload) : null;
 
   return (
-    /*
-     * THE ONE BLOCK ON THIS TAB THAT IS NOT FINISHED, and it says so in its own
-     * surface rather than only in a word. The cards, the figures and the outline
-     * all stay: what this block will look like is the useful thing about it
-     * today. What goes is the finish — the wash behind it and the marks in grey,
-     * so nobody reads a number off it and acts.
-     *
-     * The class is on THIS SECTION and the rules under it are descendants of it,
-     * which is what keeps the treatment off Health, Traffic and Latency. Those
-     * three are separate sections showing measured data and a de-emphasis
-     * reaching them would be a lie about all three.
-     */
-    <section className="ops-block ops-block-unfinished" aria-labelledby="ops-cost-heading">
+    <section className="ops-block" aria-labelledby="ops-cost-heading">
       <BlockHead
         id="ops-cost-heading"
         title="Cost"
-        /* TWO BADGES OVER THE BLOCK, INSTEAD OF THREE QUALIFIERS UNDER IT. There
-           were a sentence, a date line and a disclosure: list prices rather than
-           the bill, complete days only, and read under this reader's own grants.
-           Every one of them says the same thing about how much weight the figures
-           will bear, and stacked they were a paragraph above a grid of numbers
-           that nobody finished. The badge says it once, at section level, where it
-           governs the whole block including the cards that have no figure. The
-           window the figures cover is the range chip at the top of the page.
-
-           "Experimental" is that qualifier, and it replaces "Not production",
-           which was a claim about the account the figures came from rather than
-           about the figures. "Under development" is the block's stage and not a
-           property of any number in it, so it takes the neutral pill: amber twice
-           over would be one warning wearing two hats, and it is the greyed
-           surface below that says the same thing at full volume. */
-        badges={[
-          { word: 'Experimental', tone: astPill('warn', 'ops-pill') },
-          { word: 'Under development', tone: astPill('neutral-outline', 'ops-pill') },
-        ]}
+        badges={[{ word: 'Experimental', tone: astPill('warn', 'ops-pill') }]}
         meta={payload ? costQualifiers(payload) : ''}
         control={<RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />}
       />
@@ -727,6 +715,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                 );
               })}
             </div>
+            <QuestionCostBreakdown payload={payload} />
             {billingHref ? (
               <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer">
                 Open system.billing.usage
@@ -740,6 +729,100 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
         ) : null}
       </BlockBody>
     </section>
+  );
+}
+
+function QuestionPartCell({ part, currency }: { part: QuestionCostPart | undefined; currency: string }) {
+  if (!part) return <span className="ops-tile-absent">Not knowable</span>;
+  const view = questionPartView(part, currency);
+  return view.figure ? (
+    <>
+      <span className="ast-num">{view.figure}</span>{' '}
+      <span className={astPill(view.estimate ? 'warn' : 'neutral-outline', 'ops-pill')}>{view.qualityLabel}</span>
+    </>
+  ) : (
+    <span className="ops-tile-absent">{view.absence}</span>
+  );
+}
+
+/**
+ * Per-run parts rather than a headline total. Model serving is apportioned by
+ * recorded tokens; warehouse spend is visibly an even estimate; every component
+ * without a defensible join is named once below the table. Adding the first two
+ * would make the estimate look measured and dropping the rest would call an
+ * incomplete subtotal "cost per question", so this component does neither.
+ */
+function QuestionCostBreakdown({ payload }: { payload: OpsCostPayload }) {
+  const attribution = payload.perQuestion;
+  const first = attribution.runs[0];
+  const unknown = first?.parts.filter((part) => part.quality === 'unknown') ?? [];
+  return (
+    <div className="ops-cost-attribution">
+      <h4>Per-question attribution</h4>
+      <p className="ops-source-filter">
+        No single total: measured, allocated, and not-knowable parts stay separate. Tokens cover{' '}
+        <span className="ast-num">
+          {attribution.tokenCoveredRuns} of {attribution.runsInRange}
+        </span>{' '}
+        completed runs. Model serving follows each run&apos;s token share; SQL warehouse spend is allocated evenly
+        across every completed run in the range.
+      </p>
+      {attribution.reason ? <p className="ops-tile-absent">{attribution.reason}</p> : null}
+      {attribution.runs.length > 0 ? (
+        <div className="ops-latency-scroll">
+          <table className="ops-table">
+            <caption className="sr-only">
+              Per-question model-serving attribution and estimated SQL warehouse allocation.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Run</th>
+                <th scope="col">Tokens</th>
+                <th scope="col">Model serving</th>
+                <th scope="col">SQL warehouse</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attribution.runs.map((run) => (
+                <tr key={run.runId}>
+                  <td>
+                    <code>{run.correlationId || run.runId}</code>
+                  </td>
+                  <td className="ast-num">{run.totalTokens === null ? 'Not recorded' : count(run.totalTokens)}</td>
+                  <td>
+                    <QuestionPartCell
+                      part={run.parts.find((part) => part.id === 'serving-endpoint')}
+                      currency={payload.currency}
+                    />
+                  </td>
+                  <td>
+                    <QuestionPartCell
+                      part={run.parts.find((part) => part.id === 'sql-warehouse')}
+                      currency={payload.currency}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {attribution.limited ? (
+        <p className="ops-source-filter">Showing the newest 100 runs; allocations use all runs in the range.</p>
+      ) : null}
+      {unknown.length > 0 ? (
+        <>
+          <h5>Not knowable per question today</h5>
+          <ul>
+            {unknown.map((part) => (
+              <li key={part.id}>
+                <strong>{part.label}:</strong> {part.unavailable}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -1367,15 +1450,24 @@ export function TrafficBody({
 /* ── The page ────────────────────────────────────────────────────────────── */
 
 export function OpsPage() {
-  const search = '';
+  const [params] = useSearchParams();
+  const [openedAt] = useState(() => Date.now());
+  const selected = rangeWindow(params, openedAt);
+  const range = opsDayRange(selected.from, selected.to, openedAt);
+  const costParams = new URLSearchParams();
+  costParams.set('from', range.from);
+  costParams.set('to', range.to);
+  const costSearch = `?${costParams.toString()}`;
 
   // Three reads, started together and finishing whenever each finishes. Nothing
   // below waits on anything else, which is the whole point of the arrangement.
-  // Every read is unbounded, so each block covers all data its source exposes.
-  const health = useBlock<OpsHealthPayload>('/api/ops/health', search);
-  const cost = useBlock<OpsCostPayload>('/api/ops/cost', search);
-  const traffic = useBlock<OpsTrafficPayload>('/api/ops/traffic', search);
-  const latency = useBlock<OpsLatencyPayload>('/api/ops/latency', search);
+  // Cost alone is a complete-day billing window. The other blocks retain their
+  // existing source windows; implying the billing selector also bounded live
+  // health or all-time latency would be a second range bug, not consistency.
+  const health = useBlock<OpsHealthPayload>('/api/ops/health', '');
+  const cost = useBlock<OpsCostPayload>('/api/ops/cost', costSearch);
+  const traffic = useBlock<OpsTrafficPayload>('/api/ops/traffic', '');
+  const latency = useBlock<OpsLatencyPayload>('/api/ops/latency', '');
 
   /** Monitoring narrowed to one all-time outcome. */
   const monitoringHref: MonitoringHref = (outcome) => {
@@ -1390,6 +1482,10 @@ export function OpsPage() {
   return (
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
+      <TimeRangeControl page="Ops cost" />
+      <p className="ops-range-dates">
+        Cost billing window: {opsRangeDates(range)}. Today is excluded because billing arrives late.
+      </p>
 
       {/* Each block reads itself. Three read times on one page rather than one,
           because they were read at three different moments. */}

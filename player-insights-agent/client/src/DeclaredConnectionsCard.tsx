@@ -18,7 +18,7 @@
  * ordinary removal still offers "Put back", permanent removal is explicit, and
  * adding still grants nobody anything.
  */
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { AppSelect } from './AppSelect';
 import { BrandIcon } from './BrandIcon';
@@ -68,6 +68,7 @@ export function DeclaredConnectionsCard({
   const [forgetting, setForgetting] = useState('');
   /** The row added in this sitting, which carries the badge until the page is left. */
   const [justAdded, setJustAdded] = useState('');
+  const formId = useId();
 
   const ordered = orderConnections(entries ?? []);
   // The row just added sits at the foot of the list, immediately above the
@@ -80,6 +81,26 @@ export function DeclaredConnectionsCard({
     : ordered;
   const chosenKind = ADDABLE_KINDS.find((entry) => entry.id === kindChoice) ?? ADDABLE_KINDS[0];
   const picker = ADD_CONNECTION_PICKERS[chosenKind.browse];
+  const identifierLabel = picker.typeLabel
+    .replace(/^Or type (an?|a) /i, '')
+    .replace(/^./, (letter) => letter.toUpperCase());
+  const emptyBrowseNote = ['tables', 'catalogs', 'volumes'].includes(chosenKind.browse)
+    ? 'No catalogs are visible to this sign-in, usually because it has no Unity Catalog grants. You can still enter the name manually.'
+    : `No ${chosenKind.label.toLowerCase()} are visible to this sign-in. You can still enter the identifier manually.`;
+  // Only workspace-minted hexadecimal ids need a second, human-facing name.
+  // A table, catalog, volume, index or endpoint already carries a readable name
+  // in its identifier, so showing another blank name box asks for the same fact
+  // twice and produces no additional information on the saved row.
+  const needsDisplayName = chosenKind.id === 'genie-space' || chosenKind.id === 'sql-warehouse';
+  const disabledReason = !storeAvailable
+    ? 'The connection store is not answering.'
+    : !value.trim()
+      ? `Enter or choose a ${identifierLabel.toLowerCase()}.`
+      : !id.trim()
+        ? 'Enter a connection key.'
+        : busy
+          ? 'Adding this connection.'
+          : '';
 
   async function add() {
     const duplicate = listed.some(
@@ -146,78 +167,114 @@ export function DeclaredConnectionsCard({
 
       {allowMutations && adding ? (
         <div className="plane-form">
-          <div className="plane-form-pair">
-            <input
-              className="plane-field"
-              value={id}
-              onChange={(event) => setId(event.target.value)}
-              placeholder="name"
-              aria-label="Name"
-            />
-            {/* The app's own menu rather than the platform's. The trigger is a
-                combobox whose accessible name is "Kind" and whose value is the
-                chosen label, so a reader hears the same thing the native
-                control said. */}
+          {/* THE DECISION COMES FIRST. The old row asked for a name before it
+              said what was being named, then changed the meaning of the value
+              box several controls later. Kind now leads both visual and
+              keyboard order, and changing it clears values that belong to the
+              previous kind rather than offering to submit a table as a model. */}
+          <div className="plane-kind-field">
             <AppSelect
               label="Kind"
               ariaLabel="Kind"
               value={kindChoice}
-              onValueChange={setKindChoice}
+              onValueChange={(next) => {
+                setKindChoice(next);
+                setId('');
+                setLabel('');
+                setValue('');
+                setError('');
+              }}
               options={ADDABLE_KINDS.map((entry) => ({ value: entry.id, label: entry.label }))}
               className="plane-field-select"
             />
           </div>
-          {/* Every kind browses. The list is keyed by the chosen kind so that
-              switching kinds opens a new browser rather than re-filtering the
-              last one. */}
-          <AssetPicker
-            key={chosenKind.id}
-            spec={picker}
-            current={value}
-            onPick={(picked, row) => {
-              // A volume row carries a leaf name, and only the catalog and
-              // schema it was browsed through make it into a path the agent
-              // can be pointed at.
-              const stored = addedConnectionValue(chosenKind.id, picked, row?.cursor);
-              setValue(stored);
-              // THE NAME THE LIST SHOWED, not a fragment of the id. A Genie
-              // space and a warehouse both store a hex string, and deriving a
-              // label from one is how this list ended up printing hex at the
-              // reader. The picked row already carries the human name.
-              const named = addedConnectionLabel(stored, row?.item.label);
-              setLabel((current) => current || named);
-              setId(
-                (current) =>
-                  current || `${chosenKind.id}-${stored.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
-              );
-            }}
-          />
-          <input
-            className="plane-field ast-mono"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            // Named for the kind on screen. It read "catalog.schema.table" for
-            // every kind, including the six that do not take one.
-            placeholder={picker.typeLabel.replace(/^Or type (an?|a) /i, '')}
-            aria-label="Identifier"
-          />
-          <input
-            className="plane-field"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="label"
-            aria-label="Label"
-          />
-          <span>
+
+          <div className="plane-identifier-field">
+            <label className="plane-field-label" htmlFor={`${formId}-identifier`}>
+              {identifierLabel}
+            </label>
+            <input
+              id={`${formId}-identifier`}
+              className="plane-field ast-mono"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder={picker.typeLabel.replace(/^Or type (an?|a) /i, '')}
+            />
+            {/* The browser is an alternative to typing, not a prerequisite.
+                It follows the manual field so a missing optional browse grant
+                never stands between the reader and the control that works. */}
+            <div className="plane-picker">
+              <AssetPicker
+                key={chosenKind.id}
+                spec={picker}
+                current={value}
+                onPick={(picked, row) => {
+                  // A volume row carries a leaf name, and only the catalog and
+                  // schema it was browsed through make it into a path the agent
+                  // can be pointed at.
+                  const stored = addedConnectionValue(chosenKind.id, picked, row?.cursor);
+                  setValue(stored);
+                  // THE NAME THE LIST SHOWED, not a fragment of the id. A Genie
+                  // space and a warehouse both store a hex string, and deriving a
+                  // label from one is how this list ended up printing hex at the
+                  // reader. The picked row already carries the human name.
+                  const named = addedConnectionLabel(stored, row?.item.label);
+                  setLabel((current) => current || named);
+                  setId(
+                    (current) =>
+                      current || `${chosenKind.id}-${stored.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-|-$/g, '')}`
+                  );
+                }}
+              />
+              <p className="plane-picker-empty-note">{emptyBrowseNote}</p>
+            </div>
+          </div>
+
+          {/* These names are not aliases. The display name is what a person
+              sees in the list; the connection key is the stable id used when a
+              saved row is removed or restored. Naming both jobs prevents the
+              two blank "name" and "label" boxes from looking redundant while
+              preserving the payload the server already accepts. */}
+          <div className="plane-form-pair">
+            {needsDisplayName ? (
+              <label className="plane-field-group" htmlFor={`${formId}-label`}>
+                <span className="plane-field-label">Display name (optional)</span>
+                <input
+                  id={`${formId}-label`}
+                  className="plane-field"
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                  placeholder="Name shown in this list"
+                />
+              </label>
+            ) : null}
+            <label className="plane-field-group" htmlFor={`${formId}-key`}>
+              <span className="plane-field-label">Connection key</span>
+              <input
+                id={`${formId}-key`}
+                className="plane-field ast-mono"
+                value={id}
+                onChange={(event) => setId(event.target.value)}
+                placeholder={`${chosenKind.id}-name`}
+              />
+            </label>
+          </div>
+          <div className="plane-form-actions">
             <button
               type="button"
               className="plane-button"
-              disabled={busy || !id.trim() || !value.trim() || !storeAvailable}
+              disabled={Boolean(disabledReason)}
+              aria-describedby={disabledReason ? `${formId}-add-reason` : undefined}
               onClick={() => void add()}
             >
               Add
             </button>
-          </span>
+            {disabledReason ? (
+              <span className="plane-add-reason" id={`${formId}-add-reason`}>
+                {disabledReason}
+              </span>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -245,9 +302,7 @@ export function DeclaredConnectionsCard({
                 {/* Said on the row somebody just added, because the list it
                     joins is long enough that a new entry at the foot of it is
                     otherwise indistinguishable from the rest. */}
-                {entry.connection.id === justAdded ? (
-                  <span className="plane-row-new">{JUST_ADDED_LABEL}</span>
-                ) : null}
+                {entry.connection.id === justAdded ? <span className="plane-row-new">{JUST_ADDED_LABEL}</span> : null}
               </span>
               <span className="plane-row-value ast-mono" title={row.fullIdentifier}>
                 {row.identifier}

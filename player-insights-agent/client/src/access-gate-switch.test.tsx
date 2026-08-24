@@ -18,14 +18,21 @@
  */
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AccessGate } from './AccessGate';
+import { forgetIdentityRequest, identityRequest } from './app-state';
 import { ACCESS_GATE_ENABLED } from '../../shared/access-gate';
 
 const SOURCE = readFileSync(new URL('./AccessGate.tsx', import.meta.url), 'utf8');
+const APP_STATE = readFileSync(new URL('./app-state.ts', import.meta.url), 'utf8');
 
 const APP = <p>the app</p>;
+
+afterEach(() => {
+  forgetIdentityRequest();
+  vi.unstubAllGlobals();
+});
 
 describe('the switch', () => {
   it('is off in what this deployment ships', () => {
@@ -51,11 +58,40 @@ describe('what a reader meets on open', () => {
 });
 
 describe('turning it back on', () => {
-  it('puts the check in charge of whether the app is shown', () => {
-    // Nothing on screen until the identity read lands, which is the gate's own
-    // opening state and the opposite of standing aside. That the panel then
-    // renders three doors is the Playwright spec's assertion, and it needs a
-    // browser to make it.
-    expect(renderToStaticMarkup(<AccessGate enabled>{APP}</AccessGate>)).toBe('');
+  it('keeps the app shell painted while the gate decides whether to cover it', () => {
+    // Effects do not run in this renderer, so this is exactly the first frame:
+    // the identity is unresolved, but a cold role read no longer means a blank
+    // viewport.
+    expect(renderToStaticMarkup(<AccessGate enabled>{APP}</AccessGate>)).toBe('<p>the app</p>');
+  });
+
+  it('shares the shell identity request instead of issuing its own', async () => {
+    const fetchIdentity = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ signedInAs: 'reader@example.com' }),
+    });
+    vi.stubGlobal('fetch', fetchIdentity);
+
+    const [first, second] = await Promise.all([identityRequest(), identityRequest()]);
+    expect(first).toEqual(second);
+    expect(fetchIdentity).toHaveBeenCalledTimes(1);
+    expect(SOURCE).not.toContain("fetch('/api/identity')");
+    expect(SOURCE).toContain('identityRequest()');
+    expect(APP_STATE.match(/fetch\('\/api\/identity'\)/g)).toHaveLength(1);
+  });
+
+  it('asks again after a failed identity read, instead of replaying that failure', async () => {
+    const fetchIdentity = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ signedInAs: 'reader@example.com' }),
+      });
+    vi.stubGlobal('fetch', fetchIdentity);
+
+    await expect(identityRequest()).rejects.toThrow('Identity unavailable');
+    await expect(identityRequest()).resolves.toEqual({ signedInAs: 'reader@example.com' });
+    expect(fetchIdentity).toHaveBeenCalledTimes(2);
   });
 });

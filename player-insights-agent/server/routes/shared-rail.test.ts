@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  CONVERSATION_RAIL_LIMIT,
   SHARED_CONVERSATION_RAIL_ENV,
   resolveSharedConversationRail,
   setupInsightsRoutes,
@@ -111,7 +112,8 @@ describe('resolving the flag', () => {
 
   // The cases that matter. Each of these is something a person would plausibly
   // write meaning "on", and every one of them has to fail closed.
-  it.each(['1', 'yes', 'y', 'on', 'shared', 'treu', 'ture', 'True!', 'enabled'])('fails closed on %j, and marks it unrecognised rather than merely off',
+  it.each(['1', 'yes', 'y', 'on', 'shared', 'treu', 'ture', 'True!', 'enabled'])(
+    'fails closed on %j, and marks it unrecognised rather than merely off',
     (value) => {
       const resolved = resolveSharedConversationRail(value);
       expect(resolved.shared).toBe(false);
@@ -137,30 +139,30 @@ describe('what the rail reads', () => {
 
     const [read] = store.reads();
     expect(read.sql).toContain('WHERE user_email = $1');
+    expect(read.sql).toContain(`LIMIT ${CONVERSATION_RAIL_LIMIT}`);
     expect(read.params).toEqual(['alice@example.example']);
   });
 
-  it.each(['1', 'yes', 'treu', ''])('still scopes to the caller when the flag says %j',
-    async (value) => {
-      process.env[SHARED_CONVERSATION_RAIL_ENV] = value;
-      const store = recordingStore();
-      const app = await startApp(store.lakebase);
-      store.queries.length = 0;
+  it.each(['1', 'yes', 'treu', ''])('still scopes to the caller when the flag says %j', async (value) => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = value;
+    const store = recordingStore();
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
 
-      try {
-        await app.fetch('/api/conversations', { headers: asAlice });
-      } finally {
-        await app.close();
-      }
-
-      const [read] = store.reads();
-      expect(read.sql,
-        `${JSON.stringify(value)} is not "true", so the rail must stay scoped. A value nobody ` +
-          'recognises must never be the thing that widens it.'
-      ).toContain('WHERE user_email = $1');
-      expect(read.params).toEqual(['alice@example.example']);
+    try {
+      await app.fetch('/api/conversations', { headers: asAlice });
+    } finally {
+      await app.close();
     }
-  );
+
+    const [read] = store.reads();
+    expect(
+      read.sql,
+      `${JSON.stringify(value)} is not "true", so the rail must stay scoped. A value nobody ` +
+        'recognises must never be the thing that widens it.'
+    ).toContain('WHERE user_email = $1');
+    expect(read.params).toEqual(['alice@example.example']);
+  });
 
   it('lists everyone once the flag is exactly true', async () => {
     process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
@@ -176,6 +178,7 @@ describe('what the rail reads', () => {
 
     const [read] = store.reads();
     expect(read.sql).not.toContain('WHERE');
+    expect(read.sql).toContain(`LIMIT ${CONVERSATION_RAIL_LIMIT}`);
     expect(read.params).toEqual([]);
   });
 

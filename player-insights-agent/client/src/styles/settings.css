@@ -527,11 +527,11 @@
 }
 
 /*
- * AppKit's destructive variant currently exposes its tone as utility classes,
- * not the `data-variant` hook the app-wide dark rule targets. Roles is the only
- * Settings pane with deletion, so name that control here and route its dark fill
- * directly through the control-only token. Negative prose keeps the lighter
- * `--destructive`; Remove cannot turn hot pink or disappear into the night pane.
+ * Roles is the only Settings pane with deletion, so the class remains a
+ * page-local backstop beside the shared `data-variant="destructive"` route.
+ * Negative prose keeps the lighter `--destructive`; Remove cannot turn hot pink
+ * or disappear into the night pane if AppKit changes how it emits variant
+ * metadata again.
  */
 html[data-theme='dark'] .settings-page .settings-destructive {
   border-color: var(--ast-destructive-control);
@@ -696,7 +696,6 @@ html[data-theme='dark'] .settings-page .settings-destructive:hover:not(:disabled
   background: var(--card);
   color: var(--foreground);
   font-weight: 500;
-  box-shadow: inset 2px 0 var(--primary);
 }
 
 .settings-modal-content {

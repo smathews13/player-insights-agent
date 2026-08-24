@@ -54,7 +54,8 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(source('MonitoringPage.tsx')).toContain('className="monitoring-drawer"');
     expect(source('AccountMenu.tsx')).toContain('className="account-menu"');
     expect(source('App.tsx')).toContain('useRuntimeEntityStyles();');
-    expect(source('AppSky.tsx')).toContain("glyph: 'circle'");
+    expect(source('AppSky.tsx')).toContain('<StarField');
+    expect(source('StarField.tsx')).toContain('<circle');
     expect(SETTINGS).toMatch(/\.settings-modal-body\s*\{[^}]*grid-template-columns:\s*140px minmax\(0,\s*1fr\)/);
   });
 
@@ -78,7 +79,63 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).toMatch(/\.ops-lat-bar-fill\s*\{[^}]*rgba\(143,\s*193,\s*232,\s*0\.75\)/);
     expect(DARK).toMatch(/\.arch-edge\s*\{[^}]*--ast-ice-accent[^}]*opacity:\s*0\.8/);
     expect(DARK).toMatch(/\.trace-empty-mark\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.06\)[^}]*--ast-white/);
-    expect(DARK).toMatch(/\.settings-rail button\.active\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
+    const settingsActive = bodyFor(DARK, "html[data-theme='dark'] .settings-rail button.active");
+    expect(settingsActive).toMatch(/background:\s*var\(--db-selected-tint\)/);
+    expect(settingsActive).toMatch(/color:\s*var\(--foreground\)/);
+    expect(settingsActive).toMatch(/box-shadow:\s*none/);
+    expect(settingsActive).not.toMatch(/--ast-ice-accent/);
+  });
+
+  it('routes every dark primary button through the mockup panel tokens', () => {
+    /*
+     * AppKit 0.38 marks its default variant with `bg-primary`; later builds add
+     * a variant attribute. Both forms must reach one rule, or an upgrade turns
+     * half the app back into solid mid-blue buttons while the other half keeps
+     * the requested navy panel and blue edge.
+     */
+    expect(ASTROLABE).toMatch(/--ast-primary-control-fill:\s*#1b3049/i);
+    expect(ASTROLABE).toMatch(/--ast-primary-control-border:\s*#4a8cbf/i);
+    for (const selector of [
+      "[data-slot='button'].bg-primary",
+      "[data-slot='button'][data-variant='default']",
+      "[data-slot='button'][data-variant='primary']",
+    ]) {
+      const primary = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);
+      expect(primary, `${selector} misses the shared dark primary recipe`).toMatch(
+        /background:\s*var\(--ast-primary-control-fill\)/
+      );
+      expect(primary).toMatch(/border:\s*1px solid var\(--ast-primary-control-border\)/);
+      expect(primary).toMatch(/border-radius:\s*var\(--ast-radius-control\)/);
+      expect(primary).toMatch(/color:\s*var\(--ast-ink-on-dark\)/);
+    }
+  });
+
+  it('keeps the header gear in the identity chip family with operable states', () => {
+    /*
+     * The gear is next to Signed in and belongs to that cluster. A default blue
+     * square makes it look like the page's primary action; the same surface,
+     * hairline, ink and 30px geometry make it a quiet neighbour without erasing
+     * hover, press or keyboard focus.
+     */
+    const gear = bodyFor(DARK, "html[data-theme='dark'] .header-settings");
+    expect(gear).toMatch(/width:\s*30px/);
+    expect(gear).toMatch(/height:\s*30px/);
+    expect(gear).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(gear).toMatch(/border-radius:\s*var\(--radius-sm\)/);
+    expect(gear).toMatch(/background:\s*var\(--card\)/);
+    expect(gear).toMatch(/color:\s*var\(--foreground\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .header-settings:hover:not(:disabled)")).toMatch(
+      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.12\)/
+    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] .header-settings:active:not(:disabled)")).toMatch(
+      /background:\s*rgba\(143,\s*193,\s*232,\s*0\.28\)/
+    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] .header-settings:focus-visible")).toMatch(
+      /outline:\s*1px solid var\(--ast-ice-accent\)/
+    );
+    expect(source('Layout.tsx')).toMatch(
+      /variant="ghost"\s+data-variant="ghost"\s+size="icon"\s+className="header-settings/
+    );
   });
 
   it('ships both accessibility fallbacks', () => {
@@ -211,6 +268,48 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(remove).toMatch(/background:\s*var\(--ast-destructive-control\)/);
     expect(remove).toMatch(/border-color:\s*var\(--ast-destructive-control\)/);
     expect(remove).toMatch(/color:\s*var\(--destructive-foreground\)/);
+    for (const component of ['AdminListEditor.tsx', 'UserRoleEditor.tsx']) {
+      expect(source(component), `${component} does not identify Remove as destructive`).toContain(
+        'data-variant="destructive"'
+      );
+    }
+  });
+
+  it('keeps Settings navigation, dismissal, table tools and focus quieter than Save', () => {
+    /*
+     * The modal had accumulated primary blue in five unrelated jobs: selected
+     * navigation, Cancel, a tab rule, Copy and the table focus ring. Selection
+     * is a quiet tint of the pane, same family as a selected conversation;
+     * every other item returns to normal dark surfaces, and only Save opts
+     * into the shared primary variant.
+     */
+    const active = bodyFor(DARK, "html[data-theme='dark'] .settings-rail button[aria-current='page']");
+    expect(active).toMatch(/background:\s*var\(--db-selected-tint\)/);
+    expect(active).toMatch(/border-color:\s*transparent/);
+    expect(active).toMatch(/color:\s*var\(--foreground\)/);
+    expect(active).not.toMatch(/--ast-ice-accent/);
+    expect(active).toMatch(/box-shadow:\s*none/);
+
+    const cancel = bodyFor(DARK, "html[data-theme='dark'] .settings-footer-actions .settings-cancel");
+    expect(cancel).toMatch(/background:\s*var\(--card\)/);
+    expect(cancel).toMatch(/border-color:\s*var\(--ast-border-input\)/);
+    expect(cancel).toMatch(/color:\s*var\(--foreground\)/);
+
+    const tableHead = bodyFor(DARK, "html[data-theme='dark'] .environment-list th");
+    expect(tableHead).toMatch(/background:\s*var\(--muted\)/);
+    expect(tableHead).toMatch(/color:\s*var\(--ast-caption\)/);
+
+    const copy = bodyFor(DARK, "html[data-theme='dark'] .environment-tools [data-slot='button']");
+    expect(copy).toMatch(/background:\s*transparent/);
+    expect(copy).toMatch(/color:\s*var\(--muted-foreground\)/);
+
+    const focus = bodyFor(DARK, "html[data-theme='dark'] .environment-list:focus-visible");
+    expect(focus).toMatch(/outline:\s*1px solid var\(--ast-ice-accent\)/);
+    expect(focus).toMatch(/box-shadow:\s*none/);
+
+    const page = source('SettingsPage.tsx');
+    expect(page).toMatch(/data-variant="outline"\s+className="settings-cancel"/);
+    expect(page).toMatch(/data-variant="primary"\s+className="settings-save"/);
   });
 
   it('corrects every selector that uses deep ink as text', () => {

@@ -188,8 +188,10 @@ describe('Settings modal', () => {
     expect(layout).toContain('aria-label="App settings"');
     expect(layout).toContain('onClick={() => setSettingsOpen(true)}');
     expect(layout).toContain("const settingsDeepLink = location.pathname === '/settings'");
-    expect(app).toContain("path: '/settings', element: <AdminOnly><HomePage /></AdminOnly>");
-    expect(app).not.toContain("path: '/settings', element: <AdminOnly><SettingsPage");
+    const settingsRoute = app.slice(app.indexOf("path: '/settings'"), app.indexOf("path: '/connections'"));
+    expect(settingsRoute).toContain('<AdminOnly>');
+    expect(settingsRoute).toContain('<HomePage />');
+    expect(settingsRoute).not.toContain('<SettingsPage');
     // The gate outside the outlet must be handed a role rather than reading one.
     expect(layout).toContain('<AdminOnly role={role}>');
   });

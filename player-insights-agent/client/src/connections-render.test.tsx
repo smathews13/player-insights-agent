@@ -1370,6 +1370,21 @@ describe('the Unity Catalog tables section', () => {
   });
 
   /**
+   * The qualifier disambiguates the object; the last segment is what changes
+   * down the list and therefore what a reader scans. All three segments use the
+   * shared entity classes whose values are written by Settings > Appearance.
+   */
+  it('maps each table-name segment to the shared entity palette and marks the table segment', () => {
+    const markup = render(<DeclaredTablesTable tableChecks={[tables[0]]} requestedEntity="" />);
+    expect(markup).toContain('class="entity-token entity-catalog" data-entity-part="catalog"');
+    expect(markup).toContain('class="entity-token entity-schema" data-entity-part="schema"');
+    expect(markup).toContain('class="entity-token entity-table" data-entity-part="table"');
+    expect(markup).toMatch(
+      /data-entity-part="catalog">a_catalog[\s\S]*data-entity-part="schema">a_schema[\s\S]*data-entity-part="table">gold_title_daily_summary/
+    );
+  });
+
+  /**
    * A STATUS, NOT AN ESSAY. This cell printed each check's whole detail, so on
    * the live deployment -- where one missing permission stops every table --
    * opening the section meant reading the same three-sentence diagnosis twelve

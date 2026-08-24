@@ -33,10 +33,12 @@ import { APP_SCHEMA } from '../../shared/app-schema';
 import type { Application, Request, Response } from 'express';
 import {
   buildCostStatement,
+  buildQuestionAttribution,
   buildTiles,
   readComponentRows,
   RANGE_ROW,
   type CostIdentifiers,
+  type QuestionRunInput,
   type StatementParameter,
 } from '../lib/ops-billing';
 import {
@@ -62,11 +64,7 @@ import { appEnvironment, readStoredSettings, resourceStates } from '../lib/app-s
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
-import {
-  readRequestLatencyRows,
-  REQUEST_LATENCY_QUERY,
-  REQUEST_LATENCY_TABLE,
-} from '../lib/request-latency';
+import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import type {
   AppMeasurement,
   DependencyResult,
@@ -78,6 +76,7 @@ import type {
   PlatformReading,
   TrafficBar,
 } from '../../shared/ops-contract';
+import { opsDayRange } from '../../shared/ops-contract';
 
 /* ── Shared plumbing ─────────────────────────────────────────────────────── */
 
@@ -264,8 +263,7 @@ async function runStatement(input: {
     return {
       ok: false,
       rows: null,
-      message:
-        text(body.status?.error?.message) || `The statement ended in ${state || 'an unknown state'}.`,
+      message: text(body.status?.error?.message) || `The statement ended in ${state || 'an unknown state'}.`,
     };
   }
   return { ok: true, rows: body.result?.data_array ?? [], message: '' };
@@ -617,8 +615,7 @@ export function causeLabel(code: string): string {
  * cannot tell that from a missing table goes looking in the wrong place.
  */
 function unreadNote(charts: string[], message: string): string {
-  const named =
-    charts.length === 1 ? charts[0] : `${charts.slice(0, -1).join(', ')} and ${charts[charts.length - 1]}`;
+  const named = charts.length === 1 ? charts[0] : `${charts.slice(0, -1).join(', ')} and ${charts[charts.length - 1]}`;
   const which = charts.length === 1 ? 'that chart is' : 'those charts are';
   return `${named} could not be read, so ${which} missing rather than empty: ${message || 'the store did not answer'}`;
 }
@@ -628,6 +625,74 @@ function toBars(counts: Map<string, number>): TrafficBar[] {
   return [...counts.entries()]
     .map(([key, count]) => ({ key, label: causeLabel(key), count }))
     .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+}
+
+/* ── Per-question cost attribution ───────────────────────────────────────── */
+
+/**
+ * Completed runs and the token denominator that apportions endpoint spend.
+ *
+ * The window functions run before the display limit, so the newest hundred rows
+ * are allocated against ALL recorded tokens in the range rather than against
+ * whichever rows happened to fit on screen. The final assistant message is the
+ * run ledger's `terminal_message_id`; this is the same authority Run Explorer
+ * uses and avoids pairing a question with a proposed plan from the same turn.
+ */
+export const QUESTION_COST_RUNS_QUERY = `
+  WITH completed AS (
+    SELECT r.run_id, COALESCE(r.correlation_id, '') AS correlation_id,
+           COALESCE(r.trace_id, '') AS trace_id, r.completed_at,
+           CASE
+             WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
+               THEN (m.response_json->'trace'->>'total_tokens')::bigint
+             WHEN COALESCE(m.response_json->'trace'->>'prompt_tokens', '') ~ '^[0-9]+$'
+              AND COALESCE(m.response_json->'trace'->>'completion_tokens', '') ~ '^[0-9]+$'
+               THEN (m.response_json->'trace'->>'prompt_tokens')::bigint
+                  + (m.response_json->'trace'->>'completion_tokens')::bigint
+             ELSE NULL
+           END AS total_tokens
+    FROM ${APP_SCHEMA}.runs r
+    LEFT JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
+    WHERE r.completed_at >= $1::date
+      AND r.completed_at < ($2::date + INTERVAL '1 day')
+  ),
+  counted AS (
+    SELECT *,
+           COUNT(*) OVER ()::int AS runs_in_range,
+           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL) OVER ()::int AS token_covered_runs,
+           COALESCE(SUM(total_tokens) OVER (), 0)::bigint AS total_recorded_tokens
+    FROM completed
+  )
+  SELECT run_id, correlation_id, trace_id, completed_at, total_tokens,
+         runs_in_range, token_covered_runs, total_recorded_tokens
+  FROM counted
+  ORDER BY completed_at DESC
+  LIMIT 100`;
+
+const QUESTION_COST_LIMIT = 100;
+
+function questionRun(row: Record<string, unknown>): QuestionRunInput {
+  const nullableNumber = (value: unknown): number | null => {
+    const parsed = Number(text(value));
+    return text(value) !== '' && Number.isFinite(parsed) ? parsed : null;
+  };
+  return {
+    runId: text(row.run_id),
+    correlationId: text(row.correlation_id),
+    traceId: text(row.trace_id),
+    completedAt: text(row.completed_at),
+    totalTokens: nullableNumber(row.total_tokens),
+    runsInRange: count(row.runs_in_range),
+    tokenCoveredRuns: count(row.token_covered_runs),
+    totalRecordedTokens: count(row.total_recorded_tokens),
+  };
+}
+
+function lagDays(rangeEnd: string, newestBillingDay: string): number | null {
+  const end = Date.parse(`${rangeEnd}T00:00:00Z`);
+  const newest = Date.parse(`${newestBillingDay}T00:00:00Z`);
+  if (!Number.isFinite(end) || !Number.isFinite(newest)) return null;
+  return Math.max(0, Math.round((end - newest) / 86_400_000));
 }
 
 /* ── Routes ──────────────────────────────────────────────────────────────── */
@@ -642,12 +707,7 @@ function toBars(counts: Map<string, number>): TrafficBar[] {
  * prefix is the protection; this list is what notices when a path falls outside
  * one. Keep it in step with the registrations.
  */
-export const OPS_ROUTES = [
-  '/api/ops/health',
-  '/api/ops/cost',
-  '/api/ops/traffic',
-  '/api/ops/latency',
-] as const;
+export const OPS_ROUTES = ['/api/ops/health', '/api/ops/cost', '/api/ops/traffic', '/api/ops/latency'] as const;
 
 export interface OpsDeps {
   /**
@@ -751,6 +811,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     app.get('/api/ops/cost', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
+      const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const workspace = host();
       const warehouse = warehouseId();
       const token = forwardedUserToken(req);
@@ -765,10 +826,26 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // Read off a response header rather than taken from configuration.
         // Nothing hands the container a workspace id, and a literal in a tracked
         // file would be a real workspace id in a repository that is published.
-        workspaceId: token ? await resolveWorkspaceId({ host: workspace, token }) : '',
+        workspaceId: token ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl }) : '',
         telemetryEnabled: Boolean(telemetrySchema()),
       };
-      const empty = { grant: null, reason: '', currency: '', throughDay: '', readAt };
+      const empty = {
+        grant: null,
+        reason: '',
+        currency: '',
+        throughDay: '',
+        range,
+        billingLagDays: null,
+        readAt,
+        perQuestion: {
+          runs: [],
+          runsInRange: 0,
+          tokenCoveredRuns: 0,
+          totalRecordedTokens: 0,
+          limited: false,
+          reason: '',
+        },
+      };
 
       if (!workspace || !warehouse || !token) {
         res.json({
@@ -782,7 +859,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         return;
       }
 
-      const built = buildCostStatement(ids);
+      const built = buildCostStatement(ids, range);
       if (!built) {
         res.json({
           ...empty,
@@ -799,6 +876,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           warehouseId: warehouse,
           statement: built.statement,
           parameters: built.parameters,
+          fetchImpl: deps.fetchImpl,
         });
 
         if (!outcome.ok) {
@@ -840,8 +918,28 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             tiles: buildTiles(ids, []),
             currency: meta?.currency ?? '',
             throughDay: meta?.lastDay || '',
+            billingLagDays: lagDays(range.to, meta?.lastDay || ''),
+            reason:
+              'No billing rows matched the Astrolabe tag in this range. Whether Databricks Apps propagates ' +
+              'that tag onto app-compute billing must be verified in the live workspace.',
           } satisfies OpsCostPayload);
           return;
+        }
+
+        const tiles = buildTiles(ids, componentRows);
+        let perQuestion: OpsCostPayload['perQuestion'] = {
+          ...empty.perQuestion,
+          reason: 'Per-question attribution could not be read from the run ledger.',
+        };
+        try {
+          const result = await appkit.lakebase.query(QUESTION_COST_RUNS_QUERY, [range.from, range.to]);
+          perQuestion = buildQuestionAttribution(
+            result.rows.map((row) => questionRun(row)),
+            tiles,
+            QUESTION_COST_LIMIT
+          );
+        } catch (error) {
+          perQuestion.reason = `Per-question attribution could not be read from the run ledger: ${(error as Error).message}`;
         }
 
         res.json({
@@ -849,7 +947,9 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           state: 'ready',
           currency: meta?.currency ?? '',
           throughDay: meta?.lastDay || '',
-          tiles: buildTiles(ids, componentRows),
+          billingLagDays: lagDays(range.to, meta?.lastDay || ''),
+          tiles,
+          perQuestion,
         } satisfies OpsCostPayload);
       } catch (error) {
         res.json({
@@ -977,7 +1077,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         if (measured.routes.length === 0) {
           res.json({
             ...base,
-            reason: 'No API request timings have been recorded. Recording starts with this release and does not backfill.',
+            reason:
+              'No API request timings have been recorded. Recording starts with this release and does not backfill.',
             coveredFrom: measured.coveredFrom,
             coveredTo: measured.coveredTo,
           });
