@@ -111,18 +111,36 @@
   background: var(--db-red-wash);
 }
 
-/* The numbered step badge is the Agent map's `.step-rail-num`, seated here at
-   the same 24x20 geometry. Pinning it to the first line keeps a wrapped detail
-   from pulling the run's index down between the title and its result. */
-.live-step-icon {
+/* Number over the same product/LLM mark the Agent path map draws on that step.
+   A column so the kind sits UNDER the index, not beside the title — the live
+   list used to show only the numbered badge and a text type chip. */
+.live-step-index {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   align-self: start;
   width: 24px;
   min-width: 24px;
-  /* Keep the line-relative seat while the shared badge's 20px floor guarantees
-     the same rendered box at every text scale. */
+  margin-top: 1px;
+}
+.live-step-icon {
+  width: 24px;
+  min-width: 24px;
   height: calc(var(--text-base) * 1.4);
   min-height: 20px;
-  margin-top: 1px;
+}
+.live-step-kind {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.live-step-kind .brand-icon,
+.live-step-kind svg {
+  width: 14px;
+  height: 14px;
 }
 
 .live-step-body {

@@ -305,8 +305,8 @@
      two answers is worse than a token in a shared file, so the number lives here
      once and the rail, the fixed composer and the header all read it. The 1180px
      band in responsive.css still narrows it to 220px for the rail alone. */
-  --conversation-width: 264px;
-  --trace-width: clamp(280px, 21vw, 300px);
+  --conversation-width: 340px;
+  --trace-width: 340px;
 
   /*
    * How far the ask surface's middle column holds its contents off the two rails

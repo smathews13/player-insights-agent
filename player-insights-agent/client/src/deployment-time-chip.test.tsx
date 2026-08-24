@@ -8,6 +8,7 @@
  * cut off on an ordinary window.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { DeploymentTimeChip } from './DeploymentTimeChip';
@@ -181,7 +182,9 @@ describe('where the header seats the release chip', () => {
 
   it('sits after the wordmark and before the divider that precedes the tabs', () => {
     const markup = renderToStaticMarkup(
-      <HeaderBrand deployedAt={DEPLOYED_AT} deployedBy={DEPLOYED_BY} buildSha={BUILD_SHA} />
+      <MemoryRouter>
+        <HeaderBrand deployedAt={DEPLOYED_AT} deployedBy={DEPLOYED_BY} buildSha={BUILD_SHA} />
+      </MemoryRouter>
     );
 
     expect(at(markup, WORDMARK)).toBeGreaterThan(-1);
@@ -196,7 +199,9 @@ describe('where the header seats the release chip', () => {
     // component renders, so being inside it is: opens with the column, closes
     // with it, chip somewhere between.
     const markup = renderToStaticMarkup(
-      <HeaderBrand deployedAt={DEPLOYED_AT} deployedBy={DEPLOYED_BY} buildSha={BUILD_SHA} />
+      <MemoryRouter>
+        <HeaderBrand deployedAt={DEPLOYED_AT} deployedBy={DEPLOYED_BY} buildSha={BUILD_SHA} />
+      </MemoryRouter>
     );
 
     expect(markup.startsWith('<div class="brand-lockup">')).toBe(true);
@@ -205,7 +210,11 @@ describe('where the header seats the release chip', () => {
   });
 
   it('leaves the column to the lockup alone when nothing was reported', () => {
-    const markup = renderToStaticMarkup(<HeaderBrand />);
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <HeaderBrand />
+      </MemoryRouter>
+    );
 
     expect(markup).toContain(WORDMARK);
     expect(markup).not.toContain('deployment-time-chip');

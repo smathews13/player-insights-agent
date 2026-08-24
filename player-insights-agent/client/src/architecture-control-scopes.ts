@@ -100,14 +100,26 @@ export const ARCHITECTURE_CONTROL_SCOPES: Readonly<Record<ChainBound, Architectu
 /**
  * Click-to-toggle for the three KPI tiles.
  *
- * Hover and focus used to set the bound and leave used to clear it, which made
+ * Hover used to write this same value, and leave used to clear it, which made
  * the highlight a brief flash: the tile's own outline moved the pointer out of
  * the hit target, leave cleared the bound, and the next enter painted it again.
  * A click replaces the current bound, or clears it when the same tile is pressed
- * again. The highlight then stays until the next click.
+ * again. The highlight then stays until the next click. Hover is a separate
+ * preview and must not call this.
  */
 export function nextActiveBound(current: ChainBound | null, clicked: ChainBound): ChainBound | null {
   return current === clicked ? null : clicked;
+}
+
+/**
+ * What the drawing and the tiles paint right now.
+ *
+ * Hover wins while the pointer is on a tile, so the preview is the same
+ * highlight a click would stick. Leaving the tile falls back to the click, or
+ * to nothing when nothing was clicked. The click is never written here.
+ */
+export function displayedBound(active: ChainBound | null, preview: ChainBound | null): ChainBound | null {
+  return preview ?? active;
 }
 
 export function nodeControlBounds(nodeId: string): ChainBound[] {

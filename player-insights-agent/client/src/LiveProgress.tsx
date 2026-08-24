@@ -16,9 +16,12 @@ import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { Badge } from './ui';
 
 import type { TraceStage } from './answer-shape';
+import { AstrolabeMark } from './AstrolabeMark';
+import { productForTool } from './brand-icons';
+import { BrandIcon } from './BrandIcon';
 import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
-import { formatMs } from './trace-timeline';
+import { formatMs, toolNameFromId } from './trace-timeline';
 
 /**
  * One reported step.
@@ -35,17 +38,31 @@ import { formatMs } from './trace-timeline';
  * row's own base padding stays in the stylesheet with the rest of its geometry
  * and there is only one place to change it.
  */
+function StepKindMark({ step }: { step: LiveStep }) {
+  const product = productForTool(toolNameFromId(step.id));
+  if (product) {
+    return <BrandIcon product={product} size={14} labelled />;
+  }
+  return <AstrolabeMark size={13} />;
+}
+
 function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: number; newest: boolean; elapsedMs: number | null }
 ) {
   return (<li
       className={`live-step ${step.status}${newest ? ' newest' : ''}`}
       style={step.depth ? ({ '--live-depth': step.depth } as CSSProperties) : undefined}
     >
-      {/* The same numbered badge as the Agent map in Run Explorer. A reader can
-          now carry "step 07" between the live list, the settled timeline and the
-          map without translating a kind glyph into a position. */}
-      <span className="live-step-icon step-rail-num ast-num" aria-hidden="true">
-        {stepNumber(number)}
+      {/* Number on top, the Agent path's kind mark under it: SQL / Genie /
+          Mosaic / the agent's own mark for an LLM turn. The type chip in the
+          header is still the word; this is the same glyph the constellation
+          draws on that step. */}
+      <span className="live-step-index">
+        <span className="live-step-icon step-rail-num ast-num" aria-hidden="true">
+          {stepNumber(number)}
+        </span>
+        <span className="live-step-kind" aria-hidden="true">
+          <StepKindMark step={step} />
+        </span>
       </span>
       <div className="live-step-body">
         <p className="live-step-head">

@@ -7,6 +7,7 @@ import { KeepInMind } from './KeepInMind';
 import { SourcesModule } from './SourcesModule';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { parseAnswerMarkdown, tableStoryMetadata } from './answer-markdown';
+import { DEGRADED_ANSWER_MARKER } from './degraded-answer';
 import { partial } from './styles/stylesheet';
 import type { Answer, FeedbackEntry } from './app-types';
 
@@ -220,7 +221,7 @@ describe('compact provenance and caveats', () => {
   it('shows exactly three caveats and reports the folded remainder', () => {
     const caveats = ['one', 'two', 'three', 'four', 'five'];
     const markup = renderToStaticMarkup(<KeepInMind caveats={caveats} sources={[]} />);
-    expect(markup.match(/<li>/g)).toHaveLength(3);
+    expect(markup.match(/<li\b/g)).toHaveLength(3);
     expect(markup).toContain('Show all 5 · 2 more');
   });
 });
@@ -232,6 +233,11 @@ describe('the answer card remains the substantial reading surface', () => {
     expect(css).toMatch(
       /\.answer-card\s*\{[^}]*border:\s*1px solid var\(--ast-hairline\)[^}]*border-top:\s*4px solid var\(--ast-blue\)[^}]*min-height:\s*280px/
     );
+    // A flex parent with a max-height (the Monitoring dialog, Ask's column)
+    // used the 280px floor as permission to shrink the card and paint later
+    // siblings through the tables. The card keeps its floor and does not shrink.
+    expect(css).toMatch(/\.answer-card\s*\{[^}]*flex-shrink:\s*0/s);
+    expect(css).toMatch(/\.answer-card\s*\{[^}]*overflow:\s*visible/s);
     // 28px inline against 24px block, which is the design's card. It was cut to
     // 24 to buy measure back, and four pixels of narrative is not a measure fix
     // -- it is the frame coming off the card that the transcript's primary
@@ -319,5 +325,118 @@ describe('an identifier chip is one chip, on one line', () => {
     // reassemble. Safe because a qualified name is one chip per segment.
     expect(css).toMatch(/\.entity-token,\s*\.entity-mark,\s*\.answer-badge \{[^}]*white-space: nowrap/s);
     expect(css).toMatch(/\.entity-token,\s*\.entity-mark,\s*\.answer-badge \{[^}]*box-decoration-break: clone/s);
+  });
+});
+
+describe('a failed run’s process', () => {
+  const failedCaveat = `${DEGRADED_ANSWER_MARKER} the run stopped after 2 steps without a structured result.`;
+
+  function processCard(value: Answer): string {
+    return renderToStaticMarkup(
+      <AnswerCard
+        answer={value}
+        feedback={feedback}
+        onFeedbackChange={() => {}}
+        saveFeedback={async () => {}}
+        showFeedback={false}
+      />
+    );
+  }
+
+  it('still draws the timeline when the run had stages', () => {
+    const markup = processCard(
+      answer({
+        takeaway: 'This question was not answered.',
+        narrative: '',
+        figures: [],
+        sources: [],
+        sql: '',
+        caveats: [failedCaveat],
+        trace: {
+          stages: [
+            {
+              id: 'step-1',
+              name: 'Chose the next step',
+              kind: 'agent',
+              status: 'complete',
+              start: 0,
+              duration: 12,
+              calls: 1,
+              input: '',
+              output: '',
+            },
+            {
+              id: 'step-2',
+              name: 'Querying governed data',
+              kind: 'tool',
+              status: 'failed',
+              start: 12,
+              duration: 40,
+              calls: 1,
+              input: '',
+              output: '',
+            },
+          ],
+        },
+      })
+    );
+    expect(markup).toContain('Step timeline');
+    expect(markup).toContain('Querying governed data');
+    expect(markup).toContain('failed');
+    expect(markup).toContain('Failed after 2 steps');
+    expect(markup).not.toContain('This run recorded no steps');
+    expect(markup).not.toContain('data-tone="stored"');
+    expect(markup).toContain('data-tone="failed"');
+  });
+
+  it('does not call a tabled answer unanswered because sources were incomplete', () => {
+    const markup = card(
+      answer({
+        takeaway: 'This question was not answered.',
+        caveats: [
+          'The sources for this answer are incomplete: part of it came from a query whose tables could not be determined.',
+          'The turn deadline was reached before the answer could be written.',
+        ],
+        trace: {
+          stages: [
+            {
+              id: 'synthesis',
+              name: 'Wrote the answer',
+              kind: 'agent',
+              status: 'complete',
+              start: 0,
+              duration: 20,
+              calls: 1,
+              input: '',
+              output: '',
+            },
+          ],
+        },
+      })
+    );
+    expect(markup).not.toContain('This question was not answered.');
+    expect(markup).not.toContain('Incomplete answer');
+    expect(markup).not.toContain('Partial answer');
+    expect(markup).toContain('Incomplete sources');
+    expect(markup).toContain('<table');
+    expect(markup).toContain('Opening sentence survives.');
+  });
+
+  it('still says no result was recorded when the run truly had no steps', () => {
+    const markup = processCard(
+      answer({
+        takeaway: 'The agent did not return a structured result.',
+        narrative: '',
+        figures: [],
+        sources: [],
+        sql: '',
+        caveats: [`${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`],
+        trace: { stages: [] },
+      })
+    );
+    expect(markup).toContain('No result recorded');
+    expect(markup).toContain('This run recorded no steps');
+    expect(markup).toContain('data-tone="failed"');
+    expect(markup.match(/No steps and no structured result were recorded/g)?.length).toBe(1);
   });
 });

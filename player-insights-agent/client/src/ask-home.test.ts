@@ -27,39 +27,21 @@ const COMPOSER = partial('composer.css');
 const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
 const RUN_STATUS = readFileSync(new URL('run-status.ts', import.meta.url), 'utf8');
 
-describe('the harness column is not reserved when there is no run', () => {
-  /*
-   * The track was unconditional at 340px, so the welcome screen and every
-   * conversation with no stored trace measured the transcript against a window
-   * a third of which drew nothing. In dark mode the idle column is the same
-   * translucent fill over the same sky as the page, so there was no visible
-   * column to explain the missing width -- it read as the answer card being
-   * pinched, which is how it was reported three times.
-   */
-  it('collapses the track by zeroing the width the grid and the composer share', () => {
-    const idle = withoutComments(RAIL).match(
-      /\.ask-layout\[data-inspector=['"]idle['"]\]\s*\{([^}]*)\}/
-    )?.[1];
-    expect(idle, 'the idle layout is declared').toBeDefined();
-    expect(idle).toMatch(/--trace-width:\s*0px/);
-
-    // The point of doing it through the token: the composer is `position: fixed`
-    // and insets its right edge off the same name, so a second
-    // `grid-template-columns` here would have moved the grid and left the
-    // composer holding room for a column that is no longer drawn.
+describe('the harness column stays reserved when there is no run', () => {
+  it('does not collapse the shared track at idle', () => {
+    expect(withoutComments(RAIL)).not.toMatch(
+      /\.ask-layout\[data-inspector=['"]idle['"]\]\s*\{[^}]*--trace-width:\s*0px/
+    );
     expect(withoutComments(COMPOSER)).toMatch(/right:\s*calc\(var\(--trace-width\)/);
-    expect(idle, 'the grid is not restated').not.toMatch(/grid-template-columns/);
   });
 
-  it('hides the column itself, not just its track', () => {
-    expect(withoutComments(RAIL)).toMatch(
+  it('does not hide the inspector at idle', () => {
+    expect(withoutComments(RAIL)).not.toMatch(
       /\.ask-layout\[data-inspector=['"]idle['"]\] \.trace-inspector\s*\{[^}]*display:\s*none/
     );
   });
 
-  it('is driven by the same condition the column draws its empty state from', () => {
-    // Two readings of "is there a run" that could drift apart is how the track
-    // ends up collapsed under a live harness, or reserved beside "No run yet".
+  it('is driven by the same condition the column draws its idle silhouette from', () => {
     expect(HOME_PAGE).toContain("const inspectorIdle = railStages.length === 0 && !loading;");
     expect(HOME_PAGE).toContain("data-inspector={inspectorIdle ? 'idle' : 'run'}");
   });
@@ -223,7 +205,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // inside .ask-layout, so it read the token while the rail read the override and
     // the two disagreed by 44px. The inspector's width is still nobody else's, so
     // it stays here.
-    expect(partial('tokens.css')).toMatch(/--conversation-width:\s*264px/);
+    expect(partial('tokens.css')).toMatch(/--conversation-width:\s*340px/);
     expect(body('.ask-layout')).toMatch(/--trace-width:\s*340px/);
     expect(atWidth(1365)).toMatch(/--trace-width:\s*264px/);
   });
@@ -363,16 +345,12 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(Number.parseInt(cap, 10)).toBeLessThanOrEqual(24);
   });
 
-  it('lets the transcript fill the centre track between the two rails', () => {
-    // A 1280px cap with auto margins left the answer and the working-on-it card
-    // as a narrow island, with unused sky either side of it. The rails already
-    // own their columns; `--conversation-inset` is the only gutter this track
-    // needs. `none` rather than a used max-width: anything smaller than the
-    // leftover space is how the island came back.
+  it('lets the transcript track fill, and centres the cards inside it', () => {
     expect(body('.conversation-main')).toMatch(/max-width:\s*none/);
     expect(body('.conversation-main')).toMatch(/width:\s*100%/);
-    expect(body('.conversation-main')).not.toMatch(/--conversation-measure/);
-    expect(body('.conversation-main')).not.toMatch(/margin-inline:\s*auto/);
+    expect(withoutComments(partial('ask.css'))).toMatch(
+      /\.conversation-main \.answer-card,\s*\.conversation-main \.plan-card\s*\{[^}]*max-width:\s*var\(--conversation-measure\)/
+    );
   });
 
   it('lets the answer keep more measure than the box that prompts it', () => {
@@ -879,12 +857,11 @@ describe('the inspector while a run is still going', () => {
 });
 
 describe('the inspector with nothing in it', () => {
-  it('places the empty state a third of the way down rather than centred in the viewport', () => {
-    // AppKit's Empty centres in the box it is given, and this box is a full-height
-    // sticky column: the glyph landed halfway down the window, level with nothing.
-    expect(body('.trace-empty')).toMatch(/margin-top:\s*120px/);
-    expect(body('.trace-empty-mark')).toMatch(/width:\s*44px/);
+  it('fills the idle pane with the still constellation, not AppKit Empty', () => {
+    expect(HOME_PAGE).toContain('className="trace-idle-sky"');
+    expect(HOME_PAGE).toContain('<ConstellationField shape={OPENING_CONSTELLATION} />');
     expect(HOME_PAGE).not.toMatch(/<EmptyMedia/);
+    expect(withoutComments(RAIL)).toMatch(/\.trace-idle-sky\s*\{[^}]*flex:\s*1/);
   });
 });
 

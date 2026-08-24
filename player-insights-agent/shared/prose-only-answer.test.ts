@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   carriesEvidence,
+  foldRecordedStages,
   proseOnlyAnswer,
   PROSE_ONLY_ANSWER_CAVEAT,
   PROSE_ONLY_FALLBACK_TAKEAWAY,
@@ -81,6 +82,30 @@ describe('the answer for a prose-only reply', () => {
     const answer = proseOnlyAnswer('msg-1', PROSE);
     expect(answer.trace.toolCalls).toBe(0);
     expect(answer.trace.totalMs).toBe(0);
+  });
+
+  it('keeps the steps the stream recorded instead of storing an empty path', () => {
+    const answer = proseOnlyAnswer('msg-1', PROSE, [
+      { id: 'step-1', name: 'Chose the next step', kind: 'agent', status: 'complete', duration: 12 },
+      { id: 'step-2', name: 'Querying governed data', kind: 'tool', status: 'running', duration: 40 },
+    ]);
+    expect(answer.trace.stages).toHaveLength(2);
+    expect(answer.trace.stages[1]?.status).toBe('failed');
+    expect(answer.trace.toolCalls).toBe(1);
+    expect(answer.trace.totalMs).toBe(52);
+    expect(answer.caveats[0]).toContain('stopped after 2 steps');
+    expect(answer.caveats[0]).not.toContain('no tool steps were recorded');
+  });
+});
+
+describe('folding recorded steps', () => {
+  it('replaces an announcement with its completion rather than appending both', () => {
+    const folded = foldRecordedStages([
+      { id: 'step-1', status: 'running', duration: 0 },
+      { id: 'step-1', status: 'complete', duration: 9 },
+    ]);
+    expect(folded.stages).toHaveLength(1);
+    expect(folded.stages[0]?.status).toBe('complete');
   });
 });
 

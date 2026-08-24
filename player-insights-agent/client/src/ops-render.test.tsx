@@ -1432,7 +1432,101 @@ describe('the latency block', () => {
 
     expect(header).toContain('ops-latency-head-controls');
     expect(header).toContain('ops-latency-search');
+    expect(header).toContain('ops-latency-trend-filters');
+    expect(header).toContain('Within baseline');
+    expect(header).toContain('Outside baseline');
     expect(header).toContain('Refresh');
+  });
+
+  it('hides the TREND pills when the table has no TREND column', () => {
+    const allThin = latency({
+      routes: [
+        {
+          route: 'POST /api/insights/ask',
+          spans: 8,
+          p50Ms: 85_500,
+          p95Ms: null,
+          p99Ms: null,
+          slowestMs: 120_000,
+          errorCount: 0,
+          refusalCount: null,
+          lastSpanAt: '2026-08-17 16:40:00',
+          priorSpans: 0,
+          priorP50Ms: null,
+        },
+      ],
+    });
+    const markup = markupOf(<LatencyBody block={block(allThin)} />);
+    expect(markup).not.toContain('ops-latency-trend-filters');
+    expect(markup).not.toMatch(/<th[^>]*>Trend<\/th>/);
+  });
+
+  it('shows every route, including a dash, when neither TREND pill is on', () => {
+    const markup = markupOf(<LatencyBody block={block(latency())} />);
+    const rendered = text(markup);
+
+    expect(markup).toContain('aria-pressed="false"');
+    expect(rendered).toContain('POST /api/insights/ask');
+    expect(rendered).toContain('GET /api/preflight');
+    expect(rendered).toContain('GET /api/storage');
+    expect(rendered).toContain('Within baseline');
+    expect(rendered).toContain('Slower than baseline');
+  });
+
+  it('shows only within-baseline rows when the green pill is on', () => {
+    const rendered = render(<LatencyBody block={block(latency())} initialWithin />);
+
+    expect(rendered).toContain('GET /api/storage');
+    expect(rendered).toContain('Within baseline');
+    expect(rendered).not.toContain('GET /api/preflight');
+    expect(rendered).not.toContain('POST /api/insights/ask');
+    expect(rendered).not.toContain('Slower than baseline');
+  });
+
+  it('shows only outside-baseline rows when the red pill is on', () => {
+    const rendered = render(<LatencyBody block={block(latency())} initialOutside />);
+
+    expect(rendered).toContain('GET /api/preflight');
+    expect(rendered).toContain('Slower than baseline');
+    expect(rendered).not.toContain('GET /api/storage');
+    expect(rendered).not.toContain('POST /api/insights/ask');
+  });
+
+  it('keeps every row that has a trend when both pills are on', () => {
+    const rendered = render(<LatencyBody block={block(latency())} initialWithin initialOutside />);
+
+    expect(rendered).toContain('GET /api/storage');
+    expect(rendered).toContain('GET /api/preflight');
+    expect(rendered).toContain('Within baseline');
+    expect(rendered).toContain('Slower than baseline');
+    expect(rendered).not.toContain('POST /api/insights/ask');
+    expect(rendered).not.toContain('GET /api/ops/cost');
+  });
+
+  it('uses the same empty-list escape when a TREND pill hides every row', () => {
+    const onlyDashes = latency({
+      routes: [
+        {
+          route: 'POST /api/insights/ask',
+          spans: 8,
+          p50Ms: 85_500,
+          p95Ms: 90_000,
+          p99Ms: 95_000,
+          slowestMs: 120_000,
+          errorCount: 0,
+          refusalCount: null,
+          lastSpanAt: '2026-08-17 16:40:00',
+          priorSpans: 0,
+          priorP50Ms: null,
+        },
+      ],
+    });
+    const markup = markupOf(<LatencyBody block={block(onlyDashes)} initialWithin />);
+    const rendered = text(markup);
+
+    expect(rendered).toContain('Nothing matches the selected trend.');
+    expect(rendered).toContain('Clear filters');
+    expect(markup).not.toContain('data-testid="ops-latency"');
   });
 
   it('shows only the header rail while the first latency read is loading', () => {
@@ -1623,11 +1717,13 @@ describe('the latency block', () => {
         },
       ],
     });
-    const rendered = render(<LatencyBody block={block(alone)} />);
+    const markup = markupOf(<LatencyBody block={block(alone)} />);
+    const rendered = text(markup);
 
     // No prior half means no verdict: the trend cell is withheld, not a flag.
+    // The header pills name the two verdicts; the row itself must not wear either.
     expect(rendered).not.toContain('Slower than baseline');
-    expect(rendered).not.toContain('Within baseline');
+    expect(markup).not.toMatch(/ops-lat-trend[\s\S]*?Within baseline/);
   });
 
   it('flags a route that cleared both floors and rose against its own baseline', () => {

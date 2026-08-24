@@ -570,8 +570,20 @@
   padding: 20px 24px 32px;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 14px;
   box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+}
+/*
+ * Every direct child keeps its content height. The token line used to be a
+ * sibling after a shrinking answer card, so it sat on the last table row; Keep
+ * in mind then collided with the Run process bar for the same reason. The
+ * dialog scrolls when the stack is taller than the viewport.
+ */
+.monitoring-question-modal > * {
+  flex-shrink: 0;
+  min-height: min-content;
+  position: static;
 }
 
 /* ── The person drawer ─────────────────────────────────────────────────── */

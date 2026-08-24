@@ -55,6 +55,7 @@ import {
   healthRows,
   latencyAbsence,
   latencyFigure,
+  latencyRouteMatchesTrend,
   latencyRouteView,
   latencySharedFacts,
   p50BarWidths,
@@ -876,11 +877,17 @@ export type MonitoringHref = (outcome: 'failed' | 'refused') => string;
  */
 const LATENCY_PAGE_SIZE = 10;
 
-/** The already-read routes matching one route-or-method query. */
-function filterLatencyRoutes(routes: readonly RouteLatency[], search: string): RouteLatency[] {
+/** The already-read routes matching one route-or-method query and the TREND pills. */
+function filterLatencyRoutes(
+  routes: readonly RouteLatency[],
+  search: string,
+  trend: { within: boolean; outside: boolean }
+): RouteLatency[] {
   const query = search.trim().toLocaleLowerCase();
-  if (!query) return [...routes];
-  return routes.filter((route) => route.route.toLocaleLowerCase().includes(query));
+  return routes.filter((route) => {
+    if (query && !route.route.toLocaleLowerCase().includes(query)) return false;
+    return latencyRouteMatchesTrend(latencyRouteView(route).verdict, trend);
+  });
 }
 
 /**
@@ -897,10 +904,15 @@ function filterLatencyRoutes(routes: readonly RouteLatency[], search: string): R
 export function LatencyBody({
   block,
   initialSearch = '',
+  initialWithin = false,
+  initialOutside = false,
 }: {
   block: Block<OpsLatencyPayload>;
   /** A deterministic starting query for restored views and render-level tests. */
   initialSearch?: string;
+  /** Starting TREND pills, for the same reason `initialSearch` exists. */
+  initialWithin?: boolean;
+  initialOutside?: boolean;
 }) {
   const payload = block.data;
   /*
@@ -912,6 +924,8 @@ export function LatencyBody({
    */
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState(initialSearch);
+  const [showWithin, setShowWithin] = useState(initialWithin);
+  const [showOutside, setShowOutside] = useState(initialOutside);
 
   if (block.failed) {
     return (
@@ -938,19 +952,22 @@ export function LatencyBody({
    * it would draw that empty table first and then replace it.
    */
   const allRoutes = absence ? [] : (payload?.routes ?? []);
+  const trend = { within: showWithin, outside: showOutside };
   /*
    * The server has already paid to read every route, so narrowing this list is a
    * browser operation just like Monitoring's filters. Searching the combined
    * recorded value deliberately covers both halves: "POST" and "ask" must lead
-   * to the same row without a second request or a second field.
+   * to the same row without a second request or a second field. The TREND pills
+   * sit beside that search and narrow the same already-fetched list.
    */
-  const routes = filterLatencyRoutes(allRoutes, search);
+  const routes = filterLatencyRoutes(allRoutes, search, trend);
   const pages = Math.max(1, Math.ceil(routes.length / LATENCY_PAGE_SIZE));
   const current = Math.min(page, pages - 1);
   const from = current * LATENCY_PAGE_SIZE;
   const shown = routes.slice(from, from + LATENCY_PAGE_SIZE);
 
   const facts = payload ? latencySharedFacts(routes) : { line: '', showPercentiles: false };
+  const canFilterTrend = latencySharedFacts(allRoutes).showPercentiles;
   // Log-scaled across the rows ON SCREEN, so the scale answers to the page a
   // reader is looking at rather than to routes on another page of the table.
   const barWidths = p50BarWidths(shown.map((route) => route.p50Ms));
@@ -963,6 +980,28 @@ export function LatencyBody({
         meta="By route"
         control={
           <div className="ops-latency-head-controls">
+            {canFilterTrend ? (
+              <div className="ops-latency-trend-filters" role="group" aria-label="Filter by trend">
+                <button
+                  type="button"
+                  className={astPill('pos', 'ops-pill ops-latency-trend-filter')}
+                  aria-pressed={showWithin}
+                  aria-label="Show routes within baseline"
+                  onClick={() => setShowWithin((on) => !on)}
+                >
+                  Within baseline
+                </button>
+                <button
+                  type="button"
+                  className={astPill('neg', 'ops-pill ops-latency-trend-filter')}
+                  aria-pressed={showOutside}
+                  aria-label="Show routes outside baseline"
+                  onClick={() => setShowOutside((on) => !on)}
+                >
+                  Outside baseline
+                </button>
+              </div>
+            ) : null}
             <div className="run-search monitoring-search ops-latency-search">
               <Search aria-hidden="true" />
               <Input
@@ -994,14 +1033,27 @@ export function LatencyBody({
             <Absence notice={absence}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
           ) : payload ? (
             <>
-              {routes.length === 0 && search.trim() ? (
+              {routes.length === 0 && (search.trim() || showWithin || showOutside) ? (
                 /* The same one-line list absence and named escape Monitoring uses.
-                 A search has hidden rows; it has not made the telemetry empty. */
+                 A search or TREND pill has hidden rows; it has not made the
+                 telemetry empty. */
                 <div className="monitoring-empty">
-                  <p className="monitoring-empty-line">Nothing matches &quot;{search.trim()}&quot;.</p>
+                  <p className="monitoring-empty-line">
+                    {search.trim()
+                      ? `Nothing matches "${search.trim()}".`
+                      : 'Nothing matches the selected trend.'}
+                  </p>
                   <div className="monitoring-empty-actions">
-                    <Button variant="outline" size="sm" onClick={() => setSearch('')}>
-                      Clear search
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearch('');
+                        setShowWithin(false);
+                        setShowOutside(false);
+                      }}
+                    >
+                      {search.trim() && !showWithin && !showOutside ? 'Clear search' : 'Clear filters'}
                     </Button>
                   </div>
                 </div>

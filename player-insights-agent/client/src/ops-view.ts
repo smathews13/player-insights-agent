@@ -921,6 +921,30 @@ export function latencyRouteView(route: RouteLatency, nowMs: number = Date.now()
   };
 }
 
+/**
+ * Which trend pills are on. Neither, one, or both — never a third exclusive
+ * "no data" unless both are on, which drops the dashes.
+ */
+export interface LatencyTrendFilter {
+  within: boolean;
+  outside: boolean;
+}
+
+/**
+ * Whether one route belongs under the two TREND toggles.
+ *
+ * Neither on: every row, including a dash. One on: only that verdict. Both on:
+ * every row that has a verdict, so the dashes drop out. A missing trend is not
+ * "outside": outside is the red slower pill, not an absence of one.
+ */
+export function latencyRouteMatchesTrend(verdict: LatencyVerdict, filter: LatencyTrendFilter): boolean {
+  const { within, outside } = filter;
+  if (!within && !outside) return true;
+  if (within && outside) return verdict === 'within' || verdict === 'slower';
+  if (within) return verdict === 'within';
+  return verdict === 'slower';
+}
+
 /** Relative age of the last span, or "Not reported" when nothing was timed. */
 function freshAgo(at: string, nowMs: number): string {
   if (!at) return 'Not reported';

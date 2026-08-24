@@ -33,6 +33,8 @@ const INCOMPLETE =
 const DEADLINE = 'The turn deadline was reached before the answer could be written.';
 const IDENTITY =
   'This answer was produced as analyst@example.com and covers only the data that identity is granted.';
+const TIMEOUT =
+  'The model that writes the answer was not reachable: the reasoning endpoint failed (APITimeoutError: Request timed out.).';
 
 const SOURCE = {
   name: 'main.player_insights.silver_gameplay_activity',
@@ -46,7 +48,15 @@ function markup(extra: Partial<Parameters<typeof FinalAnswer>[0]> = {}): string 
         takeaway="The analysis completed from assessed sources."
         narrative={NARRATIVE}
         sources={[SOURCE]}
-        caveats={[INCOMPLETE, DEADLINE, IDENTITY]}
+        caveats={[INCOMPLETE, DEADLINE, IDENTITY, TIMEOUT]}
+        derivation={[
+          {
+            source: SOURCE.name,
+            metric: 'unique_players',
+            window: 'all dates in dataset',
+            filter: "title_name ilike '%vlh%'",
+          },
+        ]}
         truncated
         conversationId="conv-1"
         runId="run-1"
@@ -65,12 +75,27 @@ function text(html: string): string {
 }
 
 describe('the Overview Final Answer module', () => {
-  it('will not title a deadline failure as a final answer', () => {
+  it('titles a deadline-noted card as a final answer when the table already landed', () => {
     const html = markup();
-    expect(html).toContain('Partial answer');
-    expect(html).toContain('data-tone="partial"');
-    expect(text(html)).not.toContain('FINAL ANSWER');
-    expect(html).not.toMatch(/>Final answer</);
+    expect(html).toContain('Final answer');
+    expect(html).toContain('data-tone="complete"');
+    expect(html).not.toContain('Partial answer');
+    expect(html).not.toContain('This question was not answered');
+  });
+
+  it('puts Live agent response at the true top-left, not under a mark', () => {
+    const html = markup();
+    const head = html.slice(html.indexOf('final-answer-head'), html.indexOf('final-answer-warnings'));
+    expect(head).toContain('Live agent response');
+    expect(head).toContain('Final answer');
+    expect(head).toContain('data-tone="live"');
+    expect(head).not.toContain('Partial answer');
+    expect(head).not.toContain('final-answer-mark');
+    expect(head).not.toContain('<svg');
+    expect(html.indexOf('Live agent response')).toBeLessThan(html.indexOf('final-answer-takeaway'));
+    const incomplete = markup({ truncated: false, caveats: [INCOMPLETE, IDENTITY] });
+    expect(incomplete).toContain('Final answer');
+    expect(incomplete).not.toContain('Incomplete answer');
   });
 
   it('lifts incomplete sources and the deadline into warning chips, not quiet bullets', () => {
@@ -104,6 +129,25 @@ describe('the Overview Final Answer module', () => {
     expect(html).not.toContain('source-line');
   });
 
+  it('draws metric, window and filter as labeled rows, not one wrapping paragraph', () => {
+    const html = markup();
+    expect(html).toContain('source-list-derivation');
+    expect(html).toContain('derivation-row');
+    expect(html).toMatch(/<dt class="derivation-label">Metric<\/dt>/);
+    expect(html).toMatch(/<dt class="derivation-label">Window<\/dt>/);
+    expect(html).toMatch(/<dt class="derivation-label">Filter<\/dt>/);
+    expect(html).toContain('unique_players');
+    expect(html).not.toMatch(/<p class="source-list-derivation"/);
+  });
+
+  it('paints a real failure as a dark-red warning and identity as a secondary note', () => {
+    const html = markup();
+    expect(html).toContain('data-surface="failure"');
+    expect(html).toContain('APITimeoutError');
+    expect(html).toContain('data-surface="note"');
+    expect(html).toContain('analyst@example.com');
+  });
+
   it('keeps Open full response inside the card', () => {
     const html = markup();
     expect(html).toContain('final-answer');
@@ -129,5 +173,25 @@ describe('the Overview column width', () => {
     const css = partial('runs.css');
     expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*width:\s*100%/s);
     expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*max-width:\s*none/s);
+  });
+});
+
+describe('the Overview warning family', () => {
+  it('uses the Failed muted dark red, not the ochre warning wash', () => {
+    const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    expect(css).toMatch(/\.final-answer-warning \[data-slot='alert'\] \{[^}]*--ast-neg-fill/s);
+    expect(css).toMatch(/\.final-answer-warning \[data-slot='alert'\] \{[^}]*--ast-neg-border/s);
+    expect(css).not.toMatch(/\.final-answer-warning \{[^}]*--ast-warn-/s);
+    expect(css).not.toMatch(/\.final-answer\[data-tone='partial'\] \{[^}]*--ast-warn-/s);
+    const body = partial('answer-body.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    expect(body).toMatch(/li\[data-surface='failure'\] \{[^}]*--ast-neg-fill/s);
+    expect(body).toMatch(/li\[data-surface='note'\] \{[^}]*--ast-text-secondary/s);
+  });
+
+  it('pins the live badge at the start of the header row', () => {
+    const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    expect(css).toMatch(/\.final-answer-head \{[^}]*justify-self:\s*start/s);
+    expect(css).toMatch(/\.final-answer-head \{[^}]*justify-content:\s*flex-start/s);
+    expect(css).not.toMatch(/\.final-answer-mark/);
   });
 });

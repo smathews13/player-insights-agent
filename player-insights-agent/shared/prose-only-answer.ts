@@ -37,9 +37,115 @@ import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
  * had nothing to show" from "this app dropped them".
  */
 export const PROSE_ONLY_ANSWER_CAVEAT =
-  `${DEGRADED_ANSWER_MARKER} no structured result arrived: there are no figures, sources, SQL or ` +
-  'stage timings, and no tool steps were recorded. The agent did not complete a tool-backed answer. ' +
-  'This app shows the text that came back and does not invent the rest.';
+  `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
+
+/**
+ * The caveat when a run did take steps and still produced no result contract.
+ *
+ * Distinct from {@link PROSE_ONLY_ANSWER_CAVEAT}: that sentence is a lie once
+ * the stream (or the ledger) recorded tool work. The count is the run's, so a
+ * card can say where it stopped without inventing a finding.
+ */
+export function proseOnlyCaveat(stageCount: number): string {
+  if (stageCount <= 0) return PROSE_ONLY_ANSWER_CAVEAT;
+  const steps = stageCount === 1 ? '1 step' : `${stageCount} steps`;
+  return `${DEGRADED_ANSWER_MARKER} the run stopped after ${steps} without a structured result.`;
+}
+
+/**
+ * The steps a stream or ledger actually reported, merged by id and settled.
+ *
+ * A step arrives twice (announced, then reported). The second replaces the
+ * first so the stored card has one row per id. A last row still marked
+ * `running` is the step the run died inside, so it is marked failed rather
+ * than left looking live on a finished card.
+ */
+export type RecordedStage = {
+  [key: string]: unknown;
+  id: string;
+  name: string;
+  kind: string;
+  start: number;
+  duration: number;
+  status: 'complete' | 'running' | 'partial' | 'failed';
+  calls: number;
+  input: string;
+  output: string;
+  depth: number;
+  parent_id: string;
+};
+
+function asRecordedStage(stage: Record<string, unknown>): RecordedStage {
+  const status = stage.status;
+  return {
+    ...stage,
+    id: typeof stage.id === 'string' ? stage.id : '',
+    name: typeof stage.name === 'string' ? stage.name : '',
+    kind: typeof stage.kind === 'string' ? stage.kind : '',
+    start: typeof stage.start === 'number' && Number.isFinite(stage.start) ? stage.start : 0,
+    duration: typeof stage.duration === 'number' && Number.isFinite(stage.duration) ? stage.duration : 0,
+    status:
+      status === 'complete' || status === 'running' || status === 'partial' || status === 'failed'
+        ? status
+        : 'complete',
+    calls: typeof stage.calls === 'number' && Number.isFinite(stage.calls) ? stage.calls : 0,
+    input: typeof stage.input === 'string' ? stage.input : '',
+    output: typeof stage.output === 'string' ? stage.output : '',
+    depth: typeof stage.depth === 'number' && Number.isFinite(stage.depth) ? stage.depth : 0,
+    parent_id: typeof stage.parent_id === 'string' ? stage.parent_id : '',
+  };
+}
+
+export function foldRecordedStages(stages: readonly unknown[]): {
+  stages: RecordedStage[];
+  totalMs: number;
+  toolCalls: number;
+} {
+  const folded: RecordedStage[] = [];
+  for (const raw of stages) {
+    if (!raw || typeof raw !== 'object') continue;
+    const stage = asRecordedStage(raw as Record<string, unknown>);
+    const id = stage.id;
+    const at = id ? folded.findIndex((held) => held.id === id) : -1;
+    if (at !== -1) folded[at] = stage;
+    else folded.push(stage);
+  }
+  const settled = folded.map((stage, index, list) => {
+    if (index === list.length - 1 && stage.status === 'running') {
+      return { ...stage, status: 'failed' as const };
+    }
+    return stage;
+  });
+  return {
+    stages: settled,
+    totalMs: settled.reduce((sum, stage) => sum + stage.duration, 0),
+    toolCalls: settled.filter((stage) => stage.kind === 'tool').length,
+  };
+}
+
+/**
+ * Put recorded steps onto an answer whose own trace is empty.
+ *
+ * The prose-only path used to store `stages: []` even when the stream had
+ * already reported a dozen tool calls. A later reader then saw "no steps"
+ * over a run they had watched fill in. This is the restore: keep the words,
+ * keep the emptiness of figures and SQL, and keep the path that actually ran.
+ */
+export function attachRecordedStages<
+  T extends { trace: { stages: unknown[]; totalMs?: number; toolCalls?: number } },
+>(answer: T, recorded: readonly unknown[]): T {
+  if ((answer.trace.stages?.length ?? 0) > 0 || recorded.length === 0) return answer;
+  const folded = foldRecordedStages(recorded);
+  return {
+    ...answer,
+    trace: {
+      ...answer.trace,
+      stages: folded.stages as T['trace']['stages'],
+      totalMs: answer.trace.totalMs || folded.totalMs,
+      toolCalls: answer.trace.toolCalls || folded.toolCalls,
+    },
+  };
+}
 
 /**
  * The takeaway when the prose opens with nothing usable as one.
@@ -184,7 +290,7 @@ export interface ProseOnlyAnswer {
     id: string;
     totalMs: number;
     toolCalls: number;
-    stages: never[];
+    stages: RecordedStage[];
     // OMITTED RATHER THAN ZEROED. They were zero here, under a comment conceding
     // that zero meant "not measured on this path", which is a distinction the
     // renderers could not see: they read a number and printed it, so this path
@@ -203,13 +309,14 @@ export interface ProseOnlyAnswer {
  * `discloseAnswerProvenance` both read that field to decide whether a run is
  * addressable, and a synthesised `trace-<timestamp>` (which is what the demo
  * scaffold supplied here) hands a reader a correlation id that finds nothing in
- * MLflow. `totalMs` and `toolCalls` are zero for the same reason: this path
- * measures nothing it can attribute to the run, and the streamed stages went to
- * the browser rather than into a list this route holds. The token counts are left
- * OUT rather than set to zero, because a reader cannot tell a metered zero from an
- * unmetered one and the renderers printed the zero as a measurement.
+ * MLflow. Token counts are left OUT rather than set to zero, because a reader
+ * cannot tell a metered zero from an unmetered one.
+ *
+ * `recordedStages` is the path the stream already reported. Without it this
+ * function stored an empty trace over a run that had taken many steps, and the
+ * card then claimed nothing ran.
  */
-export function proseOnlyAnswer(id: string, prose: string): ProseOnlyAnswer {
+export function proseOnlyAnswer(id: string, prose: string, recordedStages: readonly unknown[] = []): ProseOnlyAnswer {
   /*
    * THE TAKEAWAY IS READ OFF THE ORIGINAL AND THE NARRATIVE OFF THE SPLIT, which
    * is the one asymmetry here and it is deliberate. When a run ends in the finder
@@ -235,6 +342,7 @@ export function proseOnlyAnswer(id: string, prose: string): ProseOnlyAnswer {
   } else if (isCannedFirstLine(narrative.split('\n')[0] ?? '')) {
     narrative = narrative.split('\n').slice(1).join('\n').trim();
   }
+  const folded = foldRecordedStages(recordedStages);
   return {
     id,
     takeaway,
@@ -244,14 +352,14 @@ export function proseOnlyAnswer(id: string, prose: string): ProseOnlyAnswer {
     charts: [],
     sources: [],
     document_snippets: [],
-    caveats: [PROSE_ONLY_ANSWER_CAVEAT, ...reader.caveats],
+    caveats: [proseOnlyCaveat(folded.stages.length), ...reader.caveats],
     derivation: [],
     sql: '',
     trace: {
       id: '',
-      totalMs: 0,
-      toolCalls: 0,
-      stages: [],
+      totalMs: folded.totalMs,
+      toolCalls: folded.toolCalls,
+      stages: folded.stages,
     },
   };
 }

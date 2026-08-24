@@ -4,6 +4,7 @@ import { CHAIN_BOUNDS } from './agent-chain';
 import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES } from './architecture';
 import {
   ARCHITECTURE_CONTROL_SCOPES,
+  displayedBound,
   edgeControlBounds,
   nextActiveBound,
   nodeControlBounds,
@@ -102,5 +103,13 @@ describe('the runtime bounds illuminate only what the agent actually bounds', ()
     expect(nextActiveBound('maxToolCalls', 'maxRunSeconds')).toBe('maxRunSeconds');
     expect(nextActiveBound('maxSteps', 'maxSteps')).toBeNull();
     expect(nextActiveBound('maxRunSeconds', 'maxRunSeconds')).toBeNull();
+  });
+
+  it('lets hover preview a bound without writing the click', () => {
+    expect(displayedBound(null, 'maxSteps')).toBe('maxSteps');
+    expect(displayedBound('maxToolCalls', 'maxSteps')).toBe('maxSteps');
+    expect(displayedBound('maxToolCalls', null)).toBe('maxToolCalls');
+    expect(displayedBound(null, null)).toBeNull();
+    expect(nextActiveBound('maxSteps', 'maxSteps')).toBeNull();
   });
 });

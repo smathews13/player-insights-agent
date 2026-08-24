@@ -566,7 +566,7 @@ export function RunExplorer() {
  */
 export function RunListItem({ run, active, onSelect }: { run: Run; active: boolean; onSelect: () => void }) {
   const runRating = ratingLabel(run.rating);
-  const displayedStatus = run.truncated === true ? 'partial' : run.status;
+  const displayedStatus = run.status;
   return (
     <button type="button" onClick={onSelect} aria-pressed={active} className={`run-item ${active ? 'active' : ''}`}>
       <div className="run-item-head">

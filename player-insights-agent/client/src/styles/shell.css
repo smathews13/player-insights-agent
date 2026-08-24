@@ -213,6 +213,18 @@
 .brand-lockup .ast-lockup {
   min-width: 0;
 }
+/*
+ * The lockup as a home control. Link chrome only: no underline, no colour
+ * rewrite, min-width so the wordmark still truncates when the column is tight.
+ * Focus is the global :focus-visible ring; nothing here paints the mark.
+ */
+.brand-home {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
 .brand-lockup .ast-wordmark {
   min-width: 0;
 }

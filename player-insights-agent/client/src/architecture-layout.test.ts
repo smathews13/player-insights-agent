@@ -1175,7 +1175,7 @@ describe('the drawing keeps its shape at every width', () => {
 describe('the runtime-bound colour follows the architecture legend', () => {
   it('gives each KPI a legend family rather than three unrelated API colours', () => {
     expect(rule(CSS, ".arch-tiles-loop li[data-accent='agent']")).toMatch(
-      /--arch-bound-color:\s*var\(--ast-navy\)/
+      /--arch-bound-color:\s*var\(--ast-primary-control-border\)/
     );
     expect(rule(CSS, ".arch-tiles-loop li[data-accent='genie']")).toMatch(
       /--arch-bound-color:\s*var\(--db-teal-600\)/
@@ -1184,7 +1184,7 @@ describe('the runtime-bound colour follows the architecture legend', () => {
       /--arch-bound-color:\s*var\(--ast-blue\)/
     );
     expect(rule(CSS, ".arch-canvas[data-active-accent='agent']")).toMatch(
-      /--arch-active-bound:\s*var\(--ast-navy\)/
+      /--arch-active-bound:\s*var\(--ast-primary-control-border\)/
     );
     expect(rule(CSS, ".arch-canvas[data-active-accent='genie']")).toMatch(
       /--arch-active-bound:\s*var\(--db-teal-600\)/
@@ -1195,18 +1195,32 @@ describe('the runtime-bound colour follows the architecture legend', () => {
     expect(CSS).not.toMatch(/--arch-bound-(?:steps|tools|run)/);
   });
 
-  it('paints a selected node as a sticky outline, never a white fill', () => {
-    // Last match: the same selector also appears in the reduced-motion guard,
-    // which only turns transitions off and is not the paint.
-    const at = CSS.lastIndexOf('.arch-node.arch-node-selected {');
+  it('paints a selected node as a sticky outline and a transparent wash, never a white fill', () => {
+    // The unscoped paint rule, not the reduced-motion guard and not the
+    // dark-theme restatement. Those share the class and would hide the outline.
+    const at = CSS.indexOf('.arch-node.arch-node-selected {\n  outline:');
     expect(at).toBeGreaterThan(-1);
     const selected = CSS.slice(at, CSS.indexOf('}', at));
     expect(selected).toMatch(/outline:\s*3px solid var\(--arch-active-bound\)/);
-    expect(selected).not.toMatch(/background:/);
+    expect(selected).toMatch(
+      /background:\s*color-mix\(in srgb, var\(--arch-active-bound\) 28%, transparent\)/
+    );
     expect(selected).not.toMatch(/filter:/);
     expect(selected).not.toMatch(/#fff|#ffffff|white|--card|--ast-white|--background/i);
+    expect(rule(CSS, "html[data-theme='dark'] .arch-node.arch-node-selected")).toMatch(
+      /background:\s*color-mix\(in srgb, var\(--arch-active-bound\) 28%, transparent\)/
+    );
+    expect(rule(CSS, '.arch-tiles-loop li')).toMatch(/outline:\s*3px solid transparent/);
+    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).toMatch(
+      /outline-color:\s*var\(--arch-bound-color\)/
+    );
     expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/background:/);
     expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/filter:/);
+    expect(rule(CSS, '.arch-bound-tile:hover,\n.arch-bound-tile:active,\n.arch-bound-tile:focus,\n.arch-bound-tile:focus-visible')).toMatch(
+      /background:\s*transparent/
+    );
+    expect(CSS).not.toMatch(/--arch-active-bound:\s*var\(--ast-navy\)/);
+    expect(CSS).not.toMatch(/--arch-bound-color:\s*var\(--ast-navy\)/);
   });
 });
 

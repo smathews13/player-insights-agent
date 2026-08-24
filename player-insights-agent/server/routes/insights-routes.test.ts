@@ -2534,7 +2534,7 @@ describe('the run verdict a chart cannot degrade', () => {
     expect(runVerdict([])).toBe('failed');
   });
 
-  it('does not call a deadline or salvage caveat a complete answer', () => {
+  it('does not call a deadline or salvage caveat a complete answer when nothing landed', () => {
     expect(
       answerRunVerdict({
         stages: [{ id: 'synthesis', status: 'complete' }],
@@ -2542,6 +2542,19 @@ describe('the run verdict a chart cannot degrade', () => {
       })
     ).toBe('partial');
     expect(answerRunVerdict({ stages: [], caveats: [] })).toBe('failed');
+  });
+
+  it('does not fail a tabled answer because sources were incomplete', () => {
+    expect(
+      answerRunVerdict({
+        stages: [{ id: 'synthesis', status: 'complete' }],
+        caveats: [
+          'The sources for this answer are incomplete: part of it came from a query whose tables could not be determined.',
+        ],
+        figures: [{ label: 'VLH', value: 6655 }],
+        narrative: '| Franchise | Players |\n| VLH | 6655 |',
+      })
+    ).toBe('complete');
   });
 
   it('carries the same exemption into the SQL the store actually runs', () => {
@@ -2558,6 +2571,7 @@ describe('the run verdict a chart cannot degrade', () => {
     expect(sql).toContain(`'$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'`);
     expect(sql).toContain("jsonb_array_length(a.trace->'stages') = 0");
     expect(sql).toContain('turn deadline');
+    expect(sql).toContain("a.payload->'figures'");
     // No unfiltered stage-status predicate left anywhere in it, which is how the
     // old rule would come back: one branch updated and the other not.
     expect(sql).not.toContain('(@.status == "failed")');
@@ -3694,6 +3708,57 @@ describe('an answer says which of its parts came from the run', () => {
       // The stored-demo caveat would be a lie in the other direction here:
       // there is no stored demo response on this screen to warn about.
       expect(answered.caveats).not.toContain(REPRESENTATIVE_ANSWER_CAVEAT);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('keeps the streamed steps on a prose reply so the card can show where the run broke', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const transport: ServingTransport = ({ onStage }) => {
+      onStage?.({
+        id: 'step-1',
+        name: 'Chose the next step',
+        kind: 'agent',
+        status: 'complete',
+        start: 0,
+        duration: 12,
+        calls: 1,
+        input: '',
+        output: 'data_genie',
+      });
+      onStage?.({
+        id: 'step-2',
+        name: 'Querying governed data',
+        kind: 'tool',
+        status: 'running',
+        start: 12,
+        duration: 40,
+        calls: 0,
+        input: '{"question":"x"}',
+        output: '',
+      });
+      return Promise.resolve({
+        output: [{ content: [{ type: 'output_text', text: 'VLH Online leads the last 30 days.' }] }],
+      });
+    };
+    const app = await startInsightsApp(transport, memoryLakebase());
+
+    try {
+      const answered = await app.ask({
+        conversationId: 'conv-prov-prose-steps',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      const stages = (answered.trace as { stages: { id: string; status: string }[] }).stages;
+      expect(stages.map((stage) => [stage.id, stage.status])).toEqual([
+        ['step-1', 'complete'],
+        ['step-2', 'failed'],
+      ]);
+      expect((answered.caveats as string[]).some((caveat) => caveat.includes('stopped after 2 steps'))).toBe(true);
+      expect((answered.caveats as string[]).some((caveat) => caveat.includes('no tool steps were recorded'))).toBe(
+        false
+      );
     } finally {
       await app.close();
     }

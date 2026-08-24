@@ -47,8 +47,9 @@ export function SourcesModule({
    * How the names are arranged.
    *
    * `line` is Ask PIA's compact provenance sentence. `list` is the Run Explorer
-   * Overview: one row per source, the path and a single Open link, so a catalog
-   * name cannot tangle with the next table's link on the same wrapping line.
+   * Overview: one row per source (path, role, Open link) and one labeled row
+   * per derivation fact, so metric/filter/source cannot collapse into a
+   * wrapping paragraph.
    */
   layout?: 'line' | 'list';
 }) {
@@ -99,20 +100,21 @@ export function SourcesModule({
             ))}
           </ul>
           {derived.map((entry) => (
-            <p className="source-list-derivation" key={entry.key}>
-              {entry.facts.map((fact, index) => (
-                <span className="derivation-fact" key={fact.label}>
-                  {index > 0 ? ', ' : null}
-                  <span className="derivation-label">{fact.label.toLowerCase()} </span>
-                  <code
-                    className={`derivation-value${fact.source ? ' derivation-source source-name-pill' : ''}`}
-                    data-tone={fact.source ? fact.tone : undefined}
-                  >
-                    {fact.source ? <SourceEntityName name={fact.value} /> : fact.value}
-                  </code>
-                </span>
+            <dl className="source-list-derivation" key={entry.key}>
+              {entry.facts.map((fact) => (
+                <div className="derivation-row" key={fact.label}>
+                  <dt className="derivation-label">{fact.label}</dt>
+                  <dd>
+                    <code
+                      className={`derivation-value${fact.source ? ' derivation-source source-name-pill' : ''}`}
+                      data-tone={fact.source ? fact.tone : undefined}
+                    >
+                      {fact.source ? <SourceEntityName name={fact.value} /> : fact.value}
+                    </code>
+                  </dd>
+                </div>
               ))}
-            </p>
+            </dl>
           ))}
         </section>
       ) : (

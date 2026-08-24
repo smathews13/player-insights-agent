@@ -110,15 +110,20 @@
 .arch-tiles-loop li {
   padding: 0;
   box-shadow: inset 3px 0 0 var(--arch-bound-color);
+  /* Reserved so a hover or click only colours the ring. Growing an outline
+     used to push the pointer off the tile, which cleared a hover preview. */
+  outline: 3px solid transparent;
+  outline-offset: 2px;
 }
 /*
  * Each KPI takes one legend family, the same tokens the swatches under the
- * drawing use. Navy for the Finder/model loop, teal for the tool calls, blue
- * for the request deadline. Invented per-bound hues are how the three tiles
- * used to look unrelated to the diagram they explain.
+ * drawing use. A lifted navy for the Finder/model loop -- ink navy is the sky
+ * itself, and a highlight in that rung reads as a hole. Teal for the tool
+ * calls, blue for the request deadline. Invented per-bound hues are how the
+ * three tiles used to look unrelated to the diagram they explain.
  */
 .arch-tiles-loop li[data-accent='agent'] {
-  --arch-bound-color: var(--ast-navy);
+  --arch-bound-color: var(--ast-primary-control-border);
 }
 .arch-tiles-loop li[data-accent='genie'] {
   --arch-bound-color: var(--db-teal-600);
@@ -132,24 +137,36 @@
   width: 100%;
   padding: 12px 14px;
   border: 0;
+  appearance: none;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: inherit;
   cursor: pointer;
 }
+/*
+ * The platform paints a white control fill on :hover / :active. That is the
+ * flicker on the night sky: one white frame, then the dark card again. Every
+ * pointer state stays the tile's own surface.
+ */
+.arch-bound-tile:hover,
+.arch-bound-tile:active,
+.arch-bound-tile:focus,
+.arch-bound-tile:focus-visible {
+  background: transparent;
+  background-color: transparent;
+}
 .arch-bound-tile:focus-visible {
   outline: 2px solid var(--arch-bound-color);
   outline-offset: 2px;
 }
 /*
- * A class, not :active / :focus / :hover. Those three were the flicker: a press
- * painted the platform's white control fill, then the dark card won a frame
- * later, and leave/blur cleared the bound so the nodes restyled twice.
+ * A class, not :active / :focus / :hover. Hover writes a preview bound in JS
+ * and the click writes a sticky one; both land here so the ring is the same.
+ * Pointer pseudo-classes on the button were the white flash.
  */
 .arch-tiles-loop li.arch-bound-selected {
-  outline: 3px solid var(--arch-bound-color);
-  outline-offset: 2px;
+  outline-color: var(--arch-bound-color);
 }
 /* Sentence case, unlike the counts above. These are the Settings pane's own
    labels -- "Max DSF steps", "Run budget (s)" -- and upper-casing them breaks the
@@ -221,7 +238,7 @@
   position: relative;
 }
 .arch-canvas[data-active-accent='agent'] {
-  --arch-active-bound: var(--ast-navy);
+  --arch-active-bound: var(--ast-primary-control-border);
 }
 .arch-canvas[data-active-accent='genie'] {
   --arch-active-bound: var(--db-teal-600);
@@ -394,16 +411,6 @@
   line-height: 1.35;
   z-index: 2;
 }
-/*
- * An outline rather than another box-shadow or a fill: the card's inset shadow
- * is the relationship accent, and a white `--card` fill is the light-theme
- * surface that flashed through when selection used to restyle the background
- * and then apply `filter`. The class is sticky; hover and :active do not set it.
- */
-.arch-node.arch-node-selected {
-  outline: 3px solid var(--arch-active-bound);
-  outline-offset: 3px;
-}
 /* The accent edge: what kind of thing this is. A 3px mass, which is the one form
    the working colour is allowed to take. */
 .arch-node[data-accent='question'] {
@@ -429,6 +436,29 @@
    say "this is the agent's own" without spending a hue. */
 .arch-node[data-node='agent-endpoint'] {
   background: var(--ast-ice);
+}
+/*
+ * Outline plus a wash of the same hue. Outline-only disappeared on the night
+ * sky: the card is already a dark pane, and a ring in ink navy was a ring in
+ * the sky. The fill is the bound colour at a fraction, mixed with transparent
+ * so the surface stays a pane and the type stays the pane's own ink. No
+ * `filter`, and no `--card` / white -- those were the flash.
+ *
+ * Stated after the orchestrator's ice fill so a selected orchestrator takes
+ * the wash rather than keeping ice. The dark-theme copy beats
+ * `html[data-theme='dark'] .arch-node` in dark-mode.css, which would otherwise
+ * put `--card` back on top of the wash.
+ *
+ * The class is what hover preview and click both set; :hover / :active on the
+ * card do not.
+ */
+.arch-node.arch-node-selected {
+  outline: 3px solid var(--arch-active-bound);
+  outline-offset: 3px;
+  background: color-mix(in srgb, var(--arch-active-bound) 28%, transparent);
+}
+html[data-theme='dark'] .arch-node.arch-node-selected {
+  background: color-mix(in srgb, var(--arch-active-bound) 28%, transparent);
 }
 .arch-node-main {
   display: grid;

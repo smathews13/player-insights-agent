@@ -18,8 +18,9 @@ import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer';
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
-import { carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer';
+import { attachRecordedStages, carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import {
+  ANSWER_LANDED_SQL,
   DEADLINE_TRUNCATED_SQL,
   EMPTY_STAGES_FAILED_SQL,
   INCOMPLETE_ANSWER_CAVEAT_SQL,
@@ -564,7 +565,8 @@ export const SHARED_RUN_OWNER = 'Another team member';
  */
 export const RUNS_QUERY = `
   WITH answers AS (SELECT m.id, m.conversation_id, m.created_at,
-           m.response_json->'trace' AS trace, m.response_json->'caveats' AS caveats, c.user_email
+           m.response_json->'trace' AS trace, m.response_json->'caveats' AS caveats,
+           m.response_json AS payload, c.user_email
     FROM ${APP_SCHEMA}.messages m
     JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
     -- A plan proposal has no trace and is not yet a run; an answer always has one.
@@ -588,10 +590,11 @@ export const RUNS_QUERY = `
          -- that draws this column; see shared/run-verdict.ts for why that is the
          -- one step whose outcome says nothing about the answer above it.
          -- Empty stages used to fall through to complete, which painted a green
-         -- badge on a 0.0s card that recorded nothing. A deadline caveat on an
-         -- otherwise-green stage list is partial, not a finished answer.
+         -- badge on a 0.0s card that recorded nothing. Incomplete-sources and
+         -- deadline notes do not flip a card that already has figures or tables.
          CASE
            WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join('a.trace')} THEN 'failed'
+           WHEN ${ANSWER_LANDED_SQL.split('payload').join('a.payload')} THEN 'complete'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
            WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split('caveats').join('a.caveats')} THEN 'partial'
@@ -1810,6 +1813,7 @@ const CONVERSATION_VERDICT_JOIN = `
     SELECT
       CASE
         WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join("m.response_json->'trace'")} THEN 'failed'
+        WHEN ${ANSWER_LANDED_SQL.split('payload').join('m.response_json')} THEN 'complete'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
         WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split('caveats').join("m.response_json->'caveats'")} THEN 'partial'
@@ -4099,6 +4103,7 @@ export function setupInsightsRoutes(
       // does not exist.
       let stagesSeen = 0;
       let lastStage: FailureStage | undefined;
+      const collectedStages: Record<string, unknown>[] = [];
       try {
         const servingHistory = buildServingHistory(historyResult.rows);
         if (approvedPlanId && servingHistory.length > 0) {
@@ -4136,30 +4141,36 @@ export function setupInsightsRoutes(
          * replay, which is the behaviour every run had before this existed.
          */
         const stageRecorder = admission.run ? createStageRecorder(appkit, admission.run.runId) : null;
-        const onStage = reply.wantsStream
-          ? (stage: Record<string, unknown>) => {
-              // Forwarded whatever it is, counted only if it finished. The
-              // endpoint now announces a step when it STARTS as well, under the
-              // same id and with `status: "running"`, so the rail can draw the
-              // row a reader is waiting on. Counting those would double every
-              // number in `FailureStage` and name a step that had not run as the
-              // last one to finish, which is what that contract exists to avoid.
-              if (!isRunningStage(stage)) {
-                stagesSeen += 1;
-                // The last stage to COMPLETE, which is not the stage that
-                // failed; see FailureStage. Incremented first so the count and
-                // the title describe the same event.
-                lastStage = { title: readStageTitle(stage), completed: stagesSeen };
-              }
-              reply.stage(stage);
-              // AFTER the forward, and never awaited. The reader watching this
-              // run live must not wait behind a write that exists for the
-              // reader who left. Announcements are stored as well as
-              // completions: the step a returning reader is waiting ON is the
-              // one worth showing them, and it arrives as `running`.
-              stageRecorder?.record(stage);
-            }
-          : undefined;
+        const onStage = (stage: Record<string, unknown>) => {
+          // Always collected, including when the browser did not ask for a
+          // stream. The prose-only path used to persist `stages: []` because
+          // this list did not exist, so a failed run that had taken many
+          // tools stored a card that said nothing ran.
+          const id = typeof stage.id === 'string' ? stage.id : '';
+          const at = id ? collectedStages.findIndex((held) => held.id === id) : -1;
+          if (at !== -1) collectedStages[at] = stage;
+          else collectedStages.push(stage);
+          // Forwarded whatever it is, counted only if it finished. The
+          // endpoint now announces a step when it STARTS as well, under the
+          // same id and with `status: "running"`, so the rail can draw the
+          // row a reader is waiting on. Counting those would double every
+          // number in `FailureStage` and name a step that had not run as the
+          // last one to finish, which is what that contract exists to avoid.
+          if (!isRunningStage(stage)) {
+            stagesSeen += 1;
+            // The last stage to COMPLETE, which is not the stage that
+            // failed; see FailureStage. Incremented first so the count and
+            // the title describe the same event.
+            lastStage = { title: readStageTitle(stage), completed: stagesSeen };
+          }
+          if (reply.wantsStream) reply.stage(stage);
+          // AFTER the forward, and never awaited. The reader watching this
+          // run live must not wait behind a write that exists for the
+          // reader who left. Announcements are stored as well as
+          // completions: the step a returning reader is waiting ON is the
+          // one worth showing them, and it arrives as `running`.
+          stageRecorder?.record(stage);
+        };
         // Two calls rather than one with a nullable token, so the path that runs
         // without a user is visibly the local one and cannot be reached by a
         // deployed request: `bindIdentity` has already refused an empty token
@@ -4318,10 +4329,16 @@ export function setupInsightsRoutes(
           // there is nothing here for the app to have filled in. This is the
           // only path allowed to say 'live', and saying it here is what makes
           // the silence on the path below mean something.
-          answer = { ...structuredAnswer, mode: 'live', provenance: 'live' };
+          answer = attachRecordedStages(
+            { ...structuredAnswer, mode: 'live', provenance: 'live' },
+            collectedStages
+          );
         } else if (liveText) {
           // The endpoint replied in prose and sent no result contract. Its
-          // words are kept and nothing is put under them.
+          // words are kept and nothing is put under them -- except the steps
+          // the stream already reported. Those used to be dropped here, which
+          // is why a failed run that had taken many tools stored a card that
+          // said "no steps".
           //
           // This used to build the answer on top of the stored demo answer, so
           // the figures, charts, sources, SQL and stage timings a reader saw
@@ -4335,7 +4352,7 @@ export function setupInsightsRoutes(
           // means every reader-facing part came from this run, which is now
           // true here because there are no parts that did not.
           answer = {
-            ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText),
+            ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
             mode: 'live',
             provenance: 'live',
           };

@@ -23,6 +23,7 @@ import {
   costAbsence,
   count,
   errorFraming,
+  latencyRouteMatchesTrend,
   latencyRouteView,
   latencySharedFacts,
   money,
@@ -674,5 +675,36 @@ describe('a latency verdict against a route baseline', () => {
 
   it('never invents a refusal count to fill the column', () => {
     expect(latencyRouteView(route()).refusalsLabel).toBe('Not reported');
+  });
+});
+
+describe('the latency TREND filters', () => {
+  const off = { within: false, outside: false };
+  const green = { within: true, outside: false };
+  const red = { within: false, outside: true };
+  const both = { within: true, outside: true };
+
+  it('shows every row, including a dash, when neither pill is on', () => {
+    expect(latencyRouteMatchesTrend('within', off)).toBe(true);
+    expect(latencyRouteMatchesTrend('slower', off)).toBe(true);
+    expect(latencyRouteMatchesTrend('too-thin', off)).toBe(true);
+    expect(latencyRouteMatchesTrend('not-reported', off)).toBe(true);
+  });
+
+  it('shows only the matching verdict when one pill is on', () => {
+    expect(latencyRouteMatchesTrend('within', green)).toBe(true);
+    expect(latencyRouteMatchesTrend('slower', green)).toBe(false);
+    expect(latencyRouteMatchesTrend('too-thin', green)).toBe(false);
+
+    expect(latencyRouteMatchesTrend('slower', red)).toBe(true);
+    expect(latencyRouteMatchesTrend('within', red)).toBe(false);
+    expect(latencyRouteMatchesTrend('not-reported', red)).toBe(false);
+  });
+
+  it('drops the dashes when both pills are on, and keeps every row that has a trend', () => {
+    expect(latencyRouteMatchesTrend('within', both)).toBe(true);
+    expect(latencyRouteMatchesTrend('slower', both)).toBe(true);
+    expect(latencyRouteMatchesTrend('too-thin', both)).toBe(false);
+    expect(latencyRouteMatchesTrend('not-reported', both)).toBe(false);
   });
 });

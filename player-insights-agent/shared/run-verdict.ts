@@ -85,28 +85,74 @@ export function runVerdict(stages: readonly VerdictStage[]): RunVerdict {
 }
 
 /**
- * Caveat phrases that mean the writer never finished, even when every recorded
- * step is green. The deadline path used to emit a complete synthesis stage over
- * a "turn deadline was reached" caveat, so the rail said Complete while Keep in
- * mind admitted the opposite.
+ * Caveat phrases that used to flip the whole answer to Partial or Failed.
+ *
+ * Incomplete sources and a turn deadline are notes about how the answer was
+ * assembled, not a statement that no answer landed. They stay on the card.
+ * They must not decide the rail, the inspector pill, or the Run Explorer
+ * status when figures or tables are already on the card.
  */
-export const INCOMPLETE_ANSWER_CAVEAT = /turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable/i;
+export const INCOMPLETE_ANSWER_CAVEAT =
+  /turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable/i;
+
+/** Caveats that only matter when nothing usable actually landed. */
+export const UNFINISHED_WITHOUT_ANSWER_CAVEAT =
+  /this question was not answered|was not reachable|structured presentation was incomplete/i;
 
 /**
- * The run's verdict from stages and the caveats the agent already wrote.
+ * Whether the payload already has a reader-facing answer: figures, a pipe
+ * table, or narrative that is not the unanswered line.
  *
- * Stages win when they are failed. Otherwise a deadline or salvage caveat
- * downgrades a green stage list to `partial`, which is the 100-second run that
- * had a real table and still was not a finished answer.
+ * A caveat about Genie tables or a turn deadline is not evidence that this is
+ * missing. Historical cards were being failed on read because those notes
+ * were treated as the verdict.
+ */
+export function answerHasLanded(input: {
+  figures?: readonly unknown[] | null;
+  narrative?: string | null;
+  content?: string | null;
+}): boolean {
+  if ((input.figures?.length ?? 0) > 0) return true;
+  const text = [input.narrative, input.content].filter(Boolean).join('\n');
+  if (!text.trim()) return false;
+  if (/\|.+\|/.test(text)) return true;
+  const cleaned = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line &&
+        !/^this question was not answered/i.test(line) &&
+        !/^the analysis completed\b/i.test(line) &&
+        !/\bfrom assessed sources\b/i.test(line)
+    )
+    .join(' ')
+    .trim();
+  return cleaned.length >= 40;
+}
+
+/**
+ * The run's verdict from stages, and only then from caveats that mean nothing
+ * usable was written.
+ *
+ * A 0-step run is still Failed. A failed step with no figures is still Failed.
+ * A card that already has tables or figures is Complete, even when Keep in
+ * mind says the sources list may be short or the turn clock ran out.
  */
 export function answerRunVerdict(input: {
   stages?: readonly VerdictStage[];
   caveats?: readonly string[];
+  figures?: readonly unknown[] | null;
+  narrative?: string | null;
+  content?: string | null;
 }): RunVerdict {
-  const fromStages = runVerdict(input.stages ?? []);
+  const stages = input.stages ?? [];
+  if (stages.length === 0) return 'failed';
+  if (answerHasLanded(input)) return 'complete';
+  const fromStages = runVerdict(stages);
   if (fromStages === 'failed') return 'failed';
   const caveats = input.caveats ?? [];
-  if (caveats.some((text) => /this question was not answered|was not reachable/i.test(text))) {
+  if (caveats.some((text) => UNFINISHED_WITHOUT_ANSWER_CAVEAT.test(text))) {
     return 'failed';
   }
   if (fromStages === 'partial' || caveats.some((text) => INCOMPLETE_ANSWER_CAVEAT.test(text))) {
@@ -145,9 +191,23 @@ export const EMPTY_STAGES_FAILED_SQL =
 
 /**
  * Caveat predicate that matches {@link INCOMPLETE_ANSWER_CAVEAT} in SQL.
+ *
+ * Only applied when {@link ANSWER_LANDED_SQL} is false. Incomplete sources
+ * and a deadline note must not flip a card that already has figures or tables.
  */
 export const INCOMPLETE_ANSWER_CAVEAT_SQL =
   `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable')`;
+
+/**
+ * Figures, a pipe table, or a real narrative — the same test as
+ * {@link answerHasLanded}, for the stored-run queries. `payload` is the
+ * answer JSON object (`response_json`).
+ */
+export const ANSWER_LANDED_SQL = `(
+  (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
+  OR COALESCE(payload->>'narrative', '') ~ '\\|'
+  OR COALESCE(payload->>'content', '') ~ '\\|'
+)`;
 
 /** Deadline / early-stop only, for the stored `truncated` flag. */
 export const DEADLINE_TRUNCATED_SQL =

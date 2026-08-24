@@ -274,7 +274,7 @@ describe('the nav and the rail are offset from one value, not from two numbers',
     // bug comes back silently.
     const declarations = [...withoutComments(TOKENS).matchAll(/--conversation-width:\s*([^;]+);/g)];
     expect(declarations).toHaveLength(1);
-    expect(declarations[0][1].trim()).toEqual('264px');
+    expect(declarations[0][1].trim()).toEqual('340px');
     expect(withoutComments(RAIL)).not.toMatch(/--conversation-width:\s*\d/);
   });
 

@@ -59,9 +59,9 @@ export function readSelectedConversation(): string | null {
 /**
  * Forget the selected thread.
  *
- * Called only by “+ New conversation” (and deleting the selected conversation,
- * which invokes that same action), making that action the single route back to
- * the starter pane.
+ * Called by “+ New conversation”, by deleting the selected conversation (which
+ * invokes that same action), and by the header lockup's home control — the
+ * routes back to the starter pane.
  */
 export function clearSelectedConversation(): void {
   selectedInMemory = null;

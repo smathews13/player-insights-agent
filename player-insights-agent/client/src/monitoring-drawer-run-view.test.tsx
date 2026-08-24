@@ -181,6 +181,43 @@ describe('the modal draws one run view, the card\'s own', () => {
     expect(markup).toContain('fill="var(--foreground)"');
   });
 
+  it('stacks the token line inside the card, after the tables and before Sources', () => {
+    /*
+     * THE SCREENSHOT. The token line was a flex sibling after a shrinking
+     * answer card, so "49,923 tokens recorded" sat on the last table row,
+     * Sources flooded the table pane, and Keep in mind tucked under Run
+     * process. It is now a grid sibling of those sections, in this order.
+     */
+    const markup = drawer({
+      answer: {
+        ...answerWith(trace),
+        caveats: ['Coverage ends last Tuesday.'],
+        content: ['| Franchise | Players |', '| --- | ---: |', '| VLH | 10 |'].join('\n'),
+      },
+    });
+    const rendered = text(markup);
+
+    expect(rendered.indexOf('A narrative sentence.')).toBeLessThan(rendered.indexOf('1,200 tokens recorded on this run.'));
+    expect(rendered.indexOf('1,200 tokens recorded on this run.')).toBeLessThan(rendered.indexOf('Sources'));
+    expect(rendered.indexOf('Sources')).toBeLessThan(rendered.indexOf('Keep in mind'));
+    expect(rendered.indexOf('Keep in mind')).toBeLessThan(rendered.indexOf('Run process'));
+
+    const evidence = markup.indexOf('answer-evidence');
+    const tokens = markup.indexOf('monitoring-drawer-tokens');
+    const sources = markup.indexOf('sources-module');
+    const keep = markup.indexOf('keep-in-mind');
+    const process = markup.indexOf('run-process');
+    expect(evidence).toBeGreaterThan(-1);
+    expect(tokens).toBeGreaterThan(evidence);
+    expect(sources).toBeGreaterThan(tokens);
+    expect(keep).toBeGreaterThan(sources);
+    expect(process).toBeGreaterThan(keep);
+
+    expect(MONITORING).toContain('afterEvidence={tokensNote(detail.tokens)}');
+    expect(MONITORING).toContain('{!answer ? tokensNote(detail.tokens) : null}');
+    expect(CARD).toContain('{afterEvidence}');
+  });
+
   it('still reaches the advanced trace details the answer card owns', () => {
     const rendered = text(drawer());
 

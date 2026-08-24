@@ -74,6 +74,7 @@ import {
 } from './architecture-layout';
 import {
   ARCHITECTURE_CONTROL_SCOPES,
+  displayedBound,
   edgeControlBounds,
   nextActiveBound,
   nodeControlBounds,
@@ -384,7 +385,12 @@ export function ArchitectureCanvas({
   payload,
   now,
 }: {
-  /** The setting a click is currently explaining. Sticks until the next click. */
+  /**
+   * The setting the drawing is currently explaining.
+   *
+   * The page passes the displayed bound -- hover preview if the pointer is on a
+   * tile, otherwise the click that stuck. This component does not know which.
+   */
   activeBound?: ChainBound | null;
   byResource: ReadonlyMap<string, ConnectionReading>;
   payload: ArchitecturePayload | null;
@@ -633,34 +639,43 @@ export function ArchitectureTiles({
  */
 export function ChainBoundTiles({
   activeBound = null,
+  previewBound = null,
   loop,
   onActiveBoundChange,
+  onPreviewBoundChange,
 }: {
   activeBound?: ChainBound | null;
+  /** Hover preview. Same paint as a click; never sticky on its own. */
+  previewBound?: ChainBound | null;
   loop: RuntimeSettings['loop'] | null;
   onActiveBoundChange?: (bound: ChainBound | null) => void;
+  onPreviewBoundChange?: (bound: ChainBound | null) => void;
 }) {
   const unknown = '\u2014';
+  const shown = displayedBound(activeBound, previewBound);
   return (
     <ul className="arch-tiles arch-tiles-loop" data-testid="architecture-loop-tiles">
       {CHAIN_BOUNDS.map((bound) => {
-        const selected = activeBound === bound;
+        const pressed = activeBound === bound;
+        const painted = shown === bound;
         const value = loop ? String(loop[bound]) : 'not available';
         return (
           <li
             data-bound={bound}
             data-accent={ARCHITECTURE_CONTROL_SCOPES[bound].accent}
-            data-active={selected ? 'true' : undefined}
-            className={selected ? 'arch-bound-selected' : undefined}
+            data-active={painted ? 'true' : undefined}
+            className={painted ? 'arch-bound-selected' : undefined}
             key={bound}
             title={CHAIN_BOUND_NOTE[bound]}
+            onMouseEnter={() => onPreviewBoundChange?.(bound)}
+            onMouseLeave={() => onPreviewBoundChange?.(null)}
           >
             <button
               type="button"
-              className={selected ? 'arch-bound-tile arch-bound-selected' : 'arch-bound-tile'}
-              aria-pressed={selected}
+              className={painted ? 'arch-bound-tile arch-bound-selected' : 'arch-bound-tile'}
+              aria-pressed={pressed}
               aria-label={`${CHAIN_BOUND_LABEL[bound]}: ${value}. ${
-                selected
+                pressed
                   ? 'Selected. Click again to clear the architecture highlight.'
                   : 'Show the architecture it controls.'
               }`}
@@ -738,6 +753,8 @@ export function ArchitecturePage() {
   const [payload, setPayload] = useState<ArchitecturePayload | null>(null);
   const [payloadError, setPayloadError] = useState('');
   const [activeBound, setActiveBound] = useState<ChainBound | null>(null);
+  const [previewBound, setPreviewBound] = useState<ChainBound | null>(null);
+  const shownBound = displayedBound(activeBound, previewBound);
   /**
    * The checks, from the one mechanism that runs them.
    *
@@ -899,9 +916,15 @@ export function ArchitecturePage() {
             Live data flow
           </h3>
         </div>
-        <ChainBoundTiles activeBound={activeBound} loop={loop} onActiveBoundChange={setActiveBound} />
+        <ChainBoundTiles
+          activeBound={activeBound}
+          previewBound={previewBound}
+          loop={loop}
+          onActiveBoundChange={setActiveBound}
+          onPreviewBoundChange={setPreviewBound}
+        />
         <ArchitectureDiagramBoundary key={`${checkedAt}:${payload?.readAt ?? ''}`}>
-          <ArchitectureCanvas activeBound={activeBound} byResource={byResource} now={now} payload={payload} />
+          <ArchitectureCanvas activeBound={shownBound} byResource={byResource} now={now} payload={payload} />
         </ArchitectureDiagramBoundary>
       </section>
 

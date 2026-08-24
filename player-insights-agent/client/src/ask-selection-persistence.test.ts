@@ -59,7 +59,7 @@ describe('Ask selection persistence', () => {
     expect(readSelectedConversation()).toBe('conv-active');
   });
 
-  it('clears the remembered thread only for the new-conversation action', () => {
+  it('clears the remembered thread so the starter is not overwritten on return', () => {
     const browser = browserSession();
     vi.stubGlobal('window', { sessionStorage: browser.sessionStorage });
     rememberSelectedConversation('conv-old');
@@ -86,7 +86,7 @@ describe('Ask selection persistence', () => {
     expect(HOME).toContain('rememberSelectedConversation(id)');
   });
 
-  it('makes New conversation the route back to the starter', () => {
+  it('makes New conversation one route back to the starter', () => {
     const action = /function startNewConversation\(\) \{[\s\S]*?setSearchParams\(\{\}, \{ replace: true \}\);/.exec(
       HOME
     )?.[0];

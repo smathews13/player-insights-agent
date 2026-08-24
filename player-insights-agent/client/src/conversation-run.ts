@@ -30,7 +30,13 @@ export interface ConversationRunStatus {
 
 const WORKING_STATES = new Set(['RECEIVED', 'PLANNING', 'RUNNING', 'SYNTHESIZING']);
 
-export function isWorkingConversationRun(status: ConversationRunStatus | null): status is ConversationRunStatus {
+export type WorkingConversationRun = ConversationRunStatus & {
+  state: 'RECEIVED' | 'PLANNING' | 'RUNNING' | 'SYNTHESIZING';
+};
+
+export function isWorkingConversationRun(
+  status: ConversationRunStatus | null
+): status is WorkingConversationRun {
   return status !== null && WORKING_STATES.has(status.state);
 }
 

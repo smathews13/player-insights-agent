@@ -269,10 +269,9 @@ describe('the run header is four objects, not one sentence', () => {
      * its class list.
      */
     const complete = header({ run: run({ truncated: true }) });
-    expect(complete).not.toMatch(/run-status-pill ast-pill ast-pill--pos/);
-    expect(complete).not.toContain('complete');
-    expect(complete).toMatch(/run-status-pill ast-pill ast-pill--warn/);
-    expect(complete).toContain('partial');
+    expect(complete).toMatch(/run-status-pill ast-pill ast-pill--pos/);
+    expect(complete).toContain('complete');
+    expect(complete).not.toContain('partial');
     expect(complete).not.toContain('Truncated');
     expect(header({ run: run({ status: 'failed' }) })).toMatch(/ast-pill--neg/);
     // The DuBois pill is gone from this surface. It is still defined, because the

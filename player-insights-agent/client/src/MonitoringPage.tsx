@@ -713,6 +713,18 @@ const READ_ONLY_FEEDBACK: FeedbackEntry = {
   usefulness: null,
 };
 
+function tokensNote(tokens: MonitoringDetail['tokens']) {
+  return (
+    <p className="monitoring-drawer-tokens">
+      {tokens
+        ? tokens.total === null
+          ? 'This run reported no token total, so the total is unknown rather than zero.'
+          : `${tokens.total.toLocaleString()} tokens recorded on this run.`
+        : 'This run was not metred, so no token count was recorded.'}
+    </p>
+  );
+}
+
 export function QuestionDrawer({
   detail,
   onClose,
@@ -812,6 +824,7 @@ export function QuestionDrawer({
             onFeedbackChange={() => {}}
             saveFeedback={async () => {}}
             showFeedback={false}
+            afterEvidence={tokensNote(detail.tokens)}
           />
         ) : (
           /* A refusal or a failure: the taxonomy's own sentence, with the code in
@@ -822,15 +835,10 @@ export function QuestionDrawer({
           </div>
         )}
 
-        {detail.tokens ? (
-          <p className="monitoring-drawer-tokens">
-            {detail.tokens.total === null
-              ? 'This run reported no token total, so the total is unknown rather than zero.'
-              : `${detail.tokens.total.toLocaleString()} tokens recorded on this run.`}
-          </p>
-        ) : (
-          <p className="monitoring-drawer-tokens">This run was not metred, so no token count was recorded.</p>
-        )}
+        {/* Tokens sit inside the card when there is one, after the tables and
+            before Sources. A sibling after the card is what painted them on the
+            last table row. They stay a dialog child only when there is no card. */}
+        {!answer ? tokensNote(detail.tokens) : null}
 
         {detail.rating || detail.usefulness !== null || detail.comment ? (
           <section className="monitoring-drawer-section">

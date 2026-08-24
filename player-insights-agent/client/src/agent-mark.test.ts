@@ -10,8 +10,10 @@ import { partial, stylesheet } from './styles/stylesheet';
  * The agent's mark: one robot, drawn in five places.
  *
  * The transcript's avatar, the chip that introduces the agent on an empty page,
- * the Run Explorer's stored answer and the figure at the end of the working
- * strip are all the same drawing, and this file is what keeps them one drawing.
+ * and the figure at the end of the working strip are all the same drawing, and
+ * this file is what keeps them one drawing. Overview's stored-answer card no
+ * longer seats the mark: the live-response badge is the first thing in that
+ * card.
  *
  * The claim worth the most here is the boring one: THE MARKUP EXISTS ONCE. A
  * pasted second copy is correct on the day it is pasted, drifts on the first
@@ -263,7 +265,7 @@ describe('the window the mark is drawn through', () => {
     // fail: preserveAspectRatio's default letterboxes instead, which loses the size.
     const window = viewBox('MARK_VIEW_BOX');
     expect(window.width).toBe(window.height);
-    for (const seat of ['.agent-avatar svg', '.final-answer-mark svg']) {
+    for (const seat of ['.agent-avatar svg']) {
       const rule = body(seat);
       const width = rule.match(/width:\s*(\d+)px/)?.[1];
       const height = rule.match(/height:\s*(\d+)px/)?.[1];
@@ -287,7 +289,7 @@ describe('the window the mark is drawn through', () => {
     // robot's body IS the orange, so an orange plate hides the mark and any other
     // plate needs the mark inverted to sit on it -- a second version of the drawing,
     // which is the defect this whole change exists to remove.
-    for (const seat of ['.agent-avatar', '.final-answer-mark']) {
+    for (const seat of ['.agent-avatar']) {
       expect(body(seat), seat).not.toMatch(/background|color:/);
     }
   });
@@ -382,7 +384,7 @@ describe('nothing moves any more', () => {
   });
 
   it('gives no seat of the still mark a transition or an animation of its own', () => {
-    for (const seat of ['.agent-avatar', '.agent-avatar svg', '.final-answer-mark']) {
+    for (const seat of ['.agent-avatar', '.agent-avatar svg']) {
       expect(body(seat), seat).not.toMatch(/animation|transition/);
     }
   });

@@ -296,6 +296,8 @@ describe('the table is styled as part of the answer, not as a new design', () =>
     // past the panel and gets clipped by the panel's own edge.
     expect(rule('.answer-table-wrap')).toContain('min-width: 0');
     expect(rule('.answer-table-wrap')).toContain('max-width: 100%');
+    expect(rule('.answer-table-wrap')).toContain('height: auto');
+    expect(rule('.answer-table-wrap')).toContain('max-height: none');
   });
 
   it('centres a cell against the row it is in, rather than the ceiling of it', () => {

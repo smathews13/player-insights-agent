@@ -28,6 +28,7 @@ import { EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { caveatScope, emphasiseFigures } from './caveat-emphasis';
 import { rankCaveats } from './caveat-priority';
+import { caveatSurface } from './caveat-surface';
 
 /**
  * One bullet, rendered whole.
@@ -47,7 +48,7 @@ import { rankCaveats } from './caveat-priority';
 function CaveatBullet({ caveat, sources }: { caveat: string; sources: readonly { name: string }[] }) {
   const scope = caveatScope(caveat, sources);
   const columns = mentionedIdentifiers([caveat]);
-  return (<li>
+  return (<li data-surface={caveatSurface(caveat)}>
       {/* The table this caveat is about, in front of the sentence rather than
           buried in it. Only where the caveat names exactly one of the answer's
           own tables; a run-level warning carries no tag. */}

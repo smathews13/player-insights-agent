@@ -34,6 +34,7 @@ import { Disclosure } from './page-chrome';
 import { formatCheckedAt } from './preflight';
 import { useDeployment, useIdentity, useStorageHealth } from './app-state';
 import type { Identity } from './app-types';
+import { ASK_HOME_HREF, goToAskHome } from './ask-home-control';
 import { AstrolabeLockup } from './AstrolabeMark';
 import { BuiltOnDatabricks } from './BuiltOnDatabricks';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
@@ -274,21 +275,38 @@ export function HeaderBrand({
   deployedBy,
   buildSha,
   arriving,
+  onHome,
 }: {
   deployedAt?: string;
   deployedBy?: string;
   buildSha?: string;
   arriving?: boolean;
+  /** Close overlays the tabs already dismiss, so home matches that path. */
+  onHome?: () => void;
 }) {
   return (
     <div className="brand-lockup">
-      {/* The lockup pops in at the exact point the stars converged on
-          (`login-transition.md` phase 5). The class is on the lockup rather than
-          on the column so neither the chip nor the divider beside it pops with
-          it, and it is only ever carried for the 1.2s of the transition -- an app
-          identity that animates every time the header re-renders is an identity
-          in motion, which is the opposite of what an identity is for. */}
-      <AstrolabeLockup as="h1" seat="bar" className={arriving ? 'ast-anim-x-mark' : undefined} />
+      {/* Home, from every tab and from an open thread. The lockup is the app's
+          name, so it is the page's h1; wrapping it in a link makes that name a
+          control without changing the drawing. The click forgets the session
+          thread so arriving at `/` cannot restore it, and tells a mounted Ask
+          page to show the starter — a link alone would leave the transcript up. */}
+      <Link
+        to={ASK_HOME_HREF}
+        className="brand-home"
+        onClick={() => {
+          goToAskHome();
+          onHome?.();
+        }}
+      >
+        {/* The lockup pops in at the exact point the stars converged on
+            (`login-transition.md` phase 5). The class is on the lockup rather than
+            on the column so neither the chip nor the divider beside it pops with
+            it, and it is only ever carried for the 1.2s of the transition -- an app
+            identity that animates every time the header re-renders is an identity
+            in motion, which is the opposite of what an identity is for. */}
+        <AstrolabeLockup as="h1" seat="bar" className={arriving ? 'ast-anim-x-mark' : undefined} />
+      </Link>
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       <span className="app-chrome-rule" aria-hidden="true" />
     </div>
@@ -465,6 +483,7 @@ export function Layout() {
           deployedBy={deployment.deployedBy}
           buildSha={deployment.buildSha}
           arriving={arriving}
+          onHome={() => setSettingsOpen(false)}
         />
         {/* Four links for a consumer, six for an admin, and one more than either
             with the Benchmark Lab experiment on -- seven for everybody while

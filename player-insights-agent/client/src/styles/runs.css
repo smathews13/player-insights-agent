@@ -712,22 +712,11 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 }
 .final-answer-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
   gap: 8px;
-}
-/* No plate, no radius and no colour of its own, for the reasons .agent-avatar
-   states at length: the orange is the robot's body, so a tile behind it would
-   either hide the mark or require a second, inverted version of it. Its twin on
-   the ask hero is the same 18px square drawing the same figure. */
-.final-answer-mark {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-}
-.final-answer-mark svg {
-  width: 18px;
-  height: 18px;
 }
 .final-answer-eyebrow {
   margin: 0;
@@ -736,12 +725,6 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted-foreground);
-}
-.final-answer[data-tone='partial'] .final-answer-eyebrow {
-  color: var(--ast-warn-deep);
-}
-.final-answer[data-tone='partial'] .final-answer-mark {
-  color: var(--ast-warn-text);
 }
 .final-answer-takeaway {
   margin: 0;
@@ -753,8 +736,9 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 /*
  * Status the header would otherwise bury: incomplete sources and a turn
  * deadline used to sit as 11px bullets under a "FINAL ANSWER" eyebrow. These
- * chips lead, in the warning family's own wash, so a partial run cannot read
- * as a finished one.
+ * lead in the same muted dark red as the Failed badge and Ask's destructive
+ * alert -- not the ochre warning family, which read as a caution rather than
+ * as a failed answer.
  */
 .final-answer-warnings {
   display: grid;
@@ -764,22 +748,22 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   list-style: none;
 }
 .final-answer-warning {
-  display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--ast-warn-text) 35%, transparent);
-  border-radius: 6px;
-  background: var(--ast-warn-fill);
-  color: var(--ast-warn-deep);
-  font-size: var(--ast-fs-12);
-  line-height: 1.45;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.final-answer-warning [data-slot='alert'] {
+  border-color: var(--ast-neg-border);
+  background: var(--ast-neg-fill);
+  color: var(--ast-neg-text);
 }
 .final-answer-warning strong {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ast-warn-text);
+  color: var(--ast-neg-text);
 }
 .final-answer .answer-prose {
   font-size: 13px;
@@ -852,9 +836,22 @@ html[data-theme='dark'] .final-answer .entity-catalog {
   white-space: nowrap;
 }
 .final-answer .source-list-derivation {
-  margin: 8px 0 0;
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
   color: var(--muted-foreground);
   font-size: var(--ast-fs-11);
+}
+.final-answer .derivation-row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: baseline;
+}
+.final-answer .derivation-row dt,
+.final-answer .derivation-row dd {
+  margin: 0;
+  min-width: 0;
 }
 .final-answer .keep-in-mind {
   background: color-mix(in srgb, var(--ast-ice) 70%, transparent);

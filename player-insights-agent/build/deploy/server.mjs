@@ -159875,6 +159875,63 @@ var init_repair_conversation_titles = __esm({
 });
 
 // shared/prose-only-answer.ts
+function proseOnlyCaveat(stageCount2) {
+  if (stageCount2 <= 0) return PROSE_ONLY_ANSWER_CAVEAT;
+  const steps = stageCount2 === 1 ? "1 step" : `${stageCount2} steps`;
+  return `${DEGRADED_ANSWER_MARKER} the run stopped after ${steps} without a structured result.`;
+}
+function asRecordedStage(stage) {
+  const status = stage.status;
+  return {
+    ...stage,
+    id: typeof stage.id === "string" ? stage.id : "",
+    name: typeof stage.name === "string" ? stage.name : "",
+    kind: typeof stage.kind === "string" ? stage.kind : "",
+    start: typeof stage.start === "number" && Number.isFinite(stage.start) ? stage.start : 0,
+    duration: typeof stage.duration === "number" && Number.isFinite(stage.duration) ? stage.duration : 0,
+    status: status === "complete" || status === "running" || status === "partial" || status === "failed" ? status : "complete",
+    calls: typeof stage.calls === "number" && Number.isFinite(stage.calls) ? stage.calls : 0,
+    input: typeof stage.input === "string" ? stage.input : "",
+    output: typeof stage.output === "string" ? stage.output : "",
+    depth: typeof stage.depth === "number" && Number.isFinite(stage.depth) ? stage.depth : 0,
+    parent_id: typeof stage.parent_id === "string" ? stage.parent_id : ""
+  };
+}
+function foldRecordedStages(stages) {
+  const folded = [];
+  for (const raw2 of stages) {
+    if (!raw2 || typeof raw2 !== "object") continue;
+    const stage = asRecordedStage(raw2);
+    const id = stage.id;
+    const at = id ? folded.findIndex((held) => held.id === id) : -1;
+    if (at !== -1) folded[at] = stage;
+    else folded.push(stage);
+  }
+  const settled = folded.map((stage, index, list3) => {
+    if (index === list3.length - 1 && stage.status === "running") {
+      return { ...stage, status: "failed" };
+    }
+    return stage;
+  });
+  return {
+    stages: settled,
+    totalMs: settled.reduce((sum, stage) => sum + stage.duration, 0),
+    toolCalls: settled.filter((stage) => stage.kind === "tool").length
+  };
+}
+function attachRecordedStages(answer, recorded) {
+  if ((answer.trace.stages?.length ?? 0) > 0 || recorded.length === 0) return answer;
+  const folded = foldRecordedStages(recorded);
+  return {
+    ...answer,
+    trace: {
+      ...answer.trace,
+      stages: folded.stages,
+      totalMs: answer.trace.totalMs || folded.totalMs,
+      toolCalls: answer.trace.toolCalls || folded.toolCalls
+    }
+  };
+}
 function isCannedFirstLine(text16) {
   const value = text16.trim();
   return !value || CANNED_FIRST_LINE.some((pattern) => pattern.test(value));
@@ -159915,7 +159972,7 @@ function readerFacingFindings(findings) {
   }
   return { narrative: bodiesOf(PROSE_SECTIONS).join("\n\n").trim(), caveats };
 }
-function proseOnlyAnswer(id, prose) {
+function proseOnlyAnswer(id, prose, recordedStages = []) {
   const firstLine = prose.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
   const reader = readerFacingFindings(prose);
   const usableFirst = firstLine && !isCannedFirstLine(firstLine) ? firstLine : "";
@@ -159927,6 +159984,7 @@ function proseOnlyAnswer(id, prose) {
   } else if (isCannedFirstLine(narrative.split("\n")[0] ?? "")) {
     narrative = narrative.split("\n").slice(1).join("\n").trim();
   }
+  const folded = foldRecordedStages(recordedStages);
   return {
     id,
     takeaway,
@@ -159936,14 +159994,14 @@ function proseOnlyAnswer(id, prose) {
     charts: [],
     sources: [],
     document_snippets: [],
-    caveats: [PROSE_ONLY_ANSWER_CAVEAT, ...reader.caveats],
+    caveats: [proseOnlyCaveat(folded.stages.length), ...reader.caveats],
     derivation: [],
     sql: "",
     trace: {
       id: "",
-      totalMs: 0,
-      toolCalls: 0,
-      stages: []
+      totalMs: folded.totalMs,
+      toolCalls: folded.toolCalls,
+      stages: folded.stages
     }
   };
 }
@@ -159959,7 +160017,7 @@ var PROSE_ONLY_ANSWER_CAVEAT, PROSE_ONLY_FALLBACK_TAKEAWAY, CANNED_FIRST_LINE, T
 var init_prose_only_answer = __esm({
   "shared/prose-only-answer.ts"() {
     init_setup_remedies();
-    PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived: there are no figures, sources, SQL or stage timings, and no tool steps were recorded. The agent did not complete a tool-backed answer. This app shows the text that came back and does not invent the rest.`;
+    PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
     PROSE_ONLY_FALLBACK_TAKEAWAY = "The agent did not return a structured result.";
     CANNED_FIRST_LINE = [
       /^the analysis completed\b/i,
@@ -159974,7 +160032,7 @@ var init_prose_only_answer = __esm({
 });
 
 // shared/run-verdict.ts
-var VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, DEADLINE_TRUNCATED_SQL;
+var VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, ANSWER_LANDED_SQL, DEADLINE_TRUNCATED_SQL;
 var init_run_verdict = __esm({
   "shared/run-verdict.ts"() {
     VERDICT_EXEMPT_STAGE_IDS = ["plot"];
@@ -159983,6 +160041,11 @@ var init_run_verdict = __esm({
     ).join(" ");
     EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
     INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable')`;
+    ANSWER_LANDED_SQL = `(
+  (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
+  OR COALESCE(payload->>'narrative', '') ~ '\\|'
+  OR COALESCE(payload->>'content', '') ~ '\\|'
+)`;
     DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
   }
 });
@@ -169168,6 +169231,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       let ranAsSignedInUser = false;
       let stagesSeen = 0;
       let lastStage;
+      const collectedStages = [];
       try {
         const servingHistory = buildServingHistory(historyResult.rows);
         if (approvedPlanId && servingHistory.length > 0) {
@@ -169188,14 +169252,18 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           runtimeSettings: await readRuntimeSettings(appkit)
         });
         const stageRecorder = admission.run ? createStageRecorder(appkit, admission.run.runId) : null;
-        const onStage = reply.wantsStream ? (stage) => {
+        const onStage = (stage) => {
+          const id = typeof stage.id === "string" ? stage.id : "";
+          const at = id ? collectedStages.findIndex((held) => held.id === id) : -1;
+          if (at !== -1) collectedStages[at] = stage;
+          else collectedStages.push(stage);
           if (!isRunningStage(stage)) {
             stagesSeen += 1;
             lastStage = { title: readStageTitle(stage), completed: stagesSeen };
           }
-          reply.stage(stage);
+          if (reply.wantsStream) reply.stage(stage);
           stageRecorder?.record(stage);
-        } : void 0;
+        };
         const endpointResult = identity.token ? await invokeServingAsUser(appkit, payload, identity.token, onStage) : await invokeServing(appkit, payload, onStage);
         ranAsSignedInUser = Boolean(identity.token);
         const refused2 = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
@@ -169291,10 +169359,13 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         const structuredAnswer = extractStructuredAnswer(endpointResult);
         const liveText = extractLiveText(endpointResult);
         if (structuredAnswer) {
-          answer = { ...structuredAnswer, mode: "live", provenance: "live" };
+          answer = attachRecordedStages(
+            { ...structuredAnswer, mode: "live", provenance: "live" },
+            collectedStages
+          );
         } else if (liveText) {
           answer = {
-            ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText),
+            ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
             mode: "live",
             provenance: "live"
           };
@@ -170031,7 +170102,8 @@ var init_insights_routes = __esm({
     SHARED_RUN_OWNER = "Another team member";
     RUNS_QUERY = `
   WITH answers AS (SELECT m.id, m.conversation_id, m.created_at,
-           m.response_json->'trace' AS trace, m.response_json->'caveats' AS caveats, c.user_email
+           m.response_json->'trace' AS trace, m.response_json->'caveats' AS caveats,
+           m.response_json AS payload, c.user_email
     FROM ${APP_SCHEMA}.messages m
     JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
     -- A plan proposal has no trace and is not yet a run; an answer always has one.
@@ -170055,10 +170127,11 @@ var init_insights_routes = __esm({
          -- that draws this column; see shared/run-verdict.ts for why that is the
          -- one step whose outcome says nothing about the answer above it.
          -- Empty stages used to fall through to complete, which painted a green
-         -- badge on a 0.0s card that recorded nothing. A deadline caveat on an
-         -- otherwise-green stage list is partial, not a finished answer.
+         -- badge on a 0.0s card that recorded nothing. Incomplete-sources and
+         -- deadline notes do not flip a card that already has figures or tables.
          CASE
            WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("a.trace")} THEN 'failed'
+           WHEN ${ANSWER_LANDED_SQL.split("payload").join("a.payload")} THEN 'complete'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
            WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join("a.caveats")} THEN 'partial'
@@ -170353,6 +170426,7 @@ var init_insights_routes = __esm({
     SELECT
       CASE
         WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("m.response_json->'trace'")} THEN 'failed'
+        WHEN ${ANSWER_LANDED_SQL.split("payload").join("m.response_json")} THEN 'complete'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
         WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join("m.response_json->'caveats'")} THEN 'partial'

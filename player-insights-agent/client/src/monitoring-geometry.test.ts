@@ -115,6 +115,18 @@ describe('a question opens as a centered modal, not a side drawer', () => {
     // The person panel is still the right-hand drawer. Question detail is not.
     expect(rule('.monitoring-drawer')).toMatch(/right:\s*0/);
   });
+
+  it('lets the dialog scroll and forbids its children from shrinking over each other', () => {
+    const dialog = rule('.monitoring-question-modal');
+    expect(dialog).toMatch(/overflow-y:\s*auto/);
+    expect(dialog).toMatch(/max-height:\s*min\(calc\(100vh - 48px\),\s*920px\)/);
+    expect(dialog).toMatch(/flex-direction:\s*column/);
+    expect(dialog).not.toMatch(/position:\s*absolute/);
+    const child = rule('.monitoring-question-modal > *');
+    expect(child).toMatch(/flex-shrink:\s*0/);
+    expect(child).toMatch(/min-height:\s*min-content/);
+    expect(child).toMatch(/position:\s*static/);
+  });
 });
 
 describe('the panel head and the scope badges cannot be clipped either', () => {

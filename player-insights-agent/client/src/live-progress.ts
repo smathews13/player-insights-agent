@@ -269,6 +269,10 @@ export function railStagesFor({
 }): TraceStage[] {
   if (loading || runStopped) return liveStages;
   if (answeredStages.length > 0) return answeredStages;
+  // A finished answer can land with an empty stored trace after the stream
+  // already reported steps (the prose-only path used to persist none). Keep
+  // those rows on screen rather than replacing a real process with "no steps".
+  if (liveStages.length > 0) return liveStages;
   return clarificationStages;
 }
 

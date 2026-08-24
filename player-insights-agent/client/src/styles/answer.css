@@ -27,6 +27,20 @@
   min-height: 280px;
   min-width: min(640px, 100%);
   max-width: 100%;
+  /*
+   * THE CARD MAY NOT SHRINK IN A FLEX COLUMN.
+   *
+   * `min-height: 280px` above replaces the flex item's automatic minimum, so a
+   * parent such as the Monitoring dialog -- `display: flex; flex-direction:
+   * column; max-height: …` -- was free to compress this card down to 280px.
+   * Everything after that box (the token line, then later the Sources block
+   * still painting from inside the overflow) sat on the last table row.
+   * `flex-shrink: 0` keeps the used height at the content size; the 280px floor
+   * still holds for a short answer. Ask's transcript is also a column, so the
+   * same rule stops the card overlaying the next turn there.
+   */
+  flex-shrink: 0;
+  overflow: visible;
   container-type: inline-size;
   container-name: answer-card;
 }
@@ -153,6 +167,12 @@
 .answer-card > [data-slot='card-header'],
 .answer-card > [data-slot='card-content'] {
   padding-inline: 28px;
+  /* AppKit's card is a flex column. These two are its items; if either shrinks
+     the header or the body is shorter than its sections and they paint over
+     each other. The dialog and the transcript both hit that path. */
+  flex-shrink: 0;
+  min-height: min-content;
+  overflow: visible;
 }
 .plan-card > [data-slot='card-header'],
 .plan-card > [data-slot='card-content'] {
@@ -258,6 +278,19 @@
   background: var(--ast-neg-text);
   border-color: transparent;
   color: var(--ast-white);
+}
+/*
+ * Failure on the night sky: muted dark red, off-white type. Not --ast-neg-text
+ * as a fill -- that token remaps to pale pink in dark mode, which is the
+ * salmon "No result recorded" chip. Mixed with navy so the mass stays dark
+ * after that remap. Slot selector so the Badge utility cannot win.
+ */
+.answer-card [data-slot='badge'].provenance-chip[data-tone='failed'],
+.provenance-chip[data-tone='failed'] {
+  background: color-mix(in oklab, var(--ast-navy) 72%, var(--ast-neg-text));
+  background-color: color-mix(in oklab, var(--ast-navy) 72%, var(--ast-neg-text));
+  border: 1px solid color-mix(in oklab, var(--ast-navy) 55%, var(--ast-neg-text));
+  color: var(--ast-ice);
 }
 /* The plan's state: warning while it waits on a decision, positive once it has
    one. Both colours and the whole of the box come from `.ast-pill` and the
@@ -638,12 +671,16 @@ ol.answer-list {
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
   /* So the header band's fill is clipped to the radius rather than squaring off
-     the two corners it sits in. */
+     the two corners it sits in. Height stays with the rows: a capped wrap with
+     this overflow is what cut the second table in half on the Monitoring
+     dialog, with the leftover rows painting over Sources. */
   overflow: hidden;
   /* Six columns of daily figures are wider than the transcript column at some
      widths, and the alternative to scrolling them is a figure that wraps
      mid-number. See the comment on the table case in DataEntityLinks.tsx. */
   overflow-x: auto;
+  height: auto;
+  max-height: none;
   background: var(--ast-fill-band);
   /* THE WRAPPER IS THE SCROLLER, and these two say so. A grid or flex child
      sizes to its content by default, so in the 620px Monitoring drilldown a wide

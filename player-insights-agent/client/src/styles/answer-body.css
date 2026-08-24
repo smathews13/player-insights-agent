@@ -213,6 +213,11 @@
   border-radius: 6px;
   background: var(--ast-ice);
   padding: 12px 16px;
+  /* In the card grid, not pulled back over the Sources line or under Run
+     process. The toggle below keeps a small negative inset for the ghost
+     button's own padding; that is horizontal only. */
+  position: static;
+  margin: 0;
 }
 /* 700 and no colon, because it labels the list under it rather than introducing
    a sentence. No warning glyph either: the wash is the alarm, and a second one
@@ -229,6 +234,21 @@
   gap: 6px;
   font-size: 11.5px;
   line-height: 1.5;
+}
+/*
+ * A real failure in this list is the same muted dark red as the Failed badge.
+ * Identity and grants stay a secondary note: they qualify every answer and
+ * must not shout as if the run died.
+ */
+.keep-in-mind-list > li[data-surface='failure'] {
+  padding: 8px 10px;
+  border: 1px solid var(--ast-neg-border);
+  border-radius: 6px;
+  background: var(--ast-neg-fill);
+  color: var(--ast-neg-text);
+}
+.keep-in-mind-list > li[data-surface='note'] {
+  color: var(--ast-text-secondary);
 }
 /*
  * Every identifier inside a caveat, in one treatment.
@@ -291,6 +311,8 @@
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-card);
   overflow: hidden;
+  position: static;
+  margin: 0;
 }
 .run-process-head {
   display: flex;
@@ -459,6 +481,13 @@
   display: grid;
   gap: 14px;
   min-width: 0;
+  /* Auto rows, content height. A 1fr track or a height taken from a shrinking
+     flex parent is what let later sections (Sources, Keep in mind, Run process)
+     start before the tables had finished, so they painted through each other. */
+  grid-auto-rows: auto;
+  height: auto;
+  overflow: visible;
+  align-content: start;
 }
 .answer-main-row {
   display: grid;
@@ -540,6 +569,9 @@
   display: grid;
   gap: 14px;
   min-width: 0;
+  height: auto;
+  overflow: visible;
+  align-content: start;
 }
 /*
  * The control that unfolds the rows behind a charted answer.

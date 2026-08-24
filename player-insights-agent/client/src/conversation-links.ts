@@ -21,6 +21,9 @@
  * for and the scroll position is the refinement.
  */
 
+/** Ask landing: the tab root, with no conversation in the address. */
+export const ASK_HOME_HREF = '/';
+
 /** Search parameter the Ask PIA screen reads to open one conversation. */
 export const CONVERSATION_PARAM = 'c';
 

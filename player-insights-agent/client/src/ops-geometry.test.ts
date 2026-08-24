@@ -111,6 +111,12 @@ describe('the figures line up', () => {
     expect(search).toMatch(/min-width:\s*280px/);
     expect(search).toMatch(/flex:\s*1\s+0\s+280px/);
   });
+
+  it('keeps the TREND pills on the same header rail as search, not a second row', () => {
+    expect(rule('.ops-latency-block .ops-block-head')).toMatch(/flex-wrap:\s*nowrap/);
+    expect(rule('.ops-latency-head-controls')).toMatch(/flex-wrap:\s*nowrap/);
+    expect(rule('.ops-latency-trend-filters')).toMatch(/flex:\s*0\s+0\s+auto/);
+  });
 });
 
 describe('the traffic groups share the row', () => {

@@ -26,6 +26,7 @@ import {
   signedInOwner,
   unaskedConversation,
 } from './conversation-rail';
+import { subscribeAskHome } from './ask-home-control';
 import {
   clearSelectedConversation,
   readSelectedConversation,
@@ -101,6 +102,8 @@ import { useIdentity } from './app-state';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
 import { AgentPathConstellation } from './AgentConstellation';
+import { ConstellationField } from './ConstellationField';
+import { OPENING_CONSTELLATION } from './constellation';
 import type {
   AgentResponse,
   Answer,
@@ -624,7 +627,13 @@ export function HomePage() {
     asked: !!asked,
     answered: !!answer,
     verdict: answer
-      ? answerRunVerdict({ stages: answer.trace.stages, caveats: answer.caveats })
+      ? answerRunVerdict({
+          stages: answer.trace.stages,
+          caveats: answer.caveats,
+          figures: answer.figures,
+          narrative: answer.narrative,
+          content: answer.content,
+        })
       : undefined,
     readiness,
   });
@@ -680,6 +689,7 @@ export function HomePage() {
           : []
       );
       setDraft('');
+      const replayed = replayedStages(durableRun);
       if (isWorkingConversationRun(durableRun)) {
         setActiveConversationRun({ ...durableRun, conversationId: id });
         setLoading(true);
@@ -700,10 +710,29 @@ export function HomePage() {
         // browser that has both gets one path rather than two.
         hydrateLiveAsk({
           conversationId: id,
-          stages: replayedStages(durableRun),
+          stages: replayed,
           question,
           startedAt: Number.isFinite(started) ? started : Date.now(),
         });
+      } else if (durableRun && replayed.length > 0) {
+        // A settled run whose stored answer wiped its trace (the prose-only
+        // path) still has the steps in the ledger. Restore them so a hard
+        // refresh does not show "no steps" over a run that had many.
+        const last = [...stored].reverse().find((message) => message.role === 'assistant');
+        const parsed = responseFromMessage(last);
+        const storedStages =
+          parsed && parsed.type !== 'plan' && parsed.type !== 'clarification' ? parsed.trace.stages : [];
+        if (storedStages.length === 0) {
+          const question = [...stored].reverse().find((message) => message.role === 'user')?.content ?? '';
+          const started = Date.parse(durableRun.created_at);
+          hydrateLiveAsk({
+            conversationId: id,
+            stages: replayed,
+            question,
+            startedAt: Number.isFinite(started) ? started : Date.now(),
+          });
+          endLiveAsk(id);
+        }
       }
     } catch {
       setDraft('');
@@ -1173,8 +1202,9 @@ export function HomePage() {
   }
 
   function startNewConversation() {
-    // The one intentional route back to the starter. Clear before minting the
-    // local draft so leaving and returning does not resurrect the old thread.
+    // One route back to the starter — the header lockup is the other. Clear
+    // before minting the local draft so leaving and returning does not
+    // resurrect the old thread.
     clearSelectedConversation();
     const id = `conv-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
@@ -1203,6 +1233,13 @@ export function HomePage() {
     loadedConversationRef.current = id;
     setSearchParams({}, { replace: true });
   }
+
+  /**
+   * The header lockup's home control. A link to `/` from another tab remounts
+   * this page with the session record already cleared. The same click on an
+   * open thread does not remount, so the starter has to be reached from here.
+   */
+  useEffect(() => subscribeAskHome(() => startNewConversation()));
 
   /**
    * Records one rating against one message.
@@ -1688,15 +1725,15 @@ export function HomePage() {
                         <RunStatusPill status={runStatus} />
                       ) : summary ? (
                         <span
-                          className={`ast-pill conversation-status ${
-                            summary.truncated === true ? 'ast-pill--warn' : summary.tone
-                          }`}
+                          className={`ast-pill conversation-status ${summary.tone}`}
                           // The store's own word is short and unqualified. The
                           // tooltip says what it is the status OF, which the pill
                           // has no room to say and the row's title does not imply.
-                          title={`Latest turn: ${summary.truncated === true ? 'partial' : summary.status}`}
+                          // A deadline note is not a second verdict: it used to
+                          // paint Complete turns Partial on every reopen.
+                          title={`Latest turn: ${summary.status}`}
                         >
-                          {summary.truncated === true ? 'partial' : summary.status}
+                          {summary.status}
                         </span>
                       ) : null}
                       <span className="conversation-age ast-num">{conversationAge(conversation.updated_at)}</span>
@@ -1775,18 +1812,12 @@ export function HomePage() {
   const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;
 
   /*
-   * Whether the harness column has anything to report, which is what decides
-   * whether the grid keeps a track for it.
+   * Whether the harness column is drawing a run, or the idle silhouette.
    *
-   * The column is 340px and it was reserved unconditionally, so on the welcome
-   * screen and on any conversation with no stored trace the transcript was
-   * measured against a window a third of which was drawn as empty sky. In dark
-   * mode the idle column is `rgba(255, 255, 255, 0.03)` over the same sky as
-   * the page, so it does not read as a column at all -- it reads as the answer
-   * card being narrow for no reason, which is exactly how it was reported.
-   *
-   * The same condition the column itself branches on below, so the track and
-   * its contents cannot disagree about whether there is a run.
+   * The track stays either way: collapsing it at idle hid the Agent path pane
+   * and left Ask as conversations beside empty sky. The attribute still names
+   * the branch so the idle constellation and a live path cannot disagree about
+   * whether there is a run.
    */
   const inspectorIdle = railStages.length === 0 && !loading;
 
@@ -1888,6 +1919,15 @@ export function HomePage() {
                 onAsk={askRow}
                 onFeedbackChange={changeFeedback}
                 onSaveFeedback={rateRow}
+                processStages={
+                  index === lastAssistantIndex &&
+                  response &&
+                  response.type !== 'plan' &&
+                  response.type !== 'clarification' &&
+                  response.trace.stages.length === 0
+                    ? liveStages
+                    : undefined
+                }
               />
             );
           })}
@@ -2203,18 +2243,11 @@ export function HomePage() {
             <WorkingInlineRow elapsed={elapsed} />
           </div>
         ) : (
-          /* Not AppKit's Empty, which centres itself in the box it is given: the
-               inspector is a full-height sticky column, so the glyph and the
-               sentence landed halfway down the viewport, level with the middle of
-               the transcript rather than under the head they belong to. The design
-               places them a third of the way down, which trace-empty does with a
-               top margin. */
-          <div className="trace-empty">
-            <span className="trace-empty-mark" aria-hidden="true">
-              <Workflow />
-            </span>
-            <strong>No run yet</strong>
-            <p>Ask a question and the steps the agent took will appear here.</p>
+          /* The opening silhouette, held still: same dots and hops a live path
+               sits on, filling the pane so idle Ask is still three columns.
+               Decorative — the heading above already names the column. */
+          <div className="trace-idle-sky" aria-hidden="true">
+            <ConstellationField shape={OPENING_CONSTELLATION} />
           </div>
         )}
         {answer && (
@@ -2325,6 +2358,7 @@ const MessageItem = memo(function MessageItem({
   onAsk,
   onFeedbackChange,
   onSaveFeedback,
+  processStages,
 }: {
   message: ConversationMessage;
   /** Undefined where the stored envelope could not be parsed. */
@@ -2346,6 +2380,7 @@ const MessageItem = memo(function MessageItem({
     rating: number,
     options?: { keepCommentOpen?: boolean }
   ) => Promise<void>;
+  processStages?: TraceStage[];
 }) {
   if (message.role === 'user') {
     return (
@@ -2414,6 +2449,7 @@ const MessageItem = memo(function MessageItem({
       onFeedbackChange={(changes) => onFeedbackChange(response.id, changes)}
       saveFeedback={(rating, options) => onSaveFeedback(response.id, rating, options)}
       showFeedback={showFeedback}
+      processStages={processStages}
     />
   );
 });

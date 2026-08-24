@@ -129,6 +129,15 @@ describe('the provenance chip has three tones and none is the action colour', ()
     expect(stored, 'the two are not the same chip').not.toContain('var(--ast-warn-fill)');
   });
 
+  it('paints a failure chip as muted dark red, not a light or pink fill', () => {
+    const rule = ruleFor(ANSWER_CSS, ".provenance-chip[data-tone='failed'] {");
+    expect(rule).toContain('color-mix(in oklab, var(--ast-navy) 72%, var(--ast-neg-text))');
+    expect(rule).toContain('color: var(--ast-ice)');
+    expect(rule).not.toMatch(/background:\s*var\(--ast-neg-text\)/);
+    expect(rule).not.toMatch(/#e8a9b8|#faf3f5|--ast-neg-fill|--ast-neg-on-dark/i);
+    expect(ANSWER_CSS).toContain("[data-slot='badge'].provenance-chip[data-tone='failed']");
+  });
+
   it('is never blue, because a blue pill above a heading reads as a control', () => {
     for (const tone of ['live', 'mixed', 'stored']) {
       const rule = ruleFor(ANSWER_CSS, `.provenance-chip[data-tone='${tone}'] {`);
@@ -190,6 +199,18 @@ describe('stat comparisons remain neutral and recoverable', () => {
 });
 
 describe('the caveats change how loudly they are said and nothing else', () => {
+  it('keeps Keep in mind and Run process in the card’s stacking flow', () => {
+    expect(ruleFor(BODY_CSS, '.keep-in-mind {')).toContain('position: static');
+    expect(ruleFor(BODY_CSS, '.keep-in-mind {')).toContain('margin: 0');
+    expect(ruleFor(BODY_CSS, '.run-process {')).toContain('position: static');
+    expect(ruleFor(BODY_CSS, '.run-process {')).toContain('margin: 0');
+    const content = ruleFor(BODY_CSS, '.answer-card-content {');
+    expect(content).toContain('display: grid');
+    expect(content).toContain('grid-auto-rows: auto');
+    expect(content).toContain('overflow: visible');
+    expect(content).toContain('align-content: start');
+  });
+
   it('draws Keep in mind as its own compact surface box', () => {
     // Amber is the evaluation colour and these are the qualifications on the
     // figures above them. What changed is where it is spent: this was a
@@ -278,7 +299,7 @@ describe('the run process is one panel rather than a bar and a box', () => {
     // The boundary with the trace screen: this file owns the disclosure and its
     // head bar, TraceTimeline owns the roll-up and the Gantt.
     expect(CARD).toContain('<CollapsibleContent className="run-process-body">');
-    expect(CARD).toMatch(/<TraceTimeline trace={answer\.trace}/);
+    expect(CARD).toMatch(/<TraceTimeline trace={processTrace}/);
     expect(BODY_CSS).not.toContain('.trace-kpi');
     expect(BODY_CSS).not.toContain('.gantt');
   });
@@ -637,7 +658,7 @@ describe('the card holds text it did not write', () => {
     // so that landmark moved above this alert and the slice came back empty.
     const alert = CARD.slice(CARD.indexOf('<Alert variant="destructive">'));
     const description = alert.slice(alert.indexOf('<AlertDescription>'), alert.indexOf('</Alert>'));
-    expect(description.indexOf('<p>')).toBeLessThan(description.indexOf('ANSWER_FALLBACK_NOTICES[fallback].headline'));
+    expect(description.indexOf('<p>')).toBeLessThan(description.indexOf('fallbackNotice.headline'));
     expect(description).toMatch(/<\/p>\s*<\/AlertDescription>/);
   });
 

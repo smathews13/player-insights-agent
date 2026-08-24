@@ -50,7 +50,7 @@ export function RunHeader({
   groundedness: number | null;
 }) {
   const rating = ratingLabel(run?.rating);
-  const displayedStatus = run?.truncated === true ? 'partial' : run?.status;
+  const displayedStatus = run?.status;
   const family = statusFamily(displayedStatus);
   return (
     <div className="run-detail-head">

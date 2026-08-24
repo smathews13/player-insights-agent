@@ -8,7 +8,7 @@
  * disappear.
  */
 import { isAnswerProvenance, type AnswerProvenance } from '../../shared/answer-provenance';
-import { carriesEvidence, type AnswerEvidenceSections } from '../../shared/prose-only-answer';
+import { type AnswerEvidenceSections } from '../../shared/prose-only-answer';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 
 export { DEGRADED_ANSWER_MARKER };
@@ -51,7 +51,7 @@ export function splitCaveats(caveats: string[]): SplitCaveats {
  * is what the ask route now serves when the endpoint replies in prose, which
  * used to arrive as the agent's words over the demo response's numbers.
  */
-export type AnswerFallback = 'representative' | 'degraded-data' | 'no-evidence';
+export type AnswerFallback = 'representative' | 'degraded-data' | 'no-evidence' | 'failed-after-steps';
 
 /**
  * What the badge and the red panel say, per fallback.
@@ -88,10 +88,11 @@ export const ANSWER_FALLBACK_NOTICES: Record<AnswerFallback, { badge: string; he
   },
   'no-evidence': {
     badge: 'No result recorded',
-    headline:
-      'This run recorded no steps and no structured result. The agent never returned figures, ' +
-      'sources, SQL or a tool trace \u2014 the question was not answered from catalogs, tables or ' +
-      'Genie spaces. The card shows only the text that arrived.',
+    headline: 'No steps and no structured result were recorded.',
+  },
+  'failed-after-steps': {
+    badge: 'Failed after steps',
+    headline: 'The run stopped without a structured result.',
   },
 };
 
@@ -106,10 +107,25 @@ export function answerFallbackNotice(answer: AnswerEvidenceSections & {
   mode: string;
   caveats: string[];
   provenance?: string;
-}): { badge: string; headline: string } | null {
+}): { badge: string; headline: string; kind: AnswerFallback; tone: 'stored' | 'mixed' | 'failed' } | null {
   const kind = answerFallback(answer);
   if (!kind) return null;
-  return ANSWER_FALLBACK_NOTICES[kind];
+  if (kind === 'failed-after-steps') {
+    const steps = stageCount(answer.trace);
+    const label = steps === 1 ? '1 step' : `${steps} steps`;
+    return {
+      kind,
+      badge: `Failed after ${label}`,
+      headline: `The run stopped after ${label} without a structured result.`,
+      tone: 'failed',
+    };
+  }
+  const notice = ANSWER_FALLBACK_NOTICES[kind];
+  return {
+    kind,
+    ...notice,
+    tone: kind === 'representative' ? 'stored' : kind === 'degraded-data' ? 'mixed' : 'failed',
+  };
 }
 
 /**
@@ -209,7 +225,27 @@ export function answerFallback(answer: AnswerEvidenceSections & {
   // wording of the caveat. A renderer that read the sentence would be back to
   // reading prose for a fact the payload already carries.
   if (!statesItsEvidence(answer)) return 'degraded-data';
-  return carriesEvidence(answer) ? 'degraded-data' : 'no-evidence';
+  if (hasStructuredResult(answer)) return 'degraded-data';
+  // Stages without figures are a run that worked and then failed to answer,
+  // not "nothing ran". The empty-run Failed badge is only for a truly empty
+  // trace. Counting stages as evidence here used to paint "Degraded, fallback
+  // data" over a card that had no data, or "No result recorded" after the
+  // stored trace had been wiped.
+  return stageCount(answer.trace) > 0 ? 'failed-after-steps' : 'no-evidence';
+}
+
+function hasStructuredResult(answer: AnswerEvidenceSections): boolean {
+  return (
+    (answer.figures?.length ?? 0) > 0 ||
+    (answer.sources?.length ?? 0) > 0 ||
+    Boolean(answer.sql?.trim())
+  );
+}
+
+function stageCount(trace: unknown): number {
+  if (!trace || typeof trace !== 'object') return 0;
+  const stages = (trace as { stages?: unknown }).stages;
+  return Array.isArray(stages) ? stages.length : 0;
 }
 
 /**

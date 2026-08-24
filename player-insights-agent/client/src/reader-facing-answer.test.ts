@@ -68,6 +68,7 @@ describe('whether the section may call itself a final answer', () => {
   const deadline = 'The turn deadline was reached before the answer could be written.';
   const identity =
     'This answer was produced as analyst@example.com and covers only the data that identity is granted.';
+  const table = '| Franchise | Players |\n| VLH | 6655 |';
 
   it('labels a clean run as a final answer and lifts nothing', () => {
     expect(answerHonesty({ truncated: false, caveats: [identity] })).toEqual({
@@ -77,18 +78,35 @@ describe('whether the section may call itself a final answer', () => {
     });
   });
 
-  it('will not title a deadline failure as a final answer', () => {
-    const honesty = answerHonesty({ truncated: true, caveats: [deadline, incomplete, identity] });
-    expect(honesty.eyebrow).toBe('Partial answer');
-    expect(honesty.tone).toBe('partial');
+  it('keeps incomplete sources as a note when tables already answered the question', () => {
+    const honesty = answerHonesty({
+      truncated: true,
+      caveats: [deadline, incomplete, identity],
+      narrative: table,
+    });
+    expect(honesty.eyebrow).toBe('Final answer');
+    expect(honesty.tone).toBe('complete');
     expect(honesty.warnings.map((warning) => warning.label)).toEqual([
       'Turn deadline reached',
       'Incomplete sources',
     ]);
   });
 
-  it('reads the deadline out of the caveat when the run row never carried the flag', () => {
+  it('will not title an empty deadline stop as a final answer', () => {
+    const honesty = answerHonesty({ truncated: true, caveats: [deadline, incomplete, identity] });
+    expect(honesty.eyebrow).toBe('Partial answer');
+    expect(honesty.tone).toBe('partial');
+  });
+
+  it('reads the deadline out of the caveat when nothing landed and the flag is missing', () => {
     expect(answerHonesty({ caveats: [deadline] }).eyebrow).toBe('Partial answer');
     expect(answerHonesty({ truncated: null, caveats: [incomplete] }).eyebrow).toBe('Incomplete answer');
+  });
+
+  it('will not headline a landed card with This question was not answered', () => {
+    expect(
+      readerFacingTakeaway('This question was not answered.', `${table}\n\nVLH Online led the window.`)
+    ).toBe('VLH Online led the window.');
+    expect(readerFacingTakeaway('This question was not answered.', '')).toBe('This question was not answered.');
   });
 });

@@ -3,6 +3,7 @@ import {
   answerBadge,
   answerContentProvenance,
   answerFallback,
+  answerFallbackNotice,
   ANSWER_FALLBACK_NOTICES,
   DEGRADED_ANSWER_MARKER,
   isDegradationCaveat,
@@ -274,7 +275,16 @@ describe('an answer carrying prose and nothing else', () => {
     expect(answerFallback({ ...proseOnly, figures: [{ label: 'Active', value: 1 }] })).toBe('degraded-data');
     expect(answerFallback({ ...proseOnly, sources: [{ name: 'main.player_insights.x' }] })).toBe('degraded-data');
     expect(answerFallback({ ...proseOnly, sql: 'SELECT 1' })).toBe('degraded-data');
-    expect(answerFallback({ ...proseOnly, trace: { id: '', stages: [{}] } })).toBe('degraded-data');
+  });
+
+  it('names a run that took steps and still produced no result, rather than claiming nothing ran', () => {
+    const withSteps = { ...proseOnly, trace: { id: '', stages: [{}, {}] } };
+    expect(answerFallback(withSteps)).toBe('failed-after-steps');
+    const notice = answerFallbackNotice(withSteps);
+    expect(notice?.badge).toBe('Failed after 2 steps');
+    expect(notice?.headline).toBe('The run stopped after 2 steps without a structured result.');
+    expect(notice?.tone).toBe('failed');
+    expect(notice?.headline.split('.').filter(Boolean)).toHaveLength(1);
   });
 
   it('keeps the older wording for a payload that states no sections at all', () => {

@@ -11,8 +11,9 @@
  * governs how every number under it reads, the caveats sit under the figures
  * they qualify, and the run process sits under the answer it produced.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { dataAccessDisclosure } from './analytical-execution';
+import type { TraceStage } from './answer-shape';
 import { answerBadge, answerFallbackNotice, splitCaveats } from './degraded-answer';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
 import {
@@ -53,6 +54,8 @@ export function AnswerCard({
   saveFeedback,
   showFeedback,
   showRunProcess = true,
+  processStages,
+  afterEvidence,
 }: {
   answer: Answer;
   /**
@@ -80,6 +83,25 @@ export function AnswerCard({
    * reading it.
    */
   showRunProcess?: boolean;
+  /**
+   * Steps the page already has when the stored answer does not.
+   *
+   * The prose-only path used to persist an empty trace over a run the stream
+   * had already narrated. Ask can still hold those rows after the card lands,
+   * and a reopen can recover them from the conversation run. They are only
+   * used when the answer itself recorded none, so a real stored path is never
+   * replaced.
+   */
+  processStages?: TraceStage[];
+  /**
+   * A note that belongs after the figures and before Sources.
+   *
+   * Monitoring uses this for the run's token line so that line is a grid sibling
+   * of the tables rather than a later flex child of the dialog. A sibling after
+   * the card sat on the last table row whenever the card shrank inside the
+   * modal's height-capped column. Ask does not pass one.
+   */
+  afterEvidence?: ReactNode;
 }) {
   const [advanced, setAdvanced] = useState(false);
   /** Which thumb this answer's rating lights, or neither. See stored-feedback.ts. */
@@ -94,18 +116,39 @@ export function AnswerCard({
   // A degradation is not a caveat about the answer, it is a statement about
   // whether the answer is the answer. Separated so it can be shown above the
   // figures instead of below them in a list of five, see degraded-answer.ts.
-  const { degraded: degradedCaveats, ordinary: ordinaryCaveats } = splitCaveats(answer.caveats);
+  const { ordinary: ordinaryCaveats } = splitCaveats(answer.caveats);
   // Whether this card may be read as an answer to the question at all, and if
   // not, which of the two ways it failed. See degraded-answer.ts for why this
   // reads `mode` rather than looking for the representative caveat.
-  const fallbackNotice = answerFallbackNotice(answer);
-  const honesty = answerHonesty({ caveats: answer.caveats });
-  const headline = readerFacingTakeaway(answer.takeaway, answer.narrative);
-  const narrative = readerFacingNarrative(answer.takeaway, answer.narrative);
+  const processTrace =
+    answer.trace.stages.length > 0 || !processStages?.length
+      ? answer.trace
+      : {
+          ...answer.trace,
+          stages: processStages,
+          toolCalls: processStages.filter((stage) => stage.kind === 'tool').length,
+          totalMs: processStages.reduce((sum, stage) => sum + stage.duration, 0),
+        };
+  const displayed = processTrace === answer.trace ? answer : { ...answer, trace: processTrace };
+  const fallbackNotice = answerFallbackNotice(displayed);
+  const honesty = answerHonesty({
+    caveats: answer.caveats,
+    figures: answer.figures,
+    narrative: answer.narrative,
+    content: answer.content,
+  });
+  const headline = readerFacingTakeaway(answer.takeaway, answer.narrative, {
+    figures: answer.figures,
+    content: answer.content,
+  });
+  const narrative = readerFacingNarrative(answer.takeaway, answer.narrative, {
+    figures: answer.figures,
+    content: answer.content,
+  });
   const warningTexts = new Set(honesty.warnings.map((warning) => warning.text));
   const keepCaveats = ordinaryCaveats.filter((caveat) => !warningTexts.has(caveat.trim()));
   const badge = answerBadge(answer);
-  const usedAttachments = answer.trace.stages.some((stage) => stage.id === 'attachment');
+  const usedAttachments = processTrace.stages.some((stage) => stage.id === 'attachment');
   const missingDocumentFootnotes = usedAttachments && answer.document_snippets.length === 0;
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
@@ -141,7 +184,7 @@ export function AnswerCard({
                 </Badge>
               )}
               {fallbackNotice && (
-                <Badge variant="destructive" className="provenance-chip" data-tone="stored">
+                <Badge variant="outline" className="provenance-chip" data-tone={fallbackNotice.tone}>
                   {fallbackNotice.badge}
                 </Badge>
               )}
@@ -165,14 +208,7 @@ export function AnswerCard({
                   sentence -- the defect that shipped the storage banner reading
                   "Nothing stored yet.Lakebase is connected". */}
               <p>
-                <strong>{fallbackNotice.headline}</strong>{' '}
-                {/* Whatever produced the card stated the reason here, which for a
-                    prose reply is PROSE_ONLY_ANSWER_CAVEAT and for an agent that
-                    fell back to its own SQL is the agent's own sentence. Empty
-                    for a stored demo conversation and for rows written before the
-                    ask route stopped answering failures from the fixture, where
-                    the headline above is the whole of what is known. */}
-                {degradedCaveats.length > 0 && <EntityText text={degradedCaveats.join(' ')} sources={answer.sources} />}
+                <strong>{fallbackNotice.headline}</strong>
               </p>
             </AlertDescription>
           </Alert>
@@ -251,6 +287,7 @@ export function AnswerCard({
           charts={answer.charts}
           sources={answer.sources}
         />
+        {afterEvidence}
         <SourcesModule sources={answer.sources} caveats={keepCaveats} derivation={answer.derivation} />
         {answer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
@@ -309,7 +346,7 @@ export function AnswerCard({
                 </CollapsibleTrigger>
               </div>
               <CollapsibleContent className="run-process-body">
-                <TraceTimeline trace={answer.trace} question={question} />
+                <TraceTimeline trace={processTrace} question={question} />
               </CollapsibleContent>
             </Collapsible>
           </div>
@@ -356,7 +393,7 @@ export function AnswerCard({
               <div className="code-panel">
                 <pre>
                   {JSON.stringify(
-                    answer.trace.stages.map(({ id, input, output }) => ({ id, input, output })),
+                    processTrace.stages.map(({ id, input, output }) => ({ id, input, output })),
                     null,
                     2
                   )}

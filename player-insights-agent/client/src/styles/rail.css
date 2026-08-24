@@ -61,37 +61,23 @@
    * chose.
    */
   --trace-width: 340px;
+  /* Same column as the harness, always. The conversation rail used to sit at
+     264px against a 340px inspector, then vanish the inspector at idle, so Ask
+     read as a fat list of chats beside empty sky. Both tracks now read this
+     one width; the header still reads `--conversation-width` from tokens.css,
+     which is the same 340px. */
+  --conversation-width: var(--trace-width);
   grid-template-columns: var(--conversation-width) minmax(0, 1fr) var(--trace-width);
   min-height: calc(100vh - var(--app-header-h));
   width: 100%;
 }
 /*
- * AN IDLE HARNESS DOES NOT GET A THIRD OF THE WINDOW.
- *
- * The track above is unconditional, so a page with no run still measured the
- * transcript against a window less 340px -- and the idle column paints the same
- * translucent fill over the same sky as the page behind it, so there was
- * nothing on screen to say where the missing width had gone. It read as the
- * answer card being pinched, and that is how it was reported.
- *
- * `data-inspector` is set in HomePage.tsx off the same condition the column
- * branches on to draw "No run yet", so the track and its contents cannot
- * disagree. When a run starts the attribute flips and the column returns; that
- * is one reflow at the moment of asking, against a permanently short measure on
- * every other surface, and the transcript is centred in its column either way.
+ * THE HARNESS COLUMN STAYS. Idle Ask used to zero `--trace-width` and
+ * `display: none` the inspector, which ate the constellation and left a two-
+ * column page of conversations plus empty sky. `data-inspector` still names
+ * whether a run is on screen — the idle branch draws the silhouette rather
+ * than steps — but the track and the pane itself do not collapse.
  */
-.ask-layout[data-inspector='idle'] {
-  /* The token rather than a second `grid-template-columns`, because the fixed
-     composer insets its right edge off `--trace-width` too (composer.css). Set
-     the width to zero and the grid track, the composer and anything added later
-     that reads the token all collapse together; restating the columns here
-     would have moved the grid and left the composer inset for a column that is
-     no longer drawn. */
-  --trace-width: 0px;
-}
-.ask-layout[data-inspector='idle'] .trace-inspector {
-  display: none;
-}
 .conversation-rail,
 .trace-inspector {
   position: sticky;
@@ -438,6 +424,31 @@
   line-height: 1.5;
   color: var(--ast-caption);
 }
+/*
+ * Idle Ask: the same night-sky constellation as a live harness, held still.
+ *
+ * The pane used to collapse, so this column was empty sky. The opening
+ * silhouette fills the leftover height under the "Agent path" heading — dots
+ * and hops, not the "No run yet" copy — and the animation is frozen so an
+ * idle page cannot look like a run in flight.
+ */
+.trace-idle-sky {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 -20px -20px;
+}
+.trace-idle-sky [class*='ast-anim-'] {
+  animation: none;
+}
+.trace-idle-sky .ast-anim-draw {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+.trace-idle-sky .ast-anim-pop {
+  opacity: 1;
+  transform: none;
+}
 
 .trace-inspector .ast-flick-row {
   border-color: rgba(255, 255, 255, 0.18);
@@ -780,7 +791,17 @@
 }
 
 .conversation-owner {
-  max-width: 132px;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1 1 8rem;
+}
+.conversation-rail .conversation-owner.identity-chip--compact {
+  max-width: 100%;
+}
+.conversation-rail .conversation-owner .identity-chip-text {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
 }
 .conversation-row.active .conversation-owner {
   background: var(--background);

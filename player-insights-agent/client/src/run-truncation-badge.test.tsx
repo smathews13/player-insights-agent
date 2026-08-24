@@ -42,9 +42,10 @@ function rowMarkup(run: Run): string {
 }
 
 describe('the status on a truncated run', () => {
-  it('collapses a run that stopped early to one Partial badge', () => {
+  it('keeps the stored Complete badge when a deadline note is also on the row', () => {
     const markup = rowMarkup({ ...RUN, truncated: true });
-    expect(markup).toContain('partial');
+    expect(markup).toContain('complete');
+    expect(markup).not.toContain('partial');
     expect(markup).not.toContain('Truncated');
   });
 
@@ -60,10 +61,10 @@ describe('the status on a truncated run', () => {
     expect(rowMarkup({ ...RUN, truncated: null })).not.toContain('Truncated');
   });
 
-  it('does not keep the stored Complete badge beside Partial', () => {
+  it('does not paint a stored Complete run as Partial because it also recorded a deadline', () => {
     const markup = rowMarkup({ ...RUN, truncated: true });
-    expect(markup).not.toContain('complete');
-    expect(markup.match(/partial/g)).toHaveLength(1);
+    expect(markup).toContain('complete');
+    expect(markup).not.toContain('partial');
   });
 
   it('keeps the tool-call count and rating state in the same badge row', () => {
@@ -83,9 +84,10 @@ function headerMarkup(run: Run, toolCalls: number | null = run.tool_calls ?? nul
 }
 
 describe('the same status on the run the reader opened', () => {
-  it('carries Partial through from the row to the header it opens', () => {
+  it('carries the stored Complete status through from the row to the header it opens', () => {
     const markup = headerMarkup({ ...RUN, truncated: true });
-    expect(markup).toContain('partial');
+    expect(markup).toContain('complete');
+    expect(markup).not.toContain('partial');
     expect(markup).not.toContain('Truncated');
   });
 
@@ -95,10 +97,10 @@ describe('the same status on the run the reader opened', () => {
     expect(headerMarkup({ ...RUN, truncated: null })).not.toContain('Truncated');
   });
 
-  it('does not keep the stored Complete badge beside Partial here either', () => {
+  it('does not paint the opened header Partial over a stored Complete run', () => {
     const markup = headerMarkup({ ...RUN, truncated: true });
-    expect(markup).not.toContain('complete');
-    expect(markup.match(/partial/g)).toHaveLength(1);
+    expect(markup).toContain('complete');
+    expect(markup).not.toContain('partial');
   });
 
   it('keeps the tool-call count and rating state beside the id, user, and status', () => {

@@ -842,6 +842,8 @@ describe('the drawing is reachable and readable without seeing it', () => {
     expect(markup).not.toContain('href="/settings#settings-runtime-form"');
     expect(PAGE_SOURCE).not.toMatch(/onMouseLeave=\{\(\) => onActiveBoundChange/);
     expect(PAGE_SOURCE).not.toMatch(/onBlur=\{\(\) => onActiveBoundChange/);
+    expect(PAGE_SOURCE).toMatch(/onMouseEnter=\{\(\) => onPreviewBoundChange/);
+    expect(PAGE_SOURCE).toMatch(/onMouseLeave=\{\(\) => onPreviewBoundChange\?\.\(null\)/);
   });
 
   it('keeps the selected KPI class until another bound is chosen or the same is cleared', () => {
@@ -883,6 +885,45 @@ describe('the drawing is reachable and readable without seeing it', () => {
       </MemoryRouter>
     );
     expect(cleared).not.toContain('arch-bound-selected');
+  });
+
+  it('paints a hover preview with the same selected class a click would stick', () => {
+    const tile = (markup: string, bound: string): string => {
+      const at = markup.indexOf(`data-bound="${bound}"`);
+      expect(at, bound).toBeGreaterThan(-1);
+      return markup.slice(markup.lastIndexOf('<li', at), markup.indexOf('</li>', at));
+    };
+    const loop = { maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 };
+
+    const hovered = renderToStaticMarkup(
+      <MemoryRouter>
+        <ChainBoundTiles
+          previewBound="maxRunSeconds"
+          loop={loop}
+          onActiveBoundChange={() => undefined}
+          onPreviewBoundChange={() => undefined}
+        />
+      </MemoryRouter>
+    );
+    expect(tile(hovered, 'maxRunSeconds')).toContain('arch-bound-selected');
+    expect(tile(hovered, 'maxRunSeconds')).toContain('aria-pressed="false"');
+    expect(tile(hovered, 'maxSteps')).not.toContain('arch-bound-selected');
+
+    const stuckUnderHover = renderToStaticMarkup(
+      <MemoryRouter>
+        <ChainBoundTiles
+          activeBound="maxSteps"
+          previewBound="maxToolCalls"
+          loop={loop}
+          onActiveBoundChange={() => undefined}
+          onPreviewBoundChange={() => undefined}
+        />
+      </MemoryRouter>
+    );
+    expect(tile(stuckUnderHover, 'maxToolCalls')).toContain('arch-bound-selected');
+    expect(tile(stuckUnderHover, 'maxSteps')).not.toContain('arch-bound-selected');
+    expect(tile(stuckUnderHover, 'maxSteps')).toContain('aria-pressed="true"');
+    expect(tile(stuckUnderHover, 'maxToolCalls')).toContain('aria-pressed="false"');
   });
 
   it('marks exactly the selected KPI scope on the rendered nodes and edges', () => {

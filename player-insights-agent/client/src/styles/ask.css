@@ -13,12 +13,13 @@
      figure so a programmatic scroll stops where this padding ends. */
   padding: 56px var(--conversation-inset) var(--composer-reserve);
   /*
-   * FILL THE ASK-LAYOUT CENTER TRACK. A 1280px cap with auto margins left the
-   * answer and the working-on-it card as a narrow island between the conversation
-   * rail and the agent path, with a sea of unused sky either side. The rails own
-   * their columns; this column is what remains, and the inset above is the only
-   * gutter it needs. `none` rather than 100%: a used max-width smaller than the
-   * track is how the island came back.
+   * THE TRACK FILLS; THE CARDS CENTRE IN IT. Equal 340px rails leave a middle
+   * column that is the leftover window, and that column is still 100% of the
+   * track — otherwise the composer, which is `position: fixed` off the same
+   * rails, would disagree with the transcript. The answer and working cards
+   * cap at `--conversation-measure` and sit in the middle of that track, so a
+   * wide monitor gets modest gutters rather than an edge-to-edge slab, and a
+   * laptop still fills the gap (the cap is wider than the leftover column).
    */
   max-width: none;
   width: 100%;
@@ -28,6 +29,14 @@
      both gone: DuBois pages are a solid surface and the transcript's cards do the
      separating. */
   background: transparent;
+}
+.conversation-main .answer-card,
+.conversation-main .plan-card {
+  max-width: var(--conversation-measure);
+  margin-inline: auto;
+}
+.conversation-main .answer-card > [data-slot='card-content'] {
+  padding-inline: 20px;
 }
 /* Wide enough for the suggestion grid and the composer, both of which cap at 720px. */
 .ask-hero {

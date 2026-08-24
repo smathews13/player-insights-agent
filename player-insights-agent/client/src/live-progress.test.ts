@@ -387,13 +387,12 @@ describe('where the run has got to, on the row and in the rail', () => {
     expect(toLiveStep(stage({ id: 'step-1', depth: 9 })).depth).toBe(3);
   });
 
-  it('pins the step icon to the first line of the header, with an optical nudge', () => {
-    // Without start-align, a multi-line body centres the glyph between the
-    // title and the detail. Without the 1px top margin, both lucide and
-    // astrolabe marks read a hair high against the bold step name.
+  it('pins the numbered badge and kind mark as a column on the first line', () => {
+    const index = LIVE_CSS.match(/\.live-step-index \{([^}]*)\}/)?.[1] ?? '';
+    expect(index).toMatch(/align-self: start/);
+    expect(index).toMatch(/margin-top: 1px/);
+    expect(index).toMatch(/flex-direction: column/);
     const icon = LIVE_CSS.match(/\.live-step-icon \{([^}]*)\}/)?.[1] ?? '';
-    expect(icon).toMatch(/align-self: start/);
-    expect(icon).toMatch(/margin-top: 1px/);
     expect(icon).toMatch(/height: calc\(var\(--text-base\) \* 1\.4\)/);
   });
 
@@ -701,5 +700,14 @@ describe('which run the agent path draws', () => {
     expect(
       railStagesFor({ loading: false, runStopped: false, liveStages: [], answeredStages: [], clarificationStages: asked })
     ).toEqual(asked);
+  });
+
+  it('keeps the streamed path when the stored answer arrived empty', () => {
+    // The prose-only route used to persist stages: [] over a run the stream had
+    // already narrated. Once loading went false, this function preferred that
+    // empty stored list and the process disappeared.
+    expect(
+      railStagesFor({ loading: false, runStopped: false, liveStages: live, answeredStages: [], clarificationStages: [] })
+    ).toEqual(live);
   });
 });

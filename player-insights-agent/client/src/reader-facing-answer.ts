@@ -10,6 +10,7 @@
  * is replaced only when a real sentence survives, and the status label is read
  * off the caveats the agent already wrote.
  */
+import { answerHasLanded } from '../../shared/run-verdict';
 import { CAVEAT_RISK, caveatRisk } from './caveat-priority';
 
 /** Governed tools whose call-site JSON has been seen dumped into a stored narrative. */
@@ -28,6 +29,9 @@ const CANNED_TAKEAWAY = [
   /^the agent returned an answer\b/i,
   /^the agent answered in prose\b/i,
 ];
+
+/** Stored when the writer never finished. Not a finding, and not the title of a card that already has tables. */
+const UNANSWERED_TAKEAWAY = /^this question was not answered\.?$/i;
 
 /** How much of a surviving sentence is used when the stored takeaway was canned. */
 const TAKEAWAY_LIMIT = 220;
@@ -99,22 +103,41 @@ export function isCannedTakeaway(text: string): boolean {
   return CANNED_TAKEAWAY.some((pattern) => pattern.test(value));
 }
 
-/**
- * The headline a reader should see.
- *
- * A canned completion line is not a finding. When the stored takeaway is one,
- * the first surviving sentence of the cleaned narrative stands in; when nothing
- * usable survives, the headline is empty and the module's status label carries
- * the honesty instead of inventing a result.
- */
-export function readerFacingTakeaway(takeaway: string, narrative: string): string {
-  if (!isCannedTakeaway(takeaway)) return takeaway.trim();
+function firstFinding(narrative: string): string {
   const first = stripToolCallDumps(narrative)
     .split('\n')
     .map((line) => line.trim().replace(/^#+\s*/, ''))
-    .find((line) => line && !line.includes('|') && !isCannedTakeaway(line) && !TOOL_CALL.test(line));
+    .find(
+      (line) =>
+        line &&
+        !line.includes('|') &&
+        !isCannedTakeaway(line) &&
+        !UNANSWERED_TAKEAWAY.test(line) &&
+        !TOOL_CALL.test(line)
+    );
   if (!first) return '';
   return first.length > TAKEAWAY_LIMIT ? `${first.slice(0, TAKEAWAY_LIMIT - 1)}…` : first;
+}
+
+/**
+ * The headline a reader should see.
+ *
+ * A canned completion line is not a finding. "This question was not answered."
+ * is not a finding either once the card already has tables or figures — that
+ * sentence was the deadline path's title over a real answer.
+ */
+export function readerFacingTakeaway(
+  takeaway: string,
+  narrative: string,
+  extras?: { figures?: readonly unknown[] | null; content?: string | null }
+): string {
+  const landed = answerHasLanded({ figures: extras?.figures, narrative, content: extras?.content });
+  if (UNANSWERED_TAKEAWAY.test(takeaway.trim())) {
+    if (!landed) return takeaway.trim();
+    return firstFinding(narrative) || firstFinding(extras?.content ?? '');
+  }
+  if (!isCannedTakeaway(takeaway)) return takeaway.trim();
+  return firstFinding(narrative);
 }
 
 /**
@@ -123,16 +146,26 @@ export function readerFacingTakeaway(takeaway: string, narrative: string): strin
  * The deadline path used to put the canned takeaway in both slots. The card
  * then printed it as the title and again as the first line of the body.
  */
-export function readerFacingNarrative(takeaway: string, narrative: string): string {
+export function readerFacingNarrative(
+  takeaway: string,
+  narrative: string,
+  extras?: { figures?: readonly unknown[] | null; content?: string | null }
+): string {
   const cleaned = stripToolCallDumps(narrative);
-  const headline = readerFacingTakeaway(takeaway, narrative);
+  const headline = readerFacingTakeaway(takeaway, narrative, extras);
   const lines = cleaned.split('\n');
   const firstAt = lines.findIndex((line) => line.trim());
   if (firstAt < 0) return cleaned;
   const first = lines[firstAt].trim();
   // Drop a leading line that restates the title: the stored takeaway, the
-  // headline we just chose, or the canned completion the deadline path wrote.
-  if (first === headline || first === takeaway.trim() || isCannedTakeaway(first)) {
+  // headline we just chose, the unanswered line over a landed card, or the
+  // canned completion the deadline path wrote.
+  if (
+    first === headline ||
+    first === takeaway.trim() ||
+    isCannedTakeaway(first) ||
+    (UNANSWERED_TAKEAWAY.test(first) && answerHasLanded({ figures: extras?.figures, narrative, content: extras?.content }))
+  ) {
     lines.splice(firstAt, 1);
     return lines.join('\n').replace(/^\n+/, '').trim();
   }
@@ -174,6 +207,9 @@ function warningLabel(text: string): string {
 export function answerHonesty(input: {
   truncated?: boolean | null;
   caveats: readonly string[];
+  figures?: readonly unknown[] | null;
+  narrative?: string | null;
+  content?: string | null;
 }): AnswerHonesty {
   const caveats = input.caveats.map((caveat) => caveat.trim()).filter(Boolean);
   const warnings = caveats
@@ -182,6 +218,9 @@ export function answerHonesty(input: {
       return risk === CAVEAT_RISK.refused || risk === CAVEAT_RISK.evidence;
     })
     .map((text) => ({ label: warningLabel(text), text }));
+  if (answerHasLanded(input)) {
+    return { eyebrow: 'Final answer', tone: 'complete', warnings };
+  }
   const truncated =
     input.truncated === true ||
     caveats.some((text) => /turn deadline|budget for this turn was spent|stopped early/i.test(text));

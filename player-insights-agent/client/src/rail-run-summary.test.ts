@@ -178,7 +178,7 @@ describe('the row is the run card, not a third style', () => {
     // the retired db- washes, which is how one screen ends up a shade off the rest
     // the day somebody restyles the other.
     expect(HOME_PAGE).toContain('ast-pill conversation-status');
-    expect(HOME_PAGE).toContain("summary.truncated === true ? 'ast-pill--warn' : summary.tone");
+    expect(HOME_PAGE).toContain('summary.tone');
     const recipe = body('.ast-pill', partial('astrolabe-tokens.css'));
     expect(recipe).toMatch(/border-radius:\s*var\(--ast-radius-control\)/);
     expect(recipe).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
@@ -212,8 +212,11 @@ describe('the row is the run card, not a third style', () => {
     expect(outline).toMatch(/border-color/);
   });
 
-  it('collapses a truncated turn to the one Partial status pill', () => {
-    expect(HOME_PAGE).toMatch(/summary\.truncated === true \? 'partial' : summary\.status/);
+  it('keeps the stored status word, even when the turn also recorded a deadline note', () => {
+    // Truncated used to replace the stored word with Partial on every reopen.
+    // A card that already answered stays Complete; the deadline stays a note.
+    expect(HOME_PAGE).not.toMatch(/summary\.truncated === true \? 'partial' : summary\.status/);
+    expect(HOME_PAGE).toMatch(/title=\{`Latest turn: \$\{summary\.status\}`\}/);
     expect(HOME_PAGE).not.toContain('Truncated');
   });
 

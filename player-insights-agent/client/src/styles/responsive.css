@@ -66,6 +66,7 @@
      header already declares tight is the band this is tight in too. */
   .ask-layout {
     --trace-width: 264px;
+    --conversation-width: var(--trace-width);
   }
 }
 @media (max-width: 1180px) {
