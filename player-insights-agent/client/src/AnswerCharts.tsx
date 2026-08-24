@@ -74,7 +74,7 @@ function kindLabel(kind: string) {
  * would blank every answer on screen, so it is caught per panel and the rest of the
  * answer stands.
  */
-class ChartBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class ChartBoundary extends Component<{ children: ReactNode; onFailure?: () => void }, { failed: boolean }> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -83,13 +83,18 @@ class ChartBoundary extends Component<{ children: ReactNode }, { failed: boolean
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[charts] A chart could not be rendered:', error, info.componentStack);
+    // The card above needs to know, because the chart it asked for IS the
+    // evidence: this panel is the only place those numbers were going to
+    // appear. Told, the card opens the Markdown rows it had folded away, so a
+    // panel that will not draw costs the reader a chart and not the figures.
+    this.props.onFailure?.();
   }
 
   render() {
     if (this.state.failed) {
       return (
         <p className="text-sm text-muted-foreground">
-          This chart could not be displayed. The rest of this answer is unaffected.
+          This chart could not be displayed. Its figures are in the rows below.
         </p>
       );
     }
@@ -97,7 +102,7 @@ class ChartBoundary extends Component<{ children: ReactNode }, { failed: boolean
   }
 }
 
-function ChartPanel({ chart }: { chart: Chart }) {
+function ChartPanel({ chart, onFailure }: { chart: Chart; onFailure?: () => void }) {
   const name = chart.title.trim() || kindLabel(chart.kind);
   return (
     <figure className="answer-chart-panel">
@@ -106,7 +111,7 @@ function ChartPanel({ chart }: { chart: Chart }) {
           used to sit opposite is gone -- it named the shape a reader can see, and it
           was the widest thing in a head that now has to fit in a half-width panel. */}
       <figcaption className="answer-chart-eyebrow">{name}</figcaption>
-      <ChartBoundary>
+      <ChartBoundary onFailure={onFailure}>
         {/* The fallback is the plot's own height so the transcript does not jump when
             the chunk lands. */}
         <Suspense fallback={<Skeleton style={{ height: CHART_HEIGHT }} className="w-full" />}>
@@ -130,13 +135,16 @@ function ChartPanel({ chart }: { chart: Chart }) {
  * answer had already committed to -- a fact deleted for layout, which is the one
  * thing the answer-card rules forbid outright. The list lays out in as many rows as
  * it needs.
+ *
+ * `onFailure` is called once per panel that will not draw. See ChartBoundary: the
+ * card treats it as "the evidence did not arrive" and unfolds the rows.
  */
-export function AnswerCharts({ charts }: { charts?: Chart[] }) {
+export function AnswerCharts({ charts, onFailure }: { charts?: Chart[]; onFailure?: () => void }) {
   if (!charts?.length) return null;
   return (
     <div className="answer-charts">
       {charts.map((chart) => (
-        <ChartPanel chart={chart} key={chart.id} />
+        <ChartPanel chart={chart} onFailure={onFailure} key={chart.id} />
       ))}
     </div>
   );

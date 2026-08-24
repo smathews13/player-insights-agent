@@ -311,6 +311,7 @@ function StepRail({
   beating,
   elapsedMs,
   statusText,
+  statusDuration,
   onPick,
 }: {
   stages: TraceStage[];
@@ -321,6 +322,18 @@ function StepRail({
   elapsedMs: number | null;
   /** The band's own sentence, so the two views cannot report the run differently. */
   statusText: string;
+  /**
+   * And the band's own figure beside it: the seconds a running step has been going,
+   * or the settled run's total. Same argument as `statusText` and it was the half
+   * that was missing -- the sighted light reader sees the elapsed on the marked row,
+   * so a live region without it told a screen reader less than the page said, and
+   * less than the dark band's live region says about the same run.
+   *
+   * Null where the band prints none: a run in flight with no clock from the caller,
+   * and a settled run with no recorded total. The sentence then stands on its own
+   * rather than trailing a separator with nothing after it.
+   */
+  statusDuration: string | null;
   onPick: (id: string) => void;
 }) {
   return (
@@ -388,7 +401,7 @@ function StepRail({
         accessibility tree, so nothing announces twice.
       */}
       <p className="sr-only" aria-live="polite">
-        {statusText}
+        {statusDuration ? `${statusText} · ${statusDuration}` : statusText}
       </p>
     </div>
   );
@@ -768,6 +781,7 @@ export function AgentPathConstellation({
       beating={beating}
       elapsedMs={elapsedMs}
       statusText={statusText}
+      statusDuration={statusDuration}
       onPick={pin}
     />
     </>

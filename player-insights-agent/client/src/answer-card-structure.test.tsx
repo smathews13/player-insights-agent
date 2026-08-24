@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AnswerCard } from './AnswerCard';
@@ -72,14 +73,52 @@ describe('answer evidence variants', () => {
     expect(markup).toContain('aria-label="Table evidence"');
   });
 
-  it('renders charts and suppresses the Markdown table when a chart exists', () => {
+  it('renders charts and folds the Markdown table away when a chart exists', () => {
     const markup = card(answer({
       charts: [{ id: 'chart-1', title: 'Daily sessions', kind: 'line', data: [], layout: {} }],
     }));
     expect(markup).toContain('Daily sessions');
     expect(markup).toContain('aria-label="Chart evidence"');
+    // Charts XOR tables still holds on screen: the rows are not drawn beside the
+    // panel they would duplicate.
     expect(markup).not.toContain('<table');
     expect(markup.match(/Opening sentence survives\./g)).toHaveLength(1);
+  });
+
+  it('leaves the folded rows reachable rather than dropping them', () => {
+    /*
+     * The rule is about what the reader is SHOWN, not about what the answer may
+     * keep. A chart summarises -- the pair rule plots a full series beside a recent
+     * window -- so the rows behind it can hold dates and values no panel plots, and
+     * before this control there was nowhere to go for them. It also matters when a
+     * panel will not draw: see the boundary test below.
+     */
+    const markup = card(answer({
+      charts: [{ id: 'chart-1', title: 'Daily sessions', kind: 'line', data: [], layout: {} }],
+    }));
+    expect(markup).toContain('Show the rows behind this');
+  });
+
+  it('offers no rows control when the tables are the evidence already', () => {
+    // Nothing is folded on a table answer, so a control promising rows that are
+    // already on screen would be a disclosure over nothing.
+    const markup = card(answer());
+    expect(markup).not.toContain('Show the rows behind this');
+    expect(markup).toContain('<table');
+  });
+
+  it('sends a chart that will not draw to the rows instead of to a dead end', () => {
+    /*
+     * Read off the source rather than by throwing from Plotly: the boundary is a
+     * class component reached through `lazy`, and what has to be pinned is the wiring
+     * -- the panel telling the card, and the card opening the fold. Rendered, this
+     * needs a failing dynamic import, which is a chunk fetch this suite has no way
+     * to fail honestly.
+     */
+    const cardSource = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+    const chartSource = readFileSync(new URL('./AnswerCharts.tsx', import.meta.url), 'utf8');
+    expect(chartSource).toContain('this.props.onFailure?.()');
+    expect(cardSource).toContain('onFailure={() => setShowRows(true)}');
   });
 
   it('keeps every figure in the stat rail, including historical extras', () => {
@@ -120,6 +159,30 @@ describe('table story metadata', () => {
     const markup = renderToStaticMarkup(<AnswerProse text={decline} sources={[]} blocks="tables" />);
     expect(markup.match(/data-story="peak"/g)).toHaveLength(1);
     expect(markup).toMatch(/data-story="peak"[^>]*>[\s\S]*2026-08-02/);
+  });
+
+  it('still names the peak when the series only ever fell', () => {
+    /*
+     * A series that declines from its opening row peaks on that row, so the baseline
+     * row and the peak row are one row. The renderer chose between the two labels and
+     * the baseline branch won, so the peak went unlabelled on exactly the tables where
+     * "this was the high point, and it has fallen since" is the finding.
+     */
+    const decline = [
+      '| Date | Sessions |',
+      '| --- | ---: |',
+      '| 2026-08-01 | 25 |',
+      '| 2026-08-02 | 18 |',
+      '| 2026-08-03 | 10 |',
+    ].join('\n');
+    const metadata = tableStoryMetadata(table(decline));
+    expect(metadata.peakRowStart).toBe(metadata.baselineRowStart);
+    const markup = renderToStaticMarkup(<AnswerProse text={decline} sources={[]} blocks="tables" />);
+    expect(markup).toContain('>baseline</span>');
+    expect(markup).toContain('>peak</span>');
+    // One row wears both, and no later row is relabelled to make that true.
+    expect(markup.match(/answer-table-story-tag/g)).toHaveLength(2);
+    expect(markup.match(/data-story=/g)).toHaveLength(1);
   });
 
   it('does not call inventory rows baseline or peak', () => {

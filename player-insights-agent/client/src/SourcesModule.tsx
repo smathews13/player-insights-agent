@@ -82,7 +82,13 @@ export function SourcesModule({
                 >
                   <SourceEntityName name={row.name} />
                 </span>{' '}
-                <span className="source-line-role">({row.chip})</span>{' '}
+                {/* The chip names the role; the title says what the role MEANS for
+                    the numbers on screen -- "Its data is not in the numbers shown"
+                    is the distinction a reader is actually checking, and the
+                    three-word chip cannot carry it. It had a line of its own on the
+                    old Sources card and lost its seating when the card became one
+                    compact line; source-rows.ts never stopped stating it. */}
+                <span className="source-line-role" title={row.note}>({row.chip})</span>{' '}
                 <OpenInDatabricks name={row.name} />
               </span>
             ))}

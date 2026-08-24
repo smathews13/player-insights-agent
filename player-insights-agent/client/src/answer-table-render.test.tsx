@@ -275,7 +275,7 @@ describe('the table is styled as part of the answer, not as a new design', () =>
   it('refuses to break a figure, which is the card’s wrapping rule turned off here', () => {
     // The card's content slot sets `overflow-wrap: anywhere`, which is right for
     // a table name in a sentence and wrong for a number: it broke "$1,381.16"
-    // after the thousands separator. Same exception as `.bar-row b`.
+    // after the thousands separator.
     const figures = rule(".answer-table tbody td[data-align='right']");
     expect(figures).toContain('overflow-wrap: normal');
     expect(figures).toContain('word-break: normal');

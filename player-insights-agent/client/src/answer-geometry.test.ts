@@ -49,110 +49,6 @@ function ruleFor(source: string, selector: string): string {
   return source.slice(open + 1, close);
 }
 
-const TOKENS = partial('tokens.css');
-const RAIL_CSS = partial('rail.css');
-/** Where every structural width in this app narrows. See breakpoints.test.ts. */
-const RESPONSIVE_CSS = partial('responsive.css');
-
-/** One declaration's value, by custom-property or property name. */
-function declaration(source: string, name: string): string {
-  const value = source.match(new RegExp(`(?:^|[;{\\s])${name}:\\s*([^;]+);`))?.[1];
-  expect(value, `${name} is declared`).toBeDefined();
-  return (value as string).trim();
-}
-
-/** The first pixel length in a value, as a number. */
-function pixels(value: string): number {
-  const raw = value.match(/(-?[\d.]+)px/)?.[1];
-  expect(raw, `${value} carries a pixel length`).toBeDefined();
-  return Number.parseFloat(raw as string);
-}
-
-/**
- * The inspector's width at one window width, media query included.
- *
- * Read rather than restated for the same reason every other term here is, and
- * RESOLVED rather than taken from the base declaration alone: the rail is 340px on
- * a wide window and hands the 76px back in responsive.css's tight band, so a model
- * that read only rail.css would compute the transcript 76px narrower than a laptop
- * actually gets it and fail this file's own claim about a readable column.
- */
-function traceWidth(window_: number): number {
-  const narrowed = [...RESPONSIVE_CSS.matchAll(/@media \(max-width: (\d+)px\)([\s\S]*?)\n\}/g)]
-    .filter(([, bound]) => window_ <= Number(bound))
-    .map(([, , band]) => band.match(/--trace-width:\s*(\d+)px/)?.[1])
-    .find((found): found is string => found !== undefined);
-  return narrowed === undefined ? pixels(declaration(RAIL_CSS, '--trace-width')) : Number(narrowed);
-}
-
-/** `clamp(<a>px, <n>vw, <b>px)` resolved against one window width. */
-function clampVw(value: string, window_: number): number {
-  const [low, vw, high] = [...value.matchAll(/([\d.]+)(?:px|vw)/g)].map((match) => Number(match[1]));
-  return Math.min(Math.max(low, (vw / 100) * window_), high);
-}
-
-/**
- * The width `.bar-row` is laid out in, inside a window `window_` px wide.
- *
- * Every term is read from the stylesheet the layout is built from rather than
- * restated, because the point of the assertion this feeds is that a number in
- * that stylesheet resolves to a readable column -- a copy of the number here
- * would agree with itself after somebody changed one of them.
- */
-function barRowWidth(window_: number): number {
-  const column = window_ - pixels(declaration(TOKENS, '--conversation-width')) - traceWidth(window_);
-  const inset = clampVw(declaration(TOKENS, '--conversation-inset'), window_);
-  // The transcript stops widening at its stated measure and the surplus becomes
-  // margin, so past about 1500px this is the only term that still moves.
-  const transcript = Math.min(column - inset * 2, pixels(declaration(TOKENS, '--conversation-measure')));
-  const cardInset = pixels(
-    declaration(ruleFor(ANSWER_CSS, ".answer-card > [data-slot='card-header'],"), 'padding-inline')
-  );
-  const panelInset = pixels(
-    declaration(ruleFor(BODY_CSS, ".chart-card > [data-slot='card-header'],"), 'padding-inline')
-  );
-  // Both cards are `box-sizing: border-box` with a 1px border, which is 2px of
-  // the row each and is the size of the fault this whole block is about.
-  return transcript - 2 - cardInset * 2 - 2 - panelInset * 2;
-}
-
-/**
- * The four `.bar-row` track widths, in px, for a row `width` px wide.
- *
- * CSS Grid §12.7 as far as this row uses it: the non-flexible track is sized to
- * its cap, then the fr unit is found against what is left -- freezing any
- * flexible track whose floor is above its share and starting again, which is the
- * step that decides this row and the one no assertion about shares can see.
- */
-function resolveBarRow(width: number): number[] {
-  const row = ruleFor(BODY_CSS, '.bar-row {');
-  const tracks = [
-    ...declaration(row, 'grid-template-columns').matchAll(/minmax\(([\d.]+)px,\s*([\d.]+)(px|fr)\)/g),
-  ].map((match) => ({ floor: Number(match[1]), limit: Number(match[2]), flexible: match[3] === 'fr' }));
-  expect(tracks, 'four minmax tracks').toHaveLength(4);
-  const gap = Number(declaration(row, 'gap').match(/[\d.]+px\s+([\d.]+)px/)![1]);
-
-  const rigid = tracks.filter((track) => !track.flexible);
-  let pool = width - gap * (tracks.length - 1) - rigid.reduce((total, track) => total + track.limit, 0);
-  let flexible = tracks.filter((track) => track.flexible);
-  let unit = 0;
-  // Freeze, recompute, repeat -- a frozen track's floor leaves the pool before
-  // the tracks still competing for it are sized.
-  for (;;) {
-    const shares = flexible.reduce((total, track) => total + track.limit, 0);
-    unit = pool / Math.max(shares, 1);
-    const starved = flexible.find((track) => track.limit * unit < track.floor);
-    if (!starved) break;
-    pool -= starved.floor;
-    flexible = flexible.filter((track) => track !== starved);
-    if (flexible.length === 0) break;
-  }
-  const resolved = unit;
-  return tracks.map((track) =>
-    track.flexible ? Math.max(track.floor, flexible.includes(track) ? track.limit * resolved : 0) : track.limit
-  );
-}
-
 describe('the answer and plan cards sit on the design’s scale, not the library’s', () => {
   it('takes the one card radius and no shadow', () => {
     // 8px is the card radius and 4px the control radius; there is no third, and
@@ -248,183 +144,7 @@ describe('the provenance chip has three tones and none is the action colour', ()
   });
 });
 
-describe('the result breakdown gives every figure a column of its own', () => {
-  it('is the design’s four columns, and not one of them is a fixed width', () => {
-    // Three of the four were: 150px for the label, 70px for the value, 60px for
-    // the comparison. The agent does not write to a fixed width, and a live run
-    // put "Most granular: one row per transaction with SKU detail" in the first
-    // and a sentence in the last -- 60px is narrower than the word
-    // "transaction", so the wrapping rule above split the word in half and the
-    // reader got a right-aligned ribbon two words wide.
-    //
-    // Asserted as four minmax tracks rather than as a literal, because the
-    // numbers will be tuned and the property that must not be tuned away is
-    // that every column has a floor and a share.
-    const rule = ruleFor(BODY_CSS, '.bar-row {');
-    const tracks = rule.match(/grid-template-columns:([^;]+);/)![1].trim();
-    expect(tracks.match(/minmax\(/g)).toHaveLength(4);
-    expect(tracks, 'no track is a bare pixel width').not.toMatch(/(^|\s)\d+px(\s|$)/);
-  });
-
-  it('leaves the four floors inside the narrowest column the row is laid out in', () => {
-    // The floors are what keep `overflow-wrap: anywhere` out of reach, so they
-    // want to be generous, and they are also the row's minimum width, so they
-    // want to be small. The bound is the transcript column just above 800px --
-    // 220px of rail, 28px of page padding either side, then the card's 28px and
-    // the chart panel's 16px -- which leaves about 433px. Past that a desktop
-    // grows a horizontal scrollbar, which is the one outcome worse than the
-    // crowding this changed.
-    const tracks = ruleFor(BODY_CSS, '.bar-row {').match(/grid-template-columns:([^;]+);/)![1];
-    const floors = [...tracks.matchAll(/minmax\((\d+)px/g)].map((match) => Number(match[1]));
-    const gap = Number(ruleFor(BODY_CSS, '.bar-row {').match(/gap:\s*\d+px\s+(\d+)px/)![1]);
-    expect(floors).toHaveLength(4);
-    expect(floors.reduce((total, floor) => total + floor, 0) + gap * 3).toBeLessThanOrEqual(433);
-    // And the other half of the bound: each of the three columns that receives
-    // text still clears an ordinary English word at 13px, which is around 70px
-    // and is exactly what the 60px comparison column did not. The second track
-    // is the bar, and its floor is a bar's minimum rather than a word's.
-    for (const at of [0, 2, 3]) expect(floors[at], `track ${at + 1}`).toBeGreaterThanOrEqual(72);
-  });
-
-  it('gives the description more of the row than the label, so the bars start early', () => {
-    // Reported as "the description column is too narrow and wraps awkwardly".
-    // The floors were not the problem by then; the shares were. The label had
-    // 2.4 of 4.8 and the description 1.6, so on a wide card the bars began a
-    // third of the way across while the sentence on the right broke into a
-    // ribbon. The label is the shortest text in the row on nearly every answer.
-    const tracks = ruleFor(BODY_CSS, '.bar-row {').match(/grid-template-columns:([^;]+);/)![1];
-    const shares = [...tracks.matchAll(/([\d.]+)fr/g)].map((match) => Number(match[1]));
-    expect(shares, 'the label, the value and the description take shares').toHaveLength(3);
-    const [label, , description] = shares;
-    expect(description).toBeGreaterThan(label);
-  });
-
-  it('resolves the description to a readable width, and not just to a large share', () => {
-    // THE THIRD REPORT OF THIS ROW, AND THE REASON THE TWO ABOVE SURVIVED IT.
-    // Every assertion in this file up to here reads the stylesheet and reasons
-    // about it: four minmax tracks, floors inside a bound, the description's
-    // share larger than the label's. All three were true while the description
-    // was still coming out at 182px on an ordinary window and still wrapping,
-    // because a share is not a width. The value column's floor sits above its
-    // share on every window narrower than about 1500px, so it is frozen at that
-    // floor and the difference comes out of the pool BEFORE the description is
-    // sized -- which no assertion about shares can see.
-    //
-    // So this one does the arithmetic. `resolveBarRow` is CSS Grid §12.7, which
-    // is short enough to write out: size the non-flexible tracks to their caps,
-    // then find the fr unit against what is left, freezing any flexible track
-    // whose floor is above its share and starting again. The widths below are
-    // the ones the row is actually laid out in, taken from the same tokens the
-    // layout is built from rather than from a guess.
-    // 1366 is in the list because it is the WORST case rather than a round
-    // number: it is the narrowest window that gives the harness rail its full
-    // 340px, one pixel above the band where responsive.css hands 76px of that
-    // back, so it is where a wider rail would show up as an unreadable row first.
-    for (const [window_, floor] of [
-      [1280, 220],
-      [1366, 220],
-      [1920, 350],
-    ] as const) {
-      const [label, bar, value, description] = resolveBarRow(barRowWidth(window_));
-      expect(description, `the description at ${window_}px`).toBeGreaterThanOrEqual(floor);
-      // And it is the widest thing in the row wherever there is room to choose,
-      // which is the shape the reported one did not have: a sentence narrower
-      // than the label above it, beside a bar with room to spare.
-      expect(description, `the description outsizes the label at ${window_}px`).toBeGreaterThan(label);
-      expect(description, `the description outsizes the value at ${window_}px`).toBeGreaterThan(value);
-      expect(bar, 'the bar is capped rather than given a share').toBeLessThanOrEqual(64);
-    }
-  });
-
-  it('stops competing for width the row does not have, rather than redividing it', () => {
-    // THE FOURTH REPORT OF THIS ROW, AND WHY THE THREE FIXES ABOVE DID NOT END
-    // IT. Each of them redivided the row -- shares moved, the bar's cap came
-    // down, the floors were retuned -- and each bought the description forty
-    // pixels on a wide window and nothing at all on a narrow one. The reason is
-    // arithmetic rather than taste: the four floors are 386px and the gaps
-    // another 42, against a row that is about 433px with both rails up, so at
-    // that end the description is AT its floor whatever share it holds. There is
-    // no readable measure left in 433px to redivide.
-    //
-    // So below the width at which the four tracks can seat a sentence, the row
-    // becomes two lines and the description takes the whole of the second. This
-    // asserts the mechanism and then the arithmetic behind the threshold, and it
-    // fails against the stylesheet as it stood: there was no container, no query
-    // and no second form, so every clause below is new behaviour rather than a
-    // tightened number.
-    const chart = ruleFor(BODY_CSS, '.bar-chart {');
-    // A CONTAINER QUERY AND NOT A MEDIA QUERY, which is the whole of why the
-    // mobile override in responsive.css never reached this report. This panel
-    // sits inside a card inside a transcript column whose width is the window
-    // minus the conversation rail, minus the trace rail, minus two page insets
-    // and two card insets -- any of which can be absent. Two readers at 1280px
-    // can have rows hundreds of pixels apart, so the viewport is the wrong box
-    // to ask.
-    expect(chart).toContain('container-type: inline-size');
-    expect(chart).toContain('container-name: breakdown');
-
-    const query = BODY_CSS.match(/@container breakdown \(max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\n\}/);
-    expect(query, 'the narrow form is declared').not.toBeNull();
-    const [, threshold, narrow] = query!;
-    // Three across, then the sentence spanning the row underneath it.
-    expect(narrow).toMatch(/grid-template-columns:[^;]*\)\s+auto;/);
-    expect(narrow).toContain('grid-column: 1 / -1');
-
-    // And the threshold is the width at which the wide form resolves the
-    // description to a readable measure, recomputed from the very tracks above
-    // rather than restated. 260px is about forty characters at 13px and is the
-    // point below which the agent's sentences begin breaking mid-clause. Moving
-    // a share moves what this number means, and this is what says so.
-    const READABLE = 260;
-    expect(resolveBarRow(Number(threshold))[3]).toBeGreaterThanOrEqual(READABLE);
-    // One pixel narrower and the four-track form is already below it, so the
-    // threshold is the crossing point and not a round number near one.
-    expect(resolveBarRow(Number(threshold) - 1)[3]).toBeLessThan(READABLE);
-  });
-
-  it('refuses to break a figure mid-number, wherever it appears in the row', () => {
-    // The exact line a reader was shown: "1.81% (~2,833" then "rows)" on the
-    // next line, the thousands separator doing the work of a line break. Both
-    // columns inherit `overflow-wrap: anywhere` from the card's content slot,
-    // which is right for a table name and wrong for a number, so both refuse
-    // it. A number that breaks has to be re-read to be believed.
-    for (const selector of ['.bar-row b {', '.bar-row em {']) {
-      const rule = ruleFor(BODY_CSS, selector);
-      expect(rule, selector).toContain('overflow-wrap: normal');
-      expect(rule, selector).toContain('word-break: normal');
-    }
-  });
-
-  it('pads and rules the rows the way the app’s own tables do', () => {
-    // benchmark.css sets a data cell at 8px vertical and 16px horizontal, and
-    // this block is a table in everything but markup. The gap replaces the
-    // container's, which is why .bar-chart has none: two sources for one piece
-    // of spacing is how the hairline ended up floating between two voids.
-    const rule = ruleFor(BODY_CSS, '.bar-row {');
-    expect(rule).toMatch(/padding-block:\s*8px/);
-    expect(ruleFor(BODY_CSS, '.bar-chart {')).toMatch(/gap:\s*0/);
-    expect(ruleFor(BODY_CSS, '.bar-row + .bar-row {')).toContain('border-top: 1px solid var(--ast-hairline)');
-  });
-
-  it('right-aligns the figure and nothing else in the row', () => {
-    // .bench-num states the rule for the results table: a column read down as
-    // digits is right-aligned, and everything else is not. `comparison` is free
-    // text -- "vs. the previous window" -- and set flush right in the last
-    // track it was a paragraph hung off the panel's edge.
-    expect(ruleFor(BODY_CSS, '.bar-row b {')).toContain('text-align: right');
-    expect(ruleFor(BODY_CSS, '.bar-row em {')).toContain('text-align: left');
-    expect(ruleFor(BODY_CSS, '.bar-row > span {')).not.toContain('text-align');
-  });
-
-  it('runs the track at 8px in the hairline grey, with the primary series as the fill', () => {
-    // A bar's empty half is not data, so the track is the hairline rather than
-    // the darker grey it was, and the fill is the same blue as the button that
-    // produced it.
-    expect(ruleFor(BODY_CSS, '.bar-row > div {')).toContain('height: 8px');
-    expect(ruleFor(BODY_CSS, '.bar-row > div {')).toContain('background: var(--ast-hairline)');
-    expect(ruleFor(BODY_CSS, '.bar-row i {')).toContain('background: var(--ast-blue)');
-  });
-
+describe('the compact stat rail preserves every figure', () => {
   it('replaces the old bar panel with stat rail cards', () => {
     expect(CARD).toContain('className="answer-stat-rail"');
     expect(CARD).toContain('className="answer-stat-value ast-num"');
@@ -432,64 +152,31 @@ describe('the result breakdown gives every figure a column of its own', () => {
     expect(CARD).not.toContain('<i style={{ width:');
   });
 
-  it('sets the stat value in DM Mono without rewriting its text', () => {
-    // REVERSED, AND THE REVERSAL IS THE POINT. This used to assert the opposite:
-    // that the value stayed in DM Sans with `font-variant-numeric: tabular-nums`,
-    // on the reading that a number is never in a different family from the text
-    // around it. That reading was defensible and the mechanism behind it was
-    // not, which the font files settle rather than anyone's taste.
-    // DMSans-variable.woff2 in this repository declares no `tnum` feature at all
-    // -- its GSUB carries calt, ccmp, dnom, frac, liga, locl, numr and nothing
-    // else -- so the property switched on nothing, silently. And its digits are
-    // proportional by a wide margin: at 1000 units per em a `1` is 342 against a
-    // `0` at 656. A column of them cannot line up however it is marked, so the
-    // rule that was supposed to hold the block together was decorative.
-    //
-    // The astrolabe rule is about placement rather than about the character: a
-    // figure in a column, a table cell, a stat value or a right-aligned meta slot
-    // is DM Mono; DM Sans numerals are for prose, where nothing has to line up.
-    // Both of these are columns -- a second value sits directly above and below
-    // each of them on every answer with more than one figure.
-    //
-    // The class is on the markup rather than in the rule deliberately. Which
-    // figures are columnar is a fact about the layout, and putting it where a
-    // reviewer reads the layout is what makes it checkable at a glance.
-    expect(CARD).toContain('<b className="answer-stat-value ast-num">{figure.display ?? figure.value}</b>');
-    expect(CARD).toContain('{figure.comparison}');
-    // And the class does what it says, in the one file that declares it.
-    const num = ruleFor(partial('astrolabe-tokens.css'), '.ast-num {');
-    expect(num).toContain('font-family: var(--font-mono)');
-    // The stylesheet does not restate the family, so there is one answer to
-    // "what face is this figure in" rather than two that can drift apart.
-    expect(ruleFor(BODY_CSS, '.bar-row b {')).not.toContain('font-family');
-    expect(ruleFor(BODY_CSS, '.bar-row em {')).not.toContain('font-family');
-  });
-
   it('keeps the figures in the agent’s order, uncapped', () => {
     // The same rule the caveats have and for the same reason: the agent chose
     // which figures to return and in what order, and a sort or a slice here
     // would be this surface editing the result.
-    expect(CARD).toContain('{answer.figures.map((figure) => (');
+    // Two figures can share a label, and a key that was the label alone dropped
+    // the second. The content signature stays stable when figures move; exact
+    // duplicates receive an occurrence suffix rather than an array-position key.
+    expect(CARD).toContain('const figureOccurrences = new Map<string, number>();');
+    expect(CARD).toContain('const keyedFigures = answer.figures.map((figure) => {');
+    expect(CARD).toContain('{keyedFigures.map(({ figure, key }) => (');
+    expect(CARD).toContain('<div className="answer-stat" key={key}>');
+    expect(CARD).not.toContain('key={`${position}-');
     expect(CARD).not.toMatch(/answer\.figures\.(slice|sort|filter)\(/);
   });
 });
 
-describe('a delta claims a direction only when its own text does', () => {
+describe('stat comparisons remain neutral and recoverable', () => {
   it('keeps comparison text neutral and verbatim in the stat context', () => {
-    expect(CARD).toContain('<span className="answer-stat-context">{figure.comparison}</span>');
+    // The `title` is the same string again and not a second reading of it: the rail
+    // clips this line to one row, and a comparison naming a window and a baseline
+    // ellipsised away the thing the figure is being compared against.
+    expect(CARD).toMatch(
+      /<span className="answer-stat-context" title=\{figure\.comparison\}>\s*\{figure\.comparison\}\s*<\/span>/
+    );
     expect(CARD).not.toMatch(/comparison\.(replace|slice|substring)\(/);
-  });
-
-  it('is the neutral grey until then', () => {
-    // `comparison` is free text: "vs. the previous window" reports no direction
-    // at all and used to arrive green, on the strength of not beginning with a
-    // hyphen.
-    expect(ruleFor(BODY_CSS, '.bar-row em {')).toContain('color: var(--ast-text-secondary)');
-    // The muted families rather than the signal ones. A delta is a reading, not
-    // an alarm, and DuBois green #277C43 beside DuBois red #C82D4C turns a
-    // column of them into a scoreboard.
-    expect(ruleFor(BODY_CSS, '.bar-row em.positive {')).toContain('color: var(--ast-pos-text)');
-    expect(ruleFor(BODY_CSS, '.bar-row em.negative {')).toContain('color: var(--ast-neg-text)');
   });
 
   it('leaves the sign in the text, so the direction is never colour alone', () => {
@@ -703,7 +390,12 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     // Scoped past the head: the boundary's failure notice is a paragraph, and it
     // is the one piece of prose in this file that says something the reader
     // cannot see for themselves.
-    expect(prose).toContain('The rest of this answer is unaffected.');
+    // It now points at where the figures went rather than reassuring the reader
+    // about the rest of the card. A panel that will not draw took the evidence with
+    // it, and the card unfolds the Markdown rows when this fires, so the sentence
+    // says where to look. "The rest of this answer is unaffected" was true and
+    // useless: the reader wanted the numbers, not the paragraph above them.
+    expect(prose).toContain('Its figures are in the rows below.');
     // No instruction anywhere in the panel, under any wording.
     expect(prose).not.toMatch(/\b(hover|drag|zoom|click|scroll|pinch|tap)\b/i);
     // The other side: the rule that sized that description. It styled nothing
@@ -744,10 +436,10 @@ describe('the chart panel is a panel on this card, not a second page', () => {
 
   it('loses one chart rather than the answer around it', () => {
     expect(CHARTS).toContain('static getDerivedStateFromError()');
-    expect(CHARTS).toContain('<ChartBoundary>');
+    expect(CHARTS).toContain('<ChartBoundary onFailure={onFailure}>');
     // Inside the map, so the boundary is per panel: one boundary around the
     // list would take every chart down with the first one that threw.
-    expect(CHARTS.indexOf('<ChartBoundary>')).toBeLessThan(CHARTS.indexOf('function AnswerCharts'));
+    expect(CHARTS.indexOf('<ChartBoundary')).toBeLessThan(CHARTS.indexOf('function AnswerCharts'));
   });
 
   it('reserves the mono face for what a reader compares character by character', () => {
@@ -761,9 +453,11 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     // The shared source-name recipe also reaches derivation rows; pin the
     // recipe rather than the one seating that opts into it.
     expect(ruleFor(BODY_CSS, '.source-name-pill {')).toContain('var(--font-mono)');
-    // The header's facts are a sentence about the list, not something to be
-    // compared, and mono on them would make the count read as data.
-    expect(ruleFor(BODY_CSS, '.sources-module-facts {')).not.toContain('font-family');
+    // And the other half: the label beside a derivation value is a word that is
+    // the same under every answer, not something to be compared, so mono on it
+    // would make prose read as data. This replaces the same claim about the
+    // retired Sources card header's fact count.
+    expect(ruleFor(BODY_CSS, '.derivation-label {')).not.toContain('font-family');
   });
 
   it('adds no series colour of its own, and neither does the component that mounts it', () => {
@@ -921,23 +615,9 @@ describe('the card holds text it did not write', () => {
     const rule = ruleFor(BODY_CSS, '.answer-card p,');
     expect(rule).toContain('overflow-wrap: anywhere');
     expect(rule).toContain('min-width: 0');
-    for (const selector of ['.answer-prose', '.bar-row > span', '.keep-in-mind']) {
+    for (const selector of ['.answer-prose', '.keep-in-mind', '.dag-node']) {
       expect(BODY_CSS, `${selector} is in the wrapping list`).toContain(`\n${selector},`);
     }
-  });
-
-  it('keeps the source rows out of that list, because they ellipsise instead', () => {
-    // The one place in the card where a long name is not allowed to break. A
-    // three-part Unity Catalog name is longer than the column at most widths,
-    // and wrapping it put half an identifier on a line of its own directly above
-    // the next table's -- two names, three lines, no way to tell where one
-    // ended. The row is one line with an ellipsis and the whole name in its
-    // tooltip, so nothing is lost by not wrapping it.
-    expect(BODY_CSS).not.toContain('\n.sources-row-name,');
-    const rule = ruleFor(BODY_CSS, '.sources-row-name {');
-    expect(rule).toContain('white-space: nowrap');
-    expect(rule).toContain('overflow: hidden');
-    expect(rule).toContain('text-overflow: ellipsis');
   });
 
   it('wraps the fallback sentence in one child, because the alert slot is a grid', () => {
@@ -948,8 +628,11 @@ describe('the card holds text it did not write', () => {
     // alert-layout.test.ts removed the app's `display: block` pin on that slot
     // and recorded the call-site wrapping as follow-up work. This is that work,
     // at the last call site still exposed to it.
-    const alert = CARD.slice(CARD.indexOf('<Alert variant="destructive">'), CARD.indexOf('<AnswerProse'));
-    const description = alert.slice(alert.indexOf('<AlertDescription>'));
+    // Bounded by the alert's own closing tag rather than by the first `<AnswerProse`
+    // after it: the evidence tables are now built into a variable above the return,
+    // so that landmark moved above this alert and the slice came back empty.
+    const alert = CARD.slice(CARD.indexOf('<Alert variant="destructive">'));
+    const description = alert.slice(alert.indexOf('<AlertDescription>'), alert.indexOf('</Alert>'));
     expect(description.indexOf('<p>')).toBeLessThan(description.indexOf('ANSWER_FALLBACK_NOTICES[fallback].headline'));
     expect(description).toMatch(/<\/p>\s*<\/AlertDescription>/);
   });
@@ -967,13 +650,9 @@ describe('the card holds text it did not write', () => {
   });
 
   it('keeps sources as one compact line rather than a nested card', () => {
-    // The deliberate reversal. The strip was a washed caption under the figures,
-    // sized to be skimmed past; the module is the card an answer's provenance
-    // and its qualifications both live on, so it takes a border and a radius and
-    // clips its head and footer fills to them. A wash alone cannot hold three
-    // zones -- head, rows, amber footer -- without them reading as three panels
-    // that happen to be adjacent, which is precisely the arrangement the reader
-    // stopped noticing the caveats in.
+    // The deliberate reversal: the old bordered card had a head, ruled source
+    // rows and a derivation strip. Provenance now reads as one wrapping sentence;
+    // caveats keep their own compact surface immediately after it.
     const rule = ruleFor(BODY_CSS, '.sources-module {');
     expect(rule).toContain('min-width: 0');
     expect(readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8')).toContain(
@@ -983,15 +662,14 @@ describe('the card holds text it did not write', () => {
   });
 
   it('places each recorded role after its source name', () => {
-    // `.sources-chip` used to declare its own size, weight, radius, padding and
-    // then a fill and a text colour per tone -- one of twenty-one independently
-    // written chip recipes in this app, which disagreed on radius, label size
-    // and whether a chip has a border at all. It now carries `.ast-pill` and one
-    // family class, and the only things left in its own rule are the two facts
-    // the shared recipe cannot know: that the name beside it must not squeeze it
-    // and that its label must not wrap.
+    // The retired source rows carried a separate role chip. In the compact line,
+    // the role follows its source in words and the source-name colour carries the
+    // same family distinction without introducing another chip recipe.
     const module = readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8');
-    expect(module).toContain('<span className="source-line-role">({row.chip})</span>');
+    // `title` carries what the role MEANS for the numbers -- "Its data is not in the
+    // numbers shown" -- which had a line of its own on the retired Sources card and
+    // no seating at all once provenance became one compact line.
+    expect(module).toContain('<span className="source-line-role" title={row.note}>({row.chip})</span>');
     expect(ruleFor(BODY_CSS, '.source-line-name,')).toContain('font-family: var(--font-mono)');
     expect(ruleFor(BODY_CSS, '.source-line-name,')).toContain('color: var(--ast-pos-text)');
   });
@@ -1079,6 +757,6 @@ describe('the two cards do not reach past the token block', () => {
     // import order. A partial dropped from that list would leave every claim
     // above passing and none of the rules loaded.
     expect(STYLESHEET).toContain('.provenance-chip {');
-    expect(STYLESHEET).toContain('.bar-row {');
+    expect(STYLESHEET).toContain('.answer-stat-rail {');
   });
 });

@@ -454,8 +454,16 @@ describe('the daylight list is the whole run, without a star in it', () => {
      * only text there is.
      */
     const sentence = 'Step 06 · Queried governed data';
-    expect(railOf(inFlight, 5, 12_000)).toContain(`<p class="sr-only" aria-live="polite">${sentence}</p>`);
-    expect(bandOf(inFlight, 5, 12_000)).toContain(`<span class="ast-sky-status-text">${sentence}</span>`);
+    // AND THE FIGURE, which is the half the list's live region used to leave out.
+    // The row a light reader can see carries the elapsed, and the band's own live
+    // region announces it, so a list that announced only the sentence told a screen
+    // reader less than its own page said and less than the dark view says.
+    const elapsed = '12s';
+    const rail = railOf(inFlight, 5, 12_000);
+    const band = bandOf(inFlight, 5, 12_000);
+    expect(rail).toContain(`<p class="sr-only" aria-live="polite">${sentence} · ${elapsed}</p>`);
+    expect(band).toContain(`<span class="ast-sky-status-text">${sentence}</span>`);
+    expect(band).toContain(`>${elapsed}</span>`);
   });
 
   it('leaves the dark band exactly as it was', () => {

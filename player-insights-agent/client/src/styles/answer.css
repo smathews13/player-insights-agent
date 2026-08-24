@@ -716,8 +716,7 @@ ol.answer-list {
   /* The card's content slot sets `overflow-wrap: anywhere`, which is right for a
      table name in a sentence and wrong for a number: the place it chose to break
      was inside the figure, and "$1,381" over "16" is a number a reader has to
-     reassemble before they can believe it. Same exception, same reason, as
-     `.bar-row b` in answer-body.css. */
+     reassemble before they can believe it. */
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: normal;

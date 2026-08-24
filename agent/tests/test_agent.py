@@ -23,6 +23,7 @@ import failures
 from agent import (
     ATTACHMENT_BEGIN,
     ATTACHMENT_END,
+    MAX_FIGURES,
     MAX_STAGE_CHARS,
     MAX_TOOL_CALLS,
     MAX_TOOL_STEPS,
@@ -3258,9 +3259,42 @@ def test_tabular_content_is_one_complete_evidence_table():
 
 
 def test_headline_figures_are_bounded_without_fabricating_them():
-    assert "3-4 most decision-useful headline statistics" in SYNTHESIS_INSTRUCTIONS
+    # "at most {MAX_FIGURES}" and not the literal "3-4", because the cap is an
+    # operator setting and the phrase is what `_synthesise` retunes. See MAX_FIGURES.
+    assert f"at most {MAX_FIGURES} of the most decision-useful" in SYNTHESIS_INSTRUCTIONS
     assert "quote values already present in the assessed package" in SYNTHESIS_INSTRUCTIONS
     assert "Do not restate the same number in two prose sentences" in SYNTHESIS_INSTRUCTIONS
+
+
+def test_the_figure_cap_the_operator_set_is_the_cap_the_model_is_given():
+    """One cap, not two.
+
+    `maxFigures` moves between 0 and 12, and the runtime contract already reports the
+    chosen number. With the count also spelt out in the instructions, an operator who
+    asked for eight got a model still told three or four, and assembly truncated to
+    whichever was smaller -- the operator's setting losing to a sentence.
+    """
+
+    assert f"at most {MAX_FIGURES}" in SYNTHESIS_INSTRUCTIONS
+    retuned = SYNTHESIS_INSTRUCTIONS.replace(f"at most {MAX_FIGURES}", "at most 8")
+    # Both the key contract and the guidance bullet, so neither can drift alone.
+    assert retuned.count("at most 8") == 2
+    assert f"at most {MAX_FIGURES}" not in retuned
+
+
+def test_a_figure_value_is_a_number_and_never_a_bar_width():
+    """The compact rail has no bars in it.
+
+    The instructions described `value` as "a number from 0-100 used as a relative bar
+    width" after the bar breakdown was removed. The card prints `display` and falls
+    back to `value`, so a figure that arrived without a display string printed that
+    0-100 width as the headline statistic -- a layout measurement read as evidence.
+    """
+
+    assert "0-100" not in SYNTHESIS_INSTRUCTIONS
+    assert "bar width" not in SYNTHESIS_INSTRUCTIONS
+    assert "value is the figure's own number" in SYNTHESIS_INSTRUCTIONS
+    assert "neither is a layout measurement" in SYNTHESIS_INSTRUCTIONS
 
 
 def test_the_figures_and_the_names_are_asked_to_be_bolded():

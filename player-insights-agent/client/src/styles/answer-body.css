@@ -82,7 +82,6 @@
    footer is wide. The source rows are deliberately absent from this list: they
    ellipsise on one line instead, and carry the whole name in a tooltip. */
 .keep-in-mind,
-.bar-row > span,
 .dag-node,
 .dag-node strong,
 .metric-row span,
@@ -108,298 +107,22 @@
   line-height: 1.5;
 }
 /*
- * The result breakdown, as the four columns the design gives it: label, track,
- * value, delta. The value and the delta have columns of their own, which is the
- * rule that matters here — a figure is never printed on top of its own fill,
- * where it would be unreadable on the half of the rows whose bar reaches it.
- *
- * THREE OF THE FOUR TRACKS WERE FIXED PIXEL WIDTHS, AND THE AGENT DOES NOT
- * WRITE TO A FIXED WIDTH. `label` was 150px, `display` 70px and `comparison`
- * 60px, chosen against a mock whose figures were "Weekly actives", "1.2M" and
- * "+4.1%". A live run answered a data-inventory question with a label reading
- * "Most granular: one row per transaction with SKU detail", a display of "4
- * spend fields" and a sentence in the comparison — and 60px of column is
- * narrower than the word "transaction", so `overflow-wrap: anywhere` (which is
- * declared above for the opposite case, a table name longer than its column)
- * did what it is told and split the word across two lines. The reader got
- * "transacti / on with / SKU / detail" in a right-aligned ribbon against the
- * panel edge, with the display column's own wrapped text abutting it. Nothing
- * about it was legible and nothing about it was a bug in the agent.
- *
- * So no track is fixed any more. Each has a floor and a share of whatever the
- * column has beyond it. Three things about those numbers:
- *
- *   - Every floor that receives text clears the longest ordinary English word
- *     it can be handed, which at 13px is around 70px. That is what keeps
- *     `anywhere` out of reach, and keeping it out of reach is what stops the
- *     mid-word split — the rule above is not wrong, it was being asked a
- *     question no answer to which was readable.
- *   - The floors sum to 428px with the gaps, and the narrowest this row is ever
- *     laid out in is about 433px: the transcript column just above 800px, where
- *     the rail is 220px and the inspector has gone. Raising a floor spends that
- *     25px of headroom and buys a horizontal scrollbar on a desktop, which is
- *     the one outcome worse than the crowding.
- *   - The track is the column capped in pixels rather than given an `fr`, and it
- *     is the one whose floor is a bar's minimum rather than a word's. A
- *     proportion has no reason to grow with the window, and on a wide screen an
- *     `fr` here took the room the two prose columns needed.
- *
- * THE SHARES WERE THEN REBALANCED, which is a separate change from the floors
- * and was reported separately: the label was taking 2.4 of the 4.8 shares and
- * the description on the right 1.6, so the bars started a third of the way
- * across the panel and the description wrapped where the label had room to
- * spare. The label is the shortest text in the row on nearly every answer.
- *
- * AND IT WAS REPORTED A THIRD TIME, still wrapping, which is the numbers below.
- * The two changes before this one were each argued from the stylesheet and
- * neither of them resolved a track: at 1.7 / 0.9 / 2.2 against an 88px bar the
- * description came out at 182px on a 1280px window, because the value column's
- * 104px floor is above its share there and takes the difference out of the pool
- * before the description sees it. 182px is under two words of the sentences the
- * agent actually writes, so it wrapped, exactly as reported, while every
- * assertion about the shares passed. What was missing was the arithmetic, and
- * `answer-geometry.test.ts` now runs the track-sizing algorithm at three column
- * widths rather than reading the shares and calling them a width -- change any
- * number on this line and read that test's failure, not this comment.
- *
- * AND A FOURTH TIME, WHICH IS WHY THE ROW NOW STOPS COMPETING FOR WIDTH IT DOES
- * NOT HAVE. Every fix before this one redivided the row: the shares moved, the
- * bar's cap came down, the floors were retuned, and each of them bought the
- * description thirty or forty pixels on a wide window and nothing at all on a
- * narrow one. That was the mistake, and it is an arithmetic mistake rather than
- * a taste one. FOUR TRACKS DO NOT FIT IN THIS ROW AT ITS NARROW END. The floors
- * alone are 386px and the gaps another 42, against a row that is about 433px
- * with both rails up -- so at that width the description is AT its 150px floor
- * no matter what share it is given, and 150px is one word of a sentence. No
- * redivision of 433px puts a readable measure in the fourth column, because
- * there is no readable measure left in it to find.
- *
- * So below the width where the four-track form can seat a sentence, the row
- * becomes two lines: label, bar and value across the top, the description
- * spanning underneath with the whole row to itself. That is the box-model fix
- * the three tuning passes were standing in for. The threshold is not a taste
- * number either -- it is the container width at which the tracks below resolve
- * the description to 260px, which is about forty characters at 13px and the
- * point below which the agent's sentences start breaking mid-clause.
- * `answer-geometry.test.ts` recomputes it from these very tracks rather than
- * restating it, so moving a share moves the threshold's meaning and the test
- * says so.
- *
- * The shares are rebalanced once more for the wide form, on the same reasoning
- * as before and now with somewhere for the narrow case to go: 1.1 for the label,
- * which is the shortest text in the row on nearly every answer; 0.7 for the
- * value, which is a formatted figure and not prose; 3.2 of the 5.0 for the
- * description. The floors are unchanged and still sum inside the 433px bound,
- * which is the one number on these lines that may not be spent -- past it a
- * desktop grows a horizontal scrollbar, which is worse than the crowding.
- */
-.bar-row {
-  display: grid;
-  grid-template-columns: minmax(104px, 1.1fr) minmax(36px, 64px) minmax(96px, 0.7fr) minmax(150px, 3.2fr);
-  align-items: center;
-  /* The gutter, and the vertical rhythm, from the app's own table recipe in
-     benchmark.css: 8px above and below, 16px between cells. The column gap is
-     14px rather than 16 for the same reason the floors are low — the two extra
-     pixels per gutter are worth more to the prose than to the gutter. */
-  gap: 6px 14px;
-  padding-block: 8px;
-  font-size: var(--ast-fs-13);
-}
-/* A rule between rows rather than a gap: what is being read here is a table,
-   and the figures line up down their columns whether or not the label beside
-   them wrapped to three lines. Between rows only, so the block does not draw
-   an edge against the card padding above and below it. */
-.bar-row + .bar-row {
-  border-top: 1px solid var(--ast-hairline);
-}
-.bar-row > span {
-  line-height: 1.35;
-  color: var(--ast-text-long);
-}
-/* The track. A bar chart's empty half is not data, so it is the hairline grey
-   rather than the darker grey it used to be — the fill is what should be read.
-   8px tall: this is a proportion under a number, not a chart in its own right,
-   and at the 28px it used to be the breakdown out-weighed the plot above it. */
-.bar-row > div {
-  height: 8px;
-  background: var(--ast-hairline);
-  border-radius: 2px;
-  overflow: hidden;
-}
-/* Nothing is printed on this fill (the value has its own column), so it takes the
-   full-strength series colour, which is the action blue now: 3.20:1 against the
-   track it sits in, past the 3:1 a non-text shape has to clear. */
-.bar-row i {
-  display: block;
-  height: 100%;
-  min-width: 2px;
-  background: var(--ast-blue);
-  border-radius: 2px;
-}
-/* The value gets its own column so it is never printed on top of the fill.
-   Right-aligned and tabular because it is read down the column, which is the
-   same rule .bench-num states for the results table. It keeps that alignment
-   where the delta below it loses it: `display` is a figure the agent formatted,
-   and the worst it arrives as is a figure with a unit after it.
-
-   `overflow-wrap: normal` is the exception to the rule declared at the top of
-   this file, and it is deliberate. `anywhere` is right for the label, which is
-   a sentence the agent wrote and which has to break somewhere; it is wrong for
-   a figure, because the place it chose to break was inside the number. A
-   reader was shown "1.81% (~2,833" on one line and "rows)" on the next, with
-   the thousands separator doing the work of a line break. A number that breaks
-   is a number that has to be re-read to be believed, so this column breaks at
-   spaces or not at all, and the room to do that is the widened track above.
-
-   THE FACE COMES FROM `.ast-num`, WHICH THE CARD PUTS ON THIS ELEMENT, and is
-   not declared here: the rule is about where a number sits rather than about
-   what element holds it, so it belongs on the markup where a reviewer can see
-   which figures are columnar. What this rule keeps is the alignment and the
-   refusal to break, both of which are this column's alone. `tabular-nums` stays
-   as belt and braces for a future DM Sans that carries the feature; in the file
-   this app ships it switches on nothing, which is why the class exists. */
-.bar-row b {
-  font-size: var(--ast-fs-13);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  line-height: 1.35;
-  overflow-wrap: normal;
-  word-break: normal;
-}
-/*
- * The comparison. Neutral unless the string itself opens with a sign, because
- * green and red here are a claim about direction and `comparison` is free text
- * from the agent: "vs. the previous window" has no direction to report. The sign
- * stays in the text, so the direction never rests on the colour alone. See
- * `comparisonDirection` in AnswerCard.tsx.
- *
- * Left-aligned, which is the change: right alignment is for a column read down
- * as digits, and this column is read across as a sentence. "vs. the previous
- * window" set flush right in the last track was a paragraph hung off the panel
- * edge, and the value beside it — also flush right — had nowhere to end but
- * against the start of it. Tabular numerals stay, for the deltas that are one.
- */
-.bar-row em {
-  font-style: normal;
-  color: var(--ast-text-secondary);
-  font-size: var(--ast-fs-13);
-  font-variant-numeric: tabular-nums;
-  text-align: left;
-  line-height: 1.35;
-  /* Inherited `anywhere` from the card's content slot, refused for the same
-     reason as the value above: this column carries "(~2,833 rows)" as often as
-     it carries a sentence, and a figure split down the middle is worse than a
-     column one word narrower. */
-  overflow-wrap: normal;
-  word-break: normal;
-}
-/* The muted families, not the signal ones. DuBois green #277C43 and red #C82D4C
-   are alarm colours; a delta is a reading rather than an alarm, and a column of
-   them at full strength turns the breakdown into a scoreboard. The sign is in
-   the text either way, so nothing here is the only place a direction is said. */
-.bar-row em.positive {
-  color: var(--ast-pos-text);
-}
-.bar-row em.negative {
-  color: var(--ast-neg-text);
-}
-/*
- * The narrow form: three across, then the sentence on a line of its own.
- *
- * The description takes the whole row rather than a quarter of it, which is
- * between two and three times the measure the four-track form could give it
- * here. The three that stay on the first line are the ones that read as a table
- * -- a name, a proportion, a figure -- and they keep their columns, so the
- * figures still line up down the block exactly as they do in the wide form.
- *
- * `text-align: left` on the delta is restated because the wide form's rule sets
- * it on a track that no longer exists in this one; without it the sentence would
- * inherit the alignment of a column it is not in.
- *
- * Last in the block, after every rule it overrides, so the cascade does the
- * overriding rather than specificity -- and so a helper reading "the first rule
- * whose selector starts a line" finds the wide form, which is the one every
- * other claim in this file is about.
- */
-@container breakdown (max-width: 566px) {
-  .bar-row {
-    grid-template-columns: minmax(96px, 1fr) minmax(36px, 64px) auto;
-  }
-  .bar-row em {
-    grid-column: 1 / -1;
-    text-align: left;
-  }
-}
-/*
  * The Sources module: the tables an answer read, then what to keep in mind
  * about the numbers they produced.
  *
- * A bordered card rather than the wash the source strip took, and that is the
- * point of the change rather than a restyle. The strip was a caption on the
- * figures; this is a section of the answer holding a list and a footer, and the
- * footer is the caveats block, which spent months on the neutral wash reading
- * as one more panel in a column of panels and being missed.
+ * ONE WRAPPING LINE, NOT A CARD. It was a bordered card of ruled rows — a head
+ * with a product mark and a count, one row per source with its chip and its
+ * link, a derivation strip and an amber caveats footer — and the rules for all
+ * of that were still in this file after the markup became `.source-line`. They
+ * are gone; what is left below is the line, the name pill and the derivation
+ * facts that line actually holds.
  *
- * Rows are ruled, not gapped. What is being read is a table — one line per
- * source, the chips lining up down their own column — and a rule is what says
- * that the row above and the row below are the same kind of thing.
+ * The pill families stay because the pill is what survived the card: a source's
+ * role is carried by the colour of its own name rather than by a chip in a
+ * column, since there is no column any more to line chips up in.
  */
 .sources-module {
   min-width: 0;
-}
-/* The header band. The Unity Catalog mark, the word Sources, and how many
-   tables -- and nothing else. It used to carry the governance claim as well,
-   which was the strip's per-row line moved into the header rather than deleted;
-   see `sourceFacts` for why it stopped. */
-.sources-module-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  padding: 10px 16px;
-  /* The hairline under it is the whole of the separation now. The #F7F7F7 fill
-     that used to be here is a grey band, which is the one thing this card was
-     asked to stop having. */
-  background: transparent;
-  border-bottom: 1px solid var(--ast-hairline);
-}
-/* Geometry only. The mark's own file carries the ink, which is what makes it the
-   published drawing rather than a stained copy of one -- and the reason no
-   `color` is set here even though this rule could reach it. */
-.sources-module-head > .brand-icon {
-  flex: none;
-}
-.sources-module-head > strong {
-  font-size: var(--ast-fs-13);
-  font-weight: 700;
-}
-.sources-module-facts {
-  font-size: var(--ast-fs-12);
-  color: var(--ast-text-secondary);
-}
-.sources-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-}
-.sources-row + .sources-row {
-  border-top: 1px solid var(--ast-hairline);
-}
-/*
- * The name. Mono, because it is an identifier a reader compares character by
- * character against the one in the prose above, and one line, because a
- * three-part Unity Catalog name is longer than this column at most widths and
- * wrapping it put half an identifier on a line of its own. The whole name is in
- * the row's `title`, so the ellipsis costs nothing that cannot be recovered.
- */
-.sources-row-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .source-name-pill {
   font-family: var(--font-mono);
@@ -438,23 +161,6 @@
 .source-name-pill[data-tone='neutral'] .source-name-short {
   background: var(--ast-neutral-fill);
 }
-/* The row's one qualifier. Never two: a row wearing two chips is a row a reader
-   cannot answer their own question from.
- *
- * The colours and the box are `.ast-pill` and its family class, which the
- * component sets from the row's role. All this adds is the two things the shared
- * recipe cannot know: that the chip must not be squeezed by the name beside it,
- * and that its label must not wrap. Anything else declared here would be a
- * second, quieter chip recipe of exactly the kind the one recipe replaced.
- */
-.sources-chip {
-  flex: none;
-  white-space: nowrap;
-}
-.sources-row > a {
-  flex: none;
-  margin-left: auto;
-}
 /*
  * The provenance line: what a statement measured, over what, with what filter.
  *
@@ -464,15 +170,6 @@
  * Wraps rather than scrolls, because a filter is as long as the question made it
  * and a horizontally scrolled fact is one nobody reads.
  */
-.sources-derivation {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--ast-hairline);
-  font-size: var(--ast-fs-12);
-}
 .derivation-fact {
   display: inline-flex;
   align-items: baseline;
@@ -815,6 +512,32 @@
 .answer-evidence > .answer-prose {
   display: grid;
   gap: 14px;
+  min-width: 0;
+}
+/*
+ * The control that unfolds the rows behind a charted answer.
+ *
+ * `justify-self: start` because the evidence section is a grid and a button in a
+ * grid cell stretches: unpinned, a quiet disclosure became a full-width bar under
+ * the panel, which reads as a primary action rather than as a footnote to one.
+ *
+ * Sized and coloured down to the caption scale on purpose. The charts are the
+ * evidence; this offers the same numbers for a reader who wants the rows, and a
+ * control that competed with the panel above it would be arguing the opposite.
+ */
+.answer-evidence-rows {
+  justify-self: start;
+  height: auto;
+  padding: 2px 6px;
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+}
+/* The rows themselves, once open, take the section's own spacing rather than
+   sitting flush against the control that revealed them. */
+.answer-evidence [data-slot='collapsible-content'] > .answer-prose {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
   min-width: 0;
 }
 

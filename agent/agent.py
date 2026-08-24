@@ -41,6 +41,7 @@ from charts import (
     MAX_CHARTS,
     NEW_PLOT_TOOL,
     PLOT_INSTRUCTIONS,
+    TWO_PANEL_RULE,
     ChartError,
     EmptyChartError,
     new_plot,
@@ -236,13 +237,26 @@ SYNTHESIS_PROVENANCE_RULE = (
 # exception is stated next to the range so layout pressure never becomes invented evidence.
 # ---------------------------------------------------------------------------
 
+# The compiled default number of figures, written into the instructions below as
+# "at most {N}" so that one `str.replace` can retune it per run.
+#
+# THE SAME SHAPE AS `MAX_CHARTS` IN charts.py, AND FOR THE SAME REASON. An operator
+# can move the figure cap between 0 and 12 (`maxFigures` in runtime_settings.py), and
+# the runtime contract that reaches the model already reports the chosen cap. With
+# the count spelt out in prose here, those two disagreed: the operator asked for
+# eight, the instructions still said three or four, and assembly then truncated to
+# whichever was smaller. A model given two caps optimises for the wrong one.
+MAX_FIGURES = 4
+
 SYNTHESIS_INSTRUCTIONS = f"""You are Astrolabe, the final analyst voice.
 Return one valid JSON object and nothing around it: no code fence, no commentary.
 Keys: takeaway (one decision-oriented sentence), narrative (plain-language interpretation,
 written as Markdown), content (the concrete positive findings returned by the assessed
-data package, written as Markdown), figures (3 or 4 objects when that many distinct headline
-facts exist, otherwise every useful fact available, with exactly these keys: label, value,
-display, comparison; value is a number from 0-100 used as a relative bar width),
+data package, written as Markdown), figures (at most {MAX_FIGURES} objects, that many only
+when that many distinct headline facts exist, otherwise every useful fact available, with
+exactly these keys: label, value, display, comparison; value is the figure's own number and
+display is that number formatted for reading, so the card prints display and falls back to
+value -- neither is a layout measurement and neither may be scaled to one),
 document_snippets (an array of objects with exactly filename, quote, supports),
 and caveats (array of concise limitations).
 
@@ -291,8 +305,8 @@ How to write content and figures:
   result into several small tables.
 - For a non-tabular result, content may be concise prose or a list. Never manufacture a
   table merely to fill the card.
-- Use figures for the 3-4 most decision-useful headline statistics when available.
-  Their display strings must quote values already present in the assessed package.
+- Use figures for at most {MAX_FIGURES} of the most decision-useful headline statistics when
+  available. Their display strings must quote values already present in the assessed package.
 - State each baseline, peak, and delta once in the combined takeaway, narrative, content,
   and figures unless it is intentionally repeated as a compact figure that lets the
   reader scan the evidence. Do not restate the same number in two prose sentences.
@@ -3706,7 +3720,13 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             )
         _, client = self._runtime()
         log.calls += 1
-        system = knowledge.add_packaged_knowledge(SYNTHESIS_INSTRUCTIONS, PACKAGED_KNOWLEDGE)
+        # Retuned to the operator's figure cap before the knowledge is added, exactly
+        # as `new_plot` retunes the chart cap. See MAX_FIGURES.
+        max_figures = runtime_settings.current().answer.max_figures
+        instructions = SYNTHESIS_INSTRUCTIONS.replace(
+            f"at most {MAX_FIGURES}", f"at most {max_figures}"
+        )
+        system = knowledge.add_packaged_knowledge(instructions, PACKAGED_KNOWLEDGE)
         runtime_prompt = runtime_settings.prompt_fragment()
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"
@@ -3883,6 +3903,10 @@ Statements run, for column names and grain:
         plot_instructions = PLOT_INSTRUCTIONS.replace(
             f"at most {MAX_CHARTS}", f"at most {max_charts}"
         )
+        if max_charts < 2:
+            # A cap of one cannot hold a complementary pair, and the brief asking for
+            # one anyway spends the single panel on half of it. See TWO_PANEL_RULE.
+            plot_instructions = plot_instructions.replace(f"{TWO_PANEL_RULE}\n", "")
         if chart_types == "bar":
             plot_instructions += "\n\nRuntime chart contract: produce bar charts only."
         elif chart_types == "bar-line":

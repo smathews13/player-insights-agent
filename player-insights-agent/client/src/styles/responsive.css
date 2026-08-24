@@ -323,28 +323,6 @@
     align-items: flex-start;
     flex-direction: column;
   }
-  /* Label and value on the first line, track and comparison under them. The row's
-     own padding and the hairline between rows are the wide layout's and are not
-     restated: they used to be a `padding-bottom` and a `border-bottom` declared
-     only here, which now double the ones answer-body.css draws for every width —
-     two hairlines between every pair of rows, and eighteen pixels of padding
-     under each one where the block asks for eight. */
-  .bar-row {
-    grid-template-columns: 1fr auto;
-    gap: 4px 12px;
-  }
-  .bar-row > span {
-    font-size: 12.5px;
-    font-weight: 600;
-  }
-  .bar-row > div {
-    grid-column: 1 / -1;
-    order: 3;
-  }
-  .bar-row em {
-    grid-column: 1 / -1;
-    order: 4;
-  }
   /*
    * The login gate's scope rows go back to one column.
    *

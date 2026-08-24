@@ -28,6 +28,7 @@ from charts import (
     TEAL,
     TICK_LINE_CHARS,
     TICK_LINE_LIMIT,
+    TWO_PANEL_RULE,
     ChartError,
     EmptyChartError,
     contrast_on_white,
@@ -893,6 +894,25 @@ class TestRankedBarsAreOrderedByValue:
         assert "one bar chart for the recent window" in PLOT_INSTRUCTIONS
         assert "never infer an event boundary or manufacture a subset" in PLOT_INSTRUCTIONS
         assert "must answer a distinct evidence question" in PLOT_INSTRUCTIONS
+
+    def test_the_pair_rule_can_be_lifted_out_for_a_one_chart_run(self):
+        """An operator can cap charts at one, and the pair rule then contradicts the cap.
+
+        Asked for a complementary second panel it is not allowed to draw, the model
+        spends its single panel on half of a pair -- a recent window with no series
+        behind it. The rule is a named constant so `_new_plot` can drop the whole of
+        it, both halves, rather than leave the "distinct evidence question" sentence
+        pointing at a panel that no longer exists.
+        """
+
+        assert TWO_PANEL_RULE in PLOT_INSTRUCTIONS
+        capped = PLOT_INSTRUCTIONS.replace(f"{TWO_PANEL_RULE}\n", "")
+        assert "complementary" not in capped
+        assert "distinct evidence question" not in capped
+        # Everything else survives, and the bullet list does not gain a blank line.
+        assert "Plot only values present in the package" in capped
+        assert "sorted for you" in capped
+        assert "\n\n-" not in capped
 
 
 class TestTheLayoutIsSharedRatherThanPerChart:

@@ -389,9 +389,8 @@ function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean 
        * Scrolls in a wrapper rather than wrapping its cells. Six columns of
        * daily figures do not fit the transcript column at every width, and the
        * two ways out of that are a horizontal scrollbar or a table whose numbers
-       * wrap mid-figure. A figure that wraps has to be re-read to be believed
-       * (the argument `.bar-row b` makes in answer-body.css), so this one
-       * scrolls.
+       * wrap mid-figure. A figure that wraps has to be re-read to be believed,
+       * so this one scrolls.
        *
        * `data-wrap` is the same kind of statement as `data-align` and is here for
        * the same reason: CSS cannot select a column, and whether a column holds
@@ -414,16 +413,28 @@ function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean 
             ) : null}
             <tbody>
               {block.rows.map((row) => {
-                const role =
-                  row.start === story.baselineRowStart
-                    ? 'baseline'
-                    : row.start === story.peakRowStart
-                      ? 'peak'
-                      : undefined;
-                return (<tr data-story={role} key={row.start}>
+                /*
+                 * BOTH TAGS, NOT THE FIRST ONE THAT MATCHES.
+                 *
+                 * A series that only ever falls peaks on its opening row, so the
+                 * baseline row and the peak row are the same row. Chained, the
+                 * baseline branch won and the peak was never labelled at all -- on
+                 * exactly the tables where "this was the high point" is the finding.
+                 * `data-story` keeps the single role the row is tinted by; the tags
+                 * beside the date are what the reader is told.
+                 */
+                const tags = [
+                  row.start === story.baselineRowStart ? 'baseline' : '',
+                  row.start === story.peakRowStart ? 'peak' : '',
+                ].filter((tag) => tag);
+                return (<tr data-story={tags[0]} key={row.start}>
                   {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineNodes nodes={cell.children} />
-                      {column === 0 && role ? <span className="answer-table-story-tag">{role}</span> : null}
+                      {column === 0
+                        ? tags.map((tag) => (
+                            <span className="answer-table-story-tag" key={tag}>{tag}</span>
+                          ))
+                        : null}
                     </td>
                   ))}
                 </tr>);

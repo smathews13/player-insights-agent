@@ -95,6 +95,15 @@ export function AnswerCard({
    * hidden the panel from exactly the readers who asked for it.
    */
   const [showProcess, setShowProcess] = useState(true);
+  /**
+   * Whether the Markdown evidence rows are unfolded under this answer's charts.
+   *
+   * Shut, because the charts are the evidence when an answer has them. A chart
+   * that fails to draw opens it (see the evidence section below), and it stays a
+   * control the reader can shut again afterwards: a failed panel is a reason to
+   * show the numbers, not a reason to take the choice away.
+   */
+  const [showRows, setShowRows] = useState(false);
   // A degradation is not a caveat about the answer, it is a statement about
   // whether the answer is the answer. Separated so it can be shown above the
   // figures instead of below them in a list of five, see degraded-answer.ts.
@@ -113,7 +122,39 @@ export function AnswerCard({
   const hasTables = [answer.narrative, answer.content ?? ''].some((text) =>
     parseAnswerMarkdown(text).some((block) => block.kind === 'table')
   );
-  return (<Card className="answer-card" id={id}>
+  const evidenceTables = (
+    <>
+      <AnswerProse
+        text={answer.narrative}
+        sources={answer.sources}
+        columns={mentionedIdentifiers([answer.narrative])}
+        blocks="tables"
+      />
+      {answer.content ? (
+        <AnswerProse
+          text={answer.content}
+          sources={answer.sources}
+          columns={mentionedIdentifiers([answer.content])}
+          blocks="tables"
+        />
+      ) : null}
+    </>
+  );
+  /*
+   * A label is not an id: two measures can both be called "Current", and keying
+   * only on it makes React reconcile the second against the first. The content
+   * signature is stable if figures move, unlike an array position. Exact
+   * duplicates get an occurrence suffix so even a repeated object stays present.
+   */
+  const figureOccurrences = new Map<string, number>();
+  const keyedFigures = answer.figures.map((figure) => {
+    const signature = JSON.stringify([figure.label, figure.value, figure.display, figure.comparison]);
+    const occurrence = figureOccurrences.get(signature) ?? 0;
+    figureOccurrences.set(signature, occurrence + 1);
+    return { figure, key: `${signature}:${occurrence}` };
+  });
+  return (
+    <Card className="answer-card" id={id}>
       <CardHeader>
         <div className="answer-card-head">
           <div className="answer-card-identity">
@@ -121,13 +162,14 @@ export function AnswerCard({
               <AstrolabeMark size={18} ink="light" />
             </span>
             <div className="answer-card-badges flex flex-wrap items-center gap-1.5">
-                <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
-                  {badge.label}
+              <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
+                {badge.label}
+              </Badge>
+              {fallback && (
+                <Badge variant="destructive" className="provenance-chip" data-tone="stored">
+                  {ANSWER_FALLBACK_NOTICES[fallback].badge}
                 </Badge>
-                {fallback && (<Badge variant="destructive" className="provenance-chip" data-tone="stored">
-                    {ANSWER_FALLBACK_NOTICES[fallback].badge}
-                  </Badge>
-                )}
+              )}
             </div>
           </div>
           <CardTitle className="answer-takeaway">{answer.takeaway}</CardTitle>
@@ -137,7 +179,8 @@ export function AnswerCard({
         {/* First in the card, above the narrative and the figures, because it
             governs how every number below it should be read. Below them it was
             a footnote to a conclusion the reader had already drawn. */}
-        {fallback && (<Alert variant="destructive">
+        {fallback && (
+          <Alert variant="destructive">
             <CircleAlert />
             <AlertDescription>
               {/* One child, holding the whole sentence. AppKit lays the
@@ -154,8 +197,7 @@ export function AnswerCard({
                     for a stored demo conversation and for rows written before the
                     ask route stopped answering failures from the fixture, where
                     the headline above is the whole of what is known. */}
-                {degradedCaveats.length > 0 && (<EntityText text={degradedCaveats.join(' ')} sources={answer.sources} />
-                )}
+                {degradedCaveats.length > 0 && <EntityText text={degradedCaveats.join(' ')} sources={answer.sources} />}
               </p>
             </AlertDescription>
           </Alert>
@@ -180,43 +222,61 @@ export function AnswerCard({
           </div>
           {answer.figures.length > 0 ? (
             <aside className="answer-stat-rail" aria-label="Key figures">
-              {answer.figures.map((figure) => (
-                <div className="answer-stat" key={figure.label}>
+              {keyedFigures.map(({ figure, key }) => (
+                <div className="answer-stat" key={key}>
                   <span className="answer-stat-label">{figure.label}</span>
                   <b className="answer-stat-value ast-num">{figure.display ?? figure.value}</b>
-                  {figure.comparison ? <span className="answer-stat-context">{figure.comparison}</span> : null}
+                  {/* `title` because the rail clips this line to one row: a
+                      comparison naming a window and a baseline is longer than a
+                      quarter-width column, and ellipsised it stopped saying what
+                      the figure is being compared against. */}
+                  {figure.comparison ? (
+                    <span className="answer-stat-context" title={figure.comparison}>
+                      {figure.comparison}
+                    </span>
+                  ) : null}
                 </div>
               ))}
             </aside>
           ) : null}
         </div>
-        {(hasCharts || hasTables) ? (<section className="answer-evidence" aria-label={hasCharts ? 'Chart evidence' : 'Table evidence'}>
-          {hasCharts ? (
-            <AnswerCharts charts={answer.charts} />
-          ) : (
-            <>
-              <AnswerProse
-                text={answer.narrative}
-                sources={answer.sources}
-                columns={mentionedIdentifiers([answer.narrative])}
-                blocks="tables"
-              />
-              {answer.content ? (
-                <AnswerProse
-                  text={answer.content}
-                  sources={answer.sources}
-                  columns={mentionedIdentifiers([answer.content])}
-                  blocks="tables"
-                />
-              ) : null}
-            </>
-          )}
-        </section>) : null}
-        <SourcesModule
-          sources={answer.sources}
-          caveats={ordinaryCaveats}
-          derivation={answer.derivation}
-        />
+        {/* Charts XOR tables, which is the specification's rule and is about what
+            the reader is shown, not about what the answer is allowed to keep. One
+            representation of a set of numbers is evidence; the same numbers twice
+            is a reader checking a chart against a table instead of reading either.
+
+            So when this answer charted, the Markdown rows are FOLDED rather than
+            dropped. Two things made folding necessary instead of the plain `else`
+            this was:
+
+            1. A chart can fail to draw -- a chunk that 404s after a redeploy, a
+               spec Plotly refuses -- and the panel then said so into a card with
+               no figures anywhere in it. The evidence was gone and the answer
+               still read as answered. `chartsFailed` unfolds the rows.
+            2. A plot summarises. The two-panel rule pairs a full series with a
+               recent window, so the rows behind it can hold dates and values no
+               panel plots. A reader who wants those had nowhere to go.
+
+            Folded, so the card still reads as one piece of evidence. Reachable,
+            so nothing the agent measured is only in a picture. */}
+        {hasCharts || hasTables ? (
+          <section className="answer-evidence" aria-label={hasCharts ? 'Chart evidence' : 'Table evidence'}>
+            {hasCharts ? <AnswerCharts charts={answer.charts} onFailure={() => setShowRows(true)} /> : null}
+            {hasCharts && hasTables ? (
+              <Collapsible open={showRows} onOpenChange={setShowRows}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="answer-evidence-rows">
+                    {showRows ? 'Hide the rows' : 'Show the rows behind this'}
+                    <ChevronDown className={`transition-transform ${showRows ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>{evidenceTables}</CollapsibleContent>
+              </Collapsible>
+            ) : null}
+            {!hasCharts && hasTables ? evidenceTables : null}
+          </section>
+        ) : null}
+        <SourcesModule sources={answer.sources} caveats={ordinaryCaveats} derivation={answer.derivation} />
         {answer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
             <h3 className="answer-heading">Document footnotes</h3>
@@ -236,8 +296,8 @@ export function AnswerCard({
           <Alert variant="destructive">
             <CircleAlert />
             <AlertDescription>
-              Attached reports were used, but this answer includes no document footnotes or quoted
-              snippets. Verify its document-based claims against the attachments before using them.
+              Attached reports were used, but this answer includes no document footnotes or quoted snippets. Verify its
+              document-based claims against the attachments before using them.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -261,22 +321,23 @@ export function AnswerCard({
         {/* The panel's edge is on a wrapper rather than on the Collapsible
             itself, so that trace-panel.test.ts keeps its literal on the element
             whose default state it is there to pin. */}
-        {showRunProcess && (<div className="run-process">
-          <Collapsible open={showProcess} onOpenChange={setShowProcess}>
-            <div className="run-process-head">
-              <p className="font-medium text-sm">Run process</p>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  {showProcess ? 'Hide process' : 'View process'}
-                  <ChevronDown className={`transition-transform ${showProcess ? 'rotate-180' : ''}`} />
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-            <CollapsibleContent className="run-process-body">
-              <TraceTimeline trace={answer.trace} question={question} />
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+        {showRunProcess && (
+          <div className="run-process">
+            <Collapsible open={showProcess} onOpenChange={setShowProcess}>
+              <div className="run-process-head">
+                <p className="font-medium text-sm">Run process</p>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    {showProcess ? 'Hide process' : 'View process'}
+                    <ChevronDown className={`transition-transform ${showProcess ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent className="run-process-body">
+                <TraceTimeline trace={answer.trace} question={question} />
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
         )}
         <div className="advanced-row">
           <div>
@@ -295,7 +356,8 @@ export function AnswerCard({
           </div>
           <Switch checked={advanced} onCheckedChange={setAdvanced} aria-label="Show advanced trace details" />
         </div>
-        {advanced && (<Tabs defaultValue="sql">
+        {advanced && (
+          <Tabs defaultValue="sql">
             <TabsList>
               <TabsTrigger value="sql">Generated SQL</TabsTrigger>
               <TabsTrigger value="raw">Raw I/O</TabsTrigger>
@@ -318,7 +380,8 @@ export function AnswerCard({
             <TabsContent value="raw">
               <div className="code-panel">
                 <pre>
-                  {JSON.stringify(answer.trace.stages.map(({ id, input, output }) => ({ id, input, output })),
+                  {JSON.stringify(
+                    answer.trace.stages.map(({ id, input, output }) => ({ id, input, output })),
                     null,
                     2
                   )}
@@ -327,7 +390,8 @@ export function AnswerCard({
             </TabsContent>
           </Tabs>
         )}
-        {showFeedback && (<div className="feedback">
+        {showFeedback && (
+          <div className="feedback">
             <span>Was this answer useful?</span>
             {/* `aria-pressed` and the class both come from the rating the answer
                 carries, which is now read back out of the store rather than
@@ -357,7 +421,8 @@ export function AnswerCard({
             >
               <ThumbsDown />
             </Button>
-            {feedback.open && (<div className="feedback-comment">
+            {feedback.open && (
+              <div className="feedback-comment">
                 <Input
                   value={feedback.comment}
                   onChange={(event) => onFeedbackChange({ comment: event.target.value })}
@@ -369,7 +434,8 @@ export function AnswerCard({
                 </Button>
               </div>
             )}
-            {feedback.saved && (<span className="saved">
+            {feedback.saved && (
+              <span className="saved">
                 <Check /> Feedback saved
               </span>
             )}
