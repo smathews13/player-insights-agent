@@ -253,11 +253,11 @@ describe('the night sky belongs to dark mode alone', () => {
     expect(rule(RAIL, `html${NOT_DARK} .trace-inspector .run-status--dark.ast-pill--neutral-outline`)).toMatch(
       /color:\s*var\(--ast-neutral-text\)/
     );
-    /* Live stays the solid blue with a white word, which is §1's agent-at-work
-       register and `.run-status.is-live`'s own treatment. */
+    /* Live matches the outline family in daylight too — not a solid blue slab. */
     const live = rule(RAIL, `html${NOT_DARK} .trace-inspector .run-status--dark.is-live`);
-    expect(live).toMatch(/background:\s*var\(--ast-blue\)/);
-    expect(live).toMatch(/color:\s*var\(--ast-white\)/);
+    expect(live).toMatch(/background:\s*var\(--ast-fill-band\)/);
+    expect(live).toMatch(/color:\s*var\(--ast-neutral-text\)/);
+    expect(live).not.toMatch(/--ast-blue/);
   });
 });
 

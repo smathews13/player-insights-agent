@@ -23,7 +23,7 @@ import { partial } from './styles/stylesheet';
  */
 const PLAN = readFileSync(new URL('./PlanCard.tsx', import.meta.url), 'utf8');
 const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
-const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+const FINAL_ANSWER = readFileSync(new URL('./FinalAnswer.tsx', import.meta.url), 'utf8');
 const LINKS = readFileSync(new URL('./DataEntityLinks.tsx', import.meta.url), 'utf8');
 const MODULE = readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8');
 const ANSWER_CSS = partial('answer.css');
@@ -162,7 +162,7 @@ describe('every surface that names a source names it the same way', () => {
     // written after the two copies of it were found disagreeing about
     // punctuation: neither file owns the markup now. See SourcesModule.tsx and
     // sources-module-render.test.tsx.
-    for (const source of [CARD, EXPLORER]) {
+    for (const source of [CARD, FINAL_ANSWER]) {
       // The whole list, not its first entry. Both surfaces passed the first
       // element, which is how an answer that read five tables cited one of them.
       // Read with the comments dropped, because both files now carry a note
@@ -170,7 +170,7 @@ describe('every surface that names a source names it the same way', () => {
       const code = source.replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ');
       // Whitespace-tolerant because the element takes a third prop now, the
       // run's provenance, so both call sites wrap their props one per line.
-      expect(code).toMatch(/<SourcesModule\s+sources=/);
+      expect(code).toMatch(/<SourcesModule[\s\S]*sources=\{/);
       expect(code).not.toMatch(/sources\[0\]/);
       expect(source).not.toContain('className="sources-row"');
     }
@@ -182,7 +182,7 @@ describe('every surface that names a source names it the same way', () => {
     // Every surface above reaches the same two components, the source row
     // through its own module. A second anchor built somewhere else would drift
     // on the day one of them is restyled.
-    for (const source of [CARD, PLAN, MODULE, EXPLORER]) {
+    for (const source of [CARD, PLAN, MODULE, FINAL_ANSWER]) {
       expect(source).toContain("from './DataEntityLinks'");
     }
   });

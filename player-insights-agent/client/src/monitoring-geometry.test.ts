@@ -105,6 +105,18 @@ describe('a fully-qualified table name is never cut mid-word', () => {
   });
 });
 
+describe('a question opens as a centered modal, not a side drawer', () => {
+  it('places the dialog in the middle of a full-page overlay', () => {
+    expect(rule('.monitoring-question-overlay')).toMatch(/position:\s*fixed/);
+    expect(rule('.monitoring-question-overlay')).toMatch(/place-items:\s*center/);
+    expect(rule('.monitoring-question-overlay')).toMatch(/inset:\s*0/);
+    expect(rule('.monitoring-question-modal')).not.toMatch(/position:\s*fixed/);
+    expect(rule('.monitoring-question-modal')).not.toMatch(/right:\s*0/);
+    // The person panel is still the right-hand drawer. Question detail is not.
+    expect(rule('.monitoring-drawer')).toMatch(/right:\s*0/);
+  });
+});
+
 describe('the panel head and the scope badges cannot be clipped either', () => {
   /**
    * The close button is `flex: none`, so a long local part with no space in it

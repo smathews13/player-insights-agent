@@ -363,25 +363,16 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(Number.parseInt(cap, 10)).toBeLessThanOrEqual(24);
   });
 
-  it('bounds the transcript’s measure, so the widest windows have a page margin', () => {
-    // The other half of the same complaint, and the half a bigger inset cannot fix.
-    // The middle column is exactly `100vw - rail - inspector` and the transcript
-    // filled every pixel of it, so an answer card ran to about 1888px of 13px type
-    // on a 2560px monitor while the hero above it and the composer below it both
-    // stopped at 720px. Nothing was centred on that screen and nothing was
-    // readable, and no amount of padding at the floor changes it.
-    //
-    // The cap carries the inset in it deliberately: --conversation-measure is then
-    // the width the TEXT is allowed, not the width of the box around it, so the two
-    // numbers do not have to be read together to know what either one means.
-    expect(partial('tokens.css')).toMatch(/--conversation-measure:\s*\d+px/);
-    expect(body('.conversation-main')).toMatch(
-      /max-width:\s*calc\(var\(--conversation-measure\) \+ var\(--conversation-inset\) \* 2\)/
-    );
-    // Without this the cap is a left-aligned column with all the slack on one side,
-    // which is worse than no cap: the hero and the composer stay centred in the
-    // track, so the transcript would be the one thing off the page's centre line.
-    expect(body('.conversation-main')).toMatch(/margin-inline:\s*auto/);
+  it('lets the transcript fill the centre track between the two rails', () => {
+    // A 1280px cap with auto margins left the answer and the working-on-it card
+    // as a narrow island, with unused sky either side of it. The rails already
+    // own their columns; `--conversation-inset` is the only gutter this track
+    // needs. `none` rather than a used max-width: anything smaller than the
+    // leftover space is how the island came back.
+    expect(body('.conversation-main')).toMatch(/max-width:\s*none/);
+    expect(body('.conversation-main')).toMatch(/width:\s*100%/);
+    expect(body('.conversation-main')).not.toMatch(/--conversation-measure/);
+    expect(body('.conversation-main')).not.toMatch(/margin-inline:\s*auto/);
   });
 
   it('lets the answer keep more measure than the box that prompts it', () => {
@@ -395,14 +386,14 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(measure).toBeGreaterThanOrEqual(1100);
   });
 
-  it('gives the headline and the composer one width to share', () => {
-    // The suggestion grid that used to sit between these two is gone. The two
-    // remaining parts of the empty state still need one centre line and one
-    // measure; otherwise removing the cards would leave the input visibly
-    // unrelated to the question that introduces it.
+  it('gives the headline and the empty-state composer one width to share', () => {
+    // The in-conversation composer stretches between the rails. The empty state
+    // still needs one centre line with the hero, so the 720px cap lives only
+    // there — otherwise the first-ask box would become a second island.
     expect(body('.ask-hero')).toMatch(/max-width:\s*720px/);
-    expect(body('.composer')).toMatch(/max-width:\s*720px/);
-    expect(body('.composer')).toMatch(/margin-inline:\s*auto/);
+    expect(body('.composer')).toMatch(/max-width:\s*none/);
+    expect(body('.conversation-main.is-empty .composer')).toMatch(/max-width:\s*720px/);
+    expect(body('.conversation-main.is-empty .composer')).toMatch(/margin-inline:\s*auto/);
   });
 
   it('makes the empty state a headline followed by an in-flow composer, with no suggestion cards', () => {
@@ -558,10 +549,9 @@ describe('the ask home is the geometry the mockup gives it', () => {
 });
 
 describe('the run says which of four things it is doing', () => {
-  // Three of the four are `.ast-pill` families now and the fourth is a rule of
-  // its own, so what each tone resolves to is looked up rather than listed here.
-  // Live's blank family is the spec's exception: §4 asks for a solid and none of
-  // the five families is one.
+  // Live used to be a blank family so a solid blue mass could override the
+  // recipe. That mass is the neon chip. Live now wears the same quiet outline
+  // family as waiting; the word and the breathing dot still say it is in flight.
   const PAINTED = Object.entries(RUN_TONE_FAMILY).map(([tone, family]) => [
     tone,
     family ? `.${family}` : `.run-status.${tone}`,
@@ -576,7 +566,9 @@ describe('the run says which of four things it is doing', () => {
     // Four distinct treatments rather than four names for two, which is the
     // defect the four tones were introduced to fix and which a bad family map
     // would quietly reintroduce.
-    expect(new Set(PAINTED.map(([, selector]) => selector)).size).toBe(4);
+    expect(RUN_TONE_FAMILY['is-live']).toBe('ast-pill--neutral-outline');
+    expect(RUN_TONE_FAMILY['is-waiting']).toBe('ast-pill--neutral-outline');
+    expect(new Set([RUN_TONE_FAMILY['is-ready'], RUN_TONE_FAMILY['is-failed'], RUN_TONE_FAMILY['is-live']]).size).toBe(3);
     // The chain that picks between them moved to `run-status.ts`, where it can be
     // called with each state rather than read for the strings it contains. The
     // page's own claim is now that it defers to it.
@@ -610,17 +602,15 @@ describe('the run says which of four things it is doing', () => {
     expect(seat).toMatch(/white-space:\s*nowrap/);
   });
 
-  it('draws the working state as a solid blue mass with no edge of its own', () => {
-    // §4: "Ready (green) or Live (solid blue #2272B4) pill". The fill was orange
-    // and §2 takes orange out of the palette entirely, leaving the bricks symbol
-    // and the gate's logo as the app's only non-palette pixels.
-    //
-    // Transparent rather than blue on the border, and the distinction survives the
-    // recolour: the fill shows through the border box either way, so the pill looks
-    // identical, but a `border-color` beside a `background` is two declarations of
-    // one mass and the next person to read it has to decide which one is the edge.
-    expect(body('.run-status.is-live')).toMatch(/border-color:\s*transparent/);
-    expect(body('.run-status.is-live')).toMatch(/background:\s*var\(--ast-blue\)/);
+  it('draws the working state as a quiet night-sky chip, not a solid blue mass', () => {
+    // The conversation rail's "Live · step 03" and the harness's matching pill
+    // were a filled `--ast-blue` slab with a white word. Complete / Partial /
+    // Asked-by are outlined or quietly filled; Live now matches that register.
+    // The ice-blue progress bar inside Working on it is a different surface and
+    // is not this rule.
+    expect(body('.run-status.is-live')).toMatch(/background:\s*var\(--ast-neutral-fill\)/);
+    expect(body('.run-status.is-live')).toMatch(/color:\s*var\(--ast-neutral-text\)/);
+    expect(body('.run-status.is-live')).not.toMatch(/--ast-blue/);
     expect(body('.run-status.is-live')).not.toMatch(/--db-orange/);
   });
 

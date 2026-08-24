@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles, ChainBoundTiles } from './ArchitecturePage';
 import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
 import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes, drawnReadings } from './architecture';
-import { ARCHITECTURE_CONTROL_SCOPES } from './architecture-control-scopes';
+import { ARCHITECTURE_CONTROL_SCOPES, nextActiveBound } from './architecture-control-scopes';
 import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges } from './architecture-layout';
 import { readConnections, readingsById, type SettingsPayload } from './connection-model';
 import { partial } from './styles/stylesheet';
@@ -825,19 +825,64 @@ describe('the drawing is reachable and readable without seeing it', () => {
     ).toContain('>9<');
   });
 
-  it('makes every KPI a keyboard-reachable link to the Runtime settings', () => {
+  it('makes every KPI a keyboard-reachable toggle for its architecture scope', () => {
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />
       </MemoryRouter>
     );
 
-    expect(markup.match(/class="arch-bound-settings-link"/g)).toHaveLength(CHAIN_BOUNDS.length);
-    expect(markup.match(/href="\/settings#settings-runtime-form"/g)).toHaveLength(CHAIN_BOUNDS.length);
+    expect(markup.match(/class="arch-bound-tile"/g)).toHaveLength(CHAIN_BOUNDS.length);
+    expect(markup.match(/type="button"/g)).toHaveLength(CHAIN_BOUNDS.length);
+    expect(markup.match(/aria-pressed="false"/g)).toHaveLength(CHAIN_BOUNDS.length);
     for (const bound of CHAIN_BOUNDS) {
       expect(markup, bound).toContain(`data-bound="${bound}"`);
-      expect(markup, bound).toContain(`Show the architecture it controls; open Runtime settings to change it.`);
+      expect(markup, bound).toContain('Show the architecture it controls.');
     }
+    expect(markup).not.toContain('href="/settings#settings-runtime-form"');
+    expect(PAGE_SOURCE).not.toMatch(/onMouseLeave=\{\(\) => onActiveBoundChange/);
+    expect(PAGE_SOURCE).not.toMatch(/onBlur=\{\(\) => onActiveBoundChange/);
+  });
+
+  it('keeps the selected KPI class until another bound is chosen or the same is cleared', () => {
+    expect(nextActiveBound(null, 'maxSteps')).toBe('maxSteps');
+    expect(nextActiveBound('maxSteps', 'maxToolCalls')).toBe('maxToolCalls');
+    expect(nextActiveBound('maxSteps', 'maxSteps')).toBeNull();
+
+    const tile = (markup: string, bound: string): string => {
+      const at = markup.indexOf(`data-bound="${bound}"`);
+      expect(at, bound).toBeGreaterThan(-1);
+      return markup.slice(markup.lastIndexOf('<li', at), markup.indexOf('</li>', at));
+    };
+
+    const selected = renderToStaticMarkup(
+      <MemoryRouter>
+        <ChainBoundTiles
+          activeBound="maxSteps"
+          loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }}
+          onActiveBoundChange={() => undefined}
+        />
+      </MemoryRouter>
+    );
+    expect(tile(selected, 'maxSteps')).toContain('arch-bound-selected');
+    expect(tile(selected, 'maxSteps')).toContain('aria-pressed="true"');
+    expect(tile(selected, 'maxToolCalls')).not.toContain('arch-bound-selected');
+    expect(tile(selected, 'maxToolCalls')).toContain('aria-pressed="false"');
+
+    const replaced = renderToStaticMarkup(
+      <MemoryRouter>
+        <ChainBoundTiles activeBound="maxToolCalls" loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />
+      </MemoryRouter>
+    );
+    expect(tile(replaced, 'maxSteps')).not.toContain('arch-bound-selected');
+    expect(tile(replaced, 'maxToolCalls')).toContain('arch-bound-selected');
+
+    const cleared = renderToStaticMarkup(
+      <MemoryRouter>
+        <ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />
+      </MemoryRouter>
+    );
+    expect(cleared).not.toContain('arch-bound-selected');
   });
 
   it('marks exactly the selected KPI scope on the rendered nodes and edges', () => {
@@ -849,8 +894,13 @@ describe('the drawing is reachable and readable without seeing it', () => {
       </MemoryRouter>
     );
 
+    expect(markup).toContain('data-active-accent="genie"');
     for (const node of ARCHITECTURE_NODES) {
-      expect(card(markup, node.id).includes('data-control-active="true"'), node.id).toBe(scope.nodes.includes(node.id));
+      const drawn = card(markup, node.id);
+      const inScope = scope.nodes.includes(node.id);
+      expect(drawn.includes('data-control-active="true"'), node.id).toBe(inScope);
+      expect(drawn.includes('arch-node-selected'), node.id).toBe(inScope);
+      expect(drawn, node.id).not.toMatch(/background:\s*(#fff|#ffffff|white)/i);
     }
     for (const edge of drawnEdges()) {
       const at = markup.indexOf(`<path class="arch-edge" d="${edge.d}`);

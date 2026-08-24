@@ -49,10 +49,7 @@ import { CircleAlert, Search, Star, Workflow } from 'lucide-react';
 import { conversationHref } from './conversation-links';
 import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
-import { AnswerProse } from './DataEntityLinks';
-import { AnswerEvidence } from './AnswerEvidence';
-import { SourcesModule } from './SourcesModule';
-import { AstrolabeMark } from './AstrolabeMark';
+import { FinalAnswer } from './FinalAnswer';
 import { ratingLabel, ratingOutOf } from './benchmark-summary';
 import { useRunTrace, type RunTraceState } from './app-state';
 import { PageHeading } from './page-chrome';
@@ -503,76 +500,17 @@ export function RunExplorer() {
                   <Skeleton className="h-16" />
                 </div>
               ) : runTrace?.takeaway ? (
-                <Card className="final-answer">
-                  <CardContent>
-                    <div className="final-answer-head">
-                      {/* 18 because `.final-answer-mark svg` paints 18. The
-                          size picks the drawing as well as the box -- the
-                          graduation ring is dropped below GRADUATION_FLOOR --
-                          so a seat that asks for one number and is painted
-                          another gets the wrong cut stretched to the right
-                          size, which looks like nothing at all. */}
-                      <span className="final-answer-mark">
-                        <AstrolabeMark size={18} />
-                      </span>
-                      <p className="final-answer-eyebrow">Final answer</p>
-                    </div>
-                    <h4 className="final-answer-takeaway">{runTrace.takeaway}</h4>
-                    {/* The stored narrative of a past run is the same agent
-                        Markdown the live card renders, and it was printing its
-                        own `##` and `**` here too.
-
-                        Prose only, because the tables that came with it are
-                        evidence and are drawn below under the same charts-or-rows
-                        rule the live card uses. This printed the narrative whole
-                        while the run's charts went to the Agent map tab, so one
-                        answer was rows on this tab and pictures on another. */}
-                    <AnswerProse text={runTrace.narrative} sources={runTrace.sources} blocks="prose" />
-                    <AnswerEvidence
-                      narrative={runTrace.narrative}
-                      charts={runTrace.charts}
-                      sources={runTrace.sources}
-                    />
-                    {/* Literally the same card as the live answer, links,
-                        governance, chips and caveats included: a stored run
-                        cites the same tables and carries the same
-                        qualifications, and a reader looking at one is at least
-                        as likely to want them as a reader looking at the answer
-                        it came from. The sources and the caveats were two
-                        components here, drawn as two panels, and this tab used
-                        to draw the first and not the second -- so an answer
-                        disclosed less the second time it was read than the
-                        first, on the surface someone opens once they have
-                        started to doubt a number.
-
-                        Every table, not the first: this passed `sources[0]` and
-                        so did the live card, which is how an answer that read
-                        five tables came to cite the one the run happened to read
-                        first.
-
-                        Every caveat is passed, degradations included. Ask PIA
-                        lifts those into a banner above the figures and so hands
-                        the module only the rest; there is no banner here to lift
-                        one into, and `caveat-priority.ts` ranks a degradation
-                        first, so it leads the list instead of going missing. */}
-                    {/* The provenance too, for the same reason the caveats are
-                        here: this is the surface someone opens when they have
-                        started to doubt a figure, and "over what window, with
-                        what filter" is the first thing they need. Absent on a run
-                        stored before the agent derived it, which draws nothing
-                        rather than an empty row. */}
-                    <SourcesModule
-                      sources={runTrace.sources}
-                      caveats={runTrace.caveats}
-                      derivation={runTrace.derivation}
-                    />
-                    {selected?.conversation_id && (
-                      <Link className="final-answer-open" to={conversationHref(selected.conversation_id, selected.id)}>
-                        Open full response →
-                      </Link>
-                    )}
-                  </CardContent>
-                </Card>
+                <FinalAnswer
+                  takeaway={runTrace.takeaway}
+                  narrative={runTrace.narrative}
+                  charts={runTrace.charts}
+                  sources={runTrace.sources}
+                  caveats={runTrace.caveats}
+                  derivation={runTrace.derivation}
+                  truncated={selected?.truncated}
+                  conversationId={selected?.conversation_id}
+                  runId={selected?.id}
+                />
               ) : (
                 <p className="text-muted-foreground text-sm">
                   {traceState.status === 'ready' ? runTrace?.note : 'Pick a run from the list to read its answer.'}

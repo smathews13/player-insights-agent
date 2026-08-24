@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -9,26 +10,18 @@ import type { TraceStage } from './answer-shape';
 import type { MonitoringDetail } from '../../shared/monitoring-contract';
 
 /**
- * The Monitoring drawer draws the run view once.
+ * Opening a Monitoring question is a centered modal whose body is Ask PIA's
+ * own `AnswerCard`.
  *
- * It drew it twice. The drawer composes `AnswerCard`, which carries its own run
- * process panel, and then rendered a second `TraceTimeline` under its own "What
- * ran" heading -- so opening a run from Monitoring gave two Step timelines,
- * one above the other, listing the same steps. Neither was wrong; there were
- * simply two of them, and a reader comparing them had no way to know that.
- *
- * The drawer's own section is the one that survives, because it is the one the
- * surrounding disclosure is written for: the "What ran" heading above it and the
- * token count below it belong to the drawer, and read as captions on the
- * timeline between them. The three onward links are the drawer's too, and they
- * now sit at the top of it rather than under all of this.
- *
- * WHY THIS IS PINNED BY A COUNT RATHER THAN BY A PRESENCE CHECK. Every
- * assertion the drawer already had passed while the duplicate was on screen,
- * because `toContain` is satisfied by the first of two. A duplicate is cheap to
- * reintroduce -- one more caller composing `AnswerCard` with its run process
- * left on -- and nothing else in the suite would notice.
+ * It used to be a right-hand drawer that composed the card with its run process
+ * switched off, then drew a second `TraceTimeline` under a "What ran" heading.
+ * The second panel had no CSS of its own on this route, so its KPI tiles and
+ * Gantt ticks painted on top of the answer prose. That stack is gone: one card,
+ * one timeline, under the prose, the same way Ask draws it.
  */
+
+const MONITORING = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
+const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
 
 function text(markup: string): string {
   return markup
@@ -48,8 +41,7 @@ function occurrences(haystack: string, needle: string): number {
 /**
  * Stage ids are `step-{n}-{index}-{tool}`. The shape matters: the timeline
  * reads the tool name out of the id, and rows only render at all once the
- * trace carries stages. The drawer's older fixtures pass `stages: []`, which
- * draws "this run recorded no steps" and would have hidden the duplication.
+ * trace carries stages.
  */
 const stage = (id: string, name: string, kind: string, start: number): TraceStage => ({
   id,
@@ -74,7 +66,6 @@ const trace = {
   ],
 };
 
-/** The stored answer, which carries a second copy of the same trace. */
 function answerWith(stageTrace: typeof trace) {
   return {
     type: 'answer',
@@ -122,7 +113,45 @@ function drawer(overrides: Partial<MonitoringDetail> = {}): string {
   );
 }
 
-describe('the Monitoring drawer renders one run view, not two', () => {
+describe('a Monitoring question opens as a centered modal over the list', () => {
+  it('renders a dialog on a dimmed overlay', () => {
+    const markup = drawer();
+
+    expect(markup).toContain('data-testid="monitoring-question-overlay"');
+    expect(markup).toContain('role="dialog"');
+    expect(markup).toContain('aria-modal="true"');
+    expect(markup).toContain('class="monitoring-question-modal"');
+    expect(markup).not.toMatch(/class="[^"]*monitoring-drawer"/);
+  });
+
+  it('closes on Escape and on a click of the overlay, not of the dialog', () => {
+    expect(MONITORING).toContain("event.key === 'Escape'");
+    expect(MONITORING).toContain('window.addEventListener(\'keydown\', onKeyDown)');
+    expect(MONITORING).toContain('if (event.target === event.currentTarget) onClose()');
+  });
+
+  it('mounts the same AnswerCard Ask uses, with the run process left on', () => {
+    const markup = drawer();
+
+    expect(markup).toContain('class="answer-card');
+    expect(MONITORING).toContain('<AnswerCard');
+    expect(CARD).toContain('className="answer-card"');
+    expect(MONITORING).not.toContain('showRunProcess={false}');
+    expect(MONITORING).not.toContain('<TraceTimeline');
+  });
+
+  it('does not keep the Monitoring-only What ran stack over the prose', () => {
+    const markup = drawer();
+    const rendered = text(markup);
+
+    expect(rendered).not.toContain('What ran');
+    expect(rendered).not.toMatch(/WHAT RAN/i);
+    expect(MONITORING).not.toContain('whatRanHeading');
+    expect(markup).not.toContain('monitoring-eyebrow">{whatRanHeading');
+  });
+});
+
+describe('the modal draws one run view, the card\'s own', () => {
   it('draws a single Step timeline for a run that recorded steps', () => {
     expect(occurrences(text(drawer()), 'Step timeline')).toBe(1);
   });
@@ -130,32 +159,22 @@ describe('the Monitoring drawer renders one run view, not two', () => {
   it('lists each recorded step once', () => {
     const rendered = text(drawer());
 
-    // Every row, not just the first: a duplicate panel repeats all of them, so
-    // checking one step would pass on a drawer that doubled the other two.
     expect(occurrences(rendered, 'Checked field definitions')).toBe(1);
     expect(occurrences(rendered, 'Queried governed data')).toBe(1);
     expect(occurrences(rendered, 'Wrote the answer')).toBe(1);
   });
 
-  it('keeps the drawer’s own framing around the timeline it kept', () => {
+  it('keeps the modal chrome around the shared card', () => {
     const markup = drawer();
     const rendered = text(markup);
 
-    // The heading above, the token caption below, and the onward links now at
-    // the head of the drawer. These are what identify the surviving view as the
-    // drawer's rather than the answer card's.
-    expect(rendered).toContain('What ran');
+    expect(rendered).toContain('Run process');
     expect(rendered).toContain('1,200 tokens recorded on this run.');
     expect(rendered).toContain('Open the MLflow trace');
     expect(rendered).toContain('Open in Run Explorer');
     expect(rendered).toContain("see first.person's activity");
-    expect(rendered.indexOf('Open the MLflow trace')).toBeLessThan(rendered.indexOf('What ran'));
-    /*
-     * The mark belongs to the outbound action itself, not merely somewhere in
-     * the drawer. A sweep that counted one MLflow logo on the page would pass if
-     * a later refactor moved it back beside the trace id and left this link as
-     * generic blue text, which is the defect this placement prevents.
-     */
+    expect(rendered.indexOf('Open the MLflow trace')).toBeLessThan(rendered.indexOf('Run process'));
+    expect(rendered.indexOf('A narrative sentence.')).toBeLessThan(rendered.indexOf('Run process'));
     expect(markup).toMatch(
       /<a href="https:\/\/example\.test\/ml\/experiments\/1\/traces"[^>]*><span class="brand-icon wordmark"[^>]*>/
     );
@@ -163,9 +182,6 @@ describe('the Monitoring drawer renders one run view, not two', () => {
   });
 
   it('still reaches the advanced trace details the answer card owns', () => {
-    // Removing the answer card's run process panel from this surface must not
-    // take the switch beside it with it: it was reported broken once already,
-    // and the fix was to put it where its effect is.
     const rendered = text(drawer());
 
     expect(rendered).toContain('Advanced trace details');
@@ -173,10 +189,6 @@ describe('the Monitoring drawer renders one run view, not two', () => {
   });
 
   it('says so plainly, once, when the run recorded no steps at all', () => {
-    // The empty case still belongs to one panel. Both traces are emptied, not
-    // just the drawer's: leaving steps on the answer's copy would make this
-    // pass on a duplicating drawer, because the two panels would then be
-    // saying different things and neither sentence would appear twice.
     const empty = { ...trace, id: 'tr-2', totalMs: 0, toolCalls: 0, stages: [] };
     const bare = text(drawer({ trace: empty, answer: answerWith(empty) }));
 
@@ -195,10 +207,9 @@ describe('the answer card still draws the run view where it is the only one', ()
   };
 
   /**
-   * The other half of the fix, and the half a careless repair breaks: the panel
-   * is switched off by the drawer, not deleted. Ask PIA's transcript passes no
-   * `showRunProcess` at all, so this is the default rather than an opt-in, and a
-   * default flipped the wrong way would take the timeline off every answer.
+   * Ask PIA's transcript passes no `showRunProcess` at all, so this is the
+   * default. A default flipped the wrong way would take the timeline off every
+   * answer on Ask as well as in this modal.
    */
   it('draws its own timeline when nothing opts out', () => {
     const markup = renderToStaticMarkup(

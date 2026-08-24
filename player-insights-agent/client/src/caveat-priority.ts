@@ -107,6 +107,7 @@ const RISK_PATTERNS: readonly (readonly [CaveatRisk, readonly RegExp[]])[] = [
       /sources for this answer are incomplete/,
       /could not be determined/,
       /\bstopped early\b/,
+      /turn deadline/,
       /budget (?:for this turn was spent|exhaustion|was exhausted)/,
       /\bmay be incomplete\b/,
       /\bunanaly[sz]ed\b/,

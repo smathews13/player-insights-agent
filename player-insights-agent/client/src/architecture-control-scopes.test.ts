@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { CHAIN_BOUNDS } from './agent-chain';
 import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES } from './architecture';
-import { ARCHITECTURE_CONTROL_SCOPES, edgeControlBounds, nodeControlBounds } from './architecture-control-scopes';
+import {
+  ARCHITECTURE_CONTROL_SCOPES,
+  edgeControlBounds,
+  nextActiveBound,
+  nodeControlBounds,
+} from './architecture-control-scopes';
 
 const edgeKeys = ARCHITECTURE_EDGES.map((edge) => `${edge.from}->${edge.to}`);
 
@@ -85,8 +90,17 @@ describe('the runtime bounds illuminate only what the agent actually bounds', ()
     }
   });
 
-  it('uses the diagram legend’s agent family for every runtime bound', () => {
-    const accents = CHAIN_BOUNDS.map((bound) => ARCHITECTURE_CONTROL_SCOPES[bound].accent);
-    expect(accents).toEqual(CHAIN_BOUNDS.map(() => 'agent'));
+  it('gives each runtime bound its own diagram-legend family', () => {
+    expect(ARCHITECTURE_CONTROL_SCOPES.maxSteps.accent).toBe('agent');
+    expect(ARCHITECTURE_CONTROL_SCOPES.maxToolCalls.accent).toBe('genie');
+    expect(ARCHITECTURE_CONTROL_SCOPES.maxRunSeconds.accent).toBe('question');
+  });
+
+  it('keeps a KPI selected until another is chosen or the same one is cleared', () => {
+    expect(nextActiveBound(null, 'maxSteps')).toBe('maxSteps');
+    expect(nextActiveBound('maxSteps', 'maxToolCalls')).toBe('maxToolCalls');
+    expect(nextActiveBound('maxToolCalls', 'maxRunSeconds')).toBe('maxRunSeconds');
+    expect(nextActiveBound('maxSteps', 'maxSteps')).toBeNull();
+    expect(nextActiveBound('maxRunSeconds', 'maxRunSeconds')).toBeNull();
   });
 });

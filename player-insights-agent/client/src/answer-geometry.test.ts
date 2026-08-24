@@ -98,6 +98,10 @@ describe('the provenance chip has three tones and none is the action colour', ()
     const rule = ruleFor(ANSWER_CSS, ".provenance-chip[data-tone='live'] {");
     expect(rule).toContain('background: var(--ast-neutral-fill)');
     expect(rule).toContain('color: var(--ast-text)');
+    expect(rule).not.toContain('--ast-blue');
+    // AppKit's default Badge is `bg-primary`. The slot selector has to win
+    // that utility, or "Live agent response" stays a neon slab.
+    expect(ANSWER_CSS).toContain("[data-slot='badge'].provenance-chip[data-tone='live']");
   });
 
   it('separates a half-stored answer from a wholly stored one', () => {

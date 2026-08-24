@@ -284,32 +284,14 @@
    naming a retired db- wash. They are `ast-pill--pos`, `--neg` and
    `--neutral-outline` now, chosen in `RUN_TONE_FAMILY` -- and the dot needs no
    rule of its own with them, because it is `currentcolor` and the recipe already
-   sets the word's colour. The one that remains below is live, which is a solid
-   the five families do not draw. */
-/*
- * The agent is working, and it is BLUE.
- *
- * §4 gives this pill as "Ready (green) or Live (solid blue #2272B4)", and §1
- * moves the whole agent-at-work register with it: "The agent at work is blue
- * #2272B4: live pill, in-flight bar, active step edge". It was orange, and the
- * note here used to argue for it at some length -- that a sweep meaning "working,
- * right now" was the definition of that token. The restyle takes the argument
- * away rather than answering it: §2 has no orange in the palette at all, and the
- * bricks symbol and the gate's logo are the only non-palette pixels in the app.
- *
- * A filled mass and nothing else, which is the part of the old rule that stands.
- * The border goes transparent rather than blue, so the fill shows through the
- * border box and this reads as a solid pill with no hairline at all. The 1px is
- * still spent, so lighting up cannot resize the pill.
- *
- * White on #2272B4 is 4.72:1, which is better than the 3.62:1 the orange had and
- * clears text contrast rather than merely the 3:1 a shape needs. The word carries
- * the state as well as the colour, so the pill is never colour alone.
- */
+   sets the word's colour. Live used to be a solid `--ast-blue` slab with a white
+   word, which is the neon chip on the conversation rail. It now wears the same
+   quiet outline family as waiting; the word and the breathing dot still say the
+   run is in flight. */
 .run-status.is-live {
-  border-color: transparent;
-  background: var(--ast-blue);
-  color: var(--ast-white);
+  border-color: var(--ast-border-input);
+  background: var(--ast-neutral-fill);
+  color: var(--ast-neutral-text);
 }
 
 .trace-inspector .run-status--dark.ast-pill--pos {
@@ -319,9 +301,9 @@
 }
 
 .trace-inspector .run-status--dark.is-live {
-  border-color: color-mix(in oklab, var(--ast-blue-on-dark) 45%, transparent);
-  background: color-mix(in oklab, var(--ast-blue-on-dark) 12%, transparent);
-  color: var(--ast-blue-on-dark);
+  border-color: rgba(169, 182, 190, 0.38);
+  background: rgba(169, 182, 190, 0.08);
+  color: #a9b6be;
 }
 
 .trace-inspector .run-status--dark.ast-pill--neg {
@@ -351,13 +333,13 @@
  * finished run wears, and a completed run whose dot went on breathing would be
  * claiming the harness was doing something; `is-live` alone would leave the
  * green pill still. So the keyframes move opacity and scale and touch no colour
- * at all, and the dot takes its hue from `currentcolor` -- white on the solid
- * blue, the positive family's own ink on the green.
+ * at all, and the dot takes its hue from `currentcolor` -- the outline family's
+ * ink on live, the positive family's own ink on the green.
  *
  * Only the dot moves. Modulating a pill's own fill was the other candidate and it
  * is barred by arithmetic rather than by taste: a fill that lightens and darkens
- * under a label swings that label's contrast twice a second, and the live pill's
- * white on #2272B4 is 4.72:1 with no room to spend. The dots carry no text, so
+ * under a label swings that label's contrast twice a second. The dots carry no
+ * text, so
  * their own contrast is nobody's floor. Both are redundant with the word beside
  * them and both are `aria-hidden`, so neither is a state anyone has to read from
  * a circle.
@@ -1176,11 +1158,8 @@ html:not([data-theme='dark']) .trace-inspector .run-status--dark.ast-pill--neutr
   color: var(--ast-neutral-text);
 }
 
-/* Live stays the solid blue with a white word, which is `.run-status.is-live`'s own
-   treatment and §1's agent-at-work register. Restated here only because the
-   `--dark` rule above overrides it inside this column. */
 html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
-  border-color: transparent;
-  background: var(--ast-blue);
-  color: var(--ast-white);
+  border-color: var(--ast-border-input);
+  background: var(--ast-fill-band);
+  color: var(--ast-neutral-text);
 }

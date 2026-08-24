@@ -707,7 +707,7 @@ describe('the question list', () => {
   });
 });
 
-/* ── The drawer ──────────────────────────────────────────────────────────── */
+/* ── The question modal ──────────────────────────────────────────────────── */
 
 function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
   return {
@@ -743,7 +743,7 @@ function detail(overrides: Partial<MonitoringDetail> = {}): MonitoringDetail {
   };
 }
 
-describe('the detail drawer', () => {
+describe('the detail modal', () => {
   it('names who asked and whose grants the data was read under', () => {
     const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
 
@@ -769,11 +769,12 @@ describe('the detail drawer', () => {
   /**
    * WHERE THE THREE ONWARD LINKS ARE, which is the whole of this claim.
    *
-   * They were the last thing in the drawer, under the answer, the timeline, the
-   * token count and the feedback -- so on a real run an admin scrolled a full
-   * answer and a ten-step trace before reaching the trace link they opened the
-   * drawer to follow. Asserted as an ORDERING rather than as presence, because
-   * every presence assertion in this file passed while they were at the bottom.
+   * They were the last thing in the old drawer, under the answer, the timeline,
+   * the token count and the feedback -- so on a real run an admin scrolled a
+   * full answer and a ten-step trace before reaching the trace link they opened
+   * the question to follow. Asserted as an ORDERING rather than as presence,
+   * because every presence assertion in this file passed while they were at the
+   * bottom.
    */
   it('puts the three onward links at the top, above the answer and the trace', () => {
     const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
@@ -789,7 +790,7 @@ describe('the detail drawer', () => {
 
     // And all three above everything a reader would have had to scroll past.
     expect(person).toBeLessThan(rendered.indexOf('The leading title is ahead on daily active players.'));
-    expect(person).toBeLessThan(rendered.indexOf('What ran'));
+    expect(person).toBeLessThan(rendered.indexOf('Run process'));
     expect(person).toBeLessThan(rendered.indexOf('1,200 tokens recorded on this run.'));
     expect(person).toBeLessThan(rendered.indexOf('Rated helpful'));
   });
@@ -802,43 +803,19 @@ describe('the detail drawer', () => {
     );
 
     expect(rendered).not.toContain('Open the MLflow trace');
-    expect(rendered.indexOf('Open in Run Explorer')).toBeLessThan(rendered.indexOf('What ran'));
+    expect(rendered.indexOf('Open in Run Explorer')).toBeLessThan(
+      rendered.indexOf('The leading title is ahead on daily active players.')
+    );
   });
 
   it('renders the answer with Ask PIA\u2019s own card when nothing is conditioned', () => {
-    const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
+    const markup = render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />);
+    const rendered = text(markup);
 
+    expect(markup).toContain('class="answer-card');
     expect(rendered).toContain('The leading title is ahead on daily active players.');
-  });
-
-  /**
-   * THE CONDITIONING PATH. One body line naming the table and the privilege, with
-   * no colour, no icon and no modal, and everything in the always-shown set still
-   * on screen: who asked, when, the identity, the timeline, the tokens, the
-   * rating, the trace link.
-   */
-  /**
-   * The heading over the timeline carries what the run cost, which is what 7b
-   * draws on it. Both figures come from the trace, the same source the list's
-   * Time and Tools columns read, so the two surfaces cannot disagree.
-   */
-  it('puts the duration and the tool count on the What ran heading', () => {
-    const rendered = text(render(<QuestionDrawer detail={detail()} onClose={() => {}} onOpenPerson={() => {}} />));
-
-    expect(rendered).toContain('What ran · 8.1s · 2 tool calls');
-  });
-
-  /**
-   * And says only "What ran" when the run recorded neither, rather than printing
-   * a zero. "What ran · 0.0s · 0 tool calls" is two measurements nobody took.
-   */
-  it('says only What ran when the run recorded no duration or tool count', () => {
-    const bare = detail({ trace: { id: 'tr-1', stages: [] } });
-    const rendered = text(render(<QuestionDrawer detail={bare} onClose={() => {}} onOpenPerson={() => {}} />));
-
-    expect(rendered).toContain('What ran');
-    expect(rendered).not.toMatch(/What ran · [0-9]/);
-    expect(rendered).not.toContain('0 tool calls');
+    expect(rendered).toContain('Run process');
+    expect(rendered).not.toContain('What ran');
   });
 
   it('replaces the answer with one line and keeps everything always shown', () => {
@@ -855,7 +832,6 @@ describe('the detail drawer', () => {
     // The always-shown set is not.
     expect(rendered).toContain('Asked by first.person');
     expect(rendered).toContain("Data read under first.person's own Unity Catalog grants.");
-    expect(rendered).toContain('What ran');
     expect(rendered).toContain('1,200 tokens recorded on this run.');
     expect(rendered).toContain('Rated helpful');
     expect(rendered).toContain('Exactly what I needed.');

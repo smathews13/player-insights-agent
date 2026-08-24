@@ -1538,6 +1538,7 @@ describe('the latency block', () => {
     expect(rendered).toContain('2m 00s');
     // The thin ask row is not the one wearing the slower pill; preflight is.
     expect(rendered).toContain('Slower than baseline');
+    expect(markup).toContain('ops-lat-trend');
     // The thin row carries no fabricated verdict word.
     expect(markup).toMatch(/Needs 20 requests in each all-time half/);
   });

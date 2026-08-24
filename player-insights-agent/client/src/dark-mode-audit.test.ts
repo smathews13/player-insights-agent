@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_ENTITY_STYLES } from '../../shared/runtime-settings';
 import { partial, stylesheet } from './styles/stylesheet';
 
 const DARK = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -67,6 +68,7 @@ describe('dark mode covers the shipped surfaces', () => {
       '.monitoring-list-pane',
       '.ops-block',
       '.monitoring-drawer',
+      '.monitoring-question-modal',
       '.arch-flow',
       '.arch-node',
       '.account-menu',
@@ -319,6 +321,7 @@ describe('dark mode covers the shipped surfaces', () => {
       '.app-select-content',
       '.monitoring-chip-menu',
       '.monitoring-drawer',
+      '.monitoring-question-modal',
       "[data-slot='sheet-content']",
     ]) {
       const body = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);
@@ -354,7 +357,26 @@ describe('dark mode covers the shipped surfaces', () => {
       );
     }
     // The runtime chain, which a blanket `.entity-token` fill would have cut.
-    expect(DARK).toMatch(/--ast-entity-table-bg:\s*var\(--entity-table-bg,\s*rgba\(255,\s*255,\s*255,\s*0\.07\)\)/);
+    // Fallbacks are the night-sky hexes Settings ships — not paper washes.
+    expect(DARK).toMatch(
+      new RegExp(`--ast-entity-table-bg:\\s*var\\(--entity-table-bg,\\s*${DEFAULT_ENTITY_STYLES.table.background}\\)`)
+    );
+    expect(DARK).toMatch(/--ast-entity-catalog-bg:\s*var\(--entity-catalog-bg,\s*var\(--ast-primary-control-fill\)\)/);
+    expect(DARK).toMatch(
+      new RegExp(`--ast-entity-schema-bg:\\s*var\\(--entity-schema-bg,\\s*${DEFAULT_ENTITY_STYLES.schema.background}\\)`)
+    );
+    expect(DARK).toMatch(
+      new RegExp(`--ast-entity-column-bg:\\s*var\\(--entity-column-bg,\\s*${DEFAULT_ENTITY_STYLES.column.background}\\)`)
+    );
+    expect(DARK).toMatch(/--ast-entity-quote-bg:\s*var\(--entity-quote-bg,\s*var\(--ast-surface-solid\)\)/);
+    expect(DARK).toMatch(
+      new RegExp(`--ast-entity-tag-bg:\\s*var\\(--entity-tag-bg,\\s*${DEFAULT_ENTITY_STYLES.tag.background}\\)`)
+    );
+    for (const paper of ['#ddeaf4', '#e8e8e8', '#f4f4f4', '#f7f7f7']) {
+      expect(DARK, `${paper} is still an entity fallback`).not.toMatch(
+        new RegExp(`--ast-entity-[a-z]+-bg:\\s*var\\(--entity-[a-z]+-bg,\\s*${paper}\\)`, 'i')
+      );
+    }
     expect(DARK).not.toMatch(/html\[data-theme='dark'\] \.entity-token\s*\{/);
   });
 

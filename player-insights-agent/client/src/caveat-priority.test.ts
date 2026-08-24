@@ -71,6 +71,7 @@ describe('what a caveat is read as threatening', () => {
   it('reads a truncated run as unaccounted evidence rather than as a slow one', () => {
     expect(caveatRisk('The analysis stopped early because the 90s budget for this turn was spent, so it may be incomplete.')
     ).toBe(CAVEAT_RISK.evidence);
+    expect(caveatRisk('The turn deadline was reached before the answer could be written.')).toBe(CAVEAT_RISK.evidence);
     expect(caveatRisk('gold_player_180d_summary player-level data was not queried due to query budget exhaustion.')
     ).toBe(CAVEAT_RISK.evidence);
   });

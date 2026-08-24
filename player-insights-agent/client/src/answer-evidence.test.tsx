@@ -65,16 +65,18 @@ describe('both surfaces that show an answer', () => {
    * which component the narrative is handed to, and that is visible in the source.
    */
   const explorer = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+  const finalAnswer = readFileSync(new URL('./FinalAnswer.tsx', import.meta.url), 'utf8');
   const card = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
 
   it('hands the narrative to the same evidence component', () => {
-    for (const source of [explorer, card]) expect(source).toContain('<AnswerEvidence');
+    for (const source of [finalAnswer, card]) expect(source).toContain('<AnswerEvidence');
+    expect(explorer).toContain('<FinalAnswer');
   });
 
   it('prints only the prose of the narrative, leaving its tables to the evidence', () => {
     // Unqualified, this printed every block including the tables, which is how
     // the Explorer came to show rows a chart was already showing.
-    expect(explorer).toMatch(/text=\{runTrace\.narrative\}[\s\S]{0,80}blocks="prose"/);
+    expect(finalAnswer).toMatch(/text=\{narrative\}[\s\S]{0,80}blocks="prose"/);
   });
 
   it('keeps the charts-or-rows rule out of the card, so it cannot drift', () => {

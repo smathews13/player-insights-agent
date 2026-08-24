@@ -1054,7 +1054,9 @@ export function LatencyBody({
                           <>
                             <th scope="col">p95</th>
                             <th scope="col">p99</th>
-                            <th scope="col">Trend</th>
+                            <th scope="col" className="ops-lat-trend">
+                              Trend
+                            </th>
                           </>
                         ) : null}
                       </tr>
@@ -1187,7 +1189,7 @@ function LatencyRow({
         <>
           <PercentileCell ms={route.p95Ms} spans={route.spans} />
           <PercentileCell ms={route.p99Ms} spans={route.spans} />
-          <td>
+          <td className="ops-lat-trend">
             {view.verdict === 'slower' || view.verdict === 'within' ? (
               <span className={verdictTone} title={view.verdictDetail || undefined}>
                 {view.verdictLabel}

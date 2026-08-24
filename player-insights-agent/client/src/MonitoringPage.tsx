@@ -3,10 +3,10 @@
  * in full.
  *
  * Modelled on the Monitor tab of a Databricks Genie Agent, which is the surface
- * this audience already knows. Three levels in one page rather than a modal
- * stack: the strip, the list, and a right-hand drawer over the list. The drawer
- * is not a route change, so closing it returns the reader to their filters and
- * their place.
+ * this audience already knows. The strip and the list stay on the page. Opening
+ * a question puts Ask PIA's own `AnswerCard` in a centered modal over that list,
+ * so closing it returns the reader to their filters and their place. A person's
+ * activity is still a right-hand drawer: it is a panel of tiles, not an answer.
  *
  * WHAT THIS FILE DOES NOT DECIDE. Every claim about a number is made in
  * `monitoring-view.ts` and every claim about the URL in `monitoring-filters.ts`,
@@ -20,8 +20,9 @@
  *    it wrote from the URL, and writes no range parameter itself.
  *  - The answer body, which is Ask PIA's own `AnswerCard`. An admin reading
  *    somebody else's answer should see the answer they saw, and a second
- *    renderer here would eventually show them a different one.
- *  - The timeline, which is the existing `TraceTimeline`.
+ *    renderer here would eventually show them a different one. The run process
+ *    lives inside that card, the same way it does on Ask; this file does not
+ *    draw a second timeline over it.
  *  - The storage-failure panel, which is `UnavailablePanel`.
  *
  * NO POLLING. This is a review surface, not a console. An admin reading a
@@ -40,7 +41,6 @@ import { RefreshControl } from './RefreshControl';
 import { UnavailablePanel } from './UnavailablePanel';
 import { unavailableNotice } from './unavailable-copy';
 import { AnswerCard } from './AnswerCard';
-import { TraceTimeline } from './TraceTimeline';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { UserIdentityChip } from './UserIdentityChip';
 import { identityName, possessiveName } from './user-identity';
@@ -71,7 +71,6 @@ import {
   tablesReadTile,
   tokenCostTile,
   tokensTile,
-  whatRanHeading,
   whenLabel,
   type EmptyState,
   type MonitoringState,
@@ -724,125 +723,129 @@ export function QuestionDrawer({
   onOpenPerson: (email: string) => void;
 }) {
   const answer = detail.conditioning ? null : answerFrom(detail.answer);
-  const trace = (detail.trace ?? null) as Parameters<typeof TraceTimeline>[0]['trace'];
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   return (
-    <aside className="monitoring-drawer" role="dialog" aria-modal="true" aria-label="Question detail">
-      <div className="monitoring-drawer-head">
-        <h3 className="monitoring-drawer-question">{detail.question}</h3>
-        <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
-          <X className="size-3" aria-hidden="true" />
-          <span className="sr-only">Close</span>
-        </Button>
-      </div>
-      {/* Who, when, and whose grants the data was read under, in the app's own
-          footer wording. Its purpose is narrow and worth stating: an admin
-          comparing two people's answers to the same question needs to know why
-          the numbers differ, and the reason is usually that the two readers have
-          different grants, row filters or column masks.
-
-          Joined rather than concatenated because the third segment is absent on
-          a run that recorded no identity, and a hardcoded separator would leave
-          the line ending in a dangling middot. */}
-      <div className="monitoring-drawer-meta-row">
-        <UserIdentityChip identity={detail.askedBy} label="Asked by" compact />
-        <p className="monitoring-drawer-meta">
-          {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
-            .filter((segment): segment is string => Boolean(segment))
-            .join(' · ')}
-        </p>
-      </div>
-
-      <div className="monitoring-drawer-links">
-        {/* Keep the drilldown's onward actions near its heading, where they are
-            available before a long answer and trace. The MLflow action remains
-            absent rather than dead when the run recorded no trace id. */}
-        {detail.mlflowUrl ? (
-          <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
-            {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
-            <BrandIcon product="mlflow" size={12} />
-            Open the MLflow trace ↗
-          </a>
-        ) : null}
-        {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
-        {/* Named, not "this person". The row already says who asked, and a
-            reader following the link is going to that person's panel -- so the
-            link says whose. The fallback is the old wording, for the run that
-            recorded no identity: `identityName` would hand us "Unknown" and
-            "see Unknown's activity" names nobody. */}
-        <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
-          {detail.askedBy?.trim()
-            ? `see ${possessiveName(identityName(detail.askedBy))} activity`
-            : "see this person's activity"}
-        </button>
-      </div>
-
-      {detail.conditioning ? (
-        /* One line where the content would have been, in the same type as the
-           surrounding body text. No warning colour, no icon, no modal, no
-           acknowledgement step. Everything below still renders. */
-        <p className="monitoring-conditioned">
-          {conditioningLine(detail.conditioning.table, detail.conditioning.permission)}
-        </p>
-      ) : answer ? (
-        <AnswerCard
-          answer={answer}
-          question={detail.question}
-          feedback={READ_ONLY_FEEDBACK}
-          onFeedbackChange={() => {}}
-          saveFeedback={async () => {}}
-          showFeedback={false}
-          /* The card's own run process panel is off because this drawer draws
-             the timeline itself, in the section below, under the heading and
-             above the captions that were written for it. With the card's panel
-             left on, both were on screen: two Step timelines listing the same
-             ten steps, and no way for a reader to tell they were one run. */
-          showRunProcess={false}
-        />
-      ) : (
-        /* A refusal or a failure: the taxonomy's own sentence, with the code in
-           monospace beneath it. Not a blank panel, and not an invented reason. */
-        <div className="monitoring-drawer-outcome">
-          <p>{detail.outcomeDetail ?? 'This question produced no stored answer, and no reason was recorded.'}</p>
-          {detail.outcomeCode ? <code className="monitoring-code">{detail.outcomeCode}</code> : null}
+    <div
+      className="monitoring-question-overlay"
+      data-testid="monitoring-question-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="monitoring-question-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="monitoring-question-title"
+      >
+        <div className="monitoring-drawer-head">
+          <h3 id="monitoring-question-title" className="monitoring-drawer-question">
+            {detail.question}
+          </h3>
+          <Button variant="outline" size="sm" className="monitoring-drawer-close" onClick={onClose}>
+            <X className="size-3" aria-hidden="true" />
+            <span className="sr-only">Close</span>
+          </Button>
         </div>
-      )}
+        {/* Who, when, and whose grants the data was read under, in the app's own
+            footer wording. Its purpose is narrow and worth stating: an admin
+            comparing two people's answers to the same question needs to know why
+            the numbers differ, and the reason is usually that the two readers have
+            different grants, row filters or column masks.
 
-      <section className="monitoring-drawer-section">
-        {/* "What ran", plus the duration and the tool count when the run
-            recorded them, which is what 7b draws on this heading. Both come from
-            the run's own trace, the same place the list's Time and Tools columns
-            read, so the drawer cannot report a duration the row disagrees with.
-            A run that recorded neither gets the two words alone rather than a
-            heading full of zeroes nobody measured. */}
-        <h4 className="monitoring-eyebrow">{whatRanHeading(trace)}</h4>
-        {/* The existing timeline, reused rather than respecified, and the only
-            one on this surface: see `showRunProcess` on the card above. */}
-        <TraceTimeline trace={trace} question={detail.question} />
-      </section>
-
-      {detail.tokens ? (
-        <p className="monitoring-drawer-tokens">
-          {detail.tokens.total === null
-            ? 'This run reported no token total, so the total is unknown rather than zero.'
-            : `${detail.tokens.total.toLocaleString()} tokens recorded on this run.`}
-        </p>
-      ) : (
-        <p className="monitoring-drawer-tokens">This run was not metred, so no token count was recorded.</p>
-      )}
-
-      {detail.rating || detail.usefulness !== null || detail.comment ? (
-        <section className="monitoring-drawer-section">
-          <h4 className="monitoring-eyebrow">Rating and feedback</h4>
-          <p className="monitoring-drawer-rating">
-            <RatingMark rating={detail.rating} />
-            {detail.rating === 'up' ? 'Rated helpful' : detail.rating === 'down' ? 'Rated not helpful' : 'Not rated'}
-            {detail.usefulness !== null ? ` · usefulness ${detail.usefulness} of 5` : ''}
+            Joined rather than concatenated because the third segment is absent on
+            a run that recorded no identity, and a hardcoded separator would leave
+            the line ending in a dangling middot. */}
+        <div className="monitoring-drawer-meta-row">
+          <UserIdentityChip identity={detail.askedBy} label="Asked by" compact />
+          <p className="monitoring-drawer-meta">
+            {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
+              .filter((segment): segment is string => Boolean(segment))
+              .join(' · ')}
           </p>
-          {/* Verbatim. A comment paraphrased is a comment nobody wrote. */}
-          {detail.comment ? <p className="monitoring-drawer-comment">{detail.comment}</p> : null}
-        </section>
-      ) : null}
-    </aside>
+        </div>
+
+        <div className="monitoring-drawer-links">
+          {/* Keep the drilldown's onward actions near its heading, where they are
+              available before a long answer. The MLflow action remains absent
+              rather than dead when the run recorded no trace id. */}
+          {detail.mlflowUrl ? (
+            <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
+              {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
+              <BrandIcon product="mlflow" size={12} />
+              Open the MLflow trace ↗
+            </a>
+          ) : null}
+          {detail.runId ? <Link to={`/runs?run=${encodeURIComponent(detail.runId)}`}>Open in Run Explorer</Link> : null}
+          {/* Named, not "this person". The row already says who asked, and a
+              reader following the link is going to that person's panel -- so the
+              link says whose. The fallback is the old wording, for the run that
+              recorded no identity: `identityName` would hand us "Unknown" and
+              "see Unknown's activity" names nobody. */}
+          <button type="button" className="monitoring-linklike" onClick={() => onOpenPerson(detail.askedBy)}>
+            {detail.askedBy?.trim()
+              ? `see ${possessiveName(identityName(detail.askedBy))} activity`
+              : "see this person's activity"}
+          </button>
+        </div>
+
+        {detail.conditioning ? (
+          /* One line where the content would have been, in the same type as the
+             surrounding body text. No warning colour, no icon, no acknowledgement
+             step. Everything below still renders. */
+          <p className="monitoring-conditioned">
+            {conditioningLine(detail.conditioning.table, detail.conditioning.permission)}
+          </p>
+        ) : answer ? (
+          <AnswerCard
+            answer={answer}
+            question={detail.question}
+            feedback={READ_ONLY_FEEDBACK}
+            onFeedbackChange={() => {}}
+            saveFeedback={async () => {}}
+            showFeedback={false}
+          />
+        ) : (
+          /* A refusal or a failure: the taxonomy's own sentence, with the code in
+             monospace beneath it. Not a blank panel, and not an invented reason. */
+          <div className="monitoring-drawer-outcome">
+            <p>{detail.outcomeDetail ?? 'This question produced no stored answer, and no reason was recorded.'}</p>
+            {detail.outcomeCode ? <code className="monitoring-code">{detail.outcomeCode}</code> : null}
+          </div>
+        )}
+
+        {detail.tokens ? (
+          <p className="monitoring-drawer-tokens">
+            {detail.tokens.total === null
+              ? 'This run reported no token total, so the total is unknown rather than zero.'
+              : `${detail.tokens.total.toLocaleString()} tokens recorded on this run.`}
+          </p>
+        ) : (
+          <p className="monitoring-drawer-tokens">This run was not metred, so no token count was recorded.</p>
+        )}
+
+        {detail.rating || detail.usefulness !== null || detail.comment ? (
+          <section className="monitoring-drawer-section">
+            <h4 className="monitoring-eyebrow">Rating and feedback</h4>
+            <p className="monitoring-drawer-rating">
+              <RatingMark rating={detail.rating} />
+              {detail.rating === 'up' ? 'Rated helpful' : detail.rating === 'down' ? 'Rated not helpful' : 'Not rated'}
+              {detail.usefulness !== null ? ` · usefulness ${detail.usefulness} of 5` : ''}
+            </p>
+            {/* Verbatim. A comment paraphrased is a comment nobody wrote. */}
+            {detail.comment ? <p className="monitoring-drawer-comment">{detail.comment}</p> : null}
+          </section>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

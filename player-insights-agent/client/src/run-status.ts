@@ -28,18 +28,15 @@ export type RunTone = 'is-ready' | 'is-live' | 'is-failed' | 'is-waiting';
  * rail.css keeps only what a dot, a check and a breathing animation need on top
  * of it. The tones stay named for the STATE rather than for the family, because
  * two of them are not a colour: `is-ready` is worn by "Complete" as well, and
- * `is-live` is the one state with no family at all.
- *
- * LIVE IS DELIBERATELY EMPTY, and it is the spec's exception rather than a gap.
- * §4 gives this pill as "Ready (green) or Live (solid blue #2272B4)" -- a filled
- * mass, not a tint with a hairline -- and none of the five families is a solid.
- * `.run-status.is-live` in rail.css is that one rule, and it overrides the
- * recipe's border and fill rather than sitting beside a family that would fight
- * it.
+ * live used to be the one state with no family, because a solid blue mass was
+ * the agent-at-work register. That mass is the neon slab on the conversation
+ * rail. Live now wears the same quiet outline family as waiting, so Complete,
+ * Partial, Asked-by and Live share one night-sky treatment; the word and the
+ * breathing dot still say the run is in flight.
  */
 export const RUN_TONE_FAMILY: Record<RunTone, string> = {
   'is-ready': 'ast-pill--pos',
-  'is-live': '',
+  'is-live': 'ast-pill--neutral-outline',
   'is-failed': 'ast-pill--neg',
   // Outlined rather than filled: the inspector's head is already a tinted band,
   // and a grey fill on it reads as a rendering fault rather than as a chip.

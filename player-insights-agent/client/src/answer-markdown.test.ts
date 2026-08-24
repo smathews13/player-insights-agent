@@ -383,6 +383,45 @@ describe('the tables the agent writes', () => {
     const source = `| Source | Rows |\n| --- | --- |\n| ${DAILY} | 3,914 |\n| GB | 482 |`;
     expect(links(answerBlocks(source, [DAILY], TRACKED))).toEqual([[DAILY, DAILY]]);
   });
+
+  it('reads a Genie ASCII grid that never wore outer pipes', () => {
+    const ascii = [
+      'platform | total_distinct_players | avg_sessions',
+      'PC | 18402 | 12.4',
+      'PlayStation 5 | 15110 | 11.1',
+      'Xbox Series X|S | 9804 | 10.8',
+    ].join('\n');
+    const table = firstTable(ascii);
+    expect(table.kind).toBe('table');
+    expect(table.kind === 'table' && table.header).toBeTruthy();
+    expect(grid(table)).toEqual([
+      ['platform', 'total_distinct_players', 'avg_sessions'],
+      ['PC', '18402', '12.4'],
+      ['PlayStation 5', '15110', '11.1'],
+      ['Xbox Series X|S', '9804', '10.8'],
+    ]);
+  });
+
+  it('still will not make a table out of one sentence that holds pipes', () => {
+    const blocks = parseAnswerMarkdown('Sessions concentrate in GB | DE | FR, in that order.');
+    expect(blocks.map((block) => block.kind)).toEqual(['paragraph']);
+  });
+
+  it('drops a data_genie dump from the prose and still finds the table after it', () => {
+    const source = [
+      'data_genie({"question": "For the title \\"Iron Frontier Reckoning 2\\", distinct players by platform"})',
+      '',
+      'PC led on distinct players.',
+      '',
+      'platform | total_distinct_players | avg_sessions',
+      'PC | 18402 | 12.4',
+      'PlayStation 5 | 15110 | 11.1',
+    ].join('\n');
+    const blocks = answerBlocks(source, [], []);
+    expect(blocks.map((block) => block.kind)).toEqual(['paragraph', 'table']);
+    expect(blockText([blocks[0]])).toBe('PC led on distinct players.');
+    expect(blockText([blocks[0]])).not.toContain('data_genie');
+  });
 });
 
 describe('entity links survive the tree', () => {

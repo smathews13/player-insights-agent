@@ -198,11 +198,14 @@ describe('a conversation with a run in flight', () => {
 });
 
 describe('the question staggered right of the answer', () => {
-  it('takes the lane out of the answer’s right edge, which is the only way it can move', () => {
-    // Declared on the transcript, not on the row: the answer card is the bubble's
-    // sibling, so a custom property set on `.user-message` could not reach it.
-    expect(ASK).toMatch(/\.conversation-main \{\s*--question-stagger: clamp\(28px, 3vw, 56px\);\s*\}/);
-    expect(rule(ASK, '.conversation-main .answer-card')).toMatch(/margin-right:\s*var\(--question-stagger\)/);
+  it('insets the question row from the answer’s left edge, without shrinking the answer', () => {
+    // `margin-right` on the answer pinched the card and left both turns sharing
+    // a left edge: the bubble is `flex-end`, so taking width off the card moved
+    // nothing the reader could see. `margin-left` on the row is the property
+    // that can produce the offset.
+    expect(ASK).toMatch(/\.conversation-main \{\s*--question-stagger: clamp\(72px, 14%, 180px\);\s*\}/);
+    expect(rule(ASK, '.user-message')).toMatch(/margin-left:\s*var\(--question-stagger\)/);
+    expect(ASK).not.toMatch(/\.conversation-main \.answer-card \{[^}]*margin-right:\s*var\(--question-stagger\)/);
   });
 
   it('does not move the bubble out of the measure to do it', () => {
@@ -215,8 +218,8 @@ describe('the question staggered right of the answer', () => {
     expect(row).not.toContain('transform');
     expect(row).not.toContain('margin-right');
     expect(row).not.toContain('padding-right');
-    // The row still ends where the measure ends, and the answer no longer does,
-    // which is the offset. Right-aligned, so the bubble is at that edge.
+    // The row still ends at the measure's right edge. The offset is the left
+    // inset, so a long prompt cannot begin where the answer begins.
     expect(row).toMatch(/justify-content:\s*flex-end/);
   });
 

@@ -234,9 +234,11 @@
   font-weight: 500;
   letter-spacing: 0;
 }
+.answer-card [data-slot='badge'].provenance-chip[data-tone='live'],
 .provenance-chip[data-tone='live'] {
   background: var(--ast-neutral-fill);
-  border-color: transparent;
+  background-color: var(--ast-neutral-fill);
+  border: 1px solid var(--ast-border-input);
   color: var(--ast-text);
 }
 /* The warning family, because a mixed answer IS an answer to the question asked

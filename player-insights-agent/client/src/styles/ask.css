@@ -13,22 +13,15 @@
      figure so a programmatic scroll stops where this padding ends. */
   padding: 56px var(--conversation-inset) var(--composer-reserve);
   /*
-   * A stated reading measure, centred in the column, with the inset as its
-   * minimum gutter.
-   *
-   * The cap includes the padding so that --conversation-measure is the measure
-   * the TEXT gets rather than the box's outer width. Below the cap this is inert
-   * and the cell fills its grid track exactly as it did; above it the surplus
-   * becomes margin either side, which is the only page margin this layout has.
-   *
-   * That is what makes the wide end behave: the transcript was unbounded, so an
-   * answer card on a 2560px monitor ran to 1888px of 13px type while the hero
-   * above it and the composer below it both capped at 720px and looked like a
-   * different page. Both of those stay centred in the same column, so all three
-   * remain concentric.
+   * FILL THE ASK-LAYOUT CENTER TRACK. A 1280px cap with auto margins left the
+   * answer and the working-on-it card as a narrow island between the conversation
+   * rail and the agent path, with a sea of unused sky either side. The rails own
+   * their columns; this column is what remains, and the inset above is the only
+   * gutter it needs. `none` rather than 100%: a used max-width smaller than the
+   * track is how the island came back.
    */
-  max-width: calc(var(--conversation-measure) + var(--conversation-inset) * 2);
-  margin-inline: auto;
+  max-width: none;
+  width: 100%;
   min-width: 0;
   position: relative;
   /* Was a translucent vertical gradient over a radial pool, both decorative and
@@ -134,52 +127,27 @@ html:not([data-theme='dark']) .ask-hero h2 {
   align-items: flex-end;
   justify-content: flex-end;
   gap: 8px;
-  /* A long prompt is kept off the answer's left edge, so the two turns do not
-     start in the same column. This is a floor on the question's left inset and
-     nothing more -- see the stagger below for the offset itself, which this
-     property cannot produce: padding on the left of a `flex-end` row narrows the
-     lane the bubble is laid out in and cannot move its right edge by a pixel. */
-  padding-left: clamp(28px, 7%, 64px);
+  /*
+   * THE QUESTION (AND ITS ASKED-BY CHIP) STARTS RIGHT OF THE ANSWER'S LEFT EDGE.
+   *
+   * Shrinking the answer's right margin left both turns sharing a left edge: the
+   * bubble is `flex-end`, so taking width off the card moved nothing the reader
+   * could see. Padding on this row has the same fault -- it narrows the lane a
+   * long prompt fills, and a long prompt still begins where the answer begins.
+   *
+   * `margin-left` is the property that can produce the offset. It moves the whole
+   * row, bubble and identity chip together, so the question's left edge cannot
+   * equal the answer card's. Nothing is translated, so nothing can slide under
+   * the agent path. The answer itself stays full-track.
+   *
+   * Zeroed in the 1180px band in responsive.css, where the harness column goes
+   * and there is no lane to stagger toward.
+   */
+  margin-left: var(--question-stagger);
   margin-bottom: 22px;
 }
-/*
- * THE QUESTION IS STAGGERED RIGHT OF THE ANSWER, AND THE LANE COMES OUT OF THE
- * ANSWER RATHER THAN OUT OF THE PAGE.
- *
- * Reported twice: the question sits directly over the answer's right edge, with
- * open space between the answer and the live-steps column that nothing uses.
- * Both turns end at the same pixel, because the bubble is right-aligned in the
- * transcript measure and the answer card fills that measure.
- *
- * Moving the bubble was the obvious fix and is the wrong one. The transcript has
- * no scroller of its own -- the page scrolls and both side columns are sticky --
- * so a `translateX` on the row pushes the bubble out of the measure and under
- * `.trace-inspector`, which is a later sibling painting an opaque sky. At 1181px
- * the middle track is around 600px against a 1120px measure, so there is no
- * slack there to move into at all: the bubble would simply go behind the harness.
- *
- * So the answer gives the lane up instead. Its right edge comes in by the
- * stagger, the question keeps the full measure, and the offset a reader sees is
- * the difference between the two. Nothing leaves the measure, so nothing can be
- * clipped or covered at any width, and the question's own inset above still
- * keeps it clear of the answer's left edge.
- *
- * THE WIDTH THAT TURNS IT OFF IS NOT DECLARED HERE. The app keeps one set of
- * breakpoints, in responsive.css, and it zeroes this property inside the 1180px
- * band -- where the harness column goes and the answer needs every pixel of its
- * measure back. A `min-width` query in this partial would be a second set of
- * widths, which is the defect breakpoints.test.ts exists to catch.
- */
 .conversation-main {
-  --question-stagger: clamp(28px, 3vw, 56px);
-}
-/* Scoped to Ask, in Ask's partial: the same card is drawn in Run Explorer and in
-   the Monitoring drawer, and neither has a question above it to stagger
-   against. Declared on the transcript rather than on the row because the card is
-   the bubble's sibling: a custom property set on `.user-message` could not reach
-   it. */
-.conversation-main .answer-card {
-  margin-right: var(--question-stagger);
+  --question-stagger: clamp(72px, 14%, 180px);
 }
 .user-bubble {
   width: fit-content;

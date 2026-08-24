@@ -7,16 +7,13 @@
   left: calc(var(--conversation-width) + var(--conversation-inset));
   right: calc(var(--trace-width) + var(--conversation-inset));
   /*
-   * Capped and centred inside whatever the two insets leave.
-   *
-   * The design gives the composer the same 720px the suggestion grid above it
-   * takes, so the two line up on an empty screen. `margin-inline: auto` is what
-   * centres it: with both `left` and `right` set and a used width clamped by
-   * `max-width`, the leftover space is split between the auto margins rather than
-   * being dumped on one side.
+   * Stretch between the two rails. A 720px cap centred in the leftover space
+   * made the composer a second island under the already-pinched answer card.
+   * `left` and `right` already clear the rails by the transcript inset; `none`
+   * lets those insets be the only gutters. The empty-state rule below puts the
+   * 720px back, so the hero and the first-ask box still share a centre line.
    */
-  max-width: 720px;
-  margin-inline: auto;
+  max-width: none;
   z-index: 20;
   /*
    * The sky's pane, asked for explicitly, and THE ONE PLACE IN THE APP WHERE THIS
@@ -67,6 +64,8 @@
 }
 .conversation-main.is-empty .composer {
   position: static;
+  max-width: 720px;
+  margin-inline: auto;
   margin-top: 28px;
 }
 

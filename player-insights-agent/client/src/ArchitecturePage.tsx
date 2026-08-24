@@ -72,7 +72,12 @@ import {
   type ArchitectureAccent,
   type NodeBox,
 } from './architecture-layout';
-import { ARCHITECTURE_CONTROL_SCOPES, edgeControlBounds, nodeControlBounds } from './architecture-control-scopes';
+import {
+  ARCHITECTURE_CONTROL_SCOPES,
+  edgeControlBounds,
+  nextActiveBound,
+  nodeControlBounds,
+} from './architecture-control-scopes';
 import type { ChainBound } from './agent-chain';
 import { countConnections, readConnections, readingsById, type ConnectionReading } from './connection-model';
 import { DRIFT_MARKER_LABEL } from './connection-status';
@@ -302,17 +307,18 @@ function ArchitectureNodeCard({
     </>
   );
 
+  const selected = activeBound !== null && controlBounds.includes(activeBound);
   return (
     <div
-      className="arch-node"
+      className={selected ? 'arch-node arch-node-selected' : 'arch-node'}
       data-testid={`arch-node-${node.id}`}
       data-node={node.id}
       data-accent={box.accent}
       data-tone={report.tone}
       data-drift={reading && reading.marker !== 'none' ? reading.marker : undefined}
       data-control-bounds={controlBounds.join(' ') || undefined}
-      data-control-active={activeBound && controlBounds.includes(activeBound) ? 'true' : undefined}
-      data-control-bound={activeBound && controlBounds.includes(activeBound) ? activeBound : undefined}
+      data-control-active={selected ? 'true' : undefined}
+      data-control-bound={selected ? activeBound : undefined}
       style={{ left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px` }}
     >
       {node.resourceId ? (
@@ -378,7 +384,7 @@ export function ArchitectureCanvas({
   payload,
   now,
 }: {
-  /** The setting a pointer or keyboard focus is currently explaining. */
+  /** The setting a click is currently explaining. Sticks until the next click. */
   activeBound?: ChainBound | null;
   byResource: ReadonlyMap<string, ConnectionReading>;
   payload: ArchitecturePayload | null;
@@ -445,6 +451,7 @@ export function ArchitectureCanvas({
             role="group"
             aria-label="Live data flow. Each card links to that dependency on the Connections page."
             data-active-bound={activeBound ?? undefined}
+            data-active-accent={activeBound ? ARCHITECTURE_CONTROL_SCOPES[activeBound].accent : undefined}
             style={{
               width: `${CANVAS_WIDTH}px`,
               height: `${CANVAS_HEIGHT}px`,
@@ -636,29 +643,35 @@ export function ChainBoundTiles({
   const unknown = '\u2014';
   return (
     <ul className="arch-tiles arch-tiles-loop" data-testid="architecture-loop-tiles">
-      {CHAIN_BOUNDS.map((bound) => (
-        <li
-          data-bound={bound}
-          data-accent={ARCHITECTURE_CONTROL_SCOPES[bound].accent}
-          data-active={activeBound === bound ? 'true' : undefined}
-          key={bound}
-          title={CHAIN_BOUND_NOTE[bound]}
-          onMouseEnter={() => onActiveBoundChange?.(bound)}
-          onMouseLeave={() => onActiveBoundChange?.(null)}
-        >
-          <Link
-            className="arch-bound-settings-link"
-            to="/settings#settings-runtime-form"
-            state={{ settingsFrom: '/architecture' }}
-            aria-label={`${CHAIN_BOUND_LABEL[bound]}: ${loop ? loop[bound] : 'not available'}. Show the architecture it controls; open Runtime settings to change it.`}
-            onFocus={() => onActiveBoundChange?.(bound)}
-            onBlur={() => onActiveBoundChange?.(null)}
+      {CHAIN_BOUNDS.map((bound) => {
+        const selected = activeBound === bound;
+        const value = loop ? String(loop[bound]) : 'not available';
+        return (
+          <li
+            data-bound={bound}
+            data-accent={ARCHITECTURE_CONTROL_SCOPES[bound].accent}
+            data-active={selected ? 'true' : undefined}
+            className={selected ? 'arch-bound-selected' : undefined}
+            key={bound}
+            title={CHAIN_BOUND_NOTE[bound]}
           >
-            <span>{CHAIN_BOUND_LABEL[bound]}</span>
-            <strong className="ast-num">{loop ? loop[bound] : unknown}</strong>
-          </Link>
-        </li>
-      ))}
+            <button
+              type="button"
+              className={selected ? 'arch-bound-tile arch-bound-selected' : 'arch-bound-tile'}
+              aria-pressed={selected}
+              aria-label={`${CHAIN_BOUND_LABEL[bound]}: ${value}. ${
+                selected
+                  ? 'Selected. Click again to clear the architecture highlight.'
+                  : 'Show the architecture it controls.'
+              }`}
+              onClick={() => onActiveBoundChange?.(nextActiveBound(activeBound, bound))}
+            >
+              <span>{CHAIN_BOUND_LABEL[bound]}</span>
+              <strong className="ast-num">{loop ? loop[bound] : unknown}</strong>
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

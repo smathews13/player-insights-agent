@@ -1,4 +1,5 @@
 import { linkifyEntities, type ProseSegment } from './data-entities';
+import { stripToolCallDumps } from './reader-facing-answer';
 
 /**
  * The Markdown the agent writes, as a tree the answer card can render.
@@ -423,6 +424,59 @@ function rowCells(line: SourceLine): RawCell[] | undefined {
   return cells.length >= 2 ? cells : undefined;
 }
 
+/**
+ * A pipe row that never wore the outer pipes GFM tables carry.
+ *
+ * Genie and a truncated synthesis both write `platform | players | sessions`
+ * as an ASCII grid. The strict branch above refuses those lines so a sentence
+ * like `GB | DE | FR` cannot become a table. This branch is the narrower door:
+ * the separators must have space on both sides (so `Xbox Series X|S` stays one
+ * cell), the line must not be a finished sentence, and the caller still has to
+ * see two consecutive matching rows before it commits.
+ */
+function innerPipeCells(line: SourceLine): RawCell[] | undefined {
+  const trimmed = line.text.trim();
+  if (!trimmed || trimmed.startsWith('|') || trimmed.endsWith('|')) return undefined;
+  if (/[.?!]$/.test(trimmed)) return undefined;
+  if (!/\S\s+\|\s+\S/.test(trimmed)) return undefined;
+  const parts = trimmed.split(/\s+\|\s+/).map((part) => part.trim());
+  if (parts.length < 2) return undefined;
+  const lead = line.text.length - line.text.trimStart().length;
+  const cells: RawCell[] = [];
+  let at = 0;
+  for (const part of parts) {
+    const slice = trimmed.slice(at);
+    const offset = slice.indexOf(part);
+    cells.push({ text: part, start: line.start + lead + at + Math.max(0, offset) });
+    at += (offset < 0 ? 0 : offset) + part.length;
+  }
+  return cells;
+}
+
+function tableOpensAt(lines: readonly SourceLine[], from: number): RawRow[] | undefined {
+  const line = lines[from];
+  const strict = rowCells(line);
+  if (strict) {
+    const raw: RawRow[] = [{ line, cells: strict }];
+    for (let at = from + 1; at < lines.length; at += 1) {
+      const cells = rowCells(lines[at]);
+      if (!cells) break;
+      raw.push({ line: lines[at], cells });
+    }
+    return raw;
+  }
+  const opening = innerPipeCells(line);
+  if (!opening) return undefined;
+  const raw: RawRow[] = [{ line, cells: opening }];
+  for (let at = from + 1; at < lines.length; at += 1) {
+    const cells = innerPipeCells(lines[at]) ?? rowCells(lines[at]);
+    if (!cells || cells.length !== opening.length) break;
+    raw.push({ line: lines[at], cells });
+  }
+  // One inner-pipe line is prose. Two matching rows is a grid.
+  return raw.length >= 2 ? raw : undefined;
+}
+
 /** A delimiter cell: dashes, with a colon on either end to ask for an alignment. */
 const DELIMITER_CELL = /^:?-+:?$/;
 
@@ -533,13 +587,21 @@ function tableRow(row: RawRow, width: number): TableRow {
   };
 }
 
+function looksLikeHeaderRow(row: RawRow, rest: readonly RawRow[]): boolean {
+  if (rest.length === 0) return false;
+  const names = row.cells.every((cell) => Boolean(cell.text) && !NUMERIC_CELL.test(bareCell(cell.text)));
+  const figures = rest.some((entry) => entry.cells.some((cell) => NUMERIC_CELL.test(bareCell(cell.text))));
+  return names && figures;
+}
+
 /**
  * A run of pipe rows, as a table -- or nothing, when there is no table in them.
  *
- * The header is the first row only when a delimiter row follows it, which is
- * what tells a heading apart from a datum. Without one, every row is data and
- * the table renders headerless rather than promoting a row of figures into a
- * heading it would then be missing from.
+ * The header is the first row when a delimiter row follows it, which is what
+ * tells a heading apart from a datum. Without one, a first row of names over
+ * rows of figures is still a heading -- the ASCII grids Genie writes never
+ * carry `--- | ---` -- and promoting that row is what lets a renderer draw
+ * `<th>` instead of leaving the column names as the first data row.
  *
  * A delimiter row anywhere else is dropped rather than rendered. It carries no
  * cell a reader can read, and a model that writes a second one is ruling off its
@@ -548,8 +610,9 @@ function tableRow(row: RawRow, width: number): TableRow {
 function tableBlock(raw: readonly RawRow[]): Block | undefined {
   if (raw.length === 0) return undefined;
   const declared = raw.length > 1 ? delimiterAligns(raw[1].cells) : undefined;
-  const header = declared ? raw[0] : undefined;
-  const body = raw.slice(header ? 2 : 0).filter((row) => !delimiterAligns(row.cells));
+  const inferred = !declared && raw.length >= 2 && looksLikeHeaderRow(raw[0], raw.slice(1));
+  const header = declared || inferred ? raw[0] : undefined;
+  const body = raw.slice(header ? (declared ? 2 : 1) : 0).filter((row) => !delimiterAligns(row.cells));
   if (body.length === 0) return undefined;
   const width = header ? header.cells.length : Math.max(...body.map((row) => row.cells.length));
   const align: CellAlign[] = [];
@@ -598,7 +661,7 @@ function fencedTable(lines: readonly SourceLine[], from: number): { block: Block
   const raw: RawRow[] = [];
   for (const line of lines.slice(from + 1, close)) {
     if (!line.text.trim()) continue;
-    const cells = rowCells(line);
+    const cells = rowCells(line) ?? innerPipeCells(line);
     if (!cells) return undefined;
     raw.push({ line, cells });
   }
@@ -686,14 +749,8 @@ export function parseAnswerMarkdown(source: string): Block[] {
     // Before the list check, so that a delimiter row written without its outer
     // pipes -- `--- | ---` -- is read as part of the table above it rather than
     // as a bullet whose marker is its first dash.
-    const opening = rowCells(line);
-    if (opening) {
-      const raw: RawRow[] = [];
-      for (let at = index; at < lines.length; at += 1) {
-        const cells = rowCells(lines[at]);
-        if (!cells) break;
-        raw.push({ line: lines[at], cells });
-      }
+    const raw = tableOpensAt(lines, index);
+    if (raw) {
       const table = tableBlock(raw);
       // Only the rows the table took. A run of pipe rows that is nothing but
       // delimiters is not a table, and leaving `index` alone lets it fall
@@ -743,7 +800,7 @@ export function parseAnswerMarkdown(source: string): Block[] {
       // Not on the paragraph's own first line, which is how a run of pipe rows
       // that the table branch already refused gets to be the text it is rather
       // than a paragraph that breaks before it starts.
-      if (children.length > 0 && rowCells(current)) break;
+      if (children.length > 0 && (rowCells(current) || tableOpensAt(lines, index))) break;
       // Keyed on the newline that produced it, which is a position no node
       // built from the line either side of it can also claim.
       if (children.length > 0) children.push({ kind: 'break', start: current.start - 1 });
@@ -823,7 +880,7 @@ export function answerBlocks(
   // Case by case rather than one spread over the union: spreading a union of
   // block shapes widens the result to a shape with every field optional, which
   // is no longer a `Block`.
-  return parseAnswerMarkdown(source).map((block): Block => {
+  return parseAnswerMarkdown(stripToolCallDumps(source)).map((block): Block => {
     const linkRow = (row: TableRow): TableRow => ({
       ...row,
       cells: row.cells.map((cell) => ({ ...cell, children: linkifyInline(cell.children, declared, tracked, columns) })),
@@ -885,5 +942,7 @@ export function answerInline(
  * nothing, so a caller can pass an optional second body without guarding it.
  */
 export function carriesTable(...bodies: (string | null | undefined)[]): boolean {
-  return bodies.some((body) => (body ? parseAnswerMarkdown(body).some((block) => block.kind === 'table') : false));
+  return bodies.some((body) =>
+    body ? parseAnswerMarkdown(stripToolCallDumps(body)).some((block) => block.kind === 'table') : false
+  );
 }

@@ -69,18 +69,14 @@ export function AnswerCard({
   saveFeedback: (rating: number, options?: { keepCommentOpen?: boolean }) => Promise<void>;
   showFeedback: boolean;
   /**
-   * Whether this card draws the run process panel, or the surface around it does.
+   * Whether this card draws the run process panel.
    *
-   * True everywhere the card is the whole run view, which is Ask PIA's transcript.
-   * False in Monitoring's drawer, which draws the timeline itself under its own
-   * "What ran" heading and captions it with the run's token count and its trace
-   * links. Left on, the drawer showed two Step timelines listing the same steps,
-   * one inside this card and one below it.
-   *
-   * A flag rather than a deletion because the panel is not redundant in general:
-   * it is redundant on a surface that already draws one. Same reason and the same
-   * shape as `showFeedback`, which is off in that drawer because the rating there
-   * belongs to the asker rather than to the admin reading it.
+   * True by default: Ask PIA and Monitoring both mount this card as the whole
+   * run view, so the timeline sits under the answer it produced. Tests that
+   * isolate a later section turn it off so they are not asserting against the
+   * process panel as well. Same shape as `showFeedback`, which Monitoring turns
+   * off because the rating there belongs to the asker rather than to the admin
+   * reading it.
    */
   showRunProcess?: boolean;
 }) {

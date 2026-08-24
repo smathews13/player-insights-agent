@@ -137,7 +137,7 @@ export function answerContentProvenance(answer: {
  */
 export function answerBadge(answer: { mode: string; provenance?: string }): {
   label: string;
-  variant: 'default' | 'destructive';
+  variant: 'default' | 'destructive' | 'outline';
   tone: 'live' | 'mixed' | 'stored';
 } {
   const provenance = answerContentProvenance(answer);
@@ -147,7 +147,7 @@ export function answerBadge(answer: { mode: string; provenance?: string }): {
   if (provenance === 'mixed') {
     return { label: 'Live answer, stored figures', variant: 'destructive', tone: 'mixed' };
   }
-  return { label: 'Live agent response', variant: 'default', tone: 'live' };
+  return { label: 'Live agent response', variant: 'outline', tone: 'live' };
 }
 
 /**

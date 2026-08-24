@@ -24,6 +24,7 @@ export function SourcesModule({
   sources,
   caveats,
   derivation = [],
+  layout = 'line',
 }: {
   sources: readonly SourceRef[];
   /**
@@ -42,6 +43,14 @@ export function SourcesModule({
    * derived it, and a run reopened from a row written then. Empty draws nothing.
    */
   derivation?: readonly Derivation[];
+  /**
+   * How the names are arranged.
+   *
+   * `line` is Ask PIA's compact provenance sentence. `list` is the Run Explorer
+   * Overview: one row per source, the path and a single Open link, so a catalog
+   * name cannot tangle with the next table's link on the same wrapping line.
+   */
+  layout?: 'line' | 'list';
 }) {
   const rows = sourceRows(sources);
   const derived = derivation
@@ -68,8 +77,45 @@ export function SourcesModule({
 
   if (rows.length === 0 && derived.length === 0 && !caveats.some((caveat) => caveat.trim()))
     return null;
-  return (<>
-      {(rows.length > 0 || derived.length > 0) ? (
+  const provenance =
+    rows.length > 0 || derived.length > 0 ? (
+      layout === 'list' ? (
+        <section className="sources-module sources-module--list" aria-label="Sources and provenance">
+          <p className="source-list-heading">Sources</p>
+          <ul className="source-list">
+            {rows.map((row) => (
+              <li className="source-list-row" key={row.name}>
+                <span
+                  className="source-list-path"
+                  title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}
+                >
+                  <SourceEntityName name={row.name} />
+                </span>
+                <span className="source-list-role" title={row.note}>
+                  {row.chip}
+                </span>
+                <OpenInDatabricks name={row.name} />
+              </li>
+            ))}
+          </ul>
+          {derived.map((entry) => (
+            <p className="source-list-derivation" key={entry.key}>
+              {entry.facts.map((fact, index) => (
+                <span className="derivation-fact" key={fact.label}>
+                  {index > 0 ? ', ' : null}
+                  <span className="derivation-label">{fact.label.toLowerCase()} </span>
+                  <code
+                    className={`derivation-value${fact.source ? ' derivation-source source-name-pill' : ''}`}
+                    data-tone={fact.source ? fact.tone : undefined}
+                  >
+                    {fact.source ? <SourceEntityName name={fact.value} /> : fact.value}
+                  </code>
+                </span>
+              ))}
+            </p>
+          ))}
+        </section>
+      ) : (
         <section className="sources-module" aria-label="Sources and provenance">
           <p className="source-line">
             <strong className="source-line-label">Sources</strong>{' '}
@@ -109,7 +155,10 @@ export function SourcesModule({
             ))}
           </p>
         </section>
-      ) : null}
+      )
+    ) : null;
+  return (<>
+      {provenance}
       <KeepInMind caveats={caveats} sources={rows} />
     </>
   );

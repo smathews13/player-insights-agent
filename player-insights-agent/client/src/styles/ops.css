@@ -965,10 +965,12 @@ a.ops-bar-count:hover {
  *
  * method 52px · route (flex, ellipsised) · last hit 70px · spans 56px · p50 64px
  * · log-scaled p50 bar 150px · slowest 70px, with p95/p99/trend appended only
- * when a route has crossed the span floor. Tabular numerals and right alignment
- * so a column of durations can be scanned down: the routes here span five orders
- * of magnitude, and proportional digits put the decimal point in a different
- * place on every row. The route is the one prose column and overrides both.
+ * when a route has crossed the span floor. Trend is 200px so "Slower than
+ * baseline" fits with its rounded end visible; leftover width still goes to the
+ * route. Tabular numerals and right alignment so a column of durations can be
+ * scanned down: the routes here span five orders of magnitude, and proportional
+ * digits put the decimal point in a different place on every row. The route is
+ * the one prose column and overrides both.
  */
 /* Search and Refresh share the header rail, so narrowing routes never creates a
    separate control slab above the table. */
@@ -977,7 +979,7 @@ a.ops-bar-count:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  min-width: 0;
+  min-width: 280px;
 }
 
 .ops-latency-block .ops-block-head {
@@ -985,12 +987,24 @@ a.ops-bar-count:hover {
 }
 
 .ops-latency-block .ops-block-head-control {
-  min-width: 0;
+  min-width: 280px;
 }
 
 .ops-latency-search {
-  width: min(240px, 100%);
-  min-width: 10rem;
+  width: auto;
+  min-width: 280px;
+}
+
+/*
+ * `.monitoring-search` shrinks to 160px and, below 1180px, takes `flex: 1 1 100%`.
+ * Either floor clips "Search routes or methods…". This pair outranks that rule so
+ * the field can grow into the header rail and cannot shrink below the placeholder.
+ */
+.ops-latency-head-controls .ops-latency-search {
+  flex: 1 0 280px;
+  width: auto;
+  min-width: 280px;
+  max-width: 22rem;
 }
 
 /*
@@ -1100,7 +1114,8 @@ a.ops-bar-count:hover {
 }
 
 .ops-lat-col-trend {
-  width: 132px;
+  width: 200px;
+  min-width: 200px;
 }
 
 .ops-lat-method {
@@ -1181,6 +1196,20 @@ td.ops-lat-route {
 
 .ops-lat-slowest {
   text-align: right;
+}
+
+/*
+ * The longest verdict is "Slower than baseline". 200px is the floor that keeps
+ * that pill — padding, border, and rounded end — inside the cell. `nowrap` is
+ * restated on the pill so a later wrap on `.ops-pill` cannot clip it mid-word.
+ */
+.ops-lat-trend {
+  min-width: 200px;
+  white-space: nowrap;
+}
+
+.ops-lat-trend .ops-pill {
+  white-space: nowrap;
 }
 
 .ops-lat-bar-fill {

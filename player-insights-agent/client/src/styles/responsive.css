@@ -96,12 +96,8 @@
     display: none;
   }
   /* The question's stagger goes with the column it leans toward. Above this band
-     the answer card gives up a lane at its right edge so the reader's question
-     ends further right than the answer does (ask.css); here the answer needs
-     that lane back, and there is no harness column for the question to be
-     offset toward. Zeroing the property rather than restating the margin: the
-     card reads it, and so will anything else that lines up with the answer's
-     right edge later. */
+     the question row is inset from the answer's left edge (ask.css); here there
+     is no harness column to stagger toward, so the offset is zeroed. */
   .conversation-main {
     --question-stagger: 0px;
   }

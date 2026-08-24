@@ -86,16 +86,29 @@ export const ARCHITECTURE_CONTROL_SCOPES: Readonly<Record<ChainBound, Architectu
     edges: FINDER_STEP_EDGES,
   },
   maxToolCalls: {
-    accent: 'agent',
+    accent: 'genie',
     nodes: TOOL_NODES,
     edges: TOOL_EDGES,
   },
   maxRunSeconds: {
-    accent: 'agent',
+    accent: 'question',
     nodes: RUN_NODES,
     edges: RUN_EDGES,
   },
 };
+
+/**
+ * Click-to-toggle for the three KPI tiles.
+ *
+ * Hover and focus used to set the bound and leave used to clear it, which made
+ * the highlight a brief flash: the tile's own outline moved the pointer out of
+ * the hit target, leave cleared the bound, and the next enter painted it again.
+ * A click replaces the current bound, or clears it when the same tile is pressed
+ * again. The highlight then stays until the next click.
+ */
+export function nextActiveBound(current: ChainBound | null, clicked: ChainBound): ChainBound | null {
+  return current === clicked ? null : clicked;
+}
 
 export function nodeControlBounds(nodeId: string): ChainBound[] {
   return (Object.entries(ARCHITECTURE_CONTROL_SCOPES) as Array<[ChainBound, ArchitectureControlScope]>)

@@ -87,6 +87,30 @@ describe('the figures line up', () => {
     expect(rule('.ops-lat-col-bar')).toMatch(/width:\s*150px/);
     expect(rule('.ops-lat-col-slowest')).toMatch(/width:\s*70px/);
   });
+
+  /**
+   * TREND WAS 132px, which is shorter than the "Slower than baseline" pill plus
+   * its padding and rounded end. Extra table width went to the route column, so
+   * the badge clipped at the card edge while empty space sat on the left.
+   */
+  it('gives TREND a min-width that fits Slower than baseline and keeps the badge on one line', () => {
+    const col = rule('.ops-lat-col-trend');
+    const colMin = Number(/min-width:\s*(\d+)px/.exec(col)?.[1]);
+    expect(colMin, '.ops-lat-col-trend min-width').toBeGreaterThanOrEqual(188);
+
+    const cell = rule('.ops-lat-trend');
+    const cellMin = Number(/min-width:\s*(\d+)px/.exec(cell)?.[1]);
+    expect(cellMin, '.ops-lat-trend min-width').toBeGreaterThanOrEqual(188);
+    expect(cell).toMatch(/white-space:\s*nowrap/);
+
+    expect(rule('.ops-lat-trend .ops-pill')).toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('keeps the latency search wide enough for its placeholder', () => {
+    const search = rule('.ops-latency-head-controls .ops-latency-search');
+    expect(search).toMatch(/min-width:\s*280px/);
+    expect(search).toMatch(/flex:\s*1\s+0\s+280px/);
+  });
 });
 
 describe('the traffic groups share the row', () => {

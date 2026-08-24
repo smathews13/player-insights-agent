@@ -1173,13 +1173,40 @@ describe('the drawing keeps its shape at every width', () => {
 });
 
 describe('the runtime-bound colour follows the architecture legend', () => {
-  it('uses the agent family rather than three unrelated API colours', () => {
-    const bounds = rule(CSS, ".arch-tiles-loop li[data-accent='agent']");
-    const active = rule(CSS, '.arch-canvas[data-active-bound]');
-
-    expect(bounds).toMatch(/--arch-bound-color:\s*var\(--ast-navy\)/);
-    expect(active).toMatch(/--arch-active-bound:\s*var\(--ast-navy\)/);
+  it('gives each KPI a legend family rather than three unrelated API colours', () => {
+    expect(rule(CSS, ".arch-tiles-loop li[data-accent='agent']")).toMatch(
+      /--arch-bound-color:\s*var\(--ast-navy\)/
+    );
+    expect(rule(CSS, ".arch-tiles-loop li[data-accent='genie']")).toMatch(
+      /--arch-bound-color:\s*var\(--db-teal-600\)/
+    );
+    expect(rule(CSS, ".arch-tiles-loop li[data-accent='question']")).toMatch(
+      /--arch-bound-color:\s*var\(--ast-blue\)/
+    );
+    expect(rule(CSS, ".arch-canvas[data-active-accent='agent']")).toMatch(
+      /--arch-active-bound:\s*var\(--ast-navy\)/
+    );
+    expect(rule(CSS, ".arch-canvas[data-active-accent='genie']")).toMatch(
+      /--arch-active-bound:\s*var\(--db-teal-600\)/
+    );
+    expect(rule(CSS, ".arch-canvas[data-active-accent='question']")).toMatch(
+      /--arch-active-bound:\s*var\(--ast-blue\)/
+    );
     expect(CSS).not.toMatch(/--arch-bound-(?:steps|tools|run)/);
+  });
+
+  it('paints a selected node as a sticky outline, never a white fill', () => {
+    // Last match: the same selector also appears in the reduced-motion guard,
+    // which only turns transitions off and is not the paint.
+    const at = CSS.lastIndexOf('.arch-node.arch-node-selected {');
+    expect(at).toBeGreaterThan(-1);
+    const selected = CSS.slice(at, CSS.indexOf('}', at));
+    expect(selected).toMatch(/outline:\s*3px solid var\(--arch-active-bound\)/);
+    expect(selected).not.toMatch(/background:/);
+    expect(selected).not.toMatch(/filter:/);
+    expect(selected).not.toMatch(/#fff|#ffffff|white|--card|--ast-white|--background/i);
+    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/background:/);
+    expect(rule(CSS, '.arch-tiles-loop li.arch-bound-selected')).not.toMatch(/filter:/);
   });
 });
 

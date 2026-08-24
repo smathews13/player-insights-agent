@@ -162,25 +162,28 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
      *
      * `timeline.css` was moved out of index.css into side-effect imports inside
      * the two lazy ROUTE modules that draw a timeline. `TraceTimeline` is not a
-     * route's component: the answer card draws it on Ask and the Monitoring
-     * drawer draws it in a review panel, and neither of those imported it. So
-     * both rendered the roll-up tiles, the axis and the Gantt with NO RULES AT
-     * ALL -- an unstyled table, tick labels that never took their absolute
-     * position, and KPI tiles with no grid, which is the "Time by tool type"
-     * block landing on top of the answer prose. Run Explorer looked correct
-     * throughout, because Run Explorer is the surface that imported the sheet.
+     * route's component: the answer card draws it on Ask and on Monitoring's
+     * question modal, and neither of those imported the sheet. So both rendered
+     * the roll-up tiles, the axis and the Gantt with NO RULES AT ALL -- an
+     * unstyled table, tick labels that never took their absolute position, and
+     * KPI tiles with no grid, which is the "Time by tool type" block landing on
+     * top of the answer prose. Run Explorer looked correct throughout, because
+     * Run Explorer is the surface that imported the sheet.
      *
      * The sheet is back in the entry cascade and no module imports it. A future
      * split of it has to answer this test, which is the question the last one
      * did not ask: which surfaces draw this component?
      */
     expect(partialNames(), 'timeline.css is in the entry cascade').toContain('timeline.css');
+    expect(CARD, 'Ask and Monitoring share this card').toContain('<TraceTimeline');
+    expect(MONITORING, 'Monitoring reuses the card rather than drawing a second timeline').toContain('<AnswerCard');
+    expect(MONITORING).not.toContain('<TraceTimeline');
+    expect(RUN_EXPLORER, 'Run Explorer draws TraceTimeline').toContain('<TraceTimeline');
     for (const [name, source] of [
       ['AnswerCard.tsx', CARD],
       ['MonitoringPage.tsx', MONITORING],
       ['RunExplorer.tsx', RUN_EXPLORER],
     ] as const) {
-      expect(source, `${name} draws TraceTimeline`).toContain('<TraceTimeline');
       expect(source, `${name} does not carry the sheet itself`).not.toContain("import './styles/timeline.css'");
     }
   });

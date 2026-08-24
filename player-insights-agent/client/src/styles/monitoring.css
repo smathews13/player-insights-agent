@@ -1,5 +1,6 @@
 /*
- * Monitoring: the summary strip, the question list, and the drawer over it.
+ * Monitoring: the summary strip, the question list, a centered question modal,
+ * and the person drawer over the list.
  *
  * Every colour here is a token and every one of them means one thing. Green is
  * reachable, red is failure, neutral grey-blue is a refusal, blue is action and
@@ -538,14 +539,50 @@
   gap: 8px;
 }
 
-/* ── The drawer ────────────────────────────────────────────────────────── */
+/* ── The question modal ────────────────────────────────────────────────── */
+
+/*
+ * A centered overlay over the list, not a second card style and not a right-hand
+ * drawer. The list stays mounted underneath. The body of the dialog is Ask PIA's
+ * own answer card, so the run process sits under the prose instead of painting
+ * over it.
+ *
+ * Width follows `--conversation-measure` so the card has the same room it has
+ * on Ask. The overlay is the dimmer; the dialog is the opaque surface.
+ */
+.monitoring-question-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
+}
+.monitoring-question-modal {
+  width: min(var(--conversation-measure), calc(100vw - 48px));
+  max-height: min(calc(100vh - 48px), 920px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--ast-hairline);
+  border-radius: 8px;
+  padding: 20px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+}
+
+/* ── The person drawer ─────────────────────────────────────────────────── */
 
 /*
  * Over the list, not instead of it.
  *
  * Fixed to the right edge and scrollable on its own, because the reader's place
  * in the list underneath is something they get back when they close this. It is
- * not a route change and the list does not unmount.
+ * not a route change and the list does not unmount. Question detail used to live
+ * here too; it is the centered modal above. This rule is the person panel only.
  */
 .monitoring-drawer {
   position: fixed;

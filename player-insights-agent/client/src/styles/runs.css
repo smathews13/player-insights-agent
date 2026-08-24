@@ -691,15 +691,24 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 /*
  * The final answer, as the one card on the detail side.
  *
- * The eyebrow names it and the robot says who wrote it -- the same agent mark the
- * transcript uses, from the same definition, so a stored answer read back weeks
- * later is marked as coming from the place the live one came from. That is the
- * whole reason this mark is not drawn locally: two copies would agree today and
- * would be the last thing anybody thought to compare after a retune.
+ * Same width as the KPI row above it: a max-width or a shrink-to-content card
+ * left starfield gutters either side of the answer while the tiles spanned the
+ * column. The pane token, not a milky sheet -- this sits on the night sky with
+ * every other surface on the page.
  */
+.run-explorer .final-answer {
+  width: 100%;
+  max-width: none;
+  justify-self: stretch;
+  box-sizing: border-box;
+  background: var(--ast-pane);
+  border: 1px solid var(--ast-hairline);
+}
 .final-answer [data-slot='card-content'] {
   display: grid;
-  gap: 10px;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 20px 16px;
 }
 .final-answer-head {
   display: flex;
@@ -728,6 +737,12 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
+.final-answer[data-tone='partial'] .final-answer-eyebrow {
+  color: var(--ast-warn-deep);
+}
+.final-answer[data-tone='partial'] .final-answer-mark {
+  color: var(--ast-warn-text);
+}
 .final-answer-takeaway {
   margin: 0;
   font-size: var(--text-h-section);
@@ -735,7 +750,119 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   line-height: 1.4;
   text-wrap: pretty;
 }
+/*
+ * Status the header would otherwise bury: incomplete sources and a turn
+ * deadline used to sit as 11px bullets under a "FINAL ANSWER" eyebrow. These
+ * chips lead, in the warning family's own wash, so a partial run cannot read
+ * as a finished one.
+ */
+.final-answer-warnings {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.final-answer-warning {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--ast-warn-text) 35%, transparent);
+  border-radius: 6px;
+  background: var(--ast-warn-fill);
+  color: var(--ast-warn-deep);
+  font-size: var(--ast-fs-12);
+  line-height: 1.45;
+}
+.final-answer-warning strong {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ast-warn-text);
+}
+.final-answer .answer-prose {
+  font-size: 13px;
+  line-height: 1.55;
+  min-width: 0;
+}
+.final-answer .answer-table-wrap {
+  width: 100%;
+}
+/*
+ * Identifier chips on this card: a quiet night-sky mark, not a white slab.
+ * Appearance-saved entity fills can still be a highlighter on paper; on this
+ * surface they are not allowed to win.
+ */
+html[data-theme='dark'] .final-answer .entity-token,
+html[data-theme='dark'] .final-answer .entity-mark,
+html[data-theme='dark'] .final-answer .answer-code {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ast-ink-on-dark);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+html[data-theme='dark'] .final-answer .entity-catalog {
+  color: var(--ast-ice-accent);
+  background: rgba(143, 193, 232, 0.12);
+}
+.final-answer .source-list-heading {
+  margin: 0 0 8px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.final-answer .source-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.final-answer .source-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px 12px;
+  align-items: baseline;
+  min-width: 0;
+}
+.final-answer .source-list-path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ast-text);
+}
+.final-answer .source-list-path .source-name-qualifier {
+  opacity: 0.7;
+}
+.final-answer .source-list-path .source-name-short {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+.final-answer .source-list-path a {
+  color: inherit;
+}
+.final-answer .source-list-role {
+  color: var(--muted-foreground);
+  font-size: var(--ast-fs-11);
+  white-space: nowrap;
+}
+.final-answer .source-list-derivation {
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--ast-fs-11);
+}
+.final-answer .keep-in-mind {
+  background: color-mix(in srgb, var(--ast-ice) 70%, transparent);
+}
 .final-answer-open {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ast-hairline);
   color: var(--primary);
   font-size: var(--text-sm);
   font-weight: 500;

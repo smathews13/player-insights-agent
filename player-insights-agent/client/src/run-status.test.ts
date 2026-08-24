@@ -179,10 +179,9 @@ describe('ready and live are not the same pill', () => {
   });
 
   it('moves nothing that would change what either label is measured against', () => {
-    // The live pill's white word is 4.72:1 on #2272B4 and the green pill's is
-    // 4.95:1. Breathing either fill would swing a number neither has much room
-    // on, so only the dots move, and they move in opacity and transform --
-    // neither of which is a colour.
+    // The live pill used to be white on #2272B4; breathing that fill would
+    // swing contrast. Only the dots move, and they move in opacity and
+    // transform -- neither of which is a colour.
     const frames = RAIL_CSS.match(/@keyframes run-status-breath \{([\s\S]*?)\n\}/)?.[1] ?? '';
     expect(frames).not.toMatch(/background|color|border/);
     expect(frames).toMatch(/opacity|transform/);
@@ -193,13 +192,13 @@ describe('ready and live are not the same pill', () => {
       expect(rule, 'a tone is a fill, not an animation').not.toMatch(/animation/);
       expect(rule, 'a tone is stated at all').not.toBe('');
     }
-    // §4: "Ready (green) or Live (solid blue #2272B4) pill". The fill was orange
-    // and the argument for it was that a mass meaning "working, right now" was
-    // what the token was for; §2 removes orange from the palette, so there is no
-    // token left to spend. `--ast-blue` rather than `--db-blue-600`: same value,
-    // and the astrolabe spelling is the one this rebuild is checked against.
-    expect(RAIL_CSS).toMatch(/\.run-status\.is-live \{[^}]*background: var\(--ast-blue\)/);
+    // Live used to be the solid `--ast-blue` slab. It now shares the quiet
+    // fill Complete / Partial / Asked-by already wear; the word and the
+    // breathing dot still say the run is in flight.
+    expect(RAIL_CSS).toMatch(/\.run-status\.is-live \{[^}]*background: var\(--ast-neutral-fill\)/);
+    expect(RAIL_CSS).not.toMatch(/\.run-status\.is-live \{[^}]*--ast-blue/);
     expect(RAIL_CSS).not.toMatch(/\.run-status\.is-live \{[^}]*--db-orange/);
+    expect(RUN_TONE_FAMILY['is-live']).toBe('ast-pill--neutral-outline');
     // Green is the shared recipe's positive family rather than a wash this
     // stylesheet names for itself, which is the whole of the migration.
     expect(RUN_TONE_FAMILY['is-ready']).toBe('ast-pill--pos');

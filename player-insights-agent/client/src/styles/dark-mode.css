@@ -174,6 +174,20 @@ html[data-theme='dark'] .identity-chip {
 }
 
 /*
+ * "Live agent response" is a chip, not an action.
+ *
+ * AppKit's default Badge is `bg-primary`. On the night sky that is the same
+ * neon slab the conversation-rail Live pill used to be. Quiet fill, hairline,
+ * ink -- the same register Complete / Partial / Asked-by already wear.
+ */
+html[data-theme='dark'] .answer-card [data-slot='badge'].provenance-chip[data-tone='live'] {
+  background: rgba(255, 255, 255, 0.07);
+  background-color: rgba(255, 255, 255, 0.07);
+  color: var(--ast-ink-on-dark);
+  border-color: var(--ast-border-input);
+}
+
+/*
  * The gear is the operable member of the identity cluster, not a primary action.
  *
  * Its previous AppKit default left a solid blue square between the Signed in
@@ -489,21 +503,31 @@ html[data-theme='dark'] [data-slot='sheet-content'] {
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
 }
 
+html[data-theme='dark'] .monitoring-question-modal {
+  background: var(--ast-surface-solid);
+  backdrop-filter: none;
+  border-color: var(--ast-border-input);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
 /*
- * NOTHING INSIDE THE DRAWER MAY BLUR WHAT IS BEHIND IT.
+ * NOTHING INSIDE A FIXED SCROLLER MAY BLUR WHAT IS BEHIND IT.
  *
- * The drawer is `position: fixed` with its own scroller, and the answer card it
- * composes carries `backdrop-filter: blur(2px)` from the frosted-pane rung
- * above. A blurred layer inside a fixed scroll container is repainted against a
- * backdrop the compositor has already scrolled, and the drawer showed the answer
- * and the timeline under it drawn at two offsets at once -- text over text, which
- * is what "horrific" was a picture of. The drawer is already opaque
- * (`--ast-surface-solid` above), so there is nothing behind these to see: the
+ * The person drawer and the question modal are `position: fixed` with their own
+ * scrollers, and the answer card carries `backdrop-filter: blur(2px)` from the
+ * frosted-pane rung above. A blurred layer inside a fixed scroll container is
+ * repainted against a backdrop the compositor has already scrolled, and the old
+ * side card showed the answer and the timeline under it drawn at two offsets at
+ * once -- text over text. These surfaces are already opaque
+ * (`--ast-surface-solid` above), so there is nothing behind the card to see: the
  * blur costs the reader the frost they cannot perceive and buys the smear.
  */
 html[data-theme='dark'] .monitoring-drawer [data-slot='card'],
 html[data-theme='dark'] .monitoring-drawer .answer-card,
-html[data-theme='dark'] .monitoring-drawer [data-slot='alert'] {
+html[data-theme='dark'] .monitoring-drawer [data-slot='alert'],
+html[data-theme='dark'] .monitoring-question-modal [data-slot='card'],
+html[data-theme='dark'] .monitoring-question-modal .answer-card,
+html[data-theme='dark'] .monitoring-question-modal [data-slot='alert'] {
   backdrop-filter: none;
 }
 
@@ -820,59 +844,38 @@ html[data-theme='dark'] .roster-role-chip-super-admin {
  * default. That is why every line below restates `var(--entity-*, ...)` rather
  * than assigning a colour outright.
  *
- * Schema was corrected first and alone, and the other three had the same fault
- * and were left. All four fallbacks are written for white paper:
+ * The fallbacks are the same hex pairs Settings ships as defaults — ice or
+ * off-white type on quiet navy/ice fills — so a reader who never opened
+ * Appearance and a reader whose stored row still has the paper leftovers both
+ * see chips that sit on the sky. The paper fills (#e8e8e8, #f4f4f4, #f7f7f7,
+ * #ddeaf4) were the white slabs in answers; they are not written here.
  *
- *   - CATALOG was white type on `--ast-info-text`. That token is the deep blue
- *     #0E538B on paper and the pale ICE ACCENT on the sky, so the chip inverted:
- *     white on pale blue, which is the near-white block reported as "bad
- *     highlighting". It was also the loudest object in the card by some margin.
- *   - TAG was white on `--ast-navy` -- a navy chip on a navy page, so the fill
- *     vanished and the label floated with a mysterious gap around it.
- *   - SCHEMA was navy type, already corrected.
- *
- * The replacements are the same tinted-fill-and-light-type shape every other
- * chip on the sky takes: a translucent white or ice wash carrying the fill, and
- * the on-dark ink carrying the type. Nothing is a solid block, which is the
- * property that made these read as highlighter pen over the prose rather than as
- * marks in it. Table, column and quote already resolve through `--ast-hairline`,
- * `--ast-neutral-fill` and `--ast-fill-band`, all three of which are declared for
- * dark above, so they are correct already and are not restated.
+ * Kinds stay distinct by hue: catalog is raised navy-blue, schema an ice wash,
+ * table a lifted frost, column a deeper ice, quote the surface itself, tag the
+ * slate that already sat. Custom `--entity-*` values still win.
  */
 html[data-theme='dark'] {
   --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-ice-accent));
-  --ast-entity-catalog-bg: var(--entity-catalog-bg, rgba(143, 193, 232, 0.1));
+  --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-primary-control-fill));
   --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-ink-on-dark));
-  --ast-entity-schema-bg: var(--entity-schema-bg, rgba(255, 255, 255, 0.07));
-  --ast-entity-table-bg: var(--entity-table-bg, rgba(255, 255, 255, 0.07));
-  --ast-entity-column-bg: var(--entity-column-bg, rgba(255, 255, 255, 0.07));
-  --ast-entity-quote-bg: var(--entity-quote-bg, rgba(255, 255, 255, 0.07));
+  --ast-entity-schema-bg: var(--entity-schema-bg, #25323c);
+  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-ink-on-dark));
+  --ast-entity-table-bg: var(--entity-table-bg, #2e3337);
+  --ast-entity-column-fg: var(--entity-column-fg, var(--ast-ghost-text));
+  --ast-entity-column-bg: var(--entity-column-bg, #1e2830);
+  --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-icon-tint));
+  --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-surface-solid));
   --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-ink-on-dark));
-  --ast-entity-tag-bg: var(--entity-tag-bg, rgba(255, 255, 255, 0.07));
+  --ast-entity-tag-bg: var(--entity-tag-bg, #243746);
 }
 
 /*
  * ON THE SKY, AN IDENTIFIER IS A MARK IN THE PROSE. IT IS NOT A HIGHLIGHT OVER IT.
  *
- * The fills above went to a single quiet 7% wash -- from 12%, 16% and, for
- * catalog, a near-solid pale blue -- and this rule takes inline code down with
- * them. What broke was DENSITY, not any one chip: an answer naming a catalog, a
- * schema and four tables sets six filled boxes in two sentences, at three
- * different weights, and the eye reads the boxes rather than the words between
- * them. That is highlighter pen over a paragraph, and it is what "none of this
- * is readable" was about.
- *
- * The distinction between kinds now lives in the TYPE, which is where colour is
- * legible on a dark surface anyway: catalog keeps the ice accent, the rest take
- * the on-dark ink. One weight of fill behind all of them says only "this is a
- * name the app recognises", which is all the fill was ever for.
- *
- * Light mode is untouched. On paper the fills ARE the distinction and they are
- * calibrated against white; this is the sky's answer to the same question.
- *
- * Every line keeps the `var(--entity-*, …)` chain, so a deployment that has set
- * a colour in Settings > Appearance still gets exactly the colour it chose.
- * Only the fallbacks move.
+ * Inline code takes the same ice wash the catalog chip uses, so a `table`
+ * mention in a sentence is not a brighter box than the entity marks around it.
+ * Light mode is untouched. Every entity line keeps the `var(--entity-*, …)`
+ * chain, so a colour set in Settings > Appearance still wins.
  */
 html[data-theme='dark'] .answer-code {
   background: rgba(143, 193, 232, 0.1);
@@ -1024,6 +1027,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .monitoring-chip-menu,
   html[data-theme='dark'] .settings-page.settings-modal,
   html[data-theme='dark'] .monitoring-drawer,
+  html[data-theme='dark'] .monitoring-question-modal,
   html[data-theme='dark'] [data-slot='sheet-content'] {
     backdrop-filter: none;
     background: var(--ast-surface-solid);
@@ -1035,7 +1039,8 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .conversation-rail,
   html[data-theme='dark'] .composer,
   html[data-theme='dark'] [data-slot='card'],
-  html[data-theme='dark'] .monitoring-drawer {
+  html[data-theme='dark'] .monitoring-drawer,
+  html[data-theme='dark'] .monitoring-question-modal {
     transition: none;
   }
 }

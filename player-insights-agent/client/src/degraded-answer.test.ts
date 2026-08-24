@@ -349,7 +349,7 @@ describe('the headline badge', () => {
   it('leaves a fully live answer unhedged', () => {
     expect(answerBadge({ mode: 'live', provenance: 'live' })).toEqual({
       label: 'Live agent response',
-      variant: 'default',
+      variant: 'outline',
       tone: 'live',
     });
   });

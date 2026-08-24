@@ -26,8 +26,8 @@ export function RunStatusPill({ status, onDark = false }: { status: RunStatus; o
   // `ast-pill` is the recipe, the family is the colour, and `run-status` is what
   // this seating adds to both: a dot in a fixed lane, a check in the same lane,
   // and the one animation the app runs on a chip. The tone class rides along
-  // because two rules key off the state rather than off the family -- the solid
-  // blue live pill, which no family draws, and the green dot's own hue.
+  // because the live and ready rules still key off the state class as well as
+  // the family: the breathing dot, and the quiet fill live shares with waiting.
   const family = RUN_TONE_FAMILY[status.tone];
   return (
     <span

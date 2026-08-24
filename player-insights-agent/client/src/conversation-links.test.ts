@@ -31,6 +31,7 @@ import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId, conversationHref } from 
 
 const HOME_PAGE = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const RUN_EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+const FINAL_ANSWER = readFileSync(new URL('./FinalAnswer.tsx', import.meta.url), 'utf8');
 const LAYOUT = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
 
 const CONVERSATION = 'conv-example-conversation';
@@ -89,7 +90,8 @@ describe('the pages at each end of that link', () => {
     // second had the identical defect and would have been left behind by a fix
     // that only touched the one in the bug report.
     expect(RUN_EXPLORER).toContain("import { conversationHref } from './conversation-links'");
-    expect(RUN_EXPLORER).toContain('to={conversationHref(selected.conversation_id, selected.id)}');
+    expect(FINAL_ANSWER).toContain("import { conversationHref } from './conversation-links'");
+    expect(FINAL_ANSWER).toContain('to={conversationHref(conversationId, runId)}');
     expect(RUN_EXPLORER).toContain('conversationHref(selected.conversation_id, selected.id)');
   });
 
@@ -97,13 +99,15 @@ describe('the pages at each end of that link', () => {
     // The whole defect, as a string. `/?conversation=` is the spelling Ask PIA
     // has never read.
     expect(RUN_EXPLORER).not.toContain('/?conversation=');
+    expect(FINAL_ANSWER).not.toContain('/?conversation=');
   });
 
   it('uses the router rather than an anchor, so the jump keeps the app mounted', () => {
     // A raw `href` would reload the client, refetch every list and discard the
     // state the reader came from.
-    expect(RUN_EXPLORER).toMatch(/<Link\s+className="final-answer-open"/);
+    expect(FINAL_ANSWER).toMatch(/<Link\s+className="final-answer-open"/);
     expect(RUN_EXPLORER).not.toMatch(/href=\{?["`]?\/\?/);
+    expect(FINAL_ANSWER).not.toMatch(/href=\{?["`]?\/\?/);
   });
 
   it('reads both halves of the link on the Ask PIA side from the same definitions', () => {
