@@ -17,6 +17,11 @@ env:
   # reports that it could not check rather than that access was refused.
   - name: DATABRICKS_SQL_WAREHOUSE_ID
     valueFrom: sql-warehouse
+  # Bundle-owned semantic rebuild job. Empty for deployments that do not create
+  # one; bundle/app-release.sh fills the resolved job id when present so Ops can
+  # join JOBS billing rows to this deployment without guessing by name.
+  - name: PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID
+    value: ''
   # The experiment the serving endpoint traces into, which lets Run Explorer
   # deep-link a stored MLflow trace id. Supplied two ways, and the app prefers the
   # more specific: a numeric id here wins; empty (the authored default) falls

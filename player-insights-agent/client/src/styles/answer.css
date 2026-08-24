@@ -13,7 +13,7 @@
    from AppKit's 12px, which is a third radius the handoff collapses away. */
 .answer-card {
   border: 1px solid var(--ast-hairline);
-  border-top: 3px solid var(--ast-blue);
+  border-top: 4px solid var(--ast-blue);
   border-radius: var(--ast-radius-card);
   box-shadow: none;
   /*
@@ -24,6 +24,7 @@
   margin-bottom: 26px;
   box-sizing: border-box;
   width: 100%;
+  min-height: 280px;
   min-width: min(640px, 100%);
   max-width: 100%;
   container-type: inline-size;
@@ -33,6 +34,27 @@
 .entity-token {
   padding: 1px 3px;
   text-decoration: inherit;
+}
+
+/*
+ * A CHIP THAT WRAPS IS STILL ONE CHIP.
+ *
+ * These marks are set `overflow-wrap: anywhere`, which is right and is argued for
+ * below where it is declared: the chip sits inside a sentence, and a sentence
+ * does not get a horizontal scrollbar. What it produced was ugly for a reason
+ * that has nothing to do with the break itself -- an inline box that wraps drops
+ * its padding, its border and its radius at the break by default, so
+ * `silver_gameplay_activity` came apart into a fill running to the card's edge
+ * and a bare `y` on the next line with a stray box around it. That reads as a
+ * rendering fault rather than as a wrapped word.
+ *
+ * `clone` gives every fragment the whole decoration, so a wrapped identifier is
+ * two properly drawn chips instead of one broken one.
+ */
+.entity-token,
+.answer-badge {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .entity-catalog {
   color: var(--ast-entity-catalog-fg);
@@ -116,19 +138,24 @@
 .plan-card {
   gap: 14px;
 }
+/* The answer is the transcript's primary reading surface. Its 24px inset and
+   minimum body height keep it visibly more substantial than the live-step pane
+   and the compact cards nested inside it, without narrowing the page grid. */
 .answer-card > [data-slot='card-header'],
-.answer-card > [data-slot='card-content'],
-.plan-card > [data-slot='card-header'],
-.plan-card > [data-slot='card-content'] {
+.answer-card > [data-slot='card-content'] {
   padding-inline: 24px;
 }
+.plan-card > [data-slot='card-header'],
+.plan-card > [data-slot='card-content'] {
+  padding-inline: 20px;
+}
 .answer-card > [data-slot='card-header'] {
-  padding-top: 20px;
+  padding-top: 24px;
   padding-bottom: 0;
 }
 .answer-card > [data-slot='card-content'] {
   padding-top: 0;
-  padding-bottom: 20px;
+  padding-bottom: 24px;
 }
 /*
  * The answer card's header: the mark, the provenance chips, and the takeaway.
@@ -538,6 +565,10 @@ ol.answer-list {
   border-radius: 3px;
   padding: 1px 5px;
   overflow-wrap: anywhere;
+  /* So a broken identifier is two whole chips rather than one torn one. See the
+     note beside `.entity-token` at the top of this file. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 /* A link the agent wrote, in the action colour with a solid underline. Solid, and
    not the dotted rule the entity links carry: dotted now means "this names a table

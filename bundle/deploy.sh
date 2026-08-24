@@ -81,8 +81,6 @@ fi
 resolve_profile
 seed_bundle_cache
 
-LAKEBASE_PROJECT="$(bundle_var lakebase_project_id)"
-WAREHOUSE_ID="$(bundle_var warehouse_id)"
 VECTOR_ENDPOINT="$(bundle_var_or_empty semantic_index_endpoint)"
 
 ARGS=(bundle deploy -t "$TARGET" --profile "$PROFILE")
@@ -93,16 +91,14 @@ note "Review the CLI change list. This wrapper never passes --auto-approve."
 note "The App is bundle-owned; do not create it by hand or exclude it with --select."
 (cd "$BUNDLE_ROOT" && databricks "${ARGS[@]}")
 
-step "Applying the astrolabe resource tag"
-TAG_ARGS=(
-  --lakebase-project "$LAKEBASE_PROJECT"
-  --warehouse-id "$WAREHOUSE_ID"
-)
-[[ -n "$VECTOR_ENDPOINT" ]] && TAG_ARGS+=(--vector-endpoint "$VECTOR_ENDPOINT")
-(cd "$BUNDLE_ROOT/agent" \
-  && DATABRICKS_CONFIG_PROFILE="$PROFILE" \
-     uv run --python 3.13 python ../bundle/tag-resources.py "${TAG_ARGS[@]}")
 if [[ -n "$VECTOR_ENDPOINT" ]]; then
+  step "Applying the astrolabe resource tag"
+  (cd "$BUNDLE_ROOT/agent" \
+    && DATABRICKS_CONFIG_PROFILE="$PROFILE" \
+       uv run --python 3.13 python ../bundle/tag-resources.py --vector-endpoint "$VECTOR_ENDPOINT")
   note "AI Search indexes expose no custom-tag field or patch API. Their billed"
   note "compute is attributed through the tagged endpoint '$VECTOR_ENDPOINT'."
 fi
+note "The SQL warehouse, Genie spaces, foundation-model endpoint, and Lakebase"
+note "project are attached resources, not artifacts this bundle owns; deploy does"
+note "not mutate their tags."

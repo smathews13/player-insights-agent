@@ -84,3 +84,9 @@ coverage/
 # Local tooling
 .DS_Store
 *.log
+# One editor's own reminder state, written into the repository root. Nothing
+# reads it here, and it is named rather than pattern-matched because this repo
+# publishes: an untracked, unignored file at the root is one `git add -A` away
+# from being committed, and from there sync-mirror.sh copies it to a public
+# repository along with whoever's machine it came from.
+/.isaac/

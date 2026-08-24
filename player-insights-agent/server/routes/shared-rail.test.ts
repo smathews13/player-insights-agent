@@ -138,7 +138,12 @@ describe('what the rail reads', () => {
     }
 
     const [read] = store.reads();
-    expect(read.sql).toContain('WHERE user_email = $1');
+    // The OWNER predicate specifically, and not the mere presence of a WHERE.
+    // The rail query carries a lateral join that reads each conversation's
+    // latest answered turn for the status badge, and that subquery has a WHERE
+    // of its own about message rows -- so "contains WHERE" stopped being a
+    // statement about tenancy the moment the badge was derived here.
+    expect(read.sql).toContain('WHERE c.user_email = $1');
     expect(read.sql).toContain(`LIMIT ${CONVERSATION_RAIL_LIMIT}`);
     expect(read.params).toEqual(['alice@example.example']);
   });
@@ -160,7 +165,7 @@ describe('what the rail reads', () => {
       read.sql,
       `${JSON.stringify(value)} is not "true", so the rail must stay scoped. A value nobody ` +
         'recognises must never be the thing that widens it.'
-    ).toContain('WHERE user_email = $1');
+    ).toContain('WHERE c.user_email = $1');
     expect(read.params).toEqual(['alice@example.example']);
   });
 
@@ -177,7 +182,11 @@ describe('what the rail reads', () => {
     }
 
     const [read] = store.reads();
-    expect(read.sql).not.toContain('WHERE');
+    // No owner predicate on the conversations table. Asserted on the predicate
+    // rather than on the absence of any WHERE at all, because the status badge
+    // is derived by a lateral join whose own WHERE selects a conversation's
+    // latest answered turn -- see the note on the scoped case above.
+    expect(read.sql).not.toContain('c.user_email = $1');
     expect(read.sql).toContain(`LIMIT ${CONVERSATION_RAIL_LIMIT}`);
     expect(read.params).toEqual([]);
   });

@@ -62,7 +62,7 @@ describe('Sam’s second feedback wave', () => {
 
   it('widens result surfaces without removing horizontal overflow', () => {
     expect(TOKENS).toContain('--conversation-measure: 1120px');
-    expect(TOKENS).toContain('--conversation-inset: clamp(24px, 2.5vw, 48px)');
+    expect(TOKENS).toContain('--conversation-inset: clamp(16px, 1.25vw, 24px)');
     expect(rule(TRACE, '.trace-dag.map .dag-grid')).toContain('overflow-x: auto');
     expect(rule(TRACE, '.trace-dag.map .dag-grid table')).toContain('min-width: 100%');
     expect(rule(TRACE, '.trace-dag.map .dag-result-table')).toContain('overflow-x: auto');

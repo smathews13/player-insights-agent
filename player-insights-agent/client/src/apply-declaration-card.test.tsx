@@ -67,7 +67,15 @@ describe('Connections Apply release request', () => {
     expect(source).toContain("fetch('/api/admin/model-releases?limit=1')");
     expect(source).toContain('if (!isAdmin) return null');
     expect(source).toContain('release.preflightResult');
-    expect(source).toContain('window.setInterval');
+    /*
+     * The poll runs through `pollWhileVisible`, not a bare interval. A deploy
+     * takes long enough that this card is routinely left in a background tab,
+     * and an unconditional timer there re-reads the release every five seconds
+     * for the whole run with nobody watching. A raw `setInterval` is therefore
+     * the regression, so this asserts its ABSENCE as well as the helper's use.
+     */
+    expect(source).toContain('pollWhileVisible(() => void loadRelease(), 5000, browserPollHost())');
+    expect(source).not.toContain('window.setInterval');
   });
 
   it('uses short release steps and states the outcome', () => {
@@ -83,6 +91,12 @@ describe('Connections Apply release request', () => {
     const source = readFileSync(new URL('./ApplyDeclarationCard.tsx', import.meta.url), 'utf8');
     expect(source).toContain('<ExperimentalBadge />');
     expect(EXPERIMENTAL_PANE_HINT).toMatch(/may be unstable or may not work as expected/i);
+  });
+
+  it('uses the shared primary-blue Refresh control', () => {
+    const source = readFileSync(new URL('./ApplyDeclarationCard.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('<RefreshButton busy={busy}');
+    expect(source).not.toContain('plane-button-quiet');
   });
 
   it('drops the narrative filler about what is not listed here', () => {

@@ -16,6 +16,8 @@
  * everything the answer's panel already had: the roll-up by tool type, and a row
  * that opens onto the arguments and result the agent recorded.
  */
+import './styles/runs.css';
+import './styles/timeline.css';
 import { Link, useSearchParams } from 'react-router';
 import { useState, useEffect } from 'react';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';

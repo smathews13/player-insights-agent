@@ -28,10 +28,18 @@ import type { TraceStage } from './answer-shape';
  * declarations that style it.
  */
 const TRACE_CSS = partial('trace.css');
+const DARK_CSS = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 function rule(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`).exec(TRACE_CSS)?.[1] ?? '';
+}
+
+function darkRule(selector: string): string {
+  for (const match of DARK_CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (match[1].split(',').some((candidate) => candidate.trim() === selector)) return match[2];
+  }
+  return '';
 }
 
 function stage(fields: Partial<TraceStage> & { id: string }): TraceStage {
@@ -113,6 +121,28 @@ const FINDINGS = [
   'Note: `player_id` is scoped per label, so a player under two labels is counted twice — let me know if you want ' +
     'the cross-label figure.',
 ].join('\n');
+
+describe('dark step details keep one night-sky surface', () => {
+  /*
+   * The panel is a card inside a card: the map's node opens it, and the map sits
+   * on the run's own pane. Three translucent whites in a stack is what made it a
+   * grey slab, so the panel keeps one quiet fill and its header takes none --
+   * the hairline under the header is what separates it, not a second wash.
+   */
+  it('uses a quiet tile without repainting its header', () => {
+    for (const selector of [
+      "html[data-theme='dark'] .trace-dag.map .dag-node",
+      "html[data-theme='dark'] .trace-dag.map .dag-detail",
+    ]) {
+      expect(darkRule(selector), `${selector} is not on the quiet fill`).toMatch(
+        /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
+      );
+    }
+    expect(darkRule("html[data-theme='dark'] .trace-dag.map .dag-detail-head")).toMatch(
+      /background:\s*transparent/
+    );
+  });
+});
 
 describe('a data_genie step', () => {
   const markup = panel({ id: 'step-6-1-data_genie', input: '{"question": "how many players"}', output: DATA_GENIE });

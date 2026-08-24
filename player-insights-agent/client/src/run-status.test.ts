@@ -90,15 +90,13 @@ describe('the harness says it is ready before anybody has asked anything', () =>
     }
   });
 
-  it('says Ready only when the endpoint itself answered', () => {
-    // `ok` on this check is the app having POSTed to the endpoint's invocations
-    // path and got a reply, under the credential the question will use. It is the
-    // whole of what entitles this word to be on screen.
+  it('says Endpoint reachable only when its metadata was visible', () => {
+    // Metadata visibility is deliberately narrower than query permission.
     expect(agentReadinessFrom(report({ status: 'ok' }))).toBe('ready');
     const pill = idle('ready');
-    expect(pill.label).toBe('Ready');
+    expect(pill.label).toBe('Endpoint reachable');
     expect(pill.tone).toBe('is-ready');
-    expect(draw(pill)).toContain('Ready');
+    expect(draw(pill)).toContain('Endpoint reachable');
   });
 
   it('does not call an endpoint that refused a green Ready', () => {
@@ -176,7 +174,8 @@ describe('ready and live are not the same pill', () => {
     expect(RAIL_CSS).toMatch(/\.run-status\.is-alive \.run-status-dot \{[^}]*animation: run-status-breath/);
     expect(RAIL_CSS).toMatch(/\.run-status-dot \{[^}]*background: currentcolor/);
     expect(draw(live)).toContain('is-live is-alive');
-    expect(draw(idle('ready'))).toContain('ast-pill--pos is-ready is-alive');
+    expect(draw(idle('ready'))).toContain('ast-pill--pos is-ready');
+    expect(draw(idle('ready'))).not.toContain('is-alive');
   });
 
   it('moves nothing that would change what either label is measured against', () => {
@@ -378,7 +377,7 @@ describe('the pill under a reduced-motion preference, and to a screen reader', (
     // Nothing is lost by stopping it. The live pill counts its steps in words,
     // and the ready one is a word that only appears once an endpoint has
     // answered for it -- both are changes over time that need no motion.
-    expect(idle('ready').label).toBe('Ready');
+    expect(idle('ready').label).toBe('Endpoint reachable');
     expect(idle('checking').label).not.toBe(idle('ready').label);
   });
 

@@ -107,3 +107,73 @@ describe('whether an answer carries evidence', () => {
     expect(carriesEvidence({})).toBe(false);
   });
 });
+
+/**
+ * The reported defect, which is what a reader saw on a run that ended in the
+ * finder: a card headed "This question was not answered." with the model's own
+ * working notes printed underneath it as though they were the answer.
+ */
+const PACKAGE = [
+  'This question was not answered.',
+  '',
+  'All the data I need is in hand. Let me assemble the package.',
+  '',
+  '## DATA PACKAGE',
+  '',
+  '- **Interpretation:** Assess null ratios across the latest player activity table.',
+  '- **Sources used:** a_catalog.a_schema.silver_gameplay_activity, queried via run_sql.',
+  '- **Columns assessed** (grain: 1 row = 1 session):',
+  '- **Findings / data:** 156,447 session rows spanning 2026-02-05 to 2026-08-03.',
+  '- **Caveats & rules applied:**',
+  '  - Rows outside the signup window were excluded.',
+  '- **Package note:** Optional detail was clipped at the DSF handoff bound.',
+].join('\n');
+
+describe('the finder’s internal package', () => {
+  it('does not reach the card as the answer', () => {
+    const { narrative } = proseOnlyAnswer('msg-1', PACKAGE);
+
+    // The apparatus, none of which is a finding and all of which was on screen.
+    expect(narrative).not.toContain('DATA PACKAGE');
+    expect(narrative).not.toContain('Sources used');
+    expect(narrative).not.toContain('Columns assessed');
+    expect(narrative).not.toContain('Package note');
+    // And the scratchpad above the heading, which read as the answer's opening
+    // sentence because it is the first prose on the card.
+    expect(narrative).not.toContain('Let me assemble the package');
+  });
+
+  it('keeps the two sections a reader is actually shown', () => {
+    const { narrative } = proseOnlyAnswer('msg-1', PACKAGE);
+
+    expect(narrative).toContain('Assess null ratios across the latest player activity table.');
+    expect(narrative).toContain('156,447 session rows spanning 2026-02-05 to 2026-08-03.');
+  });
+
+  it('moves the conditions on the answer into the caveats, without their bullets', () => {
+    const { caveats } = proseOnlyAnswer('msg-1', PACKAGE);
+
+    expect(caveats[0]).toBe(PROSE_ONLY_ANSWER_CAVEAT);
+    expect(caveats).toContain('Rows outside the signup window were excluded.');
+    // The card is what makes these a list; a leading dash inside a list item
+    // renders as a literal dash.
+    expect(caveats.some((caveat) => caveat.startsWith('-'))).toBe(false);
+  });
+
+  /**
+   * The takeaway is read off the ORIGINAL text, not the split. The agent's
+   * verdict is in the preamble, which the split drops, so reading it from the
+   * cleaned narrative would head the card with the internal report instead of
+   * removing it -- the exact opposite of the fix.
+   */
+  it('still headlines the card with the agent’s own verdict', () => {
+    expect(proseOnlyAnswer('msg-1', PACKAGE).takeaway).toBe('This question was not answered.');
+  });
+
+  it('leaves an ordinary prose reply completely alone', () => {
+    // The common case, and the one this must not touch: no lead-ins means there
+    // is no package here, only somebody's sentences.
+    expect(proseOnlyAnswer('msg-1', PROSE).narrative).toBe(PROSE);
+    expect(proseOnlyAnswer('msg-1', PROSE).caveats).toEqual([PROSE_ONLY_ANSWER_CAVEAT]);
+  });
+});

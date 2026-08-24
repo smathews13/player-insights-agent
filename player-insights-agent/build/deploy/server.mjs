@@ -158919,25 +158919,58 @@ function matchedRoutePath(req) {
   const path19 = Reflect.get(matched, "path");
   return typeof path19 === "string" ? path19 : "";
 }
-function requestLatencyRecorder(store) {
-  return (req, res, next) => {
+function requestLatencyRecorder(store, { flushMs = FLUSH_MS, maxBuffered = MAX_BUFFERED } = {}) {
+  let buffered = [];
+  let timer = null;
+  const flush = async () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (buffered.length === 0) return;
+    const writing = buffered;
+    buffered = [];
+    const values = writing.map((_, index) => {
+      const at = index * 4;
+      return `($${at + 1}, $${at + 2}, $${at + 3}, $${at + 4})`;
+    }).join(", ");
+    try {
+      await store.query(
+        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
+           VALUES ${values}`,
+        writing.flat()
+      );
+    } catch (error48) {
+      const reason = error48 instanceof Error ? error48.message : String(error48);
+      console.warn(`[ops] ${writing.length} request latency span(s) were not recorded: ${reason}`);
+    }
+  };
+  const record2 = (span) => {
+    buffered.push(span);
+    if (buffered.length >= maxBuffered) {
+      void flush();
+      return;
+    }
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      void flush();
+    }, flushMs);
+    timer.unref?.();
+  };
+  const middleware = (req, res, next) => {
     const started = process.hrtime.bigint();
     res.once("finish", () => {
       const path19 = matchedRoutePath(req);
       if (!path19.startsWith("/api/")) return;
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
-      void store.query(
-        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
-           VALUES ($1, $2, $3, $4)`,
-        [req.method.toUpperCase(), `${req.baseUrl || ""}${path19}`, res.statusCode, durationMs]
-      ).catch((error48) => {
-        console.warn(`[ops] Request latency was not recorded for ${req.method} ${path19}: ${error48.message}`);
-      });
+      record2([req.method.toUpperCase(), `${req.baseUrl || ""}${path19}`, res.statusCode, durationMs]);
     });
     next();
   };
+  return Object.assign(middleware, { flush });
 }
-var REQUEST_LATENCY_TABLE, REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL, REQUEST_LATENCY_QUERY;
+var REQUEST_LATENCY_TABLE, REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL, REQUEST_LATENCY_QUERY, FLUSH_MS, MAX_BUFFERED;
 var init_request_latency = __esm({
   "server/lib/request-latency.ts"() {
     init_app_schema();
@@ -158996,6 +159029,8 @@ var init_request_latency = __esm({
   SELECT r.*, b.covered_from, b.covered_to
   FROM routes r CROSS JOIN bounds b
   ORDER BY r.current_p50_ms DESC NULLS LAST, r.route`;
+    FLUSH_MS = 2e3;
+    MAX_BUFFERED = 100;
   }
 });
 
@@ -159840,18 +159875,55 @@ var init_repair_conversation_titles = __esm({
 });
 
 // shared/prose-only-answer.ts
+function readerFacingFindings(findings) {
+  const sections = [];
+  const preamble = [];
+  for (const line of findings.split("\n")) {
+    const leadIn = LEAD_IN.exec(line);
+    if (leadIn?.groups) {
+      sections.push({ name: leadIn.groups.name.trim(), lines: [leadIn.groups.rest] });
+    } else if (sections.length > 0) {
+      sections[sections.length - 1].lines.push(line);
+    } else {
+      preamble.push(line);
+    }
+  }
+  if (sections.length === 0) {
+    return { narrative: preamble.filter((line) => !line.trimStart().startsWith("#")).join("\n").trim(), caveats: [] };
+  }
+  const bodiesOf = (wanted) => {
+    const found = [];
+    for (const name2 of wanted) {
+      for (const section of sections) {
+        if (section.name.toLowerCase() !== name2.toLowerCase()) continue;
+        const body = section.lines.join("\n").trim();
+        if (body) found.push(body);
+      }
+    }
+    return found;
+  };
+  const caveats = [];
+  for (const body of bodiesOf(CAVEAT_SECTIONS)) {
+    for (const entry of body.split("\n")) {
+      const stripped = entry.trim().replace(/^[-*]+/, "").trim();
+      if (stripped) caveats.push(stripped);
+    }
+  }
+  return { narrative: bodiesOf(PROSE_SECTIONS).join("\n\n").trim(), caveats };
+}
 function proseOnlyAnswer(id, prose) {
   const firstLine = prose.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
+  const reader = readerFacingFindings(prose);
   return {
     id,
     takeaway: firstLine ? firstLine.slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY,
-    narrative: prose,
+    narrative: reader.narrative,
     content: "",
     figures: [],
     charts: [],
     sources: [],
     document_snippets: [],
-    caveats: [PROSE_ONLY_ANSWER_CAVEAT],
+    caveats: [PROSE_ONLY_ANSWER_CAVEAT, ...reader.caveats],
     derivation: [],
     sql: "",
     trace: {
@@ -159870,13 +159942,16 @@ function stageCount(trace2) {
   const stages = trace2.stages;
   return Array.isArray(stages) ? stages.length : 0;
 }
-var PROSE_ONLY_ANSWER_CAVEAT, PROSE_ONLY_FALLBACK_TAKEAWAY, TAKEAWAY_LIMIT;
+var PROSE_ONLY_ANSWER_CAVEAT, PROSE_ONLY_FALLBACK_TAKEAWAY, TAKEAWAY_LIMIT, PROSE_SECTIONS, CAVEAT_SECTIONS, LEAD_IN;
 var init_prose_only_answer = __esm({
   "shared/prose-only-answer.ts"() {
     init_setup_remedies();
     PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} the agent replied in prose rather than with a result, so the words above are its own and there are no figures, sources, SQL or stage timings under them. Nothing has been put in their place: this app shows what came back and does not complete an answer from anything stored.`;
     PROSE_ONLY_FALLBACK_TAKEAWAY = "The agent answered in prose, without a structured result.";
     TAKEAWAY_LIMIT = 220;
+    PROSE_SECTIONS = ["Interpretation", "Findings / data"];
+    CAVEAT_SECTIONS = ["Caveats & rules applied", "Gaps"];
+    LEAD_IN = /^\s{0,3}[-*]\s+\*\*(?<name>[^*:]+?):?\*\*:?\s*(?<rest>.*)$/;
   }
 });
 
@@ -167795,10 +167870,10 @@ async function settleSharedConversationRail(appkit) {
 }
 function conversationListQuery(email3) {
   return sharedRail.shared ? {
-    sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
+    sql: `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c${CONVERSATION_VERDICT_JOIN} ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
     params: []
   } : {
-    sql: `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations WHERE user_email = $1 ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
+    sql: `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c${CONVERSATION_VERDICT_JOIN} WHERE c.user_email = $1 ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
     params: [email3]
   };
 }
@@ -169558,7 +169633,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -170155,6 +170230,24 @@ var init_insights_routes = __esm({
     SHARED_CONVERSATION_RAIL_ENV = "PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL";
     sharedRail = { shared: false, raw: "", reason: "unset" };
     CONVERSATION_RAIL_LIMIT = 100;
+    CONVERSATION_VERDICT_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT
+      CASE
+        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
+        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
+        ELSE 'complete'
+      END AS status,
+      jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")') AS truncated,
+      ROUND((m.response_json->'trace'->>'totalMs')::numeric)::int AS duration_ms
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.conversation_id = c.id
+      AND m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+    ORDER BY m.created_at DESC
+    LIMIT 1
+  ) verdict ON TRUE`;
+    CONVERSATION_LIST_COLUMNS = "c.id, c.title, c.updated_at, c.user_email, verdict.status, verdict.truncated, verdict.duration_ms";
     CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code
   FROM ${APP_SCHEMA}.runs
   WHERE conversation_id = $1 AND user_email = $2

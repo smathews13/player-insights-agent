@@ -22,6 +22,7 @@
  * the old one. Which affordance a row gets is decided in
  * `shared/deployment-config.ts` rather than here.
  */
+import './styles/connections.css';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { showsAdminSurfaces, useRole } from './role';
 import {
@@ -78,9 +79,8 @@ import { CopyButton, NOT_SET, StatusBadge, type StatusTone } from './StatusBadge
 import { reportEgress } from './egress-policy';
 // Build stamps are shortened consistently away from the markup, and so is the
 // reading that decides whether each half of the deployment is working.
-import { buildFacts, HEALTH_FAMILY, type BuildArtifact } from './connection-build';
+import { buildFacts, type BuildArtifact } from './connection-build';
 // The one status recipe. Named as a meaning here, painted in astrolabe-tokens.css.
-import { astPill } from './astrolabe-pill';
 // What this deployment is, as against what it was built from. The two grids the
 // Build card draws are decided there, so a row with nothing to say is dropped
 // before the markup sees it.
@@ -430,26 +430,7 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
   );
 }
 
-/**
- * One build stamp, and whether the half of the deployment it names is working.
- *
- * THE ROW WAS A VERSION STAMP AND WAS READ AS A STATUS. `App 5b0e675b` and
- * `Orchestrator 05d742b2`, two grey hashes, on the tab a reader opens to find out
- * what this deployment can reach: the commit answers which build is running and
- * says nothing about whether it is up, so a crashed app and a healthy one drew
- * the same row. The reading is decided in `connection-build.ts` -- what green and
- * red MEAN for each half is the part that has to be assertable without composing
- * a screen.
- *
- * THE IDENTIFIER IS STILL THE IDENTIFIER. It keeps the eight characters a commit
- * is recognised by, the whole hash in `title` and on the clipboard, and its copy
- * button: the health is added beside it and takes nothing away, because the
- * reason somebody comes to this row is often to paste the stamp into a ticket.
- *
- * AND THE WORD IS NOT DECORATION. The tint is the answer at a glance and the word
- * is the same answer for anybody who cannot see the tint, which is this app's
- * rule for every pill it draws.
- */
+/** One build stamp, kept separate from the dependency status rows below. */
 export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
   return (
     <div className="identity-fact">
@@ -465,19 +446,6 @@ export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
           testId={`build-${artifact.key}`}
         />
         {artifact.full ? <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} /> : null}
-        {/* Nothing at all where nothing was measured. A neutral pill there would
-            put a verdict-shaped element on a row that has no verdict, which is
-            how a page teaches a reader that its badges mean nothing. */}
-        {artifact.health.state === 'unknown' ? null : (
-          <span
-            className={astPill(HEALTH_FAMILY[artifact.health.state], 'deployment-health')}
-            data-health={artifact.health.state}
-            data-testid={`build-${artifact.key}-health`}
-            title={artifact.health.note}
-          >
-            {artifact.health.label}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -1850,7 +1818,9 @@ export function ConnectionsPage() {
   const telemetryFacts = useMemo(() => telemetryRows(appFacts, now), [appFacts, now]);
 
   const wide = deploymentWideFindings(payload?.drift ?? []);
-  const identityRead = useDeploymentIdentity();
+  // The freshness stamp is passed so pressing Refresh re-reads the identity too;
+  // see useDeploymentIdentity, which otherwise shares the shell's session read.
+  const identityRead = useDeploymentIdentity(true, lastCheckedAt);
   // One list, one control. Two error alerts each offering their own would be two
   // controls for one intention, and one run produces one account of what failed.
   const problems = [checkError].filter(Boolean);
@@ -2016,9 +1986,9 @@ export function ConnectionsPage() {
               </div>
             ) : null}
             <div className="deployment-grid">
-              {/* The stamp AND whether that half is working. The row used to be
-                  the hash alone, on the tab a reader opens to find out what this
-                  deployment can reach. */}
+              {/* The build identifiers only. Dependency status is already stated
+                  in the grouped rows below, so repeating it here would give one
+                  reading two badges. */}
               {build.artifacts.map((artifact) => (
                 <BuildStampRow key={artifact.key} artifact={artifact} />
               ))}

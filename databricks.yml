@@ -275,6 +275,8 @@ targets:
         player_insights_semantic_rebuild:
           name: "[${bundle.target}] Player Insights semantic layer rebuild"
           description: Rebuilds app-owned semantic metadata and syncs its index.
+          tags:
+            astrolabe: "true"
           run_as:
             user_name: ${workspace.current_user.userName}
           parameters:

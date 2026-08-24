@@ -876,32 +876,34 @@ describe('the cost block', () => {
     expect(markup).not.toContain('0.00');
   });
 
-  /**
-   * NO SINGLE PER-QUESTION TOTAL, IN ANY WORDING.
-   *
-   * Held against the arithmetic as well as the label, because the row was correct
-   * by its own rules and wrong anyway: what it divided is billed by time, so the
-   * figure fell as the deployment was used more and read as $57.41 a question at
-   * sixteen questions. The payload no longer carries a spend total or a question
-   * count for anything to divide, and the wording is asserted as well, so a
-   * figure recomputed from the tiles could not arrive wearing the old label.
-   * The component breakdown may say "per-question"; the forbidden claim is one
-   * cross-quality total or average.
-   */
-  it('puts no per-question total or average at the foot of the block', () => {
+  it('keeps one model-serving average without inventing a combined per-question total', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).not.toMatch(/average/i);
-    expect(markup).toContain('Per-question attribution');
-    expect(markup).toContain('No single total');
+    expect(markup).toContain('Average model serving per question');
+    expect(markup).toContain('Endpoint spend only');
+    expect(markup).toContain('No other product is included');
+    expect(markup).not.toContain('Per-question attribution');
     expect(markup).not.toContain('3.00 USD');
     expect(markup).not.toContain('across 4 questions');
   });
 
-  it('keeps token-apportioned, estimated, and unknowable parts visibly separate', () => {
+  it('averages only measured endpoint spend and removes the per-run table', () => {
     const payload = cost({
+      tiles: [
+        {
+          id: 'serving-endpoint',
+          label: 'Serving endpoint',
+          quality: 'real',
+          amount: 10,
+          basis: 'total-in-range',
+          population: 'This endpoint',
+          unavailable: '',
+          remedy: '',
+          note: '',
+        },
+      ],
       perQuestion: {
-        runsInRange: 1,
-        tokenCoveredRuns: 1,
+        runsInRange: 2,
+        tokenCoveredRuns: 2,
         totalRecordedTokens: 1000,
         limited: false,
         reason: '',
@@ -940,14 +942,13 @@ describe('the cost block', () => {
       },
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('1.25 USD');
-    expect(markup).toContain('Per token');
-    expect(markup).toContain('2.00 USD');
-    expect(markup).toContain('Estimate');
-    expect(markup).toContain('allocated evenly');
-    expect(markup).toContain('Not knowable per question today');
-    expect(markup).toContain('No run attribution key.');
-    expect(markup).not.toMatch(/total per question|average per question/i);
+    expect(markup).toContain('5.00 USD');
+    expect(markup).toContain('token-apportioned');
+    expect(markup).toContain('2 of 2');
+    expect(markup).not.toContain('<table');
+    expect(markup).not.toContain('Not knowable per question today');
+    expect(markup).not.toContain('No run attribution key.');
+    expect(markup).not.toContain('2.00 USD');
   });
 
   it('renders a missing grant with the statement that fixes it', () => {
@@ -1442,6 +1443,22 @@ describe('the latency block', () => {
     expect(rendered).toContain('Nothing matches "no-such-route".');
     expect(rendered).toContain('Clear search');
     expect(markup).not.toContain('data-testid="ops-latency"');
+  });
+
+  it('keeps route search in the header rail beside Refresh', () => {
+    const markup = markupOf(<LatencyBody block={block(latency())} />);
+    const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
+
+    expect(header).toContain('ops-latency-head-controls');
+    expect(header).toContain('ops-latency-search');
+    expect(header).toContain('Refresh');
+  });
+
+  it('shows only the header rail while the first latency read is loading', () => {
+    const markup = markupOf(<LatencyBody block={block<OpsLatencyPayload>(null, { busy: true })} />);
+    expect(markup).toContain('ops-latency-head-controls');
+    expect(markup).not.toContain('ops-block-body');
+    expect(markup).not.toContain('ops-skeleton');
   });
 
   it('shows no date window in its subheader', () => {

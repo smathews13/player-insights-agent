@@ -14,7 +14,7 @@
  * without moving a star while a new tab still gets a different sky.
  */
 import { useState, type CSSProperties } from 'react';
-import { OPENING_CONSTELLATION } from './constellation';
+import { OPENING_CONSTELLATION, type Hop } from './constellation';
 
 export type StarSurface = 'ask' | 'working';
 
@@ -123,6 +123,9 @@ function documentSeed(): string {
 
 const DOCUMENT_SEED = documentSeed();
 
+/** One coordinate as a map key, written once so a lookup cannot spell it differently. */
+const pointKey = (point: readonly [number, number]): string => `${point[0]},${point[1]}`;
+
 /**
  * Builds one complete sky from the shared opening geometry.
  *
@@ -139,9 +142,22 @@ export function buildStarField(pageId: string, visitSeed: string | number): Star
   const anchors = OPENING_CONSTELLATION.stars.map((star) => {
     const x = jitter(star.x, random);
     const y = jitter(star.y, random);
-    positions.set(`${star.x},${star.y}`, [x, y]);
+    positions.set(pointKey([star.x, star.y]), [x, y]);
     return { x, y, ...timing(random, ANCHOR_MIN_SECONDS, 6, starTiming) };
   });
+
+  /*
+   * A hop is only drawable if BOTH of its ends are stars this sky moved.
+   *
+   * The lookup used to fall back to the hop's own untouched coordinate, so a hop
+   * that named a point no star sits on would be drawn to where the star would
+   * have been rather than to where it is -- a line ending up to six pixels short
+   * of the glyph it is supposed to reach. Nothing in the geometry does that
+   * today; requiring the match is what stops the next coordinate edit from
+   * reintroducing it silently, and it happens during selection so a rejected hop
+   * consumes no timing values.
+   */
+  const anchored = (hop: Hop) => positions.has(pointKey(hop.from)) && positions.has(pointKey(hop.to));
 
   const drop = Math.floor(random() * 3);
   const faint = OPENING_CONSTELLATION.backdrop.slice(0, OPENING_CONSTELLATION.backdrop.length - drop).map((star) => ({
@@ -157,27 +173,34 @@ export function buildStarField(pageId: string, visitSeed: string | number): Star
    * side independently is what guarantees the gate has a right-hand chain.
    */
   const leftHops = OPENING_CONSTELLATION.hops
-    .filter((hop) => hop.from[0] < OPENING_CONSTELLATION.width / 3 || hop.to[0] < OPENING_CONSTELLATION.width / 3)
+    .filter(
+      (hop) =>
+        anchored(hop) && (hop.from[0] < OPENING_CONSTELLATION.width / 3 || hop.to[0] < OPENING_CONSTELLATION.width / 3)
+    )
     .slice(0, HOPS_PER_SIDE);
   const rightHops = OPENING_CONSTELLATION.hops
     .filter(
       (hop) =>
-        hop.from[0] > (OPENING_CONSTELLATION.width * 2) / 3 || hop.to[0] > (OPENING_CONSTELLATION.width * 2) / 3
+        anchored(hop) &&
+        (hop.from[0] > (OPENING_CONSTELLATION.width * 2) / 3 || hop.to[0] > (OPENING_CONSTELLATION.width * 2) / 3)
     )
     .slice(0, HOPS_PER_SIDE);
-  const connectors = [...leftHops, ...rightHops].map((hop) => {
-    const from = positions.get(hop.from.join(',')) ?? hop.from;
-    const to = positions.get(hop.to.join(',')) ?? hop.to;
-    return {
-      from,
-      to,
-      /*
-       * The 2–7 second phase window is the connector treatment's stagger. It is
-       * negative because first paint must show a line already inside its cycle,
-       * never a synchronized row of lines waiting to begin.
-       */
-      ...timing(random, GLOW_MIN_SECONDS, 3, glowTiming, 2, 7),
-    };
+  const connectors = [...leftHops, ...rightHops].flatMap((hop) => {
+    const from = positions.get(pointKey(hop.from));
+    const to = positions.get(pointKey(hop.to));
+    if (!from || !to) return [];
+    return [
+      {
+        from,
+        to,
+        /*
+         * The 2–7 second phase window is the connector treatment's stagger. It is
+         * negative because first paint must show a line already inside its cycle,
+         * never a synchronized row of lines waiting to begin.
+         */
+        ...timing(random, GLOW_MIN_SECONDS, 3, glowTiming, 2, 7),
+      },
+    ];
   });
 
   return {
@@ -224,26 +247,42 @@ export function StarField({
       aria-hidden="true"
       focusable="false"
     >
-      {surface === 'ask' ? (
-        <g className="star-motion-connectors">
-          {drawing.connectors.map((connector, index) => (
-            <line
-              key={`line-${index}`}
-              className="app-sky-line star-motion-glow"
-              x1={connector.from[0]}
-              y1={connector.from[1]}
-              x2={connector.to[0]}
-              y2={connector.to[1]}
-              style={animationStyle(connector)}
-            />
-          ))}
-        </g>
-      ) : null}
-
+      {/*
+       * The chains and the stars on them, in ONE drifting group.
+       *
+       * THIS IS WHY THE STARS SAT BESIDE THEIR OWN LINES. The connectors were a
+       * sibling of the anchor group rather than a child of it, and the anchor
+       * group is the one carrying `ast-drift` -- a 14px translate with a negative
+       * delay, so the two were already several pixels apart on the first frame and
+       * went on separating for the length of a 90 second cycle. Snapping the
+       * geometry at build time cannot fix that: the endpoints agree in the
+       * viewBox and the transform moves one of them afterwards.
+       *
+       * Sharing the transform makes an endpoint and its star the same point at
+       * every frame, and it holds whatever the drift is doing -- running,
+       * stopped, or reset by the reduced-motion guard, which now resets both or
+       * neither instead of pulling one group back from under the other.
+       */}
       <g
         className={asksForDrift ? 'star-motion-drift star-motion-drift-anchor' : undefined}
         style={asksForDrift ? { animationDelay: `${drawing.drift.anchorDelay}s` } : undefined}
       >
+        {surface === 'ask' ? (
+          <g className="star-motion-connectors">
+            {drawing.connectors.map((connector, index) => (
+              <line
+                key={`line-${index}`}
+                className="app-sky-line star-motion-glow"
+                x1={connector.from[0]}
+                y1={connector.from[1]}
+                x2={connector.to[0]}
+                y2={connector.to[1]}
+                style={animationStyle(connector)}
+              />
+            ))}
+          </g>
+        ) : null}
+
         {drawing.anchors.map((star, index) => (
           <circle
             key={`anchor-${index}`}

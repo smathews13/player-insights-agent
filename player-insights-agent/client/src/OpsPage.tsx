@@ -34,6 +34,8 @@
  * a workspace-wide table, and a page that re-ran it every thirty seconds would
  * cost money to look at.
  */
+import './styles/time-range.css';
+import './styles/ops.css';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Info, Search, X } from 'lucide-react';
@@ -59,7 +61,6 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
-  questionPartView,
   splitMethod,
   telemetryNotice,
   WITHHELD,
@@ -78,7 +79,6 @@ import type {
   OpsHealthPayload,
   OpsLatencyPayload,
   OpsTrafficPayload,
-  QuestionCostPart,
   RouteLatency,
 } from '../../shared/ops-contract';
 import { opsDayRange, opsRangeDates } from '../../shared/ops-contract';
@@ -548,26 +548,6 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
 
 /* ── Cost ────────────────────────────────────────────────────────────────── */
 
-/*
- * THERE IS NO PER-QUESTION AVERAGE AT THE FOOT OF THIS BLOCK, and it is not
- * coming back in this shape.
- *
- * It read "57.41 USD · Average per question · 918.51 USD across 16 questions",
- * and every word of it was true and the number was still wrong. Most of what it
- * divided is billed by TIME: a warehouse and an endpoint charge for the hours
- * they exist, whether anybody asks anything or not. Dividing a whole range's
- * idle hours by sixteen questions does not produce the cost of a question — it
- * produces a figure that falls as the deployment is used more, which is the
- * opposite of how a reader will use a number labelled "per question". Sixteen
- * questions made it look like a question costs fifty-seven dollars.
- *
- * The label said "Average" and the breakdown showed the division, which is what
- * the block's honesty rule asks of a rate, and neither was enough: the rule can
- * make an average honest about its arithmetic but not about its meaning. So the
- * row is gone, with the view function that composed it. `headline` still arrives
- * on the payload from the server, and nothing on this client reads it.
- */
-
 /**
  * The qualifiers that govern every figure in the block, said once.
  *
@@ -715,7 +695,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                 );
               })}
             </div>
-            <QuestionCostBreakdown payload={payload} />
+            <QuestionCostAverage payload={payload} />
             {billingHref ? (
               <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer">
                 Open system.billing.usage
@@ -732,96 +712,43 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
   );
 }
 
-function QuestionPartCell({ part, currency }: { part: QuestionCostPart | undefined; currency: string }) {
-  if (!part) return <span className="ops-tile-absent">Not knowable</span>;
-  const view = questionPartView(part, currency);
-  return view.figure ? (
-    <>
-      <span className="ast-num">{view.figure}</span>{' '}
-      <span className={astPill(view.estimate ? 'warn' : 'neutral-outline', 'ops-pill')}>{view.qualityLabel}</span>
-    </>
-  ) : (
-    <span className="ops-tile-absent">{view.absence}</span>
-  );
-}
-
 /**
- * Per-run parts rather than a headline total. Model serving is apportioned by
- * recorded tokens; warehouse spend is visibly an even estimate; every component
- * without a defensible join is named once below the table. Adding the first two
- * would make the estimate look measured and dropping the rest would call an
- * incomplete subtotal "cost per question", so this component does neither.
+ * The one per-question KPI this block can defend.
+ *
+ * This is deliberately MODEL SERVING ONLY. The endpoint total is apportioned by
+ * the token counts recorded on completed runs, then averaged over the covered
+ * questions. SQL, Genie, Vector Search, app compute, jobs, the foundation model,
+ * and Lakebase have no run-level billing join here, so none is folded into this
+ * figure and no combined per-question dollar amount is invented.
  */
-function QuestionCostBreakdown({ payload }: { payload: OpsCostPayload }) {
+function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
   const attribution = payload.perQuestion;
-  const first = attribution.runs[0];
-  const unknown = first?.parts.filter((part) => part.quality === 'unknown') ?? [];
+  const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
+  const covered = attribution.tokenCoveredRuns;
+  const amount =
+    serving?.quality === 'real' &&
+    typeof serving.amount === 'number' &&
+    Number.isFinite(serving.amount) &&
+    covered > 0 &&
+    attribution.totalRecordedTokens > 0
+      ? serving.amount / covered
+      : null;
+
   return (
-    <div className="ops-cost-attribution">
-      <h4>Per-question attribution</h4>
+    <div className="ops-question-average">
+      <p className="ops-tile-label">Average model serving per question</p>
+      {amount !== null ? (
+        <p className="ops-tile-figure">
+          <span className="ast-num">{amount.toFixed(2)} {payload.currency}</span>
+          <span className="ops-tile-basis">token-apportioned</span>
+        </p>
+      ) : (
+        <p className="ops-tile-absent">{attribution.reason || 'No token-covered endpoint spend in this range'}</p>
+      )}
       <p className="ops-source-filter">
-        No single total: measured, allocated, and not-knowable parts stay separate. Tokens cover{' '}
-        <span className="ast-num">
-          {attribution.tokenCoveredRuns} of {attribution.runsInRange}
-        </span>{' '}
-        completed runs. Model serving follows each run&apos;s token share; SQL warehouse spend is allocated evenly
-        across every completed run in the range.
+        Endpoint spend only · <span className="ast-num">{covered} of {attribution.runsInRange}</span> completed
+        questions recorded tokens. No other product is included.
       </p>
-      {attribution.reason ? <p className="ops-tile-absent">{attribution.reason}</p> : null}
-      {attribution.runs.length > 0 ? (
-        <div className="ops-latency-scroll">
-          <table className="ops-table">
-            <caption className="sr-only">
-              Per-question model-serving attribution and estimated SQL warehouse allocation.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Run</th>
-                <th scope="col">Tokens</th>
-                <th scope="col">Model serving</th>
-                <th scope="col">SQL warehouse</th>
-              </tr>
-            </thead>
-            <tbody>
-              {attribution.runs.map((run) => (
-                <tr key={run.runId}>
-                  <td>
-                    <code>{run.correlationId || run.runId}</code>
-                  </td>
-                  <td className="ast-num">{run.totalTokens === null ? 'Not recorded' : count(run.totalTokens)}</td>
-                  <td>
-                    <QuestionPartCell
-                      part={run.parts.find((part) => part.id === 'serving-endpoint')}
-                      currency={payload.currency}
-                    />
-                  </td>
-                  <td>
-                    <QuestionPartCell
-                      part={run.parts.find((part) => part.id === 'sql-warehouse')}
-                      currency={payload.currency}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-      {attribution.limited ? (
-        <p className="ops-source-filter">Showing the newest 100 runs; allocations use all runs in the range.</p>
-      ) : null}
-      {unknown.length > 0 ? (
-        <>
-          <h5>Not knowable per question today</h5>
-          <ul>
-            {unknown.map((part) => (
-              <li key={part.id}>
-                <strong>{part.label}:</strong> {part.unavailable}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
     </div>
   );
 }
@@ -1070,16 +997,8 @@ export function LatencyBody({
         id="ops-latency-heading"
         title="Latency"
         meta={<LatencyCaption />}
-        control={<RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />}
-      />
-
-      <BlockBody>
-        {block.busy && !payload ? (
-          <Skeleton className="ops-skeleton" />
-        ) : absence ? (
-          <Absence notice={absence}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
-        ) : payload ? (
-          <>
+        control={
+          <div className="ops-latency-head-controls">
             <div className="run-search monitoring-search ops-latency-search">
               <Search aria-hidden="true" />
               <Input
@@ -1089,9 +1008,6 @@ export function LatencyBody({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
-              {/* This is Monitoring's clear affordance verbatim rather than the
-                  browser's inconsistent search cancel. Keeping its class also
-                  keeps the dark treatment and focus ring one shared decision. */}
               {search !== '' ? (
                 <button
                   type="button"
@@ -1103,6 +1019,17 @@ export function LatencyBody({
                 </button>
               ) : null}
             </div>
+            <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
+          </div>
+        }
+      />
+
+      {block.busy && !payload ? null : (
+        <BlockBody>
+          {absence ? (
+          <Absence notice={absence}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
+        ) : payload ? (
+          <>
             {/* THE FACT TRUE OF EVERY ROW, SAID ONCE. Replaces the columns of
                 repeated dashes p95/p99/trend became on a quiet window. When a
                 route crosses the span floor the columns come back and this
@@ -1193,7 +1120,8 @@ export function LatencyBody({
             )}
           </>
         ) : null}
-      </BlockBody>
+        </BlockBody>
+      )}
 
       {/*
         A PAGE AT A TIME, AND ONLY WHERE THERE IS MORE THAN ONE. A deployment

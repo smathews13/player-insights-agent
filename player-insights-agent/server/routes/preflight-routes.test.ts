@@ -60,13 +60,19 @@ function attachmentStore(seed: { conversation_id: string; user_email: string; fi
   };
 }
 
-async function startApp(transport: ServingTransport, lakebase: InsightsAppKit['lakebase']) {
+async function startApp(
+  transport: ServingTransport,
+  lakebase: InsightsAppKit['lakebase'],
+  servingEndpointReader: NonNullable<InsightsAppKit['servingEndpointReader']> = () =>
+    Promise.resolve({ state: { ready: 'READY' } })
+) {
   const app = express();
   app.use(express.json());
   await setupInsightsRoutes({
     lakebase,
     server: { extend: (fn) => fn(app) },
     servingTransport: transport,
+    servingEndpointReader,
   });
   // Loopback rather than the wildcard, or this binds a port another process holds
   // on 127.0.0.1 and the fetch below reaches that process. See shared-rail.test.ts.
@@ -133,7 +139,7 @@ describe('GET /api/preflight', () => {
   // keeps each case describing one state rather than inheriting the last one's.
   beforeEach(() => resetLakebaseHealth());
 
-  it('asks the endpoint for a preflight rather than an answer', async () => {
+  it('reads endpoint metadata without invoking the agent', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const captured: Record<string, unknown>[] = [];
     const app = await startApp(reportingTransport(AGENT_REPORT, captured), noLakebase);
@@ -144,11 +150,10 @@ describe('GET /api/preflight', () => {
       await app.close();
     }
 
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.custom_inputs).toEqual({ preflight: true });
+    expect(captured).toHaveLength(0);
   });
 
-  it('forwards the agent report verbatim and adds the one check the app can make', async () => {
+  it('reports endpoint visibility without claiming query permission', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const app = await startApp(reportingTransport(AGENT_REPORT), noLakebase);
 
@@ -162,59 +167,26 @@ describe('GET /api/preflight', () => {
       await app.close();
     }
 
-    // 503, because this fixture carries a failed check. The route used to
-    // answer 200 alongside `status: 'failed'`, which told every uptime check and
-    // every release script that reads a status code rather than a body that the
-    // app was well while a dependency was down.
-    expect(status).toBe(503);
-    expect(body.source).toBe('agent');
-    expect(body.principal).toBe(AGENT_REPORT.principal);
-    expect(body.table_source).toBe('declared');
-    expect(body.assumptions).toEqual(AGENT_REPORT.assumptions);
+    expect(status).toBe(200);
+    expect(body.source).toBe('app');
+    expect(body.principal).toBe('');
+    expect(body.error).toBe('preflight_metadata_only');
 
-    const checks = body.checks as { id: string; status: string; remedy: unknown }[];
+    const checks = body.checks as { id: string; status: string; remedy: unknown; detail: string; checked_with: string }[];
     expect(checks[0]?.id).toBe('agent-endpoint');
     expect(checks[0]?.status).toBe('ok');
-    // Lakebase is the app's own dependency, so it is reported beside the
-    // agent's rather than left out of a report the agent could not speak for.
+    expect(checks[0]?.checked_with).toContain('GET');
+    expect(checks[0]?.detail).toContain('does not prove');
+    expect(checks[0]?.remedy).toBeNull();
     expect(checks[1]?.id).toBe('lakebase-storage');
-    // The agent's own checks arrive untouched, grant included -- with the ONE
-    // exception the fixture above deliberately still carries. The endpoint's
-    // report says `note`, because it is baked into a logged model version, and
-    // this app calls that field `guidance`. The route normalises the name on the
-    // way in and changes nothing else.
-    //
-    // WHY THE FIXTURE STILL SAYS `note`: it is the wire, not our vocabulary. When
-    // the model is next re-logged emitting `guidance`, both spellings must keep
-    // working, because a rolled-back model version speaks the old one.
-    expect(checks.slice(2)).toEqual(
-      AGENT_REPORT.checks.map((check) => {
-        if (!check.remedy || !('note' in check.remedy)) return check;
-        const { note, ...remedy } = check.remedy as { note: string } & Record<string, unknown>;
-        return { ...check, remedy: { ...remedy, guidance: note } };
-      }),
-    );
-    // Counts are recomputed over the combined list rather than trusting the agent's.
-    expect(body.counts).toEqual({ ok: 2, failed: 1, unverified: 1 });
-    expect(body.status).toBe('failed');
+    expect(checks).toHaveLength(2);
+    expect(body.counts).toEqual({ ok: 1, failed: 0, unverified: 1 });
+    expect(body.status).toBe('unverified');
   });
 
   it('reports unverified, not ok, when the agent could not check something', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
-    const unverified = {
-      ...AGENT_REPORT,
-      status: 'unverified',
-      checks: [
-        {
-          ...AGENT_REPORT.checks[0],
-          id: 'genie-data',
-          kind: 'genie-space',
-          status: 'unverified',
-          checked_with: '(not run)',
-        },
-      ],
-    };
-    const app = await startApp(reportingTransport(unverified), noLakebase);
+    const app = await startApp(reportingTransport(AGENT_REPORT), noLakebase);
 
     let body: Record<string, unknown>;
     try {
@@ -224,15 +196,17 @@ describe('GET /api/preflight', () => {
     }
 
     expect(body.status).toBe('unverified');
-    // Two unverified: the agent's own, and Lakebase, which this app has not
-    // read yet. An unread store is unverified, never quietly ok.
-    expect(body.counts).toEqual({ ok: 1, failed: 0, unverified: 2 });
+    expect(body.counts).toEqual({ ok: 1, failed: 0, unverified: 1 });
   });
 
   it('answers an unreachable endpoint with 503 and the grant that would fix it', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     process.env.DATABRICKS_CLIENT_ID = '<app-service-principal-client-id>';
-    const app = await startApp(() => Promise.reject(new Error('403 permission denied')), noLakebase);
+    const app = await startApp(
+      () => Promise.resolve({}),
+      noLakebase,
+      () => Promise.reject(new Error('403 permission denied'))
+    );
 
     let status: number;
     let body: Record<string, unknown>;
@@ -251,11 +225,9 @@ describe('GET /api/preflight', () => {
     // The storage check rides along even when the agent never answered, so the
     // page never omits Lakebase on precisely the reports where things are worst.
     expect(body.counts).toEqual({ ok: 0, failed: 1, unverified: 1 });
-    const [check] = body.checks as { remedy: { kind: string; statement: string } }[];
-    expect(check.remedy.kind).toBe('cli');
-    expect(check.remedy.statement).toContain('CAN_QUERY');
-    expect(check.remedy.statement).toContain('<app-service-principal-client-id>');
-    expect(String(body.assumptions)).toContain('unknown rather than healthy');
+    const [check] = body.checks as { remedy: unknown }[];
+    expect(check.remedy).toBeNull();
+    expect(String(body.assumptions)).toContain('CAN_VIEW and CAN_QUERY');
   });
 
   it('does not tell an operator to re-log the model when the endpoint has retired the checks', async () => {
@@ -276,7 +248,7 @@ describe('GET /api/preflight', () => {
       await app.close();
     }
 
-    expect(body.error).toBe('preflight_retired');
+    expect(body.error).toBe('preflight_metadata_only');
 
     const serialised = JSON.stringify(body);
     expect(serialised).not.toContain('log_model.py');

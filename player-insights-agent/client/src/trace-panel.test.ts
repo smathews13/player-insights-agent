@@ -19,6 +19,14 @@ const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const RUN_EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 const STYLESHEET = stylesheet();
 const TIMELINE_CSS = partial('timeline.css');
+const DARK = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+function cssBody(css: string, selector: string): string {
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (match[1].split(',').some((candidate) => candidate.trim() === selector)) return match[2];
+  }
+  return '';
+}
 
 /** The body of one top-level function, so a claim can be scoped to it. */
 function functionSource(source: string, name: string): string {
@@ -124,6 +132,27 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
     // Ahead of the heading for the steps, which is what makes it the header of
     // the listing rather than a section before it.
     expect(gantt.indexOf('<RollUp')).toBeLessThan(gantt.indexOf('Step timeline'));
+  });
+
+  it('does not stack a second frosted pane on either surface that draws it', () => {
+    /*
+     * The panel is drawn twice -- nested in the answer card's run process on Ask,
+     * and bare on the Run Explorer's Timeline tab -- from this one component. So
+     * the de-stack belongs to the component's own classes, not to Ask's wrapper:
+     * scoped to `.run-process` it fixed the card and left Explorer stacking.
+     */
+    for (const selector of [
+      "html[data-theme='dark'] .trace-timeline",
+      "html[data-theme='dark'] .trace-gantt",
+    ]) {
+      expect(cssBody(DARK, selector)).toMatch(/background:\s*transparent[\s\S]*backdrop-filter:\s*none/);
+    }
+    expect(cssBody(DARK, "html[data-theme='dark'] .trace-kpi")).toMatch(
+      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
+    );
+    expect(DARK, 'a wrapper-scoped twin covers one surface only').not.toMatch(
+      /\.run-process \.trace-(?:timeline|gantt|kpi)/
+    );
   });
 });
 

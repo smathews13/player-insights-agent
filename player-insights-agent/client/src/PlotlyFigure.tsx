@@ -84,14 +84,43 @@ export default function PlotlyFigure({ data, layout, kind, title, height }: Plot
 
     paint();
 
-    // `responsive: true` only listens for window resizes. The answer column also changes
-    // width when the conversation rail opens or the viewport rotates, neither of which
-    // fires one, so the container is observed directly.
-    const observer = new ResizeObserver(paint);
+    /*
+     * ONE REPAINT PER FRAME, however many times the box changed inside it.
+     *
+     * `responsive: true` only listens for window resizes. The answer column also
+     * changes width when the conversation rail opens or the viewport rotates,
+     * neither of which fires one, so the container is observed directly.
+     *
+     * But a rail opening is an ANIMATION, so the observer fires on essentially
+     * every frame of it, and driving `Plotly.react` straight off that ran a full
+     * figure diff and relayout per notification -- several charts' worth of
+     * synchronous layout inside the same frames the animation needed. That is
+     * the hitch. Coalescing to one rAF collapses a burst into a single repaint
+     * at the size the box actually settled at, which is the only size worth
+     * drawing; the intermediate widths were never going to be seen.
+     *
+     * The frame is cancelled before `purge` below, because a repaint queued
+     * against an element that has just been purged draws into a dead node.
+     */
+    let frame: number | null = null;
+    const schedule = () => {
+      if (typeof requestAnimationFrame !== 'function') {
+        paint();
+        return;
+      }
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        paint();
+      });
+    };
+
+    const observer = new ResizeObserver(schedule);
     observer.observe(element);
 
     return () => {
       observer.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
       // Plotly attaches listeners and a WebGL-free canvas stack outside React's tree, so
       // dropping the node without purging leaks both.
       Plotly.purge(element);

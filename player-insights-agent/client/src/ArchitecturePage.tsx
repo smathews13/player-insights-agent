@@ -35,6 +35,7 @@
  * dependency; where the reference this was modelled on prints a number, this
  * prints what it is waiting for.
  */
+import './styles/architecture.css';
 import { Component, Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
@@ -878,13 +879,13 @@ export function ArchitecturePage() {
       ))}
 
       <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawn} />
-      <ChainBoundTiles activeBound={activeBound} loop={loop} onActiveBoundChange={setActiveBound} />
 
       <section className="arch-flow" aria-labelledby="arch-flow-title">
         <div className="arch-flow-head">
           <h3 className="section-label" id="arch-flow-title">
             Live data flow
           </h3>
+          <ChainBoundTiles activeBound={activeBound} loop={loop} onActiveBoundChange={setActiveBound} />
         </div>
         <ArchitectureDiagramBoundary key={`${checkedAt}:${payload?.readAt ?? ''}`}>
           <ArchitectureCanvas activeBound={activeBound} byResource={byResource} now={now} payload={payload} />

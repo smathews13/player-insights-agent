@@ -35,6 +35,7 @@ async function startApp(warehouseWarmup: WarehouseWarmup, transport = answersWit
     lakebase: noLakebase,
     server: { extend: (fn) => fn(app) },
     servingTransport: transport,
+    servingEndpointReader: () => Promise.resolve({ state: { ready: 'READY' } }),
     warehouseWarmup,
   });
   const server: Server = app.listen(0, '127.0.0.1');
@@ -96,7 +97,7 @@ describe('opening the app warms the warehouse', () => {
     const app = await startApp(warmup);
 
     try {
-      await app.open();
+      await app.warm();
     } finally {
       await app.close();
     }
@@ -118,7 +119,7 @@ describe('opening the app warms the warehouse', () => {
     const app = await startApp(warmup);
 
     try {
-      await Promise.all([app.open(), app.open(), app.open(), app.open(), app.open()]);
+      await Promise.all([app.warm(), app.warm(), app.warm(), app.warm(), app.warm()]);
     } finally {
       await app.close();
     }
@@ -137,21 +138,18 @@ describe('the page never waits for the warm-up', () => {
     let status: number;
     let body: Record<string, unknown>;
     try {
-      const response = await app.open();
+      const response = await app.warm();
       status = response.status;
       body = (await response.json()) as Record<string, unknown>;
     } finally {
       await app.close();
     }
 
-    expect(status).toBe(200);
-    expect(body.error).toBe('preflight_retired');
+    expect(status).toBe(202);
+    expect(body).toEqual({ accepted: true });
   });
 
-  it('starts the warm-up before invoking the endpoint, not after it', async () => {
-    // Order matters for the only reason this feature exists: the endpoint
-    // invocation below takes seconds, and warming afterwards would hand the
-    // reader a warehouse that starts once they have already begun typing.
+  it('warms without invoking the endpoint', async () => {
     const order: string[] = [];
     const app = await startApp(
       {
@@ -167,17 +165,17 @@ describe('the page never waits for the warm-up', () => {
     );
 
     try {
-      await app.open();
+      await app.warm();
     } finally {
       await app.close();
     }
 
-    expect(order).toEqual(['warmup', 'endpoint']);
+    expect(order).toEqual(['warmup']);
   });
 
-  it('asks adopted Genie spaces for their warehouse after the endpoint answers', () => {
+  it('warms declared adopted Genie spaces on the same arrival path', () => {
     const source = readFileSync(new URL('./insights-routes.ts', import.meta.url), 'utf8');
-    expect(source).toContain('warmGenieWarehousesForArrival(req, raw)');
+    expect(source).toContain('warmGenieWarehousesForArrival(req, {})');
     expect(source).toContain('createGenieWarehouseWarmup');
     expect(source).toContain('forwardedUserToken(req)');
   });
@@ -199,10 +197,10 @@ describe('a failed warm-up is invisible', () => {
     let goodStatus: number;
     let badStatus: number;
     try {
-      const first = await healthy.open();
+      const first = await healthy.warm();
       goodStatus = first.status;
       good = (await first.json()) as Record<string, unknown>;
-      const second = await unhealthy.open();
+      const second = await unhealthy.warm();
       badStatus = second.status;
       bad = (await second.json()) as Record<string, unknown>;
     } finally {
@@ -227,7 +225,7 @@ describe('a failed warm-up is invisible', () => {
     let status: number;
     let logged: string;
     try {
-      status = (await app.open()).status;
+      status = (await app.warm()).status;
       // Let the rejection settle inside the handler's own catch rather than
       // racing the assertion against it.
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -239,7 +237,7 @@ describe('a failed warm-up is invisible', () => {
       warn.mockRestore();
     }
 
-    expect(status).toBe(200);
+    expect(status).toBe(202);
     expect(logged).toContain('should not');
   });
 });

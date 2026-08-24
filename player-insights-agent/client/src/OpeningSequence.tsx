@@ -51,19 +51,54 @@ const skyExit = (star: { x: number; y: number }, at: number) => ({
   delaySeconds: starDelaySeconds(at),
 });
 
-export function OpeningSequence({ intro, leaving = false }: { intro: boolean; leaving?: boolean }) {
+export function OpeningSequence({
+  intro,
+  leaving = false,
+  /**
+   * Whether the gate's own sky is already on screen behind this layer.
+   *
+   * WHEN IT IS, THIS LAYER DRAWS NO SKY OF ITS OWN, and that is the whole of
+   * the fix for the opening reading as two views in sequence. The gate mounts
+   * one `StarField` for as long as it is up. This layer used to paint its own
+   * navy over that and draw `OPENING_CONSTELLATION` on it -- a drawing that
+   * arrives progressively, so early in the intro the right-hand side has not
+   * been drawn yet. When the intro ended the whole layer was unmounted and the
+   * gate's field appeared already complete, so the reader saw an empty right
+   * side fill in and the sky shift under the card. Two surfaces in sequence,
+   * which is what was reported.
+   *
+   * Transparent, with no field of its own, this is the concepts and the
+   * wordmark ON the sky the reader is already looking at. Nothing behind them
+   * mounts, unmounts or moves when the intro hands over -- the marks fade and
+   * the card rises, and the sky is the same element throughout.
+   *
+   * The exit keeps its own field: `leaving` travels every star to the lockup,
+   * which is a drawing this layer has to own because it is animating it.
+   */
+  onSky = false,
+}: {
+  intro: boolean;
+  leaving?: boolean;
+  onSky?: boolean;
+}) {
   const cycle = `${OPENING_SECONDS}s`;
   return (
-    <div className={`ast-opening${leaving ? ' ast-anim-x-sky' : ''}`} aria-hidden="true">
+    <div
+      className={`ast-opening${onSky ? ' ast-opening-on-sky' : ''}${leaving ? ' ast-anim-x-sky' : ''}`}
+      aria-hidden="true"
+    >
       {/* The sky. `#19a` draws five separate patterns around the edges of a
           1180x700 canvas and leaves the middle empty, which is what the concepts,
           the wordmark and the gate occupy. The SVG slices rather than squashes, so
-          a viewport of another shape crops the sky instead of distorting it. */}
-      <ConstellationField
-        shape={OPENING_CONSTELLATION}
-        className="ast-opening-sky"
-        exitTo={leaving ? skyExit : undefined}
-      />
+          a viewport of another shape crops the sky instead of distorting it.
+          Drawn only where this layer IS the sky; see `onSky` above. */}
+      {onSky && !leaving ? null : (
+        <ConstellationField
+          shape={OPENING_CONSTELLATION}
+          className="ast-opening-sky"
+          exitTo={leaving ? skyExit : undefined}
+        />
+      )}
       {intro ? (
         <div className="ast-opening-centre">
           {/* Four marks in one stacked slot, a turn each. The same four concepts

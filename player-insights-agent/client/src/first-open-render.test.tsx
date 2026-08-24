@@ -348,21 +348,67 @@ describe('once per session', () => {
 
   it('keeps the opening sequence populated to the right of the login card', () => {
     /*
-     * The first-open screen does not use AppSky: while its gate is present,
-     * OpeningSequence owns the navy layer and ConstellationField draws the full
-     * opening shape. Hold that wiring and its right-third coverage here so a
-     * future margin filter cannot recreate the shell sky's left-only defect.
+     * The claim is right-third coverage on the first screen, and it is held
+     * whichever element is drawing it. That matters now because the element
+     * changed: the gate mounts one `StarField` for its whole life and the
+     * opening layer goes on top of it, so the connectors are `<line>` rather
+     * than ConstellationField's `<path>`.
+     *
+     * The defect this guards is older than either drawing and is what the swap
+     * revived: a connector sample taken in list order is all upper-left, and
+     * the login screen comes out empty down its right-hand side.
      */
     const opening = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
     const rightEdge = (OPENING_CONSTELLATION.width * 2) / 3;
     const starXs = [...opening.matchAll(/<circle[^>]*cx="([^"]+)"/g)].map((match) => Number(match[1]));
-    const connectorXs = [...opening.matchAll(/<path[^>]*d="M([\d.]+) [\d.]+ ([\d.]+) /g)].flatMap((match) => [
-      Number(match[1]),
-      Number(match[2]),
-    ]);
+    const connectorXs = [
+      ...[...opening.matchAll(/<path[^>]*d="M([\d.]+) [\d.]+ ([\d.]+) /g)].flatMap((match) => [
+        Number(match[1]),
+        Number(match[2]),
+      ]),
+      ...[...opening.matchAll(/<line[^>]*x1="([\d.]+)"[^>]*x2="([\d.]+)"/g)].flatMap((match) => [
+        Number(match[1]),
+        Number(match[2]),
+      ]),
+    ];
 
     expect(starXs.some((x) => x > rightEdge)).toBe(true);
+    expect(connectorXs.length, 'the first screen draws connectors at all').toBeGreaterThan(0);
     expect(connectorXs.some((x) => x > rightEdge)).toBe(true);
+  });
+
+  it('never swaps the sky out from under the reader', () => {
+    /*
+     * The reported defect, as a property of the markup rather than of a frame.
+     *
+     * The intro used to render its own navy layer with `OPENING_CONSTELLATION`
+     * drawn progressively on it, and the gate replaced that whole layer with
+     * the ambient field the moment the card arrived. So the right-hand side
+     * filled in and the surface changed at the same instant -- two views in
+     * sequence, which is what "skewed left, then it stutters" was.
+     *
+     * Now the first screen already carries the field the gate ends on, and the
+     * opening layer is transparent over it.
+     */
+    const opening = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
+    expect(opening, 'the gate sky is up on the first frame').toContain('gate-star-motion');
+    expect(opening, 'and the intro is on it rather than instead of it').toContain('ast-opening-on-sky');
+    // One field, not two: the opening layer contributes no drawing of its own.
+    expect(opening).not.toContain('ast-opening-sky');
+  });
+
+  it('holds the resolving frame on the sky as well, rather than over it', () => {
+    /*
+     * The frame a session that skips the intro opens on -- reduced motion, or a
+     * reload -- mounts the same field every other stage does and then used to
+     * paint an opaque backdrop across it. So the first thing a reader met was a
+     * flat panel, and the stars looked like they switched on when the frame gave
+     * way. `on-sky` is what makes it transparent; the card already carried it.
+     *
+     * Asserted against the source because this stage needs a session latch to
+     * reach, and this run has no storage to set one in.
+     */
+    expect(GATE).toContain('<div className="first-open on-sky first-open-hold"');
   });
 
   /*

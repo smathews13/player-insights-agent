@@ -54,6 +54,105 @@ export const PROSE_ONLY_FALLBACK_TAKEAWAY = 'The agent answered in prose, withou
 /** How much of the first line is used as the takeaway. */
 const TAKEAWAY_LIMIT = 220;
 
+/*
+ * ---- The finder's package is apparatus, and it was reaching the card ----
+ *
+ * `agent.py` already knows this. `reader_facing_findings` splits the finder's
+ * internal report into the two sections a reader is shown and the two that
+ * become caveats, and drops everything else -- the `## DATA PACKAGE` heading,
+ * the sources roll-call, the columns inventory, the handoff note, and the
+ * scratchpad the model writes above the heading while it decides what to do.
+ * Every path in the agent that hands a package to a card runs it through that.
+ *
+ * THIS PATH DID NOT, because it is not in the agent. When the endpoint streams
+ * prose and no result contract ever arrives, the route wraps whatever text came
+ * back and serves it as the answer. On a run that ended in the finder, "whatever
+ * text came back" is the package, verbatim: a reader got "This question was not
+ * answered." as the headline and then the model's own working notes underneath
+ * it -- "Sources used", "Columns assessed", "Package note: Optional detail was
+ * clipped at the DSF handoff bound" -- which reads as the answer, and reads as an
+ * answer that contradicts its own headline.
+ *
+ * So the same split, in the same shape, on this side of the wire. The section
+ * names are the agent's and are deliberately duplicated rather than imported:
+ * this is a TypeScript server and that is a Python module, and the alternative
+ * is a shared file neither language owns. `prose-only-answer.test.ts` asserts
+ * the two lists against `agent.py`'s so a section renamed there fails here.
+ */
+
+/** The sections a reader is shown, in the order they are shown in. */
+const PROSE_SECTIONS = ['Interpretation', 'Findings / data'];
+
+/** The sections that become caveats under "What to keep in mind". */
+const CAVEAT_SECTIONS = ['Caveats & rules applied', 'Gaps'];
+
+/*
+ * One `- **Name:**` lead-in. The finder is inconsistent about whether the colon
+ * falls inside or outside the bold run, so both are accepted; a section's body
+ * runs to the next lead-in, which is what carries a Markdown table through
+ * under "Findings / data".
+ */
+const LEAD_IN = /^\s{0,3}[-*]\s+\*\*(?<name>[^*:]+?):?\*\*:?\s*(?<rest>.*)$/;
+
+export interface ReaderFacingFindings {
+  narrative: string;
+  caveats: string[];
+}
+
+/**
+ * Splits the finder's package into the prose a reader is shown and the caveats.
+ *
+ * Text with no recognisable lead-ins is returned as its own prose with heading
+ * lines removed: that is the `## DATA OVERVIEW` and `## CLARIFICATION NEEDED`
+ * shape, and an ordinary prose reply, both of which are already written for a
+ * reader and have nothing in them to take out but an internal heading.
+ */
+export function readerFacingFindings(findings: string): ReaderFacingFindings {
+  const sections: { name: string; lines: string[] }[] = [];
+  const preamble: string[] = [];
+
+  for (const line of findings.split('\n')) {
+    const leadIn = LEAD_IN.exec(line);
+    if (leadIn?.groups) {
+      sections.push({ name: leadIn.groups.name.trim(), lines: [leadIn.groups.rest] });
+    } else if (sections.length > 0) {
+      sections[sections.length - 1].lines.push(line);
+    } else {
+      preamble.push(line);
+    }
+  }
+
+  if (sections.length === 0) {
+    return { narrative: preamble.filter((line) => !line.trimStart().startsWith('#')).join('\n').trim(), caveats: [] };
+  }
+
+  const bodiesOf = (wanted: string[]): string[] => {
+    const found: string[] = [];
+    for (const name of wanted) {
+      for (const section of sections) {
+        if (section.name.toLowerCase() !== name.toLowerCase()) continue;
+        const body = section.lines.join('\n').trim();
+        // An empty lead-in is where the bulleted label with nothing after it
+        // came from, so a section with no body is dropped rather than titled.
+        if (body) found.push(body);
+      }
+    }
+    return found;
+  };
+
+  const caveats: string[] = [];
+  for (const body of bodiesOf(CAVEAT_SECTIONS)) {
+    // One caveat per line: the finder writes these as its own nested bullets,
+    // and the card is what makes them a list, so the markers come off.
+    for (const entry of body.split('\n')) {
+      const stripped = entry.trim().replace(/^[-*]+/, '').trim();
+      if (stripped) caveats.push(stripped);
+    }
+  }
+
+  return { narrative: bodiesOf(PROSE_SECTIONS).join('\n\n').trim(), caveats };
+}
+
 export interface ProseOnlyAnswer {
   id: string;
   takeaway: string;
@@ -101,17 +200,28 @@ export interface ProseOnlyAnswer {
  * unmetered one and the renderers printed the zero as a measurement.
  */
 export function proseOnlyAnswer(id: string, prose: string): ProseOnlyAnswer {
+  /*
+   * THE TAKEAWAY IS READ OFF THE ORIGINAL AND THE NARRATIVE OFF THE SPLIT, which
+   * is the one asymmetry here and it is deliberate. When a run ends in the finder
+   * the first line is the agent's own verdict -- "This question was not answered."
+   * -- and it sits in the preamble, which the split drops along with the rest of
+   * the scratchpad. Reading the takeaway from the cleaned text would throw that
+   * sentence away and leave the card headed by whatever the first surviving
+   * section happened to be, which is the internal report being promoted rather
+   * than removed.
+   */
   const firstLine = prose.split('\n').map((line) => line.trim()).find((line) => line.length > 0);
+  const reader = readerFacingFindings(prose);
   return {
     id,
     takeaway: firstLine ? firstLine.slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY,
-    narrative: prose,
+    narrative: reader.narrative,
     content: '',
     figures: [],
     charts: [],
     sources: [],
     document_snippets: [],
-    caveats: [PROSE_ONLY_ANSWER_CAVEAT],
+    caveats: [PROSE_ONLY_ANSWER_CAVEAT, ...reader.caveats],
     derivation: [],
     sql: '',
     trace: {

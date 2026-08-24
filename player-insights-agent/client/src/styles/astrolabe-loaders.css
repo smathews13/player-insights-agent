@@ -197,6 +197,24 @@
 }
 
 /*
+ * The same layer with the gate's sky already behind it.
+ *
+ * The background above is right when this layer IS the first thing on screen.
+ * It is wrong the moment the gate's `StarField` is mounted underneath, because
+ * an opaque navy over a starfield is a starfield nobody can see -- and it was
+ * what made the opening and the gate two surfaces rather than one. Transparent,
+ * this layer is the concepts and the wordmark ON that sky, and the handover to
+ * the card mounts and unmounts nothing behind them.
+ *
+ * The z-index is deliberately unchanged. Both layers are 59 and this one comes
+ * after the field in the gate's fragment, so document order puts the marks over
+ * the stars -- and both stay under the dialog at 60.
+ */
+.ast-opening.ast-opening-on-sky {
+  background: transparent;
+}
+
+/*
  * The constellation itself, which is `position: absolute; inset: 0` from
  * `.ast-constellation`. It needs no rule of its own beyond being nameable: this
  * class exists so a test can find the sky in the markup and so the next person to

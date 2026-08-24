@@ -16,6 +16,7 @@ import { HeaderBrand, IdentityChips } from './Layout';
 import { WORDMARK } from './astrolabe-mark';
 import type { Identity } from './app-types';
 import type { RoleResolution } from './role';
+import { partial } from './styles/stylesheet';
 
 const DEPLOYED_AT = '2026-08-20T16:51:23.456Z';
 const DEPLOYED_BY = 'release.owner@example.test';
@@ -99,6 +100,17 @@ describe('the header release chip', () => {
     expect(renderToStaticMarkup(<DeploymentTimeChip deployedAt="" />)).toBe('');
     expect(renderToStaticMarkup(<DeploymentTimeChip deployedAt="not-a-date" />)).toBe('');
     expect(renderToStaticMarkup(<DeploymentTimeChip deployedAt="" buildSha={BUILD_SHA} />)).toBe('');
+  });
+
+  it('uses the same neutral badge recipe as the user and settings controls', () => {
+    const css = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const rule = css.match(/(?:^|})\s*\.deployment-time-chip\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(rule).toMatch(/min-height:\s*30px/);
+    expect(rule).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(rule).toMatch(/border-radius:\s*var\(--radius-sm\)/);
+    expect(rule).toMatch(/background:\s*var\(--card\)/);
+    expect(rule).toMatch(/color:\s*var\(--foreground\)/);
   });
 });
 

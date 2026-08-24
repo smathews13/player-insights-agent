@@ -21,15 +21,31 @@ function bodyOf(chunks: string[]): ReadableStream<Uint8Array> {
   });
 }
 
-function stageEvent(id: string, name: string): string {
+function stageEvent(id: string, name: string, status = 'complete'): string {
   return `data: ${JSON.stringify({
     type: 'response.output_item.done',
     item: { id: `stage-${id}`, type: 'message', role: 'assistant' },
     custom_outputs: {
       type: 'stage',
-      stage: { id, name, kind: 'tool', status: 'complete', start: 0, duration: 12, calls: 1 },
+      stage: {
+        id,
+        name,
+        kind: 'tool',
+        status,
+        start: 0,
+        duration: status === 'running' ? 0 : 12,
+        calls: 1,
+      },
     },
   })}\n\n`;
+}
+
+/**
+ * The first of the two events `predict_stream` writes for one step: the step
+ * announcing itself, before it has run, so a row can be drawn while it does.
+ */
+function announceEvent(id: string, name: string): string {
+  return stageEvent(id, name, 'running');
 }
 
 /**
@@ -186,6 +202,68 @@ describe('consumeServingStream', () => {
 
     await expect(consumeServingStream(body, () => {})).rejects.toThrow(/ended after 1 stage\(s\) without returning an answer/
     );
+  });
+
+  it('counts no stage for a stream that only announced steps', async () => {
+    // THE FIX THIS TEST EXISTS FOR. `stages` is what the transport reads to
+    // decide whether asking again would repeat work the endpoint has already
+    // done. An announcement means a step started: no tool returned, nothing was
+    // read, and there is no result to duplicate. Counting these made a stream
+    // that died after two early pings look like a run worth preserving, so the
+    // blocking retry -- the only path left to an answer at that point -- was
+    // skipped and the reader was shown an interrupted run instead.
+    const body = bodyOf([
+      announceEvent('step-1', 'Chose the next step'),
+      flushEvent,
+      announceEvent('step-1-1-data_genie', 'Asked the governed data Genie space'),
+      flushEvent,
+    ]);
+
+    await expect(consumeServingStream(body, () => {})).rejects.toMatchObject({
+      name: 'TruncatedStreamError',
+      stages: 0,
+      announced: 2,
+    });
+  });
+
+  it('still forwards the announcements it does not count, because the rail draws them', async () => {
+    // The count and the live rail are different questions about the same event.
+    // A fix that stopped forwarding `running` stages would leave every step
+    // appearing only once it had already finished.
+    const stages: string[] = [];
+    const body = bodyOf([
+      announceEvent('step-1', 'Chose the next step'),
+      stageEvent('step-1', 'Chose the next step'),
+      answerEvent,
+    ]);
+
+    await consumeServingStream(body, (stage) => stages.push(`${String(stage.name)}:${String(stage.status)}`)
+    );
+
+    expect(stages).toEqual(['Chose the next step:running', 'Chose the next step:complete']);
+  });
+
+  it('counts the reporting half of a pair once, not the pair twice', async () => {
+    const body = bodyOf([
+      announceEvent('step-1', 'Chose the next step'),
+      stageEvent('step-1', 'Chose the next step'),
+      announceEvent('step-2', 'Queried governed data'),
+    ]);
+
+    await expect(consumeServingStream(body, () => {})).rejects.toMatchObject({
+      name: 'TruncatedStreamError',
+      stages: 1,
+      announced: 2,
+    });
+  });
+
+  it('counts a failed step as work, because a retry would repeat it', async () => {
+    // `failed` is an outcome: the tool ran and refused. Only `running` is an
+    // announcement, and a status this app has never seen is read as an outcome
+    // rather than guessed into a second invocation of the stack.
+    const body = bodyOf([stageEvent('step-1', 'Queried governed data', 'failed')]);
+
+    await expect(consumeServingStream(body, () => {})).rejects.toMatchObject({ stages: 1 });
   });
 
   it('skips one unreadable event rather than abandoning the run', async () => {

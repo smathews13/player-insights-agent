@@ -461,14 +461,12 @@
   min-width: 0;
 }
 .answer-main-row {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
   gap: 18px;
   min-width: 0;
 }
 .answer-narrative {
   display: grid;
-  flex: 1 1 auto;
   gap: 6px;
   min-width: 0;
 }
@@ -494,8 +492,8 @@
  */
 .answer-stat-rail {
   display: grid;
-  flex: 0 0 190px;
-  width: 190px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  width: 100%;
   gap: 6px;
 }
 .answer-stat {
@@ -623,47 +621,24 @@
  * WHEN THE FIGURES MAY TAKE A COLUMN OFF THE PROSE, AND WHEN THEY MAY NOT.
  * ============================================================================
  *
- * 839px, up from 639px, and this is the whole of "the answer cards are too
- * narrow".
+ * THE FIGURES NEVER TAKE A COLUMN OFF THE PROSE. There is no threshold any
+ * more, and removing it is the whole of "the answer cards are too narrow".
  *
- * The main row is a two-column flex: the narrative takes the slack and the stat
- * rail takes a fixed 190px beside it. The old threshold only stacked them below
- * 639px, and `.answer-card` carries `min-width: min(640px, 100%)` -- so the
- * stacked arrangement was unreachable on any ordinary window and the side rail
- * was effectively unconditional.
+ * This used to be a two-column flex above 839px of card: the narrative took the
+ * slack and the stat rail a fixed 190px beside it. The threshold was derived
+ * from a measure the card was assumed to reach, and it does not reach it. The
+ * middle column is the window less a 264px conversation rail and a 340px
+ * inspector, so `--conversation-measure` (1120px) is aspirational rather than
+ * real -- and once the card's own insets, the 190px rail and its 18px gap came
+ * off what was left, the narrative was down to roughly 450px: bulleted claims
+ * wrapping every eight words and evidence tables reduced to scrollers.
  *
- * What that costs is the reading column, because the card never gets the measure
- * the transcript promises it. `--conversation-measure` is 1120px, but the middle
- * column is `100vw` less a 264px rail and a 340px inspector, so on a 1440px
- * laptop the card is about 730px wide and the measure is never reached. Take the
- * card's own 24px insets, the 190px rail and its 18px gap off that and the
- * narrative is left with roughly 450px: a bulleted claim about six game titles
- * wrapping every eight words, and any evidence table inside it reduced to a
- * horizontal scroller. Two of the four screenshots that prompted this were of
- * exactly that column.
+ * So the rail stacks unconditionally. `auto-fit` with `minmax(190px, 1fr)` lays
+ * the figures out in as many columns as the card can hold rather than one wide
+ * cell each, and 190px is the width the agent's unit strings ("3,118
+ * player-days") fit on one line in -- see the note on `.answer-stat-value`,
+ * which is the same decision and must move with it.
  *
- * The threshold is therefore derived rather than chosen: the narrative is worth
- * a side rail only once it still clears a real measure with the rail beside it.
- * 190px of rail + 18px gap + 48px of card inset + 2px of border is 258px of
- * furniture, and 580px is a defensible measure for 13px prose, so the rail may
- * sit beside the narrative from 838px of card upward and not below it. Every
- * window narrower than that gives the prose the full card and drops the figures
- * underneath it, which is the arrangement the third screenshot happened to catch
- * and the one that read correctly.
- *
- * `auto-fit` rather than the flat two columns it had: stacked, the rail is as
- * wide as the card, and two 340px cells holding a 163px figure is a scan row with
- * half its width unused. `minmax(190px, 1fr)` lays five figures out in as many
- * columns as fit -- three on a 690px card, two when the card is narrower -- and
- * 190px is the same figure the side rail uses, for the same reason: it is the
- * width the unit strings fit on one line in.
+ * The inspector track this was fighting for room against is now released when
+ * the inspector is not drawn; see `.ask-layout` in rail.css.
  */
-@container answer-card (max-width: 839px) {
-  .answer-main-row {
-    display: grid;
-  }
-  .answer-stat-rail {
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    width: 100%;
-  }
-}

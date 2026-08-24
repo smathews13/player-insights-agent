@@ -39,7 +39,7 @@
 
 .live-step {
   display: grid;
-  grid-template-columns: 13px 1fr;
+  grid-template-columns: 24px 1fr;
   gap: 10px;
   padding: 9px 12px;
   /*
@@ -111,29 +111,18 @@
   background: var(--db-red-wash);
 }
 
-/* The icon box, sized to one header line and pinned to the top of the row so the
-   glyph centres on the header rather than the whole multi-line body beside it.
-   `align-self: start` keeps it on the first line when the header wraps or a
-   running pill widens the row; centring in a fixed box holds for every kind of
-   mark whatever intrinsic padding its own SVG carries. A 1px optical nudge
-   drops the glyph onto the bold step name's x-height: without it every family
-   (astrolabe mark and lucide alike) reads a hair high against the header. */
+/* The numbered step badge is the Agent map's `.step-rail-num`, seated here at
+   the same 24x20 geometry. Pinning it to the first line keeps a wrapped detail
+   from pulling the run's index down between the title and its result. */
 .live-step-icon {
   align-self: start;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 13px;
+  width: 24px;
+  min-width: 24px;
+  /* Keep the line-relative seat while the shared badge's 20px floor guarantees
+     the same rendered box at every text scale. */
   height: calc(var(--text-base) * 1.4);
+  min-height: 20px;
   margin-top: 1px;
-}
-
-/* The kind glyph. The default icon stroke rather than the action colour: these
-   rows are a record of what happened, and nothing in them is clickable. */
-.live-step-icon > svg {
-  width: 13px;
-  height: 13px;
-  color: var(--db-slate-icon);
 }
 
 .live-step-body {

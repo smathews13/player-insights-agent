@@ -127,24 +127,107 @@ function matchedRoutePath(req: Request): string {
   return typeof path === 'string' ? path : '';
 }
 
-/** Only matched API route templates are recorded; raw URLs and static assets are not. */
-export function requestLatencyRecorder(store: RequestLatencyStore) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+/** One finished request, waiting to be written with the others. */
+type LatencySpan = [method: string, route: string, statusCode: number, durationMs: number];
+
+/** How long a span may sit in memory before it is written. */
+const FLUSH_MS = 2_000;
+/** Write early rather than let a burst sit unwritten; also caps a single statement. */
+const MAX_BUFFERED = 100;
+
+export interface RequestLatencyRecorder {
+  (req: Request, res: Response, next: NextFunction): void;
+  /** Write whatever is buffered right now. For shutdown, and for tests. */
+  flush(): Promise<void>;
+}
+
+/**
+ * Record how long each matched API route took, in batches.
+ *
+ * Only matched API route templates are recorded; raw URLs and static assets are
+ * not, so `/assets/app.js` and a 404 on an unrouted path write nothing.
+ *
+ * WHY THIS BATCHES. It used to run one INSERT per finished response, on a pool
+ * capped at ten connections, for EVERY api call the app makes -- including the
+ * poll traffic from open admin tabs. The write is fire-and-forget so it never
+ * blocked an answer, but under a poll storm it still put one statement per
+ * request in front of the reads those same requests were waiting on. Spans are
+ * now collected and written together, which turns a hundred statements into one.
+ *
+ * WHY NOT SAMPLING, which is the other obvious answer. Ops reports a span COUNT
+ * and an error count per route beside the percentiles, and it labels what it
+ * shows with how good the figure is. Percentiles survive sampling; counts do
+ * not, and a tenth of the errors presented as the errors would be this surface
+ * telling a reader something untrue about their deployment. Batching costs the
+ * same write amplification and costs no fidelity.
+ *
+ * WHAT IS GIVEN UP is the couple of seconds of spans a process holds when it
+ * dies unexpectedly. That is the right trade for latency telemetry -- and it is
+ * why the window is two seconds rather than a minute -- but it is a real loss,
+ * so `flush` is exposed for a shutdown path to call.
+ */
+export function requestLatencyRecorder(
+  store: RequestLatencyStore,
+  { flushMs = FLUSH_MS, maxBuffered = MAX_BUFFERED }: { flushMs?: number; maxBuffered?: number } = {}
+): RequestLatencyRecorder {
+  let buffered: LatencySpan[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const flush = async (): Promise<void> => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (buffered.length === 0) return;
+    // Taken before the await so spans arriving during the write join the next
+    // batch rather than being dropped by the reset, or written twice.
+    const writing = buffered;
+    buffered = [];
+
+    const values = writing
+      .map((_, index) => {
+        const at = index * 4;
+        return `($${at + 1}, $${at + 2}, $${at + 3}, $${at + 4})`;
+      })
+      .join(', ');
+
+    try {
+      await store.query(
+        `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
+           VALUES ${values}`,
+        writing.flat()
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[ops] ${writing.length} request latency span(s) were not recorded: ${reason}`);
+    }
+  };
+
+  const record = (span: LatencySpan): void => {
+    buffered.push(span);
+    if (buffered.length >= maxBuffered) {
+      void flush();
+      return;
+    }
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      void flush();
+    }, flushMs);
+    // A pending batch of telemetry is not a reason to keep the process alive.
+    timer.unref?.();
+  };
+
+  const middleware = (req: Request, res: Response, next: NextFunction): void => {
     const started = process.hrtime.bigint();
     res.once('finish', () => {
       const path = matchedRoutePath(req);
       if (!path.startsWith('/api/')) return;
       const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
-      void store
-        .query(
-          `INSERT INTO ${REQUEST_LATENCY_TABLE} (method, route, status_code, duration_ms)
-           VALUES ($1, $2, $3, $4)`,
-          [req.method.toUpperCase(), `${req.baseUrl || ''}${path}`, res.statusCode, durationMs]
-        )
-        .catch((error: Error) => {
-          console.warn(`[ops] Request latency was not recorded for ${req.method} ${path}: ${error.message}`);
-        });
+      record([req.method.toUpperCase(), `${req.baseUrl || ''}${path}`, res.statusCode, durationMs]);
     });
     next();
   };
+
+  return Object.assign(middleware, { flush });
 }

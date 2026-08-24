@@ -134,6 +134,10 @@ html:not([data-theme='dark']) .ask-hero h2 {
   align-items: flex-end;
   justify-content: flex-end;
   gap: 8px;
+  /* Keep the question staggered toward the live-steps pane instead of letting a
+     long prompt share the answer card's left edge. The offset scales down with
+     the transcript while preserving a visible handoff between speaker turns. */
+  padding-left: clamp(28px, 7%, 64px);
   margin-bottom: 22px;
 }
 .user-bubble {
@@ -170,6 +174,15 @@ html:not([data-theme='dark']) .ask-hero h2 {
 .user-avatar .identity-chip-text {
   overflow: visible;
   text-overflow: clip;
+}
+/*
+ * The provenance label is the answer pane's first fact, so it sits in the
+ * top-left corner rather than one full card gutter down and in. Scoped to Ask:
+ * Run Explorer owns its own answer seating, and answer.css is shared work.
+ */
+.conversation-main .answer-card > [data-slot='card-header'] {
+  padding-top: 12px;
+  padding-inline: 12px;
 }
 /*
  * Selection, per surface.

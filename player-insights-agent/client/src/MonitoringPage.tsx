@@ -28,7 +28,9 @@
  * conversation does not want the list reordering underneath them, and the query
  * behind it scans every message in the range.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import './styles/time-range.css';
+import './styles/monitoring.css';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Search, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
@@ -504,6 +506,99 @@ function RatingMark({ rating }: { rating: 'up' | 'down' | null }) {
 }
 
 /**
+ * One row, memoised, because this table is long and the page around it is busy.
+ *
+ * A range can hold up to `QUESTION_READ_LIMIT` questions -- two thousand -- and
+ * every one of them is rendered; there is no windowing. Opening the drawer,
+ * closing it, changing a filter and refreshing all re-render the page, and
+ * without this each of those rebuilt two thousand rows to change the highlight
+ * on one of them. That is the "sticky" the reader feels on a wide range.
+ *
+ * The comparison is `question`, `selected`, `now` and `onOpen` by identity, so
+ * the FOUR THINGS THIS DEPENDS ON have to hold for it to be worth anything:
+ * question objects are replaced only when the payload is re-read, `now` moves
+ * only on refresh (not on a clock), `selected` is a boolean rather than the
+ * selected id, and `onOpen` is stable across renders -- see `open` in
+ * `MonitoringPage`, which is latched to a ref precisely so this holds. Passing
+ * `selectedId` down instead of `selected` would make every row's props change
+ * on every selection, which is the thing being avoided.
+ */
+const QuestionRow = memo(function QuestionRow({
+  question,
+  selected,
+  now,
+  onOpen,
+}: {
+  question: MonitoringQuestion;
+  selected: boolean;
+  now: number;
+  onOpen: (question: MonitoringQuestion) => void;
+}) {
+  return (
+    <tr
+      role="button"
+      tabIndex={0}
+      aria-current={selected ? 'true' : undefined}
+      className={selected ? 'monitoring-row monitoring-row-selected' : 'monitoring-row'}
+      onClick={() => onOpen(question)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        onOpen(question);
+      }}
+    >
+      {/* The largest thing in the row, and truncated to two lines rather
+          than one: a question is the reader's index into this table, and
+          one line of a comparison question is usually the preamble.
+
+          THE CLAMP IS ON THE SPAN, NOT ON THE CELL. A two-line clamp needs
+          `display: -webkit-box`, and setting that on a `td` stops the cell
+          being a table cell, which takes it out of the column sizing the
+          header row above just settled. It was on the cell. */}
+      <td className="monitoring-question">
+        <span className="monitoring-question-text">{question.question}</span>
+      </td>
+      {/* The local part, with the full address on hover. A column of
+          identical domains is a column of noise. */}
+      <td className="monitoring-asker" title={question.askedBy}>
+        <AskerMark email={question.askedBy} />
+      </td>
+      <td className="monitoring-when">{whenLabel(question.askedAt, now)}</td>
+      <td>
+        <OutcomePill question={question} />
+      </td>
+      {/*
+        A CELL THIS LIST HAS NO FIGURE FOR SAYS NOTHING, and it used to say
+        "Not recorded". That is a claim about the world, and this list
+        cannot substantiate it.
+
+        What it must not do is stay empty for a run that HAS figures. This
+        emptying went in while Monitoring's query paired an approved-plan
+        turn to the proposed plan, whose trace carries neither key, so the
+        cells were blank for every such run while Run Explorer showed both
+        on the next tab. The query now pairs to the answer that carries the
+        figures (see MONITORING_QUESTIONS_QUERY), so these cells fill, and
+        the two tabs agree.
+
+        Empty is therefore what it says on its face again: this run
+        recorded no figure. A table column with no entry on one row is the
+        ordinary way a table says it has nothing for that row, and the row
+        opens the drawer, where the trace itself is.
+
+        The zero this used to be protecting against is still refused: an
+        unmeasured run must never render `0.0s`, and there is no branch
+        here that could produce one.
+      */}
+      <td className="monitoring-numeric ast-num">{formatDuration(question.durationMs) ?? ''}</td>
+      <td className="monitoring-numeric ast-num">{question.toolCalls === null ? '' : question.toolCalls}</td>
+      <td>
+        <RatingMark rating={question.rating} />
+      </td>
+    </tr>
+  );
+});
+
+/**
  * One row per question, and the whole row is one control.
  *
  * Not seven links. A reader clicking a question wants the question, and a row of
@@ -556,67 +651,13 @@ export function QuestionList({
       </thead>
       <tbody>
         {newestFirst(questions).map((question) => (
-          <tr
+          <QuestionRow
             key={question.id}
-            role="button"
-            tabIndex={0}
-            aria-current={question.id === selectedId ? 'true' : undefined}
-            className={question.id === selectedId ? 'monitoring-row monitoring-row-selected' : 'monitoring-row'}
-            onClick={() => onOpen(question)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' && event.key !== ' ') return;
-              event.preventDefault();
-              onOpen(question);
-            }}
-          >
-            {/* The largest thing in the row, and truncated to two lines rather
-                than one: a question is the reader's index into this table, and
-                one line of a comparison question is usually the preamble.
-
-                THE CLAMP IS ON THE SPAN, NOT ON THE CELL. A two-line clamp needs
-                `display: -webkit-box`, and setting that on a `td` stops the cell
-                being a table cell, which takes it out of the column sizing the
-                header row above just settled. It was on the cell. */}
-            <td className="monitoring-question">
-              <span className="monitoring-question-text">{question.question}</span>
-            </td>
-            {/* The local part, with the full address on hover. A column of
-                identical domains is a column of noise. */}
-            <td className="monitoring-asker" title={question.askedBy}>
-              <AskerMark email={question.askedBy} />
-            </td>
-            <td className="monitoring-when">{whenLabel(question.askedAt, now)}</td>
-            <td>
-              <OutcomePill question={question} />
-            </td>
-            {/*
-              A CELL THIS LIST HAS NO FIGURE FOR SAYS NOTHING, and it used to say
-              "Not recorded". That is a claim about the world, and this list
-              cannot substantiate it.
-
-              What it must not do is stay empty for a run that HAS figures. This
-              emptying went in while Monitoring's query paired an approved-plan
-              turn to the proposed plan, whose trace carries neither key, so the
-              cells were blank for every such run while Run Explorer showed both
-              on the next tab. The query now pairs to the answer that carries the
-              figures (see MONITORING_QUESTIONS_QUERY), so these cells fill, and
-              the two tabs agree.
-
-              Empty is therefore what it says on its face again: this run
-              recorded no figure. A table column with no entry on one row is the
-              ordinary way a table says it has nothing for that row, and the row
-              opens the drawer, where the trace itself is.
-
-              The zero this used to be protecting against is still refused: an
-              unmeasured run must never render `0.0s`, and there is no branch
-              here that could produce one.
-            */}
-            <td className="monitoring-numeric ast-num">{formatDuration(question.durationMs) ?? ''}</td>
-            <td className="monitoring-numeric ast-num">{question.toolCalls === null ? '' : question.toolCalls}</td>
-            <td>
-              <RatingMark rating={question.rating} />
-            </td>
-          </tr>
+            question={question}
+            selected={question.id === selectedId}
+            now={now}
+            onOpen={onOpen}
+          />
         ))}
       </tbody>
     </table>
@@ -1313,12 +1354,32 @@ export function MonitoringPage() {
     }
   }, [location.search, navigate]);
 
+  /*
+   * Opening a question, and the ONE callback on this page that has to keep its
+   * identity between renders.
+   *
+   * It is handed to every row in the table, and `QuestionRow` is memoised on its
+   * props, so a new function here is a new prop on all two thousand rows and the
+   * memo buys nothing. Written the obvious way it depended on `location.search`,
+   * which this callback's own navigation changes -- so opening the drawer
+   * rebuilt `open`, which re-rendered every row, on the one interaction the memo
+   * exists to make cheap.
+   *
+   * The search string is read off a ref at CALL time instead, which is the same
+   * value the direct dependency had: `searchNow` is assigned on every render, so
+   * by the time a click can reach this it holds the search that click was made
+   * against. That is also why it is assigned during render rather than in an
+   * effect, matching `lastSearch` below.
+   */
+  const searchNow = useRef(location.search);
+  searchNow.current = location.search;
+
   const open = useCallback(
     (question: MonitoringQuestion) => {
       scroll.current.capture(typeof globalThis.scrollY === 'number' ? globalThis.scrollY : 0);
-      void navigate({ search: openQuestion(location.search, question.id) });
+      void navigate({ search: openQuestion(searchNow.current, question.id) });
     },
-    [location.search, navigate]
+    [navigate]
   );
 
   const openPersonPanel = useCallback(

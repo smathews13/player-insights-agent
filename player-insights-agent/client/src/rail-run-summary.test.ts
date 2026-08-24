@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { railDuration, railRunSummaries, railStatusTone } from './rail-run-summary';
+import { conversationRunSummary, railDuration, railRunSummaries, railStatusTone } from './rail-run-summary';
 import { RATING_SCALE, ratingOutOf } from './benchmark-summary';
 import { partial } from './styles/stylesheet';
 import type { Run } from './app-types';
@@ -324,5 +324,51 @@ describe('a star says what it is out of', () => {
   it('draws no star at all for a turn nobody rated', () => {
     // An empty star is a rating of zero, which is a claim nobody made.
     expect(HOME_PAGE).toMatch(/summary\?\.rating !== null && summary\?\.rating !== undefined/);
+  });
+});
+
+describe('a badge on every conversation, not just the reader’s own', () => {
+  /*
+   * `/api/runs` is scoped to the caller and an identity-boundary test holds it
+   * there, so `railRunSummaries` can only ever describe the reader's own rows.
+   * With the shared rail on, the rail lists everyone -- and every row belonging
+   * to somebody else drew a title and a date and nothing else, while the
+   * reader's own rows carried a Complete badge and a wall time. Reported twice.
+   */
+  it('reads the verdict and the wall clock off the rail list itself', () => {
+    const summary = conversationRunSummary({ status: 'complete', truncated: false, duration_ms: 4200 });
+    expect(summary?.status).toBe('complete');
+    expect(summary?.tone).toBe('ast-pill--pos');
+    expect(railDuration(summary?.durationMs ?? null)).toBe('4.2s');
+  });
+
+  it('carries a partial and a failed verdict through to their own tones', () => {
+    expect(conversationRunSummary({ status: 'partial' })?.tone).toBe('ast-pill--warn');
+    expect(conversationRunSummary({ status: 'failed' })?.tone).toBe('ast-pill--neg');
+  });
+
+  it('reports a truncated turn as one', () => {
+    expect(conversationRunSummary({ status: 'complete', truncated: true })?.truncated).toBe(true);
+    expect(conversationRunSummary({ status: 'complete' })?.truncated).toBe(false);
+  });
+
+  it('never claims a rating it has no way of knowing', () => {
+    // A rating is one reader's opinion. This read is unscoped, so the absence of
+    // a star here means "this read cannot say", not "nobody rated it".
+    expect(conversationRunSummary({ status: 'complete', duration_ms: 100 })?.rating).toBeNull();
+  });
+
+  it('says nothing at all about a conversation with no answered turn', () => {
+    // Not a neutral pill reading 'unknown': a conversation nobody has asked
+    // anything has no turn for a pill to be about.
+    expect(conversationRunSummary({})).toBeNull();
+    expect(conversationRunSummary({ status: null })).toBeNull();
+    expect(conversationRunSummary({ status: '   ' })).toBeNull();
+  });
+
+  it('prefers the scoped read, which is the only one that knows the rating', () => {
+    expect(HOME_PAGE).toMatch(
+      /runSummaries\.get\(conversation\.id\) \?\? conversationRunSummary\(conversation\)/
+    );
   });
 });

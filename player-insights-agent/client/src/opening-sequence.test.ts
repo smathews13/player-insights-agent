@@ -114,15 +114,30 @@ describe('the intro hands over to the real gate', () => {
     expect(SEQUENCE).toContain('ast-opening-centre');
   });
 
-  it('keeps the constellation drawing behind the gate', () => {
+  it('keeps something drawing behind the gate for the whole of its life', () => {
     // `loading-suite.md`, verbatim: "The constellation keeps drawing behind the
-    // gate." So the sky is outside the `intro` branch and stays mounted for as
-    // long as the gate does, and its own animations are infinite loops.
+    // gate." So the sky is outside the `intro` branch and its own animations are
+    // infinite loops.
     const sky = SEQUENCE.indexOf('ast-opening-sky');
     const introBranch = SEQUENCE.indexOf('{intro ? (');
     expect(sky).toBeGreaterThan(0);
     expect(sky).toBeLessThan(introBranch);
     expect(body('.ast-anim-draw')).toMatch(/animation-iteration-count:\s*infinite/);
+    /*
+     * WHICH drawing it is, is now settled once for the whole gate rather than
+     * per stage. The gate mounts `StarField` unconditionally and the opening
+     * layer goes ON it, transparent and carrying no field of its own.
+     *
+     * It used to be a swap: the intro drew `OPENING_CONSTELLATION` on its own
+     * navy, and when the intro ended that layer was unmounted and the ambient
+     * field mounted in its place, already complete. The reader watched a sky
+     * with an undrawn right-hand side become a different, fully drawn sky at
+     * the instant the card arrived. Reported as the opening being skewed left
+     * with nothing on the right, and then stuttering into the login.
+     */
+    expect(GATE).toMatch(/<GateSky \/>\s*\{sequence && intro \? <OpeningSequence intro onSky \/> : null\}/);
+    expect(GATE, 'the pending stage is on the same sky').toMatch(/<GateSky \/>\s*<OpeningSequence intro=\{intro\} onSky \/>/);
+    expect(body('.ast-opening.ast-opening-on-sky')).toMatch(/background:\s*transparent/);
     // And the gate's backdrop goes transparent so the sky shows through it. Opaque
     // Ice is right when the gate is the first thing on screen and wrong here.
     expect(body('.first-open.on-sky')).toMatch(/background:\s*transparent/);
@@ -138,7 +153,9 @@ describe('the intro hands over to the real gate', () => {
      */
     expect(GATE).not.toContain('onSky={sequence}');
     expect(GATE).toMatch(/<FirstOpenPanel[\s\S]*?\n\s+onSky\n/);
-    expect(GATE).toMatch(/\) : \(\s*<StarField pageId="login-gate"/);
+    // The field is named in one place, because four seatings have to agree on
+    // its `pageId` for the drawing to be the same across all of them.
+    expect(GATE).toMatch(/function GateSky\(\) \{\s*return <StarField pageId="login-gate"/);
   });
 
   it('layers the sky under the gate rather than over it', () => {

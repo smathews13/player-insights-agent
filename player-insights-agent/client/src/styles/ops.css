@@ -603,6 +603,21 @@ a.ops-dependency-label:hover {
   overflow-wrap: anywhere;
 }
 
+/* One compact per-question KPI beneath the resource tiles. It uses the tile
+   figure recipe, but spans the block because it is an apportionment of one tile,
+   not a seventh billable resource. */
+.ops-question-average {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--ast-radius-card);
+  padding: 12px 14px;
+}
+
+.ops-question-average .ops-source-filter {
+  margin: 0;
+}
+
 /*
  * A BLOCK WHOSE SHAPE IS FINISHED AND WHOSE NUMBERS ARE NOT.
  *
@@ -936,15 +951,18 @@ a.ops-bar-count:hover {
  * of magnitude, and proportional digits put the decimal point in a different
  * place on every row. The route is the one prose column and overrides both.
  */
-/*
- * The filter sits in the body immediately before the table rather than in the
- * heading band. That keeps the read time and Refresh as one undisturbed cluster,
- * and follows Monitoring's filtered-list order: controls, then the list they
- * narrow. The search and clear recipes themselves remain Monitoring's.
- */
+/* Search and Refresh share the header rail, so narrowing routes never creates a
+   separate control slab above the table. */
+.ops-latency-head-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .ops-latency-search {
   width: min(240px, 100%);
-  align-self: flex-end;
 }
 
 /*

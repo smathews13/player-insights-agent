@@ -200,14 +200,15 @@ describe('the trace id row', () => {
 
     expect(markup).toContain('trace-id-row');
     expect(markup).not.toContain('MLflow trace</div>');
-    expect(markup).toContain('Open in the MLflow experiment');
+    expect(markup).toContain('Open in MLflow experiment');
+    expect(markup.indexOf('Open in MLflow experiment')).toBeLessThan(markup.indexOf('tr-deadbeef…beef'));
   });
 
   it('says how to get the link when no experiment is saved', () => {
     const markup = detailsMarkup(false);
 
     expect(markup).toContain('Save an MLflow experiment on the Connections page');
-    expect(markup).not.toContain('Open in the MLflow experiment');
+    expect(markup).not.toContain('Open in MLflow experiment');
   });
 });
 

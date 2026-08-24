@@ -314,8 +314,13 @@ describe('the Refresh button, which used to look wired to nothing', () => {
     // It is not printed in the old status summary. The same value reaches the
     // header control and declared-table evidence only.
     expect(PAGE).not.toMatch(/Checked \$\{formatCheckedAt\(lastCheckedAt\)\}/);
-    expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(3);
+    // Four uses: the definition, the header control, the declared-table
+    // evidence, and the identity read -- which takes it because it now shares
+    // the shell's session-long identity promise instead of fetching its own, and
+    // so needs a signal for when the reader has asked for the facts again.
+    expect([...PAGE.matchAll(/lastCheckedAt/g)]).toHaveLength(4);
     expect(PAGE).toMatch(/<DeclaredTablesSection[^>]*checkedAt=\{lastCheckedAt\}/);
+    expect(PAGE).toMatch(/useDeploymentIdentity\(true, lastCheckedAt\)/);
   });
 
   /**

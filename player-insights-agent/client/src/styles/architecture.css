@@ -107,11 +107,10 @@
 /*
  * The loop bounds, three across rather than four.
  *
- * A SECOND STRIP AND NOT THREE MORE TILES IN THE FIRST. The four above are counts
- * of dependencies, recounted on every Refresh; these are stored settings and change
- * only when somebody edits them in the gear. Seven tiles in one row would invite a
- * reader to compare "Reachable 9" against "Run budget 90", which are not the same
- * kind of number and share no unit.
+ * A SECOND STRIP INSIDE THE LIVE-DATA-FLOW HEADER. The four dependency tiles are
+ * recounted on every Refresh; these are stored settings and change only in the
+ * gear. Keeping them in the diagram uses its header rail without inviting a
+ * comparison between "Reachable 9" and "Run budget 90".
  *
  * It inherits the strip's tile, label and figure treatment, because it should read
  * as the same kind of object one row down. Only the column count differs, and the
@@ -166,8 +165,21 @@
   min-width: 0;
 }
 .arch-flow-head {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.arch-flow-head .arch-tiles-loop {
+  flex: 1 1 620px;
+  max-width: 720px;
+  margin-left: auto;
+}
+.arch-flow-head .arch-tiles-loop li {
+  background: var(--card);
+}
+.arch-flow-head .arch-bound-settings-link {
+  padding: 8px 12px;
 }
 /* The one eyebrow on this page that is blue: it heads the live half, and blue is
    what the app paints anything active. */

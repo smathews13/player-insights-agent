@@ -44,7 +44,10 @@
      which is the only arrangement where nothing is off-screen at every height. */
   align-items: flex-start;
   justify-content: center;
-  padding: 24px;
+  /* 16px, down from 24. The card is meant to be read without scrolling and it was
+     a little over a laptop viewport; the overlay's own margin is the cheapest
+     eight pixels to give back, because nothing is drawn in it. */
+  padding: 16px;
   overflow-y: auto;
   z-index: 60;
   font-family: var(--font-sans);
@@ -63,17 +66,23 @@
      columns bring the nine-scope card inside a laptop viewport, so nothing here
      is expected to scroll -- but "expected" is doing real work in that sentence,
      and the alternative to a cap is content off the top of the screen where no
-     scrollbar can reach it. It costs nothing while the card fits. 48px is the
-     overlay's 24px padding, top and bottom. */
-  max-height: calc(100vh - 48px);
+     scrollbar can reach it. It costs nothing while the card fits. 32px is the
+     overlay's 16px padding, top and bottom. */
+  max-height: calc(100vh - 32px);
   overflow-y: auto;
   background: var(--card);
   border: 1px solid var(--ast-hairline);
   border-radius: 8px;
-  padding: 28px;
+  /* 18/12, down from 22/14 and 28/18 before that. Nine scopes, two boxes, a
+     disclaimer and an action row came to more than a laptop viewport holds, so
+     the card had a scrollbar on the one screen a reader is asked to read before
+     continuing -- and it still did at 22/14, which is the second report.
+     Taken off the frame and the seams first; the row-level trims below finish
+     it. No copy moved and no type shrank at any point. */
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
 }
 
 /* A column flex item shrinks on the main axis by default, so without this the
@@ -125,7 +134,7 @@
 .fo-box {
   border: 1px solid var(--ast-hairline);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 10px 14px;
 }
 
 /* --- Identity ----------------------------------------------------------- */
@@ -168,6 +177,26 @@
 .fo-who .ast-pill {
   flex: none;
   white-space: nowrap;
+}
+
+/*
+ * The OAuth badge is the identity chip's size, because it is the identity chip's
+ * neighbour.
+ *
+ * `.ast-pill` is an 11px label in a box with 1px of vertical padding, and
+ * `UserIdentityChip` is a 30px-tall control with 10px of horizontal padding. Side
+ * by side on one line that read as a full-size badge with a small one stuck to
+ * it, which is the report. Only the BOX is taken from the chip -- the green, the
+ * edge and the tick are `.ast-pill--pos` and stay the app's one positive family.
+ *
+ * Scoped to `.fo-who` so the scope rows below, where a pill sits in a dense
+ * two-column grid and has no chip to match, keep the recipe's own size.
+ */
+.fo-who .ast-pill {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: inherit;
 }
 
 .fo-check {
@@ -234,13 +263,20 @@
  * as `border-bottom` this needs to know whether the count is odd, and gets it
  * wrong on one of the two.
  */
+/*
+ * 7px of vertical padding rather than 9. The nine scopes are five ROW-LINES, so
+ * every pixel taken off a row is taken five times -- this is the single most
+ * productive trim on the card and the one that finally cleared the scrollbar.
+ * The horizontal 14px is untouched: it lines the scope names up with the header
+ * band above them, which is the seam the eye actually follows.
+ */
 .fo-scope-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
-  padding: 9px 14px;
+  padding: 7px 14px;
   border-top: 1px solid var(--ast-hairline);
 }
 
@@ -321,7 +357,7 @@
 .fo-disclaimer {
   background: var(--ast-fill-band);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 10px 14px;
 }
 
 .fo-disc-title {
@@ -352,7 +388,11 @@
 .fo-disc-body {
   margin: 0;
   font-size: 12px;
-  line-height: 1.55;
+  /* 1.45 rather than 1.55. This is the longest paragraph on the card and it sets
+     four lines at 720px, so the leading is worth three or four pixels here. The
+     SIZE is untouched: this is the disclaimer, and shrinking the type on the one
+     block that says what the app is not would be the wrong pixel to save. */
+  line-height: 1.45;
   color: var(--ast-text);
 }
 

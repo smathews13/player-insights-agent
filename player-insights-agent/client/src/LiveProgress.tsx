@@ -14,23 +14,11 @@
  */
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { Badge } from './ui';
-import { FileSearch, Wrench } from 'lucide-react';
-import { AstrolabeMark } from './AstrolabeMark';
 
 import type { TraceStage } from './answer-shape';
 import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
-import { railTiming } from './agent-map';
+import { railTiming, stepNumber } from './agent-map';
 import { formatMs } from './trace-timeline';
-
-function StepIcon({ step }: { step: LiveStep }) {
-  // The mark IS the agent, so an agent/llm step carries the same small cut the
-  // rail's own agent steps do in TraceDag (`RailMark`), out of the same file at
-  // the same 13px. The orange robot is retired, not restyled. Tool steps keep
-  // their lucide glyphs.
-  if (step.type === 'llm' || step.type === 'agent') return <AstrolabeMark size={13} />;
-  if (step.type === 'sql' || step.type === 'plot') return <Wrench />;
-  return <FileSearch />;
-}
 
 /**
  * One reported step.
@@ -47,14 +35,17 @@ function StepIcon({ step }: { step: LiveStep }) {
  * row's own base padding stays in the stylesheet with the rest of its geometry
  * and there is only one place to change it.
  */
-function StepRow({ step, newest, elapsedMs }: { step: LiveStep; newest: boolean; elapsedMs: number | null }
+function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: number; newest: boolean; elapsedMs: number | null }
 ) {
   return (<li
       className={`live-step ${step.status}${newest ? ' newest' : ''}`}
       style={step.depth ? ({ '--live-depth': step.depth } as CSSProperties) : undefined}
     >
-      <span className="live-step-icon" aria-hidden="true">
-        <StepIcon step={step} />
+      {/* The same numbered badge as the Agent map in Run Explorer. A reader can
+          now carry "step 07" between the live list, the settled timeline and the
+          map without translating a kind glyph into a position. */}
+      <span className="live-step-icon step-rail-num ast-num" aria-hidden="true">
+        {stepNumber(number)}
       </span>
       <div className="live-step-body">
         <p className="live-step-head">
@@ -152,6 +143,7 @@ export function LiveProgress({
           {run.steps.map((step, index) => (<StepRow
               key={step.id}
               step={step}
+              number={index + 1}
               newest={index === run.steps.length - 1}
               elapsedMs={elapsedMs}
             />

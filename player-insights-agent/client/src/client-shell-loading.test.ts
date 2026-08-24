@@ -29,6 +29,27 @@ describe('the client shell import graph', () => {
     expect(layout).toContain('data-testid="settings-loading"');
   });
 
+  it('keeps route CSS behind lazy page modules while dark mode stays eager', () => {
+    const entry = source('index.css');
+    const routeStyles: Record<string, string[]> = {
+      'ConnectionsPage.tsx': ['connections.css'],
+      'MonitoringPage.tsx': ['time-range.css', 'monitoring.css'],
+      'OpsPage.tsx': ['time-range.css', 'ops.css'],
+      'ArchitecturePage.tsx': ['architecture.css'],
+      'BenchmarkLab.tsx': ['benchmark.css', 'timeline.css'],
+      'RunExplorer.tsx': ['runs.css', 'timeline.css'],
+    };
+
+    expect(entry).toContain("@import './styles/dark-mode.css'");
+    for (const [page, styles] of Object.entries(routeStyles)) {
+      const module = source(page);
+      for (const style of styles) {
+        expect(entry).not.toContain(`./styles/${style}`);
+        expect(module).toContain(`./styles/${style}`);
+      }
+    }
+  });
+
   it('does not make every AppKit export reachable through the app barrel', () => {
     const ui = source('ui.ts');
     expect(ui).not.toMatch(/export\s+\*\s+from '@databricks\/appkit-ui\/react'/);

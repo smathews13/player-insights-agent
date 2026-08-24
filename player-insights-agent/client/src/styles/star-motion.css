@@ -69,15 +69,22 @@ html .app-sky.gate-star-motion {
 }
 
 /*
- * The login card is mounted over the Ask route, so its ambient SVG initially has
- * the Ask treatment. The gate keeps twinkle and connector glow but stops drift:
- * a fixed card against a sliding sky made the card appear to move. `:has` reads
- * the real gate rather than introducing a second theme or route state in React.
+ * THE GATE'S SKY DRIFTS TOO, AND THE RULE THAT STOPPED IT IS GONE.
+ *
+ * `html:has(.first-open) .star-motion-drift { animation: none }` used to sit
+ * here, for a defect it did not actually cure: "a fixed card against a sliding
+ * sky made the card appear to move". What made something appear to move was the
+ * connectors being outside the drifting group, so half the drawing slid and the
+ * other half did not -- see the comment in StarField.tsx. The chains and their
+ * stars now carry one transform, and 14px over ninety seconds under a card is
+ * not a card that moves.
+ *
+ * It is also the only place the app switched an ambient animation off for a
+ * reader who had asked for nothing of the kind, and the login gate is the screen
+ * that is looked at longest: with the drift off, the whole of the opening was a
+ * twinkle. Reduced motion is the one thing that freezes this layer, and it is the
+ * guard at the foot of this file.
  */
-html:has(.first-open) .star-motion-drift {
-  animation: none;
-  transform: translate(0, 0);
-}
 
 /*
  * The agent path is the motion owner while a step is live. The ambient layer is

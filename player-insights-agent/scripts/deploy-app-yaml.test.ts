@@ -80,6 +80,16 @@ describe('every authored variable reaches the deploy target', () => {
     expect(experimentId?.[1], 'the MLflow deep link needs the id the release resolved').toBe('424242');
   });
 
+  it('takes the bundle-owned rebuild job id from the release', () => {
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [...DEPLOY_OVERRIDES.env, { name: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID', value: "'987654'" }],
+    });
+    const jobId = /- name: PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID\n\s+value: '?(\d+)'?/.exec(generated);
+
+    expect(jobId?.[1], 'Ops needs the real job id to join JOBS billing rows').toBe('987654');
+  });
+
   it('ships every Git deploy with ask-path and workspace browse scopes', () => {
     const generated = renderDeployAppYaml(authored, DEPLOY_OVERRIDES);
 

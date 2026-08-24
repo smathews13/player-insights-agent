@@ -86,10 +86,64 @@ describe('ambient star motion', () => {
     expect(buildStarField('/', 'one-tab')).not.toEqual(buildStarField('/runs', 'one-tab'));
   });
 
+  it('draws every line between the two stars it joins, at the same drifted point', () => {
+    /*
+     * THE REPORTED DEFECT: stars sitting a few pixels off the ends of their own
+     * lines. Both halves of it are held here, because either one alone puts them
+     * back.
+     *
+     * The coordinates agree -- every endpoint is some star's own centre, jitter
+     * included, so nothing is drawn to where a star would have been.
+     *
+     * And the transform agrees, which is the half that was wrong. The drift is a
+     * 14px translate with a negative delay, so a connector group outside the
+     * drifting group is already offset on the first frame and goes on separating
+     * for ninety seconds. One group carries both.
+     */
+    const markup = renderToStaticMarkup(<StarField pageId="/" surface="ask" seed="joined" />);
+    expect(markup).toMatch(
+      /<g class="star-motion-drift star-motion-drift-anchor"[^>]*><g class="star-motion-connectors">/
+    );
+
+    const stars = new Set(
+      [...markup.matchAll(/<circle[^>]*class="app-sky-glyph"[^>]*cx="([^"]+)" cy="([^"]+)"/g)].map(
+        (match) => `${match[1]},${match[2]}`
+      )
+    );
+    const ends = [...markup.matchAll(/<line[^>]*x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/g)].flatMap(
+      (match) => [`${match[1]},${match[2]}`, `${match[3]},${match[4]}`]
+    );
+    expect(ends.length).toBe(24);
+    expect(ends.filter((end) => !stars.has(end))).toEqual([]);
+  });
+
+  it('switches nothing off for a reader who did not ask for less motion', () => {
+    /*
+     * `html:has(.first-open) .star-motion-drift { animation: none }` used to sit
+     * in this file and stop the drift for the whole life of the login gate --
+     * which is the screen looked at longest, and the reason the sky was reported
+     * as static. What it was written for was the connectors not drifting with
+     * their stars, so half the drawing slid; that is fixed above.
+     *
+     * Reduced motion is the one thing that freezes this layer. A `paused` state
+     * is a different claim and stays allowed: the agent path takes over the
+     * motion while a step is live, and it resumes on its own.
+     */
+    // Comments stripped first: the note above the guard explains why `animation:
+    // none` is the right tool there, and reading it as a rule would fail this on
+    // its own rationale.
+    const rules = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const ambient = rules.slice(0, rules.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(ambient).not.toMatch(/animation:\s*none/);
+    expect(ambient).not.toContain('has(.first-open)');
+  });
+
   it('fully freezes reduced motion at the named resting opacities', () => {
     const reduced = CSS.slice(CSS.indexOf('@media (prefers-reduced-motion: reduce)'));
     expect(reduced).toMatch(/\[data-star-motion='anchor-still'\]\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*0\.7/s);
-    expect(reduced).toMatch(/\[data-star-motion-field\] \.star-motion-faint\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*0\.32/s);
+    expect(reduced).toMatch(
+      /\[data-star-motion-field\] \.star-motion-faint\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*0\.32/s
+    );
     expect(reduced).toMatch(/\[data-star-motion-field\] \.star-motion-glow\s*\{[^}]*animation:\s*none/s);
     expect(reduced).toMatch(/\[data-star-motion-field\] \.star-motion-drift\s*\{[^}]*animation:\s*none/s);
   });

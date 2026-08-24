@@ -65,6 +65,33 @@
   min-height: calc(100vh - var(--app-header-h));
   width: 100%;
 }
+/*
+ * AN IDLE HARNESS DOES NOT GET A THIRD OF THE WINDOW.
+ *
+ * The track above is unconditional, so a page with no run still measured the
+ * transcript against a window less 340px -- and the idle column paints the same
+ * translucent fill over the same sky as the page behind it, so there was
+ * nothing on screen to say where the missing width had gone. It read as the
+ * answer card being pinched, and that is how it was reported.
+ *
+ * `data-inspector` is set in HomePage.tsx off the same condition the column
+ * branches on to draw "No run yet", so the track and its contents cannot
+ * disagree. When a run starts the attribute flips and the column returns; that
+ * is one reflow at the moment of asking, against a permanently short measure on
+ * every other surface, and the transcript is centred in its column either way.
+ */
+.ask-layout[data-inspector='idle'] {
+  /* The token rather than a second `grid-template-columns`, because the fixed
+     composer insets its right edge off `--trace-width` too (composer.css). Set
+     the width to zero and the grid track, the composer and anything added later
+     that reads the token all collapse together; restating the columns here
+     would have moved the grid and left the composer inset for a column that is
+     no longer drawn. */
+  --trace-width: 0px;
+}
+.ask-layout[data-inspector='idle'] .trace-inspector {
+  display: none;
+}
 .conversation-rail,
 .trace-inspector {
   position: sticky;
@@ -486,24 +513,24 @@
  */
 .trace-inspector .trace-explore {
   min-height: 34px;
-  border: 1px solid var(--primary);
+  border: 1px solid var(--db-blue-600);
   border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--db-blue-600);
+  color: #fff;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .trace-inspector .trace-explore:hover {
   border-color: var(--db-blue-700);
   background: var(--db-blue-700);
-  color: var(--primary-foreground);
+  color: #fff;
 }
 
 .trace-inspector .trace-explore:active {
   border-color: var(--db-blue-800);
   background: var(--db-blue-800);
-  color: var(--primary-foreground);
+  color: #fff;
 }
 
 .trace-inspector .trace-explore svg {

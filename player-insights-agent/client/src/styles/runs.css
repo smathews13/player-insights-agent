@@ -68,9 +68,9 @@
   width: 12px;
   height: 12px;
 }
-/* One row, not a titled card: the mark, the id, the copy, and the link pinned
-   right. `min-width: 0` on the code is what lets the id take the space the link
-   does not, instead of pushing the link off the row. */
+/* One row, not a titled card: the MLflow action immediately precedes the id it
+   opens, with copy after the id. `min-width: 0` lets the identifier give way
+   without separating the action from it across the pane. */
 .trace-id-row {
   display: flex;
   gap: 8px;
@@ -93,7 +93,6 @@
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  margin-left: auto;
   color: var(--db-blue-700);
   font-weight: 500;
   white-space: nowrap;

@@ -22,8 +22,48 @@ import { RUN_TONE_FAMILY } from './run-status';
 
 const STYLESHEET = stylesheet();
 const RESPONSIVE = partial('responsive.css');
+const RAIL = partial('rail.css');
+const COMPOSER = partial('composer.css');
 const HOME_PAGE = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
 const RUN_STATUS = readFileSync(new URL('run-status.ts', import.meta.url), 'utf8');
+
+describe('the harness column is not reserved when there is no run', () => {
+  /*
+   * The track was unconditional at 340px, so the welcome screen and every
+   * conversation with no stored trace measured the transcript against a window
+   * a third of which drew nothing. In dark mode the idle column is the same
+   * translucent fill over the same sky as the page, so there was no visible
+   * column to explain the missing width -- it read as the answer card being
+   * pinched, which is how it was reported three times.
+   */
+  it('collapses the track by zeroing the width the grid and the composer share', () => {
+    const idle = withoutComments(RAIL).match(
+      /\.ask-layout\[data-inspector=['"]idle['"]\]\s*\{([^}]*)\}/
+    )?.[1];
+    expect(idle, 'the idle layout is declared').toBeDefined();
+    expect(idle).toMatch(/--trace-width:\s*0px/);
+
+    // The point of doing it through the token: the composer is `position: fixed`
+    // and insets its right edge off the same name, so a second
+    // `grid-template-columns` here would have moved the grid and left the
+    // composer holding room for a column that is no longer drawn.
+    expect(withoutComments(COMPOSER)).toMatch(/right:\s*calc\(var\(--trace-width\)/);
+    expect(idle, 'the grid is not restated').not.toMatch(/grid-template-columns/);
+  });
+
+  it('hides the column itself, not just its track', () => {
+    expect(withoutComments(RAIL)).toMatch(
+      /\.ask-layout\[data-inspector=['"]idle['"]\] \.trace-inspector\s*\{[^}]*display:\s*none/
+    );
+  });
+
+  it('is driven by the same condition the column draws its empty state from', () => {
+    // Two readings of "is there a run" that could drift apart is how the track
+    // ends up collapsed under a live harness, or reserved beside "No run yet".
+    expect(HOME_PAGE).toContain("const inspectorIdle = railStages.length === 0 && !loading;");
+    expect(HOME_PAGE).toContain("data-inspector={inspectorIdle ? 'idle' : 'run'}");
+  });
+});
 
 /** Comments stripped, so a width named in prose is not read as one in a query. */
 function withoutComments(css: string) {
@@ -40,6 +80,65 @@ function body(selector: string, css: string = STYLESHEET) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return withoutComments(css).match(new RegExp(`(?:^|[{}])\\s*${escaped}\\s*\\{([^{}]*)\\}`))?.[1] ?? '';
 }
+
+/**
+ * One rule's body when the selector may share a grouped rule.
+ *
+ * `body` above matches a rule of its own, which is the stricter claim and the
+ * right one for the widths this file is mostly about. The dark surfaces below
+ * are deliberately written as groups -- the whole point of them is that several
+ * surfaces take one paint -- so they need the looser lookup.
+ */
+function groupedBody(selector: string, css: string) {
+  for (const rule of withoutComments(css).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (rule[1].split(',').some((candidate) => candidate.trim() === selector)) return rule[2];
+  }
+  return '';
+}
+
+describe('dark transcript surfaces do not stack frosted panes', () => {
+  const dark = partial('dark-mode.css');
+
+  /*
+   * A translucent pane inside a translucent pane is a lighter pane, and the run
+   * process sits inside the answer card. Painting its timeline with the generic
+   * 5% card fill was what put white slabs on the sky; only the tiles a reader
+   * actually reads down keep a fill of their own.
+   *
+   * The rules are matched on the timeline's own classes rather than under
+   * `.run-process`, because the same component is also drawn bare on the Run
+   * Explorer's Timeline tab and a wrapper-scoped de-stack left that surface
+   * stacking. Ask is still the surface this file is about, so what it asserts is
+   * that Ask's nested timeline is covered by the shared rule.
+   */
+  it('lets the run timeline inherit the answer card surface', () => {
+    for (const selector of [
+      "html[data-theme='dark'] .trace-timeline",
+      "html[data-theme='dark'] .trace-gantt",
+    ]) {
+      expect(groupedBody(selector, dark), `${selector} still paints its own pane`).toMatch(
+        /background:\s*transparent[\s\S]*backdrop-filter:\s*none/
+      );
+    }
+    expect(groupedBody("html[data-theme='dark'] .trace-kpi", dark)).toMatch(
+      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
+    );
+    // The wrapper Ask draws it in, and the absence of a wrapper-scoped twin that
+    // would quietly stop covering the second surface.
+    expect(readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8')).toContain(
+      'className="run-process"'
+    );
+    expect(withoutComments(dark)).not.toMatch(/\.run-process \.trace-(?:timeline|gantt|kpi)/);
+  });
+
+  it('draws a source table name as a tint rather than a white box', () => {
+    // The neutral fill is white at 12% here, which around one word in a sentence
+    // reads as a slab. The entity chips beside it are on 7%.
+    expect(
+      groupedBody("html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short", dark)
+    ).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
+  });
+});
 
 /** The contents of one `@media (max-width: Npx)` block. */
 function atWidth(px: number, css: string = RESPONSIVE) {
@@ -196,24 +295,45 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(reserve).toBeGreaterThan(125);
   });
 
-  it('keeps the chrome the transcript scrolls under opaque, and only that chrome', () => {
+  it('keeps the chrome translucent, and blurs it enough that prose cannot read through', () => {
     /*
-     * The other half of "clipping behind various surfaces", and the literal half:
-     * in dark the header and the composer were both `rgba(255, 255, 255, 0.03)`
+     * Two faults, and the fix for the first caused the second.
+     *
+     * FIRST: in dark the header and the composer were `rgba(255, 255, 255, 0.03)`
      * with `backdrop-filter: blur(2px)`. Three percent of white is a tint and a
      * two-pixel Gaussian does not turn 13px type into a wash, so a reader could
      * READ the answer card through the nav tabs and through the box they type in.
      *
-     * The distinction is geometric: prose passes behind the header (`sticky
-     * top-0`) and behind the composer (`position: fixed`), so both are opaque.
-     * It does not pass behind the two side columns, which are their own grid
-     * tracks in `.ask-layout`, so those keep the frosted pane §2 asks for.
+     * SECOND: making them `--ast-surface-solid` fixed that and put two
+     * Settings-coloured slabs across the one screen the reader is always looking
+     * at. That token belongs to surfaces that sit ON TOP of the app and have to
+     * occlude it -- Settings, the drawers, a popover -- not to the chrome.
+     *
+     * So the fill is the rail's, exactly, and the BLUR is what does the
+     * occluding. That keeps the chrome part of the night sky while still
+     * destroying any type that passes behind it.
+     *
+     * THIRD, and the one that kept the report alive after both of the above
+     * were fixed: the pair also carried `saturate(140%)`. What a reader sees
+     * through a backdrop filter is the FILTER'S OUTPUT, so a correct
+     * translucent fill bought nothing -- an 18px Gaussian flattens the stars
+     * out of the #16202E sky and a 40% saturation boost turns that flat field
+     * into a saturated blue band. The bar was a different colour from the page
+     * behind it, which is exactly what "still solid blue" describes.
      */
     const dark = partial('dark-mode.css');
     for (const selector of ["html[data-theme='dark'] .app-header", "html[data-theme='dark'] .composer"]) {
       const rule = body(selector, dark);
-      expect(rule, `${selector} is opaque`).toMatch(/background:\s*var\(--ast-surface-solid\)/);
-      expect(rule, `${selector} does not frost`).toMatch(/backdrop-filter:\s*none/);
+      expect(rule, `${selector} shares the rail’s fill`).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/);
+      expect(rule, `${selector} is not the overlay slab`).not.toMatch(/var\(--ast-surface-solid\)/);
+      // The number is the claim: 2px was the smear, and anything in this range
+      // is past the point 13px type survives it.
+      const blur = Number(rule.match(/backdrop-filter:\s*blur\((\d+)px\)/)?.[1] ?? 0);
+      expect(blur, `${selector} blurs hard enough to occlude`).toBeGreaterThanOrEqual(12);
+      // Blur softens what is behind the chrome. Any other filter function
+      // RECOLOURS it, and the chrome's whole job is to be the same surface as
+      // the page it sits on.
+      expect(rule, `${selector} does not recolour the sky it sits on`).not.toMatch(/saturate|contrast|brightness|hue-rotate/);
     }
     // The panes beside the transcript are deliberately untouched. Asserted so
     // that "make the chrome opaque" is not later applied to the whole group,
@@ -230,9 +350,17 @@ describe('the ask home is the geometry the mockup gives it', () => {
   it('spends less of the middle column on empty side gutters', () => {
     const inset = partial('tokens.css').match(/--conversation-inset:\s*clamp\(([^)]*)\)/)?.[1] ?? '';
     expect(inset, 'tokens.css declares --conversation-inset as a clamp').not.toEqual('');
-    const [floor, rate] = inset.split(',').map((part) => part.trim());
-    expect(Number.parseInt(floor, 10)).toBe(24);
-    expect(rate).toBe('2.5vw');
+    const [floor, rate, cap] = inset.split(',').map((part) => part.trim());
+    expect(Number.parseInt(floor, 10)).toBe(16);
+    expect(rate).toBe('1.25vw');
+    // THE CAP IS THE PART THAT MATTERS. The floor and the rate only bind on a
+    // narrow window; on the 1440px laptop most readers are on, the clamp resolves
+    // near its top and that is where 72px of the middle column was going. The
+    // answer card was reported as too narrow through two rounds of this token
+    // being trimmed, so the cap is asserted as a ceiling rather than a literal:
+    // anything above this and a decorative margin is beating the transcript for
+    // width again.
+    expect(Number.parseInt(cap, 10)).toBeLessThanOrEqual(24);
   });
 
   it('bounds the transcript’s measure, so the widest windows have a page margin', () => {

@@ -18,6 +18,40 @@ function bodyFor(css: string, selector: string): string {
   return '';
 }
 
+describe('the opaque stand-in matches the surface it stands in for', () => {
+  /**
+   * `--ast-surface-solid` is what the drawers and menus paint always, and what
+   * EVERY surface paints under
+   * `prefers-reduced-transparency`. It was #1B2836 against a #11171C sky:
+   * lighter and much bluer than the page, so it did not read as the same
+   * surface unfrosted. It read as a solid blue slab, and it was reported three
+   * times as three different bugs -- the top rail, the settings menu, and the
+   * white tiles in Run process. One token was behind all three.
+   */
+  it('is the translucent surface composited onto the sky, not a lighter blue', () => {
+    const solid = ASTROLABE.match(/--ast-surface-solid:\s*(#[0-9a-f]{6})/i)?.[1];
+    const navy = ASTROLABE.match(/--ast-navy:\s*(#[0-9a-f]{6})/i)?.[1];
+    expect(solid, 'the fallback surface is declared').toBeDefined();
+    expect(navy, 'the sky is declared').toBeDefined();
+
+    const channels = (hex: string) =>
+      [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+    // The frosted surfaces are rgba(255, 255, 255, 0.03) over the sky.
+    const expected = channels(navy!).map((channel) => Math.round(channel * 0.97 + 255 * 0.03));
+
+    channels(solid!).forEach((channel, index) => {
+      expect(Math.abs(channel - expected[index]), `channel ${index} of ${solid}`).toBeLessThanOrEqual(1);
+    });
+  });
+
+  it('does not tint blue away from the sky it sits on', () => {
+    const solid = ASTROLABE.match(/--ast-surface-solid:\s*(#[0-9a-f]{6})/i)?.[1] ?? '';
+    const [red, , blue] = [1, 3, 5].map((at) => Number.parseInt(solid.slice(at, at + 2), 16));
+    // #1B2836 carried 27 points of blue over red. A neutral lift carries a few.
+    expect(blue - red, `${solid} is close to neutral`).toBeLessThanOrEqual(12);
+  });
+});
+
 describe('dark mode covers the shipped surfaces', () => {
   it('names the real shell, data, overlay, and gate selectors', () => {
     for (const selector of [
@@ -33,9 +67,6 @@ describe('dark mode covers the shipped surfaces', () => {
       '.monitoring-list-pane',
       '.ops-block',
       '.monitoring-drawer',
-      '.trace-timeline',
-      '.trace-gantt',
-      '.trace-dag.map .dag-detail',
       '.arch-flow',
       '.arch-node',
       '.account-menu',
@@ -69,6 +100,67 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).toContain('background: rgba(255, 255, 255, 0.03)');
     expect(DARK).toContain('background: rgba(255, 255, 255, 0.06)');
     expect(DARK).toContain('background: var(--ast-surface-solid)');
+  });
+
+  it('de-stacks the timeline and agent-map panes on every surface that draws them', () => {
+    /*
+     * THIS IS THE REGRESSION GUARD FOR THE SAME BUG REPORTED TWICE.
+     * `TraceTimeline` is drawn in two places -- inside the answer card's run
+     * process on Ask, and bare on the Run Explorer's Timeline tab -- so a
+     * de-stack scoped to `.run-process` fixed Ask and left Explorer stacking
+     * 5% panes with 5% tiles inside them. The rules are matched on the
+     * component's own classes for that reason; requiring the absence of the
+     * wrapper is what keeps the second surface fixed.
+     */
+    for (const selector of [
+      "html[data-theme='dark'] .trace-timeline",
+      "html[data-theme='dark'] .trace-gantt",
+    ]) {
+      const body = bodyFor(DARK, selector);
+      expect(body, `${selector} still compounds the parent pane`).toMatch(/background:\s*transparent/);
+      expect(body).toMatch(/backdrop-filter:\s*none/);
+    }
+    for (const selector of [
+      "html[data-theme='dark'] .trace-kpi",
+      "html[data-theme='dark'] .trace-dag.map .dag-node",
+      "html[data-theme='dark'] .trace-dag.map .dag-detail",
+    ]) {
+      expect(bodyFor(DARK, selector)).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/);
+    }
+    expect(bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-detail-head")).toMatch(
+      /background:\s*transparent/
+    );
+    // No wrapper-scoped twin may come back, on either surface: one rule has to
+    // answer for both, or the next mount point is another report of this bug.
+    expect(DARK).not.toMatch(/\.run-process \.trace-(?:timeline|gantt|kpi)/);
+    expect(DARK).not.toMatch(/\.run-explorer \.trace-(?:timeline|gantt|kpi)/);
+    // Both mount points, so the shared rule is provably shared.
+    expect(source('AnswerCard.tsx'), 'Ask no longer draws the run process').toContain(
+      'className="run-process"'
+    );
+    expect(source('RunExplorer.tsx'), 'Run Explorer no longer draws the timeline').toContain(
+      '<TraceTimeline trace={runTrace.trace}'
+    );
+    expect(source('TraceTimeline.tsx'), 'the de-stacked classes are not the ones drawn').toContain(
+      'trace-timeline ${className}'
+    );
+  });
+
+  it('leaves the de-stacked containers unfilled under reduced transparency too', () => {
+    /*
+     * The containers have no fill of their own in the normal dark path. Listing
+     * them among the solid stand-ins would hand them a pane only when a reader
+     * asks for less transparency, which is the stacking bug again in an opaque
+     * form -- a slab inside the answer card's own slab. The literal-fill tiles
+     * do belong there, because `--card` remapping cannot reach them.
+     */
+    const reduced = DARK.slice(
+      DARK.indexOf('@media (prefers-reduced-transparency: reduce)'),
+      DARK.indexOf('@media (prefers-reduced-motion: reduce)')
+    );
+    expect(reduced).toContain("html[data-theme='dark'] .trace-kpi");
+    expect(reduced).not.toContain("html[data-theme='dark'] .trace-timeline");
+    expect(reduced).not.toContain("html[data-theme='dark'] .trace-gantt");
   });
 
   it('matches the interaction, chart, and constellation treatments', () => {
@@ -187,7 +279,6 @@ describe('dark mode covers the shipped surfaces', () => {
       '.account-menu',
       '.app-select-content',
       '.monitoring-chip-menu',
-      '.settings-page.settings-modal',
       '.monitoring-drawer',
       "[data-slot='sheet-content']",
     ]) {
@@ -198,6 +289,34 @@ describe('dark mode covers the shipped surfaces', () => {
         /background:\s*(?:rgba\([^)]*,\s*0\.\d+\)|var\(--(?:card|popover)\))/
       );
     }
+  });
+
+  it('keeps Settings on the rail frost instead of the opaque overlay paint', () => {
+    const settings = bodyFor(DARK, "html[data-theme='dark'] .settings-page.settings-modal");
+    expect(settings).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/);
+    expect(settings).toMatch(/backdrop-filter:\s*blur\(2px\)/);
+    expect(settings).not.toMatch(/--ast-surface-solid/);
+  });
+
+  it('keeps every inline chip on the entity rung rather than on a light fill', () => {
+    /*
+     * The entity chips are already answered by the `--ast-entity-*-bg` fallbacks
+     * further down this file, and those must keep their `var(--entity-*, …)`
+     * chain so a colour chosen in Appearance still wins. The two chips below are
+     * the ones that rung does not reach: a source's table name, drawn in the 12%
+     * neutral fill, and the GET method chip, which is still a light literal.
+     */
+    for (const selector of [
+      "html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short",
+      "html[data-theme='dark'] .ops-lat-chip-get",
+    ]) {
+      expect(bodyFor(DARK, selector), `${selector} is not on the entity rung`).toMatch(
+        /background:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/
+      );
+    }
+    // The runtime chain, which a blanket `.entity-token` fill would have cut.
+    expect(DARK).toMatch(/--ast-entity-table-bg:\s*var\(--entity-table-bg,\s*rgba\(255,\s*255,\s*255,\s*0\.07\)\)/);
+    expect(DARK).not.toMatch(/html\[data-theme='dark'\] \.entity-token\s*\{/);
   });
 
   it('corrects the two light-theme emphasis branches without erasing their state', () => {

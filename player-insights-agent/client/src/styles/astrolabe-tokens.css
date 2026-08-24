@@ -99,7 +99,26 @@
   --ast-ghost-text: #e8f2fa;
   --ast-pos-on-dark: #9ad6ce;
   --ast-neg-on-dark: #e8a9b8;
-  --ast-surface-solid: #1b2836; /* reduced-transparency fallback */
+  /*
+   * The opaque stand-in for a frosted surface: what the settings modal, the
+   * drawers and the menus paint unconditionally, and what EVERY surface in the
+   * app paints when the reader has asked for reduced transparency.
+   *
+   * #181E23 rather than the #1B2836 it was, and the two digits that matter are
+   * the blue ones. The translucent surfaces are `rgba(255, 255, 255, 0.03)` over
+   * `--ast-navy` (#11171C), which composites to rgb(24, 30, 35) -- so this value
+   * IS that composite, and the opaque path now renders what the frosted path
+   * renders instead of approximating it.
+   *
+   * #1B2836 was both lighter and considerably bluer than the sky behind it, and
+   * it did not read as "the same surface, not frosted". It read as a solid blue
+   * slab -- which is what the top rail, the settings modal and the run-process
+   * tiles were all reported as, on three separate occasions, as three separate
+   * bugs. They were one token. The modal keeps its separation from the page
+   * through its border and its 60px shadow, which is what should have been
+   * carrying that job rather than a lift in the fill.
+   */
+  --ast-surface-solid: #181e23;
   --ast-scrim: #090e14; /* Settings overlay on the night sky */
   --ast-icon-tint: #b7d6ee; /* the light tint inside the recoloured product icons */
 

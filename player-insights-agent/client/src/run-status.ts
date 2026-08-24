@@ -74,7 +74,7 @@ export interface RunStatus {
  */
 const IDLE: Record<AgentReadiness, RunStatus> = {
   checking: { label: 'Checking agent', tone: 'is-waiting', alive: false, finished: false },
-  ready: { label: 'Ready', tone: 'is-ready', alive: true, finished: false },
+  ready: { label: 'Endpoint reachable', tone: 'is-ready', alive: false, finished: false },
   unreachable: { label: 'Agent unreachable', tone: 'is-failed', alive: false, finished: false },
   unchecked: { label: 'Agent not checked', tone: 'is-waiting', alive: false, finished: false },
 };

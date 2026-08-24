@@ -252,27 +252,8 @@
   font-size: 12px;
 }
 /*
- * Running release date: a small neutral chip in the lockup column, right of the
- * wordmark and left of the divider.
- *
- * SMALLER THAN THE IDENTITY CHIP ON PURPOSE, AND SMALLER THAN IT USED TO BE. It
- * is 11px in a 20px box against the identity chip's 12px in a 30px one, because
- * it now sits beside the app's own name rather than in the row of the reader's
- * badges, and a chip that matched them there would read as a third badge about
- * the reader. What it draws is a date -- `Aug 20`, no year, no time, no verb --
- * so the box is sized for six characters and nothing needs to truncate.
- *
- * IT MUST STAY THIS SMALL. `.brand-lockup` has a stated width, and that width is
- * what lands the first nav tab clear of the conversation rail's hairline; this
- * chip lives in the slack between the wordmark and the divider. Widen it and the
- * wordmark is what gives, because the chip is `flex: none` and the wordmark is
- * `min-width: 0`.
- *
- * The whole fact -- release time in UTC and local, who released it, and the
- * commit -- is in the tooltip element the chip describes itself by. It was a
- * `title` attribute for one release, which is pointer-only and is dropped from
- * the accessibility tree on an element that has its own text, so the fact was
- * reachable by neither keyboard nor screen reader.
+ * Running release date: clock plus date, using the same neutral surface,
+ * hairline, radius, height and ink as the user chip and settings control.
  */
 .deployment-time-chip {
   /* The tooltip positions against this. Nothing between here and the header
@@ -280,15 +261,15 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex: none;
-  min-height: 20px;
-  padding: 0 6px;
-  border: 1px solid var(--db-line-strong);
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--db-slate);
-  font-size: 11px;
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .deployment-time-chip > svg {

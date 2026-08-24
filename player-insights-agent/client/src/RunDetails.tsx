@@ -54,24 +54,25 @@ function CopyValue({ value, label, channel }: { value: string; label: string; ch
 function TraceRow({ mlflow }: { mlflow: NonNullable<RunTrace['mlflow']> }) {
   return (
     <div className="trace-id-row">
-      {/* Where there is no destination, the row still names the system that owns
-          this id. Where there is one, the mark belongs inside the outbound
-          action: a logo elsewhere on the row left the hyperlink looking generic. */}
-      {!mlflow.url ? <BrandIcon product="mlflow" size={12} /> : null}
-      <code title={mlflow.traceId}>{truncatedId(mlflow.traceId)}</code>
-      <CopyValue value={mlflow.traceId} label="Copy the full trace id" channel="identifier" />
+      {/* The destination leads immediately into the identifier it opens. Keeping
+          the action here, instead of pinning it to the far edge of the pane,
+          makes the wordmark, action and id read as one MLflow reference. */}
       {mlflow.url ? (
         <a href={mlflow.url} target="_blank" rel="noreferrer">
-          {/* Sized by HEIGHT because MLflow is a wordmark, not a square icon. */}
           <BrandIcon product="mlflow" size={12} />
-          Open in the MLflow experiment
+          Open in MLflow experiment
           <ExternalLink aria-hidden />
         </a>
       ) : (
+        <BrandIcon product="mlflow" size={12} />
+      )}
+      <code title={mlflow.traceId}>{truncatedId(mlflow.traceId)}</code>
+      <CopyValue value={mlflow.traceId} label="Copy the full trace id" channel="identifier" />
+      {!mlflow.url ? (
         <span className="trace-id-note">
           Save an MLflow experiment on the Connections page to link straight to this trace.
         </span>
-      )}
+      ) : null}
     </div>
   );
 }

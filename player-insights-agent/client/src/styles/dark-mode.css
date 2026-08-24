@@ -67,38 +67,48 @@ html[data-theme='dark'] .ask-layout {
 
 /*
  * ============================================================================
- * CHROME THE TRANSCRIPT SCROLLS UNDER IS OPAQUE. THE PANES BESIDE IT ARE NOT.
+ * THE CHROME IS A PANE ON THE SKY. IT IS NOT A SLAB.
  * ============================================================================
  *
- * This header and the composer below were 3% white with `blur(2px)`, and the
- * pair of them is what "the answer card is clipping behind various surfaces"
- * turned out to be. Neither surface was clipping anything: the reader could
- * READ THE CARD THROUGH THEM. Three percent of white is a tint, and a two-pixel
- * Gaussian does not blur 13px type into a wash -- it smears it just enough to
- * look like a rendering fault, so a takeaway sat legibly across the nav tabs and
- * the last stat in the rail sat legibly across the composer's own placeholder.
+ * The header and the composer take the same translucent fill as every other
+ * surface on the night sky -- the rail, the harness, the answer card -- so the
+ * starfield carries under them and the app reads as one continuous surface.
+ * `--ast-surface-solid` belongs to the things that sit ON TOP of the app and
+ * have to occlude it: Settings, the account menu, the drawers, a select's
+ * popover. Giving it to the chrome put two Settings-coloured bars across the
+ * one screen the reader is always looking at.
  *
- * The distinction that decides which surfaces get this and which keep the frost
- * is geometric, not stylistic: does scrolling prose pass BEHIND the surface?
+ * WHAT THE BLUR IS FOR, and why these two are the only surfaces that get more
+ * than the rail's 2px. Scrolling prose passes BEHIND the chrome: `.app-header`
+ * is `sticky top-0` over the transcript and `.composer` is `position: fixed` at
+ * the bottom of it. At 3% white and a two-pixel Gaussian a reader could still
+ * READ the answer card through the nav tabs and through the box they type in --
+ * not a blur, a smear, which looks like a rendering fault. A heavier blur washes
+ * that out while keeping the surface transparent, so the fill stays identical to
+ * the panes beside it and only the sharpness of what is behind it differs.
  *
- *   - `.app-header` is `sticky top-0` over the transcript. It does.
- *   - `.composer` is `position: fixed` at the bottom of the transcript. It does.
- *   - `.conversation-rail` and `.trace-inspector` are their own grid tracks in
- *     `.ask-layout`, so nothing passes behind them and 3% white over the sky is
- *     a pane on the night sky, which is the treatment §2 asks for. They keep it.
+ * So: match the rail's fill exactly, and blur enough that type cannot survive
+ * it. If prose ever reads through again, raise the blur. Do not reach for alpha,
+ * and do not reach for `--ast-surface-solid` -- that is the overlay colour, and
+ * the two bars it produced here are what this note exists to prevent.
  *
- * `--ast-surface-solid` rather than a fourth navy: it is the value the
- * reduced-transparency block at the foot of this file already gives all of these
- * surfaces, so a reader who asks their OS for less transparency and a reader who
- * does not now see the same chrome, and there is one colour to maintain.
+ * AND DO NOT SATURATE. This carried `saturate(140%)` alongside the blur, and
+ * that one function is why the bar kept being reported as solid blue long after
+ * the fill was correct. The sky is `--ast-sky-fill` (#16202E), which is already
+ * a blue; an 18px Gaussian averages the stars out of it into one flat field,
+ * and boosting THAT by 40% lands a saturated blue band across the top of a page
+ * whose own blue is far quieter. The fill was translucent the whole time and it
+ * did not matter -- what the reader sees through a backdrop filter is the
+ * filter's output, and the output was a different colour from the page.
  *
- * Do not "restore" the frost on these two. If the flat surfaces read as heavy,
- * the separation to reach for is the hairline each already draws, not alpha.
+ * Blur alone leaves the band the sky's own hue, softened. That is the "same
+ * surface, less sharp" this note has always been asking for, and it is what the
+ * harness column beside it has looked like all along at 2px.
  */
 html[data-theme='dark'] .app-header {
-  background: var(--ast-surface-solid);
-  backdrop-filter: none;
-  border-bottom-color: var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(18px);
+  border-bottom-color: var(--ast-border-input);
 }
 
 html[data-theme='dark'] .ast-mark--light {
@@ -255,17 +265,18 @@ html[data-theme='dark'] .trace-inspector {
 /*
  * The composer, over the transcript rather than beside it.
  *
- * composer.css already says of its own `--ast-pane` fill that this is the one
- * place that token is not free, because what is behind it is scrolling prose and
- * not sky, and names `var(--background)` as the declaration to put back "if the
- * moving text reads as a smudge". It did, and in dark the pane is 5% white
- * rather than 94%, so it read as a hole in the page. Solid, from the same token
- * the header takes.
+ * Same fill as the rail above and the header, for the reason set out at the top
+ * of this file: the chrome is a pane on the sky, not a slab laid over it. The
+ * blur is the header's, and it is here for the same reason -- the transcript
+ * scrolls behind this box, and 3% white over moving prose reads as a smudge
+ * unless the blur is heavy enough that type cannot survive it.
  */
 html[data-theme='dark'] .composer {
-  background: var(--ast-surface-solid);
+  background: rgba(255, 255, 255, 0.03);
   background-image: none;
-  backdrop-filter: none;
+  /* Blur only, for the reason set out at length on `.app-header`: the
+     saturation boost these two shared is what made both read as solid blue. */
+  backdrop-filter: blur(18px);
   border-color: var(--ast-border-input);
 }
 
@@ -311,9 +322,6 @@ html[data-theme='dark'] .monitoring-list-pane,
 html[data-theme='dark'] .ops-block,
 html[data-theme='dark'] .ops-block-failed,
 html[data-theme='dark'] .ops-absence,
-html[data-theme='dark'] .trace-timeline,
-html[data-theme='dark'] .trace-gantt,
-html[data-theme='dark'] .trace-dag.map .dag-detail,
 html[data-theme='dark'] .arch-flow,
 html[data-theme='dark'] .arch-node,
 html[data-theme='dark'] .arch-rail,
@@ -329,6 +337,42 @@ html[data-theme='dark'] .live-step {
   background: var(--card);
   backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
+}
+
+/*
+ * A pane inside a pane is not another pane.
+ *
+ * The run process sits inside the answer card. Giving its timeline and Gantt the
+ * generic 5% pane again compounded the white alpha, and each KPI tile added a
+ * third layer. The map had the same problem on its node and open-detail cards.
+ * De-stack the containers, then give only the actual readable tiles the rail's
+ * quiet 3% frost.
+ *
+ * THESE ARE MATCHED ON THE COMPONENT'S OWN CLASSES RATHER THAN UNDER
+ * `.run-process`, and that is the whole fix for a second reported bug. The same
+ * `TraceTimeline` is drawn in two places -- inside the answer card's run process
+ * on Ask, and bare on the Run Explorer's Timeline tab -- and scoping the
+ * de-stack to Ask's wrapper meant Explorer kept the compounded 5% panes with
+ * 5% tiles inside them. Only `TraceTimeline` emits `.trace-timeline`,
+ * `.trace-gantt` and `.trace-kpi`, so the unscoped selectors reach every mount
+ * of it, including any future one, and cannot reach anything else. The map
+ * selectors below were already written this way, which is why the Agent map
+ * needed no second rule.
+ */
+html[data-theme='dark'] .trace-timeline,
+html[data-theme='dark'] .trace-gantt {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+html[data-theme='dark'] .trace-kpi,
+html[data-theme='dark'] .trace-dag.map .dag-node,
+html[data-theme='dark'] .trace-dag.map .dag-detail {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+html[data-theme='dark'] .trace-dag.map .dag-detail-head {
+  background: transparent;
 }
 
 /*
@@ -367,8 +411,8 @@ html[data-theme='dark'] .account-menu {
 }
 
 html[data-theme='dark'] .settings-page.settings-modal {
-  background: var(--ast-surface-solid);
-  backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
@@ -684,15 +728,93 @@ html[data-theme='dark'] .roster-role-chip-super-admin {
 }
 
 /*
- * Schema marks in an answer.
+ * ============================================================================
+ * THE MARKS IN AN ANSWER, ON THE NIGHT SKY.
+ * ============================================================================
  *
  * The entity colours are a reader's own setting, so each is a token with a
- * fallback, and schema's fallback is --ast-navy -- correct on white, invisible
- * here. Only the FALLBACK moves: a deployment that has set a schema colour keeps
- * it, because that value is a decision somebody made and not a theme default.
+ * fallback. ONLY THE FALLBACKS MOVE HERE: a deployment that has set a colour
+ * keeps it, because that value is a decision somebody made and not a theme
+ * default. That is why every line below restates `var(--entity-*, ...)` rather
+ * than assigning a colour outright.
+ *
+ * Schema was corrected first and alone, and the other three had the same fault
+ * and were left. All four fallbacks are written for white paper:
+ *
+ *   - CATALOG was white type on `--ast-info-text`. That token is the deep blue
+ *     #0E538B on paper and the pale ICE ACCENT on the sky, so the chip inverted:
+ *     white on pale blue, which is the near-white block reported as "bad
+ *     highlighting". It was also the loudest object in the card by some margin.
+ *   - TAG was white on `--ast-navy` -- a navy chip on a navy page, so the fill
+ *     vanished and the label floated with a mysterious gap around it.
+ *   - SCHEMA was navy type, already corrected.
+ *
+ * The replacements are the same tinted-fill-and-light-type shape every other
+ * chip on the sky takes: a translucent white or ice wash carrying the fill, and
+ * the on-dark ink carrying the type. Nothing is a solid block, which is the
+ * property that made these read as highlighter pen over the prose rather than as
+ * marks in it. Table, column and quote already resolve through `--ast-hairline`,
+ * `--ast-neutral-fill` and `--ast-fill-band`, all three of which are declared for
+ * dark above, so they are correct already and are not restated.
  */
 html[data-theme='dark'] {
+  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-ice-accent));
+  --ast-entity-catalog-bg: var(--entity-catalog-bg, rgba(143, 193, 232, 0.1));
   --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-ink-on-dark));
+  --ast-entity-schema-bg: var(--entity-schema-bg, rgba(255, 255, 255, 0.07));
+  --ast-entity-table-bg: var(--entity-table-bg, rgba(255, 255, 255, 0.07));
+  --ast-entity-column-bg: var(--entity-column-bg, rgba(255, 255, 255, 0.07));
+  --ast-entity-quote-bg: var(--entity-quote-bg, rgba(255, 255, 255, 0.07));
+  --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-ink-on-dark));
+  --ast-entity-tag-bg: var(--entity-tag-bg, rgba(255, 255, 255, 0.07));
+}
+
+/*
+ * ON THE SKY, AN IDENTIFIER IS A MARK IN THE PROSE. IT IS NOT A HIGHLIGHT OVER IT.
+ *
+ * The fills above went to a single quiet 7% wash -- from 12%, 16% and, for
+ * catalog, a near-solid pale blue -- and this rule takes inline code down with
+ * them. What broke was DENSITY, not any one chip: an answer naming a catalog, a
+ * schema and four tables sets six filled boxes in two sentences, at three
+ * different weights, and the eye reads the boxes rather than the words between
+ * them. That is highlighter pen over a paragraph, and it is what "none of this
+ * is readable" was about.
+ *
+ * The distinction between kinds now lives in the TYPE, which is where colour is
+ * legible on a dark surface anyway: catalog keeps the ice accent, the rest take
+ * the on-dark ink. One weight of fill behind all of them says only "this is a
+ * name the app recognises", which is all the fill was ever for.
+ *
+ * Light mode is untouched. On paper the fills ARE the distinction and they are
+ * calibrated against white; this is the sky's answer to the same question.
+ *
+ * Every line keeps the `var(--entity-*, …)` chain, so a deployment that has set
+ * a colour in Settings > Appearance still gets exactly the colour it chose.
+ * Only the fallbacks move.
+ */
+html[data-theme='dark'] .answer-code {
+  background: rgba(143, 193, 232, 0.1);
+  color: var(--ast-ice-accent);
+}
+
+/*
+ * The two inline chips the entity rung above does not reach.
+ *
+ * A source's table name is set in `--ast-neutral-fill`, which is white at twelve
+ * percent here -- twice the rung every entity chip beside it takes, and on the
+ * sky that reads as a white box around one word rather than as a tint under it.
+ * The queried tone keeps its ice fill: that one says the table was actually read.
+ *
+ * The GET chip is the last light literal in the stylesheet, #E8ECF0 on #445461,
+ * which is a daylight recipe painted straight onto the night sky.
+ */
+html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+html[data-theme='dark'] .ops-lat-chip-get {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ast-ink-on-dark);
 }
 
 /*
@@ -796,9 +918,15 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .ops-block,
   html[data-theme='dark'] .ops-block-failed,
   html[data-theme='dark'] .ops-absence,
-  html[data-theme='dark'] .trace-timeline,
-  html[data-theme='dark'] .trace-gantt,
   html[data-theme='dark'] .trace-dag.map .dag-detail,
+  /* The tiles whose fills are written as literals above rather than taken from
+     `--card`, so a reader who has asked for less transparency still gets the
+     solid stand-in for them. The timeline and Gantt are NOT here: they are
+     de-stacked containers with no fill of their own in the normal path, and
+     handing them one only under this query would grow a pane when an
+     accessibility preference is switched on. */
+  html[data-theme='dark'] .trace-kpi,
+  html[data-theme='dark'] .trace-dag.map .dag-node,
   html[data-theme='dark'] .arch-flow,
   html[data-theme='dark'] .arch-node,
   html[data-theme='dark'] .arch-rail,

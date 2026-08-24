@@ -1699,6 +1699,68 @@ def _json_payload(text: str) -> dict[str, Any]:
     return json.loads(candidate[start : end + 1])
 
 
+SALVAGED_TAKEAWAY = "The analysis completed, but the structured presentation was incomplete."
+SALVAGED_CAVEAT = "Review the generated SQL and source details before using this result."
+
+
+def _salvaged_synthesis(text: str, findings: str) -> Synthesis:
+    """Recover what a malformed synthesis response still says, without printing it raw.
+
+    THE RAW RESPONSE IS NEVER THE NARRATIVE. This path used to be
+    `narrative=text or findings`, and `text` on this path is the synthesis
+    model's own JSON document -- so the single most common failure, a payload
+    that parses but does not validate, put
+
+        {"takeaway":"...","narrative":"- The catalog ...\\n- ...","content":"| Table |"}
+
+    on the card as the answer. Every identifier inside it then picked up the
+    entity highlighting, and the result was a wall of chipped grey that no
+    reader could get a sentence out of. That is a formatting failure being
+    reported by pasting the thing that failed to format.
+
+    A validation error is usually about ONE key -- a figure missing `value`, a
+    snippet missing its source -- while `takeaway`, `narrative` and `content`
+    are exactly what the model was asked for and are usually intact. So they are
+    read straight off the payload and the structured extras are dropped, which
+    is the half that could not be trusted anyway.
+
+    `findings` is the fallback only when the payload yields no narrative at all,
+    and it goes through `reader_facing_findings` for the reason that function
+    exists: the finder's package is an internal handoff and reads as apparatus,
+    not as an answer.
+    """
+
+    try:
+        payload = _json_payload(text)
+    except (ValueError, json.JSONDecodeError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    def text_field(name: str) -> str:
+        value = payload.get(name)
+        return value.strip() if isinstance(value, str) else ""
+
+    raw_caveats = payload.get("caveats")
+    salvaged_caveats = (
+        [entry.strip() for entry in raw_caveats if isinstance(entry, str) and entry.strip()]
+        if isinstance(raw_caveats, list)
+        else []
+    )
+
+    narrative = text_field("narrative")
+    package_caveats: list[str] = []
+    if not narrative:
+        narrative, package_caveats = reader_facing_findings(findings)
+
+    return Synthesis(
+        takeaway=text_field("takeaway") or SALVAGED_TAKEAWAY,
+        narrative=narrative,
+        content=text_field("content"),
+        caveats=[SALVAGED_CAVEAT, *salvaged_caveats, *package_caveats],
+    )
+
+
 def _in_trace_context(work: Callable[..., Any], *arguments: Any) -> Callable[[], Any]:
     """Wrap work so a pool worker opens its spans inside the CALLER's trace.
 
@@ -3965,11 +4027,7 @@ Tables actually read this run:
                         figure["value"] = figure.pop("numeric_value")
             return Synthesis.model_validate(payload)
         except (ValueError, json.JSONDecodeError, ValidationError):
-            return Synthesis(
-                takeaway="The analysis completed, but the structured presentation was incomplete.",
-                narrative=text or findings,
-                caveats=["Review the generated SQL and source details before using this result."],
-            )
+            return _salvaged_synthesis(text, findings)
 
     def _plot(self, question: str, takeaway: str, log: RunLog) -> tuple[list[Chart], str, str]:
         """Ask the model to plot the assessed package, then validate what it sends back.

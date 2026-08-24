@@ -15,6 +15,7 @@ import { buildTimeline, formatMs, toolNameFromId, type RollUpRow, type TimelineR
 import { describePayload, payloadSize } from './trace-payload';
 import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
+import { stepNumber } from './agent-map';
 import { Badge } from './ui';
 import { MarkdownText } from './StepResult';
 
@@ -201,7 +202,14 @@ function GanttRow({
         {/* The data cell takes the mono face; its column heading does not, because
             the heading is the word "Step" and only the figures under it have to
             line up with each other. */}
-        <td className="trace-step ast-num">{row.step}</td>
+        <td className="trace-step ast-num">
+          {/* Matches the numbered step badge in Run Explorer's Agent map and
+              the live list, so the settled timeline keeps the same visual key. */}
+          <span className="step-rail-num" aria-hidden="true">
+            {stepNumber(row.step)}
+          </span>
+          <span className="sr-only">Step {row.step}</span>
+        </td>
         <td>
           <KindCell row={row} />
         </td>

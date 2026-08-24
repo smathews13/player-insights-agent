@@ -782,16 +782,17 @@ describe('the drawing is reachable and readable without seeing it', () => {
     expect(contract).toContain('open its answer content setting');
   });
 
-  /**
-   * The loop bounds, above the drawing.
-   *
-   * They were readable only by opening the gear, on the page whose whole job is to
-   * say what this deployment does -- and they are the numbers a reader needs to
-   * explain a run that stopped early.
-   */
-  it('heads the page with the three loop bounds, in the gear’s own words', () => {
+  it('puts the three loop bounds inside the live-data-flow header', () => {
     const strip = pageMarkup();
     expect(strip).toContain('data-testid="architecture-loop-tiles"');
+    const flow = strip.indexOf('class="arch-flow"');
+    const heading = strip.indexOf('Live data flow', flow);
+    const bounds = strip.indexOf('architecture-loop-tiles', heading);
+    const canvas = strip.indexOf('architecture-canvas', bounds);
+    expect(flow).toBeGreaterThan(-1);
+    expect(heading).toBeGreaterThan(flow);
+    expect(bounds).toBeGreaterThan(heading);
+    expect(canvas).toBeGreaterThan(bounds);
     for (const bound of CHAIN_BOUNDS) {
       expect(text(strip), bound).toContain(CHAIN_BOUND_LABEL[bound]);
     }
@@ -812,7 +813,7 @@ describe('the drawing is reachable and readable without seeing it', () => {
     const strip = pageMarkup();
     const tiles = strip.slice(strip.indexOf('architecture-loop-tiles'));
     expect(tiles).toContain('\u2014');
-    expect(text(tiles.slice(0, tiles.indexOf('arch-flow')))).not.toContain('12');
+    expect(text(tiles.slice(0, tiles.indexOf('</ul>')))).not.toContain('12');
     expect(
       renderToStaticMarkup(
         <MemoryRouter>

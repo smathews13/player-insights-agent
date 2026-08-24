@@ -6,6 +6,8 @@
  * dash rule is about a benchmark metric specifically, and the interval exists
  * because a suite run takes minutes.
  */
+import './styles/benchmark.css';
+import './styles/timeline.css';
 import { Link } from 'react-router';
 import { useState, useEffect } from 'react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
@@ -76,6 +78,7 @@ import {
 } from '../../shared/scorer-catalog';
 import type { Scorecard, ScorecardState } from '../../shared/scorecard-contract';
 import { formatScore, labelSourceSummary, scoreCoverage } from './benchmark-state';
+import { browserPollHost, pollWhileVisible } from './visibility-polling';
 
 /**
  * Formats a stored benchmark metric, or says it is absent.
@@ -516,10 +519,19 @@ export function BenchmarkLab() {
 
   // A suite takes four to five minutes, so a run is not finished when the POST
   // returns. Poll the run's own trace until it reports a terminal outcome.
+  //
+  // Only while the tab is visible. Four to five minutes is long enough that
+  // starting a suite and going to do something else is the normal way to use
+  // this page, and an unconditional interval would spend that whole run reading
+  // a trace into a tab nobody is watching. Coming back re-reads immediately, so
+  // the wait is not paid twice.
   useEffect(() => {
     if (!selected || !summary.inProgress) return;
-    const timer = window.setInterval(() => setReloadToken((token) => token + 1), BENCHMARK_POLL_MS);
-    return () => window.clearInterval(timer);
+    return pollWhileVisible(
+      () => setReloadToken((token) => token + 1),
+      BENCHMARK_POLL_MS,
+      browserPollHost()
+    );
   }, [selected, summary.inProgress]);
 
   async function runSuite() {

@@ -214,11 +214,17 @@
   vertical-align: bottom;
 }
 .trace-gantt .trace-step {
-  width: 32px;
+  width: 38px;
   text-align: left;
   padding-right: 10px;
   color: var(--muted-foreground);
   white-space: nowrap;
+}
+/* Reuse the Agent map's numbered badge rather than restating it as a bare table
+   figure. The class is shared deliberately: live, settled and Explorer views
+   now give a step the same 24x20 visual address. */
+.trace-gantt tbody .trace-step .step-rail-num {
+  display: inline-grid;
 }
 /*
  * The event label competes with the axis for width, and it should win.

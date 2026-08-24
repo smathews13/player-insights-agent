@@ -243,6 +243,16 @@ LAKEBASE_APP_SCHEMA="$(bundle_var lakebase_app_schema)"
 JUDGE_ENDPOINT="$(bundle_var_or_empty judge_endpoint)"
 note "benchmark judge      ${JUDGE_ENDPOINT:-(app default)}"
 
+# The semantic rebuild job is bundle-owned when the target declares it. Its id
+# is the billing join key; a name match would be guesswork and can collide with
+# another deployment. Targets without the job keep the authored empty value.
+INDEX_REBUILD_JOB_ID="$(bundle_json | python3 -c '
+import json,sys
+job=json.load(sys.stdin).get("resources",{}).get("jobs",{}).get("player_insights_semantic_rebuild",{})
+print(job.get("id") or "")
+')"
+note "semantic rebuild job ${INDEX_REBUILD_JOB_ID:-(not declared)}"
+
 # Where app telemetry lands, built from the two bundle variables that already
 # name it rather than declared a third time. A target with no export
 # destinations resolves to empty even though the app-owned schema exists:
@@ -390,6 +400,7 @@ step "Building the dependency-free deploy tree"
 (cd "$APP_DIR" \
   && PLAYER_INSIGHTS_TARGET="$TARGET" \
      PLAYER_INSIGHTS_EXPERIMENT_ID="$EXPERIMENT_ID" \
+     PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID="$INDEX_REBUILD_JOB_ID" \
      PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL="$SHARED_RAIL" \
      PLAYER_INSIGHTS_JUDGE_ENDPOINT="$JUDGE_ENDPOINT" \
      PLAYER_INSIGHTS_TELEMETRY_SCHEMA="$TELEMETRY_SCHEMA" \

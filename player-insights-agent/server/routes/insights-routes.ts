@@ -91,7 +91,6 @@ import {
   isAccessMode,
   observedServingPrincipal,
   recordVerifiedAccess,
-  rememberServingPrincipal,
 } from './execution-identity';
 import {
   accessDependenciesFrom,
@@ -163,6 +162,13 @@ export interface InsightsAppKit {
   };
   /** Overridable so tests can assert the exact JSON that reaches Model Serving. */
   servingTransport?: ServingTransport;
+  /**
+   * Overridable endpoint metadata read used by the cheap readiness route.
+   *
+   * This is deliberately separate from `servingTransport`: readiness may read
+   * the endpoint object, but it must never POST to `/invocations`.
+   */
+  servingEndpointReader?: (name: string) => Promise<unknown>;
   /**
    * Overridable so tests can assert that opening the app pings the warehouse
    * once, and that a ping that fails is not something the page waits on.
@@ -1430,6 +1436,27 @@ export function agentEndpointCheck(
   };
 }
 
+/** A cheap endpoint-object reading. It proves visibility and state, never query permission. */
+export function agentEndpointMetadataCheck(
+  endpointName: string,
+  outcome: { status: 'ok' | 'failed'; detail: string; error?: string }
+): PreflightCheck {
+  return {
+    id: 'agent-endpoint',
+    kind: 'serving-endpoint',
+    name: endpointName || '(unset)',
+    label: `Agent endpoint · ${endpointName || '(unset)'}`,
+    status: outcome.status,
+    detail: outcome.detail,
+    checked_with: 'GET /api/2.0/serving-endpoints/:name',
+    duration_ms: 0,
+    error: outcome.error ?? '',
+    // A metadata read cannot distinguish CAN_QUERY from its absence. Offering a
+    // query grant here would claim that CAN_VIEW proved a query denial.
+    remedy: null,
+  };
+}
+
 export function countChecks(checks: PreflightCheck[]) {
   return {
     ok: checks.filter((check) => check.status === 'ok').length,
@@ -1741,18 +1768,63 @@ async function settleSharedConversationRail(appkit: InsightsAppKit): Promise<voi
  */
 export const CONVERSATION_RAIL_LIMIT = 100;
 
+/**
+ * What each conversation's latest answered turn ended on, for the rail's badge.
+ *
+ * WHY THIS IS NOT READ OFF `/api/runs`. The rail lists everyone's
+ * conversations when the shared rail is on, but `RUNS_QUERY` is scoped
+ * `AND c.user_email = $2` and an identity-boundary test holds it there. So the
+ * rail drew a Complete badge and a wall time on the reader's own rows and
+ * nothing at all on anybody else's -- reported as "other user questions should
+ * show badges too". The scoping is right for that route: a run carries the
+ * prompt, the trace, the generated SQL and the spaces it opened.
+ *
+ * What a badge needs is none of that. It is the verdict and the wall clock, and
+ * both are already implied by a row this query returns unscoped: the rail is
+ * showing the reader that the conversation exists and what it was called.
+ * Ratings deliberately do NOT come through here -- a rating is one reader's
+ * opinion and stays on `/api/runs`, which knows whose it is.
+ *
+ * The verdict is interpolated from the same `VERDICT_STAGE_EXEMPTION_SQL` that
+ * `RUNS_QUERY` uses, so the badge on the rail and the status in the Run
+ * Explorer cannot come to different conclusions about one turn.
+ */
+const CONVERSATION_VERDICT_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT
+      CASE
+        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
+        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
+        ELSE 'complete'
+      END AS status,
+      jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")') AS truncated,
+      ROUND((m.response_json->'trace'->>'totalMs')::numeric)::int AS duration_ms
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.conversation_id = c.id
+      AND m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+    ORDER BY m.created_at DESC
+    LIMIT 1
+  ) verdict ON TRUE`;
+
+const CONVERSATION_LIST_COLUMNS =
+  'c.id, c.title, c.updated_at, c.user_email, ' +
+  'verdict.status, verdict.truncated, verdict.duration_ms';
+
 function conversationListQuery(email: string) {
   return sharedRail.shared
     ? {
         sql:
-          `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ` +
-          `ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
+          `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c` +
+          `${CONVERSATION_VERDICT_JOIN} ` +
+          `ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
         params: [] as unknown[],
       }
     : {
         sql:
-          `SELECT id, title, updated_at, user_email FROM ${APP_SCHEMA}.conversations ` +
-          `WHERE user_email = $1 ORDER BY updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
+          `SELECT ${CONVERSATION_LIST_COLUMNS} FROM ${APP_SCHEMA}.conversations c` +
+          `${CONVERSATION_VERDICT_JOIN} ` +
+          `WHERE c.user_email = $1 ORDER BY c.updated_at DESC LIMIT ${CONVERSATION_RAIL_LIMIT}`,
         params: [email] as unknown[],
       };
 }
@@ -2290,16 +2362,27 @@ export function createServingTransport(
       return await consumeServingStream(streamed.contents, onStage);
     } catch (error) {
       if (!(error instanceof TruncatedStreamError)) throw error;
-      // The endpoint answered and then the stream died before the answer
-      // reached us. The run itself has been observed completing normally and
-      // recording an OK trace when this happens, so the work is not in doubt,
-      // only the transport is. Asking again without streaming is therefore
-      // worth one attempt, where re-asking an unreachable endpoint would not
-      // be. The alternative is what the user saw: a representative answer
-      // presented over a question that really did run.
+      // Once a stage REPORTED work, the agent stack already ran. A blocking
+      // retry would execute orchestrator → tools → synthesis a second time,
+      // with a second set of governed reads and potentially different results.
+      // Keep the observed stages and let the ask route report the interrupted
+      // run; its ledger/live-ask paths remain the durable account of what
+      // happened.
+      //
+      // `stages` counts reports, not events, and the distinction is the whole
+      // branch: a `running` announcement means a step started, so a stream that
+      // died after nothing but those has produced no work to preserve and no
+      // reason to withhold the one call that can still answer. See
+      // TruncatedStreamError.
+      if (error.stages > 0) {
+        console.warn(`[serving] ${error.message} Keeping the partial run; no second invocation will be started.`);
+        throw error;
+      }
+      // With no reported stage and therefore no resumable work, one blocking
+      // attempt is still the only route to an answer. This preserves the old
+      // recovery for streams that fail before the agent reports doing anything.
       console.warn(
-        `[serving] ${error.message} Asking again without streaming, which does not ` +
-          'depend on the connection surviving the whole run.'
+        `[serving] ${error.message} No stage reported work; asking once without streaming.`
       );
       // `stream: true` lives inside the body, so it has to come back out or the
       // endpoint streams into a caller no longer reading events.
@@ -2686,6 +2769,33 @@ export async function invokePreflight(appkit: InsightsAppKit, candidate?: Record
   return invokeServing(appkit, buildPreflightServingBody(candidate), undefined, PREFLIGHT_TIMEOUT_MS);
 }
 
+/** Concurrent Ask and Connections reads share one endpoint metadata request. */
+const endpointMetadataFlights = new WeakMap<object, Promise<unknown>>();
+
+async function readServingEndpointMetadata(appkit: InsightsAppKit, endpointName: string): Promise<unknown> {
+  const existing = endpointMetadataFlights.get(appkit);
+  if (existing) return existing;
+  const request = (async () => {
+    if (appkit.servingEndpointReader) return appkit.servingEndpointReader(endpointName);
+    const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+    return new WorkspaceClient({}).servingEndpoints.get({ name: endpointName });
+  })();
+  endpointMetadataFlights.set(appkit, request);
+  try {
+    return await request;
+  } finally {
+    if (endpointMetadataFlights.get(appkit) === request) endpointMetadataFlights.delete(appkit);
+  }
+}
+
+function servingEndpointReadyState(metadata: unknown): string {
+  if (!metadata || typeof metadata !== 'object') return '';
+  const state = (metadata as Record<string, unknown>).state;
+  if (!state || typeof state !== 'object') return '';
+  const ready = (state as Record<string, unknown>).ready;
+  return typeof ready === 'string' ? ready.trim() : '';
+}
+
 /**
  * A read that degrades to zero rows, for the write and best-effort paths where
  * a failure genuinely does not change the response.
@@ -2936,8 +3046,12 @@ export function setupInsightsRoutes(
      * Answer before the control-plane calls settle. A hanging or refused start
      * is logged by `warmWarehouseForArrival` and can never delay or fail login.
      */
-    app.post('/api/warehouse-warmup', (_req, res) => {
+    app.post('/api/warehouse-warmup', (req, res) => {
       warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
+      // Adopted Genie warehouses are warmed from declared/environment
+      // configuration on this same fire-and-forget arrival path. No serving
+      // invocation is needed to discover them.
+      warmGenieWarehousesForArrival(req, {});
       res.status(202).json({ accepted: true });
     });
 
@@ -3216,38 +3330,39 @@ export function setupInsightsRoutes(
       res.json({ verified: true, ...outcome, decision, servingPrincipal: serving });
     });
 
-    app.get('/api/preflight', async (req, res) => {
-      // Somebody has opened the app, so start the SQL warehouse while they are
-      // still reading the screen rather than after they have typed a question.
-      //
-      // THIS ROUTE IS THE ARRIVAL SIGNAL, which is why the warm-up lives here and
-      // not behind a route of its own. The Ask screen already fetches it once per
-      // page load for the readiness pill (`client/src/agent-readiness.ts`), and
-      // Connections fetches it too, so hooking it costs no extra request, needs no
-      // client change, and cannot be seen in a network panel as a call that
-      // sometimes fails. Everything that keeps this to one ping and stops it
-      // becoming a keepalive is in lib/warehouse-warmup.ts.
-      //
-      // Not awaited, and deliberately the first thing in the handler: the warehouse
-      // then comes up alongside the endpoint invocation below rather than after it.
-      warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
-
+    app.get('/api/preflight', async (_req, res) => {
       const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '';
-      let raw: unknown;
+      if (!endpointName.trim()) {
+        const missing = withStorageCheck(
+          preflightFailure(
+            agentEndpointMetadataCheck(endpointName, {
+              status: 'failed',
+              detail: 'No agent endpoint is configured for this app.',
+              error: 'DATABRICKS_SERVING_ENDPOINT_NAME is unset.',
+            }),
+            'No serving invocation was attempted. Endpoint visibility and query permission are separate checks.'
+          ),
+          lakebaseStorageCheck()
+        );
+        res.status(503).json({ ...missing, error: 'preflight_unavailable' });
+        return;
+      }
+
+      let metadata: unknown;
       try {
-        raw = await invokePreflight(appkit);
+        metadata = await readServingEndpointMetadata(appkit, endpointName);
       } catch (error) {
         const message = (error as Error).message;
-        console.warn('[preflight] Agent endpoint could not be invoked:', message);
+        console.warn('[preflight] Agent endpoint metadata could not be read:', message);
         res.status(503).json({
           ...withStorageCheck(
             preflightFailure(
-              agentEndpointCheck(endpointName, {
+              agentEndpointMetadataCheck(endpointName, {
                 status: 'failed',
-                detail: 'The app could not invoke the agent endpoint, so nothing behind it was checked.',
+                detail: 'The app could not read the configured agent endpoint metadata.',
                 error: message,
               }),
-              'Nothing beyond the endpoint was checked, so the agent\u2019s own dependencies are unknown rather than healthy.'
+              'No serving invocation was attempted. CAN_VIEW and CAN_QUERY are separate grants, so this says nothing about whether this principal can ask a question.'
             ),
             lakebaseStorageCheck()
           ),
@@ -3256,66 +3371,20 @@ export function setupInsightsRoutes(
         return;
       }
 
-      // The served configuration names the adopted Genie spaces. Once the
-      // endpoint has answered, discover their own warehouses and start them in
-      // the background under this reader's token; the response still never
-      // waits for a warehouse control-plane call.
-      warmGenieWarehousesForArrival(req, raw);
-
-      const report = extractPreflightReport(raw);
-      if (!report) {
-        // The endpoint no longer runs dependency checks: it recognises this
-        // request and answers without a report, on every version. There is
-        // nothing here for an operator to fix, so this reports what the app can
-        // still see for itself and offers no remedy. Re-logging the model does
-        // not bring the report back. The newest version is the one that
-        // retired it.
-        // 200 while the endpoint answered and the app can read its store, 503
-        // when it cannot. The retirement of the dependency report is not itself
-        // a fault: there is nothing here for an operator to fix, and answering
-        // 503 for it would mark every deployment down. What can still fail on
-        // this path is Lakebase, and that is a real one.
-        const retired = withStorageCheck(
-          preflightFailure(
-            agentEndpointCheck(endpointName, {
-              status: 'ok',
-              detail: 'The app invoked the agent endpoint and it answered.',
-            }),
-            'The agent endpoint no longer reports on its dependencies. Whether a principal can ' +
-              'reach a table, a warehouse or a Genie space is answered by Unity Catalog and the ' +
-              'workspace, which hold the grants.'
-          ),
-          lakebaseStorageCheck()
-        );
-        res.status(preflightHttpStatus(retired)).json({ ...retired, error: 'preflight_retired' });
-        return;
-      }
-
-      // The one moment the app can learn what the endpoint runs as. The identity
-      // is only visible from inside the endpoint, and the answer contract does
-      // not carry it, so this report is the sole source, worth taking a note
-      // from every time rather than only when something asks.
-      rememberServingPrincipal(report);
-
-      const checks = [
-        agentEndpointCheck(endpointName, {
+      const state = servingEndpointReadyState(metadata);
+      const report = withStorageCheck(
+        preflightFailure(
+          agentEndpointMetadataCheck(endpointName, {
           status: 'ok',
-          detail: 'The app invoked the agent endpoint and it returned a dependency report.',
+            detail:
+              `The configured endpoint metadata is reachable${state ? ` (state ${state})` : ''}. ` +
+              'This does not prove that the current principal may query it.',
         }),
-        // The agent reports on what the agent can reach. Lakebase is the app's
-        // own dependency, so a healthy agent must not be able to make the page
-        // look green while the app is failing to read its store.
-        lakebaseStorageCheck(),
-        ...report.checks,
-      ];
-      const answered = {
-        ...report,
-        checks,
-        status: overallStatus(checks),
-        counts: countChecks(checks),
-        source: 'agent',
-      } satisfies PreflightReport;
-      res.status(preflightHttpStatus(answered)).json(answered);
+          'No serving invocation was attempted. Endpoint visibility (CAN_VIEW) and query permission (CAN_QUERY) are separate, and dependencies remain unchecked.'
+        ),
+        lakebaseStorageCheck()
+      );
+      res.status(preflightHttpStatus(report)).json({ ...report, error: 'preflight_metadata_only' });
     });
 
     app.get('/api/conversations', async (req, res) => {
@@ -4293,6 +4362,30 @@ export function setupInsightsRoutes(
           return;
         }
       } catch (error) {
+        if (error instanceof TruncatedStreamError && error.stages > 0) {
+          console.error(
+            `[serving] The stream ended after ${error.stages} stage(s). The partial run was kept and no second invocation was started.`
+          );
+          await settleRun(appkit, admission, {
+            to: terminalStateFor('STREAM_INTERRUPTED'),
+            code: 'STREAM_INTERRUPTED',
+          });
+          reply.status(unavailableHttpStatus('STREAM_INTERRUPTED')).json(
+            unavailableResult({
+              code: 'STREAM_INTERRUPTED',
+              requestId: identity.correlationId,
+              runId: admission.run?.runId ?? null,
+              persistence: admission.run ? 'stored' : 'not_stored',
+              executionIdentity: executionIdentityClaim(identity),
+              detail: error.message,
+              evidence: agentEndpointEvidence(error, {
+                principal: email,
+                ...(lastStage ? { stage: lastStage } : {}),
+              }),
+            })
+          );
+          return;
+        }
         // First, because an authorization denial and an endpoint that did not
         // answer send a reader to two different people. Both end in an
         // unavailable result now, so the ordering no longer decides whether the

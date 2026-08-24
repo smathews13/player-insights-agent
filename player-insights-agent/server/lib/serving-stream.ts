@@ -31,12 +31,29 @@ export type StageSink = (stage: Record<string, unknown>) => void;
  * genuinely cannot be reached is not.
  */
 export class TruncatedStreamError extends Error {
+  /**
+   * Stages that reported finished work.
+   *
+   * COUNTS WORK, NOT EVENTS, because this is the number the transport branches
+   * on when it decides whether asking again would run the stack twice. A
+   * `running` announcement says a step has started and nothing else: no tool
+   * has returned, nothing has been read, and there is no result a second
+   * attempt could duplicate. Counting those made a stream that died after two
+   * early pings look like a run worth keeping, so the blocking fallback -- the
+   * one path that still produces an answer at that point -- was skipped and the
+   * reader got STREAM_INTERRUPTED instead.
+   */
   readonly stages: number;
 
-  constructor(stages: number) {
-    super(`The endpoint's stream ended after ${stages} stage(s) without returning an answer.`);
+  /** `running` announcements seen, kept so the log says what actually arrived. */
+  readonly announced: number;
+
+  constructor(stages: number, announced = 0) {
+    const alsoSeen = announced > 0 ? ` (and ${announced} announcement(s))` : '';
+    super(`The endpoint's stream ended after ${stages} stage(s)${alsoSeen} without returning an answer.`);
     this.name = 'TruncatedStreamError';
     this.stages = stages;
+    this.announced = announced;
   }
 }
 
@@ -64,6 +81,24 @@ function stageOf(event: StreamEvent): Record<string, unknown> | null {
  */
 function isFlush(event: StreamEvent): boolean {
   return event.type === 'response.in_progress';
+}
+
+/**
+ * Whether a stage is the announcement of a step rather than the report of one.
+ *
+ * `predict_stream` writes two events per step sharing a `stage_id`: a `running`
+ * one carrying the name, kind and nesting so a row can be drawn while the step
+ * is still going, then the same step again with its measured duration and real
+ * status. Only the second is in the finished trace, and only the second means
+ * anything happened that a retry would repeat.
+ *
+ * A stage with no status at all is treated as work. Only `running` is an
+ * announcement; anything else -- including a status from a model version this
+ * app has not seen -- is a step reporting an outcome, and guessing otherwise
+ * would re-run a stack that had already done governed reads.
+ */
+function isAnnouncement(stage: Record<string, unknown>): boolean {
+  return stage.status === 'running';
 }
 
 /**
@@ -149,13 +184,17 @@ export async function consumeServingStream(body: unknown,
   const output: unknown[] = [];
   let customOutputs: Record<string, unknown> | null = null;
   let stages = 0;
+  let announced = 0;
 
   try {
     for await (const event of sseEvents(body)) {
       if (isFlush(event)) continue;
       const stage = stageOf(event);
       if (stage) {
-        stages += 1;
+        // Both halves of the pair are forwarded: the live rail draws its row
+        // from the announcement. Only the reporting half is counted.
+        if (isAnnouncement(stage)) announced += 1;
+        else stages += 1;
         try {
           onStage(stage);
         } catch (error) {
@@ -179,16 +218,16 @@ export async function consumeServingStream(body: unknown,
     // positive evidence the endpoint was not only reachable but working, so it
     // is reclassified rather than rethrown; an answer already in hand is kept.
     if (customOutputs === null && output.length === 0) {
-      console.warn(`[serving] Stream died after ${stages} stage(s): ${(error as Error).message}`
+      console.warn(`[serving] Stream died after ${stages} stage(s) and ${announced} announcement(s): ${(error as Error).message}`
       );
-      throw new TruncatedStreamError(stages);
+      throw new TruncatedStreamError(stages, announced);
     }
     console.warn(`[serving] Stream died after the answer arrived (${(error as Error).message}); keeping it.`
     );
   }
 
   if (customOutputs === null && output.length === 0) {
-    throw new TruncatedStreamError(stages);
+    throw new TruncatedStreamError(stages, announced);
   }
   return { output, custom_outputs: customOutputs ?? {} };
 }

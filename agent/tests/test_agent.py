@@ -3463,6 +3463,63 @@ def test_the_prompt_no_longer_forbids_the_markdown_it_now_depends_on():
     assert "every line break in it is written \\n" in SYNTHESIS_INSTRUCTIONS
 
 
+class TestSalvagedSynthesis:
+    """What a reader gets when the synthesis model's JSON does not validate.
+
+    The defect this pins: the card printed the model's raw JSON document as the
+    answer's prose, entity-highlighted identifier by identifier, because the
+    fallback was `narrative=text or findings`.
+    """
+
+    PAYLOAD = (
+        '{"takeaway":"Five tables are queryable.",'
+        '"narrative":"- The catalog is governed.\\n- The largest table is silver_gameplay_activity.",'
+        '"content":"| Table | Rows |\\n| --- | --- |",'
+        '"caveats":["Row counts are approximate."],'
+        '"figures":[{"label":"Tables","numeric":5}]}'
+    )
+
+    def test_the_raw_json_is_never_the_narrative(self):
+        salvaged = agent._salvaged_synthesis(self.PAYLOAD, "## DATA PACKAGE\nSources used: none")
+
+        assert '"takeaway"' not in salvaged.narrative
+        assert "{" not in salvaged.narrative
+        assert salvaged.narrative.startswith("- The catalog is governed.")
+
+    def test_the_fields_that_did_validate_are_kept(self):
+        salvaged = agent._salvaged_synthesis(self.PAYLOAD, "")
+
+        assert salvaged.takeaway == "Five tables are queryable."
+        assert salvaged.content.startswith("| Table | Rows |")
+        assert "Row counts are approximate." in salvaged.caveats
+
+    def test_the_reader_is_told_the_answer_needs_checking(self):
+        salvaged = agent._salvaged_synthesis(self.PAYLOAD, "")
+
+        # First, because it governs how everything under it should be read.
+        assert salvaged.caveats[0] == agent.SALVAGED_CAVEAT
+
+    def test_the_structured_extras_are_dropped_rather_than_half_trusted(self):
+        """`figures` is the half that failed validation, so it does not come through."""
+
+        assert agent._salvaged_synthesis(self.PAYLOAD, "").figures == []
+
+    def test_a_response_that_is_not_json_falls_back_to_the_readable_findings(self):
+        package = "## DATA PACKAGE\nInterpretation: counted the tables\nSources used: catalog"
+        salvaged = agent._salvaged_synthesis("The model wrote prose instead.", package)
+
+        assert salvaged.takeaway == agent.SALVAGED_TAKEAWAY
+        # The finder's package is an internal handoff; its scaffolding is not prose.
+        assert "## DATA PACKAGE" not in salvaged.narrative
+
+    def test_a_payload_with_no_narrative_does_not_leave_the_card_blank(self):
+        package = "## DATA PACKAGE\nInterpretation: counted the tables\nSources used: catalog"
+        salvaged = agent._salvaged_synthesis('{"takeaway":"Counted them."}', package)
+
+        assert salvaged.takeaway == "Counted them."
+        assert salvaged.narrative.strip() != ""
+
+
 def test_shortening_the_answer_is_not_allowed_to_cost_a_caveat():
     """The client ranks the caveats and folds the rest, so the agent's job is to emit all of
     them. A model told to be brief drops the fifth one, and the fifth one is a disclosure."""

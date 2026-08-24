@@ -58,8 +58,14 @@ describe('the first-open card', () => {
   it('is bounded by the viewport and scrolls itself', () => {
     const card = rule('.first-open-card');
     // Bounded, so the card's own edges stay visible and the reader can see that
-    // there is more of it to reach. 48px is the overlay's 24px padding, doubled.
-    expect(card).toMatch(/max-height:\s*calc\(100vh - 48px\)/);
+    // there is more of it to reach. 32px is the overlay's 16px padding, doubled.
+    expect(card).toMatch(/max-height:\s*calc\(100vh - 32px\)/);
+    // And the two have to stay in step: a cap that does not equal the overlay's
+    // own padding either wastes room the card needed or lets it run under the
+    // edge of the screen. Read off the stylesheet rather than restated.
+    const overlayPadding = Number(rule('.first-open').match(/padding:\s*(\d+)px/)?.[1] ?? 0);
+    const cap = Number(card.match(/max-height:\s*calc\(100vh - (\d+)px\)/)?.[1] ?? 0);
+    expect(cap).toBe(overlayPadding * 2);
     expect(card).toContain('overflow-y: auto');
   });
 
@@ -121,6 +127,44 @@ describe('the first-open card', () => {
     expect(narrow).toMatch(/\.fo-scope-list\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
     expect(narrow).toMatch(/\.fo-scope-row:nth-child\(even\)\s*\{[^}]*border-left:\s*none/);
     expect(CSS).not.toMatch(/@media\s*\((?:max|min)-width/);
+  });
+});
+
+describe('the card fits one viewport without scrolling', () => {
+  /*
+   * Reported twice: once against 28/18 and again against 22/14, both times as
+   * "the login screen should fit in one view". The cap on the card is a backstop
+   * for an unforeseen height, NOT the plan -- if it is ever reached, the reader
+   * is being asked to scroll the one screen they must read before continuing.
+   *
+   * Pinned as ceilings rather than exact values so a later trim is free, and
+   * because what matters is that nothing grows back.
+   */
+  const vertical = (block: string) => {
+    const padding = block.match(/padding:\s*(\d+)px/)?.[1];
+    return Number(padding ?? Number.NaN);
+  };
+
+  it('keeps the frame and the seams tight', () => {
+    const card = rule('.first-open-card');
+    expect(vertical(card), 'card padding').toBeLessThanOrEqual(18);
+    expect(Number(card.match(/gap:\s*(\d+)px/)?.[1]), 'card gap').toBeLessThanOrEqual(12);
+  });
+
+  it('spends its smallest padding where the card repeats it most', () => {
+    // Nine scopes are five row-lines, so a pixel here is a pixel five times.
+    // This is the trim that cleared the scrollbar and the one most likely to be
+    // undone by somebody restyling a single row in isolation.
+    const row = rule('.fo-scope-row').match(/padding:\s*(\d+)px\s+(\d+)px/);
+    expect(Number(row?.[1]), 'scope row vertical padding').toBeLessThanOrEqual(7);
+    // The horizontal inset lines the names up with the header band above them.
+    expect(Number(row?.[2]), 'scope row horizontal padding').toBe(14);
+  });
+
+  it('does not buy the space back out of the disclaimer type', () => {
+    // The block that says the app is not official Databricks software. Its
+    // leading gave up a few pixels; its SIZE is not a candidate.
+    expect(rule('.fo-disc-body')).toMatch(/font-size:\s*12px/);
   });
 });
 

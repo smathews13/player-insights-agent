@@ -435,11 +435,51 @@ export function FirstOpenPanel({
  * the guard in astrolabe-animation.css resolves the slot to the single d-pad, so
  * this frame is a still mark on Ice for a reader who asked for no motion.
  */
+/**
+ * The gate's sky, in one place because four seatings have to agree on it.
+ *
+ * The hold, the opening sequence, the card and the reduced-motion path all draw
+ * this, and the drawing is deterministic in `pageId` and the module-level
+ * document seed -- so every one of them produces the same stars in the same
+ * positions. That is what lets the gate cross its stages without the surface
+ * behind the reader changing. Written out four times, it is four chances for
+ * one of them to drift to a different `pageId` and put the swap back.
+ */
+function GateSky() {
+  return <StarField pageId="login-gate" surface="ask" className="gate-star-motion" />;
+}
+
 function FirstOpenHold() {
+  /*
+   * THE SKY IS DRAWN HERE TOO, and it is the same sky, from the same call.
+   *
+   * This frame used to be the overlay and the mark alone. The gate that follows
+   * it renders `StarField` as a sibling of the card, so the first thing a reader
+   * saw was an empty field with a constellation only on the left -- the opening
+   * drawing's own geometry, which is upper-left weighted -- and then, when the
+   * card arrived, a second surface appeared underneath it and stars popped in on
+   * the right. Two views in sequence, and the handover read as a stutter.
+   *
+   * The drawing is deterministic in `pageId` and the module-level document seed,
+   * so this call and the gate's produce the same stars in the same places. The
+   * card lands ON the sky rather than replacing the surface under it, and
+   * nothing behind it moves.
+   *
+   * `on-sky` FOR THE SAME REASON THE CARD CARRIES IT, and its absence is why the
+   * sky looked like it started late. `.first-open` is an opaque backdrop --
+   * Ice in daylight, `--ast-sky-fill` under the dark theme -- which is right only
+   * while nothing is drawn behind it. Something is now: the field on the line
+   * above. Opaque, this frame covered it completely, so the first thing a reader
+   * met was a flat panel and the stars appeared to switch on when the frame gave
+   * way. Transparent, the hold is the mark ON the sky the rest of the gate is on.
+   */
   return (
-    <div className="first-open first-open-hold" aria-hidden="true">
-      <ConceptFlicker seat="splash" className="fo-hold-mark" />
-    </div>
+    <>
+      <GateSky />
+      <div className="first-open on-sky first-open-hold" aria-hidden="true">
+        <ConceptFlicker seat="splash" className="fo-hold-mark" />
+      </div>
+    </>
   );
 }
 
@@ -656,7 +696,21 @@ export function useFirstOpen(identity: Identity): FirstOpen {
 
   if (stage === 'open') return { stage, gate: null };
   if (stage === 'pending') {
-    return { stage, gate: sequence ? <OpeningSequence intro={intro} /> : <FirstOpenHold /> };
+    return {
+      stage,
+      gate: sequence ? (
+        <>
+          {/* The same sky, mounted here and never taken down until the gate is.
+              See the fragment at the end of this hook: pending, intro and gate
+              all render this one element, so the reader crosses three stages
+              without a surface changing underneath them. */}
+          <GateSky />
+          <OpeningSequence intro={intro} onSky />
+        </>
+      ) : (
+        <FirstOpenHold />
+      ),
+    };
   }
 
   /*
@@ -698,19 +752,28 @@ export function useFirstOpen(identity: Identity): FirstOpen {
     gate: (
       <>
         {/*
-         * The opening animation is a loader and keeps its established drawing
-         * rules only while it is actually introducing the app. Once the gate is
-         * readable, the ambient field takes over: its travel is capped at 14px,
-         * its cycles are at least six seconds, and reduced motion is genuinely
-         * static. Keeping OpeningSequence behind the card made two independent
-         * star SVGs occupy one page and let its long login-transition travel
-         * violate the ambient sky's movement ceiling.
+         * ONE SKY FOR THE WHOLE GATE, AND IT IS THIS ONE.
+         *
+         * The ambient field is the right sky to end on: its travel is capped at
+         * 14px, its cycles are at least six seconds, and reduced motion is
+         * genuinely static, none of which is true of the opening drawing's
+         * login-transition travel. That much was already settled.
+         *
+         * What was wrong is that it used to be reached by SWAPPING. The intro
+         * rendered `OpeningSequence`, which paints its own navy and draws
+         * `OPENING_CONSTELLATION` progressively; when the intro ended that
+         * layer was unmounted and this field was mounted in its place, already
+         * complete. The reader watched a sky with an undrawn right-hand side
+         * become a different, fully drawn sky at the same instant the card
+         * arrived -- reported as the opening being skewed left with no stars on
+         * the right, and then stuttering as the login appeared.
+         *
+         * So the field is mounted unconditionally and the opening layer goes ON
+         * it (`onSky`), carrying only the concepts and the wordmark. The intro
+         * still plays in full; what it no longer does is bring its own surface.
          */}
-        {sequence && intro ? (
-          <OpeningSequence intro />
-        ) : (
-          <StarField pageId="login-gate" surface="ask" className="gate-star-motion" />
-        )}
+        <GateSky />
+        {sequence && intro ? <OpeningSequence intro onSky /> : null}
         {card}
       </>
     ),

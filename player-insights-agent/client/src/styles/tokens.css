@@ -320,12 +320,22 @@
    * above exists to prevent, and it is why "give Ask PIA more padding" was not a
    * one-number change until now. It is one now.
    *
-   * The second feedback wave asks the result tables to use the large unused
-   * margin. The gutters therefore give back room at every desktop width while
-   * remaining fluid: 24px is enough separation from either rail, 2.5vw grows
-   * gently, and 48px caps decorative space before it starts squeezing data.
+   * CUT AGAIN, BECAUSE THIS IS EMPTY SPACE AND THE ANSWER CARD IS NOT. It was
+   * `clamp(28px, 3.5vw, 64px)`, then `clamp(24px, 2.5vw, 48px)`, and the answer
+   * card was still reported as too narrow at every window. The arithmetic says
+   * why: the middle column is what is left of the window after a 264px rail and
+   * the harness, and on a 1440px laptop the old clamp took another 72px of it for
+   * a margin with nothing drawn in it -- more than the gap between the narrative
+   * and the figures beside it, spent on blank sky.
+   *
+   * A gutter's job is to keep the transcript off the two columns either side of
+   * it, and 16px does that; it is the same figure the rail pads itself by. So the
+   * floor drops to 16, the rate to 1.25vw so it still opens up on a wide monitor,
+   * and the cap to 24 -- because past that this is decoration competing with the
+   * thing a reader came to read. The wide end has a real page margin regardless:
+   * `--conversation-measure` below stops the transcript before the window does.
    */
-  --conversation-inset: clamp(24px, 2.5vw, 48px);
+  --conversation-inset: clamp(16px, 1.25vw, 24px);
 
   /*
    * The widest the transcript itself is allowed to be, as opposed to the column

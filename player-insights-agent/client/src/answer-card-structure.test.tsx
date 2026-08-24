@@ -225,43 +225,58 @@ describe('compact provenance and caveats', () => {
   });
 });
 
+describe('the answer card remains the substantial reading surface', () => {
+  const css = partial('answer.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  it('uses the thicker edge, inset, and minimum body height together', () => {
+    expect(css).toMatch(
+      /\.answer-card\s*\{[^}]*border:\s*1px solid var\(--ast-hairline\)[^}]*border-top:\s*4px solid var\(--ast-blue\)[^}]*min-height:\s*280px/
+    );
+    expect(css).toMatch(
+      /\.answer-card > \[data-slot='card-header'\],\s*\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-inline:\s*24px/
+    );
+    expect(css).toMatch(
+      /\.answer-card > \[data-slot='card-header'\]\s*\{[^}]*padding-top:\s*24px/
+    );
+    expect(css).toMatch(
+      /\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-bottom:\s*24px/
+    );
+  });
+});
+
 describe('responsive answer rail', () => {
   const css = partial('answer-body.css');
-  it('wraps the stat rail below the card breakpoint without viewport coupling', () => {
-    // Still a container query and not a media query: the card's width is what
-    // decides this, and the card is one column of a three-column page, so a
-    // viewport width cannot answer for it.
-    expect(css).toMatch(/@container answer-card \(max-width: \d+px\)/);
-    expect(css).toContain('grid-template-columns: repeat(auto-fit, minmax(190px, 1fr))');
+  it('never takes a column off the prose for the figures', () => {
+    /*
+     * THE THRESHOLD IS GONE, and its removal is the whole of "the answer cards
+     * are too narrow", reported four times.
+     *
+     * It stacked below 839px of card, derived from a measure the card was
+     * assumed to reach. It does not reach it: the middle column is the window
+     * less a 264px conversation rail and a 340px inspector, so a 1440px laptop
+     * gets a card around 730px -- and once the card's insets, the 190px rail and
+     * its gap came off that, the narrative was reading in roughly 450px on every
+     * ordinary window. The side rail was effectively unconditional and the
+     * stacked arrangement was effectively unreachable, which is the exact
+     * opposite of what the threshold was written to do.
+     */
+    expect(css).not.toMatch(/@container answer-card \(max-width: \d+px\)/);
+    // No media query either: this was never a viewport question.
     expect(css).not.toMatch(/@media[^{]*\{[^}]*\.answer-stat-rail/s);
+    expect(css).toMatch(/\.answer-main-row \{[^}]*display: grid/s);
+    expect(css).not.toMatch(/\.answer-stat-rail \{[^}]*flex: 0 0/s);
   });
 
-  it('gives the prose the whole card until a side rail still leaves it a measure', () => {
-    /*
-     * The threshold was 639px while `.answer-card` carries `min-width:
-     * min(640px, 100%)`, so the stacked arrangement was unreachable on any
-     * ordinary window and the 190px side rail was effectively unconditional.
-     *
-     * That is what "the answer cards are too narrow" was. The middle column is
-     * `100vw` less a 264px rail and a 340px inspector, so a 1440px laptop gets a
-     * card about 730px wide; take the card's insets, the rail and its gap off
-     * that and the narrative is reading in roughly 450px.
-     *
-     * The number is derived, so this test states the derivation rather than the
-     * number: furniture is the rail, its gap, both card insets and both borders,
-     * and what is left at the threshold has to clear a real measure for 13px
-     * prose.
-     */
-    const threshold = Number(css.match(/@container answer-card \(max-width: (\d+)px\)/)?.[1] ?? 0);
-    const rail = Number(css.match(/\.answer-stat-rail \{[^}]*flex: 0 0 (\d+)px/s)?.[1] ?? 0);
-    const gap = Number(css.match(/\.answer-main-row \{[^}]*gap: (\d+)px/s)?.[1] ?? 0);
-    expect(rail).toBe(190);
-    const furniture = rail + gap + 24 * 2 + 2;
-    expect(threshold + 1 - furniture, 'the measure a side rail leaves the prose').toBeGreaterThanOrEqual(580);
-    // And the rail's own width and value size are one decision: 190px of box is
-    // 170px of text, and 16px DM Mono puts "3,118 player-days" at 163px. At the
-    // old 172/18px pair the last break opportunity that fitted was the HYPHEN,
-    // so the rail printed "3,118 player-" above "days".
+  it('lays the figures out in as many columns as the card can hold', () => {
+    // `auto-fit` rather than one wide cell each: stacked, the rail is as wide as
+    // the card, and two 340px cells holding a 163px figure is a scan row with
+    // half its width unused.
+    expect(css).toMatch(/\.answer-stat-rail \{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(190px, 1fr\)\)/s);
+    expect(css).toMatch(/\.answer-stat-rail \{[^}]*width: 100%/s);
+    // 190px and the value's size are one decision: 190px of box is 170px of
+    // text, and 16px DM Mono puts "3,118 player-days" at 163px. At the old
+    // 172/18px pair the last break opportunity that fitted was the HYPHEN, so
+    // the rail printed "3,118 player-" above "days".
     expect(css).toMatch(/\.answer-stat-value \{[^}]*font-size: var\(--ast-fs-16\)/s);
   });
 });

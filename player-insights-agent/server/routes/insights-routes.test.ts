@@ -594,7 +594,7 @@ function memoryLakebase(attachments: StoredAttachment[] = [],
         return Promise.resolve({ rows: owner === undefined ? [] : [{ user_email: owner }] });
       }
 
-      if (sql.startsWith('SELECT id, title, updated_at, user_email FROM player_insights.conversations')) {
+      if (sql.startsWith('SELECT c.id, c.title, c.updated_at, c.user_email')) {
         const caller = params.length > 0 ? String(params[0]) : null;
         const rows = [...conversations.entries()]
           .filter(([, owner]) => caller === null || owner === caller)
@@ -1217,6 +1217,7 @@ describe('the production serving transport', () => {
     method: string;
     payload: Record<string, unknown>;
     headers: Headers;
+    raw: boolean;
   }
 
   function stubTransport(seen: SeenRequest[]) {
@@ -1228,6 +1229,27 @@ describe('the production serving transport', () => {
         },
       })
     );
+  }
+
+  /** The `{ contents }` shape the SDK returns for a raw streaming request. */
+  function streamOf(...events: string[]) {
+    const encoder = new TextEncoder();
+    return {
+      contents: new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const event of events) controller.enqueue(encoder.encode(event));
+          controller.close();
+        },
+      }),
+    };
+  }
+
+  /** One `predict_stream` stage event, at the status given. */
+  function stageEvent(status: string, id = 'plan', name = 'Chose the next step') {
+    return `data: ${JSON.stringify({
+      type: 'response.output_item.done',
+      custom_outputs: { type: 'stage', stage: { id, name, kind: 'agent', status } },
+    })}\n\n`;
   }
 
   /**
@@ -1270,6 +1292,104 @@ describe('the production serving transport', () => {
     await stubTransport(seen)({ path: '/serving-endpoints/x/invocations', payload: { a: 1 } });
 
     expect(seen[0]?.headers.get('Content-Type')).toBe('application/json');
+  });
+
+  it('does not re-invoke after a truncated stream already reported a stage', async () => {
+    const seen: SeenRequest[] = [];
+    const transport = createServingTransport(() =>
+      Promise.resolve({
+        request: (options: SeenRequest) => {
+          seen.push(options);
+          return Promise.resolve(streamOf(stageEvent('complete', 'plan', 'Planned')));
+        },
+      })
+    );
+
+    await expect(
+      transport({
+        path: '/serving-endpoints/x/invocations',
+        payload: { stream: true },
+        onStage: () => undefined,
+      })
+    ).rejects.toMatchObject({ name: 'TruncatedStreamError', stages: 1 });
+    expect(seen).toHaveLength(1);
+  });
+
+  it('falls back to the blocking call when a truncated stream only announced steps', async () => {
+    // THE REGRESSION THIS PINS. `running` events are a step saying it has
+    // started. A stream that dies after nothing but those has produced no work
+    // to keep, so treating them as "the agent already ran" withheld the one
+    // call that could still answer, and the reader was shown an interrupted run
+    // for a question the endpoint had barely begun.
+    const seen: SeenRequest[] = [];
+    const transport = createServingTransport(() =>
+      Promise.resolve({
+        request: (options: SeenRequest) => {
+          seen.push(options);
+          if (options.raw) {
+            return Promise.resolve(streamOf(stageEvent('running'), stageEvent('running', 'genie')));
+          }
+          return Promise.resolve(servingResponses.liveAnswerResponse);
+        },
+      })
+    );
+
+    await expect(
+      transport({
+        path: '/serving-endpoints/x/invocations',
+        payload: { stream: true },
+        onStage: () => undefined,
+      })
+    ).resolves.toBe(servingResponses.liveAnswerResponse);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]?.payload.stream).toBe(false);
+  });
+
+  it('does not re-invoke when an announcement was followed by a reported stage', async () => {
+    // The other half of the rule. Once a step has REPORTED, the stack has done
+    // governed reads, and a blocking retry would run orchestrator → tools →
+    // synthesis again. The announcement in front of it changes nothing.
+    const seen: SeenRequest[] = [];
+    const transport = createServingTransport(() =>
+      Promise.resolve({
+        request: (options: SeenRequest) => {
+          seen.push(options);
+          return Promise.resolve(streamOf(stageEvent('running'), stageEvent('complete')));
+        },
+      })
+    );
+
+    await expect(
+      transport({
+        path: '/serving-endpoints/x/invocations',
+        payload: { stream: true },
+        onStage: () => undefined,
+      })
+    ).rejects.toMatchObject({ name: 'TruncatedStreamError', stages: 1 });
+    expect(seen).toHaveLength(1);
+  });
+
+  it('keeps the blocking fallback when a truncated stream reported zero stages', async () => {
+    const seen: SeenRequest[] = [];
+    const transport = createServingTransport(() =>
+      Promise.resolve({
+        request: (options: SeenRequest) => {
+          seen.push(options);
+          if (options.raw) return Promise.resolve(streamOf(''));
+          return Promise.resolve(servingResponses.liveAnswerResponse);
+        },
+      })
+    );
+
+    await expect(
+      transport({
+        path: '/serving-endpoints/x/invocations',
+        payload: { stream: true },
+        onStage: () => undefined,
+      })
+    ).resolves.toBe(servingResponses.liveAnswerResponse);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]?.payload.stream).toBe(false);
   });
 });
 

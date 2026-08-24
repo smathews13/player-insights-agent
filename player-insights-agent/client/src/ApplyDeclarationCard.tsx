@@ -13,6 +13,7 @@ import type { ApplyPlan } from '../../shared/apply-declaration';
 import type { ModelReleaseRequest } from '../../shared/model-release';
 import type { NotebookPanel } from './connection-model';
 import { ExperimentalBadge } from './ExperimentalBadge';
+import { RefreshButton } from './RefreshControl';
 import { showsAdminSurfaces, useRole } from './role';
 import { Button } from './ui';
 import {
@@ -21,6 +22,7 @@ import {
   modelReleaseNotebookSnippet,
   releaseVersionLine,
 } from './apply-declaration-state';
+import { browserPollHost, pollWhileVisible } from './visibility-polling';
 
 interface ApplyResponse {
   status: 'idle' | 'ready';
@@ -89,10 +91,21 @@ export function ApplyDeclarationCard({
     void load();
   }, [load]);
 
+  /*
+   * A release that is approved or running changes without us asking, so this
+   * re-reads it. Only while somebody is looking, though: this card lives on an
+   * admin page people leave open in a background tab for the length of a deploy,
+   * and a bare interval there is a request every five seconds, for as long as the
+   * release takes, aimed at a tab nobody is reading.
+   *
+   * `pollWhileVisible` also reads the moment the tab comes back, which is the
+   * behaviour that matters here -- the reader returning to this tab is asking
+   * "did it finish", and waiting out the rest of an interval to answer shows them
+   * the stale status they came to replace.
+   */
   useEffect(() => {
     if (release?.status !== 'approved' && release?.status !== 'running') return;
-    const timer = window.setInterval(() => void loadRelease(), 5000);
-    return () => window.clearInterval(timer);
+    return pollWhileVisible(() => void loadRelease(), 5000, browserPollHost());
   }, [loadRelease, release?.status]);
 
   async function requestApply() {
@@ -143,9 +156,7 @@ export function ApplyDeclarationCard({
           <ExperimentalBadge />
         </span>
         <span className="plane-card-head-aside">
-          <button type="button" className="plane-button-quiet" disabled={busy} onClick={() => void load()}>
-            Refresh
-          </button>
+          <RefreshButton busy={busy} onRefresh={() => void load()} />
         </span>
       </div>
 

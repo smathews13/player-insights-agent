@@ -224,6 +224,23 @@ export interface Conversation {
    * signed-in user's, which would be showing an owner the row does not have.
    */
   user_email?: string;
+  /**
+   * What this conversation's latest answered turn ended on, derived by the rail
+   * query itself rather than read off `/api/runs`.
+   *
+   * All three are optional and all three are absent together: a conversation
+   * nobody has asked anything has no answered turn to describe, and a server
+   * from before these columns existed reports none of them.
+   *
+   * They exist because the rail lists EVERYONE's conversations while
+   * `/api/runs` is scoped to the reader, so the badge and the wall time
+   * appeared on the reader's own rows and nowhere else. The rating is
+   * deliberately not here: it is one reader's opinion and stays on the scoped
+   * route that knows whose it is.
+   */
+  status?: string | null;
+  truncated?: boolean | null;
+  duration_ms?: number | null;
 }
 export interface ConversationMessage {
   id: string;

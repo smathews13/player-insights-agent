@@ -113,6 +113,49 @@ export function railRunSummaries(runs: readonly Run[]): Map<string, RailRunSumma
   return summaries;
 }
 
+/**
+ * The badge a conversation row can draw from the rail's own list, for the rows
+ * `/api/runs` will never describe.
+ *
+ * `railRunSummaries` above is built from runs the reader owns, because that is
+ * all the runs route returns. The rail, when the shared rail is on, lists
+ * everyone's conversations -- so every row belonging to somebody else drew a
+ * title and a date and nothing else, while the reader's own rows carried a
+ * Complete badge and a wall time beside them. That asymmetry is what was
+ * reported, twice.
+ *
+ * The conversation list now derives the verdict and the wall clock for every
+ * row it returns, and this turns that into the same summary shape so the row
+ * has one thing to read regardless of which read supplied it.
+ *
+ * NO RATING, and the null is not an oversight. A rating is one reader's
+ * opinion of an answer; the scoped runs route knows whose it is and this one
+ * does not. A row that falls back to this draws its badge and its duration and
+ * no star, which is correct -- not "nobody rated it", but "this read cannot say".
+ */
+export function conversationRunSummary(conversation: {
+  status?: string | null;
+  truncated?: boolean | null;
+  duration_ms?: number | null;
+}): RailRunSummary | null {
+  const status = conversation.status?.trim();
+  // Absent, not unknown. A conversation nobody has asked anything has no turn
+  // to report on, and a pill over it would be a claim about a run that does not
+  // exist -- the rule the module header states and the reason this returns null
+  // rather than a summary reading 'unknown'.
+  if (!status) return null;
+  return {
+    status,
+    tone: railStatusTone(status),
+    durationMs:
+      typeof conversation.duration_ms === 'number' && Number.isFinite(conversation.duration_ms)
+        ? conversation.duration_ms
+        : null,
+    rating: null,
+    truncated: conversation.truncated === true,
+  };
+}
+
 function isNewer(candidate: Run, held: Run) {
   const a = Date.parse(candidate.created_at);
   const b = Date.parse(held.created_at);

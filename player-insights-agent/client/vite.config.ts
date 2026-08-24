@@ -26,7 +26,11 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react/jsx-dev-runtime', 'react/jsx-runtime', 'recharts'],
+    // `recharts` was listed here and is not a dependency of this app -- nothing
+    // in `client/src` imports it and it is absent from package.json. Vite warns
+    // and moves on, so it cost nothing but the noise; AppKit's own charts come
+    // in through the `appkit-ui` chunk above, already prebundled.
+    include: ['react', 'react-dom', 'react/jsx-dev-runtime', 'react/jsx-runtime'],
   },
   resolve: {
     alias: {

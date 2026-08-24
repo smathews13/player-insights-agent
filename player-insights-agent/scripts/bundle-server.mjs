@@ -364,6 +364,7 @@ async function main() {
   // release overrides from var.lakebase_app_schema so Connections and DDL agree
   // with the bundle. Absent here leaves the authored default standing.
   const appSchema = (process.env.PLAYER_INSIGHTS_APP_SCHEMA ?? '').trim();
+  const indexRebuildJobId = (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? '').trim();
 
   const experimentId = (process.env.PLAYER_INSIGHTS_EXPERIMENT_ID ?? '').trim();
   if (!experimentId) {
@@ -388,6 +389,9 @@ async function main() {
       // ...and losing it also loses the NODE_ENV that script was setting.
       { name: 'NODE_ENV', value: 'production' },
       ...(bundleTarget ? [{ name: 'PLAYER_INSIGHTS_TARGET', value: `'${bundleTarget}'` }] : []),
+      ...(indexRebuildJobId
+        ? [{ name: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID', value: `'${indexRebuildJobId}'` }]
+        : []),
       // The MLflow experiment is per-workspace, so app.yaml declares the variable
       // without a value and the release supplies it. bundle/app-release.sh reads
       // it out of the bundle target being deployed. Absent here means the authored

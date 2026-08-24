@@ -47,26 +47,12 @@ import type { PreflightCheck } from './preflight';
 import { connectedResource } from '../../shared/deployment-config';
 import { pickerForField } from './asset-picker';
 
-/**
- * The two build stamp rows, as a reader sees them.
- *
- * WHAT WAS ON SCREEN. Two rows of plain grey type -- `App 5b0e675b` and
- * `Orchestrator 05d742b2` -- with a copy button and no status of any kind, on the
- * tab whose subject is what this deployment can reach. Both halves looked the
- * same whether they were up or down.
- *
- * Composed rather than unit-tested because the failure was a composition: the
- * reading existed nowhere, and the assertions that matter are that the tint, the
- * word, the identifier and the copy affordance are all on the row together. A
- * green row with no word fails the app's never-colour-alone rule, and a word with
- * no identifier would have taken away the reason somebody opens this card.
- */
-describe('the build stamps say whether each half is working', () => {
+describe('the build stamps stay identifiers rather than duplicate statuses', () => {
   function stamp(over: Partial<Parameters<typeof buildFacts>[0]>) {
     return buildFacts({ appBuildSha: '5b0e675b1c', modelBuildSha: '05d742b299', ...over });
   }
 
-  it('draws a green pill and keeps the stamp and its copy button', () => {
+  it('keeps the App stamp and copy button without repeating Running', () => {
     const [app] = stamp({
       appBuildSha: '5b0e675b1c',
       modelBuildSha: '',
@@ -74,20 +60,14 @@ describe('the build stamps say whether each half is working', () => {
     }).artifacts;
     const markup = render(<BuildStampRow artifact={app} />);
 
-    // On the PILL, named as such: the stamp badge beside it is tinted from the
-    // same reading, so a looser assertion would pass on the tint alone and let
-    // the word disappear.
-    expect(markup).toContain('class="ast-pill ast-pill--pos deployment-health" data-health="working"');
-    expect(markup).toContain('data-testid="build-app-health"');
-    // The word, not just the colour: a tint is not a fact a screen reader reads.
-    expect(text(markup)).toContain('Running');
-    // And the identifier a reader came for, still copyable, still whole in title.
+    expect(markup).not.toContain('deployment-health');
+    expect(markup).not.toContain('Running');
     expect(text(markup)).toContain('5b0e675b');
     expect(markup).toContain('aria-label="Copy the App commit"');
     expect(markup).toContain('title="5b0e675b1c"');
   });
 
-  it('draws a red pill on an orchestrator endpoint that could not be reached', () => {
+  it('keeps the Orchestrator stamp without repeating its endpoint status', () => {
     const [, orchestrator] = stamp({
       appBuildSha: '',
       modelBuildSha: '05d742b299',
@@ -95,19 +75,13 @@ describe('the build stamps say whether each half is working', () => {
     }).artifacts;
     const markup = render(<BuildStampRow artifact={orchestrator} />);
 
-    expect(markup).toContain('class="ast-pill ast-pill--neg deployment-health" data-health="not-working"');
-    expect(markup).toContain('data-testid="build-orchestrator-health"');
-    expect(text(markup)).toContain('Blocked');
+    expect(markup).not.toContain('deployment-health');
+    expect(markup).not.toContain('Blocked');
     expect(text(markup)).toContain('05d742b2');
     expect(markup).toContain('aria-label="Copy the Orchestrator commit"');
   });
 
-  /**
-   * The rule this page has always had: an absence is a fact nobody established,
-   * not a fault. A pill on this row would put a verdict-shaped element on every
-   * deployment and teach a reader that the shape means nothing.
-   */
-  it('draws no pill at all where nothing measured that half', () => {
+  it('also keeps an unmeasured stamp free of a status pill', () => {
     const [, orchestrator] = stamp({ appBuildSha: '', modelBuildSha: '05d742b299' }).artifacts;
     const markup = render(<BuildStampRow artifact={orchestrator} />);
 

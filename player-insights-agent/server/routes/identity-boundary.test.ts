@@ -199,7 +199,11 @@ describe('a deployed app with a forwarded identity', () => {
     }
 
     const read = store.queries.find((entry) => entry.sql.includes('FROM player_insights.conversations'));
-    expect(read?.sql).toContain('WHERE user_email = $1');
+    // Qualified, because the rail query now joins each conversation's latest
+    // answered turn to derive the status badge. The owner predicate is the one
+    // on the conversations table; the join's own predicates are about which
+    // message row describes the conversation and say nothing about tenancy.
+    expect(read?.sql).toContain('WHERE c.user_email = $1');
     expect(read?.params).toEqual(['analyst@example.example']);
   });
 

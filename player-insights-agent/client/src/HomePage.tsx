@@ -68,7 +68,7 @@ import { AnswerProse, EntityText } from './DataEntityLinks';
 import { attachControlState } from './attach-control';
 import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId } from './conversation-links';
 import { formatDuration, ratingOutOf } from './benchmark-summary';
-import { railDuration, type RailRunSummary } from './rail-run-summary';
+import { conversationRunSummary, railDuration, type RailRunSummary } from './rail-run-summary';
 import { slowestStageName } from './progress-labels';
 import { AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
 import { LiveProgress } from './LiveProgress';
@@ -270,7 +270,6 @@ const railUnreadableNotice = unavailableNotice({
 
 export function HomePage() {
   const identity = useIdentity();
-  const asker = identity.signedInAs;
   /**
    * The address to stamp on a conversation this session creates, or nothing
    * while `/api/identity` has not answered. Undefined is left as undefined all
@@ -598,18 +597,18 @@ export function HomePage() {
    */
   const elapsed = elapsedSeconds(askStartedAt, now);
 
-  // One request per page load, shared with the tracked-table list the answer
-  // prose reads from the same payload. See `agent-readiness.ts` for why the Ask
-  // page is the one screen where invoking the endpoint on arrival is the right
-  // trade: the reader is here to wake it anyway.
+  // One cheap metadata request per page load, shared with the tracked-table list.
+  // Warehouse and Genie warmup is App's separate fire-and-forget arrival call;
+  // painting this pill never invokes the serving endpoint.
   const readiness = useAgentReadiness();
 
   /*
    * What the run is doing, as a word, a tone, and whether the dot may move.
    *
    * Derived in `run-status.ts` rather than here, and the readiness it is given
-   * comes from the endpoint having actually answered rather than from this
-   * component having mounted. The pill said "Ready" from first paint for as long
+   * comes from endpoint metadata rather than from this component having mounted.
+   * It says "Endpoint reachable" because metadata visibility does not prove
+   * CAN_QUERY. The pill said "Ready" from first paint for as long
    * as it has existed, which was a statement about the browser: on a deployment
    * whose endpoint was stopped or whose principal had lost CAN_QUERY it said
    * exactly the same thing, and the reader found out when the question they had
@@ -1407,6 +1406,32 @@ export function HomePage() {
     return ownerFilters.filter((key) => present.has(key));
   }, [ownerFilters, rail]);
 
+  /**
+   * Whose question every bubble in this transcript is, which is the CONVERSATION'S
+   * owner and not the reader looking at it.
+   *
+   * It was `identity.signedInAs`, unconditionally, for every row. On a rail
+   * narrowed to one person that is invisibly correct, because the only threads
+   * anybody could open were their own. The rail is shared now, so opening a
+   * colleague's conversation stamped their questions with YOUR name and address --
+   * the app asserting authorship, on a screen whose whole purpose is to say who
+   * asked what.
+   *
+   * `messages` carries no owner and is not going to: the ask route refuses a
+   * conversation somebody else owns, so a thread has exactly one asker and the
+   * conversation row is where it is recorded. That is the same column
+   * `monitoring-routes.ts` reads as `asked_by` and the same one the rail draws its
+   * watermark from, so all three now answer "who asked this" identically.
+   *
+   * The signed-in address is the fallback rather than the default, and only for a
+   * conversation the rail has no row for yet -- a blank draft this session just
+   * minted, where the reader is about to become the owner.
+   */
+  const asker = useMemo(() => {
+    const owner = conversations.find((item) => item.id === conversationId)?.user_email;
+    return typeof owner === 'string' && owner.trim() ? owner : identity.signedInAs;
+  }, [conversations, conversationId, identity.signedInAs]);
+
   /** The rail, narrowed to the selected owners. Empty selection is everyone. */
   const visibleEntries = useMemo(() => {
     if (activeOwnerFilters.length === 0) return rail.entries;
@@ -1546,8 +1571,17 @@ export function HomePage() {
             // What this conversation's latest answered turn recorded, or null
             // when nothing is known about it. Absent is the normal state for a
             // conversation nobody has asked anything yet.
-            const summary = runSummaries.get(conversation.id) ?? null;
+            // The scoped read first, because it is the richer of the two: it
+            // carries the reader's own rating, which the rail list cannot know.
+            // The rail list answers for every OTHER row, which is every row
+            // somebody else owns -- those used to draw no badge at all.
+            const summary =
+              runSummaries.get(conversation.id) ?? conversationRunSummary(conversation);
             const duration = summary ? railDuration(summary.durationMs) : null;
+            // A run in flight belongs to the open conversation. Seat the same
+            // live pill as the agent-steps pane here, including its breathing
+            // dot, instead of leaving the row badged with its previous turn.
+            const runningConversation = loading && conversation.id === conversationId;
             return (
               // Drawn from the entry rather than from the conversation, so the
               // watermark below is the same answer to "whose is this" that the
@@ -1620,7 +1654,9 @@ export function HomePage() {
                         sent to this browser, both have no status to report, and the
                         line is then the date alone. */}
                     <span className="conversation-item-head">
-                      {summary && (
+                      {runningConversation ? (
+                        <RunStatusPill status={runStatus} />
+                      ) : summary ? (
                         <span
                           className={`ast-pill conversation-status ${
                             summary.truncated === true ? 'ast-pill--warn' : summary.tone
@@ -1632,7 +1668,7 @@ export function HomePage() {
                         >
                           {summary.truncated === true ? 'partial' : summary.status}
                         </span>
-                      )}
+                      ) : null}
                       <span className="conversation-age ast-num">{conversationAge(conversation.updated_at)}</span>
                     </span>
                     {/* The clamp is two lines, so a long label is cut on screen even
@@ -1708,8 +1744,24 @@ export function HomePage() {
    */
   const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;
 
+  /*
+   * Whether the harness column has anything to report, which is what decides
+   * whether the grid keeps a track for it.
+   *
+   * The column is 340px and it was reserved unconditionally, so on the welcome
+   * screen and on any conversation with no stored trace the transcript was
+   * measured against a window a third of which was drawn as empty sky. In dark
+   * mode the idle column is `rgba(255, 255, 255, 0.03)` over the same sky as
+   * the page, so it does not read as a column at all -- it reads as the answer
+   * card being narrow for no reason, which is exactly how it was reported.
+   *
+   * The same condition the column itself branches on below, so the track and
+   * its contents cannot disagree about whether there is a run.
+   */
+  const inspectorIdle = railStages.length === 0 && !loading;
+
   return (
-    <div className="ask-layout">
+    <div className="ask-layout" data-inspector={inspectorIdle ? 'idle' : 'run'}>
       <aside className="conversation-rail">{renderRail('rail')}</aside>
 
       {/* The sheet's trigger, drawn only below 800px, where the aside is not.
@@ -2195,7 +2247,7 @@ export function HomePage() {
                 <AlertDescription>{RUN_NOT_STORED}</AlertDescription>
               </Alert>
             ) : (
-              <Button variant="outline" className="trace-explore w-full" asChild>
+              <Button variant="default" className="trace-explore w-full" asChild>
                 <Link to={`/runs?run=${encodeURIComponent(answer.id)}`}>
                   Explore full run <ExternalLink aria-hidden="true" />
                 </Link>
