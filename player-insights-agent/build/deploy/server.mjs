@@ -164074,7 +164074,7 @@ var init_runtime_settings = __esm({
         figures: true,
         caveats: true,
         maxCharts: 2,
-        maxFigures: 6,
+        maxFigures: 4,
         maxCaveats: 0,
         narrativeMaxCharacters: 0,
         sources: "standard",
