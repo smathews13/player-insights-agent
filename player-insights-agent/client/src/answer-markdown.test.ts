@@ -575,10 +575,12 @@ describe('the rendered Markdown is styled as part of an answer', () => {
     expect(ruleFor('.answer-subheading')).toContain('0.94em');
   });
 
-  it('puts the list markers back that Tailwind’s preflight removes', () => {
-    expect(ruleFor('ul.answer-list')).toContain('list-style: disc');
+  it('draws the specified dot glyph after Tailwind removes list markers', () => {
+    expect(ruleFor('ul.answer-list')).toContain('list-style: none');
+    expect(STYLESHEET).toContain("content: '·'");
+    expect(ruleFor('ul.answer-list > li::before')).toContain('color: var(--ast-blue)');
     expect(ruleFor('ol.answer-list')).toContain('list-style: decimal');
-    expect(ruleFor('.answer-list {')).toContain('padding-left');
+    expect(ruleFor('.answer-list {')).toContain('gap: 6px');
   });
 
   it('gives a code span somewhere to break, because it holds an identifier', () => {

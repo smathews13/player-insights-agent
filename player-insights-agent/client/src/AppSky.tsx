@@ -1,6 +1,25 @@
 /**
  * Static night-sky dust behind the app in dark mode. Opening-sequence stars,
  * no animation. Glyphs stay in the sky margins so they cannot sit on chrome.
+ *
+ * IT IS MOUNTED IN BOTH THEMES AND PAINTED IN ONLY ONE, and that is a decision
+ * rather than an oversight. Whether the sky is drawn is two `display` rules --
+ * dark-mode.css turns it on under `html[data-theme='dark']`, base.css states the
+ * ban under everything else -- and neither is reachable from here.
+ *
+ * The alternative was to read the theme and return `null` in daylight, and the
+ * thing that rules it out is how the theme is applied: `applyColorScheme` writes
+ * `data-theme` onto `<html>` directly (color-scheme.ts) and nothing in React holds
+ * the value, so there is no state change for a conditional mount to follow. A
+ * component that read the attribute would be right whenever it happened to render
+ * and wrong for as long as it did not -- which is exactly the case the Appearance
+ * toggle creates, because its preview repaints the page without re-rendering this
+ * tree. The sky would stay up, behind a daylight page, until something unrelated
+ * caused a render.
+ *
+ * So: mounted always, and never painted outside dark. The cost is one `aria-hidden`
+ * SVG in the light DOM that cannot be seen, focused or read. The benefit is that
+ * the guarantee is a property of the stylesheet rather than of render timing.
  */
 import { OPENING_CONSTELLATION, glyphPath, type Hop, type Star } from './constellation';
 

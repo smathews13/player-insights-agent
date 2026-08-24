@@ -138,6 +138,25 @@ function drawn(markup: string): string[] {
   );
 }
 
+/**
+ * The rail's tiles, with the band above them cut off.
+ *
+ * `.agent-path` is the band and then the tiles, and the band now ships in two
+ * views -- the night sky, and the daylight list light mode draws instead of it,
+ * with one of the two `display: none` in any theme (constellation.css). Both are
+ * in the markup, so a claim about what the TILES draw has to say so: this pane's
+ * rules are about a 264px row, and the band above answers to `#18a` instead.
+ *
+ * Which of the two the rail shows is a stylesheet claim and is read back in
+ * light-mode.test.tsx, including the one that matters here -- the daylight list is
+ * hidden in this seating in BOTH themes, because these tiles already are the run
+ * as a list and a reader would have been given it twice.
+ */
+function tiles(markup: string): string {
+  const open = markup.indexOf('<div class="trace-dag compact">');
+  return open === -1 ? markup : markup.slice(open);
+}
+
 describe('the agent map fits the page it is drawn on', () => {
   it('is the step map only, with no constellation stacked above it', () => {
     const markup = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} />);
@@ -733,9 +752,15 @@ describe('a node opens what its stage recorded', () => {
     );
 
     expect(markup).toContain('dag-result-charts');
-    expect(markup).toContain('chart-card');
+    // The chart panel's own recipe, which is no longer `.chart-card`: that one is
+    // the figure breakdown's, and the charted panel is a tinted surface with an
+    // eyebrow instead of a card header. See styles/answer-charts.css.
+    expect(markup).toContain('answer-chart-panel');
+    expect(markup).toContain('answer-chart-eyebrow');
+    // The agent's own title, and it is the whole of the head now: the chart-kind
+    // badge that used to read "Bar chart" beside it has gone.
     expect(markup).toContain('Bookings by title');
-    expect(markup).toContain('Bar chart');
+    expect(markup).not.toContain('Bar chart');
     expect(rule('.trace-dag.map .dag-result-charts')).toMatch(/pointer-events: none/);
     expect(rule('.trace-dag.map .dag-result-charts')).toMatch(/user-select: none/);
   });
@@ -1520,9 +1545,11 @@ describe('the narrow rail is one column of every step', () => {
     expect(markup).toContain('<span class="dag-num ast-num agent">07</span>');
     expect(markup).toContain('class="dag-node running active"');
     // No status badge. The ring and the moving counter already say it, in the two
-    // places the design put it, and a third would take the row's width.
-    expect(markup).not.toContain('running</span>');
-    expect(markup).not.toContain('data-slot="badge"');
+    // places the design put it, and a third would take the row's width. Read off
+    // the tiles: the band above them is `#18a` and the daylight list inside it
+    // does print the word, because a list has no ring to say it with.
+    expect(tiles(markup)).not.toContain('running</span>');
+    expect(tiles(markup)).not.toContain('data-slot="badge"');
     // The reading, without a component: 0 is a real answer for the first second
     // and a negative clock skew is not printed as one.
     expect(tickingTiming(0)).toBe('0s…');

@@ -91,6 +91,34 @@ function attrs(markup: string, name: string): string[] {
   return [...markup.matchAll(new RegExp(`${name}="([^"]*)"`, 'g'))].map((found) => found[1]);
 }
 
+/*
+ * THE LIVE PATH RENDERS TWO VIEWS OF ONE RUN and the theme shows one of them, so
+ * every count in this file has to say which view it is counting.
+ *
+ * `#18a`'s band is the dark theme's; the list beside it is what light mode draws
+ * instead, because there is no night sky in daylight for a constellation to be on.
+ * Both are always in the markup and constellation.css hides one -- which is what
+ * keeps a duplicate step button or a second live region out of the accessibility
+ * tree, and is asserted as a CSS contract in light-mode.test.tsx.
+ *
+ * The claims below are about the BAND unless they say otherwise. The list has its
+ * own file, for the same reason: a test that counted both would pass while either
+ * one of them was broken.
+ */
+const RAIL_OPEN = '<div class="step-rail">';
+
+/** The dark band alone, with the daylight list that follows it cut off. */
+function band(markup: string): string {
+  const rail = markup.indexOf(RAIL_OPEN);
+  return rail === -1 ? markup : markup.slice(0, rail);
+}
+
+/** The daylight list alone. */
+function rail(markup: string): string {
+  const open = markup.indexOf(RAIL_OPEN);
+  return open === -1 ? '' : markup.slice(open);
+}
+
 /**
  * Which star carries the selected marking, zero-based, or -1 when none does.
  *
@@ -126,9 +154,17 @@ describe('the bands expose only the controls they own (§5)', () => {
       stage({ id: 'step-1', name: 'Choosing the next step', status: 'running', duration: 0 })
     );
 
-    expect(attrs(path(first, 0), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(1);
-    expect(attrs(path(next, 1), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(2);
+    expect(
+      attrs(band(path(first, 0)), 'aria-label').filter((label) => label.startsWith('Select step '))
+    ).toHaveLength(1);
+    expect(
+      attrs(band(path(next, 1)), 'aria-label').filter((label) => label.startsWith('Select step '))
+    ).toHaveLength(2);
     expect(path(next, 1)).toContain('Step 02 · Choosing the next step');
+    // The step arrives on both views or the theme decides what a reader is told.
+    expect(attrs(rail(path(next, 1)), 'aria-label').filter((label) => label.startsWith('Select step '))).toHaveLength(
+      2
+    );
   });
 
   it('marks the step the run is on, at whatever step count the run has reached', () => {
@@ -189,7 +225,7 @@ describe('the bands expose only the controls they own (§5)', () => {
   });
 
   it('names the live path and makes every step keyboard operable', () => {
-    const markup = path(inFlight, 5, 12_000);
+    const markup = band(path(inFlight, 5, 12_000));
     expect(markup).toContain('<svg role="group" aria-label="Agent steps"');
     expect(markup).not.toContain('<svg aria-hidden="true"');
     expect(attrs(markup, 'role').filter((role) => role === 'button')).toHaveLength(inFlight.length);
@@ -199,14 +235,23 @@ describe('the bands expose only the controls they own (§5)', () => {
     );
   });
 
-  it('carries exactly one live region, on the band that has something to report', () => {
+  it('carries exactly one live region per view, on the band that has something to report', () => {
     /*
      * The live path has one, because a run in flight changes and a reader who
      * cannot see the drawing still needs to know which step it is inside. The
      * finished map has NONE: nothing on it is changing, and a live region on a
      * settled drawing is a screen reader announcing a picture.
+     *
+     * ONE PER VIEW rather than one per render, and the difference is the theme's.
+     * The band and the daylight list are both in the markup and exactly one of
+     * them is displayed, so a reader in either theme has one region announcing
+     * their run -- the other is inside a `display: none` subtree and out of the
+     * accessibility tree entirely. That last part is a stylesheet claim, and
+     * light-mode.test.tsx is where it is read back.
      */
-    expect(attrs(path(inFlight, 5, 12_000), 'aria-live')).toEqual(['polite']);
+    const markup = path(inFlight, 5, 12_000);
+    expect(attrs(band(markup), 'aria-live')).toEqual(['polite']);
+    expect(attrs(rail(markup), 'aria-live')).toEqual(['polite']);
     expect(attrs(map(finished, 'step-2'), 'aria-live')).toEqual([]);
   });
 

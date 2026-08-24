@@ -1,0 +1,90 @@
+/*
+ * The charted variant's panels: the block that replaces the table when the agent
+ * plotted the result instead of tabulating it.
+ *
+ * DELIBERATELY NOT `.chart-card`. That recipe in answer-body.css is a hairline, an
+ * 8px radius and 16px of padding, and it is still what the figure breakdown under an
+ * answer takes. A chart panel is a different thing now: a tinted surface with no
+ * edge, 12px of padding, and an eyebrow instead of a card header. Composing the two
+ * would mean a rule here fighting a rule there over the same box, so the panel is its
+ * own recipe and nothing structural is restated from that file.
+ *
+ * Every colour is a token. There is no hex in here and there is no `data-theme`
+ * block: the two paints below resolve through `--foreground`, which the token layer
+ * already flips, so this partial is theme-correct without knowing which theme it is
+ * in. The paint INSIDE a plot cannot be reached from a stylesheet at all -- Plotly
+ * draws from a JavaScript object -- and is resolved at draw time instead; see
+ * plotly-config.ts.
+ */
+
+/*
+ * As many panels as the answer carries, two abreast where there is room for two.
+ *
+ * `auto-fit` with a floor rather than a media query, and that is not a shortcut. The
+ * transcript column is the window less the conversation rail, less the trace rail,
+ * less two page insets and two card insets, and any of those can be absent -- so two
+ * readers at the same window width get different room here and a width query would be
+ * measuring the wrong box. This asks how much width the row actually got.
+ *
+ * The `min()` is what keeps the floor from becoming an overflow: below 320px of
+ * available width the track collapses to the width there is instead of sticking out
+ * of the card.
+ */
+.answer-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 12px;
+}
+
+/*
+ * The panel. 5% of the foreground over whatever is behind it, which is a faint ink
+ * wash on the light theme and the spec's 5% white on the night sky -- one declaration
+ * for both, because `--foreground` is already ink in one and near-white in the other.
+ *
+ * Translucent rather than opaque on purpose, and the reason is in
+ * astrolabe-tokens.css at length: the card these sit inside is a white sheet at 94%
+ * over the sky, and a child that repaints itself opaque cancels that sheet over its
+ * own area, leaving the translucency visible as a grey seam around the panel.
+ *
+ * `figure` carries a default margin in every browser's default sheet, so it is reset
+ * here rather than inherited from an answer rule that does not cover this element.
+ */
+.answer-chart-panel {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--ast-radius-card);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  /* The plot inside sets its own height and Plotly measures the box it is handed, so
+     the panel must not be allowed to be wider than the track it was given. */
+  min-width: 0;
+}
+
+/*
+ * The panel's head. An eyebrow, which is what the spec asks for: 10px tracked caps,
+ * secondary, one line.
+ *
+ * 10px IS BELOW THE TYPE SCALE AND IS STATED RATHER THAN TOKENISED. The scale in
+ * astrolabe-tokens.css starts at 11px, which is the eyebrow rung for a block heading;
+ * this is the caption on a panel inside a card inside a transcript, and the spec sets
+ * it a step below. A token for one call site would be a ninth entry in a scale nobody
+ * else can use. The tracking and the colour are the shared eyebrow's.
+ *
+ * `.ast-eyebrow` is deliberately not composed: it carries the 11px rung, so using it
+ * would mean setting a size and then overriding it in the same breath.
+ */
+.answer-chart-eyebrow {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ast-text-secondary);
+  /* One line. A chart the agent titled with a sentence must not push the plot down
+     the panel; the whole title is still the plot's accessible name. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

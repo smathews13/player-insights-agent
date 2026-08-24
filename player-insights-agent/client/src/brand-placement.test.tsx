@@ -210,30 +210,23 @@ describe('every outbound MLflow action carries the MLflow mark inside its anchor
   });
 });
 
-describe('the Sources module heads its list with Unity Catalog', () => {
+describe('the Sources module keeps provenance on one compact line', () => {
   const sources: SourceRef[] = [{ name: 'main.gold.title_daily_summary' } as SourceRef];
 
-  it('draws the product mark rather than a lucide database', () => {
-    // Every row under this header is a Unity Catalog table, and this mark is now
-    // the only thing that says so: the "governed Unity Catalog · read during
-    // this run" line beside it has gone, per the detail spec. It used to carry a
-    // generic database glyph -- the idea of stored data rather than the product
-    // the rows are in.
-    //
-    // 18px rather than the 16px a row takes. The detail spec gives this seating
-    // its own size because the mark heads a card here instead of labelling a
-    // line inside one, and it is carrying more of the meaning than it was.
+  it('names the source without restoring the retired Sources card chrome', () => {
     const markup = renderToStaticMarkup(<SourcesModule sources={sources} caveats={[]} />);
 
-    expect(markup).toContain(asset('unity-catalog'));
-    expect(markup).toContain('--brand-icon-size:18px');
+    expect(markup).toContain('<p class="source-line">');
+    expect(markup).toContain('title_daily_summary');
+    expect(markup).not.toContain('brand-icon');
     expect(markup).not.toContain('lucide-database');
   });
 
-  it('does not announce the product beside the word Sources', () => {
+  it('does not add a second product label beside Sources', () => {
     const markup = renderToStaticMarkup(<SourcesModule sources={sources} caveats={[]} />);
 
-    expect(markup).toMatch(/<span class="brand-icon" style="--brand-icon-size:18px" aria-hidden="true">/);
+    expect(markup.match(/>Sources</g)).toHaveLength(1);
+    expect(markup).not.toContain('Unity Catalog');
   });
 });
 

@@ -1036,6 +1036,12 @@ Rules:
 - Plot only values present in the package. Never invent, extrapolate, or round a number.
 - Choose the shape from the result set: a ranked breakdown is a bar chart, a date or \
 period series is a line chart, a distribution is a histogram or box.
+- When the package contains a full date series plus a meaningful recent launch/event \
+window, prefer two complementary panels: one line chart for the complete period and one \
+bar chart for the recent window. The second panel must use only a real window and real \
+measures present in the package; never infer an event boundary or manufacture a subset.
+- Do not produce a second panel that repeats the first chart in another shape. Each panel \
+must answer a distinct evidence question.
 - A part-of-whole split is a pie only when it has at most {MAX_PIE_SLICES} categories and \
 every category is at least {MIN_PIE_LABEL_SHARE:.0%} of the total. Otherwise plot the \
 shares as a ranked bar chart. A pie with slivers in it hides the small categories and \

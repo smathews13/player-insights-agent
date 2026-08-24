@@ -888,6 +888,12 @@ class TestRankedBarsAreOrderedByValue:
         # means and this module only knows that it is a zero.
         assert "Never leave out a category that has a value" in PLOT_INSTRUCTIONS
 
+    def test_a_second_time_panel_must_add_real_evidence(self):
+        assert "one line chart for the complete period" in PLOT_INSTRUCTIONS
+        assert "one bar chart for the recent window" in PLOT_INSTRUCTIONS
+        assert "never infer an event boundary or manufacture a subset" in PLOT_INSTRUCTIONS
+        assert "must answer a distinct evidence question" in PLOT_INSTRUCTIONS
+
 
 class TestTheLayoutIsSharedRatherThanPerChart:
     """Every chart the agent can produce comes through `new_plot`, so the arrangement is

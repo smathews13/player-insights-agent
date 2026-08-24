@@ -425,6 +425,12 @@ export function Layout() {
 
   return (
     <div className={`min-h-screen flex flex-col app-frame${arriving ? ' ast-anim-x-app' : ''}`}>
+      {/* Mounted in both themes, painted in dark only, and the reason it is not
+          conditional on the theme is in AppSky.tsx: nothing in React holds
+          `data-theme`, so a conditional mount would follow no state change and
+          would leave the sky up over a daylight page after an Appearance preview.
+          The two `display` rules -- dark-mode.css's opt-in, base.css's ban outside
+          dark -- are the whole of it. */}
       <AppSky />
       {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
           the app, which is the soft-ground treatment DuBois replaces with

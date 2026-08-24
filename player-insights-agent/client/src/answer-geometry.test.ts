@@ -31,7 +31,6 @@ const PLAN = readFileSync(new URL('./PlanCard.tsx', import.meta.url), 'utf8');
 const CHARTS = readFileSync(new URL('./AnswerCharts.tsx', import.meta.url), 'utf8');
 const ANSWER_CSS = partial('answer.css');
 const BODY_CSS = partial('answer-body.css');
-const SHELL_CSS = partial('shell.css');
 const STYLESHEET = stylesheet();
 
 /**
@@ -165,46 +164,44 @@ describe('the answer and plan cards sit on the design’s scale, not the library
     }
   });
 
-  it('closes the gap between sections to the design’s 16px', () => {
+  it('closes the gap between sections to the answer-card specification’s 14px', () => {
     // The difference between a card holding ten sections and a card holding ten
     // pages. AppKit's own value is 24px, and the answer card has ten of them.
-    expect(ruleFor(ANSWER_CSS, '.answer-card,')).toContain('gap: 16px');
+    expect(ruleFor(ANSWER_CSS, '.answer-card,')).toContain('gap: 14px');
   });
 
-  it('draws the agent’s mark at 32px, from the shell’s one declaration', () => {
-    // shell.css used to declare .agent-avatar twice, at 32px and then at 40px, and
-    // the second won -- so this file corrected it back for the two cards it owns,
-    // with a note saying the real fix belonged in the shell. It was made there,
-    // and the override went with it rather than staying as a second opinion about
-    // a size only one file should hold.
-    //
-    // The shell's declaration reaches all of them: every mark in the transcript
-    // sits inside .answer-card or .plan-card, including the loading card and the
-    // clarification card, which the scoped override never covered and which had
-    // been drawing the 40px mark all along.
-    const shell = ruleFor(SHELL_CSS, '.agent-avatar {');
-    expect(shell).toContain('width: 32px');
-    expect(shell).toContain('height: 32px');
-    // And it is not restated here, which is what made the mark change size
-    // between a turn arriving and the same turn finishing.
-    expect(ANSWER_CSS).not.toMatch(/\.agent-avatar[^{]*\{[^}]*(width|height):\s*32px/);
+  it('draws the answer mark at the compact 18px seating', () => {
+    // The light seating is navy on the daylight card and is remapped to white by
+    // dark-mode.css. Asking for the dark seating here would make the mark white in
+    // both themes and erase it from the light card.
+    expect(CARD).toContain('<AstrolabeMark size={18} ink="light" />');
+    const mark = ruleFor(ANSWER_CSS, '.answer-card-mark {');
+    expect(mark).toContain('width: 18px');
+    expect(mark).toContain('height: 18px');
+    expect(CARD).not.toContain('className="agent-avatar"');
   });
 
   it('sizes the takeaway as a card heading and not as a hero', () => {
-    // 18px/700. It was a clamp to 28px on a page whose own h2 is 22px, so the
+    // 16.5px/700. It was a clamp to 28px on a page whose own h2 is 22px, so the
     // one sentence in the card out-shouted the page it was on.
     const rule = ruleFor(ANSWER_CSS, '.answer-takeaway {');
-    expect(rule).toContain('font-size: var(--ast-fs-18)');
+    expect(rule).toContain('font-size: calc(var(--ast-fs-16) + 0.5px)');
     expect(rule).toContain('font-weight: 700');
     expect(rule).toContain('line-height: 1.35');
+  });
+
+  it('uses the answer specification’s compact 1.5 reading rhythm', () => {
+    const rule = ruleFor(BODY_CSS, '.answer-card .answer-prose,');
+    expect(rule).toContain('line-height: 1.5');
+    expect(rule).not.toContain('var(--ast-lh-body)');
   });
 });
 
 describe('the provenance chip has three tones and none is the action colour', () => {
-  it('states a live answer as the ink fill', () => {
+  it('states a live answer as a compact neutral surface pill', () => {
     const rule = ruleFor(ANSWER_CSS, ".provenance-chip[data-tone='live'] {");
-    expect(rule).toContain('background: var(--ast-navy)');
-    expect(rule).toContain('color: var(--ast-white)');
+    expect(rule).toContain('background: var(--ast-neutral-fill)');
+    expect(rule).toContain('color: var(--ast-text)');
   });
 
   it('separates a half-stored answer from a wholly stored one', () => {
@@ -428,16 +425,14 @@ describe('the result breakdown gives every figure a column of its own', () => {
     expect(ruleFor(BODY_CSS, '.bar-row i {')).toContain('background: var(--ast-blue)');
   });
 
-  it('never prints a value on the fill it would have to be read against', () => {
-    // The rule the four columns exist for. The fill is a childless element, and
-    // the value and the delta are its siblings, so there is no arrangement of
-    // widths in which a number ends up on top of a bar.
-    expect(CARD).toContain('<i style={{ width: `${Math.min(Math.max(figure.value, 0), 100)}%` }} />');
-    expect(CARD).toMatch(/<b className="ast-num">{figure\.display \?\? figure\.value}<\/b>/);
-    expect(CARD).toMatch(/<em className={`ast-num \$\{comparisonDirection\(figure\.comparison\)\}`\.trim\(\)}>/);
+  it('replaces the old bar panel with stat rail cards', () => {
+    expect(CARD).toContain('className="answer-stat-rail"');
+    expect(CARD).toContain('className="answer-stat-value ast-num"');
+    expect(CARD).not.toContain('Result breakdown');
+    expect(CARD).not.toContain('<i style={{ width:');
   });
 
-  it('sets the two figure columns in DM Mono, because they are columns', () => {
+  it('sets the stat value in DM Mono without rewriting its text', () => {
     // REVERSED, AND THE REVERSAL IS THE POINT. This used to assert the opposite:
     // that the value stayed in DM Sans with `font-variant-numeric: tabular-nums`,
     // on the reading that a number is never in a different family from the text
@@ -459,8 +454,8 @@ describe('the result breakdown gives every figure a column of its own', () => {
     // The class is on the markup rather than in the rule deliberately. Which
     // figures are columnar is a fact about the layout, and putting it where a
     // reviewer reads the layout is what makes it checkable at a glance.
-    expect(CARD).toContain('<b className="ast-num">');
-    expect(CARD).toContain('`ast-num ${comparisonDirection(figure.comparison)}`');
+    expect(CARD).toContain('<b className="answer-stat-value ast-num">{figure.display ?? figure.value}</b>');
+    expect(CARD).toContain('{figure.comparison}');
     // And the class does what it says, in the one file that declares it.
     const num = ruleFor(partial('astrolabe-tokens.css'), '.ast-num {');
     expect(num).toContain('font-family: var(--font-mono)');
@@ -480,15 +475,9 @@ describe('the result breakdown gives every figure a column of its own', () => {
 });
 
 describe('a delta claims a direction only when its own text does', () => {
-  it('reads both minus characters, not just the ASCII one', () => {
-    // The agent writes U+2212 in prose it has formatted for display and an
-    // ASCII hyphen elsewhere. A check for the second alone painted every
-    // typographic minus in the colour of a rise, which is the one direction
-    // error a reader cannot catch from the colour.
-    const helper = CARD.slice(CARD.indexOf('function comparisonDirection'));
-    expect(helper).toContain("startsWith('-')");
-    expect(helper).toContain("startsWith('\\u2212')");
-    expect(helper).toContain("startsWith('+')");
+  it('keeps comparison text neutral and verbatim in the stat context', () => {
+    expect(CARD).toContain('<span className="answer-stat-context">{figure.comparison}</span>');
+    expect(CARD).not.toMatch(/comparison\.(replace|slice|substring)\(/);
   });
 
   it('is the neutral grey until then', () => {
@@ -510,7 +499,7 @@ describe('a delta claims a direction only when its own text does', () => {
 });
 
 describe('the caveats change how loudly they are said and nothing else', () => {
-  it('keeps the amber, and spends it on a footer rather than on a panel', () => {
+  it('draws Keep in mind as its own compact surface box', () => {
     // Amber is the evaluation colour and these are the qualifications on the
     // figures above them. What changed is where it is spent: this was a
     // free-standing alert under the sources, and an alert is a box, so on the
@@ -525,12 +514,9 @@ describe('the caveats change how loudly they are said and nothing else', () => {
     // the design reference draws at 8ar. Same meaning, same seating, a family
     // whose text rung is legible.
     const rule = ruleFor(BODY_CSS, '.keep-in-mind {');
-    expect(rule).toContain('border-top: 1px solid var(--ast-warn-border)');
-    expect(rule).toContain('background: var(--ast-warn-fill)');
-    // Not a box: the module's own border is the only edge in this card, and a
-    // second one inside it would restore the panel that was being skipped.
-    expect(rule).not.toMatch(/\bborder:/);
-    expect(rule).not.toContain('border-radius');
+    expect(rule).toContain('background: var(--ast-ice)');
+    expect(rule).toContain('border-radius: 6px');
+    expect(rule).toContain('border: 0');
   });
 
   it('labels the block with a heading rather than a warning glyph', () => {
@@ -539,11 +525,12 @@ describe('the caveats change how loudly they are said and nothing else', () => {
     // look like an error the reader had caused rather than a note about the
     // figures, so the label is now a heading and the wash is the whole alarm.
     expect(ruleFor(BODY_CSS, '.keep-in-mind-heading {')).toContain('font-weight: 700');
+    expect(ruleFor(BODY_CSS, '.keep-in-mind-heading {')).toContain('letter-spacing: var(--ast-tracking-eyebrow)');
     expect(BODY_CSS).not.toContain('caveat-alert');
     // The deep rung survives on the one control in the block, which needs to be
     // legible as a control without recruiting the action blue into an amber
     // panel for the sake of showing two more lines of the same list.
-    expect(ruleFor(BODY_CSS, '.keep-in-mind-toggle {')).toContain('var(--ast-warn-deep)');
+    expect(ruleFor(BODY_CSS, '.keep-in-mind-toggle {')).toContain('var(--ast-blue)');
   });
 
   it('gives a scope tag, a linked table and a named column the same mono tag', () => {
@@ -695,26 +682,28 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     expect(rule).toContain('font-weight: 700');
   });
 
-  it('heads itself with the title and the kind, and no line working the plot for the reader', () => {
+  it('heads itself with one eyebrow, and no line working the plot for the reader', () => {
     // "Hover for values, drag to zoom, double-click to reset" sat under the
     // title as the card's description. It was a manual for three affordances
     // Plotly discloses itself: the tooltip follows the pointer, and the mode
     // bar appears on hover carrying zoom, pan and Reset axes as labelled
     // buttons with their own titles.
     //
-    // Pinned as the shape rather than the sentence. The header may hold the
-    // title row and nothing else, so a REWORDED hint fails here too, whether it
-    // comes back as a description or as a bare paragraph.
+    // Pinned as the shape rather than the sentence. The head may hold the title
+    // and nothing else, so a REWORDED hint fails here too, whatever element it
+    // comes back as. The chart-kind badge that used to sit opposite the title is
+    // gone with it: it named the shape a reader can see, and the panel is now
+    // half a card wide.
     const prose = CHARTS.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, '').replace(/^\s*\/\/.*$/gm, '');
-    const header = prose.match(/<CardHeader>[\s\S]*?<\/CardHeader>/)?.[0] ?? '';
-    expect(header).toContain('<CardTitle>');
-    expect(header).toContain('<Badge variant="outline">');
-    expect(header).not.toContain('<CardDescription');
-    expect(header).not.toContain('<p');
-    // Scoped to the header: the boundary's failure notice is a paragraph too,
-    // and it is the one piece of prose in this file that says something the
-    // reader cannot see for themselves.
-    expect(prose).toContain('The figures and generated SQL below are unaffected.');
+    const head = prose.match(/<figcaption[\s\S]*?<\/figcaption>/)?.[0] ?? '';
+    expect(head).toContain('answer-chart-eyebrow');
+    expect(head).not.toContain('<Badge');
+    expect(prose).not.toContain('<CardHeader>');
+    expect(prose).not.toContain('<Badge');
+    // Scoped past the head: the boundary's failure notice is a paragraph, and it
+    // is the one piece of prose in this file that says something the reader
+    // cannot see for themselves.
+    expect(prose).toContain('The rest of this answer is unaffected.');
     // No instruction anywhere in the panel, under any wording.
     expect(prose).not.toMatch(/\b(hover|drag|zoom|click|scroll|pinch|tap)\b/i);
     // The other side: the rule that sized that description. It styled nothing
@@ -732,13 +721,20 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     expect(plot).not.toMatch(/resetScale2d|zoom2d|pan2d/);
   });
 
-  it('holds the plot at 320px and the skeleton at the same number', () => {
+  it('holds the plot and the skeleton at the same one number', () => {
     // One constant for both, so the transcript does not jump when the chunk
-    // lands. Two literals would drift the moment either was tuned.
-    expect(CHARTS).toContain('const CHART_HEIGHT = 320;');
+    // lands. Two literals would drift the moment either was tuned -- and one was
+    // tuned: 320 came down to 260 when the panel lost its card header and gained
+    // a sibling beside it.
+    expect(CHARTS).toContain('const CHART_HEIGHT = 260;');
     expect(CHARTS).toContain('<Skeleton style={{ height: CHART_HEIGHT }}');
     expect(CHARTS).toContain('height={CHART_HEIGHT}');
-    expect(CHARTS.match(/\b320\b/g)).toHaveLength(1);
+    // Both numbers counted in the code alone: the comment above the constant says
+    // what the old height was and why it came down, which is prose about a literal
+    // rather than a second literal.
+    const code = CHARTS.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code.match(/\b260\b/g)).toHaveLength(1);
+    expect(code).not.toMatch(/\b320\b/);
   });
 
   it('fetches Plotly only when an answer carries a chart', () => {
@@ -770,25 +766,34 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     expect(ruleFor(BODY_CSS, '.sources-module-facts {')).not.toContain('font-family');
   });
 
-  it('adds no series colour of its own', () => {
-    // `data` and `layout` are the run's and are carried through untouched, so
-    // the leading bar in the working colour that the handoff asks for belongs to
-    // the agent's plot contract. A colour written at this end would be a second
-    // palette arguing with the one the figure declared.
-    expect(CHARTS).not.toMatch(/marker|colorway|--chart-|#[0-9a-f]{6}/i);
+  it('adds no series colour of its own, and neither does the component that mounts it', () => {
+    // The panel and the mount are both colourless. The spec's colours are the
+    // agent's and are resolved against the current theme in plotly-config.ts,
+    // over a COPY -- a colour written HERE would be a second palette arguing
+    // with the one the figure declared, on a surface that cannot see the theme.
+    const plot = readFileSync(new URL('./PlotlyFigure.tsx', import.meta.url), 'utf8');
+    for (const source of [CHARTS, plot]) {
+      expect(source).not.toMatch(/marker|colorway|--chart-|#[0-9a-f]{6}/i);
+    }
   });
 
-  it('adds no label layout of its own either', () => {
-    // The same rule as the colours, for the same reason. Where the legend sits,
-    // how much room the tick labels get and which slice labels are drawn are one
-    // arrangement in the agent's `new_plot`, applied to every chart it can
-    // produce. Written a second time at this end it would only cover the shapes
-    // whoever wrote it had in mind, and the agent writes the specs, so the next
-    // question is a shape nobody had in mind.
+  it('leaves the figure’s label arrangement to the agent, theming and all', () => {
+    // Where the legend sits, how much room the tick labels get, which slice
+    // labels are drawn and at what angle are one arrangement in the agent's
+    // `new_plot`, applied to every chart it can produce. Written a second time
+    // at this end it would only cover the shapes whoever wrote it had in mind,
+    // and the agent writes the specs, so the next question is a shape nobody had
+    // in mind.
+    //
+    // THE THEME PASS IS INCLUDED IN THAT, which is why it is scanned here. It
+    // may repaint a label and may not move one: the four keys below are the ones
+    // that decide where a label lands, and none of them is a colour.
     const plot = readFileSync(new URL('./PlotlyFigure.tsx', import.meta.url), 'utf8');
+    const theme = readFileSync(new URL('./plotly-config.ts', import.meta.url), 'utf8');
     for (const source of [CHARTS, plot]) {
       expect(source).not.toMatch(/legend|automargin|tickangle|textposition|\bmargin\b/i);
     }
+    expect(theme).not.toMatch(/automargin|tickangle|textposition|\bmargin\b/i);
   });
 });
 
@@ -961,7 +966,7 @@ describe('the card holds text it did not write', () => {
     expect(module).toContain('row.freshness ? `${row.name} · ${row.freshness}` : row.name');
   });
 
-  it('borders the sources module, because it is a card and no longer a caption', () => {
+  it('keeps sources as one compact line rather than a nested card', () => {
     // The deliberate reversal. The strip was a washed caption under the figures,
     // sized to be skimmed past; the module is the card an answer's provenance
     // and its qualifications both live on, so it takes a border and a radius and
@@ -970,21 +975,14 @@ describe('the card holds text it did not write', () => {
     // that happen to be adjacent, which is precisely the arrangement the reader
     // stopped noticing the caveats in.
     const rule = ruleFor(BODY_CSS, '.sources-module {');
-    expect(rule).toContain('border: 1px solid var(--ast-hairline)');
-    expect(rule).toContain('border-radius: var(--ast-radius-card)');
-    expect(rule).toContain('overflow: hidden');
-    // And the head is separated from the rows by a hairline rather than a gap,
-    // so the count reads as a header on the list and not as a line of prose that
-    // happens to sit above it.
-    const head = ruleFor(BODY_CSS, '.sources-module-head {');
-    expect(head).toContain('border-bottom: 1px solid var(--ast-hairline)');
-    // And nothing else: the hairline was always the separation here, so dropping the
-    // grey fill costs this head nothing. See `.run-process-head`, which had no rule
-    // and needed one added.
-    expect(head).toContain('background: transparent');
+    expect(rule).toContain('min-width: 0');
+    expect(readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8')).toContain(
+      '<p className="source-line">'
+    );
+    expect(ruleFor(BODY_CSS, '.source-line {')).toContain('font-size: var(--ast-fs-11)');
   });
 
-  it('gives the role chip the app’s one pill recipe rather than a recipe of its own', () => {
+  it('places each recorded role after its source name', () => {
     // `.sources-chip` used to declare its own size, weight, radius, padding and
     // then a fill and a text colour per tone -- one of twenty-one independently
     // written chip recipes in this app, which disagreed on radius, label size
@@ -993,17 +991,9 @@ describe('the card holds text it did not write', () => {
     // the shared recipe cannot know: that the name beside it must not squeeze it
     // and that its label must not wrap.
     const module = readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8');
-    expect(module).toContain("`ast-pill sources-chip ast-pill--${row.tone === 'queried' ? 'info' : 'neutral'}`");
-    const rule = ruleFor(BODY_CSS, '.sources-chip {');
-    expect(rule).not.toMatch(/background|color:|border-radius|font-size|font-weight/);
-    // And the name beside it reads in the same family's text colour, so the row
-    // is one statement rather than a name and a separate label about it.
-    expect(ruleFor(BODY_CSS, ".source-name-pill[data-tone='queried'] {")).toContain(
-      'color: var(--ast-info-text)'
-    );
-    expect(ruleFor(BODY_CSS, ".source-name-pill[data-tone='queried'] .source-name-short {")).toContain(
-      'background: var(--ast-info-fill)'
-    );
+    expect(module).toContain('<span className="source-line-role">({row.chip})</span>');
+    expect(ruleFor(BODY_CSS, '.source-line-name,')).toContain('font-family: var(--font-mono)');
+    expect(ruleFor(BODY_CSS, '.source-line-name,')).toContain('color: var(--ast-pos-text)');
   });
 });
 
@@ -1078,9 +1068,7 @@ describe('the two cards do not reach past the token block', () => {
       ['answer.css', ANSWER_CSS],
       ['answer-body.css', BODY_CSS],
     ] as const) {
-      const tokens = [...new Set(source.match(/var\(--[a-z0-9-]+/g) ?? [])].map((ref) =>
-        ref.replace('var(', ''),
-      );
+      const tokens = [...new Set(source.match(/var\(--[a-z0-9-]+/g) ?? [])].map((ref) => ref.replace('var(', ''));
       const foreign = tokens.filter((token) => !token.startsWith('--ast-') && token !== '--font-mono');
       expect(foreign, `${name} draws from the astrolabe tokens`).toEqual([]);
     }

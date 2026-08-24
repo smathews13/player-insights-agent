@@ -17,23 +17,17 @@
   border-radius: var(--ast-radius-card);
   box-shadow: none;
   /*
-   * 96% white, so a hint of the sky and its stars reads through the card.
-   *
-   * THIS IS THE SECOND TIME THE CARD HAS BEEN TRANSLUCENT, and the first time was
-   * reverted for reasons worth keeping: at 95% over the near-black navy the card
-   * read as a grey pane beside the white header and rail, and it swallowed its own
-   * hairlines. Both halves of that have changed. The sky is `--ast-sky-fill` now,
-   * a dark blue rather than a black, so what comes through tints rather than
-   * greys; and the alpha is 96%, which puts the surface at #F6F6F7 -- ink on it is
-   * 16.4:1 and the #EBEBEB hairlines inside it are 11 steps below it rather than
-   * 20.
-   *
-   * Eleven steps is the cost of the effect and the thing to measure if this card
-   * ever reads as flat again. The alternative Sam ruled out is the one this
-   * replaces: an opaque card with a starfield behind it that the card hides.
+   * Theme-owned surface. Light remaps this to opaque white so no star or navy
+   * can show through; dark keeps the restrained frosted pane on the night sky.
    */
   background: var(--ast-pane);
   margin-bottom: 26px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: min(640px, 100%);
+  max-width: 100%;
+  container-type: inline-size;
+  container-name: answer-card;
 }
 
 .entity-token {
@@ -120,13 +114,21 @@
  */
 .answer-card,
 .plan-card {
-  gap: 16px;
+  gap: 14px;
 }
 .answer-card > [data-slot='card-header'],
 .answer-card > [data-slot='card-content'],
 .plan-card > [data-slot='card-header'],
 .plan-card > [data-slot='card-content'] {
-  padding-inline: 28px;
+  padding-inline: 24px;
+}
+.answer-card > [data-slot='card-header'] {
+  padding-top: 20px;
+  padding-bottom: 0;
+}
+.answer-card > [data-slot='card-content'] {
+  padding-top: 0;
+  padding-bottom: 20px;
 }
 /*
  * The answer card's header: the mark, the provenance chips, and the takeaway.
@@ -144,22 +146,22 @@
  */
 .answer-card-head {
   display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 12px;
-  row-gap: 8px;
+  gap: 14px;
+}
+.answer-card-identity {
+  display: flex;
   align-items: center;
+  gap: 8px;
 }
-.answer-card-head > .agent-avatar {
-  grid-column: 1;
-  grid-row: 1;
+.answer-card-mark {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
-.answer-card-head > .answer-card-badges {
-  grid-column: 2;
-  grid-row: 1;
-}
-.answer-card-head > .answer-takeaway {
-  grid-column: 2;
-  grid-row: 2;
+.answer-card-mark > svg {
+  width: 18px;
+  height: 18px;
 }
 /*
  * The provenance chip: where the figures under this takeaway came from.
@@ -191,9 +193,9 @@
   letter-spacing: 0;
 }
 .provenance-chip[data-tone='live'] {
-  background: var(--ast-navy);
+  background: var(--ast-neutral-fill);
   border-color: transparent;
-  color: var(--ast-white);
+  color: var(--ast-text);
 }
 /* The warning family, because a mixed answer IS an answer to the question asked
    and its figures are not yours. Tinted rather than solid: this one qualifies
@@ -422,7 +424,7 @@
  * takeaway from leaving one word alone on the second line.
  */
 .answer-takeaway {
-  font-size: var(--ast-fs-18);
+  font-size: calc(var(--ast-fs-16) + 0.5px);
   font-weight: 700;
   line-height: 1.35;
   letter-spacing: -0.01em;
@@ -443,12 +445,14 @@
      #3A3838 is what the design sets it in, at 11.65:1 on white. */
   color: var(--ast-text-long);
   text-wrap: pretty;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 .answer-prose > * {
   margin: 0;
 }
 .answer-prose > * + * {
-  margin-top: 12px;
+  margin-top: 6px;
 }
 /* Air above a section, none below it: a heading belongs to the thing under it,
    and equal gaps either side would leave it floating between two paragraphs. */
@@ -491,12 +495,23 @@
   color: var(--ast-text-secondary);
 }
 .answer-list {
-  padding-left: 18px;
+  padding-left: 0;
   display: grid;
-  gap: 5px;
+  gap: 6px;
 }
 ul.answer-list {
-  list-style: disc outside;
+  list-style: none;
+}
+ul.answer-list > li {
+  position: relative;
+  padding-left: 13px;
+}
+ul.answer-list > li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--ast-blue);
+  font-weight: 700;
 }
 ol.answer-list {
   list-style: decimal outside;
@@ -581,7 +596,7 @@ ol.answer-list {
      widths, and the alternative to scrolling them is a figure that wraps
      mid-number. See the comment on the table case in DataEntityLinks.tsx. */
   overflow-x: auto;
-  background: transparent;
+  background: var(--ast-fill-band);
   /* THE WRAPPER IS THE SCROLLER, and these two say so. A grid or flex child
      sizes to its content by default, so in the 620px Monitoring drilldown a wide
      table pushed this box past the panel and was clipped by the panel's own edge:
@@ -597,7 +612,7 @@ ol.answer-list {
      when they are not -- which is what makes the wrapper's scroll conditional
      rather than always on. */
   width: 100%;
-  font-size: var(--ast-fs-13);
+  font-size: var(--ast-fs-11);
   /* Prose in the card is #3A3838; a figure being compared against the figure
      under it is read as data and takes the body ink. */
   color: var(--ast-text);
@@ -613,8 +628,10 @@ ol.answer-list {
   padding: 7px 14px;
   background: transparent;
   border-bottom: 1px solid var(--ast-hairline);
-  font-size: var(--ast-fs-12);
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
+  text-transform: uppercase;
   color: var(--ast-text-secondary);
   /* A column name is one or two words and belongs on one line above its
      numbers. The wrapper scrolls if that makes the table wide. */
@@ -704,10 +721,39 @@ ol.answer-list {
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: normal;
+  font-size: var(--ast-fs-11);
 }
 /* A cell of prose -- a country, a phase name, a note -- breaks where it has to.
    `anywhere` is inherited from the card and is left alone here: these cells hold
    table and column names as often as they hold words. */
 .answer-table tbody td[data-align='left'] {
   color: var(--ast-text-long);
+}
+.answer-table tbody tr {
+  transition: background-color 120ms ease;
+}
+.answer-table tbody tr:hover {
+  background: var(--ast-neutral-fill);
+}
+.answer-table tbody tr[data-story='baseline'] {
+  color: var(--ast-text-secondary);
+}
+.answer-table tbody tr[data-story='peak'] {
+  background: var(--ast-info-fill);
+  box-shadow: inset 2px 0 0 var(--ast-blue);
+}
+.answer-table-story-tag {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--ast-info-text);
+  background: var(--ast-info-fill);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.3;
+  text-transform: lowercase;
+}
+.answer-inline-number {
+  font-weight: 500;
 }

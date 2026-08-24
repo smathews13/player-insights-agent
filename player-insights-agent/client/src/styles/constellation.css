@@ -399,6 +399,224 @@
   min-width: 0;
 }
 
+/* ---- One run, two views, and the theme picks ---- */
+
+/*
+ * THE NIGHT SKY IS THE DARK THEME'S ACCOUNT OF A RUN, AND ONLY ITS OWN.
+ *
+ * Light mode is daylight the whole way through: no starfield behind the answers,
+ * so no starfield in the harness beside them either. `AgentPathConstellation`
+ * renders both views on every render and these four rules are the whole of the
+ * choice between them -- a CSS selector rather than a `data-theme` read in
+ * JavaScript, because a JavaScript read has a first render to be wrong on and a
+ * theme preview to be wrong on again.
+ *
+ * `display: none` and not `visibility` or an opacity: the hidden view has to leave
+ * the accessibility tree as well as the page. Each view carries a polite live
+ * region and a button per step, and two of each announcing one run is worse than
+ * either.
+ *
+ * THE CONDITION IS `:not([data-theme='dark'])` AND NOT `[data-theme='light']`, so
+ * the two views are exhaustive rather than merely different. Every theme is either
+ * dark or it is not: dark draws the band and nothing else, anything else draws the
+ * list and nothing else, and there is no attribute value -- including none at all,
+ * before the applier has run -- that hides both and leaves the column empty. A
+ * `[data-theme='light']` pair would have had that third state, and it is the state
+ * a reader would report as "the steps are gone".
+ *
+ * `light-mode.test.tsx` reads these rules back rather than trusting the pair to
+ * stay that way.
+ */
+html:not([data-theme='dark']) .ast-sky-path {
+  display: none;
+}
+
+.step-rail {
+  display: none;
+}
+
+html:not([data-theme='dark']) .step-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/*
+ * EXCEPT WHERE THE RECORD IS ALREADY A LIST. The Run Explorer's rail draws the
+ * band above its own operable stage tiles (`.agent-path` in TraceDag), so in light
+ * mode the tiles are the list and this one would be the same run printed twice in
+ * a 264px column. Ask's harness has no tiles under the band, which is why it is
+ * the seating that needs a light view at all.
+ */
+html:not([data-theme='dark']) .agent-path > .step-rail {
+  display: none;
+}
+
+/*
+ * A step, as a row.
+ *
+ * Painted unconditionally rather than under the theme selector: the container
+ * above is `display: none` in dark, so nothing below is ever drawn on the sky and
+ * a second copy of every declaration under the theme selector would be forty lines
+ * saying so again.
+ *
+ * NO NAVY, NO CONNECTOR, NO GLYPH THAT COULD BE READ AS A STAR. What carries the
+ * run's shape here is the order of the rows and the numbers on them.
+ */
+.step-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.step-rail-row {
+  min-width: 0;
+}
+
+/*
+ * The row is the control, at full width, so the press target is the row a reader
+ * is aiming at rather than a glyph inside it -- which is the other half of what
+ * the band gave up by being a drawing.
+ *
+ * A `button` and not a `div` with a role: the tab order, the space and enter keys
+ * and the focus ring in base.css all arrive with the element instead of being
+ * written out and kept in step by hand.
+ */
+.step-rail-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px 7px 8px;
+  border: 1px solid var(--ast-hairline);
+  /* The left edge is where selection and the frontier are marked, so it is spent
+     on every row whether or not it is marked -- a border that appears would move
+     the row's text sideways when a step became the current one. */
+  border-left: 3px solid transparent;
+  border-radius: var(--ast-radius-card);
+  background: var(--ast-white);
+  color: var(--ast-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-rail-pick:hover {
+  border-color: var(--ast-border-input);
+  border-left-color: var(--ast-border-input);
+}
+
+/* The step the run is inside: a blue edge, and nothing that moves. §1 gives the
+   agent at work as blue, and this is that register in a list. */
+.step-rail-pick.current {
+  border-left-color: var(--ast-blue);
+}
+
+/* The step the reader has open, or the one the band is following: the same blue on
+   the edge and the app's own AI-context tint behind it. Two marks rather than one,
+   so the selected row is not distinguished by colour alone. */
+.step-rail-pick.selected {
+  border-color: var(--ast-blue);
+  border-left-color: var(--ast-blue);
+  background: var(--ast-ice);
+}
+
+/*
+ * The step's place in the run.
+ *
+ * The number the band prints beside its stars, in the same mono face for the same
+ * reason: it is a figure in a meta slot. Fixed width, so a run that reaches step
+ * 10 does not shift every name on the list by a character.
+ */
+.step-rail-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 20px;
+  border-radius: var(--ast-radius-control);
+  background: var(--ast-fill-band);
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+}
+
+.step-rail-pick.selected .step-rail-num {
+  background: var(--ast-blue);
+  color: var(--ast-white);
+}
+
+.step-rail-say {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+/*
+ * The step's name, in full and over as many lines as it needs.
+ *
+ * The same decision as the band's status line, and for the same reason recorded
+ * there: the names are the agent's own sentences and several of them are longer
+ * than any width this rail will ever have, so an ellipsis costs the reader the
+ * only words on the row that say what the agent did.
+ */
+.step-rail-name {
+  color: var(--ast-text);
+  font-size: var(--ast-fs-12);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.step-rail-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-rail-meta .brand-icon,
+.step-rail-meta .ast-mark {
+  flex: none;
+}
+
+/*
+ * What became of the step, where that is not simply "it finished".
+ *
+ * The word is the state and the colour is the second reading of it, which is what
+ * `never colour alone` asks for. A completed step says nothing here: the duration
+ * beside it is the whole of the report.
+ */
+.step-rail-state {
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+}
+
+.step-rail-state.neg {
+  color: var(--ast-neg-text);
+}
+
+.step-rail-state.warn {
+  color: var(--ast-warn-text);
+}
+
+.step-rail-state.live {
+  color: var(--ast-blue);
+}
+
+/* Right-aligned meta, so mono, and a real measurement rather than a percentage --
+   the same rule the band's elapsed figure follows. */
+.step-rail-time {
+  margin-left: auto;
+  flex: none;
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+}
+
 /* ---- The recoloured product marks ---- */
 
 /*

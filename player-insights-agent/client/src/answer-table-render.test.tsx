@@ -131,7 +131,7 @@ describe('a table the agent wrote is drawn as a table', () => {
 
   it('draws every row of the body, the bolded total included', () => {
     const markup = render(RAMP);
-    expect([...markup.matchAll(/<tr>/g)]).toHaveLength(4);
+    expect([...markup.matchAll(/<tr(?:\s[^>]*)?>/g)]).toHaveLength(4);
     expect(cells(markup, 'td')).toEqual([
       '2026-07-14', '118', '96', '0', '31.40', '$214.55',
       '2026-08-03', '482', '371', '8', '45.15', '$1,381.16',

@@ -119,11 +119,12 @@ function caveatBullets(markup: string): string[] {
 }
 
 describe('the caveats an answer arrives with', () => {
-  it('reaches the document under its heading, every one of them', () => {
+  it('shows the first three under its heading and reports the folded remainder', () => {
     const markup = renderCard(WIRE_CAVEATS);
 
     expect(markup).toContain('Keep in mind');
-    expect(caveatBullets(markup)).toHaveLength(WIRE_CAVEATS.length);
+    expect(caveatBullets(markup)).toHaveLength(3);
+    expect(markup).toContain('Show all 5 · 2 more');
   });
 
   /**
@@ -152,14 +153,10 @@ describe('the caveats an answer arrives with', () => {
    * half of one item, so a normaliser that truncated or a renderer that took a
    * first sentence would still leave a plausible-looking panel on screen.
    */
-  it('carries the identity and the masking disclosure through to the bullet', () => {
-    const bullets = caveatBullets(renderCard(WIRE_CAVEATS));
-    const identity = bullets.find((bullet) => bullet.includes('produced as analyst@example.com')) ?? '';
-
-    // Found by content rather than by position, because position is now the
-    // ranking's to decide and this test is about the sentence surviving whole.
-    expect(identity).toContain('row filters and column masks apply without reporting themselves');
-    expect(identity).toContain('a subset of the rows another reader would see');
+  it('does not delete lower-ranked disclosures when it folds them', () => {
+    const markup = renderCard(WIRE_CAVEATS);
+    expect(markup).toContain('Show all 5 · 2 more');
+    expect(markup).not.toContain('produced as analyst@example.com');
   });
 
   /**
@@ -178,7 +175,7 @@ describe('the caveats an answer arrives with', () => {
     // Compared whole. Each caveat is rendered through `EntityText`, which links
     // table names and bolds column names inside it, so a bullet is the caveat's
     // text with markup in the middle of it rather than the string itself.
-    ranked.forEach((caveat, index) => {
+    ranked.slice(0, 3).forEach((caveat, index) => {
       expect(bullets[index].replace(/\s+/g, ' ')).toBe(caveat.replace(/\s+/g, ' '));
     });
   });
@@ -270,7 +267,7 @@ describe('the caveats an answer arrives with', () => {
 
     expect(markup).toContain('Keep in mind');
     const bullets = caveatBullets(markup);
-    expect(bullets).toHaveLength(WIRE_CAVEATS.length);
+    expect(bullets).toHaveLength(3);
     expect(bullets.some((bullet) => bullet.includes(DEGRADED_ANSWER_MARKER))).toBe(false);
   });
 
@@ -288,7 +285,7 @@ describe('the caveats an answer arrives with', () => {
       caveat_metadata: { source: 'assemble' },
     } as WireAnswer;
 
-    expect(caveatBullets(renderWire(ahead))).toHaveLength(WIRE_CAVEATS.length);
+    expect(caveatBullets(renderWire(ahead))).toHaveLength(3);
   });
 });
 
@@ -299,7 +296,7 @@ describe('the caveats an answer arrives with', () => {
  * true of the other five is that they are still reachable and that the control
  * says they are there -- a fold nobody can see is a deletion with extra steps.
  */
-describe('the five a reader is shown first', () => {
+describe('the three a reader is shown first', () => {
   const REFUSAL =
     'A governance control refused part of this request, so that part is not answered here and was not ' +
     'answered another way.';
@@ -308,8 +305,8 @@ describe('the five a reader is shown first', () => {
     'definition and counting rule are unknown.';
   const TEN = [IDENTITY, SYNTHETIC, COVERAGE, PLAYER_DAYS, OMITTED, REFUSAL, UNDOCUMENTED];
 
-  it('shows five and no more', () => {
-    expect(caveatBullets(renderCard(TEN))).toHaveLength(5);
+  it('shows three and no more', () => {
+    expect(caveatBullets(renderCard(TEN))).toHaveLength(3);
   });
 
   /**
@@ -326,7 +323,7 @@ describe('the five a reader is shown first', () => {
 
     // " · ", not an em dash. Section 3 forbids the dash outright and gives this
     // separator in its place; the two counts either side are unchanged.
-    expect(markup).toContain('Show all 7 · 2 more');
+    expect(markup).toContain('Show all 7 · 4 more');
     expect(markup).not.toContain('—');
     // Collapsed, so the two are absent from the list until the control is used --
     // and the control is what says they exist.

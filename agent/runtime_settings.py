@@ -30,7 +30,7 @@ class AnswerSettings:
     figures: bool = True
     caveats: bool = True
     max_charts: int = 2
-    max_figures: int = 6
+    max_figures: int = 4
     max_caveats: int = 0
     narrative_max_characters: int = 0
     sources: str = "standard"
@@ -114,7 +114,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             figures=_boolean(answer.get("figures"), True),
             caveats=_boolean(answer.get("caveats"), True),
             max_charts=_integer(answer.get("maxCharts"), 2, 0, 6),
-            max_figures=_integer(answer.get("maxFigures"), 6, 0, 12),
+            max_figures=_integer(answer.get("maxFigures"), 4, 0, 12),
             max_caveats=_integer(answer.get("maxCaveats"), 0, 0, 20),
             narrative_max_characters=_integer(
                 answer.get("narrativeMaxCharacters"), 0, 0, 12_000

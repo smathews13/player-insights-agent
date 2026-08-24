@@ -235,18 +235,19 @@ every `npm test`. That is the register to add to when you write a new one. It is
 not release configuration, so this gate cannot see it and does not claim to: a
 producer nobody registers is a producer nobody audits.
 
-### D11. Keep in mind shows five caveats and folds the rest
+### D11. Keep in mind shows three caveats and folds the rest
 
-**Decided 2026-08-16.** The `sources-module` specification says the caveats render
-with "no truncation, no Show all N collapse, no merging". Sam has overruled that
-after seeing a live answer arrive with nine bullets and calling it far too much
-information. The existing top-five ranking stays and so does the "Show all N"
-control.
+**Decided 2026-08-16; tightened 2026-08-23.** The first sources-module
+specification said the caveats render with "no truncation, no Show all N collapse,
+no merging". Sam overruled that after seeing a live answer arrive with nine
+bullets and calling it far too much information. The answer-card specification
+then set the final fold at three: the top three stay visible and the rest remain
+behind the counted "Show all N · M more" control.
 
-This is the one place the Sources module departs from its specification. Everything
-else in the Keep in mind section is as written: the amber footer under the source
-rows, one bullet per caveat, the scope tag naming the single table a caveat is
-about, the mono tag on every entity name inside it, and the bold numbers.
+Keep in mind is now a separate compact box after the one-line provenance sentence,
+not a footer inside a tall Sources card. One bullet per caveat, the scope tag
+naming the single table a caveat is about, the mono tag on every entity name
+inside it, and the bold numbers remain.
 
 Nothing is dropped by the fold. `rankCaveats` returns both halves, the component
 renders both, and the control says how many are behind it. A refusal or a coverage

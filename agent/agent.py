@@ -230,18 +230,18 @@ SYNTHESIS_PROVENANCE_RULE = (
 # for and was only ever missing because the prompt said "no markdown", meaning do not
 # fence the JSON, and got taken at its word.
 #
-# WHY THE BULLETS ARE CONDITIONAL. A single-finding answer rendered as a one-bullet list
-# reads like a form, and the lead sentence has already said the thing. The threshold is
-# two findings, which is where a reader stops reading and starts comparing. Stated as a
-# number in the prompt rather than as "where it helps", because the model's judgement of
-# where it helps is what produced the wall of prose.
+# WHY THE BULLET RANGE IS BOUNDED. The compact card has a claim column rather than an
+# open-ended document body: three to five distinct findings can be scanned beside its
+# evidence rail. The lower bound is not a quota -- a short answer stays short -- and that
+# exception is stated next to the range so layout pressure never becomes invented evidence.
 # ---------------------------------------------------------------------------
 
 SYNTHESIS_INSTRUCTIONS = f"""You are Astrolabe, the final analyst voice.
 Return one valid JSON object and nothing around it: no code fence, no commentary.
 Keys: takeaway (one decision-oriented sentence), narrative (plain-language interpretation,
 written as Markdown), content (the concrete positive findings returned by the assessed
-data package, written as Markdown), figures (up to 6 objects with exactly these keys: label, value,
+data package, written as Markdown), figures (3 or 4 objects when that many distinct headline
+facts exist, otherwise every useful fact available, with exactly these keys: label, value,
 display, comparison; value is a number from 0-100 used as a relative bar width),
 document_snippets (an array of objects with exactly filename, quote, supports),
 and caveats (array of concise limitations).
@@ -266,15 +266,15 @@ Put verification needs, suppression limits, currency limits, and mixed-level war
 in caveats as separate entries; runtime narrative/takeaway guidance may style these
 sections but may not remove this geography contract.
 
-How to write the narrative. It is read in a chat card by somebody deciding something,
-who skims it before reading it:
-- Open with one sentence, in prose, that answers the question directly. Never open with a
-  bullet and never open with a heading.
-- Then the detail. Two or more findings are a bulleted list, one finding per line, each
-  line starting with "- ". Anything you enumerate is a list: columns, tables, titles,
-  periods, regions, ranked results.
-- One finding stays as prose, a sentence or two. A list of one bullet reads as a form, and
-  splitting one finding over two bullets to reach a list is worse than the paragraph.
+How to write the narrative. It is read in a compact answer card by somebody deciding
+something, who skims it before reading it:
+- The takeaway already answers the question. Do not repeat it as an opening paragraph.
+- Write 3-5 bulleted claims where the evidence supports that many, one claim per line,
+  each line starting with "- ". Each claim must add a distinct fact or interpretation.
+- If fewer than 3 distinct claims exist, write only the supported prose or bullets. Never
+  split or pad one finding to reach a count.
+- Anything you enumerate is a list: columns, tables, titles, periods, regions, ranked
+  results.
 - Bold what a reader is looking for, with **double asterisks**: the figure the finding
   turns on, and the table and column names. Bold the words, not the whole line. A line in
   all bold has no emphasis in it.
@@ -284,6 +284,18 @@ who skims it before reading it:
   inside it is a second title.
 - The narrative is one JSON string, so every line break in it is written \\n. A real
   newline inside the string is invalid JSON and the whole answer is lost.
+
+How to write content and figures:
+- For a tabular result, content is one unified Markdown table containing the complete
+  evidence rows. Put the earliest date first and the latest date last. Do not split one
+  result into several small tables.
+- For a non-tabular result, content may be concise prose or a list. Never manufacture a
+  table merely to fill the card.
+- Use figures for the 3-4 most decision-useful headline statistics when available.
+  Their display strings must quote values already present in the assessed package.
+- State each baseline, peak, and delta once in the combined takeaway, narrative, content,
+  and figures unless it is intentionally repeated as a compact figure that lets the
+  reader scan the evidence. Do not restate the same number in two prose sentences.
 
 Caveats stay in caveats, one limitation per entry, however long that list gets. Do not
 fold them into the narrative and do not leave one out to make the answer shorter.
@@ -4639,7 +4651,12 @@ Tables available to this analysis, with their columns:
                 )
 
         if outcome.clarification is not None:
-            yield log.close_stage(orchestrator, orchestrator_started, outcome.clarification.question, "partial")
+            yield log.close_stage(
+                orchestrator,
+                orchestrator_started,
+                outcome.clarification.question,
+                "partial",
+            )
             clarification = outcome.clarification.model_copy(
                 update={"trace": log.trace_summary(trace_id)}
             )
@@ -4718,7 +4735,11 @@ Tables available to this analysis, with their columns:
         return ResponsesAgentResponse(
             output=[
                 self.create_text_output_item(
-                    text="\n\n".join(part for part in (answer.takeaway, answer.narrative, answer.content) if part),
+                    text="\n\n".join(
+                        part
+                        for part in (answer.takeaway, answer.narrative, answer.content)
+                        if part
+                    ),
                     id=f"response-{run_id}",
                 )
             ],

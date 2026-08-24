@@ -1,23 +1,23 @@
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from 'react';
-import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton } from './ui';
-import { BarChart3 } from 'lucide-react';
+import { Skeleton } from './ui';
 
 /**
  * One Plotly panel from the agent's `new_plot` tool.
  *
  * Mirrors `Chart` in agent/contracts.py and `ChartSchema` in
  * server/routes/insights-routes.ts. `data` and `layout` are Plotly's own free-form
- * shapes, validated as objects at the route and carried here untouched. The agent has
- * already applied the brand palette and layout, so this file adds no styling of its own
- * beyond the card around the plot.
+ * shapes, validated as objects at the route and carried here untouched.
  *
- * That is also why the series colours the design asks for — the action blue with
- * the leading bar in the working orange — are not set here. They belong to the
- * `data` the run declared, and a colour written at this end would be a second
- * palette arguing with it on the same axes. What this file can guarantee is the
- * other half of the rule: no value is printed on a fill. Plotly sets its labels
- * outside the bars, and the figure breakdown beside the plot gives every value a
- * grid column of its own.
+ * UNTOUCHED IS LITERAL AND IT IS WHY THIS FILE STILL DECLARES NO COLOUR. The agent
+ * writes the palette into the spec, and the spec is stored, so its colours are the
+ * light theme's whatever theme is on screen when it is read back. Resolving that is a
+ * pure pass over a COPY of the spec, in plotly-config.ts, applied by PlotlyFigure at
+ * draw time -- not a second palette written into the panel here, and not an edit to
+ * the answer object the transcript and the Run Explorer both hold.
+ *
+ * What this file owns is the panel: a surface, a compact eyebrow title, and the
+ * boundary that keeps a chart which will not draw from taking the answer with it.
+ * Everything inside the plot, the series key included, is Plotly's.
  */
 export interface Chart {
   id: string;
@@ -32,9 +32,25 @@ export interface Chart {
 // actually carries a chart. See PlotlyFigure.tsx.
 const PlotlyFigure = lazy(() => import('./PlotlyFigure'));
 
-const CHART_HEIGHT = 320;
+/**
+ * The plot's height, and the skeleton's.
+ *
+ * ONE CONSTANT FOR BOTH, so the transcript does not jump when the chunk lands. Down
+ * from 320: the panel is 12px of padding and an eyebrow now rather than a card
+ * header, a hairline and 16px, and the charted variant puts two of these side by side
+ * where the table it replaces was one block. At 320 a pair of them was taller than
+ * the answer above it.
+ */
+const CHART_HEIGHT = 260;
 
-/** What the agent's derived `kind` should be called in the badge. */
+/**
+ * What the agent's derived `kind` should be called.
+ *
+ * No longer a badge -- the panel head is the title and nothing else. It is kept for
+ * the two jobs a badge was never needed for: the accessible name of a plot whose SVG
+ * reads as disconnected axis labels, and the eyebrow of a chart the agent titled with
+ * an empty string.
+ */
 const KIND_LABELS: Record<string, string> = {
   bar: 'Bar chart',
   line: 'Line chart',
@@ -71,8 +87,9 @@ class ChartBoundary extends Component<{ children: ReactNode }, { failed: boolean
 
   render() {
     if (this.state.failed) {
-      return (<p className="text-sm text-muted-foreground">
-          This chart could not be displayed. The figures and generated SQL below are unaffected.
+      return (
+        <p className="text-sm text-muted-foreground">
+          This chart could not be displayed. The rest of this answer is unaffected.
         </p>
       );
     }
@@ -80,31 +97,23 @@ class ChartBoundary extends Component<{ children: ReactNode }, { failed: boolean
   }
 }
 
-function ChartCard({ chart }: { chart: Chart }) {
-  return (<Card className="chart-card">
-      <CardHeader>
-        <div className="chart-card-title">
-          <CardTitle>{chart.title || kindLabel(chart.kind)}</CardTitle>
-          <Badge variant="outline">
-            <BarChart3 /> {kindLabel(chart.kind)}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <ChartBoundary>
-          {/* The fallback is the plot's own height so the transcript does not jump when
-              the chunk lands. */}
-          <Suspense fallback={<Skeleton style={{ height: CHART_HEIGHT }} className="w-full" />}>
-            <PlotlyFigure
-              data={chart.data}
-              layout={chart.layout}
-              title={chart.title || kindLabel(chart.kind)}
-              height={CHART_HEIGHT}
-            />
-          </Suspense>
-        </ChartBoundary>
-      </CardContent>
-    </Card>
+function ChartPanel({ chart }: { chart: Chart }) {
+  const name = chart.title.trim() || kindLabel(chart.kind);
+  return (
+    <figure className="answer-chart-panel">
+      {/* An eyebrow, not a heading: the answer's takeaway is the heading on this card
+          and a chart panel sits several blocks under it. The chart-kind badge that
+          used to sit opposite is gone -- it named the shape a reader can see, and it
+          was the widest thing in a head that now has to fit in a half-width panel. */}
+      <figcaption className="answer-chart-eyebrow">{name}</figcaption>
+      <ChartBoundary>
+        {/* The fallback is the plot's own height so the transcript does not jump when
+            the chunk lands. */}
+        <Suspense fallback={<Skeleton style={{ height: CHART_HEIGHT }} className="w-full" />}>
+          <PlotlyFigure kind={chart.kind} data={chart.data} layout={chart.layout} title={name} height={CHART_HEIGHT} />
+        </Suspense>
+      </ChartBoundary>
+    </figure>
   );
 }
 
@@ -114,14 +123,20 @@ function ChartCard({ chart }: { chart: Chart }) {
  * `charts` is optional because it is optional on the wire: an answer served from the
  * representative fallback has no charts, and neither does one from an endpoint still
  * running an agent that predates the tool.
+ *
+ * EVERY CHART, AND NO CAP HERE. The agent bounds how many panels one answer may
+ * carry (`MAX_CHARTS` in agent/charts.py) because that is a decision about what an
+ * answer should say. A second, lower cap at this end would silently drop a panel the
+ * answer had already committed to -- a fact deleted for layout, which is the one
+ * thing the answer-card rules forbid outright. The list lays out in as many rows as
+ * it needs.
  */
 export function AnswerCharts({ charts }: { charts?: Chart[] }) {
   if (!charts?.length) return null;
-  // `chart-card` and the spacing utilities are the app's existing vocabulary, so a chart
-  // panel sits in the same card treatment as the figure breakdown beneath it without
-  // adding styles that would then have to be kept in step with the brand tokens.
-  return (<div className="grid gap-4">
-      {charts.map((chart) => (<ChartCard chart={chart} key={chart.id} />
+  return (
+    <div className="answer-charts">
+      {charts.map((chart) => (
+        <ChartPanel chart={chart} key={chart.id} />
       ))}
     </div>
   );

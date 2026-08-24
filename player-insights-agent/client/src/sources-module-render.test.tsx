@@ -81,24 +81,27 @@ function renderCard(raw: WireAnswer): string {
   );
 }
 
-describe('the header, which says how many tables and nothing else', () => {
-  it('names the module and counts the tables', () => {
-    const rendered = text(renderToStaticMarkup(<SourcesModule sources={[{ name: NAME, freshness: FRESHNESS }]} caveats={[]} />)
-    );
+describe('the compact source line', () => {
+  it('names the module and source in one paragraph', () => {
+    const markup = renderToStaticMarkup(<SourcesModule sources={[{ name: NAME, freshness: FRESHNESS }]} caveats={[]} />);
+    const rendered = text(markup);
 
     expect(rendered).toContain('Sources');
-    expect(rendered).toContain('1 table');
+    expect(rendered).toContain(NAME);
+    expect(markup.match(/<p class="source-line">/g)).toHaveLength(1);
   });
 
-  it('counts the tables rather than the entries the wire happened to send', () => {
-    const rendered = text(renderToStaticMarkup(<SourcesModule
+  it('keeps multiple sources in the same paragraph', () => {
+    const markup = renderToStaticMarkup(<SourcesModule
           sources={QUERIED.map((name) => ({ name, freshness: FRESHNESS }))}
           caveats={[]}
         />
-      )
-    );
+      );
+    const rendered = text(markup);
 
-    expect(rendered).toContain('2 tables');
+    expect(rendered).toContain(QUERIED[0]);
+    expect(rendered).toContain(QUERIED[1]);
+    expect(markup.match(/<p class="source-line">/g)).toHaveLength(1);
   });
 
   it('says the governance line nowhere, however many tables the run read', () => {
@@ -121,7 +124,7 @@ describe('the header, which says how many tables and nothing else', () => {
 
     expect(rendered).not.toMatch(/governed/i);
     expect(rendered).not.toMatch(/read during this run/i);
-    expect(rendered).toContain('3 tables');
+    expect(rendered.match(/Queried for the figures/g)).toHaveLength(3);
   });
 });
 
@@ -220,7 +223,7 @@ describe('the row that names a source', () => {
     // the numbers came from.
     expect(rendered).toContain('Queried for the figures');
     expect(rendered).not.toContain('Definition validation');
-    expect(rendered).toContain('1 table');
+    expect(rendered.match(new RegExp(QUERIED[0].replace(/\./g, '\\.'), 'g'))).toHaveLength(1);
   });
 
   it('carries the freshness the server stated, where a reader can still reach it', () => {
@@ -246,7 +249,7 @@ describe('the row that names a source', () => {
 
     expect(rendered).toContain(QUERIED[0]);
     expect(rendered).toContain('Queried for the figures');
-    expect(rendered).toContain('1 table');
+    expect(rendered).toContain('Sources');
   });
 
   it('leaves the narrative’s own words untouched where it names the same table', () => {

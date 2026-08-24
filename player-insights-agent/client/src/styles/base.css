@@ -47,6 +47,32 @@ svg {
 }
 
 /*
+ * THE NIGHT SKY IS DARK MODE'S, AND THIS IS THE RULE THAT SAYS SO.
+ *
+ * `.app-sky` is a fixed, full-viewport layer of stars behind everything in the
+ * frame. dark-mode.css declares it `display: none` and then turns it on under
+ * `html[data-theme='dark']`, which is correct and is where its geometry belongs --
+ * but as a guarantee it is the wrong shape twice over. It is an unconditional
+ * default that a later rule could raise without meaning to, and it lives in the
+ * one stylesheet whose subject is the dark theme, so "the sky must not appear in
+ * daylight" is currently expressed only as the absence of an opt-in.
+ *
+ * This states the ban positively, in the file that is about the app rather than
+ * about one theme: anything that is not the dark theme does not draw the sky, and a
+ * rule that switched `.app-sky` on somewhere else has to name a more specific
+ * selector than this one to do it. The condition is `:not([data-theme='dark'])` for
+ * the reason given in constellation.css -- there is no third state, and a theme
+ * preview that writes anything other than `dark` gets daylight.
+ *
+ * It is not a substitute for the component being mounted or not. It is the floor:
+ * whatever renders, in whatever order the theme is applied, the starfield is not
+ * painted outside dark mode -- so the answer cards cannot be sitting on stars.
+ */
+html:not([data-theme='dark']) .app-sky {
+  display: none;
+}
+
+/*
  * ONE SCROLLBAR TREATMENT FOR THE WHOLE APP: thin, and invisible until the
  * reader is in the thing that scrolls.
  *

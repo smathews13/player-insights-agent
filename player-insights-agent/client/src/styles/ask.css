@@ -98,6 +98,14 @@
   text-wrap: pretty;
 }
 /*
+ * Dark keeps the white headline on the night sky. Light paints Ask as a wash,
+ * so the same white word would vanish. `--ast-text` is the page ink every other
+ * daylight heading already uses.
+ */
+html:not([data-theme='dark']) .ask-hero h2 {
+  color: var(--ast-text);
+}
+/*
  * THE FOUR SUGGESTION CARDS ARE GONE, and `.prompt-grid` with them.
  *
  * They were the whole of the empty state below the headline: four written-out

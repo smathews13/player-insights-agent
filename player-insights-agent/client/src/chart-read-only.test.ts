@@ -80,10 +80,15 @@ describe('nothing a reader sees in a chart accepts a keystroke', () => {
 
   it('hands Plotly this object and nothing spread over it', () => {
     // The gap the object assertions leave: a config assembled at the call site would
-    // satisfy every test above and still ship an editable chart. Both draw calls must
+    // satisfy every test above and still ship an editable chart. Every draw call must
     // pass the reviewed object by name.
+    //
+    // ONE CALL, and that is stricter than the two this used to allow rather than
+    // looser. The first draw and the resize redraw were two identical statements, and
+    // two statements are two places for the next reader to add a config to one of.
+    // They are one closure now, called from both places.
     const calls = SOURCE.match(/Plotly\.react\([^;]*?\);/gs) ?? [];
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
     for (const call of calls) {
       expect(call).toContain(', FIGURE_CONFIG)');
       expect(call).not.toMatch(/\.\.\.\s*FIGURE_CONFIG/);

@@ -115,6 +115,90 @@ export type Block =
       rows: TableRow[];
     };
 
+export type AnswerBlockSelection = 'all' | 'prose' | 'tables';
+
+/**
+ * Select parsed answer blocks without editing the Markdown source.
+ *
+ * This is the boundary used by the answer card to put prose in the narrative
+ * column and tables in the evidence section. Filtering the parsed tree keeps
+ * every character in the surviving blocks and avoids regex rules that can eat
+ * a pipe used as prose or part of a fenced code block.
+ */
+export function selectAnswerBlocks(
+  blocks: readonly Block[],
+  selection: AnswerBlockSelection,
+): Block[] {
+  if (selection === 'all') return [...blocks];
+  return blocks.filter((block) => (selection === 'tables' ? block.kind === 'table' : block.kind !== 'table'));
+}
+
+/** Plain text represented by an inline subtree, used only for metadata tests. */
+function inlineValue(nodes: readonly Inline[]): string {
+  return nodes
+    .map((node) => {
+      if (node.kind === 'text' || node.kind === 'code') return node.runs.map((run) => run.text).join('');
+      if (node.kind === 'strong' || node.kind === 'link') return inlineValue(node.children);
+      return '\n';
+    })
+    .join('')
+    .trim();
+}
+
+export interface TableStoryMetadata {
+  timeSeries: boolean;
+  baselineRowStart?: number;
+  peakRowStart?: number;
+}
+
+const TIME_HEADER = /^(?:date|day|week|month|quarter|period|time|timestamp)$/i;
+const TIME_CELL = /^(?:\d{4}(?:-\d{1,2}){0,2}|q[1-4]\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?(?:\s+\d{1,2},?)?\s+\d{4})$/i;
+
+function numericCell(nodes: readonly Inline[]): number | null {
+  const text = inlineValue(nodes).replace(/[$€£,%\s]/g, '');
+  const parenthesized = text.startsWith('(') && text.endsWith(')');
+  const normalized = parenthesized ? `-${text.slice(1, -1)}` : text;
+  if (!/^[-+\u2212]?\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const value = Number(normalized.replace('\u2212', '-'));
+  return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Whether baseline/peak storytelling is truthful for this table.
+ *
+ * A date-like heading is not enough: every first-column body cell must also be
+ * a date or period. That excludes inventories and aggregate tables with a
+ * trailing Total row, so they never acquire invented "baseline" or "peak"
+ * labels. The peak is the maximum in the first numeric measure column, not
+ * mechanically the last date: calling a declining final period "peak" would
+ * reverse the evidence the table is showing.
+ */
+export function tableStoryMetadata(block: Extract<Block, { kind: 'table' }>): TableStoryMetadata {
+  const heading = block.header?.cells[0] ? inlineValue(block.header.cells[0].children) : '';
+  const values = block.rows.map((row) => row.cells[0] ? inlineValue(row.cells[0].children) : '');
+  const timeSeries =
+    block.rows.length >= 2 &&
+    TIME_HEADER.test(heading) &&
+    values.every((value) => TIME_CELL.test(value));
+  if (!timeSeries) return { timeSeries: false };
+  const measure = block.align.findIndex((align, column) => column > 0 && align === 'right');
+  const measured = measure < 0
+    ? []
+    : block.rows.map((row) => ({
+        start: row.start,
+        value: row.cells[measure] ? numericCell(row.cells[measure].children) : null,
+      }));
+  const valid = measured.filter((entry): entry is { start: number; value: number } => entry.value !== null);
+  const peak = valid.length === block.rows.length
+    ? valid.reduce((highest, entry) => entry.value > highest.value ? entry : highest)
+    : null;
+  return {
+    timeSeries: true,
+    baselineRowStart: block.rows[0].start,
+    ...(peak ? { peakRowStart: peak.start } : {}),
+  };
+}
+
 /**
  * Line shapes that open a block.
  *

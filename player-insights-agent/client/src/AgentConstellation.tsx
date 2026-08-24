@@ -16,6 +16,22 @@
  * with each step's name and figures set opposite the line flow and the selected
  * star ringed and tinted.
  *
+ * THE LIVE PATH SHIPS TWICE, AND THE THEME DECIDES WHICH ONE IS ON SCREEN.
+ * `#18a`'s night sky is the dark theme's account of a run. Light mode is daylight
+ * all the way through -- no sky behind the answers, so no sky in the harness
+ * either -- and a navy band with sparkle stars in it is the one thing on that page
+ * that would still be night. `StepRail` below is the same run drawn as a list on
+ * white: the same stages, the same numbers, the same selection, the same press.
+ *
+ * BOTH ARE ALWAYS IN THE MARKUP AND constellation.css SHOWS EXACTLY ONE. The
+ * alternative was reading `data-theme` in JavaScript and mounting one of them,
+ * which is a first render made against whatever the root said before the theme
+ * had been applied -- a frame of the wrong variant on every open, and a second
+ * frame of it every time Appearance previews a switch. A CSS selector has no
+ * first render to be wrong on, and `display: none` keeps the hidden view out of
+ * the accessibility tree, so neither variant's live region or step buttons can be
+ * announced while the other one is the view.
+ *
  * Every coordinate comes out of `agent-constellation.ts` and none is written here.
  * That is the same split the rest of this page uses -- vitest runs on `node`, so a
  * number that only exists as an attribute in JSX can be asserted against a
@@ -49,6 +65,7 @@ import {
   type ConstellationLabel,
   type ConstellationLink,
   type ConstellationStar,
+  type PathConstellation,
 } from './agent-constellation';
 import {
   BRAND_PRODUCT_NAMES,
@@ -60,8 +77,9 @@ import {
 import { BrandIcon } from './BrandIcon';
 import { ConceptFlicker } from './ConceptFlicker';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { TraceStage } from './answer-shape';
+import type { StageStatus, TraceStage } from './answer-shape';
 import { formatDuration } from './benchmark-summary';
+import { formatMs } from './trace-timeline';
 
 /**
  * A recoloured mark as a data URL, for the one seating that cannot inline it.
@@ -222,6 +240,158 @@ function scrollParent(node: Element): HTMLElement | null {
     if ((overflowY === 'auto' || overflowY === 'scroll') && box.scrollHeight > box.clientHeight) return box;
   }
   return null;
+}
+
+/**
+ * What a row says happened, in the agent's own word or in ours.
+ *
+ * Empty for a completed step, because "complete" beside a duration is a word
+ * spent saying the row is an ordinary row. The three that are not ordinary each
+ * get named, and the last of them is the only one where the word is ours: a run
+ * killed mid-step leaves a `running` stage nothing will ever complete, and
+ * printing "running" on it would be the list claiming a dead run is alive. The
+ * band's own status line makes exactly this distinction; see `endedAt`.
+ */
+function railState(status: StageStatus, live: boolean): string {
+  if (status === 'complete') return '';
+  if (status === 'running') return live ? 'running' : 'never reported';
+  return status;
+}
+
+/**
+ * Which rung the state word is painted in. Never colour alone -- the word is the
+ * state and this is the second reading of it.
+ */
+function railTone(status: StageStatus, live: boolean): string {
+  if (status === 'failed') return 'neg';
+  if (status === 'partial') return 'warn';
+  return status === 'running' && live ? 'live' : '';
+}
+
+/**
+ * The figure on a row: the caller's live elapsed while a step is being worked on,
+ * and the step's own recorded duration once it has reported one.
+ *
+ * A step that has announced itself and recorded nothing yet gets no figure rather
+ * than `0ms`, which is a measurement of a step that has not been measured.
+ */
+function railTime(stage: TraceStage, live: boolean, elapsedMs: number | null): string {
+  if (live && elapsedMs !== null) return `${Math.max(0, Math.floor(elapsedMs / 1000))}s`;
+  return stage.duration > 0 ? formatMs(stage.duration) : '';
+}
+
+/**
+ * The run as a list of steps on white, which is what light mode draws instead of
+ * the sky.
+ *
+ * NOT A SECOND SOURCE OF TRUTH. Every value here comes off the same `stages` and
+ * the same `PathConstellation` the band above is drawn from -- the step numbers
+ * are `path.numbers`, the products are `path.stars[i].tool` through the same
+ * `starProduct` the stars use, the selection is the same `shownIndex` and a press
+ * is the same `pin`. A list that recomputed any of that could disagree with the
+ * drawing about which step a reader had opened.
+ *
+ * NOTHING HERE IS A STAR. No sparkle, no dot, no navy, no connector: the step's
+ * place in the run is a number in a box, the product behind it is that product's
+ * own mark, and the step being worked on is a blue edge and a tint rather than a
+ * glyph that beats. That is the requirement rather than a preference -- light mode
+ * has no night sky for a star to be a star ON, so a sparkle there is a decoration
+ * that has lost its subject.
+ *
+ * AND NOTHING IS HIDDEN BY LOSING THEM. Every stage gets a row, the state words a
+ * star could only carry as a colour are printed, and each row is a real `button`
+ * -- so the keyboard reaches the steps by the tab order every other list in the
+ * app uses, without a `role` and a `tabIndex` written by hand.
+ */
+function StepRail({
+  stages,
+  path,
+  shownIndex,
+  activeIndex,
+  beating,
+  elapsedMs,
+  statusText,
+  onPick,
+}: {
+  stages: TraceStage[];
+  path: PathConstellation;
+  shownIndex: number;
+  activeIndex: number;
+  beating: boolean;
+  elapsedMs: number | null;
+  /** The band's own sentence, so the two views cannot report the run differently. */
+  statusText: string;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="step-rail">
+      {/*
+        Named the same thing the band's SVG group is named, because it is the same
+        thing: one of the two is `display: none` in any theme, so "Agent steps"
+        still locates exactly one group on the page.
+      */}
+      <ol className="step-rail-list" aria-label="Agent steps">
+        {stages.map((stage, index) => {
+          const star = path.stars[index];
+          const live = beating && activeIndex === index;
+          const product = star.decision || star.tool === '' ? null : starProduct(star.tool);
+          const state = railState(stage.status, live);
+          const timing = railTime(stage, live, elapsedMs);
+          const selected = shownIndex === index;
+          return (
+            <li key={stage.id} className="step-rail-row">
+              <button
+                type="button"
+                className={`step-rail-pick${selected ? ' selected' : ''}${live ? ' current' : ''}`}
+                /* What a screen reader is told about the selection, read off the
+                   same state that paints the edge rather than stated twice. */
+                aria-current={selected ? 'step' : undefined}
+                aria-label={`Select step ${path.numbers[index].label}: ${stage.name}`}
+                onClick={() => onPick(stage.id)}
+              >
+                <span className="step-rail-num ast-num" aria-hidden="true">
+                  {path.numbers[index].label}
+                </span>
+                <span className="step-rail-say">
+                  <span className="step-rail-name">{stage.name}</span>
+                  <span className="step-rail-meta">
+                    {/* The product's own mark for a tool call, and the agent's mark
+                        for a decision -- which is what the sparkle meant on the
+                        band. Decorative, not labelled: the row already names the
+                        step, and a product tooltip here leaked onto the compact
+                        Run Explorer tiles that share this markup. */}
+                    {product !== null ? (
+                      <BrandIcon product={product} size={12} />
+                    ) : star.decision ? (
+                      <AstrolabeMark size={11} />
+                    ) : null}
+                    {state !== '' && (
+                      <span className={`step-rail-state ${railTone(stage.status, live)}`.trim()}>{state}</span>
+                    )}
+                    {timing !== '' && <span className="ast-num step-rail-time">{timing}</span>}
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      {/*
+        The light view's one live region, and the only thing on it a reader cannot
+        see: the rows already carry the sentence between them -- the marked row's
+        name and its figure -- so a visible copy of it under the list would be the
+        list captioning itself. The band's copy IS visible, because on the sky it
+        is the only text there is.
+
+        Two `aria-live` regions exist in the markup and only ever one in a theme:
+        the other view's is inside a `display: none` subtree, which is out of the
+        accessibility tree, so nothing announces twice.
+      */}
+      <p className="sr-only" aria-live="polite">
+        {statusText}
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -441,7 +611,25 @@ export function AgentPathConstellation({
    * inline in the markup, so the one condition is readable next to `beating`.
    */
   const flickering = beating && pinnedIndex === -1;
+  /*
+   * The one sentence about the run, computed once and rendered twice.
+   *
+   * Both views say it -- the band on its status line, the list in its live region
+   * -- and they are handed the same string rather than each building one. Two
+   * readings of the same run assembled in two places is how a light-mode reader
+   * and a dark-mode reader come to be told different things about the step that
+   * just landed.
+   */
+  const statusText =
+    pinnedIndex !== -1 || current
+      ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
+      : ended === null
+        ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
+        : `Step ${path.numbers[endedAt].label} · ${ended.name} · ${
+            ended.status === 'running' ? 'never reported' : ended.status
+          }`;
   return (
+    <>
     <div className="ast-sky ast-sky-path">
       <svg
         ref={canvasRef}
@@ -558,15 +746,7 @@ export function AgentPathConstellation({
             <AstrolabeMark size={11} ink="dark" />
           )}
         </span>
-        <span className="ast-sky-status-text">
-          {pinnedIndex !== -1 || current
-            ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
-            : ended === null
-              ? `Step ${path.numbers[shownIndex].label} · ${shown.name}`
-              : `Step ${path.numbers[endedAt].label} · ${ended.name} · ${
-                  ended.status === 'running' ? 'never reported' : ended.status
-                }`}
-        </span>
+        <span className="ast-sky-status-text">{statusText}</span>
         {statusDuration && (
           <span
             className="ast-num ast-sky-status-elapsed"
@@ -577,6 +757,20 @@ export function AgentPathConstellation({
         )}
       </p>
     </div>
+    {/* The same run, as daylight. A sibling rather than a child of the band, so
+        the two are alternatives rather than one nested in the other, and the
+        column they sit in lays out exactly one of them. */}
+    <StepRail
+      stages={stages}
+      path={path}
+      shownIndex={shownIndex}
+      activeIndex={activeIndex}
+      beating={beating}
+      elapsedMs={elapsedMs}
+      statusText={statusText}
+      onPick={pin}
+    />
+    </>
   );
 }
 

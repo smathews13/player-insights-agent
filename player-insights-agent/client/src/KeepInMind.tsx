@@ -1,12 +1,9 @@
 /**
  * "Keep in mind": the caveats under an answer, ranked, tagged, with a fold.
  *
- * The footer zone of the Sources module rather than a standalone amber box. The
- * box was one more panel in a column of panels and was reported as invisible
- * for months; sitting on the module that lists the tables, under a hairline in
- * the evaluation colour, it is part of the thing a reader is already looking at
- * when they ask where a number came from. IT MUST KEEP RENDERING. An answer
- * with caveats and no sources still draws the module, for this section alone.
+ * A compact box after the one-line provenance sentence. IT MUST KEEP RENDERING:
+ * an answer with caveats and no sources still draws this section, because a
+ * limitation does not stop mattering when a run cited no table.
  *
  * Its own module because two surfaces draw it -- the answer in Ask PIA and the
  * Final answer tab in the Run Explorer -- and they have to agree. They did not:
@@ -19,12 +16,10 @@
  * the figures are caveat-emphasis.ts's, for the same reason. What is decided
  * here is only how the parts are drawn.
  *
- * THE FOLD IS DELIBERATE AND IS NOT THE SPECIFICATION'S. The sources-module
- * spec asks for every caveat, untruncated and uncollapsed. Sam overruled that
- * after seeing nine bullets, and the top-five ranking with a "Show all N"
- * control stays. Recorded as D11 in `bundle/DECISIONS.md` so the next reader of
- * the spec does not undo it as a defect. Nothing is dropped either way: the
- * remainder sit behind a control that says how many they are.
+ * THE FOLD IS DELIBERATE. Three qualifications stay visible and the remainder
+ * sit behind the counted control, exactly as the current answer-card spec says.
+ * The earlier five-item decision was tightened after the compact anatomy landed;
+ * D11 in `bundle/DECISIONS.md` records both decisions.
  */
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
@@ -77,14 +72,14 @@ function CaveatBullet({ caveat, sources }: { caveat: string; sources: readonly {
 export function KeepInMind({
   caveats,
   sources,
-  limit = 5,
+  limit = 3,
 }: {
   caveats: readonly string[];
   /** The tables this answer cited, which is what may be tagged inside a caveat. */
   sources: readonly { name: string }[];
   /**
-   * How many are shown before the fold. Five is the reader's number and both
-   * surfaces use it; the parameter exists so a test can state a smaller one
+   * How many are shown before the fold. Three is the answer-card specification
+   * and both surfaces use it; the parameter exists so a test can state a smaller one
    * without having to write six caveats to reach the interesting case.
    */
   limit?: number;

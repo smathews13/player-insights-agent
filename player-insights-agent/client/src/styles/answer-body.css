@@ -102,10 +102,10 @@
  * clause at a time, and its 1.65 exception below records why that extra leading
  * remains.
  */
-.answer-prose,
+.answer-card .answer-prose,
 .answer-card [data-slot='card-description'],
 .keep-in-mind .answer-list {
-  line-height: var(--ast-lh-body);
+  line-height: 1.5;
 }
 /*
  * The result breakdown, as the four columns the design gives it: label, track,
@@ -346,11 +346,7 @@
  * that the row above and the row below are the same kind of thing.
  */
 .sources-module {
-  border: 1px solid var(--ast-hairline);
-  border-radius: var(--ast-radius-card);
-  /* So the head's fill and the footer's wash are clipped to the radius rather
-     than squaring off the corners they sit in. */
-  overflow: hidden;
+  min-width: 0;
 }
 /* The header band. The Unity Catalog mark, the word Sources, and how many
    tables -- and nothing else. It used to carry the governance claim as well,
@@ -516,21 +512,26 @@
  * decides how loudly it is said.
  */
 .keep-in-mind {
-  border-top: 1px solid var(--ast-warn-border);
-  background: var(--ast-warn-fill);
+  border: 0;
+  border-radius: 6px;
+  background: var(--ast-ice);
   padding: 12px 16px;
 }
 /* 700 and no colon, because it labels the list under it rather than introducing
    a sentence. No warning glyph either: the wash is the alarm, and a second one
    beside the heading made the block read as an error the reader had caused. */
 .keep-in-mind-heading {
-  font-size: var(--ast-fs-13);
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
+  color: var(--ast-text-secondary);
 }
 .keep-in-mind .answer-list {
   color: var(--ast-text-long);
   margin-top: 8px;
   gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 /*
  * Every identifier inside a caveat, in one treatment.
@@ -578,8 +579,8 @@
  */
 .keep-in-mind-toggle {
   margin: 6px 0 0 -8px;
-  color: var(--ast-warn-deep);
-  font-size: var(--ast-fs-12);
+  color: var(--ast-blue);
+  font-size: var(--ast-fs-11);
 }
 /*
  * The run process disclosure: one panel, whose head bar is the part that stays
@@ -754,4 +755,123 @@
   width: 13px;
   height: 13px;
   flex: none;
+}
+
+/* Primary answer anatomy. Utility disclosures below it use the existing panels. */
+.answer-card-content {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.answer-main-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  min-width: 0;
+}
+.answer-narrative {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+.answer-stat-rail {
+  display: grid;
+  flex: 0 0 172px;
+  width: 172px;
+  gap: 6px;
+}
+.answer-stat {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--ast-fill-band);
+}
+.answer-stat-label {
+  color: var(--ast-text-secondary);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.answer-stat-value {
+  color: var(--ast-text);
+  font-size: var(--ast-fs-18);
+  font-weight: 500;
+  line-height: 1.25;
+}
+.answer-stat-context {
+  overflow: hidden;
+  color: var(--ast-text-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.answer-evidence,
+.answer-evidence > .answer-prose {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Compact source and derivation sentence. It wraps, but remains one paragraph. */
+.source-line {
+  margin: 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+  line-height: 1.5;
+}
+.source-line-label {
+  color: var(--ast-text-secondary);
+  font-weight: 700;
+}
+.source-line-entry,
+.source-line-derivation {
+  display: inline;
+}
+.source-line-name,
+.source-line-name a,
+.source-line .derivation-source,
+.source-line .derivation-source a {
+  color: var(--ast-pos-text);
+  font-family: var(--font-mono);
+  font-size: var(--ast-fs-11);
+  font-weight: 500;
+}
+.source-line-name .source-name-short,
+.source-line .derivation-source .source-name-short {
+  padding: 0;
+  background: transparent;
+}
+.source-line-role {
+  color: var(--ast-text-secondary);
+}
+.source-line .derivation-fact {
+  display: inline;
+}
+.source-line .derivation-label {
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+  font-weight: 400;
+}
+.source-line .derivation-value {
+  color: var(--ast-pos-text);
+  font-size: var(--ast-fs-11);
+}
+.source-line a {
+  vertical-align: baseline;
+}
+
+@container answer-card (max-width: 639px) {
+  .answer-main-row {
+    display: grid;
+  }
+  .answer-stat-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
 }

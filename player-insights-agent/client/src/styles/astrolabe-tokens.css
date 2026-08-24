@@ -332,6 +332,40 @@ html[data-theme='dark'] {
 }
 
 /*
+ * ---- Light mode is daylight, and a pane on daylight is opaque ----
+ *
+ * `--ast-pane` is declared at 94% white in the root block above, and the six
+ * percent it lets through is a deliberate, argued-for thing: the sky is BEHIND the
+ * answer card, and the point of the alpha is that the starfield stays faintly
+ * present across whole panels rather than showing in a seam.
+ *
+ * In light mode there is no sky behind it. `.app-sky` is not drawn, `.ask-layout`
+ * is a solid light field (rail.css), and what those six percent then let through
+ * is whatever happens to be painted underneath -- which is either nothing, and the
+ * pane reads as a slightly grey white, or a surface that has not yet been switched
+ * over, and the pane reads as a window onto it. Both were reported: the answer card
+ * looked grey, and a starfield was visible through it.
+ *
+ * So the token, and not a rule per surface. `--ast-pane` is what the answer card,
+ * the reader's question bubble, the composer and the run-process panel are all
+ * drawn on, and remapping it here makes every one of them a solid white card in
+ * light mode without editing any of their partials -- which also means a surface
+ * added to that set later is opaque in light mode without anybody remembering
+ * this. Dark mode keeps its frosted 5%: there the sky IS behind the card, on
+ * purpose, and the reduced-transparency fallback in dark-mode.css is what answers
+ * for a reader who has asked for less of it.
+ *
+ * `:not([data-theme='dark'])` rather than `[data-theme='light']`: the alpha is for
+ * the sky and the sky is dark mode's, so every theme that is not the dark one --
+ * including the instant before the applier has written the attribute -- should get
+ * the solid. The one condition, written the one way, in all three files that carry
+ * a light rule.
+ */
+html:not([data-theme='dark']) {
+  --ast-pane: var(--ast-white);
+}
+
+/*
  * ---- One pill recipe, five families ----
  *
  * 1px border, tint fill, 4px radius, 11px/500 text, per §2 and the delivered file.

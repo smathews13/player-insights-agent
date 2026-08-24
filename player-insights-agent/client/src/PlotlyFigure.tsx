@@ -1,6 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Plotly, { type PlotData, type PlotLayout } from 'plotly.js-cartesian-dist-min';
-import { FIGURE_CONFIG } from './plotly-config';
+import {
+  CHART_THEME_ATTRIBUTE,
+  FIGURE_CONFIG,
+  readChartTheme,
+  sameChartTheme,
+  themedFigure,
+  type ChartTheme,
+} from './plotly-config';
 
 /**
  * The only module that imports Plotly, and the reason it is a module of its own.
@@ -21,28 +28,66 @@ import { FIGURE_CONFIG } from './plotly-config';
 export interface PlotlyFigureProps {
   data: PlotData[];
   layout: PlotLayout;
+  /**
+   * The agent's derived shape -- `line`, `bar`, `pie` and so on. Read only by the
+   * presentation pass in plotly-config.ts, which gates the line treatment on it.
+   */
+  kind: string;
   /** Used for the accessible name, since a canvas-like plot has no readable text. */
   title: string;
   height: number;
 }
 
-export default function PlotlyFigure({ data, layout, title, height }: PlotlyFigureProps) {
+export default function PlotlyFigure({ data, layout, kind, title, height }: PlotlyFigureProps) {
   const host = useRef<HTMLDivElement | null>(null);
+  /**
+   * The paint, read from the document rather than passed down.
+   *
+   * A spec's colours are the light theme's, written when the answer was produced, so
+   * something has to resolve the current theme at draw time -- see plotly-config.ts.
+   * Held in state rather than read inside the draw effect so that a theme change is a
+   * render, which is what makes it a dependency the effect can be keyed on.
+   */
+  const [theme, setTheme] = useState<ChartTheme>(readChartTheme);
+
+  useEffect(() => {
+    // Settings > Appearance flips the scheme by writing `data-theme` on <html>, and
+    // it does it in place: no fetch, no route change, nothing React re-renders from.
+    // A plot already on screen would therefore keep the paint it was mounted with
+    // while every surface around it changed, which is what makes the preview look
+    // broken. So the attribute itself is what is watched.
+    const root = document.documentElement;
+    const follow = () => {
+      const next = readChartTheme(root);
+      setTheme((current) => (sameChartTheme(current, next) ? current : next));
+    };
+    // Once on mount as well: the first paint happens before the saved scheme is
+    // applied, so the initial reading can be the default rather than the choice.
+    follow();
+    const watcher = new MutationObserver(follow);
+    watcher.observe(root, { attributes: true, attributeFilter: [CHART_THEME_ATTRIBUTE] });
+    return () => watcher.disconnect();
+  }, []);
 
   useEffect(() => {
     const element = host.current;
     if (!element) return;
 
+    // A copy, themed. The answer's own `data` and `layout` are never written to; see
+    // plotly-config.ts for why that matters when the same chart is drawn twice.
+    const figure = themedFigure({ kind, data, layout }, theme);
     // `react` rather than `newPlot`: it diffs against what is already drawn, so a
     // re-render from a parent state change does not tear the chart down and rebuild it.
-    void Plotly.react(element, data, { ...layout, autosize: true, height }, FIGURE_CONFIG);
+    // One call site, so the reviewed config object cannot be bypassed by a second one.
+    const paint = () =>
+      void Plotly.react(element, figure.data, { ...figure.layout, autosize: true, height }, FIGURE_CONFIG);
+
+    paint();
 
     // `responsive: true` only listens for window resizes. The answer column also changes
     // width when the conversation rail opens or the viewport rotates, neither of which
     // fires one, so the container is observed directly.
-    const observer = new ResizeObserver(() => {
-      void Plotly.react(element, data, { ...layout, autosize: true, height }, FIGURE_CONFIG);
-    });
+    const observer = new ResizeObserver(paint);
     observer.observe(element);
 
     return () => {
@@ -51,7 +96,7 @@ export default function PlotlyFigure({ data, layout, title, height }: PlotlyFigu
       // dropping the node without purging leaks both.
       Plotly.purge(element);
     };
-  }, [data, layout, height]);
+  }, [data, layout, kind, height, theme]);
 
   // `role="img"` with the chart's own title: Plotly draws into SVG whose text nodes read
   // as a stream of disconnected axis labels, so the panel announces itself once instead.

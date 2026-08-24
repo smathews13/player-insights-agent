@@ -8,7 +8,15 @@ import {
   trackedEntity,
   type ProseSegment,
 } from './data-entities';
-import { answerBlocks, answerInline, type Block, type Inline } from './answer-markdown';
+import {
+  answerBlocks,
+  answerInline,
+  selectAnswerBlocks,
+  tableStoryMetadata,
+  type AnswerBlockSelection,
+  type Block,
+  type Inline,
+} from './answer-markdown';
 import { dateBadgeRuns, isLabelLeadIn, labelBadgeRuns } from './answer-badges';
 import { splitSourceName } from './source-rows';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
@@ -221,7 +229,7 @@ function ProseRuns({
             </EntityLink>
           );
         if (run.emphasis) return <EntityMark key={run.start}>{run.text}</EntityMark>;
-        if (!badges) return <Fragment key={run.start}>{run.text}</Fragment>;
+        if (!badges) return <PlainTextRun key={run.start} start={run.start} text={run.text} />;
         // The label list is the head of the leaf that follows the lead-in, so
         // only the first run can carry it; every other plain run is scanned for
         // a window instead.
@@ -239,6 +247,26 @@ function ProseRuns({
       })}
     </>
   );
+}
+
+const INLINE_NUMBER = /\d{4}-\d{1,2}-\d{1,2}|[-+\u2212]?(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?%?/g;
+
+/**
+ * Numerals in ordinary prose take the mono face without changing the string.
+ * The runs concatenate to the exact input, so selection and copy remain plain
+ * text and no pseudo-element carries content.
+ */
+function PlainTextRun({ text, start }: { text: string; start: number }) {
+  const parts: ReactNode[] = [];
+  let from = 0;
+  for (const match of text.matchAll(INLINE_NUMBER)) {
+    const at = match.index ?? 0;
+    if (at > from) parts.push(<Fragment key={start + from}>{text.slice(from, at)}</Fragment>);
+    parts.push(<span className="answer-inline-number ast-num" key={`${start + at}-number`}>{match[0]}</span>);
+    from = at + match[0].length;
+  }
+  if (from < text.length) parts.push(<Fragment key={start + from}>{text.slice(from)}</Fragment>);
+  return <>{parts}</>;
 }
 
 /** The words in an inline subtree, for reading a lead-in back off it. */
@@ -371,7 +399,9 @@ function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean 
        * it a narrow panel gave every column its one-character minimum and set
        * `2026-07-14` on four lines.
        */
-      return (<div className="answer-table-wrap">
+      {
+        const story = tableStoryMetadata(block);
+        return (<div className="answer-table-wrap">
           <table className="answer-table">
             {block.header ? (<thead>
                 <tr>
@@ -383,17 +413,25 @@ function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean 
               </thead>
             ) : null}
             <tbody>
-              {block.rows.map((row) => (<tr key={row.start}>
+              {block.rows.map((row) => {
+                const role =
+                  row.start === story.baselineRowStart
+                    ? 'baseline'
+                    : row.start === story.peakRowStart
+                      ? 'peak'
+                      : undefined;
+                return (<tr data-story={role} key={row.start}>
                   {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineNodes nodes={cell.children} />
+                      {column === 0 && role ? <span className="answer-table-story-tag">{role}</span> : null}
                     </td>
                   ))}
-                </tr>
-              ))}
+                </tr>);
+              })}
             </tbody>
           </table>
-        </div>
-      );
+        </div>);
+      }
     case 'rule':
       return <hr className="answer-rule" />;
     case 'code':
@@ -467,6 +505,7 @@ export function AnswerProse({
   className,
   columns = [],
   badges = false,
+  blocks: selection = 'all',
 }: {
   text: string;
   sources: readonly { name: string }[];
@@ -482,13 +521,16 @@ export function AnswerProse({
    * the source table beside them is already a chip.
    */
   badges?: boolean;
+  /** Which parsed blocks this seating owns; source text is never regex-edited. */
+  blocks?: AnswerBlockSelection;
 }) {
   const tracked = useTrackedTables();
-  const blocks = answerBlocks(text,
+  const blocks = selectAnswerBlocks(answerBlocks(text,
     sources.map((source) => source.name),
     tracked,
     columns
-  );
+  ), selection);
+  if (blocks.length === 0) return null;
   return (<div className={className ? `answer-prose ${className}` : 'answer-prose'}>
       {blocks.map((block) => (<ProseBlock block={block} badges={badges} key={block.start} />
       ))}

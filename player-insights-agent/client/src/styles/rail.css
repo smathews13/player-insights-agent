@@ -1034,3 +1034,126 @@
    to "icon chips are neutral", on the argument that its destination was
    evaluation. The link is gone, so the exception is too, and gold is once again
    only ever a filled mass or a rule in this app. */
+
+/*
+ * ============================================================================
+ * ASK IN DAYLIGHT
+ * ============================================================================
+ *
+ * THE TWO NAVY SURFACES ABOVE ARE THE DARK THEME'S, AND THEY WERE NOT CONDITIONAL.
+ *
+ * `.ask-layout` and `.trace-inspector` both paint `--ast-sky-fill` with the
+ * starfield over it, and `--ast-sky-fill` is #16202E at `:root` -- not remapped by
+ * theme, because until now the sky was the page in both. So light mode drew the
+ * night sky twice: navy with stars behind the transcript, and navy with stars down
+ * the whole harness column. That is what was reported, and it is not a token that
+ * was missed -- it is these two rules being unconditional.
+ *
+ * They stay unconditional, because dark mode reads them: `.ask-layout` is overpainted
+ * to `transparent` in dark-mode.css so `.app-sky` shows through, and the harness
+ * column keeps the fill and the field. What follows is the light half of the same
+ * page -- the same two surfaces, in daylight -- and it is CSS rather than a theme
+ * read in JavaScript for the reason constellation.css gives at more length: a
+ * component that mounts what it reads has a first frame to be wrong on.
+ *
+ * The result is the rail's own arrangement, mirrored: a white column of cards, a
+ * quiet field with the transcript's white cards on it, and a white column of cards.
+ * `--db-wash` is the field, which is the same #F7F7F7 every panel head in the app
+ * is drawn in, and both side columns are `--card`, which is what the conversation
+ * rail beside it has always been.
+ */
+html:not([data-theme='dark']) .ask-layout {
+  background-color: var(--db-wash);
+  /* The shorthand is not available here -- the base rule sets `background-color`
+     and `background-image` separately and this has to answer both. `none` and not
+     a lighter field: the spackle is stars, and there is no daylight weight at
+     which a star is not a star. */
+  background-image: none;
+}
+
+/*
+ * The harness column, as a panel rather than as a window.
+ *
+ * A hairline where the navy used to be its own edge (the note on `.trace-inspector`
+ * above says exactly that), because a white column against a #F7F7F7 field with no
+ * rule between them reads as a gap in the page rather than as a boundary. It is the
+ * same `--db-line` the conversation rail draws on its own inside edge, so the page
+ * is bounded the same way on both sides.
+ */
+html:not([data-theme='dark']) .trace-inspector {
+  border-left: 1px solid var(--db-line);
+  background: var(--card);
+  background-image: none;
+  color: var(--ast-text);
+}
+
+/* The column's heading and its figures, which were white on the navy. `--ast-text`
+   and not `--foreground`: everything else inside this column is drawn from the
+   astrolabe scale, and one heading reading from the AppKit scale beside it is how
+   the two drift apart. */
+html:not([data-theme='dark']) .trace-title,
+html:not([data-theme='dark']) .trace-inspector .metric-row strong,
+html:not([data-theme='dark']) .trace-inspector .ast-flick-row-say {
+  color: var(--ast-text);
+}
+
+/* The hairlines inside the column, which were white at 12% and 18% -- invisible on
+   white. `--ast-hairline` is the app's one thin border and it is what every other
+   card on a light page is bounded by. */
+html:not([data-theme='dark']) .trace-inspector .ast-flick-row,
+html:not([data-theme='dark']) .trace-inspector .trace-divider {
+  border-color: var(--ast-hairline);
+}
+
+html:not([data-theme='dark']) .trace-inspector .trace-divider {
+  background: var(--ast-hairline);
+}
+
+/*
+ * The idle column's mark: an icon chip on white rather than on navy.
+ *
+ * `--ast-ice` is the app's AI-context surface and `--ast-blue` its action ink, which
+ * is the same pair the step list's selected row uses -- so the empty harness and a
+ * picked step in it are the one blue rather than two.
+ */
+html:not([data-theme='dark']) .trace-empty-mark {
+  border-color: var(--ast-hairline);
+  background: var(--ast-ice);
+  color: var(--ast-blue);
+}
+
+/*
+ * The run's status pill, back on its light families.
+ *
+ * The four `--dark` rules above mix each tone toward white for the navy, which on
+ * white leaves a pale word on a paler wash -- the live one measured under 2:1. The
+ * `--ast-*-text/-border/-fill` triples are the same tones' light rungs and are what
+ * `.ast-pill` itself draws from, so this hands the chip back to the shared recipe
+ * rather than inventing a light treatment for it.
+ */
+html:not([data-theme='dark']) .trace-inspector .run-status--dark.ast-pill--pos {
+  border-color: var(--ast-pos-border);
+  background: var(--ast-pos-fill);
+  color: var(--ast-pos-text);
+}
+
+html:not([data-theme='dark']) .trace-inspector .run-status--dark.ast-pill--neg {
+  border-color: var(--ast-neg-border);
+  background: var(--ast-neg-fill);
+  color: var(--ast-neg-text);
+}
+
+html:not([data-theme='dark']) .trace-inspector .run-status--dark.ast-pill--neutral-outline {
+  border-color: var(--ast-border-input);
+  background: var(--ast-fill-band);
+  color: var(--ast-neutral-text);
+}
+
+/* Live stays the solid blue with a white word, which is `.run-status.is-live`'s own
+   treatment and §1's agent-at-work register. Restated here only because the
+   `--dark` rule above overrides it inside this column. */
+html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
+  border-color: transparent;
+  background: var(--ast-blue);
+  color: var(--ast-white);
+}

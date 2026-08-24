@@ -37,37 +37,12 @@ import { Check, ChevronDown, CircleAlert, ThumbsDown, ThumbsUp } from 'lucide-re
 import { AnswerCharts } from './AnswerCharts';
 import { AstrolabeMark } from './AstrolabeMark';
 import { AnswerProse, EntityText } from './DataEntityLinks';
+import { parseAnswerMarkdown } from './answer-markdown';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
 import { TraceTimeline } from './TraceTimeline';
 import { ratedThumb } from './stored-feedback';
 import type { Answer, FeedbackEntry } from './app-types';
-
-/**
- * Whether a comparison reads as a rise, a fall, or neither.
- *
- * Green is the reachable-or-saved colour and red is the failure one, so
- * spending either on a figure's delta is a claim about the number's direction.
- * The claim is made only when the string actually opens with a sign, because
- * `comparison` is free text from the agent: "vs. the previous window" carries
- * no direction at all and was previously painted as though it carried a
- * positive one, on the strength of not beginning with a hyphen.
- *
- * Both minus characters count. The agent writes U+2212 in prose it has
- * formatted for display and ASCII hyphen elsewhere, and a check for the second
- * alone read every typographic minus as a rise -- a fall shown in the colour of
- * a gain, which is the one direction error a reader cannot catch from the
- * colour.
- *
- * The sign itself stays in the text, so the direction is never carried by
- * colour alone.
- */
-function comparisonDirection(comparison: string | undefined): 'positive' | 'negative' | '' {
-  const text = (comparison ?? '').trim();
-  if (text.startsWith('-') || text.startsWith('\u2212')) return 'negative';
-  if (text.startsWith('+')) return 'positive';
-  return '';
-}
 
 export function AnswerCard({
   answer,
@@ -134,57 +109,31 @@ export function AnswerCard({
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
   const dataAccess = dataAccessDisclosure(answer.executionIdentity);
+  const hasCharts = Array.isArray(answer.charts) && answer.charts.length > 0;
+  const hasTables = [answer.narrative, answer.content ?? ''].some((text) =>
+    parseAnswerMarkdown(text).some((block) => block.kind === 'table')
+  );
   return (<Card className="answer-card" id={id}>
       <CardHeader>
-        {/* A grid rather than a flex row so the mark aligns to the header row --
-            the chip row -- rather than to the top of a block that grows as the
-            takeaway wraps. The chip row and the takeaway share the second column,
-            which keeps the takeaway indented under the chips; the mark centres
-            against the chip row in the first. Placement is in answer.css. */}
         <div className="answer-card-head">
-          {/* The mark is the agent, so the card an answer arrives in is signed
-              with the drawing the top bar carries rather than with a figure of
-              its own. 32 because the seat is 32: the graduation ring is dropped
-              below that, and a smaller size here would paint the small cut and
-              let the stylesheet scale it back up to a blunter mark. */}
-          <div className="agent-avatar">
-            <AstrolabeMark size={32} />
-          </div>
-          <div className="answer-card-badges flex flex-wrap items-center gap-1.5">
-              {/* Three tones, from `tone` rather than from `variant`: solid navy
-                  for a live answer, the warning family tinted for one whose
-                  narrative is live and whose figures are stored, and a solid
-                  negative for one where nothing ran. The third exists because
-                  the first two of those are different amounts of wrong and
-                  `variant` cannot say so -- it is AppKit's, it has no rung
-                  between fine and failure, and both non-live answers wore the
-                  same chip.
-
-                  Deliberately not the action colour: blue is what you press in
-                  this app, and a blue pill above the takeaway reads as a control
-                  rather than as a statement about where the figures came from.
-
-                  Not secondary either, for the two that are not live. A grey
-                  chip reading "Representative response" sat beside a complete,
-                  confident, correct-looking answer and read as a label for a
-                  demo mode rather than as a warning that none of the numbers
-                  under it were queried. */}
-              <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
-                {badge.label}
-              </Badge>
-              {/* Beside the "Live agent response" badge, because that badge is
-                  the thing being qualified. A run whose Genie space refused it
-                  is still a live run and still earns the badge, and the badge
-                  alone reads as an assurance the answer has not earned. */}
-              {fallback && (<Badge variant="destructive" className="provenance-chip" data-tone="stored">
-                  {ANSWER_FALLBACK_NOTICES[fallback].badge}
+          <div className="answer-card-identity">
+            <span className="answer-card-mark">
+              <AstrolabeMark size={18} ink="light" />
+            </span>
+            <div className="answer-card-badges flex flex-wrap items-center gap-1.5">
+                <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
+                  {badge.label}
                 </Badge>
-              )}
+                {fallback && (<Badge variant="destructive" className="provenance-chip" data-tone="stored">
+                    {ANSWER_FALLBACK_NOTICES[fallback].badge}
+                  </Badge>
+                )}
+            </div>
           </div>
           <CardTitle className="answer-takeaway">{answer.takeaway}</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="answer-card-content">
         {/* First in the card, above the narrative and the figures, because it
             governs how every number below it should be read. Below them it was
             a footnote to a conclusion the reader had already drawn. */}
@@ -211,38 +160,63 @@ export function AnswerCard({
             </AlertDescription>
           </Alert>
         )}
-        {/* The tables this answer declared as sources are links to where the app
-            tracks them, rather than inert text a reader has to go and look up.
-            Only those, and only when the Connections page has a row for them, see
-            data-entities.ts for why that pair of rules is the whole feature.
-
-            The columns are marked as well, which they were not: `columns` was
-            left empty here and filled only for the caveats, so a narrative that
-            said the figure came from `active_players` set the one word a reader
-            was looking for in the same grey as the sentence around it. The
-            candidate set is the identifiers this narrative itself names, and
-            the underscore rule in data-entities.ts is what keeps an English
-            word out of it. */}
-        <AnswerProse
-          className="leading-7"
-          text={answer.narrative}
-          sources={answer.sources}
-          columns={mentionedIdentifiers([answer.narrative])}
-        />
-        {answer.content ? (<section className="answer-content" aria-label="Answer content">
-            <h3 className="answer-heading">Content</h3>
-            {/* The data package is a list of values, not sentences: the window
-                and the labels are set as badges here so the four facts on the
-                line read as four rather than as one run of grey. The source
-                table beside them was already a chip. See answer-badges.ts. */}
+        <div className="answer-main-row">
+          <div className="answer-narrative">
             <AnswerProse
-              text={answer.content}
+              text={answer.narrative}
               sources={answer.sources}
-              columns={mentionedIdentifiers([answer.content])}
-              badges
+              columns={mentionedIdentifiers([answer.narrative])}
+              blocks="prose"
             />
-          </section>
-        ) : null}
+            {answer.content ? (
+              <AnswerProse
+                text={answer.content}
+                sources={answer.sources}
+                columns={mentionedIdentifiers([answer.content])}
+                badges
+                blocks="prose"
+              />
+            ) : null}
+          </div>
+          {answer.figures.length > 0 ? (
+            <aside className="answer-stat-rail" aria-label="Key figures">
+              {answer.figures.map((figure) => (
+                <div className="answer-stat" key={figure.label}>
+                  <span className="answer-stat-label">{figure.label}</span>
+                  <b className="answer-stat-value ast-num">{figure.display ?? figure.value}</b>
+                  {figure.comparison ? <span className="answer-stat-context">{figure.comparison}</span> : null}
+                </div>
+              ))}
+            </aside>
+          ) : null}
+        </div>
+        {(hasCharts || hasTables) ? (<section className="answer-evidence" aria-label={hasCharts ? 'Chart evidence' : 'Table evidence'}>
+          {hasCharts ? (
+            <AnswerCharts charts={answer.charts} />
+          ) : (
+            <>
+              <AnswerProse
+                text={answer.narrative}
+                sources={answer.sources}
+                columns={mentionedIdentifiers([answer.narrative])}
+                blocks="tables"
+              />
+              {answer.content ? (
+                <AnswerProse
+                  text={answer.content}
+                  sources={answer.sources}
+                  columns={mentionedIdentifiers([answer.content])}
+                  blocks="tables"
+                />
+              ) : null}
+            </>
+          )}
+        </section>) : null}
+        <SourcesModule
+          sources={answer.sources}
+          caveats={ordinaryCaveats}
+          derivation={answer.derivation}
+        />
         {answer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
             <h3 className="answer-heading">Document footnotes</h3>
@@ -267,65 +241,6 @@ export function AnswerCard({
             </AlertDescription>
           </Alert>
         ) : null}
-        {/* Above the figure breakdown: the chart is the shape of the result, the figures
-            beneath it are the numbers that shape is made of. Renders nothing when the
-            answer carries no charts, which is every representative answer. */}
-        <AnswerCharts charts={answer.charts} />
-        {answer.figures.length > 0 && (<Card className="chart-card">
-            <CardHeader>
-              <CardTitle>Result breakdown</CardTitle>
-            </CardHeader>
-            <CardContent className="bar-chart">
-              {answer.figures.map((figure) => (<div className="bar-row" key={figure.label}>
-                  <span>{figure.label}</span>
-                  <div>
-                    <i style={{ width: `${Math.min(Math.max(figure.value, 0), 100)}%` }} />
-                  </div>
-                  {/* `.ast-num` is DM Mono, and it is here because of where this
-                      figure sits rather than because of what it is. It is a
-                      column: a second value sits directly above and below it on
-                      every answer with more than one row, so the digits have to
-                      line up. They could not before, whatever the stylesheet
-                      said -- DM Sans in this repository declares no `tnum`
-                      feature and its digits are proportional, a `1` being just
-                      over half the width of a `0`, so `font-variant-numeric`
-                      was switching on a feature the file does not carry. */}
-                  <b className="ast-num">{figure.display ?? figure.value}</b>
-                  {/* Guarded: the response is cast, not validated, and a figure missing its
-                      comparison would otherwise throw and blank the whole transcript.
-                      Mono for the same reason as the value: it is read down the
-                      column beside it. */}
-                  <em className={`ast-num ${comparisonDirection(figure.comparison)}`.trim()}>{figure.comparison}</em>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-        {/* Where the answer came from and what to keep in mind about it, as one
-            card. It was three: this strip, an "All sources" tab under Advanced
-            trace details listing the same tables again, and a standalone amber
-            caveats box below both. The strip and the tab each printed the
-            governance line and an "Open in Databricks" link on every row, so an
-            answer that read five tables said the same two facts ten times and
-            the one fact that differs per row -- what each table was read for --
-            was the hardest thing in the block to find.
-
-            Every table the run read, not the first one. This was `sources[0]`,
-            and the list is in the order the run read them, so an answer that
-            looked up two definitions and then queried three tables cited the
-            dictionary and nothing else.
-
-            The caveats are the module's footer and are passed here rather than
-            drawn separately, so an answer with caveats and no sources still
-            renders the card with the footer alone. The component is shared with
-            the Run Explorer's Final answer tab, which used to render no caveats
-            whatsoever, so the same answer disclosed less the second time it was
-            read. */}
-        <SourcesModule
-          sources={answer.sources}
-          caveats={ordinaryCaveats}
-          derivation={answer.derivation}
-        />
         {/* Two layers over the same run, deliberately not the same view twice.
             The right-hand rail is "what happened, in order"; this is "where the
             time went". It used to hold a horizontal strip of step cards, which

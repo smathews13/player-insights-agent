@@ -310,13 +310,12 @@ describe('the mark that replaced it', () => {
     // Every turn the agent takes is now signed with the same drawing: the mark
     // used to differ per kind of turn -- a sparkle on an answer, a workflow
     // glyph on a plan -- which made it decoration rather than an identity.
-    for (const file of ['AnswerCard.tsx', 'PlanCard.tsx']) {
-      const source = SOURCES.get(file)!;
-      expect(source, `${file} no longer draws the robot`).not.toContain('PiaRobotMark');
-      expect(source, `${file} seats the astrolabe mark`).toMatch(
-        /className="agent-avatar">\s*<AstrolabeMark size=\{\d+\} \/>/,
-      );
-    }
+    const answer = SOURCES.get('AnswerCard.tsx')!;
+    expect(answer).not.toContain('PiaRobotMark');
+    expect(answer).toMatch(/className="answer-card-mark">\s*<AstrolabeMark size=\{18\} ink="light" \/>/);
+    const plan = SOURCES.get('PlanCard.tsx')!;
+    expect(plan).not.toContain('PiaRobotMark');
+    expect(plan).toMatch(/className="agent-avatar">\s*<AstrolabeMark size=\{\d+\} \/>/);
   });
 
   it('asks each avatar for the size that seat actually paints', () => {
@@ -332,13 +331,14 @@ describe('the mark that replaced it', () => {
     // on the number but no longer agree with the rule that paints them.
     const painted = Number(body('.agent-avatar svg').match(/width:\s*(\d+)px/)?.[1]);
     expect(painted, 'the avatar states the width it paints').toBeGreaterThanOrEqual(GRADUATION_FLOOR);
-    for (const file of ['AnswerCard.tsx', 'PlanCard.tsx', 'HomePage.tsx']) {
+    for (const file of ['PlanCard.tsx', 'HomePage.tsx']) {
       const asked = [
         ...SOURCES.get(file)!.matchAll(/className="agent-avatar">\s*<AstrolabeMark size=\{(\d+)\}/g),
       ].map((match) => Number(match[1]));
       expect(asked.length, `${file} seats the mark in an avatar`).toBeGreaterThan(0);
       for (const size of asked) expect(size, `${file} asks the avatar for its painted size`).toBe(painted);
     }
+    expect(SOURCES.get('AnswerCard.tsx')).toContain('<AstrolabeMark size={18} ink="light" />');
   });
 
   it('sits the agent chip on Ice, which is what replaced oat', () => {

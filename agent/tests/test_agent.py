@@ -3223,35 +3223,44 @@ def test_the_make_no_claim_rule_is_still_in_the_prompt_verbatim():
         assert framing not in SYNTHESIS_INSTRUCTIONS.lower()
 
 
-def test_the_answer_still_leads_with_one_sentence_that_answers_the_question():
-    """The pattern that was already right. Bullets are the body of the answer, never the
-    top of it: a reader who has to assemble the answer from a list has not been answered."""
+def test_the_takeaway_leads_and_the_narrative_does_not_repeat_it():
+    """The card already has a sentence that answers the question. Repeating that sentence
+    before the claims makes the compact answer read as though it started twice."""
 
-    assert "Open with one sentence, in prose, that answers the question directly" in (
-        SYNTHESIS_INSTRUCTIONS
-    )
-    assert "Never open with a\n  bullet" in SYNTHESIS_INSTRUCTIONS
+    assert "takeaway (one decision-oriented sentence)" in SYNTHESIS_INSTRUCTIONS
+    assert "The takeaway already answers the question" in SYNTHESIS_INSTRUCTIONS
+    assert "Do not repeat it as an opening paragraph" in SYNTHESIS_INSTRUCTIONS
 
 
-def test_findings_are_asked_for_as_bullets_and_the_threshold_is_a_number():
-    """Two, stated as a number. "Where it helps" is the judgement that produced the wall of
-    prose this changes, and a threshold a reader of the prompt cannot see is a threshold
-    that drifts."""
+def test_findings_are_asked_for_as_three_to_five_distinct_bullets():
+    """The card has a bounded claim column. The bound is explicit, and padding is forbidden
+    so a short answer remains honest instead of growing filler to fit the design."""
 
-    assert "Two or more findings are a bulleted list" in SYNTHESIS_INSTRUCTIONS
-    assert "one finding per line" in SYNTHESIS_INSTRUCTIONS
+    assert "3-5 bulleted claims" in SYNTHESIS_INSTRUCTIONS
+    assert "one claim per line" in SYNTHESIS_INSTRUCTIONS
+    assert "Never\n  split or pad one finding to reach a count" in SYNTHESIS_INSTRUCTIONS
     # The enumerations from the answers that read worst: all of them are lists.
     for enumerated in ("columns", "tables", "titles", "periods", "regions"):
         assert enumerated in SYNTHESIS_INSTRUCTIONS
 
 
-def test_a_single_finding_is_still_allowed_to_be_a_sentence():
-    """The judgement call in this change. Bullets everywhere makes a two-line answer look
-    like a form somebody has to fill in, and the lead sentence has already said the thing,
-    so a one-bullet list is the same sentence with a dot in front of it."""
+def test_a_short_answer_is_still_allowed_to_stay_short():
+    """The visual rail is not permission to invent two more claims."""
 
-    assert "One finding stays as prose" in SYNTHESIS_INSTRUCTIONS
-    assert "A list of one bullet reads as a form" in SYNTHESIS_INSTRUCTIONS
+    assert "If fewer than 3 distinct claims exist" in SYNTHESIS_INSTRUCTIONS
+    assert "only the supported prose or bullets" in SYNTHESIS_INSTRUCTIONS
+
+
+def test_tabular_content_is_one_complete_evidence_table():
+    assert "one unified Markdown table" in SYNTHESIS_INSTRUCTIONS
+    assert "earliest date first and the latest date last" in SYNTHESIS_INSTRUCTIONS
+    assert "Do not split one\n  result into several small tables" in SYNTHESIS_INSTRUCTIONS
+
+
+def test_headline_figures_are_bounded_without_fabricating_them():
+    assert "3-4 most decision-useful headline statistics" in SYNTHESIS_INSTRUCTIONS
+    assert "quote values already present in the assessed package" in SYNTHESIS_INSTRUCTIONS
+    assert "Do not restate the same number in two prose sentences" in SYNTHESIS_INSTRUCTIONS
 
 
 def test_the_figures_and_the_names_are_asked_to_be_bolded():

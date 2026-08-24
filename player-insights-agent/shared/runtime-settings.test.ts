@@ -9,6 +9,7 @@ describe('runtime settings contract', () => {
       maxToolCalls: 12,
       maxRunSeconds: 90,
     });
+    expect(DEFAULT_RUNTIME_SETTINGS.answer.maxFigures).toBe(4);
   });
 
   it('ships distinct shared answer entity tokens', () => {
