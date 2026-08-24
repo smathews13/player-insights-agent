@@ -861,7 +861,7 @@ describe('the inspector with nothing in it', () => {
     expect(HOME_PAGE).toContain('className="trace-idle-sky"');
     expect(HOME_PAGE).toContain('<ConstellationField shape={OPENING_CONSTELLATION} />');
     expect(HOME_PAGE).not.toMatch(/<EmptyMedia/);
-    expect(withoutComments(RAIL)).toMatch(/\.trace-idle-sky\s*\{[^}]*flex:\s*1/);
+    expect(withoutComments(RAIL)).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0/);
   });
 });
 

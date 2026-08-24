@@ -67,7 +67,7 @@ export const RuntimeSettingsSchema = z.strictObject({
   loop: z.strictObject({
     maxSteps: z.number().int().min(1).max(20),
     maxToolCalls: z.number().int().min(1).max(40),
-    maxRunSeconds: z.number().int().min(30).max(180),
+    maxRunSeconds: z.number().int().min(30).max(200),
   }),
   answer: z.strictObject({
     takeaway: z.boolean(),
@@ -113,15 +113,15 @@ export type RuntimeSettings = z.infer<typeof RuntimeSettingsSchema>;
 
 /** Current behavior. An empty store therefore changes no existing deployment. */
 export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
-  loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 90 },
+  loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 150 },
   answer: {
     takeaway: true,
     narrative: true,
     charts: true,
     figures: true,
     caveats: true,
-    maxCharts: 2,
-    maxFigures: 4,
+    maxCharts: 1,
+    maxFigures: 6,
     maxCaveats: 0,
     narrativeMaxCharacters: 0,
     sources: 'standard',

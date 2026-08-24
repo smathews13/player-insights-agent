@@ -212,6 +212,10 @@ export function answerHonesty(input: {
   content?: string | null;
 }): AnswerHonesty {
   const caveats = input.caveats.map((caveat) => caveat.trim()).filter(Boolean);
+  // Refused and incomplete-evidence only. A grant-timing sentence that happens
+  // to say "any refused table will be named" is identity, not a denial: the
+  // catalog listing already answered, and painting it "Request refused" is the
+  // false alarm this filter exists to keep out.
   const warnings = caveats
     .filter((text) => {
       const risk = caveatRisk(text);

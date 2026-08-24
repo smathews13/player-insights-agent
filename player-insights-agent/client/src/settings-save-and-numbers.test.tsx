@@ -27,21 +27,21 @@ describe('Runtime numeric fields', () => {
   it('keeps the last good value when the box is emptied, rather than snapping to zero', () => {
     // The defect: `Number('')` is 0, so clearing "Run budget" to retype it made
     // the value 0 and drew a "0" the next digits landed after.
-    expect(wholeNumberFrom('', 30, 180, 90)).toBe(90);
+    expect(wholeNumberFrom('', 30, 200, 150)).toBe(150);
     expect(wholeNumberFrom('   ', 1, 20, 8)).toBe(8);
   });
 
   it('reads a padded entry as the number it looks like', () => {
-    expect(wholeNumberFrom('0180', 30, 180, 90)).toBe(180);
+    expect(wholeNumberFrom('0200', 30, 200, 150)).toBe(200);
     expect(wholeNumberFrom('010', 1, 20, 8)).toBe(10);
-    expect(wholeNumberFrom('180', 30, 180, 90)).toBe(180);
+    expect(wholeNumberFrom('200', 30, 200, 150)).toBe(200);
   });
 
   it('holds the value inside the range the server enforces', () => {
-    // The schema is min(30).max(180) for the run budget and min(1).max(20) for
+    // The schema is min(30).max(200) for the run budget and min(1).max(20) for
     // steps, so an unclamped 0 was a 400 the reader could not see.
-    expect(wholeNumberFrom('0', 30, 180, 90)).toBe(30);
-    expect(wholeNumberFrom('9999', 30, 180, 90)).toBe(180);
+    expect(wholeNumberFrom('0', 30, 200, 150)).toBe(30);
+    expect(wholeNumberFrom('9999', 30, 200, 150)).toBe(200);
     expect(wholeNumberFrom('0', 1, 20, 8)).toBe(1);
     expect(wholeNumberFrom('25', 1, 20, 8)).toBe(20);
   });

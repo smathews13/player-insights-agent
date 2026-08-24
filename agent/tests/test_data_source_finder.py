@@ -101,11 +101,11 @@ def test_each_finder_invocation_builds_a_fresh_message_list():
 
 
 def test_finder_owns_notebook_workflow_and_assessed_package_contract():
-    assert "Identify candidate governed sources" in FINDER_SYSTEM_PROMPT
+    assert "cheapest rung first" in FINDER_SYSTEM_PROMPT
+    assert "Genie is not the default" in FINDER_SYSTEM_PROMPT
     assert "Bind every SQL column" in FINDER_SYSTEM_PROMPT
     assert "null ratio" in FINDER_SYSTEM_PROMPT
-    assert "real Markdown table" in FINDER_SYSTEM_PROMPT
-    assert "bullet-only summary" in FINDER_SYSTEM_PROMPT
+    assert "Do not manufacture a table for a scalar" in FINDER_SYSTEM_PROMPT
     assert "## DATA PACKAGE" in FINDER_SYSTEM_PROMPT
     assert "- **Provenance:**" in FINDER_SYSTEM_PROMPT
     assert "- **Quality assessment:**" in FINDER_SYSTEM_PROMPT
@@ -114,7 +114,6 @@ def test_finder_owns_notebook_workflow_and_assessed_package_contract():
     assert "invoking signed-in user's Unity Catalog grants" in " ".join(
         FINDER_SYSTEM_PROMPT.split()
     )
-    assert "gold/approved aggregates first" in FINDER_SYSTEM_PROMPT
     assert "STOP calling tools" in FINDER_SYSTEM_PROMPT
     assert "do not make the" in FINDER_SYSTEM_PROMPT
     assert "package partial" in FINDER_SYSTEM_PROMPT
@@ -184,9 +183,16 @@ def test_orchestrator_delegates_discovery_tools_only_through_finder():
     names = [tool["function"]["name"] for tool in DATA_SOURCE_FINDER_TOOLS]
     assert names == [tool["function"]["name"] for tool in LOOP_TOOLS]
     assert ORCHESTRATOR_TOOLS == ()
-    assert "data_genie" in names
-    assert "dictionary_genie" in names
-    assert "run_sql" in names
+    assert names[:4] == [
+        "resolve_table",
+        "describe_table",
+        "query_named_table",
+        "run_sql",
+    ]
+    assert names.index("data_genie") > names.index("run_sql")
+    assert names.index("dictionary_genie") > names.index("data_genie")
+    assert names.index("list_data_assets") > names.index("dictionary_genie")
+    assert names[-1] == "request_clarification"
     assert "ask_data_source_finder" not in names  # in-process boundary, not a second endpoint tool
 
 

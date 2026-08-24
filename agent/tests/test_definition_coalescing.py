@@ -53,7 +53,11 @@ def definition_calls(llm, tools):
 
 
 def tool_stages(response):
-    return [stage for stage in stages(response) if stage.get("kind") == "tool"]
+    return [
+        stage
+        for stage in stages(response)
+        if stage.get("kind") in {"tool", "genie", "sql", "discovery", "plot", "knowledge"}
+    ]
 
 
 def tool_replies(llm):
@@ -341,7 +345,7 @@ def test_a_run_that_read_rows_still_goes_to_the_charting_step():
         ]
     )
 
-    response = ask(build(llm, tools))
+    response = ask(build(llm, tools), "How many active players? Chart the result.")
 
     assert len(plot_calls(llm)) == 1, "a run that returned rows was denied a chart"
     assert [stage for stage in stages(response) if stage.get("id") == "plot"], (
@@ -363,6 +367,6 @@ def test_sql_results_count_as_something_to_plot():
         [Call("run_sql", {"sql": f"SELECT profile_label, count(*) FROM {ACTIVITY} GROUP BY 1"})]
     )
 
-    ask(build(llm, tools))
+    ask(build(llm, tools), "Count players by label and chart the result.")
 
     assert len(plot_calls(llm)) == 1

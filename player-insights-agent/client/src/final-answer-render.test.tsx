@@ -194,4 +194,14 @@ describe('the Overview warning family', () => {
     expect(css).toMatch(/\.final-answer-head \{[^}]*justify-content:\s*flex-start/s);
     expect(css).not.toMatch(/\.final-answer-mark/);
   });
+
+  it('sits in the section corner with no padding gap under the KPI divider', () => {
+    const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    expect(css).toMatch(
+      /\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*0 20px 16px 8px/s
+    );
+    expect(css).not.toMatch(
+      /\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*18px/s
+    );
+  });
 });

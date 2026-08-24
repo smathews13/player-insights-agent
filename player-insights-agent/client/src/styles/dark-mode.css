@@ -361,11 +361,47 @@ html[data-theme='dark'] .plane-card,
 html[data-theme='dark'] .bench-ledger,
 html[data-theme='dark'] .first-open-card,
 html[data-theme='dark'] .access-gate-panel,
-html[data-theme='dark'] [data-slot='alert'],
 html[data-theme='dark'] [data-slot='card'] {
   background: var(--card);
   backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
+}
+
+/*
+ * THE SKY STAYS BEHIND THE PAGE, INCLUDING THE TILES AND THE RED BANNERS.
+ *
+ * `.app-sky` is already `z-index: -1`. That is not enough on Run Explorer and
+ * the other working tabs: a 5% `--card` fill and a 2px frost leave the
+ * twinkling glyphs readable through KPI tiles and through `--ast-neg-fill` /
+ * `--db-red-wash` (both 10% pink). Readers reported those dots sitting ON the
+ * cards and ON the warning banner.
+ *
+ * Named siblings only. The earlier `.app-frame > :not(.app-sky)` lift replaced
+ * `position: fixed` on the gate, Settings, and the header, and trapped the
+ * account menu. `main`, the storage banner and the role-lost strip are the
+ * documents; overlays keep the z-index they already declared.
+ *
+ * The mix is toward `--ast-sky-fill` so the field is behind the chrome rather
+ * than drawn on it. 10px frost then washes any leftover point into the pane.
+ */
+html[data-theme='dark'] .app-frame > main,
+html[data-theme='dark'] .storage-banner,
+html[data-theme='dark'] .role-lost-notice {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme='dark'] .page-shell [data-slot='card'],
+html[data-theme='dark'] .run-explorer .summary-grid [data-slot='card'] {
+  background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
+  backdrop-filter: blur(10px);
+}
+
+html[data-theme='dark'] [data-slot='alert'],
+html[data-theme='dark'] .role-lost-notice,
+html[data-theme='dark'] .storage-banner [data-slot='alert'] {
+  background: color-mix(in oklab, var(--ast-sky-fill) 80%, var(--ast-neg-text));
+  backdrop-filter: blur(10px);
 }
 
 /*
@@ -469,6 +505,9 @@ html[data-theme='dark'] .trace-dag.map .dag-inline-code {
  * surface in the app whose contents disappeared completely.
  */
 html[data-theme='dark'] .app-select-content,
+html[data-theme='dark'] [data-slot='select-content'],
+html[data-theme='dark'] [data-slot='dropdown-menu-content'],
+html[data-theme='dark'] [data-slot='popover-content'],
 html[data-theme='dark'] .monitoring-chip-menu {
   background: var(--ast-surface-solid);
   backdrop-filter: none;
@@ -1022,8 +1061,13 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .access-gate-panel,
   html[data-theme='dark'] [data-slot='alert'],
   html[data-theme='dark'] [data-slot='card'],
+  html[data-theme='dark'] .role-lost-notice,
+  html[data-theme='dark'] .storage-banner [data-slot='alert'],
   html[data-theme='dark'] .account-menu,
   html[data-theme='dark'] .app-select-content,
+  html[data-theme='dark'] [data-slot='select-content'],
+  html[data-theme='dark'] [data-slot='dropdown-menu-content'],
+  html[data-theme='dark'] [data-slot='popover-content'],
   html[data-theme='dark'] .monitoring-chip-menu,
   html[data-theme='dark'] .settings-page.settings-modal,
   html[data-theme='dark'] .monitoring-drawer,

@@ -708,7 +708,10 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   display: grid;
   gap: 14px;
   min-width: 0;
-  padding: 18px 20px 16px;
+  /* Top and left are chrome, not a gutter: "Live agent response" is the first
+     pixel under the KPI divider. 8px left matches the card radius so the pill
+     sits in the corner; the takeaway stays on the next grid row. */
+  padding: 0 20px 16px 8px;
 }
 .final-answer-head {
   display: flex;

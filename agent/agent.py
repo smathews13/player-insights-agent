@@ -30,7 +30,7 @@ from mlflow.types.responses import (
     ResponsesAgentResponse,
     ResponsesAgentStreamEvent,
 )
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 import correlation
 import execution_identity
@@ -44,6 +44,7 @@ from charts import (
     TWO_PANEL_RULE,
     ChartError,
     EmptyChartError,
+    chart_requested,
     new_plot,
 )
 from config import Settings, baked_config, format_genie_space, open_ai_client
@@ -128,6 +129,11 @@ _SETTINGS = Settings.from_env()
 # A real artifact payload, but intentionally governance-only. Customer and
 # business facts still have to arrive through governed tools during this turn.
 PACKAGED_KNOWLEDGE = knowledge.load_packaged_knowledge()
+COMMON_KNOWLEDGE = knowledge.load_common_knowledge()
+COUNTING_USERS = knowledge.load_counting_users()
+FINDER_KNOWLEDGE = "\n\n".join(
+    part for part in (COMMON_KNOWLEDGE, COUNTING_USERS) if part
+)
 
 # Resolved at import for the same reason, and empty for every deployment that
 # has not been given an AI Search index: it is an hourly charge nobody acquires
@@ -246,17 +252,18 @@ SYNTHESIS_PROVENANCE_RULE = (
 # the count spelt out in prose here, those two disagreed: the operator asked for
 # eight, the instructions still said three or four, and assembly then truncated to
 # whichever was smaller. A model given two caps optimises for the wrong one.
-MAX_FIGURES = 4
+MAX_FIGURES = 6
 
 SYNTHESIS_INSTRUCTIONS = f"""You are Astrolabe, the final analyst voice.
 Return one valid JSON object and nothing around it: no code fence, no commentary.
 Keys: takeaway (one decision-oriented sentence), narrative (plain-language interpretation,
-written as Markdown), content (the concrete positive findings returned by the assessed
-data package, written as Markdown), figures (at most {MAX_FIGURES} objects, that many only
-when that many distinct headline facts exist, otherwise every useful fact available, with
-exactly these keys: label, value, display, comparison; value is the figure's own number and
-display is that number formatted for reading, so the card prints display and falls back to
-value -- neither is a layout measurement and neither may be scaled to one),
+written as Markdown), content (findings beyond the headline figure, written as Markdown;
+empty, omitted, or null all mean there is nothing beyond the headline), figures (at most {MAX_FIGURES}
+objects, that many only when that many distinct headline facts exist,
+otherwise every useful fact available, with exactly these keys: label, value, display,
+comparison; value is the figure's own number and display is that number formatted for
+reading, so the card prints display and falls back to value -- neither is a layout measurement
+and neither may be scaled to one),
 document_snippets (an array of objects with exactly filename, quote, supports),
 and caveats (array of concise limitations).
 
@@ -264,8 +271,9 @@ Use only the supplied assessed data package. Never invent a value. Keep labels
 separate, never expose identifiers or emails,
 {SYNTHESIS_PROVENANCE_RULE}
 If the package lacks a requested value, say so and return no figure for it.
-Every answer must carry all four notebook sections: narrative, takeaway,
-content, and figures. Never pad narrative, content, figures, result breakdowns, or
+Sections are conditional. A one-figure question is answered by the figure, its
+catalog.schema.table, the identifier counted, and its null ratio -- not a minimum
+section or bullet count. Never pad narrative, content, figures, result breakdowns, or
 trace text with actions that were not taken. Omit absent filters, exclusions, skipped
 steps, and other non-falsifiable negative filler instead of listing them.
 When conversation attachment context is supplied and used, document_snippets is required:
@@ -283,10 +291,8 @@ sections but may not remove this geography contract.
 How to write the narrative. It is read in a compact answer card by somebody deciding
 something, who skims it before reading it:
 - The takeaway already answers the question. Do not repeat it as an opening paragraph.
-- Write 3-5 bulleted claims where the evidence supports that many, one claim per line,
-  each line starting with "- ". Each claim must add a distinct fact or interpretation.
-- If fewer than 3 distinct claims exist, write only the supported prose or bullets. Never
-  split or pad one finding to reach a count.
+- Write only the claims the evidence supports. Never split or pad one finding to reach
+  a count.
 - Anything you enumerate is a list: columns, tables, titles, periods, regions, ranked
   results.
 - Bold what a reader is looking for, with **double asterisks**: the figure the finding
@@ -300,11 +306,10 @@ something, who skims it before reading it:
   newline inside the string is invalid JSON and the whole answer is lost.
 
 How to write content and figures:
-- For a tabular result, content is one unified Markdown table containing the complete
-  evidence rows. Put the earliest date first and the latest date last. Do not split one
-  result into several small tables.
-- For a non-tabular result, content may be concise prose or a list. Never manufacture a
-  table merely to fill the card.
+- content is for findings beyond the headline figure. On a one-figure answer it may be
+  empty, omitted, or null.
+- Include a Markdown table only when rows were actually returned and they add something
+  the headline does not already say. Never manufacture a table for a scalar.
 - Use figures for at most {MAX_FIGURES} of the most decision-useful headline statistics when
   available. Their display strings must quote values already present in the assessed package.
 - State each baseline, peak, and delta once in the combined takeaway, narrative, content,
@@ -313,6 +318,8 @@ How to write content and figures:
 
 Caveats stay in caveats, one limitation per entry, however long that list gets. Do not
 fold them into the narrative and do not leave one out to make the answer shorter.
+A check that passed is not a caveat: do not report a zero null rate, a successful
+describe, or any other passed check as a warning.
 """
 
 _NON_ACTION_FILLER = re.compile(
@@ -361,7 +368,7 @@ MAX_TOOL_CALLS = 12
 #: is this plus a real per-call deadline, GENIE_TIMEOUT_SECONDS and the
 #: warehouse's wait timeout in tools.py, each sized so one call cannot outlast
 #: this budget.
-MAX_RUN_SECONDS = 90.0
+MAX_RUN_SECONDS = 150.0
 
 #: Per-field ceiling on what a stage records. High enough to keep the SQL a
 #: reader opens the trace to check, capped rather than removed because `input`
@@ -382,6 +389,13 @@ class Synthesis(BaseModel):
     figures: list[Figure] = Field(default_factory=list)
     document_snippets: list[DocumentSnippet] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
+
+    @field_validator("takeaway", "narrative", "content", mode="before")
+    @classmethod
+    def _null_string_is_empty(cls, value: Any) -> Any:
+        """An explicit JSON null means 'nothing here', not a validation failure."""
+
+        return "" if value is None else value
 
 
 # ---------------------------------------------------------------------------
@@ -525,32 +539,22 @@ REQUEST_CLARIFICATION_TOOL = {
     },
 }
 
-#: The tools the reference notebook assigns to the finder, in the order its
-#: model sees them.
-#: The orchestrator never receives this list; it invokes the finder boundary.
+#: The tools the finder sees, in ladder order. Load-bearing, not cosmetic: the
+#: model reaches for what it meets first. Genie is fourth rung and fallback.
+#: list_data_assets is browsing only — it recites every declared table.
+#: search_tagged_assets is not above list_data_assets: at a small declared set
+#: the listing is an in-memory read, while tag search runs SQL.
 DATA_SOURCE_FINDER_TOOLS = [
-    data_genie_tool(_SETTINGS.data_genie_space_title),
-    dictionary_genie_tool(_SETTINGS.dictionary_genie_space_title),
-    # Ahead of list_data_assets, which it is meant to displace. That pair is the
-    # discovery path, and the older half of it recites every declared table into
-    # the prompt and then describes them one at a time. Offered only where an
-    # index exists; list_data_assets stays, because it is what the model falls
-    # back to and what a deployment with no semantic layer still has.
-    *([SEARCH_SEMANTICS_TOOL] if SEMANTIC_INDEX else []),
-    # Also ahead of list_data_assets, and offered unconditionally: unlike the
-    # semantic layer there is nothing to provision, so every deployment either has
-    # tags or gets an unavailable result that says what to use instead. A governed
-    # estate has already written down which tables hold what, and reading that is
-    # cheaper than describing tables until one looks right.
-    SEARCH_TAGGED_ASSETS_TOOL,
-    LIST_DATA_ASSETS_TOOL,
-    # Ahead of describe_table, which needs the answer this gives. A model that
-    # meets the pair in this order is likelier to qualify a half-named table than
-    # to reject it, which is the whole behaviour change.
     RESOLVE_TABLE_TOOL,
     DESCRIBE_TABLE_TOOL,
     QUERY_NAMED_TABLE_TOOL,
     RUN_SQL_TOOL,
+    *knowledge.KNOWLEDGE_TOOLS,
+    SEARCH_TAGGED_ASSETS_TOOL,
+    *([SEARCH_SEMANTICS_TOOL] if SEMANTIC_INDEX else []),
+    data_genie_tool(_SETTINGS.data_genie_space_title),
+    dictionary_genie_tool(_SETTINGS.dictionary_genie_space_title),
+    LIST_DATA_ASSETS_TOOL,
     REQUEST_CLARIFICATION_TOOL,
 ]
 
@@ -568,16 +572,12 @@ ORCHESTRATOR_INSTRUCTIONS = FINDER_SYSTEM_PROMPT + """
 Everything in the package must come from a tool result in this invocation: never from
 memory, and never rounded or estimated.
 
-# Three ways to handle a request. Choose per request.
-1. DISCOVERY (default). For exploratory or cross-table questions, unclear column meanings,
-   or anything needing a governed definition: use dictionary_genie to settle what a field
-   MEANS, and data_genie for figures over the curated tables. Consult the dictionary before
-   reporting on any field whose meaning is unlabeled. Do not guess a field's meaning.
-2. DIRECT, the fast path, only when the user's own message names an exact
-   catalog.schema.table. Call describe_table to read its columns, then query_named_table
-   with one read-only statement you write yourself. A bare "describe <table>" is answered
-   with describe_table alone and no query. Fall back to discovery if a column's meaning is
-   ambiguous or the request spans tables the user did not name.
+# The answering ladder. Cheapest rung first. Genie is not the default, and it is not faster.
+1. DIRECT. resolve_table (if the name is not fully qualified), describe_table, then
+   query_named_table or run_sql. A bare "describe <table>" is answered with describe_table
+   alone and no query. This is the default path for any table you can name or resolve.
+2. FALLBACK. data_genie only when the metadata path cannot produce the figure.
+   dictionary_genie only for a meaning the metadata genuinely lacks. Do not guess.
 3. CLARIFY. Call request_clarification when a term the answer depends on is undefined,
    when resolve_table reports the name is AMBIGUOUS, or when you cannot tell what was
    asked. Do not crawl for a half-named table and do not assume a region.
@@ -592,7 +592,8 @@ a name they have already given you is the last resort, not the first move.
 
 A token after "in" or "from" is a table to qualify only if it plausibly names one. A
 concept ("how many players"), a metric ("distinct accounts"), a franchise, or a prose
-description ("the master table") is not. Those go to discovery.
+description ("the master table") is not. Those still start at resolve_table /
+list_data_assets / search_tagged_assets, not at Genie.
 
 # Scope
 list_data_assets returns every table you are permitted to read. It is the declared set the
@@ -600,14 +601,13 @@ serving principal was granted, so a table it does not list cannot be read by any
 say the table is out of scope rather than trying another way in.
 
 # Finding the candidates
-Narrow before you describe. search_tagged_assets reads the tags the estate has already put
-on its own objects, and search_semantics (where offered) reads its written definitions;
-either turns a whole schema into a few candidates for one call. Prefer them over walking
-list_data_assets and describing tables until one looks right. Neither is evidence and
-neither is permission: a tag is a label somebody applied, so establish what a table holds
-before answering from it, and expect Unity Catalog to decide every read either way. If one
-of them is unavailable, that is a missing grant on metadata rather than an answer about the
-data: fall back to list_data_assets and never report the tables as untagged or absent.
+list_data_assets returns the whole declared set in one call, already labelled with each
+table's franchise when one is baked. Use it to browse, not to walk catalogs. 
+search_tagged_assets is the shortcut when a franchise is named — not the cheaper first
+move, because the listing is already in memory. A tag miss is untagged, not "no such
+data": fall back to list_data_assets. search_semantics (where offered) reads written
+definitions. Neither is evidence and neither is permission. If a tag or semantic search
+is unavailable, that is a missing grant on metadata rather than an answer about the data.
 
 # Which table to answer from
 Nothing here tells you what the declared tables hold or how they relate; establish that
@@ -1701,13 +1701,26 @@ def _json_payload(text: str) -> dict[str, Any]:
 
 SALVAGED_TAKEAWAY = "The analysis completed, but the structured presentation was incomplete."
 SALVAGED_CAVEAT = "Review the generated SQL and source details before using this result."
-DEADLINE_UNWRITTEN = "The turn deadline was reached before the answer could be written."
-DEADLINE_NO_RESULT = "The turn deadline was reached before a governed data result returned."
-DEADLINE_NO_RETRY = "The turn deadline left no time for a second formatting attempt."
+DEADLINE_TAKEAWAY = "The run reached its time limit before the answer could be composed."
+DEADLINE_TAKEAWAY_NO_DATA = "The run reached its time limit before any data was measured."
 UNREACHABLE_TAKEAWAY = "This question was not answered."
 # Never a reader-facing takeaway. It was the deadline path's headline over a real
 # table, and it read as a clean finish the rest of the card then contradicted.
 CANNED_COMPLETED_TAKEAWAY = "The analysis completed from assessed sources."
+
+
+def _deadline_caveat(*, has_readings: bool, seconds: int) -> str:
+    """Name the limit. Ran-out-of-time and found-nothing do not share a sentence."""
+
+    if has_readings:
+        return (
+            f"The {seconds}s run limit was reached after the data was read but before "
+            "the answer was composed. The figures in it were measured."
+        )
+    return (
+        f"The {seconds}s run limit was reached before any governed data was measured. "
+        "Nothing here was measured."
+    )
 
 
 def _first_reader_takeaway(narrative: str) -> str:
@@ -1727,33 +1740,26 @@ def _first_reader_takeaway(narrative: str) -> str:
     return ""
 
 
-def _incomplete_synthesis(findings: str, *, has_readings: bool, reason: str) -> Synthesis:
-    """What the card gets when the writer never ran, without inventing a success.
+def _incomplete_synthesis(
+    findings: str,
+    *,
+    has_readings: bool,
+    seconds: int | None = None,
+    reason: str = "",
+) -> Synthesis:
+    """Budget exhausted: the raw finder package, headed as a time-limit.
 
-    A canned "the analysis completed" line over a real table is the reported
-    defect: the run had findings and the takeaway pretended it had finished
-    writing them. The findings stay; the headline is the first real sentence
-    in them, or an honest statement that the turn ended first.
+    The body is the package the finder already produced. The takeaway says the
+    run reached its time limit. The caveat names that limit and states whether
+    the figures above it were measured. Ran-out-of-time and found-nothing do
+    not share a sentence.
     """
 
-    narrative, package_caveats = reader_facing_findings(findings)
-    takeaway = _first_reader_takeaway(narrative)
-    if not takeaway:
-        takeaway = (
-            "The run gathered sources but the turn ended before a written answer."
-            if has_readings
-            else "The turn ended before all required evidence was available."
-        )
-    if not narrative.strip():
-        # LiveAnswerSchema used to require a non-empty narrative. An empty one
-        # dropped the whole structured result and the app stored a 0.0s
-        # prose-only card with no steps. Keep a sentence so the stages survive.
-        narrative = takeaway
-    return Synthesis(
-        takeaway=takeaway,
-        narrative=narrative,
-        caveats=[reason, *package_caveats],
-    )
+    limit = seconds if seconds is not None else runtime_settings.current().loop.max_run_seconds
+    takeaway = DEADLINE_TAKEAWAY if has_readings else DEADLINE_TAKEAWAY_NO_DATA
+    narrative = findings.strip() or takeaway
+    caveat = reason or _deadline_caveat(has_readings=has_readings, seconds=limit)
+    return Synthesis(takeaway=takeaway, narrative=narrative, caveats=[caveat])
 
 
 def _synthesis_stage_status(synthesis: Synthesis) -> str:
@@ -1763,7 +1769,9 @@ def _synthesis_stage_status(synthesis: Synthesis) -> str:
         return "failed"
     joined = " ".join(synthesis.caveats).casefold()
     if (
-        "turn deadline" in joined
+        "run limit was reached" in joined
+        or "time limit" in joined
+        or "turn deadline" in joined
         or synthesis.caveats[:1] == [SALVAGED_CAVEAT]
         or "structured presentation was incomplete" in joined
         or "not reachable" in joined
@@ -1881,6 +1889,33 @@ def _tool_arguments(call: Any) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+#: One category mapping. A finished tool step reports its real category, never a
+#: hardcoded "tool". The fallback is deliberately neutral: defaulting to
+#: knowledge drew a knowledge hit for tools that never ran.
+_TOOL_KINDS = {
+    "data_genie": "genie",
+    "dictionary_genie": "genie",
+    "run_sql": "sql",
+    "query_named_table": "sql",
+    "resolve_table": "discovery",
+    "describe_table": "discovery",
+    "list_data_assets": "discovery",
+    "search_tagged_assets": "discovery",
+    "search_semantics": "discovery",
+    "new_plot": "plot",
+    "account_migration_platform": "knowledge",
+    "geographic_restrictions": "knowledge",
+    "email_addressable_definition": "knowledge",
+}
+TOOL_STAGE_KINDS = frozenset(_TOOL_KINDS.values())
+
+
+def stage_kind(name: str) -> str:
+    """The timeline category for one tool name. Unknown names stay neutral."""
+
+    return _TOOL_KINDS.get(name, "tool")
 
 
 #: Stage labels for the timeline. The tool names are the model's vocabulary and
@@ -2952,7 +2987,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         yield log.stage(
             f"{step_stage.id}-{entry.index}-{entry.name}",
             label,
-            "tool",
+            stage_kind(entry.name),
             time.perf_counter(),
             entry.arguments_json,
             output,
@@ -3036,7 +3071,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             yield log.stage(
                 f"{step_stage.id}-{entry.index}-{entry.name}",
                 entry.refused_label,
-                "tool",
+                stage_kind(entry.name),
                 time.perf_counter(),
                 entry.arguments_json,
                 entry.refused_before_running,
@@ -3151,7 +3186,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         # is this turn's own client, and asks outright when it is not.
         if self.user_authorization:
             log.executed_as = self._measured_identity(tools.workspace)
-        system = knowledge.add_packaged_knowledge(ORCHESTRATOR_INSTRUCTIONS, PACKAGED_KNOWLEDGE)
+        system = knowledge.add_packaged_knowledge(ORCHESTRATOR_INSTRUCTIONS, FINDER_KNOWLEDGE)
         runtime_prompt = runtime_settings.prompt_fragment()
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"
@@ -3172,7 +3207,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             yield log.starting(
                 "inventory",
                 "Listing available tables",
-                "tool",
+                stage_kind("list_data_assets"),
                 started,
                 depth=depth,
                 parent_id=parent_id,
@@ -3180,17 +3215,14 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             log.calls += 1
             log.tool_calls += 1
             finder_budget.tool_calls += 1
-            result = tools.list_data_assets(
-                getattr(tools.settings, "catalog", ""),
-                getattr(tools.settings, "schema", ""),
-            )
+            result = tools.list_data_assets()
             log.record(result)
             log.evidence.append("list_data_assets returned:\n" + result.text)
             log.evidence_sources.append("list_data_assets")
             yield log.stage(
                 "inventory",
                 "Listed available tables",
-                "tool",
+                stage_kind("list_data_assets"),
                 started,
                 "{}",
                 result.text,
@@ -3458,7 +3490,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     yield log.starting(
                         f"{step_stage.id}-{entry.index}-{entry.name}",
                         _TOOL_STAGE_RUNNING.get(entry.name, f"Calling {entry.name}"),
-                        "tool",
+                        stage_kind(entry.name),
                         entry.started,
                         depth=step_stage.depth + 1,
                         parent_id=step_stage.id,
@@ -3506,7 +3538,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         yield log.starting(
                             f"{step_stage.id}-{index}-{name}",
                             _TOOL_STAGE_RUNNING.get(name, f"Calling {name}"),
-                            "tool",
+                            stage_kind(name),
                             entry.started,
                             depth=step_stage.depth + 1,
                             parent_id=step_stage.id,
@@ -3714,7 +3746,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 yield log.stage(
                     f"{step_stage.id}-{index}-{name}",
                     _TOOL_STAGE_NAMES.get(name, f"Called {name}"),
-                    "tool",
+                    stage_kind(name),
                     tool_started,
                     entry.arguments_json,
                     output,
@@ -3936,20 +3968,11 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         findings: str,
     ) -> Synthesis:
         if log.remaining < 5.0:
-            # No budget left to write an answer, so the run reports what it
-            # established instead of inventing a voice for it. The package is an
-            # INTERNAL HANDOFF and is reduced to the two sections a reader is owed
-            # before it is shown; see reader_facing_findings for what comes out and
-            # why. It used to be passed through whole, which put the finder's column
-            # inventory and per-query provenance on the customer's screen under a
-            # `## DATA PACKAGE` heading. The takeaway used to be a canned
-            # "analysis completed" line over those findings, which is why a real
-            # table sat under a headline that claimed the answer was finished.
-            return _incomplete_synthesis(
-                findings,
-                has_readings=bool(log.readings),
-                reason=DEADLINE_UNWRITTEN if log.readings else DEADLINE_NO_RESULT,
-            )
+            # No budget left to write an answer. The body is the raw finder
+            # package; the takeaway and caveat name the limit. A canned
+            # "analysis completed" line over those findings is the defect this
+            # path exists to stop.
+            return _incomplete_synthesis(findings, has_readings=bool(log.readings))
         _, client = self._runtime()
         log.calls += 1
         # Retuned to the operator's figure cap before the knowledge is added, exactly
@@ -3958,7 +3981,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         instructions = SYNTHESIS_INSTRUCTIONS.replace(
             f"at most {MAX_FIGURES}", f"at most {max_figures}"
         )
-        system = knowledge.add_packaged_knowledge(instructions, PACKAGED_KNOWLEDGE)
+        system = knowledge.add_packaged_knowledge(instructions, COUNTING_USERS)
         runtime_prompt = runtime_settings.prompt_fragment()
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"
@@ -4033,12 +4056,8 @@ Tables actually read this run:
                 # model calls, and no recorded run could tell us which path it took.
                 structured = "fallback"
                 if log.remaining < 5.0:
-                    # Reduced, not pasted: the same argument as the budget branch at
-                    # the top of this method. See reader_facing_findings.
                     return _incomplete_synthesis(
-                        findings,
-                        has_readings=bool(log.readings),
-                        reason=DEADLINE_NO_RETRY,
+                        findings, has_readings=bool(log.readings)
                     )
                 try:
                     response = client.chat.completions.create(**kwargs)
@@ -4452,7 +4471,12 @@ Tables available to this analysis, with their columns:
             response = client.chat.completions.create(
                 model=self.settings.llm_endpoint,
                 messages=[
-                    {"role": "system", "content": PLAN_FACTS_INSTRUCTIONS},
+                    {
+                        "role": "system",
+                        "content": knowledge.add_packaged_knowledge(
+                            PLAN_FACTS_INSTRUCTIONS, COUNTING_USERS
+                        ),
+                    },
                     {"role": "user", "content": user},
                 ],
                 temperature=0.0,
@@ -4962,17 +4986,18 @@ Tables available to this analysis, with their columns:
             and log.remaining >= 5.0
             and runtime_settings.current().answer.charts
             and runtime_settings.current().answer.max_charts > 0
+            and chart_requested(question)
         ):
             plot_started = time.perf_counter()
             yield log.starting(
-                "plot", "Building the charts", "tool", plot_started,
+                "plot", "Building the charts", stage_kind("new_plot"), plot_started,
                 depth=1, parent_id=orchestrator.id,
             )
             charts, plot_note, plot_status = self._plot(question, synthesis.takeaway, log)
             yield log.stage(
                 "plot",
                 "Built the charts",
-                "tool",
+                stage_kind("new_plot"),
                 plot_started,
                 # What it was handed, not a label for it. "Assessed data package" was
                 # the brief's own phrase for the input and told a reader nothing about

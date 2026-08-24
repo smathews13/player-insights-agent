@@ -53,8 +53,16 @@ describe('idle Ask keeps the Agent path pane', () => {
     expect(HOME).toContain('OPENING_CONSTELLATION');
     expect(HOME).toContain('className="trace-idle-sky"');
     expect(HOME).not.toContain('No run yet');
-    expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*flex:\s*1/);
+    expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0/);
     expect(RAIL).toMatch(/\.trace-idle-sky \[class\*='ast-anim-'\]\s*\{[^}]*animation:\s*none/);
+  });
+
+  it('keeps the constellation layer behind the Agent path chrome', () => {
+    expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0[^}]*pointer-events:\s*none/);
+    expect(RAIL).toMatch(
+      /\.trace-head,\s*\.trace-title,\s*\.trace-working,\s*\.trace-inspector \.ast-sky\s*\{[^}]*z-index:\s*1/
+    );
+    expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*isolation:\s*isolate/);
   });
 });
 
@@ -72,9 +80,13 @@ describe('the two rails share one width and the card sits in the middle', () => 
     );
   });
 
-  it('lets conversation chips wrap instead of truncating into stubs', () => {
-    expect(RAIL).toMatch(/\.conversation-owner\s*\{[^}]*max-width:\s*100%/);
-    expect(RAIL).toMatch(/\.conversation-rail \.conversation-owner \.identity-chip-text\s*\{[^}]*white-space:\s*normal/);
+  it('keeps the Asked by chip a compact pill, not a full-width slab', () => {
+    expect(RAIL).toMatch(/\.conversation-owner\s*\{[^}]*flex:\s*none[^}]*width:\s*auto/);
+    expect(RAIL).not.toMatch(/\.conversation-owner\s*\{[^}]*width:\s*100%/);
+    expect(RAIL).not.toMatch(/\.conversation-owner\s*\{[^}]*flex:\s*1/);
+    expect(RAIL).not.toMatch(
+      /\.conversation-rail \.conversation-owner \.identity-chip-text\s*\{[^}]*white-space:\s*normal/
+    );
   });
 });
 

@@ -30,6 +30,16 @@ describe('app-wide dropdown recipe', () => {
     expect(css).toMatch(/\.app-select-trigger:focus-visible \{/);
     expect(css).toMatch(/\.app-select-content \{/);
   });
+
+  it('puts the Recent runs conversation filter on that same opaque menu', () => {
+    // This is the one Select that does not go through AppSelect. Without the
+    // shared class it inherited AppKit's translucent popover and the run list
+    // showed through the options. The search hint is the short copy that fits.
+    const explorer = source('RunExplorer.tsx');
+    expect(explorer).toMatch(/<SelectContent[\s\S]*className="app-select-content"/);
+    expect(explorer).toContain('placeholder="Search across runs"');
+    expect(explorer).not.toContain('Search conversations, prompts, or people');
+  });
 });
 
 describe('Connections and Settings cleanup', () => {

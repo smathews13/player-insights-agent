@@ -92,7 +92,7 @@ def tool_outputs(response) -> list[tuple[str, str]]:
     return [
         (str(stage.get("status")), str(stage.get("output") or ""))
         for stage in stages(response)
-        if stage.get("kind") == "tool"
+        if stage.get("kind") in {"tool", "genie", "sql", "discovery", "plot", "knowledge"}
     ]
 
 

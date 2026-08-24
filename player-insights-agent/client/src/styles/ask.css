@@ -194,13 +194,11 @@ html:not([data-theme='dark']) .ask-hero h2 {
   text-overflow: clip;
 }
 /*
- * The provenance label is the answer pane's first fact, so it sits in the
- * top-left corner rather than one full card gutter down and in. Scoped to Ask:
- * Run Explorer owns its own answer seating, and answer.css is shared work.
+ * Same corner seating as answer.css. Restated here so Ask cannot pick up a
+ * later AppKit header utility and drop the chip a gutter down again.
  */
 .conversation-main .answer-card > [data-slot='card-header'] {
-  padding-top: 12px;
-  padding-inline: 12px;
+  padding: 0 8px;
 }
 /*
  * Selection, per surface.

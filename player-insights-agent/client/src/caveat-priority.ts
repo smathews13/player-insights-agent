@@ -164,6 +164,12 @@ const RISK_PATTERNS: readonly (readonly [CaveatRisk, readonly RegExp[]])[] = [
       /\bwas produced as\b/,
       /covers only the data that identity is granted/,
       /row filters and column masks/,
+      /grant evaluation happens at query time/,
+      /unity catalog still evaluates/,
+      /declared by the deployment/,
+      /declared source set/,
+      /tables this deployment declares/,
+      /may not have SELECT access/,
     ],
   ],
   /**
@@ -192,16 +198,40 @@ const RISK_PATTERNS: readonly (readonly [CaveatRisk, readonly RegExp[]])[] = [
 ];
 
 /**
+ * Standing fact about how Unity Catalog grants are checked later, not a denial
+ * of this request.
+ *
+ * The usual wording says "any refused table will be named if a query fails".
+ * That is a grant-timing caveat, and the word `refused` in it is why this must
+ * be read before the refused regex. Today's honesty banner was treating the
+ * sentence as "Request refused" on a catalog listing that had already answered.
+ */
+const GRANT_TIMING_NOTE =
+  /grant evaluation happens at query time|unity catalog still evaluates|declared by the deployment|declared source set|tables this deployment declares|any refused table will be named|may not have SELECT access|if a query against (?:it|them) fails/i;
+
+/**
+ * The request itself was denied. A grant-timing note that also says this is
+ * still a refusal; one that only mentions a table that *would* be named later
+ * is not.
+ */
+const ACTUAL_REFUSAL =
+  /governance control refused|refused part of this request|(?:this|the) request was refused|access was (?:refused|blocked|denied)|not authori[sz]ed/i;
+
+/**
  * What this caveat threatens.
  *
  * A degradation is checked before the patterns because its marker is the app's
  * own constant rather than the agent's prose: `AnswerCard` lifts these out into
  * a banner of their own and so never asks, but the Run Explorer has no banner
  * to lift one into and renders it in the list, where it has to lead.
+ *
+ * Grant-timing is checked next, before the refused regex, for the reason on
+ * {@link GRANT_TIMING_NOTE}.
  */
 export function caveatRisk(caveat: string): CaveatRisk {
   const text = caveat.trim();
   if (text.startsWith(DEGRADED_ANSWER_MARKER)) return CAVEAT_RISK.refused;
+  if (GRANT_TIMING_NOTE.test(text) && !ACTUAL_REFUSAL.test(text)) return CAVEAT_RISK.identity;
   for (const [risk, patterns] of RISK_PATTERNS) {
     if (patterns.some((pattern) => pattern.test(text))) return risk;
   }

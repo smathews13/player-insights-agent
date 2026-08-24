@@ -17,9 +17,10 @@ describe('runtime settings contract', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.loop).toEqual({
       maxSteps: 12,
       maxToolCalls: 12,
-      maxRunSeconds: 90,
+      maxRunSeconds: 150,
     });
-    expect(DEFAULT_RUNTIME_SETTINGS.answer.maxFigures).toBe(4);
+    expect(DEFAULT_RUNTIME_SETTINGS.answer.maxFigures).toBe(6);
+    expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(1);
   });
 
   it('ships night-sky entity chips, not paper fills', () => {

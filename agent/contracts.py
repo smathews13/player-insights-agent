@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Figure(BaseModel):
@@ -234,3 +234,10 @@ class AnswerContract(BaseModel):
     derivation: list[Derivation] = Field(default_factory=list)
     sql: str = ""
     trace: TraceSummary
+
+    @field_validator("takeaway", "narrative", "content", "sql", mode="before")
+    @classmethod
+    def _null_string_is_empty(cls, value: Any) -> Any:
+        """An explicit JSON null means 'nothing here', not a validation failure."""
+
+        return "" if value is None else value

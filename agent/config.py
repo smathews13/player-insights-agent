@@ -497,7 +497,7 @@ class Settings:
             schema=str(resolved["schema"]),
             catalog_allowlist=_tuple(allowlist),
             catalog_denylist=_tuple(resolved["catalog_denylist"] or ()),
-            max_output_tokens=int(resolved["max_output_tokens"] or 2500),
+            max_output_tokens=int(resolved["max_output_tokens"] or 4000),
             tables=_tuple(resolved["tables"] or DECLARED_TABLES),
             declared_manifest=_tuple(resolved["declared_manifest"] or ()),
             manifest_source=manifest_source,

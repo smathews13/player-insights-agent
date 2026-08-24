@@ -238,15 +238,10 @@ describe('the answer card remains the substantial reading surface', () => {
     // siblings through the tables. The card keeps its floor and does not shrink.
     expect(css).toMatch(/\.answer-card\s*\{[^}]*flex-shrink:\s*0/s);
     expect(css).toMatch(/\.answer-card\s*\{[^}]*overflow:\s*visible/s);
-    // 28px inline against 24px block, which is the design's card. It was cut to
-    // 24 to buy measure back, and four pixels of narrative is not a measure fix
-    // -- it is the frame coming off the card that the transcript's primary
-    // reading surface is meant to be. Width comes from --conversation-measure.
+    // 28px inline is the body's frame. The header is no longer the pair to
+    // that: the provenance chip sits in the top-left corner, not a gutter down.
     expect(css).toMatch(
       /\.answer-card > \[data-slot='card-header'\],\s*\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-inline:\s*28px/
-    );
-    expect(css).toMatch(
-      /\.answer-card > \[data-slot='card-header'\]\s*\{[^}]*padding-top:\s*24px/
     );
     expect(css).toMatch(
       /\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-bottom:\s*24px/
@@ -307,6 +302,20 @@ describe('the answer card’s state chip sits in its top left corner', () => {
     // later `justify-content` on it could slide "Live agent response" inward.
     expect(css).toMatch(/\.answer-card-identity \{[^}]*justify-self: start/s);
     expect(css).toMatch(/\.answer-card-identity \{[^}]*justify-content: flex-start/s);
+  });
+
+  it('sits in the header start with no large padding-top gap under the card edge', () => {
+    const header = css.slice(css.lastIndexOf(".answer-card > [data-slot='card-header'] {"));
+    const rule = header.slice(0, header.indexOf('}'));
+    expect(rule).toMatch(/padding:\s*0 8px/);
+    expect(rule).not.toMatch(/padding-top:\s*(1[2-9]|2[0-9])px/);
+    const ask = partial('ask.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    expect(ask).toMatch(
+      /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0 8px/s
+    );
+    expect(ask).not.toMatch(
+      /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
+    );
   });
 
   it('draws it before the takeaway rather than beside or under it', () => {
@@ -420,6 +429,20 @@ describe('a failed run’s process', () => {
     expect(markup).toContain('Incomplete sources');
     expect(markup).toContain('<table');
     expect(markup).toContain('Opening sentence survives.');
+  });
+
+  it('does not paint a successful table listing as Request refused', () => {
+    const markup = card(
+      answer({
+        takeaway: 'This deployment has access to 12 declared tables.',
+        caveats: [
+          'These 12 tables are declared by the deployment; Unity Catalog grant evaluation happens at query time, so the signed-in user may not have SELECT access to all of them. Any refused table will be named explicitly if a query against it fails.',
+        ],
+      })
+    );
+    expect(markup).not.toContain('Request refused');
+    expect(markup).toContain('<table');
+    expect(markup).toContain('grant evaluation happens at query time');
   });
 
   it('still says no result was recorded when the run truly had no steps', () => {

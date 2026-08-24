@@ -157,16 +157,15 @@ def narrow_rows(count: int) -> list[list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def test_listing_drills_from_catalogs_to_schemas_to_tables():
+def test_listing_returns_the_declared_set_in_one_call():
     tools = build()
 
-    assert "test_catalog" in tools.list_data_assets().text
-    schemas = tools.list_data_assets("test_catalog").text
-    assert "test_schema" in schemas
-    assert "raw_schema" in schemas
-    tables = tools.list_data_assets("test_catalog", "test_schema").text
-    assert PROFILES in tables
-    assert OTHER_SCHEMA_TABLE not in tables, "a schema listing shows that schema only"
+    whole = tools.list_data_assets().text
+    assert PROFILES in whole
+    assert "franchise:" in whole
+    filtered = tools.list_data_assets("test_catalog", "test_schema").text
+    assert PROFILES in filtered
+    assert OTHER_SCHEMA_TABLE not in filtered, "a schema listing shows that schema only"
 
 
 def test_listing_never_touches_unity_catalog_or_the_warehouse():
@@ -1925,9 +1924,9 @@ def on_the_clock(monkeypatch, per_poll: float, *statuses, **kwargs) -> tuple[Clo
     return clock, genie
 
 
-#: What the wait allows on the default 90 second turn, which is what these run
+#: What the wait allows on the default 150 second turn, which is what these run
 #: on: `remaining_seconds()` with no request deadline set returns `max_run_seconds`.
-WARMUP_ALLOWED = 90.0 - tools_module.GENIE_BUDGET_RESERVE_SECONDS
+WARMUP_ALLOWED = 150.0 - tools_module.GENIE_BUDGET_RESERVE_SECONDS
 
 
 def test_a_starting_warehouse_is_waited_out_well_past_the_answer_deadline(monkeypatch):

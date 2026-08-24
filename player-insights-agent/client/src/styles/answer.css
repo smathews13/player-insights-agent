@@ -159,11 +159,11 @@
 /* The answer is the transcript's primary reading surface. The design's 28px
    inset and the minimum body height keep it visibly more substantial than the
    live-step pane and the compact cards nested inside it, without narrowing the
-   page grid. 28 and not 24: the inset is the frame, it is the pair to the 24px
-   top and bottom stated below, and it was cut to 24 to buy four pixels of
-   measure back — which read as the card being pinched rather than as the
-   narrative being wider. Measure comes from `--conversation-measure`, which is
-   the lever that does not cost the card its frame. */
+   page grid. 28 and not 24: the inset is the frame for the body, paired with
+   the 24px bottom stated below. The header is the exception: the provenance
+   chip is the first pixel of the card chrome, so it cannot sit a full gutter
+   down from the top edge. Measure comes from `--conversation-measure`, which
+   is the lever that does not cost the card its frame. */
 .answer-card > [data-slot='card-header'],
 .answer-card > [data-slot='card-content'] {
   padding-inline: 28px;
@@ -178,9 +178,13 @@
 .plan-card > [data-slot='card-content'] {
   padding-inline: 20px;
 }
+/* Shorthand, not padding-top alone: AppKit's CardHeader ships a block padding
+   utility, and a single-side override leaves that gap under the top edge.
+   8px inline is the card radius, so the pill sits in the corner without
+   clipping it. The takeaway stays on the next grid row (14px gap), not under
+   the chip. */
 .answer-card > [data-slot='card-header'] {
-  padding-top: 24px;
-  padding-bottom: 0;
+  padding: 0 8px;
 }
 .answer-card > [data-slot='card-content'] {
   padding-top: 0;

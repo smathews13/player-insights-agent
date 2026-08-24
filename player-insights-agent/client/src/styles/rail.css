@@ -163,6 +163,10 @@
    * the run is on, which is the opposite of holding an older step still.
    */
   overflow-anchor: none;
+  /* The idle silhouette is a layer inside this pane, not a sibling of the
+     page. Isolation keeps its z-index: 0 from escaping and painting over the
+     heading it is supposed to sit behind. */
+  isolation: isolate;
   background: var(--ast-sky-fill);
   /* The same sky, because this column is the same surface. The shorthand above
      clears `background-image`, so these two follow it rather than precede it.
@@ -427,16 +431,27 @@
 /*
  * Idle Ask: the same night-sky constellation as a live harness, held still.
  *
- * The pane used to collapse, so this column was empty sky. The opening
- * silhouette fills the leftover height under the "Agent path" heading — dots
- * and hops, not the "No run yet" copy — and the animation is frozen so an
- * idle page cannot look like a run in flight.
+ * BACKGROUND OF THE PANE, not a sibling under the heading. The SVG is
+ * `position: absolute; inset: 0` (astrolabe-loaders.css) and used to overflow
+ * the leftover flex slot, so stars and hops painted over "Agent path", the
+ * harness eyebrow, and the status pill. Absolute fill + z-index 0 puts the
+ * drawing behind that chrome; pointer-events none keeps a live path's stars
+ * clickable when this layer is not the one on screen. Frozen so idle Ask
+ * cannot look like a run in flight.
  */
 .trace-idle-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.trace-head,
+.trace-title,
+.trace-working,
+.trace-inspector .ast-sky {
   position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  margin: 0 -20px -20px;
+  z-index: 1;
 }
 .trace-idle-sky [class*='ast-anim-'] {
   animation: none;
@@ -790,18 +805,15 @@
   opacity: 0.65;
 }
 
+/* Compact pill: icon + truncated name, shrink-to-content. The equal-rail
+   resize briefly grew this to `flex: 1` / `max-width: 100%` so the name could
+   wrap; that stretched the chip into a slab and shoved duration and rating
+   off the row. 132px is the pre-resize cap; ellipsis stays on the shared
+   `.identity-chip-text` rule. */
 .conversation-owner {
-  max-width: 100%;
-  min-width: 0;
-  flex: 1 1 8rem;
-}
-.conversation-rail .conversation-owner.identity-chip--compact {
-  max-width: 100%;
-}
-.conversation-rail .conversation-owner .identity-chip-text {
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
+  flex: none;
+  width: auto;
+  max-width: 132px;
 }
 .conversation-row.active .conversation-owner {
   background: var(--background);

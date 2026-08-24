@@ -37,9 +37,22 @@ from charts import (
     TWO_PANEL_RULE,
     ChartError,
     EmptyChartError,
+    chart_requested,
     contrast_on_white,
     new_plot,
 )
+
+def test_chart_gate_matches_word_boundaries_not_geography():
+    """'graph' sits inside geography, demographic and paragraph."""
+
+    assert chart_requested("please chart the titles")
+    assert chart_requested("draw a graph of spend")
+    assert chart_requested("plot the last 30 days")
+    assert chart_requested("visualise the split")
+    assert not chart_requested("how many players in each geography")
+    assert not chart_requested("demographic split by country")
+    assert not chart_requested("write a short paragraph")
+
 
 # The palette the app retired. Named here rather than in the module so that deleting a
 # constant from `charts.py` cannot quietly delete the test that says it is gone.

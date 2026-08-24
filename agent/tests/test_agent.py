@@ -347,6 +347,9 @@ def build(llm, tools=None, **overrides) -> PlayerInsightsResponsesAgent:
     return runtime
 
 
+CHART_QUESTION = "Compare active players by label and chart the result."
+
+
 def ask(runtime, question="Compare active players by label.", **custom_inputs):
     custom_inputs.setdefault("execute_plan", True)
     custom_inputs.setdefault("identity_mode", execution_identity.SIGNED_IN_USER)
@@ -468,14 +471,14 @@ def test_the_model_is_offered_every_tool_including_the_way_out():
     # needs the answer it gives: a model meeting the pair in this order qualifies
     # a half-named table instead of bouncing it back to the user.
     assert offered == [
-        "data_genie",
-        "dictionary_genie",
-        "search_tagged_assets",
-        "list_data_assets",
         "resolve_table",
         "describe_table",
         "query_named_table",
         "run_sql",
+        "search_tagged_assets",
+        "data_genie",
+        "dictionary_genie",
+        "list_data_assets",
         "request_clarification",
     ]
 
@@ -2072,7 +2075,9 @@ def test_a_stage_records_the_real_arguments_and_the_real_result():
     llm = ScriptedLlm([Call("data_genie", {"question": "everything"})], "Done.")
 
     recorded = stages(ask(build(llm, tools)))
-    tool_stage = next(stage for stage in recorded if stage["kind"] == "tool")
+    tool_stage = next(
+        stage for stage in recorded if stage["kind"] in {"tool", "genie", "sql", "discovery"}
+    )
 
     assert len(long_result) > 1200
     assert tool_stage["output"] == long_result
@@ -2085,7 +2090,9 @@ def test_a_stage_payload_past_the_field_ceiling_is_clipped_and_says_so():
     llm = ScriptedLlm([Call("data_genie", {"question": "everything"})], "Done.")
 
     tool_stage = next(
-        stage for stage in stages(ask(build(llm, tools))) if stage["kind"] == "tool"
+        stage
+        for stage in stages(ask(build(llm, tools)))
+        if stage["kind"] in {"tool", "genie", "sql", "discovery"}
     )
 
     assert len(tool_stage["output"]) < len(enormous)
@@ -2115,8 +2122,9 @@ def test_the_call_counter_counts_external_calls_including_the_model_ones():
 
     answer = ask(build(llm)).custom_outputs["answer"]
 
-    # Three loop turns, two Genie calls, synthesis, plotting.
-    assert answer["trace"]["toolCalls"] == 7
+    # Three loop turns, two Genie calls, synthesis. No plot: the question did
+    # not ask for a chart.
+    assert answer["trace"]["toolCalls"] == 6
 
 
 # ---------------------------------------------------------------------------
@@ -2174,7 +2182,7 @@ def test_every_streamed_step_is_announced_before_it_is_reported():
         event.custom_outputs["stage"]
         for event in runtime.predict_stream(
             app_request(
-                input=[{"role": "user", "content": "How many active players?"}],
+                input=[{"role": "user", "content": CHART_QUESTION}],
                 custom_inputs={"execute_plan": True},
             )
         )
@@ -2190,7 +2198,7 @@ def test_every_streamed_step_is_announced_before_it_is_reported():
         assert stage["id"] not in announced, f"{stage['id']} was announced twice"
         announced[stage["id"]] = position
         assert stage["name"], "an announced step with no name draws a blank row"
-        assert stage["kind"] in {"agent", "tool"}
+        assert stage["kind"] in {"agent", "tool", "genie", "sql", "discovery", "plot", "knowledge"}
         assert stage["duration"] == 0
         assert stage["calls"] == 1
 
@@ -2249,7 +2257,7 @@ def test_a_step_keeps_one_name_from_announcement_to_completion():
     named: dict[tuple[str, str], str] = {}
     for event in runtime.predict_stream(
         app_request(
-            input=[{"role": "user", "content": "How many active players?"}],
+            input=[{"role": "user", "content": CHART_QUESTION}],
             custom_inputs={"execute_plan": True},
         )
     ):
@@ -2781,7 +2789,7 @@ def test_the_plot_step_turns_a_new_plot_call_into_a_branded_chart():
 
     llm = ScriptedLlm([Call("data_genie", {"question": "figures"})], "Done.")
 
-    answer = ask(build(llm)).custom_outputs["answer"]
+    answer = ask(build(llm), CHART_QUESTION).custom_outputs["answer"]
 
     chart = answer["charts"][0]
     assert chart["kind"] == "bar"
@@ -2826,7 +2834,7 @@ def test_more_charts_than_the_ceiling_are_dropped_and_the_trace_says_so():
 
     llm = Overplotter([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
 
     assert len(response.custom_outputs["answer"]["charts"]) == MAX_CHARTS
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
@@ -2850,6 +2858,7 @@ def test_request_chart_cap_is_enforced_on_the_next_answer():
     llm = Overplotter([Call("data_genie", {"question": "figures"})], "Done.")
     answer = ask(
         build(llm),
+        CHART_QUESTION,
         runtime_settings={"answer": {"maxCharts": 1}},
     ).custom_outputs["answer"]
 
@@ -2882,6 +2891,7 @@ def test_request_chart_type_reaches_the_plotter_and_is_enforced():
     llm = LinePlotter([Call("data_genie", {"question": "figures"})], "Done.")
     response = ask(
         build(llm),
+        CHART_QUESTION,
         runtime_settings={"answer": {"chartsTypes": "bar"}},
     )
 
@@ -2911,7 +2921,7 @@ def test_an_unrenderable_spec_costs_the_chart_and_not_the_answer():
 
     llm = RefusedChart([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
 
     assert answer["takeaway"]
@@ -2944,7 +2954,7 @@ def test_declining_to_chart_a_scalar_is_a_finished_step_that_says_why():
 
     llm = DeclinedChart([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
 
     assert answer["charts"] == []
@@ -2983,7 +2993,7 @@ def test_an_empty_chart_spec_is_a_decline_and_not_a_rejection():
 
     llm = _plotter('{"data": []}')([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
 
     assert answer["takeaway"], "an answer was lost with the chart"
@@ -3000,7 +3010,7 @@ def test_a_spec_whose_traces_hold_no_points_is_also_a_decline():
         [Call("data_genie", {"question": "figures"})], "Done."
     )
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "complete"
@@ -3014,7 +3024,7 @@ def test_an_explicit_null_chart_is_the_no_figures_outcome():
         [Call("data_genie", {"question": "figures"})], "Done."
     )
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
 
     assert answer["takeaway"], "an answer was lost with the chart"
@@ -3029,7 +3039,7 @@ def test_an_explicit_not_applicable_outcome_completes_without_a_chart():
         [Call("data_genie", {"question": "figures"})], "Done."
     )
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
 
@@ -3060,7 +3070,7 @@ def test_a_renderer_neutral_chart_spec_is_adapted_and_rendered():
         )
     )([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
 
@@ -3075,7 +3085,7 @@ def test_an_explicit_chart_with_no_spec_stays_a_chart_specific_partial():
         [Call("data_genie", {"question": "figures"})], "Done."
     )
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
 
@@ -3100,7 +3110,7 @@ def test_a_data_argument_of_the_wrong_shape_stays_a_rejection():
         [Call("data_genie", {"question": "figures"})], "Done."
     )
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "partial"
@@ -3115,7 +3125,7 @@ def test_a_data_argument_of_the_wrong_shape_stays_a_rejection():
 def test_a_missing_chart_payload_is_an_optional_decline_without_explicit_intent():
     llm = _plotter("{}")([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
@@ -3130,7 +3140,7 @@ def test_a_chart_declined_without_a_reason_still_says_that_much():
 
     llm = ScriptedLlm([Call("data_genie", {"question": "figures"})], "Done.", charts=False)
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["status"] == "complete"
@@ -3142,7 +3152,7 @@ def test_the_plot_step_records_how_much_it_was_handed():
 
     llm = ScriptedLlm([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
 
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
     assert plot_stage["input"] == "1 tool result(s) to plot"
@@ -3158,7 +3168,7 @@ def test_a_plotting_endpoint_failure_is_survivable():
 
     llm = BrokenPlotter([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm))
+    response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
 
     assert answer["charts"] == []
@@ -3176,7 +3186,7 @@ def test_no_retrieved_data_means_no_chart_at_all():
     tools = FakeTools(data_genie=RuntimeError("Genie is unavailable"))
     llm = ScriptedLlm([Call("data_genie", {"question": "figures"})], "No data was retrieved.")
 
-    response = ask(build(llm, tools))
+    response = ask(build(llm, tools), CHART_QUESTION)
 
     assert response.custom_outputs["answer"]["charts"] == []
     assert "plot" not in [stage["id"] for stage in stages(response)]
@@ -3239,14 +3249,14 @@ def test_the_takeaway_leads_and_the_narrative_does_not_repeat_it():
     assert "Do not repeat it as an opening paragraph" in SYNTHESIS_INSTRUCTIONS
 
 
-def test_findings_are_asked_for_as_three_to_five_distinct_bullets():
-    """The card has a bounded claim column. The bound is explicit, and padding is forbidden
-    so a short answer remains honest instead of growing filler to fit the design."""
+def test_findings_are_conditional_not_a_minimum_bullet_count():
+    """A one-figure question gets the figure, its table, the identifier and its
+    null ratio. Padding to a bullet quota is the defect this forbids."""
 
-    assert "3-5 bulleted claims" in SYNTHESIS_INSTRUCTIONS
-    assert "one claim per line" in SYNTHESIS_INSTRUCTIONS
-    assert "Never\n  split or pad one finding to reach a count" in SYNTHESIS_INSTRUCTIONS
-    # The enumerations from the answers that read worst: all of them are lists.
+    assert "Sections are conditional" in SYNTHESIS_INSTRUCTIONS
+    assert "not a minimum" in SYNTHESIS_INSTRUCTIONS
+    assert "bullet count" in SYNTHESIS_INSTRUCTIONS
+    assert "Never split or pad one finding to reach" in SYNTHESIS_INSTRUCTIONS
     for enumerated in ("columns", "tables", "titles", "periods", "regions"):
         assert enumerated in SYNTHESIS_INSTRUCTIONS
 
@@ -3254,14 +3264,12 @@ def test_findings_are_asked_for_as_three_to_five_distinct_bullets():
 def test_a_short_answer_is_still_allowed_to_stay_short():
     """The visual rail is not permission to invent two more claims."""
 
-    assert "If fewer than 3 distinct claims exist" in SYNTHESIS_INSTRUCTIONS
-    assert "only the supported prose or bullets" in SYNTHESIS_INSTRUCTIONS
+    assert "Write only the claims the evidence supports" in SYNTHESIS_INSTRUCTIONS
 
 
-def test_tabular_content_is_one_complete_evidence_table():
-    assert "one unified Markdown table" in SYNTHESIS_INSTRUCTIONS
-    assert "earliest date first and the latest date last" in SYNTHESIS_INSTRUCTIONS
-    assert "Do not split one\n  result into several small tables" in SYNTHESIS_INSTRUCTIONS
+def test_tabular_content_is_conditional_on_rows_that_add_something():
+    assert "Include a Markdown table only when rows were actually returned" in SYNTHESIS_INSTRUCTIONS
+    assert "Never manufacture a table for a scalar" in SYNTHESIS_INSTRUCTIONS
 
 
 PACKAGE = """## DATA PACKAGE
@@ -3352,31 +3360,21 @@ class TestTheInternalPackageIsNotShownAsAnAnswer:
         assert narrative == "Eleven titles are declared, all in one gold table."
         assert caveats == []
 
-    def test_no_path_out_of_synthesis_pastes_the_package(self):
-        """Read off the source: each branch needs an exhausted budget or an unreachable
-        endpoint, and what has to be pinned is that NONE of the three ways out of this
-        method hands the raw package over.
+    def test_the_timeout_path_goes_through_incomplete_synthesis(self):
+        """Budget exhausted: raw package as the body, time-limit as the headline.
 
-        The three exits all go through `_incomplete_synthesis`, which is the one
-        place that may read the findings, so a fourth paste cannot be added in a
-        branch without showing up here.
+        Acme's contract: the takeaway says the run reached its time limit,
+        the narrative is the finder package, and the caveat names the limit.
         """
 
         source = inspect.getsource(agent.PlayerInsightsResponsesAgent._synthesize)
-        assert "narrative=findings" not in source
         assert source.count("_incomplete_synthesis(") == 3
         assert "CANNED_COMPLETED_TAKEAWAY" not in source
-        for reason in (
-            "DEADLINE_UNWRITTEN",
-            "DEADLINE_NO_RESULT",
-            "DEADLINE_NO_RETRY",
-            "The model that writes the answer was not reachable",
-        ):
-            assert reason in source
+        assert "The model that writes the answer was not reachable" in source
 
 
 class TestIncompleteSynthesis:
-    """Deadline and salvage must not headline a real table with a canned success."""
+    """Deadline must name the limit, not headline a canned success."""
 
     PACKAGE = (
         "## DATA PACKAGE\n"
@@ -3389,28 +3387,22 @@ class TestIncompleteSynthesis:
         "- **Gaps:** The turn deadline was reached before the answer could be written."
     )
 
-    def test_a_deadline_run_headlines_the_finding_not_a_canned_completion(self):
-        salvaged = agent._incomplete_synthesis(
-            self.PACKAGE, has_readings=True, reason=agent.DEADLINE_UNWRITTEN
-        )
-        assert salvaged.takeaway != "The analysis completed from assessed sources."
+    def test_a_deadline_run_names_the_limit_over_the_raw_package(self):
+        salvaged = agent._incomplete_synthesis(self.PACKAGE, has_readings=True, seconds=150)
+        assert salvaged.takeaway == agent.DEADLINE_TAKEAWAY
         assert "The analysis completed from assessed sources." not in salvaged.takeaway
-        assert salvaged.caveats[0] == agent.DEADLINE_UNWRITTEN
-        assert "PC | 18402" in salvaged.narrative
-        assert salvaged.takeaway  # a real sentence, not empty
+        assert "The 150s run limit was reached after the data was read" in salvaged.caveats[0]
+        assert "The figures in it were measured." in salvaged.caveats[0]
+        assert self.PACKAGE in salvaged.narrative
 
-    def test_no_readings_says_the_turn_ended_without_evidence(self):
-        salvaged = agent._incomplete_synthesis(
-            "", has_readings=False, reason=agent.DEADLINE_NO_RESULT
-        )
-        assert salvaged.takeaway == "The turn ended before all required evidence was available."
+    def test_no_readings_says_nothing_was_measured(self):
+        salvaged = agent._incomplete_synthesis("", has_readings=False, seconds=150)
+        assert salvaged.takeaway == agent.DEADLINE_TAKEAWAY_NO_DATA
         assert salvaged.narrative.strip() != ""
-        assert salvaged.caveats[0] == agent.DEADLINE_NO_RESULT
+        assert "Nothing here was measured." in salvaged.caveats[0]
 
     def test_synthesis_stage_is_partial_when_the_writer_never_ran(self):
-        salvaged = agent._incomplete_synthesis(
-            self.PACKAGE, has_readings=True, reason=agent.DEADLINE_UNWRITTEN
-        )
+        salvaged = agent._incomplete_synthesis(self.PACKAGE, has_readings=True, seconds=150)
         assert agent._synthesis_stage_status(salvaged) == "partial"
 
     def test_an_unreachable_writer_fails_the_stage(self):
@@ -3458,7 +3450,7 @@ def test_a_figure_value_is_a_number_and_never_a_bar_width():
     assert "0-100" not in SYNTHESIS_INSTRUCTIONS
     assert "bar width" not in SYNTHESIS_INSTRUCTIONS
     assert "value is the figure's own number" in SYNTHESIS_INSTRUCTIONS
-    assert "neither is a layout measurement" in SYNTHESIS_INSTRUCTIONS
+    assert "layout measurement" in SYNTHESIS_INSTRUCTIONS
 
 
 def test_the_figures_and_the_names_are_asked_to_be_bolded():
@@ -3942,7 +3934,7 @@ APP_CLARIFICATION_FIELDS = {"id", "question", "reason", "options", "trace"}
 def test_answer_contract_matches_exactly_what_the_app_reads():
     llm = ScriptedLlm([Call("data_genie", {"question": "figures"})], "Done.")
 
-    answer = ask(build(llm)).custom_outputs["answer"]
+    answer = ask(build(llm), CHART_QUESTION).custom_outputs["answer"]
 
     assert set(answer) == APP_ANSWER_FIELDS
     assert set(answer["figures"][0]) == APP_FIGURE_FIELDS

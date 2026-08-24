@@ -263,7 +263,7 @@ export function RuntimeSettingsPanel({
             <div className="runtime-loop-row">
               {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value))}
               {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value))}
-              {number('Run budget (s)', settings.loop.maxRunSeconds, 30, 180, (value) =>
+              {number('Run budget (s)', settings.loop.maxRunSeconds, 30, 200, (value) =>
                 setLoop('maxRunSeconds', value)
               )}
             </div>

@@ -93,6 +93,27 @@ describe('what a caveat is read as threatening', () => {
   });
 
   /**
+   * The reported false alarm. A catalog listing that already named the tables
+   * still carries the standing grant-timing sentence, and the word "refused"
+   * in "any refused table will be named" used to promote it to a denial.
+   */
+  it('reads a grant-timing note as identity, even when it mentions a refused table', () => {
+    const grantTiming =
+      'These 12 tables are declared by the deployment; Unity Catalog grant evaluation happens at query time, so the signed-in user may not have SELECT access to all of them. Any refused table will be named explicitly if a query against it fails.';
+    const inventoryNote =
+      "This is the deployment's declared source set. Unity Catalog still evaluates the signed-in user's grants when a table is read.";
+
+    expect(caveatRisk(grantTiming)).toBe(CAVEAT_RISK.identity);
+    expect(caveatRisk(inventoryNote)).toBe(CAVEAT_RISK.identity);
+    expect(caveatRisk(REFUSAL)).toBe(CAVEAT_RISK.refused);
+    expect(
+      caveatRisk(
+        'A governance control refused part of this request. Grant evaluation happens at query time for the tables that remain.'
+      )
+    ).toBe(CAVEAT_RISK.refused);
+  });
+
+  /**
    * The tier for a sentence this module cannot read, and it is above the two the
    * reader called ignorable rather than below them. Filing an unknown warning
    * under the synthetic-data line would be this module ranking a caveat it has

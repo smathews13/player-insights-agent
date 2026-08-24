@@ -103,8 +103,8 @@ ENUMERATION_BUDGET = RowBudget(max_chars=120_000, max_rows=5_000)
 DESCRIBE_STOP_MARKERS = ("# Detailed Table Information", "# Partition Information", "")
 
 #: How long one Genie call may take before the turn gives up on it, and how often
-#: it is checked. Sized against the turn: `MAX_RUN_SECONDS` is 90 and the endpoint
-#: is killed at about 120, so a single call may spend half the turn and no more.
+#: it is checked. Sized against the turn: `MAX_RUN_SECONDS` is 150 and the endpoint
+#: is killed at about 240, so a single call may spend a third of the turn and no more.
 #: The SDK's own default is twenty minutes, which cannot be spent (the request is
 #: already dead), so it is not a timeout, only a way to return nothing.
 GENIE_TIMEOUT_SECONDS = 45.0
@@ -1683,71 +1683,62 @@ class PlayerInsightTools:
     # -----------------------------------------------------------------------
 
     def list_data_assets(self, catalog: str = "", schema: str = "") -> ToolResult:
-        """Drill down the DECLARED manifest: catalogs -> schemas -> tables.
+        """Return the declared set in one call, optionally filtered.
 
-        Reads the manifest baked into the model rather than Unity Catalog live, for
-        two measured reasons. Listing UC from inside the endpoint means reading
-        `information_schema`, which fails even with catalog-level SELECT because it
-        is backed by the `system` catalog and needs `USE CATALOG system` granted
-        separately. And a live listing would show tables the serving principal was
-        never granted, so the agent could offer a table, be asked for it, and fail
-        at the warehouse. The manifest is exactly what passthrough granted, so
-        everything this returns is readable by construction.
-
-        That last sentence stops being true under user authorization, and this is
-        where the model would otherwise never find out. The manifest still bounds
-        what may be read (`validate_sql` refuses anything outside it), but the
-        caller's own Unity Catalog grants decide which of those tables actually
-        answer, and the listing has no way to know which. So it says so, next to
-        the names, where the choice is made.
+        Under forty tables the whole set is printed at once. Walking catalogs →
+        schemas → tables cost a model turn per level to learn names the process
+        already had. Franchise tags are shown when baked beside the manifest;
+        a missing tag is untagged, not "no such data".
         """
 
         declared = self.settings.readable_tables
         catalog = catalog.strip().strip("`")
         schema = schema.strip().strip("`")
+        tags = dict(getattr(self.settings, "franchise_tags", ()) or ())
 
-        if not catalog:
-            catalogs = sorted({name.split(".")[0] for name in declared})
-            lines = [f"- {name}" for name in catalogs]
-            return ToolResult(
-                text="Declared catalogs:\n" + "\n".join(lines)
-                if lines
-                else "(no tables were declared with this model)"
-            )
+        if not declared:
+            return ToolResult(text="(no tables were declared with this model)")
 
-        in_catalog = [name for name in declared if name.split(".")[0] == catalog]
-        if not in_catalog:
+        if catalog and not any(name.split(".")[0] == catalog for name in declared):
             return ToolResult(
                 text=(
                     f"'{catalog}' has no declared tables. Declared catalogs: "
                     + ", ".join(sorted({name.split('.')[0] for name in declared}))
                 )
             )
-        if not schema:
-            schemas = sorted({name.split(".")[1] for name in in_catalog})
-            return ToolResult(
-                text=f"Declared schemas in {catalog}:\n"
-                + "\n".join(f"- {name}" for name in schemas)
-            )
-
-        tables = sorted(
-            name for name in in_catalog if name.split(".")[1] == schema
-        )
-        if not tables:
+        if catalog and schema and not any(
+            name.split(".")[0] == catalog and name.split(".")[1] == schema
+            for name in declared
+        ):
+            in_catalog = [name for name in declared if name.split(".")[0] == catalog]
             return ToolResult(
                 text=(
                     f"'{catalog}.{schema}' has no declared tables. Declared schemas in "
                     f"{catalog}: " + ", ".join(sorted({n.split('.')[1] for n in in_catalog}))
                 )
             )
-        # Listed, not classified. What a table is FOR is a property of the
-        # deployment's own schema, so anything asserted here would be a guess
-        # about the reader's estate dressed as a fact; describe_table and
-        # dictionary_genie establish it from the data instead.
-        lines = [f"Declared tables in {catalog}.{schema}:"]
-        lines.extend(f"  - {name}" for name in tables)
+
+        tables = sorted(
+            name
+            for name in declared
+            if (not catalog or name.split(".")[0] == catalog)
+            and (not schema or name.split(".")[1] == schema)
+        )
+        heading = "Declared tables:"
+        if catalog and schema:
+            heading = f"Declared tables in {catalog}.{schema}:"
+        elif catalog:
+            heading = f"Declared tables in {catalog}:"
+        lines = [heading]
+        for name in tables:
+            franchise = tags.get(name) or tags.get(name.lower()) or "untagged"
+            lines.append(f"  - {name}  [franchise: {franchise}]")
         lines.append("")
-        lines.append("Call describe_table for columns, types, and comments.")
+        lines.append(
+            "This is the declared set in one listing. A missing franchise tag "
+            "means untagged, not that the table cannot answer. Call describe_table "
+            "for columns, types, and comments."
+        )
         if self.user_authorized:
             lines.append(GRANTS_DECIDE_NOTE)
         return ToolResult(text="\n".join(lines))
@@ -2375,13 +2366,12 @@ LIST_DATA_ASSETS_TOOL = {
     "function": {
         "name": "list_data_assets",
         "description": (
-            "List the tables this agent is permitted to read, drilling down: no arguments "
-            "lists catalogs, a catalog lists its schemas, catalog plus schema lists tables. "
-            "This is the declared set the serving principal was actually granted, so "
-            "anything it returns is readable and anything it omits is out of scope. Say so "
-            "rather than looking for another way in. The listing is names only, so read a "
-            "table with describe_table to learn what it holds rather than inferring it "
-            "from the name."
+            "List every table this agent is permitted to read in one call, already "
+            "labelled with franchise when a tag was baked. Optional catalog/schema "
+            "arguments only filter that set. This is browsing, not discovery: the "
+            "declared set is already in memory. A missing franchise tag means "
+            "untagged, not that the table cannot answer. Read a table with "
+            "describe_table rather than inferring what it holds from the name."
         ),
         "parameters": {
             "type": "object",

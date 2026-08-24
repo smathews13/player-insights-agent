@@ -211,7 +211,22 @@ MAX_POINTS_PER_TRACE = 2_000
 #: Charts one answer may carry. A product limit: a chat answer with more panels than
 #: this is scrolled past rather than read. Interpolated into the brief below, so the
 #: number the model is asked for and the number the code enforces stay the same.
-MAX_CHARTS = 2
+#:
+#: Cap 1, and only when the person asked: a chart that is *possible* is not a
+#: chart that was *wanted*. Word-boundary matching, because "graph" sits inside
+#: "geography", "demographic" and "paragraph".
+MAX_CHARTS = 1
+
+_CHART_REQUESTED = re.compile(
+    r"\b(?:chart|graph|plot|visuali\w*|diagram|histogram|scatter)\w*\b",
+    re.IGNORECASE,
+)
+
+
+def chart_requested(question: str) -> bool:
+    """True only when the person asked for a chart, not when one is possible."""
+
+    return bool(_CHART_REQUESTED.search(question or ""))
 
 # `line` is not a Plotly trace type, but it is the single most common thing a model emits
 # for a line chart, so it is translated instead of rejected.

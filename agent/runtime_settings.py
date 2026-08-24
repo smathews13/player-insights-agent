@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 class LoopSettings:
     max_steps: int = 12
     max_tool_calls: int = 12
-    max_run_seconds: int = 90
+    max_run_seconds: int = 150
 
 
 @dataclass(frozen=True)
@@ -29,8 +29,8 @@ class AnswerSettings:
     charts: bool = True
     figures: bool = True
     caveats: bool = True
-    max_charts: int = 2
-    max_figures: int = 4
+    max_charts: int = 1
+    max_figures: int = 6
     max_caveats: int = 0
     narrative_max_characters: int = 0
     sources: str = "standard"
@@ -105,7 +105,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
         loop=LoopSettings(
             max_steps=_integer(loop.get("maxSteps"), 12, 1, 20),
             max_tool_calls=_integer(loop.get("maxToolCalls"), 12, 1, 40),
-            max_run_seconds=_integer(loop.get("maxRunSeconds"), 90, 30, 180),
+            max_run_seconds=_integer(loop.get("maxRunSeconds"), 150, 30, 200),
         ),
         answer=AnswerSettings(
             takeaway=_boolean(answer.get("takeaway"), True),
@@ -113,8 +113,8 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             charts=_boolean(answer.get("charts"), True),
             figures=_boolean(answer.get("figures"), True),
             caveats=_boolean(answer.get("caveats"), True),
-            max_charts=_integer(answer.get("maxCharts"), 2, 0, 6),
-            max_figures=_integer(answer.get("maxFigures"), 4, 0, 12),
+            max_charts=_integer(answer.get("maxCharts"), 1, 0, 6),
+            max_figures=_integer(answer.get("maxFigures"), 6, 0, 12),
             max_caveats=_integer(answer.get("maxCaveats"), 0, 0, 20),
             narrative_max_characters=_integer(
                 answer.get("narrativeMaxCharacters"), 0, 0, 12_000

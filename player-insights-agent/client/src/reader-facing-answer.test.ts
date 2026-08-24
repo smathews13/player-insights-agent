@@ -109,4 +109,37 @@ describe('whether the section may call itself a final answer', () => {
     ).toBe('VLH Online led the window.');
     expect(readerFacingTakeaway('This question was not answered.', '')).toBe('This question was not answered.');
   });
+
+  /**
+   * Catalog / data-access listings answer the question. The grant-timing
+   * sentence is a standing note about query-time Unity Catalog checks, not a
+   * refusal of the request that just listed the tables.
+   */
+  it('does not paint a successful table listing as Request refused', () => {
+    const grantTiming =
+      'These 12 tables are declared by the deployment; Unity Catalog grant evaluation happens at query time, so the signed-in user may not have SELECT access to all of them. Any refused table will be named explicitly if a query against it fails.';
+    const listing = [
+      'This deployment has access to 12 declared tables in the catalog.',
+      '',
+      '| LAYER | TABLE | PURPOSE |',
+      '| Raw | raw_gameplay_activity | Unprocessed gameplay events |',
+    ].join('\n');
+    const honesty = answerHonesty({
+      truncated: false,
+      caveats: [grantTiming, identity],
+      narrative: listing,
+    });
+
+    expect(honesty.eyebrow).toBe('Final answer');
+    expect(honesty.tone).toBe('complete');
+    expect(honesty.warnings).toEqual([]);
+  });
+
+  it('still labels an actual policy deny as Request refused', () => {
+    const refusal =
+      'A governance control refused part of this request, so that part is not answered here and was not answered another way.';
+    const honesty = answerHonesty({ truncated: false, caveats: [refusal] });
+
+    expect(honesty.warnings).toEqual([{ label: 'Request refused', text: refusal }]);
+  });
 });

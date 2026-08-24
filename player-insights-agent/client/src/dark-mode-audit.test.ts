@@ -293,6 +293,27 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).toMatch(/html\[data-theme='dark'\] \.app-frame\s*\{[^}]*isolation:\s*isolate/);
   });
 
+  it('keeps the working-tab sky behind KPI tiles and the red banners', () => {
+    /*
+     * Run Explorer screenshots showed twinkling glyphs on the summary tiles and
+     * the warning banner. The sky stays on the negative layer; the page
+     * documents take layer 1 by name, and those reading surfaces mix toward
+     * the sky fill so a 5% pane cannot leave a star sitting on the chrome.
+     */
+    expect(DARK).toMatch(
+      /html\[data-theme='dark'\] \.app-frame > main,\s*html\[data-theme='dark'\] \.storage-banner,\s*html\[data-theme='dark'\] \.role-lost-notice\s*\{[^}]*z-index:\s*1/
+    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] .page-shell [data-slot='card']")).toMatch(
+      /color-mix\(in srgb,\s*var\(--ast-sky-fill\)\s*86%/
+    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='alert']")).toMatch(
+      /color-mix\(in oklab,\s*var\(--ast-sky-fill\)\s*80%/
+    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='alert']")).not.toMatch(
+      /background:\s*var\(--(?:card|ast-neg-fill|db-red-wash)\)/
+    );
+  });
+
   it('makes the dark login backdrop opaque rather than using translucent Ice', () => {
     /*
      * `--ast-ice` is three percent white in dark mode. On a full-viewport login
@@ -319,6 +340,9 @@ describe('dark mode covers the shipped surfaces', () => {
     for (const selector of [
       '.account-menu',
       '.app-select-content',
+      "[data-slot='select-content']",
+      "[data-slot='dropdown-menu-content']",
+      "[data-slot='popover-content']",
       '.monitoring-chip-menu',
       '.monitoring-drawer',
       '.monitoring-question-modal',
@@ -331,6 +355,19 @@ describe('dark mode covers the shipped surfaces', () => {
         /background:\s*(?:rgba\([^)]*,\s*0\.\d+\)|var\(--(?:card|popover)\))/
       );
     }
+  });
+
+  it('gives AppKit floating menus the account-menu fill, not seven percent white', () => {
+    // The conversation filter is a raw SelectContent. It never wore
+    // `.app-select-content`, so it painted `--popover` -- seven percent white --
+    // and the run list showed through the options. The account menu already
+    // uses the solid stand-in; this token is what every AppKit dropdown reads.
+    const darkTokens = TOKENS.split("html[data-theme='dark']")[1] ?? '';
+    expect(darkTokens).toMatch(/--popover:\s*var\(--ast-surface-solid\)/);
+    expect(darkTokens).not.toMatch(/--popover:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(
+      /background:\s*var\(--ast-surface-solid\)/
+    );
   });
 
   it('keeps Settings on the rail frost instead of the opaque overlay paint', () => {

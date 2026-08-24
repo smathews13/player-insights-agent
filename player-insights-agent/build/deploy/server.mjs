@@ -164217,7 +164217,7 @@ var init_runtime_settings = __esm({
       loop: external_exports.strictObject({
         maxSteps: external_exports.number().int().min(1).max(20),
         maxToolCalls: external_exports.number().int().min(1).max(40),
-        maxRunSeconds: external_exports.number().int().min(30).max(180)
+        maxRunSeconds: external_exports.number().int().min(30).max(200)
       }),
       answer: external_exports.strictObject({
         takeaway: external_exports.boolean(),
@@ -164256,15 +164256,15 @@ var init_runtime_settings = __esm({
       }).default(DEFAULT_ENTITY_STYLES).transform(upgradePaperEntityStyles)
     });
     DEFAULT_RUNTIME_SETTINGS = {
-      loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 90 },
+      loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 150 },
       answer: {
         takeaway: true,
         narrative: true,
         charts: true,
         figures: true,
         caveats: true,
-        maxCharts: 2,
-        maxFigures: 4,
+        maxCharts: 1,
+        maxFigures: 6,
         maxCaveats: 0,
         narrativeMaxCharacters: 0,
         sources: "standard",

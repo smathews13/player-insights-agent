@@ -355,7 +355,12 @@ export function RunExplorer() {
                       'All conversations')}
                 </span>
               </SelectTrigger>
-              <SelectContent position="popper" align="start" sideOffset={4}>
+              <SelectContent
+                className="app-select-content"
+                position="popper"
+                align="start"
+                sideOffset={4}
+              >
                 <SelectItem value="all">All conversations</SelectItem>
                 {conversationOptions.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
@@ -367,7 +372,7 @@ export function RunExplorer() {
             <div className="run-search">
               <Search />
               <Input
-                placeholder="Search conversations, prompts, or people…"
+                placeholder="Search across runs"
                 aria-label="Search runs by conversation, prompt, or person"
                 value={searchText}
                 onChange={(event) => setSearchText(event.target.value)}

@@ -7,7 +7,9 @@ from runtime_settings import RuntimeSettings, activate, current, prompt_fragment
 def test_absent_settings_preserve_compiled_behavior():
     assert activate({}) == RuntimeSettings()
     assert current().loop.max_steps == 12
-    assert current().answer.max_charts == 2
+    assert current().answer.max_charts == 1
+    assert current().answer.max_figures == 6
+    assert current().loop.max_run_seconds == 150
 
 
 def test_prompt_fragment_always_names_todays_date():
