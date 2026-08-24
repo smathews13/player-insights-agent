@@ -508,7 +508,17 @@ export function buildMapConstellation(stages: TraceStage[]): MapConstellation {
     chars.push(budget);
     mono.push(isMono);
     full.push(text);
-    return { step: star.step, x: star.x, name, mono: isMono, meta, nameY, metaY, side, box: labelBox(star.x, width, nameY, metaY) };
+    return {
+      step: star.step,
+      x: star.x,
+      name,
+      mono: isMono,
+      meta,
+      nameY,
+      metaY,
+      side,
+      box: labelBox(star.x, width, nameY, metaY),
+    };
   });
   settleLabels(labels, chars, mono, full);
 
@@ -555,18 +565,19 @@ const PATH_PITCH_DECAY = 6;
 /**
  * The skies a run can be drawn on, as fractions of the band.
  *
- * The first row OPENS on the design reference's own seven x positions, so a run
- * of seven or fewer draws exactly what `#18a` draws. Its last four values are
- * the continuation the reference never had to specify, and the three rows under
- * it are whole alternative skies.
+ * Each row is twenty deliberately placed points. That length is not decorative:
+ * ordinary long runs reach fifteen to twenty steps, and the old eleven-point
+ * rows restarted their opening four points in the same run. The repeat was
+ * visible even after the individual hops had been tuned, because the whole
+ * constellation acquired a second, coarser period at the wrap.
  *
  * WHY THERE IS MORE THAN ONE. Every run drew the same chain, so the band read as
  * a decoration of the app rather than a drawing of the run: a reader who had
- * watched two questions had seen the same seven-point zig-zag twice and stopped
- * reading it. Four skies is enough that consecutive runs differ and few enough
- * that each one is a shape somebody placed rather than noise -- which is the
- * whole distinction the design asks for, and the reason this is a short list of
- * hand-tuned rows and not a random walk.
+ * watched two questions had seen the same zig-zag twice and stopped reading it.
+ * Four skies is enough that consecutive runs differ and few enough that each one
+ * is a shape somebody placed rather than noise -- which is the whole distinction
+ * the design asks for, and the reason this is a short list of hand-tuned rows and
+ * not a random walk.
  *
  * WHICH ROW A RUN GETS IS DECIDED BY ITS SEED AND NOTHING ELSE; see
  * `pathVariant`. It is emphatically not decided by the step count, the clock or
@@ -584,18 +595,31 @@ const PATH_PITCH_DECAY = 6;
  * EACH ROW IS CYCLICALLY WELL SPACED: no two adjacent values, INCLUDING the last
  * beside the first, are closer than `MIN_PATH_SWING`. Adjacency is checked
  * around the wrap because a run longer than a row repeats it -- `index % length`
- * and nothing cleverer -- so the wrap is an ordinary hop of a long run rather
- * than a seam. That property is what makes the chain a chain at any length: two
- * near-equal values in a row draw a vertical stub a reader reads as a missing
- * hop. The reference's own seventh value ran into its first at 0.08, which is
- * the stub an eight-step run used to draw, and extending the row past seven is
- * what removed it.
+ * and nothing cleverer -- so the wrap is an ordinary hop of a very long run
+ * rather than a seam.
+ *
+ * THE DIRECTIONS AND DISTANCES ARE IRREGULAR ON PURPOSE. Every row contains
+ * short hops just over the floor, broad crossings, and several places where the
+ * path keeps travelling in one direction for a second hop. The previous rows
+ * reversed on nearly every step and spent most hops crossing the whole band, so
+ * fifteen real steps read as one mechanical sawtooth even though no two stars
+ * collided. A constellation needs clusters and occasional long jumps; spacing
+ * alone is not enough.
  */
 export const PATH_SCATTERS: readonly (readonly number[])[] = [
-  [0.42, 1, 0.78, 0, 0.22, 0.98, 0.5, 0.06, 0.68, 0.14, 0.9],
-  [0.9, 0.12, 0.62, 0.04, 0.84, 0.3, 1, 0.46, 0.08, 0.72, 0.26],
-  [0.2, 0.72, 0.02, 0.5, 0.96, 0.34, 0.66, 0.1, 0.88, 0.4, 0.76],
-  [0.56, 0.04, 0.8, 0.24, 1, 0.44, 0.14, 0.7, 0.32, 0.94, 0.06],
+  [
+    0.18, 0.46, 0.78, 0.31, 0.03, 0.66, 0.94, 0.57, 0.27, 0.72, 0.49, 0.08, 0.38, 0.83, 0.55, 0.22, 0.91, 0.63, 0.12,
+    0.42,
+  ],
+  [
+    0.86, 0.58, 0.24, 0.47, 0.75, 0.11, 0.39, 0.97, 0.62, 0.29, 0.7, 0.44, 0.04, 0.34, 0.81, 0.53, 0.19, 0.92, 0.64,
+    0.08,
+  ],
+  [0.07, 0.35, 0.68, 0.43, 0.16, 0.88, 0.6, 0.25, 0.49, 0.95, 0.71, 0.38, 0.1, 0.56, 0.84, 0.52, 0.2, 0.76, 0.46, 0.98],
+  [
+    0.55, 0.82, 0.29, 0.02, 0.36, 0.69, 0.93, 0.61, 0.18, 0.45, 0.77, 0.5, 0.14, 0.39, 0.87, 0.64, 0.27, 0.73, 0.41,
+    0.09,
+  ],
 ];
 
 /**

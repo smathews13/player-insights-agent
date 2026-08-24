@@ -920,6 +920,7 @@
 .trace-dag.map .dag-md ul,
 .trace-dag.map .dag-md ol {
   margin: 0 0 6px;
+  line-height: var(--ast-lh-body);
 }
 .trace-dag.map .dag-md > :last-child {
   margin-bottom: 0;
@@ -1018,7 +1019,10 @@
   flex: 1;
   min-width: 0;
   font-size: var(--ast-fs-12);
-  line-height: 1.5;
+  /* A question is answer-level prose, not a recorded payload merely because it
+     sits on the same wash as one. The payload blocks keep their looser mono
+     leading; this sentence follows the shared proportional-prose standard. */
+  line-height: var(--ast-lh-body);
   background: var(--ast-fill-band);
   border-radius: 6px;
   padding: 8px 10px;
@@ -1108,6 +1112,7 @@
 .trace-dag.map .dag-grid-note {
   margin: 4px 0 0;
   font-size: var(--ast-fs-11);
+  line-height: var(--ast-lh-body);
   color: var(--ast-text-secondary);
 }
 /*
@@ -1118,6 +1123,7 @@
  */
 .trace-dag.map .dag-definition {
   font-size: var(--ast-fs-12);
+  line-height: var(--ast-lh-body);
 }
 .trace-dag.map .dag-definition-head {
   display: flex;
@@ -1249,6 +1255,7 @@
 .trace-dag.map .dag-table-about {
   margin: 0 0 6px;
   font-size: var(--ast-fs-12);
+  line-height: var(--ast-lh-body);
   color: var(--ast-text-secondary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1313,6 +1320,7 @@
   gap: 8px;
   margin-top: 8px;
   font-size: var(--ast-fs-12);
+  line-height: var(--ast-lh-body);
   border: 1px solid var(--ast-hairline);
   border-left: 3px solid var(--ast-border-input);
   border-radius: 6px;

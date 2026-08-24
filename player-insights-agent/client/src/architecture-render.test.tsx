@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ArchitectureCanvas, ArchitecturePage, ArchitectureTiles, ChainBoundTiles } from './ArchitecturePage';
 import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
 import { ARCHITECTURE_EDGES, ARCHITECTURE_NODES, dependencyNodes, drawnReadings } from './architecture';
+import { ARCHITECTURE_CONTROL_SCOPES } from './architecture-control-scopes';
 import { BOTTOM_ROW_NODES, NODE_BOXES, drawnEdges } from './architecture-layout';
 import { readConnections, readingsById, type SettingsPayload } from './connection-model';
 import { connectedResource } from '../../shared/deployment-config';
@@ -801,8 +802,49 @@ describe('the drawing is reachable and readable without seeing it', () => {
     expect(tiles).toContain('\u2014');
     expect(text(tiles.slice(0, tiles.indexOf('arch-flow')))).not.toContain('12');
     expect(
-      renderToStaticMarkup(<ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />)
+      renderToStaticMarkup(
+        <MemoryRouter>
+          <ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />
+        </MemoryRouter>
+      )
     ).toContain('>9<');
+  });
+
+  it('makes every KPI a keyboard-reachable link to the Runtime settings', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ChainBoundTiles loop={{ maxSteps: 12, maxToolCalls: 9, maxRunSeconds: 90 }} />
+      </MemoryRouter>
+    );
+
+    expect(markup.match(/class="arch-bound-settings-link"/g)).toHaveLength(CHAIN_BOUNDS.length);
+    expect(markup.match(/href="\/settings#settings-runtime-form"/g)).toHaveLength(CHAIN_BOUNDS.length);
+    for (const bound of CHAIN_BOUNDS) {
+      expect(markup, bound).toContain(`data-bound="${bound}"`);
+      expect(markup, bound).toContain(`Show the architecture it controls; open Runtime settings to change it.`);
+    }
+  });
+
+  it('marks exactly the selected KPI scope on the rendered nodes and edges', () => {
+    const active = 'maxToolCalls';
+    const scope = ARCHITECTURE_CONTROL_SCOPES[active];
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ArchitectureCanvas activeBound={active} byResource={deployment().byResource} now={Date.now()} payload={null} />
+      </MemoryRouter>
+    );
+
+    for (const node of ARCHITECTURE_NODES) {
+      expect(card(markup, node.id).includes('data-control-active="true"'), node.id).toBe(scope.nodes.includes(node.id));
+    }
+    for (const edge of drawnEdges()) {
+      const at = markup.indexOf(`<path class="arch-edge" d="${edge.d}`);
+      expect(at, edge.id).toBeGreaterThan(-1);
+      const path = markup.slice(at, markup.indexOf('</path>', at));
+      const controlled = scope.edges.includes(`${edge.from}->${edge.to}`);
+      expect(path.includes('data-control-active="true"'), edge.id).toBe(controlled);
+      expect(path.includes(`data-control-bound="${active}"`), edge.id).toBe(controlled);
+    }
   });
 
   it('draws the two stores at the bottom of the canvas the sub-line describes', () => {

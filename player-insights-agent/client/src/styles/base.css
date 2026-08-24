@@ -17,6 +17,26 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
 }
+/*
+ * A PARAGRAPH FOLLOWS ITS TYPE SIZE; it does not inherit AppKit's fixed line
+ * box.
+ *
+ * AppKit is the first import in index.css and puts `p { line-height: 1.75rem }`
+ * inside `@layer base`. That is 28px even when the paragraph is the app's 11px
+ * caption or 12px explanatory copy, which is why wrapped answer steps and
+ * Settings descriptions looked double-spaced. This rule is intentionally
+ * unlayered. Normal declarations outside a cascade layer outrank normal
+ * declarations inside one, so it defeats the library default without a
+ * specificity contest; base.css is also imported after both token files, so the
+ * value exists before this rule reads it.
+ *
+ * This is only the proportional-prose default. A surface may restate another
+ * line height when its content needs one -- notably the mono SQL and payload
+ * blocks, whose extra leading separates clauses and recorded lines.
+ */
+p {
+  line-height: var(--ast-lh-body);
+}
 button,
 input,
 textarea {

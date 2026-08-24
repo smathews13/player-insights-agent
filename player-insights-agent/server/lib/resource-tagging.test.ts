@@ -86,8 +86,16 @@ describe('applying Astrolabe resource tags', () => {
       platform: fake,
     });
 
-    expect(summary).toMatchObject({ tagged: 0, alreadyTagged: 1, skipped: 0, failed: 0 });
-    expect(summary.results[0].status).toBe('already-tagged');
+    expect(summary).toMatchObject({
+      total: 1,
+      correct: 1,
+      tagged: 0,
+      alreadyCorrect: 1,
+      notSupported: 0,
+      permissionRequired: 0,
+      failed: 0,
+    });
+    expect(summary.results[0].status).toBe('already-correct');
     expect(createAppTag).not.toHaveBeenCalled();
     expect(updateAppTag).not.toHaveBeenCalled();
   });
@@ -104,7 +112,7 @@ describe('applying Astrolabe resource tags', () => {
       }),
     });
 
-    expect(summary).toMatchObject({ tagged: 1, alreadyTagged: 1, skipped: 0, failed: 0 });
+    expect(summary).toMatchObject({ total: 2, correct: 2, tagged: 1, alreadyCorrect: 1, failed: 0 });
   });
 
   it('skips a Vector Search index explicitly and tags only its endpoint', async () => {
@@ -120,10 +128,11 @@ describe('applying Astrolabe resource tags', () => {
       platform: fake,
     });
 
-    expect(summary).toMatchObject({ tagged: 1, skipped: 1, failed: 0 });
+    expect(summary).toMatchObject({ total: 2, correct: 1, tagged: 1, notSupported: 1, failed: 0 });
     const index = summary.results.find((result) => result.kind === 'vector-index');
-    expect(index?.status).toBe('skipped');
-    expect(index?.detail).toContain('do not have a custom tag API');
+    expect(index?.status).toBe('not-supported');
+    expect(index?.detail).toContain('does not expose custom tags');
+    expect(index?.detail).toContain('Nothing needs to be fixed');
     expect(summary.results.find((result) => result.kind === 'vector-endpoint')).toMatchObject({
       name: 'semantic-endpoint',
       status: 'tagged',
@@ -146,21 +155,164 @@ describe('applying Astrolabe resource tags', () => {
       platform: platform({ setModelTag, setModelVersionTag }),
     });
 
-    expect(summary).toMatchObject({ tagged: 2, skipped: 0, failed: 0 });
+    expect(summary).toMatchObject({ total: 2, correct: 2, tagged: 2, notSupported: 0, failed: 0 });
     expect(setModelTag).toHaveBeenCalledWith('app.schema.astrolabe_agent');
     expect(setModelVersionTag).toHaveBeenCalledWith('app.schema.astrolabe_agent', '12');
   });
 
+  it('classifies the seven reported targets into correct, unsupported, grants, and recovered retry', async () => {
+    const appDenial = new Error(
+      'Response from server (Forbidden)\n' +
+        '{"error_code":"PERMISSION_DENIED","message":"Failed to authorize app player-insights-agent. ' +
+        'User does not have permission to apply tag assignment changes."}'
+    );
+    const vectorDenial = new Error(
+      'Response from server (Forbidden)\n' +
+        '{"error_code":"PERMISSION_DENIED","message":"The user is not authorized to make the request, ' +
+        "please contact the workspace admin to assign the user 071769f1-5623-45b6-a172-c8b8060adff1 'Can Use' " +
+        "or 'Can Manage' permission.\"}"
+    );
+    const warehouseDenial = new Error(
+      'Response from server (Forbidden)\n' +
+        '{"error_code":"PERMISSION_DENIED","message":"071769f1-5623-45b6-a172-c8b8060adff1 is not ' +
+        'authorized to manage this SQL Endpoint. Please contact your administrator."}'
+    );
+    const lakebaseUpdate = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(
+        new Error(
+          'Response from server (Gateway Timeout) ' +
+            '{"error_code":"DEADLINE_EXCEEDED","details":[{"@type":"type.googleapis.com/google.rpc.RequestInfo"}]}'
+        )
+      )
+      .mockResolvedValueOnce();
+    const sleep = vi.fn(() => Promise.resolve());
+    const summary = await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_APP_NAME: 'player-insights-agent',
+        DATABRICKS_CLIENT_ID: '071769f1-5623-45b6-a172-c8b8060adff1',
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'player-insights-agent',
+        PLAYER_INSIGHTS_EXPERIMENT_ID: '<mlflow-experiment-id>',
+        DATABRICKS_SQL_WAREHOUSE_ID: '<sql-warehouse-id>',
+        LAKEBASE_ENDPOINT: 'projects/player-insights-agent-db/branches/production',
+      },
+      report: report([{ key: 'semantic_index', value: '<your_catalog>.<your_schema>.semantic_layer_index' }]),
+      platform: platform({
+        createAppTag: vi.fn(() => Promise.reject(appDenial)),
+        getServingTags: vi.fn(() => Promise.resolve([{ key: 'astrolabe', value: 'true' }])),
+        getExperimentTags: vi.fn(() => Promise.resolve([{ key: 'astrolabe', value: 'true' }])),
+        getVectorIndexEndpoint: vi.fn(() => Promise.resolve('player-insights-vector-endpoint')),
+        setVectorEndpointTags: vi.fn(() => Promise.reject(vectorDenial)),
+        setWarehouseTags: vi.fn(() => Promise.reject(warehouseDenial)),
+        setLakebaseTags: lakebaseUpdate,
+      }),
+      retry: { sleep, now: () => 0 },
+    });
+
+    expect(summary).toMatchObject({
+      total: 7,
+      correct: 3,
+      tagged: 1,
+      alreadyCorrect: 2,
+      notSupported: 1,
+      permissionRequired: 3,
+      failed: 0,
+    });
+    expect(summary.headline).toBe(
+      '3 of 7 resources correctly tagged · 1 not supported by Databricks · ' +
+        '3 need workspace grants · 0 failed after retries.'
+    );
+    expect(lakebaseUpdate).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+
+    const app = summary.results.find((result) => result.kind === 'app');
+    expect(app).toMatchObject({ status: 'permission-required' });
+    expect(app?.detail).toContain(
+      'service principal 071769f1-5623-45b6-a172-c8b8060adff1 CAN_MANAGE on app “player-insights-agent”'
+    );
+    expect(app?.technicalDetail).toContain('apply tag assignment changes');
+
+    const vectorIndex = summary.results.find((result) => result.kind === 'vector-index');
+    expect(vectorIndex).toMatchObject({ status: 'not-supported' });
+    expect(vectorIndex?.detail).toContain('does not expose custom tags');
+    expect(vectorIndex?.detail).toContain('Nothing needs to be fixed');
+
+    const vectorEndpoint = summary.results.find((result) => result.kind === 'vector-endpoint');
+    expect(vectorEndpoint).toMatchObject({
+      status: 'permission-required',
+      name: 'player-insights-vector-endpoint',
+    });
+    expect(vectorEndpoint?.detail).toContain(
+      'service principal 071769f1-5623-45b6-a172-c8b8060adff1 CAN_USE or CAN_MANAGE'
+    );
+
+    const warehouse = summary.results.find((result) => result.kind === 'sql-warehouse');
+    expect(warehouse).toMatchObject({ status: 'permission-required' });
+    expect(warehouse?.detail).toContain(
+      'service principal 071769f1-5623-45b6-a172-c8b8060adff1 CAN_MANAGE (or ownership)'
+    );
+
+    expect(summary.results.find((result) => result.kind === 'serving-endpoint')).toMatchObject({
+      status: 'already-correct',
+    });
+    expect(summary.results.find((result) => result.kind === 'mlflow-experiment')).toMatchObject({
+      status: 'already-correct',
+    });
+    expect(summary.results.find((result) => result.kind === 'lakebase')).toMatchObject({ status: 'tagged' });
+  });
+
+  it('reports DEADLINE_EXCEEDED only after all bounded retry attempts are spent', async () => {
+    const deadline = new Error(
+      'Response from server (Gateway Timeout) {"error_code":"DEADLINE_EXCEEDED","message":"deadline exceeded"}'
+    );
+    const setLakebaseTags = vi.fn(() => Promise.reject(deadline));
+    const summary = await applyAstrolabeTags({
+      environment: { LAKEBASE_ENDPOINT: 'projects/player-insights-agent-db/branches/production' },
+      report: null,
+      platform: platform({ setLakebaseTags }),
+      retry: { maxAttempts: 3, sleep: () => Promise.resolve(), now: () => 0 },
+    });
+
+    expect(setLakebaseTags).toHaveBeenCalledTimes(3);
+    expect(summary).toMatchObject({
+      total: 1,
+      correct: 0,
+      notSupported: 0,
+      permissionRequired: 0,
+      failed: 1,
+    });
+    expect(summary.headline).toBe(
+      '0 of 1 resources correctly tagged · 0 not supported by Databricks · ' +
+        '0 need workspace grants · 1 failed after retries.'
+    );
+    expect(summary.results[0]).toMatchObject({
+      status: 'failed',
+      detail: 'Databricks did not complete the tag update after Astrolabe retried transient failures.',
+    });
+    expect(summary.results[0].technicalDetail).toContain('DEADLINE_EXCEEDED');
+  });
+
   it('names the warehouse grant needed when the app service principal cannot tag it', async () => {
     const summary = await applyAstrolabeTags({
-      environment: { DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse-1' },
+      environment: {
+        DATABRICKS_CLIENT_ID: '071769f1-5623-45b6-a172-c8b8060adff1',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse-1',
+      },
       report: null,
       platform: platform({
-        setWarehouseTags: vi.fn(() => Promise.reject(new Error('403 PERMISSION_DENIED'))),
+        setWarehouseTags: vi.fn(() =>
+          Promise.reject(
+            new Error(
+              'Response from server (Forbidden)\n' +
+                '{"error_code":"PERMISSION_DENIED","message":"071769f1-5623-45b6-a172-c8b8060adff1 ' +
+                'is not authorized to manage this SQL Endpoint."}'
+            )
+          )
+        ),
       }),
     });
 
-    expect(summary).toMatchObject({ tagged: 0, skipped: 0, failed: 1 });
+    expect(summary).toMatchObject({ tagged: 0, permissionRequired: 1, failed: 0 });
     expect(summary.results[0].label).toContain('warehouse-1');
     expect(summary.results[0].detail).toContain('CAN_MANAGE');
   });
@@ -173,7 +325,7 @@ describe('applying Astrolabe resource tags', () => {
       route.indexOf("app.get('/api/settings'", route.indexOf("app.post('/api/settings/resource-tags'"))
     );
 
-    expect(source).toContain('new WorkspaceClient({})');
+    expect(source).toContain('new WorkspaceClient({ httpTimeoutSeconds: 5, retryTimeoutSeconds: 0 })');
     expect(source).not.toContain('forwardedUserToken');
     expect(handler).not.toContain('forwardedUserToken');
   });

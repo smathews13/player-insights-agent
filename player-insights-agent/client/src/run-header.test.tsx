@@ -29,12 +29,19 @@ import type { Run } from './app-types';
 const SOURCE = readFileSync(new URL('./RunHeader.tsx', import.meta.url), 'utf8');
 const COPY_CONTROL = readFileSync(new URL('./copy-id.ts', import.meta.url), 'utf8');
 const RUNS_CSS = partial('runs.css');
+const OPS_CSS = partial('ops.css');
 
 /** The declarations of one rule, so a claim can be made about one block. */
 function rule(selector: string): string {
   const start = RUNS_CSS.indexOf(`\n${selector} {`);
   expect(start, `${selector} exists`).toBeGreaterThan(-1);
   return RUNS_CSS.slice(start, RUNS_CSS.indexOf('}', start));
+}
+
+function opsRule(selector: string): string {
+  const start = OPS_CSS.indexOf(`\n${selector} {`);
+  expect(start, `${selector} exists`).toBeGreaterThan(-1);
+  return OPS_CSS.slice(start, OPS_CSS.indexOf('}', start));
 }
 
 const FULL_ID = 'cafebabecafebabecafebabecafebabe';
@@ -97,6 +104,22 @@ describe('the run header names the run without spelling it out', () => {
     expect(markup).toContain('lucide-user-round');
     expect(markup).toContain('identity-chip-name">someone');
     expect(markup).not.toContain('>SO<');
+  });
+
+  it('links the whole identity chip to that person’s Monitoring activity', () => {
+    const markup = header({ run: run({ stakeholder: 'alex rivera+qa@example.com' }) });
+
+    expect(markup).toContain('class="run-detail-user-link"');
+    expect(markup).toContain('href="/monitoring?who=alex%20rivera%2Bqa%40example.com"');
+    expect(markup).toMatch(/<a class="run-detail-user-link"[^>]*><span class="identity-chip/);
+  });
+
+  it('keeps an unrecorded identity plain instead of linking to an empty filter', () => {
+    const markup = header({ run: run({ stakeholder: '' }) });
+
+    expect(markup).toContain('identity-chip identity-chip--compact run-detail-user');
+    expect(markup).not.toContain('run-detail-user-link');
+    expect(markup).not.toContain('/monitoring?who=');
   });
 
   it('keeps the store’s own word for the status, and tones it', () => {
@@ -208,6 +231,12 @@ describe('the run header is four objects, not one sentence', () => {
     // part it cut was the status -- the one word that says whether to trust the
     // panels below it.
     expect(rule('.run-detail-ident')).toContain('flex-wrap: wrap');
+  });
+
+  it('shows hover and keyboard focus without overriding the identity ink', () => {
+    expect(opsRule('.run-detail-user-link')).toContain('color: inherit');
+    expect(opsRule('.run-detail-user-link:focus-visible')).toContain('outline: 2px solid var(--ast-blue)');
+    expect(opsRule('.run-detail-user-link')).not.toMatch(/color:\s*var\(--ast-blue\)/);
   });
 
   it('says nothing about a run when no run is selected', () => {

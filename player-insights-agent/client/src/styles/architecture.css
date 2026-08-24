@@ -32,6 +32,20 @@
    --------------------------------------------------------------------------- */
 
 .architecture-page {
+  /*
+   * Three LOCAL semantic tokens, because the global token files are shared
+   * surfaces and this vocabulary exists only on this diagram. Every ingredient
+   * is already in the declared palette; there is no literal for palette.test.ts
+   * to bless and no almost-the-same purple hiding at a call site.
+   *
+   * Violet, orange and blue-teal stay apart from the status pills' green, pink
+   * and brown, and from one another. They are not statuses: they mean step
+   * iterations, admitted tool calls and the request deadline, respectively.
+   */
+  --arch-bound-steps: color-mix(in srgb, var(--ast-blue) 58%, var(--db-red-600));
+  --arch-bound-tools: var(--db-orange);
+  --arch-bound-run: color-mix(in srgb, var(--db-teal-600) 68%, var(--ast-navy));
+
   gap: 16px;
 }
 
@@ -106,6 +120,30 @@
 .arch-tiles-loop {
   grid-template-columns: repeat(3, 1fr);
 }
+.arch-tiles-loop li {
+  --arch-bound-color: var(--arch-bound-steps);
+
+  padding: 0;
+  box-shadow: inset 4px 0 0 var(--arch-bound-color);
+}
+.arch-tiles-loop li[data-bound='maxToolCalls'] {
+  --arch-bound-color: var(--arch-bound-tools);
+}
+.arch-tiles-loop li[data-bound='maxRunSeconds'] {
+  --arch-bound-color: var(--arch-bound-run);
+}
+.arch-bound-settings-link {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+.arch-tiles-loop li[data-active='true'] {
+  outline: 3px solid var(--arch-bound-color);
+  outline-offset: 2px;
+  filter: drop-shadow(0 0 5px var(--arch-bound-color));
+}
 /* Sentence case, unlike the counts above. These are the Settings pane's own
    labels -- "Max DSF steps", "Run budget (s)" -- and upper-casing them breaks the
    one thing they are for, which is being searchable in the gear. `DSF` is already
@@ -167,6 +205,15 @@
 .arch-canvas {
   position: relative;
 }
+.arch-canvas[data-active-bound='maxSteps'] {
+  --arch-active-bound: var(--arch-bound-steps);
+}
+.arch-canvas[data-active-bound='maxToolCalls'] {
+  --arch-active-bound: var(--arch-bound-tools);
+}
+.arch-canvas[data-active-bound='maxRunSeconds'] {
+  --arch-active-bound: var(--arch-bound-run);
+}
 .arch-edges {
   position: absolute;
   inset: 0;
@@ -187,6 +234,22 @@
   stroke-width: 1.5;
   stroke-dasharray: 4 4;
   animation: arch-dash 1.2s linear infinite;
+  transition:
+    stroke 120ms ease,
+    filter 120ms ease,
+    stroke-width 120ms ease;
+}
+/*
+ * Only the bound selected by the KPI is painted. The relationship colour still
+ * rides on the dot, and returns untouched as soon as focus leaves the KPI.
+ * A thicker solid line plus the glow makes the controlled edge readable without
+ * relying on hue alone.
+ */
+.arch-edge[data-control-active='true'] {
+  stroke: var(--arch-active-bound);
+  stroke-width: 3;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 4px var(--arch-active-bound));
 }
 @keyframes arch-dash {
   to {
@@ -291,6 +354,10 @@
   .arch-edge {
     stroke-dasharray: none;
   }
+  .arch-edge[data-control-active='true'],
+  .arch-node[data-control-active='true'] {
+    transition: none;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -315,6 +382,19 @@
   font-size: var(--text-xs);
   line-height: 1.35;
   z-index: 2;
+  transition:
+    outline-color 120ms ease,
+    filter 120ms ease;
+}
+/*
+ * An outline rather than another box-shadow: the card's inset shadow is the
+ * relationship accent, and replacing it while a KPI is focused would make the
+ * control explanation erase the topology it is explaining.
+ */
+.arch-node[data-control-active='true'] {
+  outline: 3px solid var(--arch-active-bound);
+  outline-offset: 3px;
+  filter: drop-shadow(0 0 5px var(--arch-active-bound));
 }
 /* The accent edge: what kind of thing this is. A 3px mass, which is the one form
    the working colour is allowed to take. */

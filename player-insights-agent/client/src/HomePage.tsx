@@ -2032,8 +2032,19 @@ export function HomePage() {
             )}
             {/* The size and the colour are the strip's, in composer.css, rather
                 than utilities here: this span is also the flexible spacer that puts
-                the submit button hard right, and the two facts belong together. */}
-            <span>astrolabe can make mistakes. Sources and caveats are included.</span>
+                the submit button hard right, and the two facts belong together.
+
+                The mark leads the caveat rather than sitting elsewhere on the strip
+                because the sentence names the agent in its first word, and the
+                drawing and the name it belongs to read as one thing only while they
+                are adjacent. Same seating as `.ai-note` under an answer, which is
+                the same sentence said about a result instead of about the field.
+                Decorative: the word "astrolabe" is right beside it, so a mark
+                announced again would be the name read twice. */}
+            <span>
+              <AstrolabeMark size={13} />
+              astrolabe can make mistakes. Sources and caveats are included.
+            </span>
             {/* "Ask Astrolabe" is the composer button's name (§0 naming), and
                 while a run is in flight the button becomes the in-button loader:
                 the 14px mark, all white on the blue fill, and the label

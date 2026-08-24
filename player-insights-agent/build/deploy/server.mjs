@@ -98790,12 +98790,12 @@ var require_transport = __commonJS({
           this.trace("session closed");
           this.handleDisconnect();
         });
-        session.once("goaway", (errorCode2, lastStreamID, opaqueData) => {
+        session.once("goaway", (errorCode3, lastStreamID, opaqueData) => {
           let tooManyPings = false;
-          if (errorCode2 === http2.constants.NGHTTP2_ENHANCE_YOUR_CALM && opaqueData && opaqueData.equals(tooManyPingsData)) {
+          if (errorCode3 === http2.constants.NGHTTP2_ENHANCE_YOUR_CALM && opaqueData && opaqueData.equals(tooManyPingsData)) {
             tooManyPings = true;
           }
-          this.trace("connection closed by GOAWAY with code " + errorCode2 + " and data " + (opaqueData === null || opaqueData === void 0 ? void 0 : opaqueData.toString()));
+          this.trace("connection closed by GOAWAY with code " + errorCode3 + " and data " + (opaqueData === null || opaqueData === void 0 ? void 0 : opaqueData.toString()));
           this.reportDisconnectToOwner(tooManyPings);
         });
         session.once("error", (error48) => {
@@ -131756,14 +131756,14 @@ var require_receiver = __commonJS({
        * @return {(Error|RangeError)} The error
        * @private
        */
-      createError(ErrorCtor, message, prefix, statusCode, errorCode2) {
+      createError(ErrorCtor, message, prefix, statusCode, errorCode3) {
         this._loop = false;
         this._errored = true;
         const err = new ErrorCtor(
           prefix ? `Invalid WebSocket frame: ${message}` : message
         );
         Error.captureStackTrace(err, this.createError);
-        err.code = errorCode2;
+        err.code = errorCode3;
         err[kStatusCode] = statusCode;
         return err;
       }
@@ -172991,7 +172991,7 @@ function resourceTagInventory(input = {}) {
       name: index,
       label: `Vector Search index \xB7 ${index}`,
       action: "skip",
-      reason: "Vector Search indexes do not have a custom tag API. Their endpoint can be tagged."
+      reason: "Databricks does not expose custom tags for Vector Search indexes. Nothing needs to be fixed on this index; Astrolabe tags its endpoint instead."
     });
   }
   const warehouse = text13(environment.DATABRICKS_SQL_WAREHOUSE_ID);
@@ -173021,131 +173021,227 @@ function hasTag(tags) {
 function mergeTag(tags) {
   return [...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key), { ...ASTROLABE_TAG }];
 }
-function failed4(target, error48) {
-  const raw2 = error48 instanceof Error ? error48.message : String(error48);
-  let detail = raw2.split("\n")[0].trim().slice(0, 240) || "Databricks did not complete the update.";
-  if (/permission|forbidden|unauthori[sz]ed|403/i.test(detail)) {
-    if (target.kind === "sql-warehouse") {
-      detail += " The app service principal needs CAN_MANAGE (or ownership) on this SQL warehouse to set cost tags.";
-    } else if (target.kind === "lakebase") {
-      detail += " The app service principal needs permission to update this Lakebase project.";
-    } else if (target.kind === "registered-model" || target.kind === "model-version" || target.kind === "mlflow-experiment") {
-      detail += " Grant the app service principal management permission on this MLflow resource.";
-    }
-  }
-  return { ...target, status: "failed", detail };
+function errorText(error48) {
+  return error48 instanceof Error ? error48.message : String(error48);
 }
-async function tagTarget(target, platform) {
-  if (target.action === "skip") {
-    return { ...target, status: "skipped", detail: target.reason ?? "This resource cannot be tagged." };
+function errorCode2(error48) {
+  const shape = error48;
+  const code = shape?.error_code ?? shape?.code;
+  return typeof code === "string" || typeof code === "number" ? String(code).toUpperCase() : "";
+}
+function isPermissionError(error48) {
+  const status = errorStatus(error48);
+  const raw2 = `${errorCode2(error48)} ${errorText(error48)}`;
+  return status === 403 || /PERMISSION_DENIED|FORBIDDEN|UNAUTHORI[ZS]ED/i.test(raw2);
+}
+function isRetryable2(error48) {
+  if (RETRYABLE_STATUS.has(errorStatus(error48)) || RETRYABLE_CODES2.has(errorCode2(error48))) return true;
+  return /DEADLINE_EXCEEDED|Gateway Timeout|HTTP\s+(?:502|503|504)|ECONNRESET|ECONNREFUSED|EPIPE|ETIMEDOUT|EAI_AGAIN/i.test(
+    errorText(error48)
+  );
+}
+function technicalDetail(error48) {
+  const raw2 = errorText(error48).trim();
+  if (raw2.length <= 8e3) return raw2;
+  return `${raw2.slice(0, 8e3)}
+\u2026technical response truncated by Astrolabe`;
+}
+function principalId(error48, fallback) {
+  const fromError = errorText(error48).match(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i)?.[0];
+  return fromError ?? (text13(fallback) || "the Astrolabe app service principal");
+}
+function permissionRequired(target, error48, servicePrincipalId) {
+  const principal = principalId(error48, servicePrincipalId);
+  let detail;
+  if (target.kind === "app") {
+    detail = `Workspace admin action: grant service principal ${principal} CAN_MANAGE on app \u201C${target.name}\u201D so it can change the app tag assignments. Databricks app tags are organizational and currently do not propagate to billing.`;
+  } else if (target.kind === "vector-endpoint") {
+    detail = `Workspace admin action: grant service principal ${principal} CAN_USE or CAN_MANAGE on Vector Search endpoint \u201C${target.name}\u201D.`;
+  } else if (target.kind === "sql-warehouse") {
+    detail = `Workspace admin action: grant service principal ${principal} CAN_MANAGE (or ownership) on SQL warehouse \u201C${target.name}\u201D.`;
+  } else if (target.kind === "lakebase") {
+    detail = `Workspace admin action: grant service principal ${principal} permission to update Lakebase project \u201C${target.name.replace(/^projects\//, "")}\u201D.`;
+  } else {
+    detail = `Workspace admin action: grant service principal ${principal} management permission on \u201C${target.name}\u201D.`;
   }
-  try {
-    if (target.kind === "app") {
-      const current = await platform.getAppTag(target.name);
-      if (current === ASTROLABE_TAG.value) {
-        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
-      }
-      if (current === null) await platform.createAppTag(target.name);
-      else await platform.updateAppTag(target.name);
-      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
+  return { ...target, status: "permission-required", detail, technicalDetail: technicalDetail(error48) };
+}
+function failed4(target, error48, servicePrincipalId) {
+  if (isPermissionError(error48)) return permissionRequired(target, error48, servicePrincipalId);
+  return {
+    ...target,
+    status: "failed",
+    detail: "Databricks did not complete the tag update after Astrolabe retried transient failures.",
+    technicalDetail: technicalDetail(error48)
+  };
+}
+async function retryTransient(operation, policy2) {
+  let lastError;
+  for (let attempt = 1; attempt <= policy2.maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error48) {
+      lastError = error48;
+      if (!isRetryable2(error48) || attempt === policy2.maxAttempts) throw error48;
+      const delayMs = policy2.baseDelayMs * (2 ** attempt - 1);
+      if (policy2.now() + delayMs >= policy2.deadline) throw error48;
+      await policy2.sleep(delayMs);
     }
-    if (target.kind === "serving-endpoint") {
-      const tags = await platform.getServingTags(target.name);
-      if (hasTag(tags)) {
-        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
-      }
-      await platform.addServingTag(target.name);
-      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
-    }
-    if (target.kind === "registered-model") {
-      if (hasTag(await platform.getModelTags(target.name))) {
-        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
-      }
-      await platform.setModelTag(target.name);
-      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
-    }
-    if (target.kind === "model-version") {
-      const version4 = target.version;
-      if (!version4) throw new Error("The connected agent model version was not resolved.");
-      if (hasTag(await platform.getModelVersionTags(target.name, version4))) {
-        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
-      }
-      await platform.setModelVersionTag(target.name, version4);
-      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
-    }
-    if (target.kind === "mlflow-experiment") {
-      if (hasTag(await platform.getExperimentTags(target.name))) {
-        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
-      }
-      await platform.setExperimentTag(target.name);
-      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
-    }
-    if (target.kind === "sql-warehouse") {
-      const tags = await platform.getWarehouseTags(target.name);
-      if (hasTag(tags)) {
-        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
-      }
-      await platform.setWarehouseTags(target.name, mergeTag(tags));
-      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
-    }
-    if (target.kind === "lakebase") {
-      const tags = await platform.getLakebaseTags(target.name);
-      if (hasTag(tags)) {
-        return { ...target, status: "already-tagged", detail: "Already tagged astrolabe=true." };
-      }
-      await platform.setLakebaseTags(target.name, mergeTag(tags));
-      return { ...target, status: "tagged", detail: "Tagged astrolabe=true." };
-    }
+  }
+  throw lastError;
+}
+async function tagTargetOnce(target, platform) {
+  if (target.action === "skip") {
     return {
       ...target,
-      status: "skipped",
-      detail: target.reason ?? "This connected resource is not managed by Astrolabe."
+      status: "not-supported",
+      detail: target.reason ?? "Databricks does not expose a custom tag API for this resource."
     };
-  } catch (error48) {
-    return failed4(target, error48);
   }
+  if (target.kind === "app") {
+    const current = await platform.getAppTag(target.name);
+    if (current === ASTROLABE_TAG.value) {
+      return {
+        ...target,
+        status: "already-correct",
+        detail: "Already correct: astrolabe=true. Databricks app tags are organizational and currently do not propagate to billing."
+      };
+    }
+    if (current === null) await platform.createAppTag(target.name);
+    else await platform.updateAppTag(target.name);
+    return {
+      ...target,
+      status: "tagged",
+      detail: "Now correct: tagged astrolabe=true. Databricks app tags are organizational and currently do not propagate to billing."
+    };
+  }
+  if (target.kind === "serving-endpoint") {
+    const tags = await platform.getServingTags(target.name);
+    if (hasTag(tags)) {
+      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+    }
+    await platform.addServingTag(target.name);
+    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+  }
+  if (target.kind === "registered-model") {
+    if (hasTag(await platform.getModelTags(target.name))) {
+      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+    }
+    await platform.setModelTag(target.name);
+    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+  }
+  if (target.kind === "model-version") {
+    const version4 = target.version;
+    if (!version4) throw new Error("The connected agent model version was not resolved.");
+    if (hasTag(await platform.getModelVersionTags(target.name, version4))) {
+      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+    }
+    await platform.setModelVersionTag(target.name, version4);
+    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+  }
+  if (target.kind === "mlflow-experiment") {
+    if (hasTag(await platform.getExperimentTags(target.name))) {
+      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+    }
+    await platform.setExperimentTag(target.name);
+    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+  }
+  if (target.kind === "sql-warehouse") {
+    const tags = await platform.getWarehouseTags(target.name);
+    if (hasTag(tags)) {
+      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+    }
+    await platform.setWarehouseTags(target.name, mergeTag(tags));
+    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+  }
+  if (target.kind === "lakebase") {
+    const tags = await platform.getLakebaseTags(target.name);
+    if (hasTag(tags)) {
+      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+    }
+    await platform.setLakebaseTags(target.name, mergeTag(tags));
+    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+  }
+  return {
+    ...target,
+    status: "not-supported",
+    detail: target.reason ?? "Databricks does not expose a custom tag API for this connected resource."
+  };
 }
 async function applyAstrolabeTags(input) {
   const platform = input.platform ?? await workspaceTagPlatform();
-  const targets = resourceTagInventory({ environment: input.environment, report: input.report });
+  const environment = input.environment ?? process.env;
+  const targets = resourceTagInventory({ environment, report: input.report });
   const results = [];
+  const now = input.retry?.now ?? Date.now;
+  const maxAttempts = Math.max(1, Math.min(3, input.retry?.maxAttempts ?? 3));
+  const baseDelayMs = Math.max(0, Math.min(1e3, input.retry?.baseDelayMs ?? 250));
+  const timeBudgetMs = Math.max(1e3, Math.min(12e3, input.retry?.timeBudgetMs ?? 12e3));
+  const policy2 = {
+    maxAttempts,
+    baseDelayMs,
+    deadline: now() + timeBudgetMs,
+    sleep: input.retry?.sleep ?? ((delayMs) => new Promise((resolve2) => setTimeout(resolve2, delayMs))),
+    now
+  };
+  const servicePrincipalId = environment.DATABRICKS_CLIENT_ID;
   for (const target of targets) {
-    results.push(await tagTarget(target, platform));
-    if (target.kind !== "vector-index" || target.action !== "skip") continue;
     try {
-      const endpointName = await platform.getVectorIndexEndpoint(target.name);
-      const endpoint = {
-        kind: "vector-endpoint",
-        name: endpointName,
-        label: `Vector Search endpoint \xB7 ${endpointName}`,
-        action: "tag"
-      };
-      const tags = await platform.getVectorEndpointTags(endpointName);
-      if (hasTag(tags)) {
-        results.push({ ...endpoint, status: "already-tagged", detail: "Already tagged astrolabe=true." });
-      } else {
-        await platform.setVectorEndpointTags(endpointName, mergeTag(tags));
-        results.push({ ...endpoint, status: "tagged", detail: "Tagged astrolabe=true." });
-      }
+      results.push(await retryTransient(() => tagTargetOnce(target, platform), policy2));
+    } catch (error48) {
+      results.push(failed4(target, error48, servicePrincipalId));
+    }
+    if (target.kind !== "vector-index" || target.action !== "skip") continue;
+    let endpointName = "";
+    try {
+      results.push(
+        await retryTransient(async () => {
+          endpointName = await platform.getVectorIndexEndpoint(target.name);
+          const endpoint = {
+            kind: "vector-endpoint",
+            name: endpointName,
+            label: `Vector Search endpoint \xB7 ${endpointName}`,
+            action: "tag"
+          };
+          const tags = await platform.getVectorEndpointTags(endpointName);
+          if (hasTag(tags)) {
+            return { ...endpoint, status: "already-correct", detail: "Already correct: astrolabe=true." };
+          }
+          await platform.setVectorEndpointTags(endpointName, mergeTag(tags));
+          return { ...endpoint, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+        }, policy2)
+      );
     } catch (error48) {
       results.push(
         failed4(
           {
             kind: "vector-endpoint",
-            name: target.name,
-            label: "Vector Search endpoint",
+            name: endpointName || target.name,
+            label: endpointName ? `Vector Search endpoint \xB7 ${endpointName}` : "Vector Search endpoint",
             action: "tag"
           },
-          error48
+          error48,
+          servicePrincipalId
         )
       );
     }
   }
+  const tagged = results.filter((result) => result.status === "tagged").length;
+  const alreadyCorrect = results.filter((result) => result.status === "already-correct").length;
+  const total = results.length;
+  const correct = tagged + alreadyCorrect;
+  const notSupported = results.filter((result) => result.status === "not-supported").length;
+  const permissionRequired2 = results.filter((result) => result.status === "permission-required").length;
+  const failedCount = results.filter((result) => result.status === "failed").length;
   return {
-    tagged: results.filter((result) => result.status === "tagged").length,
-    alreadyTagged: results.filter((result) => result.status === "already-tagged").length,
-    skipped: results.filter((result) => result.status === "skipped").length,
-    failed: results.filter((result) => result.status === "failed").length,
+    headline: `${correct} of ${total} resources correctly tagged \xB7 ${notSupported} not supported by Databricks \xB7 ${permissionRequired2} need workspace grants \xB7 ${failedCount} failed after retries.`,
+    total,
+    correct,
+    tagged,
+    alreadyCorrect,
+    notSupported,
+    permissionRequired: permissionRequired2,
+    failed: failedCount,
     results
   };
 }
@@ -173155,7 +173251,7 @@ function errorStatus(error48) {
 }
 async function workspaceTagPlatform() {
   const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-  const client = new WorkspaceClient6({});
+  const client = new WorkspaceClient6({ httpTimeoutSeconds: 5, retryTimeoutSeconds: 0 });
   const jsonHeaders = new Headers({ Accept: "application/json", "Content-Type": "application/json" });
   const appTagPath = (appName) => `/api/2.0/entity-tag-assignments/apps/${encodeURIComponent(appName)}/tags/${ASTROLABE_TAG.key}`;
   return {
@@ -173271,10 +173367,12 @@ async function workspaceTagPlatform() {
     }
   };
 }
-var ASTROLABE_TAG;
+var ASTROLABE_TAG, RETRYABLE_STATUS, RETRYABLE_CODES2;
 var init_resource_tagging = __esm({
   "server/lib/resource-tagging.ts"() {
     ASTROLABE_TAG = { key: "astrolabe", value: "true" };
+    RETRYABLE_STATUS = /* @__PURE__ */ new Set([502, 503, 504]);
+    RETRYABLE_CODES2 = /* @__PURE__ */ new Set(["DEADLINE_EXCEEDED", "ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT", "EAI_AGAIN"]);
   }
 });
 
@@ -173392,7 +173490,7 @@ function setupSettingsRoutes(appkit) {
           actor: userEmail(req),
           action: "resource-tags-applied",
           subject: "astrolabe=true",
-          detail: `${summary.tagged} tagged, ${summary.skipped} skipped, ${summary.failed} failed (${summary.alreadyTagged} already tagged).`
+          detail: summary.headline
         });
         res.json(summary);
       } catch (error48) {
@@ -179476,8 +179574,8 @@ var StreamManager = class {
           const eventData = JSON.stringify(event);
           if (eventData.length > this.maxEventSize) {
             const errorMsg = `Event exceeds max size of ${this.maxEventSize} bytes`;
-            const errorCode2 = SSEErrorCode.INVALID_REQUEST;
-            this._broadcastErrorToClients(streamEntry, eventId, errorMsg, errorCode2);
+            const errorCode3 = SSEErrorCode.INVALID_REQUEST;
+            this._broadcastErrorToClients(streamEntry, eventId, errorMsg, errorCode3);
             continue;
           }
           streamEntry.eventBuffer.add({
@@ -179495,19 +179593,19 @@ var StreamManager = class {
       } catch (error48) {
         const errorMsg = error48 instanceof Error ? error48.message : "Internal server error";
         const errorEventId = randomUUID();
-        const errorCode2 = this._categorizeError(error48);
-        if (errorCode2 === SSEErrorCode.STREAM_ABORTED) logger5.info("Stream aborted by client (code=%s)", errorCode2);
-        else logger5.error("Stream execution failed: %s (code=%s)", errorMsg, errorCode2);
+        const errorCode3 = this._categorizeError(error48);
+        if (errorCode3 === SSEErrorCode.STREAM_ABORTED) logger5.info("Stream aborted by client (code=%s)", errorCode3);
+        else logger5.error("Stream execution failed: %s (code=%s)", errorMsg, errorCode3);
         streamEntry.eventBuffer.add({
           id: errorEventId,
           type: "error",
           data: JSON.stringify({
             error: errorMsg,
-            code: errorCode2
+            code: errorCode3
           }),
           timestamp: Date.now()
         });
-        this._broadcastErrorToClients(streamEntry, errorEventId, errorMsg, errorCode2, true);
+        this._broadcastErrorToClients(streamEntry, errorEventId, errorMsg, errorCode3, true);
         streamEntry.isCompleted = true;
       }
     });
@@ -179530,9 +179628,9 @@ var StreamManager = class {
   _broadcastEventsToClients(streamEntry, eventId, event) {
     for (const client of streamEntry.clients) if (!client.writableEnded) this.sseWriter.writeEvent(client, eventId, event);
   }
-  _broadcastErrorToClients(streamEntry, eventId, errorMessage2, errorCode2, closeClients = false) {
+  _broadcastErrorToClients(streamEntry, eventId, errorMessage2, errorCode3, closeClients = false) {
     for (const client of streamEntry.clients) if (!client.writableEnded) {
-      this.sseWriter.writeError(client, eventId, errorMessage2, errorCode2);
+      this.sseWriter.writeError(client, eventId, errorMessage2, errorCode3);
       if (closeClients) client.end();
     }
   }
@@ -186110,8 +186208,8 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
       const tag = entry.failed ? import_picocolors3.default.bold(import_picocolors3.default.red("ERROR")) : entry.status === "HIT" ? `cache ${import_picocolors3.default.bold(import_picocolors3.default.green("HIT  "))}` : `cache ${import_picocolors3.default.bold(import_picocolors3.default.yellow("MISS "))}`;
       const rawName = entry.queryName.padEnd(maxNameLen);
       const name2 = entry.failed ? import_picocolors3.default.dim(import_picocolors3.default.strikethrough(rawName)) : rawName;
-      const errorCode2 = entry.error?.message.match(/\[([^\]]+)\]/)?.[1];
-      const reason = errorCode2 ? `  ${import_picocolors3.default.dim(errorCode2)}` : "";
+      const errorCode3 = entry.error?.message.match(/\[([^\]]+)\]/)?.[1];
+      const reason = errorCode3 ? `  ${import_picocolors3.default.dim(errorCode3)}` : "";
       console.log(`  ${tag}  ${name2}${reason}`);
     }
     const newCount = logEntries.filter((e) => e.status === "MISS" && !e.failed).length;

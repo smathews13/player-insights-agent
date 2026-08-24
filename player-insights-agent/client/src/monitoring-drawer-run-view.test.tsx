@@ -138,7 +138,8 @@ describe('the Monitoring drawer renders one run view, not two', () => {
   });
 
   it('keeps the drawer’s own framing around the timeline it kept', () => {
-    const rendered = text(drawer());
+    const markup = drawer();
+    const rendered = text(markup);
 
     // The heading above, the token caption below, and the onward links now at
     // the head of the drawer. These are what identify the surviving view as the
@@ -149,6 +150,16 @@ describe('the Monitoring drawer renders one run view, not two', () => {
     expect(rendered).toContain('Open in Run Explorer');
     expect(rendered).toContain("see first.person's activity");
     expect(rendered.indexOf('Open the MLflow trace')).toBeLessThan(rendered.indexOf('What ran'));
+    /*
+     * The mark belongs to the outbound action itself, not merely somewhere in
+     * the drawer. A sweep that counted one MLflow logo on the page would pass if
+     * a later refactor moved it back beside the trace id and left this link as
+     * generic blue text, which is the defect this placement prevents.
+     */
+    expect(markup).toMatch(
+      /<a href="https:\/\/example\.test\/ml\/experiments\/1\/traces"[^>]*><span class="brand-icon wordmark"[^>]*>/
+    );
+    expect(markup).toContain('fill="var(--foreground)"');
   });
 
   it('still reaches the advanced trace details the answer card owns', () => {

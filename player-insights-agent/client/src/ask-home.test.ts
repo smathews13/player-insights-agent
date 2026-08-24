@@ -237,6 +237,35 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(ask).not.toContain('.prompt-grid');
   });
 
+  it('leads the composer caveat with the mark, in a row that can hold one', () => {
+    /*
+     * The caveat's first word is the agent's name, so the drawing belongs against
+     * it rather than somewhere else on the strip. The two assertions are a pair
+     * and neither is sufficient: `.ast-mark` is `display: block`, so the mark in
+     * an inline run of text would hang below the baseline it is supposed to sit
+     * on -- the markup needs the strip's span to be a flex row, and the span is
+     * ALSO the flexible spacer that puts the submit button hard right, so `flex`
+     * has to survive whatever else is declared on it.
+     *
+     * The size is asserted because the prop and the painted size have to agree:
+     * the mark drops its graduation ring below 32px and thickens its rim, so a
+     * mark requested at one size and painted at another gets the wrong cut of the
+     * drawing scaled to fit -- nothing looks broken, the graduations are just
+     * wrong. Nothing in the stylesheet resizes this one, which is how they agree.
+     */
+    const home = withoutComments(HOME_PAGE);
+    expect(home).toMatch(
+      /<AstrolabeMark size=\{13\} \/>\s*astrolabe can make mistakes\. Sources and caveats are included\./
+    );
+    const caveat = body('.composer-actions > span');
+    expect(caveat).toMatch(/display:\s*flex/);
+    expect(caveat).toMatch(/align-items:\s*center/);
+    expect(caveat).toMatch(/flex:\s*1/);
+    expect(withoutComments(partial('composer.css'))).not.toMatch(
+      /\.composer-actions\s*>\s*span\s+\.ast-mark[^}]*(width|height)/
+    );
+  });
+
   it('carries the agent’s mark on Ice, with no accent anywhere near it', () => {
     // §1: "agent-decision chips carry the small cut (22px chip, #F0F6FB fill)",
     // and §2 has no orange in it at all. This chip used to be a neutral outline

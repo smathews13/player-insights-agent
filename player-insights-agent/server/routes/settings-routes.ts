@@ -323,9 +323,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
           actor: userEmail(req),
           action: 'resource-tags-applied',
           subject: 'astrolabe=true',
-          detail:
-            `${summary.tagged} tagged, ${summary.skipped} skipped, ` +
-            `${summary.failed} failed (${summary.alreadyTagged} already tagged).`,
+          detail: summary.headline,
         });
         res.json(summary);
       } catch (error) {

@@ -160,7 +160,8 @@ export function RosterRows({
                 )}
                 {entry.canRemove ? (
                   <Button
-                    variant="outline"
+                    variant="destructive"
+                    className="settings-destructive"
                     size="sm"
                     disabled={busy}
                     onClick={() => onRemove(entry)}

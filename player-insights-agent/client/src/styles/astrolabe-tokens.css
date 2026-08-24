@@ -264,6 +264,24 @@
   --ast-fs-22: 22px;
   --ast-fs-32: 32px;
 
+  /*
+   * Proportional prose, at every body rung.
+   *
+   * A unitless value is the requirement rather than an implementation detail:
+   * AppKit's base layer gives a bare paragraph 1.75rem of leading, which is 28px
+   * whether that paragraph is 11px, 12px or 14px. The app uses all three sizes
+   * for answer text, trace narration and settings explanations, so an absolute
+   * line box turns the smaller two into double-spaced copy. This ratio follows
+   * the type instead. It is named once because this is a reading standard across
+   * surfaces, and because loosening it after a visual review must not require
+   * finding a new literal in every answer renderer.
+   *
+   * Code and SQL do not read this token. Their deliberately looser leading
+   * separates clauses and recorded lines; each such block states that exception
+   * beside the rule that needs it.
+   */
+  --ast-lh-body: 1.15;
+
   /* ---- Radii ---- */
   --ast-radius-control: 4px; /* buttons, pills, inputs */
   --ast-radius-card: 8px; /* cards, rows, bands */

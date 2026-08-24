@@ -807,7 +807,10 @@ describe('the travelling dot rides the line it belongs to', () => {
     // up: two descriptions of one edge.
     const page = readFileSync(fileURLToPath(new URL('./ArchitecturePage.tsx', import.meta.url)), 'utf8');
     expect(page).toMatch(/offsetPath: `path\('\$\{edge\.d\}'\)`/);
-    expect(page).toMatch(/<path className="arch-edge" d=\{edge\.d\} \/>/);
+    // The path now carries scope metadata after `d`; the geometry still comes
+    // directly from `edge.d`, and no second path expression is introduced.
+    expect(page).toMatch(/<path[\s\S]*?className="arch-edge"[\s\S]*?d=\{edge\.d\}[\s\S]*?\/>/);
+    expect(page.match(/d=\{edge\.d\}/g)).toHaveLength(1);
   });
 });
 
@@ -1157,11 +1160,29 @@ describe('the drawing keeps its shape at every width', () => {
     // an ordinary rule cannot outrank one.
     expect(guard).toMatch(/animation: none !important/);
     expect(guard).toMatch(/stroke-dasharray: none/);
+    expect(guard).toMatch(/\.arch-edge\[data-control-active='true'\],[\s\S]*transition:\s*none/);
+    // The scope glow is static at every motion preference. There is no pulse to
+    // leave running after the existing animation guard has frozen the diagram.
+    expect(CSS).not.toMatch(/@keyframes\s+arch-(?:bound|scope|glow)/);
   });
 
   it('starts the dots invisible, so the frozen frame is not ten parked markers', () => {
     const dot = CSS.slice(CSS.indexOf('.arch-dot {'), CSS.indexOf('@keyframes arch-travel'));
     expect(dot).toMatch(/opacity:\s*0/);
+  });
+});
+
+describe('the runtime-bound colours stay local and palette-derived', () => {
+  it('declares three different semantic tokens without adding a colour literal', () => {
+    const page = rule(CSS, '.architecture-page');
+    const values = ['steps', 'tools', 'run'].map(
+      (name) => new RegExp(`--arch-bound-${name}:\\s*([^;]+)`).exec(page)?.[1]?.trim() ?? ''
+    );
+
+    expect(values.every(Boolean)).toBe(true);
+    expect(new Set(values).size).toBe(3);
+    expect(values.every((value) => /var\(--(?:ast|db)-/.test(value))).toBe(true);
+    expect(values.every((value) => !/#[0-9a-f]{6}/i.test(value))).toBe(true);
   });
 });
 

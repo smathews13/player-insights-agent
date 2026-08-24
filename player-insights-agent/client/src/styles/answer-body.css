@@ -91,6 +91,23 @@
   min-width: 0;
 }
 /*
+ * One reading rhythm for the answer, including the list items the Markdown
+ * renderer emits and the caveats AppKit seats in a description slot. The bare
+ * paragraph default in base.css already catches prose paragraphs; naming the
+ * answer containers here is what brings bullets and non-`p` description slots
+ * under the same standard instead of letting their line boxes depend on which
+ * element the renderer happened to choose.
+ *
+ * Deliberately not inherited by `.code-panel pre`: SQL is a statement read a
+ * clause at a time, and its 1.65 exception below records why that extra leading
+ * remains.
+ */
+.answer-prose,
+.answer-card [data-slot='card-description'],
+.keep-in-mind .answer-list {
+  line-height: var(--ast-lh-body);
+}
+/*
  * The result breakdown, as the four columns the design gives it: label, track,
  * value, delta. The value and the delta have columns of their own, which is the
  * rule that matters here — a figure is never printed on top of its own fill,

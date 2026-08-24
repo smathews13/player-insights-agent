@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { Button } from './ui';
 
-type TagResult = {
+export type TagResult = {
   label: string;
-  status: 'tagged' | 'already-tagged' | 'skipped' | 'failed';
+  status: 'tagged' | 'already-correct' | 'not-supported' | 'permission-required' | 'failed';
   detail: string;
+  technicalDetail?: string;
 };
 
-type TagSummary = {
+export type TagSummary = {
+  headline: string;
+  total: number;
+  correct: number;
   tagged: number;
-  alreadyTagged: number;
-  skipped: number;
+  alreadyCorrect: number;
+  notSupported: number;
+  permissionRequired: number;
   failed: number;
   results: TagResult[];
 };
@@ -19,9 +24,13 @@ function isSummary(value: unknown): value is TagSummary {
   if (!value || typeof value !== 'object') return false;
   const summary = value as Partial<TagSummary>;
   return (
+    typeof summary.headline === 'string' &&
+    typeof summary.total === 'number' &&
+    typeof summary.correct === 'number' &&
     typeof summary.tagged === 'number' &&
-    typeof summary.alreadyTagged === 'number' &&
-    typeof summary.skipped === 'number' &&
+    typeof summary.alreadyCorrect === 'number' &&
+    typeof summary.notSupported === 'number' &&
+    typeof summary.permissionRequired === 'number' &&
     typeof summary.failed === 'number' &&
     Array.isArray(summary.results)
   );
@@ -31,6 +40,33 @@ function errorDetail(value: unknown): string {
   if (!value || typeof value !== 'object') return '';
   const detail = (value as { detail?: unknown }).detail;
   return typeof detail === 'string' ? detail : '';
+}
+
+/**
+ * The first line answers whether the repair worked; each row then says either
+ * what is already right, what Databricks cannot tag, or the exact grant a human
+ * must make. Raw API payloads are deliberately behind disclosure because their
+ * first 240 characters used to crowd out the instruction and end mid-JSON.
+ */
+export function ResourceTagResults({ summary }: { summary: TagSummary }) {
+  return (
+    <div className="resource-tag-result" role="status" aria-live="polite">
+      <p>{summary.headline}</p>
+      <ul>
+        {summary.results.map((result) => (
+          <li key={`${result.label}-${result.status}`}>
+            <strong>{result.label}</strong>: {result.detail}
+            {result.technicalDetail ? (
+              <details>
+                <summary>Technical details</summary>
+                <pre>{result.technicalDetail}</pre>
+              </details>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export function ResourceTagsPanel() {
@@ -67,22 +103,7 @@ export function ResourceTagsPanel() {
           Apply <code>astrolabe=true</code> to everything this app manages. This repairs older deployments that were
           created before Astrolabe added the tag automatically.
         </p>
-        {summary ? (
-          <div className="resource-tag-result" role="status" aria-live="polite">
-            <p>
-              {summary.tagged} tagged, {summary.skipped} skipped
-              {summary.failed ? `, ${summary.failed} failed` : ''}
-              {summary.alreadyTagged ? ` · ${summary.alreadyTagged} already tagged` : ''}.
-            </p>
-            <ul>
-              {summary.results.map((result) => (
-                <li key={`${result.label}-${result.status}`}>
-                  <strong>{result.label}</strong>: {result.detail}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        {summary ? <ResourceTagResults summary={summary} /> : null}
         {error ? (
           <p className="settings-status settings-error" role="alert">
             {error}

@@ -180,18 +180,25 @@
 }
 
 /* The recorded arguments: the Genie question as asked, the SQL as run. Wrapped
-   rather than ellipsised, because the point of the row is to be readable. */
+   rather than ellipsised, because the point of the row is to be readable.
+   This is English narration even when it quotes an identifier, so it follows
+   the answer's proportional-prose rhythm rather than a payload block's looser
+   mono rhythm. */
 .live-step-detail {
   margin: 3px 0 0;
   font-size: var(--text-sm);
-  line-height: 1.45;
+  line-height: var(--ast-lh-body);
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
 }
 
+/* The returned-answer summary is the smallest prose in the row. It has to state
+   its line box directly: without one, AppKit's fixed 28px paragraph default
+   made an 11px result look double-spaced as soon as it wrapped. */
 .live-step-result {
   margin: 3px 0 0;
   font-size: var(--text-xs);
+  line-height: var(--ast-lh-body);
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
 }

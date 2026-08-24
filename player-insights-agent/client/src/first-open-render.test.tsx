@@ -15,6 +15,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import type { SessionReport } from '../../shared/session-contract';
 import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes';
 import type { Identity } from './app-types';
+import { OPENING_CONSTELLATION } from './constellation';
 import { FirstOpenGate, FirstOpenPanel } from './FirstOpenGate';
 import {
   DISCLAIMER_BODY,
@@ -146,7 +147,18 @@ describe('all required scopes granted', () => {
     expect(markup.match(/>Not requested</g)).toHaveLength(OPTIONAL_ROWS);
     expect(markup.match(/>Request</g)).toHaveLength(OPTIONAL_ROWS);
     expect(markup).toContain('postgres');
-    expect(markup).toContain('Allows the app to read Lakebase projects, branches, and databases.');
+    /*
+     * The rows carry names and verdicts, and NO row carries a description.
+     *
+     * `postgres` alone used to be explained here, which made the one optional
+     * scope look like the consequential one. Asserting the sentence is absent
+     * rather than asserting nothing keeps the asymmetry from coming back: the
+     * shared scope-detail map still holds this string, because Connections and
+     * the Ops identity table describe every scope from it, so a future edit
+     * could reach for it here again without anything else objecting.
+     */
+    expect(markup).not.toContain('Allows the app to read Lakebase projects, branches, and databases.');
+    expect(markup).not.toContain('fo-scope-detail');
     expect(markup).toContain('The app cannot answer questions without these: they power serving, SQL, and Genie.');
     expect(markup).toContain(
       'Questions still work without these; they unlock Connections browsing (catalogs, tables, notebooks, Vector Search) and Lakebase, and a deployment can omit any of them.'
@@ -332,6 +344,25 @@ describe('once per session', () => {
     expect(opening).toContain('ast-opening-wordmark');
     expect(opening).not.toContain('You are signing in as');
     expect(opening).not.toContain('role="dialog"');
+  });
+
+  it('keeps the opening sequence populated to the right of the login card', () => {
+    /*
+     * The first-open screen does not use AppSky: while its gate is present,
+     * OpeningSequence owns the navy layer and ConstellationField draws the full
+     * opening shape. Hold that wiring and its right-third coverage here so a
+     * future margin filter cannot recreate the shell sky's left-only defect.
+     */
+    const opening = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
+    const rightEdge = (OPENING_CONSTELLATION.width * 2) / 3;
+    const starXs = [...opening.matchAll(/<circle[^>]*cx="([^"]+)"/g)].map((match) => Number(match[1]));
+    const connectorXs = [...opening.matchAll(/<path[^>]*d="M([\d.]+) [\d.]+ ([\d.]+) /g)].flatMap((match) => [
+      Number(match[1]),
+      Number(match[2]),
+    ]);
+
+    expect(starXs.some((x) => x > rightEdge)).toBe(true);
+    expect(connectorXs.some((x) => x > rightEdge)).toBe(true);
   });
 
   /*

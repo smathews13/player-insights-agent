@@ -50,6 +50,19 @@ describe('runtime settings persistence', () => {
     expect(writer.calls[0]?.values).toEqual(['effective', JSON.stringify(override), 'admin@example.com']);
   });
 
+  it('persists light mode in the JSON row and restores it on a later read', async () => {
+    forgetRuntimeSettings();
+    const light = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
+    const writer = client();
+
+    expect(await writeRuntimeSettings(writer as never, light, 'admin@example.com')).toEqual(light);
+    expect(writer.calls[0]?.values?.[1]).toBe(JSON.stringify(light));
+
+    forgetRuntimeSettings();
+    const reloaded = await readRuntimeSettings(client([{ settings: light }]) as never, { maxAgeMs: 0 });
+    expect(reloaded.colorScheme).toBe('light');
+  });
+
   /**
    * The #24a guidance, order, and type fields flow through unchanged. This is the
    * whole point of the surface: the server reads these from Lakebase and hands

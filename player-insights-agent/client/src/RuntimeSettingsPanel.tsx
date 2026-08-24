@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
+import { appliedColorScheme, applyColorScheme, type ColorScheme } from './color-scheme';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
 import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
@@ -109,6 +110,20 @@ const ENTITY_SAMPLES = {
   tag: 'Northwind, Contoso',
 } as const;
 
+/**
+ * Paint a theme switch immediately and return the value the form must save.
+ *
+ * Keeping the paint and draft conversion in one path prevents the exact defect
+ * this control had: the switch changed React state, but the only call that
+ * changed `<html data-theme>` lived in Save, so the whole app contradicted the
+ * control until a second, distant action was pressed.
+ */
+export function previewColorScheme(dark: boolean): ColorScheme {
+  const scheme = dark ? 'dark' : 'light';
+  applyColorScheme(scheme);
+  return scheme;
+}
+
 export function RuntimeSettingsPanel({
   section,
   onSaveState = () => {},
@@ -120,13 +135,18 @@ export function RuntimeSettingsPanel({
   const [settings, setSettings] = useState<RuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
+  const savedColorScheme = useRef<ColorScheme | null>(null);
+  const themePreviewed = useRef(false);
 
   const load = useCallback(async () => {
     setState('loading');
     setFailure(null);
     try {
       const response = await fetch('/api/runtime-settings');
-      setSettings(await runtimeSettingsFromResponse(response, 'loaded'));
+      const loaded = await runtimeSettingsFromResponse(response, 'loaded');
+      savedColorScheme.current = loaded.colorScheme;
+      setSettings(loaded);
+      if (!themePreviewed.current) applyColorScheme(loaded.colorScheme);
       setState('ready');
     } catch (caught) {
       setState('failed');
@@ -139,6 +159,19 @@ export function RuntimeSettingsPanel({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load() writes the fetched settings
     void load();
   }, [load]);
+
+  useEffect(
+    () => () => {
+      /*
+       * The switch is a preview, while Save remains the persistence boundary.
+       * Every way out of the pane (Cancel, Escape, the X, clicking the scrim or
+       * choosing another section) unmounts it, so one cleanup closes all of the
+       * otherwise easy-to-miss ways an unsaved theme could leak into the app.
+       */
+      if (themePreviewed.current && savedColorScheme.current) applyColorScheme(savedColorScheme.current);
+    },
+    []
+  );
 
   const save = async () => {
     /*
@@ -168,6 +201,8 @@ export function RuntimeSettingsPanel({
         body: JSON.stringify(settings),
       });
       const saved = await runtimeSettingsFromResponse(response, 'saved');
+      savedColorScheme.current = saved.colorScheme;
+      themePreviewed.current = false;
       setSettings(saved);
       adoptRuntimeEntityStyles(saved);
       setState('saved');
@@ -335,56 +370,77 @@ export function RuntimeSettingsPanel({
             <h3>Appearance</h3>
             <p>Answer entity colors, shared by Ask and Run Explorer.</p>
           </div>
-          <div className="runtime-answer-row appearance-theme-row">
-            <div className="runtime-answer-head">
-              <span className="runtime-answer-name">Dark</span>
+          <section className="runtime-section appearance-theme-section">
+            <h4 className="runtime-section-label">Theme</h4>
+            <div className="settings-row appearance-theme-row">
+              <div>
+                <p className="settings-row-label">Dark</p>
+                <p className="settings-row-note">Preview the app on dark surfaces. Save to keep this choice.</p>
+              </div>
               <Switch
                 checked={settings.colorScheme === 'dark'}
-                onCheckedChange={(on) => setSettings((current) => ({ ...current, colorScheme: on ? 'dark' : 'light' }))}
+                onCheckedChange={(on) => {
+                  if (!themePreviewed.current) {
+                    savedColorScheme.current ??= appliedColorScheme() ?? settings.colorScheme;
+                    themePreviewed.current = true;
+                  }
+                  const colorScheme = previewColorScheme(on);
+                  setSettings((current) => ({ ...current, colorScheme }));
+                }}
                 aria-label="Dark"
               />
             </div>
-          </div>
-          <div className="appearance-grid" role="table" aria-label="Answer entity colors">
-            <div className="appearance-grid-head" role="row">
-              <span>Entity</span>
-              <span>Text</span>
-              <span>Highlight</span>
-              <span>Sample</span>
+          </section>
+          <section className="runtime-section runtime-section-last appearance-palette-section">
+            <div className="appearance-section-heading">
+              <h4 className="runtime-section-label">Entity colors</h4>
+              <span>Hex colors are shared by entity labels everywhere they appear.</span>
             </div>
-            {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => (
-              <div className="appearance-grid-row" role="row" key={kind}>
-                <strong>{kind[0].toUpperCase() + kind.slice(1)}</strong>
-                {(['foreground', 'background'] as const).map((property) => (
-                  <label className="appearance-color" key={property}>
-                    <span style={{ background: settings.entityStyles[kind][property] }} aria-hidden="true" />
-                    <Input
-                      aria-label={`${kind} ${property}`}
-                      value={settings.entityStyles[kind][property]}
-                      onChange={(event) =>
-                        setSettings((current) => ({
-                          ...current,
-                          entityStyles: {
-                            ...current.entityStyles,
-                            [kind]: { ...current.entityStyles[kind], [property]: event.target.value },
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                ))}
-                <span
-                  className="appearance-sample"
-                  style={{
-                    color: settings.entityStyles[kind].foreground,
-                    background: settings.entityStyles[kind].background,
-                  }}
-                >
-                  {ENTITY_SAMPLES[kind]}
-                </span>
+            <div className="appearance-grid" role="table" aria-label="Answer entity colors">
+              <div className="appearance-grid-head" role="row">
+                <span role="columnheader">Entity</span>
+                <span role="columnheader">Text</span>
+                <span role="columnheader">Highlight</span>
+                <span role="columnheader">Sample</span>
               </div>
-            ))}
-          </div>
+              {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => (
+                <div className="appearance-grid-row" role="row" key={kind}>
+                  <strong role="cell">{kind[0].toUpperCase() + kind.slice(1)}</strong>
+                  {(['foreground', 'background'] as const).map((property) => (
+                    <label className="appearance-color" role="cell" key={property}>
+                      <span className="appearance-color-swatch" aria-hidden="true">
+                        <span style={{ background: settings.entityStyles[kind][property] }} />
+                      </span>
+                      <Input
+                        aria-label={`${kind} ${property}`}
+                        value={settings.entityStyles[kind][property]}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            entityStyles: {
+                              ...current.entityStyles,
+                              [kind]: { ...current.entityStyles[kind], [property]: event.target.value },
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  ))}
+                  <span className="appearance-sample-plaque" role="cell">
+                    <span
+                      className="appearance-sample"
+                      style={{
+                        color: settings.entityStyles[kind].foreground,
+                        background: settings.entityStyles[kind].background,
+                      }}
+                    >
+                      {ENTITY_SAMPLES[kind]}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
         </>
       )}
       {state === 'loading' ? <p className="settings-status">Loading settings.</p> : null}

@@ -3,14 +3,17 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { ArchitecturePage } from './ArchitecturePage';
+import { ArchitectureCanvas, ArchitecturePage } from './ArchitecturePage';
 import { ARCHITECTURE_NODES } from './architecture';
+import { QuestionDrawer } from './MonitoringPage';
 import { SourcesModule } from './SourcesModule';
 import { PlanCard } from './PlanCard';
+import { RunDetails } from './RunDetails';
 import { TraceTimeline } from './TraceTimeline';
 import { BRAND_THEME_FILES, type BrandProduct } from './brand-icons';
-import type { AnalysisPlan } from './app-types';
+import type { AnalysisPlan, RunTrace } from './app-types';
 import type { SourceRef, TraceStage } from './answer-shape';
+import type { MonitoringDetail } from '../../shared/monitoring-contract';
 
 /**
  * The marks where the handoff puts them, asserted against rendered markup rather
@@ -35,10 +38,18 @@ import type { SourceRef, TraceStage } from './answer-shape';
  * That the recoloured file IS the official geometry is held once, in
  * brand-icons.test.tsx, rather than restated at each placement.
  */
-const asset = (product: BrandProduct) =>
-  readFileSync(new URL(`./assets/logo/theme/${BRAND_THEME_FILES.light[product]}`, import.meta.url), 'utf8')
+const asset = (product: BrandProduct) => {
+  const reviewed = readFileSync(
+    new URL(`./assets/logo/theme/${BRAND_THEME_FILES.light[product]}`, import.meta.url),
+    'utf8'
+  )
     .trim()
     .replace(/^\s*<\?xml[^>]*\?>\s*/, '');
+  // MLflow is one-colour, so ordinary page placements keep this reviewed
+  // geometry and resolve its ink through the page's semantic foreground. The
+  // other marks need both colours in their committed light-surface cuts.
+  return product === 'mlflow' ? reviewed.replaceAll('#11171C', 'var(--foreground)') : reviewed;
+};
 
 /** The page as a reader gets it on load, before anything is fetched. */
 function architectureMarkup(): string {
@@ -120,6 +131,85 @@ describe('the Architecture tab marks every node that is a Databricks product', (
   });
 });
 
+describe('every outbound MLflow action carries the MLflow mark inside its anchor', () => {
+  const trace = {
+    sql: '',
+    undeclaredKeys: [],
+    mlflow: {
+      traceId: 'tr-deadbeef',
+      experimentId: 'e1',
+      url: 'https://example.databricks.com/ml/experiments/e1/traces/tr-deadbeef',
+    },
+    trace: null,
+  } as unknown as RunTrace;
+
+  const detail: MonitoringDetail = {
+    id: 'question-1',
+    conversationId: 'conversation-1',
+    question: 'What changed?',
+    askedBy: 'someone@example.com',
+    askedAt: '2026-08-20T12:00:00Z',
+    outcome: 'completed',
+    outcomeDetail: null,
+    outcomeCode: null,
+    answer: null,
+    conditioning: null,
+    trace: null,
+    tokens: null,
+    execution: null,
+    rating: null,
+    usefulness: null,
+    comment: null,
+    mlflowUrl: 'https://example.databricks.com/ml/experiments/e1/traces/tr-deadbeef',
+    runId: null,
+  };
+
+  const architecturePayload: Parameters<typeof ArchitectureCanvas>[0]['payload'] = {
+    workspaceHost: 'https://example.databricks.com',
+    canDeepLink: true,
+    servingEndpoint: { value: '', variable: '' },
+    appWarehouse: { value: '', variable: '' },
+    experimentId: 'e1',
+    appServicePrincipal: '',
+    appBuildSha: '',
+    semanticIndex: { decidedBy: '', reason: '' },
+    readAt: '2026-08-20T12:00:00Z',
+  };
+
+  const outboundMarkup = [
+    renderToStaticMarkup(<RunDetails trace={trace} advanced={false} onAdvancedChange={() => {}} unavailable={null} />),
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <QuestionDrawer detail={detail} onClose={() => {}} onOpenPerson={() => {}} />
+      </MemoryRouter>
+    ),
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <ArchitectureCanvas byResource={new Map()} payload={architecturePayload} now={Date.now()} />
+      </MemoryRouter>
+    ),
+  ].join('');
+
+  it('puts the wordmark inside all three MLflow anchors, with theme-following ink', () => {
+    const anchors = [
+      ...outboundMarkup.matchAll(/<a\b[^>]*href="[^"]*\/ml\/experiments\/[^"]*"[^>]*>[\s\S]*?<\/a>/g),
+    ].map(([anchor]) => anchor);
+
+    expect(anchors).toHaveLength(3);
+    for (const anchor of anchors) {
+      expect(anchor).toContain('class="brand-icon wordmark"');
+      expect(anchor).toContain(asset('mlflow'));
+      expect(anchor).toContain('fill="var(--foreground)"');
+    }
+  });
+
+  it('finds no MLflow hyperlink in Settings', () => {
+    const source = readFileSync(new URL('./SettingsPage.tsx', import.meta.url), 'utf8');
+
+    expect(source).not.toMatch(/(?:href|to)\s*=\s*[^>\n]*mlflow/i);
+  });
+});
+
 describe('the Sources module heads its list with Unity Catalog', () => {
   const sources: SourceRef[] = [{ name: 'main.gold.title_daily_summary' } as SourceRef];
 
@@ -161,7 +251,12 @@ describe('the plan card marks the steps that are a call on a product', () => {
     summary: 'Confirm definitions, analyze governed data, then synthesize.',
     steps: [
       { id: 'context', title: 'Establish context', description: 'Resolve references.', kind: 'context' },
-      { id: 'definitions', title: 'Confirm metric definitions', description: 'Ask the dictionary.', kind: 'definitions' },
+      {
+        id: 'definitions',
+        title: 'Confirm metric definitions',
+        description: 'Ask the dictionary.',
+        kind: 'definitions',
+      },
       { id: 'data-1', title: 'Query gold_title_daily_summary', description: 'Read the table.', kind: 'data' },
       { id: 'synthesis', title: 'Synthesize findings', description: 'Answer with evidence.', kind: 'synthesis' },
     ],

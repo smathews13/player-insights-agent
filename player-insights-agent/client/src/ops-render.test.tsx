@@ -624,8 +624,9 @@ describe('the health block', () => {
   it('paints a platform reading from its word rather than from its place', () => {
     /** The tone class on the pill whose left half is this label. */
     const toneOf = (markup: string, label: string) =>
-      new RegExp(`ast-pill--([a-z-]+) ops-pill ops-platform-pill"><span class="ops-platform-pill-label">${label}<`)
-        .exec(markup)?.[1] ?? '';
+      new RegExp(
+        `ast-pill--([a-z-]+) ops-pill ops-platform-pill"><span class="ops-platform-pill-label">${label}<`
+      ).exec(markup)?.[1] ?? '';
 
     expect(toneOf(markupOf(<HealthBody block={block(health())} />), 'Serving endpoint')).toBe('pos');
 
@@ -1351,6 +1352,40 @@ function latency(overrides: Partial<OpsLatencyPayload> = {}): OpsLatencyPayload 
 }
 
 describe('the latency block', () => {
+  it('filters the rows by route text or method, without another read', () => {
+    const byRoute = render(<LatencyBody block={block(latency())} initialSearch="ask" />);
+    const byMethod = render(<LatencyBody block={block(latency())} initialSearch="POST" />);
+
+    for (const rendered of [byRoute, byMethod]) {
+      expect(rendered).toContain('POST /api/insights/ask');
+      expect(rendered).not.toContain('GET /api/ops/cost');
+      expect(rendered).not.toContain('GET /api/preflight');
+    }
+  });
+
+  it('clearing the query restores every already-fetched route', () => {
+    const filtered = render(<LatencyBody block={block(latency())} initialSearch="ask" />);
+    const cleared = render(<LatencyBody block={block(latency())} initialSearch="" />);
+
+    expect(filtered).not.toContain('GET /api/ops/cost');
+    expect(cleared).toContain('POST /api/insights/ask');
+    expect(cleared).toContain('GET /api/ops/cost');
+    expect(cleared).toContain('GET /api/preflight');
+    expect(cleared).toContain('GET /api/storage');
+  });
+
+  it('uses the shared search and empty-list affordances when nothing matches', () => {
+    const markup = markupOf(<LatencyBody block={block(latency())} initialSearch="no-such-route" />);
+    const rendered = text(markup);
+
+    expect(markup).toContain('run-search monitoring-search ops-latency-search');
+    expect(markup).toContain('monitoring-search-clear');
+    expect(markup).toContain('aria-label="Clear the route search"');
+    expect(rendered).toContain('Nothing matches "no-such-route".');
+    expect(rendered).toContain('Clear search');
+    expect(markup).not.toContain('data-testid="ops-latency"');
+  });
+
   it('shows no date window in its subheader', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
     expect(text(markup)).toContain('By route');

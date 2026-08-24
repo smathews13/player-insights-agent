@@ -104,7 +104,7 @@ function runOf(count: number): TraceStage[] {
           name: 'Searched the tagged assets',
           kind: 'tool',
           duration: 12345,
-        }),
+        })
   );
 }
 
@@ -146,7 +146,9 @@ describe('the agent map, as a box nothing can leave (#18b)', () => {
       const map = buildMapConstellation(runOf(count));
       for (const star of map.stars) {
         const box = starBox(star);
-        expect(inside(box, map.width, map.height), `${count} steps, star ${star.step} at ${describeBox(box)}`).toBe(true);
+        expect(inside(box, map.width, map.height), `${count} steps, star ${star.step} at ${describeBox(box)}`).toBe(
+          true
+        );
       }
     }
   });
@@ -170,7 +172,7 @@ describe('the agent map, as a box nothing can leave (#18b)', () => {
       for (const label of map.labels) {
         expect(
           inside(label.box, map.width, map.height),
-          `${count} steps, label ${label.step} "${label.name}" at ${describeBox(label.box)}`,
+          `${count} steps, label ${label.step} "${label.name}" at ${describeBox(label.box)}`
         ).toBe(true);
       }
     }
@@ -225,7 +227,7 @@ describe('the agent map, as a box nothing can leave (#18b)', () => {
         for (let b = a + 1; b < map.labels.length; b += 1) {
           expect(
             boxesOverlap(map.labels[a].box, map.labels[b].box),
-            `${count} steps, label ${map.labels[a].step} over label ${map.labels[b].step}`,
+            `${count} steps, label ${map.labels[a].step} over label ${map.labels[b].step}`
           ).toBe(false);
         }
       }
@@ -239,7 +241,7 @@ describe('the agent map, as a box nothing can leave (#18b)', () => {
         for (const star of map.stars) {
           expect(
             boxesOverlap(label.box, starBox(star)),
-            `${count} steps, label ${label.step} over star ${star.step}`,
+            `${count} steps, label ${label.step} over star ${star.step}`
           ).toBe(false);
         }
       }
@@ -440,7 +442,7 @@ describe('the live agent path, as a box nothing can leave (#18a)', () => {
       for (const star of path.stars) {
         expect(inside(starBox(star), path.width, path.height), `${count} steps, star ${star.step}`).toBe(true);
         expect(inside(starBox(star, SELECTED_RING), path.width, path.height), `${count} steps, ring ${star.step}`).toBe(
-          true,
+          true
         );
       }
     }
@@ -542,7 +544,7 @@ describe('the sky a run is drawn on (#18a)', () => {
           expect(inside(starBox(star), path.width, path.height), `sky ${variant}, star ${star.step}`).toBe(true);
           expect(
             inside(starBox(star, SELECTED_RING), path.width, path.height),
-            `sky ${variant}, ring ${star.step}`,
+            `sky ${variant}, ring ${star.step}`
           ).toBe(true);
         }
         for (const number of path.numbers) {
@@ -572,9 +574,42 @@ describe('the sky a run is drawn on (#18a)', () => {
       for (const [at, value] of sky.entries()) {
         const next = sky[(at + 1) % sky.length];
         expect(Math.abs(next - value), `sky ${variant}, hop ${at} to ${(at + 1) % sky.length}`).toBeGreaterThanOrEqual(
-          MIN_PATH_SWING,
+          MIN_PATH_SWING
         );
       }
+    }
+  });
+
+  it('breaks the sawtooth with repeated directions and varied hop lengths', () => {
+    /*
+     * Spacing alone does not make a natural constellation. The old rows cleared
+     * the minimum while reversing across most of the band on nearly every hop,
+     * which made a fifteen-step run one regular left-right sawtooth. Each sky now
+     * has local runs in one direction, short cluster hops and broad crossings.
+     */
+    for (const [variant, sky] of PATH_SCATTERS.entries()) {
+      const directions = sky.map((value, at) => Math.sign(sky[(at + 1) % sky.length] - value));
+      const continuing = directions.filter((direction, at) => direction === directions[(at + 1) % directions.length]);
+      const lengths = sky.map((value, at) => Math.abs(sky[(at + 1) % sky.length] - value));
+
+      expect(continuing.length, `sky ${variant}, same-direction hops`).toBeGreaterThanOrEqual(4);
+      expect(Math.min(...lengths), `sky ${variant}, shortest hop`).toBeLessThanOrEqual(0.3);
+      expect(Math.max(...lengths), `sky ${variant}, longest hop`).toBeGreaterThanOrEqual(0.45);
+    }
+  });
+
+  it('does not restart an earlier shape during a twenty-step run', () => {
+    /*
+     * Eleven-point rows made step twelve restart step one's x and repeat the
+     * opening four-star window verbatim in the fifteen-step run that exposed the
+     * defect. Four-point windows are long enough to name a visible shape rather
+     * than one coincidental coordinate, and every such window stays unique
+     * through the ordinary twenty-step ceiling.
+     */
+    for (const variant of SKIES) {
+      const xs = buildPathConstellation(runOf(20), -1, variant).stars.map((star) => star.x);
+      const windows = xs.slice(0, -3).map((_, at) => xs.slice(at, at + 4).join(','));
+      expect(new Set(windows).size, `sky ${variant}`).toBe(windows.length);
     }
   });
 
@@ -583,9 +618,9 @@ describe('the sky a run is drawn on (#18a)', () => {
     // on a run long enough to use every value, so two skies that differ only in
     // their tail still count as different.
     const chains = SKIES.map((variant) =>
-      buildPathConstellation(runOf(11), 0, variant)
+      buildPathConstellation(runOf(20), 0, variant)
         .stars.map((star) => star.x)
-        .join(','),
+        .join(',')
     );
     expect(new Set(chains).size).toBe(SKIES.length);
   });
@@ -631,8 +666,8 @@ describe('the sky a run is drawn on (#18a)', () => {
     // reference chain draw.
     const starts = new Set(
       ['conv-1a2b', 'conv-3c4d', 'conv-5e6f', 'conv-7a8b', 'conv-9c0d', 'conv-1e2f'].map((thread) =>
-        pathVariant(thread, 1),
-      ),
+        pathVariant(thread, 1)
+      )
     );
     expect(starts.size).toBeGreaterThan(1);
   });
@@ -666,15 +701,11 @@ describe('the sky a run is drawn on (#18a)', () => {
     }
   });
 
-  it('leaves the reference run of seven exactly where the design placed it', () => {
-    // #18a is a seven-step drawing on the first sky, and that sky opens on its
-    // own seven positions. Whatever the other three do, and whatever the tail of
-    // this one does past step seven, that drawing is unchanged.
-    const band = PATH_BAND_RIGHT - PATH_BAND_LEFT;
-    const reference = [0.42, 1, 0.78, 0, 0.22, 0.98, 0.5];
-    buildPathConstellation(runOf(7), -1, 0).stars.forEach((star, index) => {
-      expect(star.x, `star ${star.step}`).toBe(PATH_BAND_LEFT + reference[index] * band);
-    });
+  it('uses the full hand-placed row before a long run wraps', () => {
+    // Twenty is the ordinary long-run ceiling this retuning targets. A row that
+    // wraps before it cannot hide the old coarse repetition, however irregular
+    // its individual hops are.
+    for (const sky of PATH_SCATTERS) expect(sky.length).toBeGreaterThanOrEqual(20);
   });
 });
 
@@ -856,7 +887,7 @@ describe('the pieces the layout is built from', () => {
         id: `step-${index + 1}-1-search_tagged_assets`,
         kind: 'tool',
         name: 'Searched the tagged assets',
-      }),
+      })
     );
     const map = buildMapConstellation(identical);
     expect(map.labels).toHaveLength(40);
@@ -883,7 +914,7 @@ describe('a label’s box is the box the band actually draws in', () => {
       const width = label.box.x1 - label.box.x0;
       expect(width, `label ${label.step}`).toBeCloseTo(
         Math.max(labelWidth(label.name, label.mono), labelWidth(label.meta, true)),
-        6,
+        6
       );
       expect(width, `label ${label.step}`).toBeGreaterThanOrEqual(labelWidth(label.meta, true));
     }

@@ -146,7 +146,10 @@ describe('every product resolves to its own published mark', () => {
   });
 
   it.each(PRODUCTS)('renders %s from its own recoloured file and no other', (product) => {
-    const markup = renderToStaticMarkup(<BrandIcon product={product} />);
+    // An explicit light surface is used here because MLflow's ordinary page
+    // seating resolves this same reviewed cut through `--foreground`; the
+    // geometry guard below proves that substitution moved no path.
+    const markup = renderToStaticMarkup(<BrandIcon product={product} tone="light" />);
     const own = themed(BRAND_THEME_FILES.light[product]);
 
     // The whole file, verbatim, apart from an XML prolog -- which is legal in an
@@ -173,6 +176,23 @@ describe('every product resolves to its own published mark', () => {
     expect(light).toContain('#2272B4');
     expect(dark).toContain('#6FAEDD');
     expect(dark).not.toContain('#2272B4');
+  });
+
+  it('lets the one-colour MLflow wordmark follow the page theme', () => {
+    /*
+     * The app defaults to the night sky but can switch while this component is
+     * mounted. Baking the ink cut into an ordinary link left black lettering on
+     * the dark page; reading `--foreground` means the same markup follows both
+     * root themes, while an explicitly navy seating still gets the reviewed
+     * white cut.
+     */
+    const adaptive = renderToStaticMarkup(<BrandIcon product="mlflow" size={12} />);
+    const fixedDark = renderToStaticMarkup(<BrandIcon product="mlflow" size={12} tone="dark" />);
+
+    expect(adaptive).toContain('fill="var(--foreground)"');
+    expect(adaptive).not.toContain('fill="#11171C"');
+    expect(fixedDark).toContain('fill="#FFFFFF"');
+    expect(geometry(adaptive)).toContain(geometry(BRAND_THEME_MARKS.light.mlflow));
   });
 
   it('recolours the official geometry rather than redrawing it', () => {

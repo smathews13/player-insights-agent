@@ -169,6 +169,26 @@ describe('the parts a reader has to be able to use', () => {
     expect(highlighted).toMatch(/box-shadow:\s*inset 3px 0 0 var\(--ast-blue\)/);
   });
 
+  it('draws the declared Unity Catalog objects as a readable table', () => {
+    /*
+     * This section used to rely on the component library's bare table geometry:
+     * the header, rows and body shared one uninterrupted ground. Pin the three
+     * relationships that make it scan as a matrix, and the object name that the
+     * reader came here to inspect.
+     */
+    expect(rule('.connections-table th')).toMatch(/background:\s*var\(--ast-fill-band\)/);
+    expect(rule('.connections-table tbody tr')).toMatch(/border-bottom:\s*1px solid var\(--border\)/);
+    expect(rule('.connections-table tbody tr:hover')).toMatch(/background:\s*var\(--db-row-hover\)/);
+    expect(rule('.connections-table-name')).toMatch(/font-weight:\s*700/);
+  });
+
+  it('uses the destructive control token only for permanent removal', () => {
+    const forever = rule('.plane-confirm-forever');
+    expect(forever).toMatch(/background:\s*var\(--destructive\)/);
+    expect(forever).toMatch(/border:\s*1px solid var\(--destructive\)/);
+    expect(forever).toMatch(/color:\s*var\(--destructive-foreground\)/);
+  });
+
   it('paints the affordance that leads somewhere in the action colour, and the padlock not at all', () => {
     expect(rule('.connection-row-affordance')).toMatch(/color:\s*var\(--db-slate-icon\)/);
     // The astrolabe spelling of the one blue. `--ast-blue` and `--db-blue-600`

@@ -31,12 +31,15 @@
  * The artwork is inlined rather than loaded through `<img>` so the file that
  * publishes is the file that renders and a test can hold the two together.
  *
- * NOTHING IS RECOLOURED HERE, AND THE MARKS ARE NOT IN THEIR PUBLISHED INK. Both
- * are true and they are not in tension: the recolour lives in the committed
- * artwork, as a second cut of each mark under `assets/logo/theme/`, so what
- * renders is still a file somebody reviewed rather than a `filter` this
- * component applied to one. `brand.css` still sets geometry and never ink. The
- * underlying question was settled on 2026-08-17 -- recolouring official
+ * NOTHING IS REDRAWN HERE, AND THE MARKS ARE NOT IN THEIR PUBLISHED INK. The
+ * recolour lives in the committed artwork, as a second cut of each mark under
+ * `assets/logo/theme/`, so what renders is still geometry somebody reviewed
+ * rather than a `filter` this component applied to one. MLflow has one further
+ * constraint: its default seating follows the page theme, so its reviewed ink
+ * cut resolves the fill through `--foreground`. That is a colour substitution,
+ * never a path edit, and it lets one piece of markup turn white on the night sky
+ * without asking every link to know which theme the root currently carries.
+ * The underlying question was settled on 2026-08-17 -- recolouring official
  * geometry into one palette is permitted, redrawing is not -- and the ruling is
  * recorded in `assets/brand/README.md` and `assets/logo/README.md`.
  */
@@ -57,7 +60,7 @@ export type { BrandIconSize, BrandProduct, BrandTone } from './brand-icons';
 export function BrandIcon({
   product,
   size = 16,
-  tone = 'light',
+  tone,
   labelled = false,
   className,
 }: {
@@ -65,10 +68,10 @@ export function BrandIcon({
   /** 12, 14, 16 or 18. A height rather than a box for the MLflow wordmark. */
   size?: BrandIconSize;
   /**
-   * Which surface this mark is on. `light` is the default because nearly every
-   * surface in this app is white; a navy band asks for `dark` explicitly, since
-   * nothing else in the DOM tells this component what it is sitting on and a
-   * light cut on navy is 1.6:1.
+   * Which fixed surface this mark is on. Omit it on ordinary page content:
+   * MLflow then follows `--foreground`, while the two-colour product marks keep
+   * their light-surface cut. A navy band still asks for `dark` explicitly,
+   * because its colour is independent of the page theme.
    */
   tone?: BrandTone;
   /** Name the product in a tooltip. Only where no text label sits beside it. */
@@ -77,6 +80,17 @@ export function BrandIcon({
 }) {
   const wordmark = WORDMARKS.has(product);
   const classes = ['brand-icon', wordmark ? 'wordmark' : '', className].filter(Boolean).join(' ');
+  /*
+   * MLflow is the only one-colour mark in the set, so it is the only mark whose
+   * reviewed light cut can follow one semantic ink without losing information.
+   * Replacing the seven identical fill values at render time leaves every path,
+   * class and coordinate byte-for-byte as reviewed. The other products are
+   * two-colour drawings and therefore continue to use their committed cuts.
+   */
+  const mark =
+    product === 'mlflow' && tone === undefined
+      ? BRAND_THEME_MARKS.light.mlflow.replaceAll('#11171C', 'var(--foreground)')
+      : BRAND_THEME_MARKS[tone ?? 'light'][product];
   return (
     <span
       className={classes}
@@ -86,7 +100,7 @@ export function BrandIcon({
       style={{ ['--brand-icon-size' as string]: `${size}px` }}
       aria-hidden={labelled ? undefined : 'true'}
       title={labelled ? BRAND_PRODUCT_NAMES[product] : undefined}
-      dangerouslySetInnerHTML={{ __html: BRAND_THEME_MARKS[tone][product] }}
+      dangerouslySetInnerHTML={{ __html: mark }}
     />
   );
 }

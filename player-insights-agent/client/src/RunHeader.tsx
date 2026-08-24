@@ -95,7 +95,20 @@ export function RunHeader({
             >
               <span className="run-id-short">{shortRunId(run.id)}</span>
             </CopyIdChip>
-            <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
+            {run.stakeholder?.trim() ? (
+              <a
+                className="run-detail-user-link"
+                href={`/monitoring?who=${encodeURIComponent(run.stakeholder)}`}
+                aria-label={`Open ${run.stakeholder}'s activity overview`}
+              >
+                <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
+              </a>
+            ) : (
+              /* An unrecorded identity is still a fact about the run, but it has
+                  no Monitoring population to open. Plain text avoids a focusable
+                  control whose destination cannot contain what it names. */
+              <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
+            )}
             <Badge variant="outline" className={`run-status-pill ${astPill(displayedStatus)}`}>
               {/* The tick only on the family that earns it. A run that failed does
                   not get a check beside the word "failed", and a status this app

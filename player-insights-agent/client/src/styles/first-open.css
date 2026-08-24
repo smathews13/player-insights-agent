@@ -266,14 +266,9 @@
   overflow-wrap: anywhere;
 }
 
-.fo-scope-detail {
-  display: block;
-  margin-top: 3px;
-  max-width: 28rem;
-  color: var(--ast-text-muted);
-  font-size: 11px;
-  line-height: 1.35;
-}
+/* No `.fo-scope-detail`: the rows carry scope names and verdicts only. A per-scope
+   explanation belongs to Connections, which describes all of them; this card
+   described exactly one, and the odd one out was an optional scope. */
 
 .fo-scope-row > span:last-child {
   display: flex;

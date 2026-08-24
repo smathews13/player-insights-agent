@@ -1,16 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronRight, CircleAlert, Copy, ExternalLink, ShieldCheck } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
-import {
-  Alert,
-  AlertDescription,
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-  Switch,
-} from './ui';
+import { Alert, AlertDescription, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Switch } from './ui';
 import { sqlClauseLines, sqlHighlightRuns, sqlStatements, truncatedId } from './step-results';
 import { formatMs } from './trace-timeline';
 import { reportEgress } from './egress-policy';
@@ -27,7 +18,8 @@ import type { RunTrace } from './app-types';
  */
 function CopyValue({ value, label, channel }: { value: string; label: string; channel: EgressChannel }) {
   const [copied, setCopied] = useState(false);
-  return (<button
+  return (
+    <button
       type="button"
       className="copy-value"
       aria-label={label}
@@ -60,17 +52,23 @@ function CopyValue({ value, label, channel }: { value: string; label: string; ch
  * uses are being copied and being opened. Both of those are now on the row.
  */
 function TraceRow({ mlflow }: { mlflow: NonNullable<RunTrace['mlflow']> }) {
-  return (<div className="trace-id-row">
-      {/* MLflow's mark, sized by HEIGHT at the handoff's 12px, because it is a
-          wordmark rather than a square icon and a box would squash it. */}
-      <BrandIcon product="mlflow" size={12} />
+  return (
+    <div className="trace-id-row">
+      {/* Where there is no destination, the row still names the system that owns
+          this id. Where there is one, the mark belongs inside the outbound
+          action: a logo elsewhere on the row left the hyperlink looking generic. */}
+      {!mlflow.url ? <BrandIcon product="mlflow" size={12} /> : null}
       <code title={mlflow.traceId}>{truncatedId(mlflow.traceId)}</code>
       <CopyValue value={mlflow.traceId} label="Copy the full trace id" channel="identifier" />
-      {mlflow.url ? (<a href={mlflow.url} target="_blank" rel="noreferrer">
+      {mlflow.url ? (
+        <a href={mlflow.url} target="_blank" rel="noreferrer">
+          {/* Sized by HEIGHT because MLflow is a wordmark, not a square icon. */}
+          <BrandIcon product="mlflow" size={12} />
           Open in the MLflow experiment
           <ExternalLink aria-hidden />
         </a>
-      ) : (<span className="trace-id-note">
+      ) : (
+        <span className="trace-id-note">
           Save an MLflow experiment on the Connections page to link straight to this trace.
         </span>
       )}
@@ -89,7 +87,8 @@ function TraceRow({ mlflow }: { mlflow: NonNullable<RunTrace['mlflow']> }) {
 function GeneratedSql({ sql }: { sql: string }) {
   const statements = sqlStatements(sql);
   if (statements.length === 0) return null;
-  return (<div className="sql-panel">
+  return (
+    <div className="sql-panel">
       <div className="sql-panel-head">
         <b>Generated SQL</b>
         <span>
@@ -97,8 +96,10 @@ function GeneratedSql({ sql }: { sql: string }) {
         </span>
         <CopyValue value={sql} label="Copy the generated SQL" channel="generated-sql" />
       </div>
-      {statements.map((statement) => (<pre key={statement}>
-          {sqlClauseLines(statement).map((line) => (<span className="sql-line" key={line}>
+      {statements.map((statement) => (
+        <pre key={statement}>
+          {sqlClauseLines(statement).map((line) => (
+            <span className="sql-line" key={line}>
               {/* Plain stretches stay text nodes. Wrapping them would put an
                   element boundary between a keyword and the name after it, which
                   is a word break the copy would then carry. */}
@@ -123,7 +124,8 @@ function TraceSummary({ trace }: { trace: NonNullable<RunTrace['trace']> }) {
   const [open, setOpen] = useState(false);
   const json = JSON.stringify(trace, null, 2);
   const lines = json.split('\n').length;
-  return (<div className="trace-summary">
+  return (
+    <div className="trace-summary">
       <div className="trace-summary-head">
         <b>Trace</b>
         {/* The figures in mono and the words around them in the body face. §3
@@ -133,8 +135,8 @@ function TraceSummary({ trace }: { trace: NonNullable<RunTrace['trace']> }) {
         <span>
           <span className="ast-num">{formatMs(trace.totalMs)}</span> total ·{' '}
           <span className="ast-num">{trace.toolCalls.toLocaleString()}</span> tool call
-          {trace.toolCalls === 1 ? '' : 's'} ·{' '}
-          <span className="ast-num">{trace.stages.length.toLocaleString()}</span> stage
+          {trace.toolCalls === 1 ? '' : 's'} · <span className="ast-num">{trace.stages.length.toLocaleString()}</span>{' '}
+          stage
           {trace.stages.length === 1 ? '' : 's'}
         </span>
         <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -188,7 +190,8 @@ export function RunDetails({
    */
   unavailable: ReactNode;
 }) {
-  return (<>
+  return (
+    <>
       <div className="advanced-toggle">
         <span>Advanced</span>
         <Switch
@@ -207,9 +210,12 @@ export function RunDetails({
           Advanced gate: it is the only handle anyone has for finding this
           answer's trace in MLflow. */}
       {trace?.mlflow && <TraceRow mlflow={trace.mlflow} />}
-      {advanced ? (trace?.trace ? (<>
+      {advanced ? (
+        trace?.trace ? (
+          <>
             {trace.sql && <GeneratedSql sql={trace.sql} />}
-            {trace.undeclaredKeys.length > 0 && (<Alert>
+            {trace.undeclaredKeys.length > 0 && (
+              <Alert>
                 <CircleAlert />
                 <AlertDescription>
                   This run carries fields the app does not render yet: {trace.undeclaredKeys.join(', ')}.
@@ -218,9 +224,11 @@ export function RunDetails({
             )}
             <TraceSummary trace={trace.trace} />
           </>
-        ) : (unavailable
+        ) : (
+          unavailable
         )
-      ) : (<Empty>
+      ) : (
+        <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <ShieldCheck />

@@ -936,6 +936,38 @@ a.ops-bar-count:hover {
  * of magnitude, and proportional digits put the decimal point in a different
  * place on every row. The route is the one prose column and overrides both.
  */
+/*
+ * The filter sits in the body immediately before the table rather than in the
+ * heading band. That keeps the read time and Refresh as one undisturbed cluster,
+ * and follows Monitoring's filtered-list order: controls, then the list they
+ * narrow. The search and clear recipes themselves remain Monitoring's.
+ */
+.ops-latency-search {
+  width: min(240px, 100%);
+  align-self: flex-end;
+}
+
+/*
+ * RunHeader owns the markup but this stylesheet is the available UI lane for
+ * this pass. The link contributes hover and keyboard feedback without
+ * contributing a colour: `.identity-chip` owns its ink, including the dark
+ * foreground override that keeps names visible on the night surface.
+ */
+.run-detail-user-link {
+  display: inline-flex;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+.run-detail-user-link:hover .identity-chip {
+  background: var(--db-hover-tint);
+  border-color: var(--ast-border-input);
+}
+.run-detail-user-link:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+}
+
 .ops-latency-scroll {
   width: 100%;
   overflow-x: auto;

@@ -15,6 +15,7 @@ export const LIGHT_THEME_COLOR = '#ffffff';
 
 type ThemeRoot = {
   classList: Pick<DOMTokenList, 'add'>;
+  getAttribute?(name: string): string | null;
   setAttribute(name: string, value: string): void;
 };
 
@@ -24,6 +25,14 @@ export function isColorScheme(value: unknown): value is ColorScheme {
 
 function liveDocument(): Document | null {
   return typeof document === 'undefined' ? null : document;
+}
+
+/** Read only the scheme this app painted, never the operating-system preference. */
+export function appliedColorScheme(
+  root: Pick<ThemeRoot, 'getAttribute'> | null = liveDocument()?.documentElement ?? null
+): ColorScheme | null {
+  const scheme = root?.getAttribute?.('data-theme');
+  return isColorScheme(scheme) ? scheme : null;
 }
 
 export function applyColorScheme(

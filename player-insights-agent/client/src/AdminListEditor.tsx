@@ -102,7 +102,8 @@ export function AdminRows({
                   the row was set at deployment. */}
               {entry.removable ? (
                 <Button
-                  variant="outline"
+                  variant="destructive"
+                  className="settings-destructive"
                   size="sm"
                   disabled={busy}
                   onClick={() => onRemove(entry)}

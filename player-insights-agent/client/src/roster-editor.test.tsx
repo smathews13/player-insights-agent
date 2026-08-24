@@ -88,6 +88,13 @@ describe('the row offers only what the server allows', () => {
     expect(roleOptions(analyst).map((option) => option.value)).toEqual(['consumer', 'admin']);
   });
 
+  it('routes a permitted removal through the shared destructive control', () => {
+    const markup = rows({
+      entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
+    });
+    expect(markup).toContain('settings-destructive');
+  });
+
   it('names the row in the control, so a screen reader is not given a bare menu', () => {
     expect(rows({ entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'] })] })).toContain(
       `Role for ${ANALYST}`
@@ -147,12 +154,13 @@ describe('the #24a roster row', () => {
 describe('the #24a Roles geometry', () => {
   const css = partial('settings.css');
 
-  it('uses the 820px settings column and compact bordered roster rows', () => {
+  it('uses the 820px settings column and the pane-wide ruled row treatment', () => {
     expect(css).toMatch(/\.settings-page \{[^}]*max-width:\s*820px/);
     expect(css).toMatch(/\.settings-page \{[^}]*padding:\s*24px 32px/);
     expect(css).toMatch(/\.settings-page \[data-slot='card'\] \{[^}]*border-radius:\s*8px/);
-    expect(css).toMatch(/\.admin-row \{[^}]*border:\s*1px solid var\(--ast-hairline\)/);
-    expect(css).toMatch(/\.admin-row \{[^}]*border-radius:\s*var\(--radius-sm\)/);
+    expect(css).toMatch(/\.admin-row \{[^}]*padding:\s*10px 0/);
+    expect(css).toMatch(/\.admin-row \+ \.admin-row \{[^}]*border-top:\s*1px solid var\(--border\)/);
+    expect(css).not.toMatch(/\.admin-row \{[^}]*(?:border|border-radius):/);
     expect(css).toMatch(/\.admin-row-email \{[^}]*font-family:\s*var\(--font-mono\)/);
   });
 

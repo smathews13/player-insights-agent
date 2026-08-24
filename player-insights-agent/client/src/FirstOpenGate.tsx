@@ -91,8 +91,6 @@ import {
   type FirstOpenReport,
   type ScopeRow,
 } from './first-open';
-import { LAKEBASE_USER_API_SCOPE } from '../../shared/optional-user-api-scopes';
-import { userApiScopeDetail } from '../../shared/user-api-scope-details';
 
 /**
  * One scope's verdict, in the app's ONE pill recipe.
@@ -169,10 +167,16 @@ function ScopeSection({
           {scopes.map((scope) => (
             <li className="fo-scope-row" key={scope.name} data-optional={scope.optional ? 'true' : undefined}>
               <span>
+                {/* The scope name alone, for every row.
+ 
+                    One scope used to carry a sentence of explanation here and the
+                    rest did not, which read as though that row were the important
+                    one -- and it is the least important, being optional. The list's
+                    job on this card is the verdict per scope; what a permission is
+                    FOR is answered in Connections, where every scope is described
+                    rather than one. Describing a single row is worse than
+                    describing none, because the asymmetry is itself a claim. */}
                 <code className="fo-scope-name">{scope.name}</code>
-                {scope.name === LAKEBASE_USER_API_SCOPE ? (
-                  <span className="fo-scope-detail">{userApiScopeDetail(scope.name)}</span>
-                ) : null}
               </span>
               <span>
                 <ScopePill status={scope.status} optional={scope.optional} />
@@ -209,7 +213,12 @@ function ScopeSection({
  */
 function DatabricksLogo() {
   return (
-    <span className="fo-databricks-logo" role="img" aria-label="Databricks" dangerouslySetInnerHTML={{ __html: DATABRICKS_LOGO }} />
+    <span
+      className="fo-databricks-logo"
+      role="img"
+      aria-label="Databricks"
+      dangerouslySetInnerHTML={{ __html: DATABRICKS_LOGO }}
+    />
   );
 }
 
@@ -374,9 +383,7 @@ export function FirstOpenPanel({
                 onClick={onAllowRequiredScopes}
                 disabled={allowingRequiredScopes || scopeUpdateMessage?.kind === 'success'}
               >
-                {allowingRequiredScopes
-                  ? 'Adding access\u2026'
-                  : 'Allow serving, SQL, Genie, and workspace browsing'}
+                {allowingRequiredScopes ? 'Adding access\u2026' : 'Allow serving, SQL, Genie, and workspace browsing'}
               </Button>
             ) : (
               <Button
@@ -394,10 +401,7 @@ export function FirstOpenPanel({
            * shortfall.
            */}
           {scopeUpdateMessage ? (
-            <p
-              className="fo-skip-note"
-              role={scopeUpdateMessage.kind === 'error' ? 'alert' : 'status'}
-            >
+            <p className="fo-skip-note" role={scopeUpdateMessage.kind === 'error' ? 'alert' : 'status'}>
               {scopeUpdateMessage.text}
             </p>
           ) : null}
@@ -588,13 +592,7 @@ export function useFirstOpen(identity: Identity): FirstOpen {
    * to win it in every case but one that never happens (a reader who is somehow
    * acknowledged, which is the `dismissed` branch above).
    */
-  const stage: GateStage = dismissed
-    ? 'open'
-    : leaving
-      ? 'arriving'
-      : showsFirstOpen(report)
-        ? 'gate'
-        : 'pending';
+  const stage: GateStage = dismissed ? 'open' : leaving ? 'arriving' : showsFirstOpen(report) ? 'gate' : 'pending';
 
   /**
    * Getting past the card, either way.

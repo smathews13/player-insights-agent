@@ -118,6 +118,10 @@ describe('the astrolabe palette is the palette the delivered tokens.css specifie
     }
   });
 
+  it('states one unitless leading standard for proportional body copy', () => {
+    expect(declared('--ast-lh-body')).toBe('1.15');
+  });
+
   it('agrees with the scale tokens.css already declares, step for step', () => {
     // THE DUPLICATION IS DELIBERATE AND THIS IS WHAT MAKES IT SAFE. The delivered file
     // restates the eight sizes and the two radii under --ast-* names, and this app has

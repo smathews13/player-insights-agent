@@ -111,6 +111,7 @@ describe('where a row came from decides what may be done to it', () => {
     const markup = rows({ entries: [seed('sam@example.com'), added('pat@example.com', 'sam@example.com')] });
 
     expect(markup).toContain('aria-label="Remove pat@example.com"');
+    expect(markup).toContain('settings-destructive');
     // Absent rather than disabled: a greyed control a reader can never enable is
     // a permanent invitation to ask why it is greyed.
     expect(markup).not.toContain('aria-label="Remove sam@example.com"');

@@ -61,11 +61,13 @@ describe('dark mode covers the shipped surfaces', () => {
   it('keeps the spec paints centralized and exact', () => {
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--background:\s*var\(--ast-navy\)/);
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--card:\s*rgba\(255,\s*255,\s*255,\s*0\.05\)/);
-    expect(ASTROLABE).toMatch(/html\[data-theme='dark'\][\s\S]*--ast-text-secondary:\s*rgba\(232,\s*237,\s*242,\s*0\.68\)/);
+    expect(ASTROLABE).toMatch(
+      /html\[data-theme='dark'\][\s\S]*--ast-text-secondary:\s*rgba\(232,\s*237,\s*242,\s*0\.68\)/
+    );
     expect(ASTROLABE).toMatch(/html\[data-theme='dark'\][\s\S]*--ast-caption:\s*rgba\(232,\s*237,\s*242,\s*0\.8\)/);
     expect(DARK).toContain('background: rgba(255, 255, 255, 0.03)');
     expect(DARK).toContain('background: rgba(255, 255, 255, 0.06)');
-    expect(DARK).toContain('backdrop-filter: blur(8px)');
+    expect(DARK).toContain('background: var(--ast-surface-solid)');
   });
 
   it('matches the interaction, chart, and constellation treatments', () => {
@@ -114,6 +116,101 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).not.toMatch(
       /html\[data-theme='dark'\] \.first-open:not\(\.on-sky\)\s*\{[^}]*background:\s*var\(--ast-ice\)/
     );
+  });
+
+  it('makes every content-covering overlay opaque', () => {
+    /*
+     * Blur changes the shape of page text; it does not remove it. At six or seven
+     * percent white the account badge, headings and constellation still showed
+     * through the labels readers were trying to use. Every transient foreground
+     * surface therefore resolves directly to the solid token, while ordinary
+     * panes remain in the frosted recipe tested below.
+     */
+    for (const selector of [
+      '.account-menu',
+      '.app-select-content',
+      '.monitoring-chip-menu',
+      '.settings-page.settings-modal',
+      '.monitoring-drawer',
+      "[data-slot='sheet-content']",
+    ]) {
+      const body = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);
+      expect(body, `${selector} has no dark overlay treatment`).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+      expect(body, `${selector} still relies on translucent blur`).toMatch(/backdrop-filter:\s*none/);
+      expect(body, `${selector} regressed to a low-alpha fill`).not.toMatch(
+        /background:\s*(?:rgba\([^)]*,\s*0\.\d+\)|var\(--(?:card|popover)\))/
+      );
+    }
+  });
+
+  it('corrects the two light-theme emphasis branches without erasing their state', () => {
+    /*
+     * Agent indices were the only step figures painted in the unreversed deep
+     * blue; their border and fill still distinguish decisions from calls. The
+     * segmented control had the inverse defect and used the palest blue as a
+     * solid mass, so its pressed state moves one on-dark rung quieter.
+     */
+    expect(bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-index.agent")).toMatch(
+      /color:\s*var\(--muted-foreground\)/
+    );
+    const pressed = bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-seg button[aria-pressed='true']");
+    expect(pressed).toMatch(/background:\s*var\(--ast-blue-on-dark\)/);
+    expect(pressed).toMatch(/color:\s*var\(--ast-navy\)/);
+  });
+
+  it('routes every filled destructive control through the darker semantic token', () => {
+    /*
+     * `--ast-neg-text` is pale by design in dark mode and remains correct for
+     * prose, glyphs and hairlines. It must never double as a solid button fill.
+     * The base `--destructive` is also error text, so a control-only token keeps
+     * those labels readable. Pin AppKit and the two bespoke controls to the same
+     * route so all filled forms change together.
+     */
+    expect(bodyFor(DARK, "html[data-theme='dark']")).toMatch(/--ast-destructive-control:\s*var\(--db-red-700\)/);
+    for (const selector of [
+      '.conversation-confirm-delete',
+      '.plane-confirm-forever',
+      "[data-slot='button'][data-variant='destructive']",
+    ]) {
+      const body = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);
+      expect(body, `${selector} does not share the destructive fill`).toMatch(
+        /background:\s*var\(--ast-destructive-control\)/
+      );
+      expect(body, `${selector} does not share the destructive edge`).toMatch(
+        /border-color:\s*var\(--ast-destructive-control\)/
+      );
+      expect(body, `${selector} does not use the destructive label token`).toMatch(
+        /color:\s*var\(--destructive-foreground\)/
+      );
+    }
+  });
+
+  it('keeps Settings role plaques neutral and readable in both themes', () => {
+    /*
+     * Roles used to carry a private chip palette: dark neutral text on a dark
+     * modal for ordinary roles, plus a pale blue super-admin plaque that became
+     * the loudest object in the pane. The pane now has one neutral plaque recipe
+     * and the dark override remains an explicit contrast obligation rather than
+     * relying on the light palette accidentally surviving a theme switch.
+     */
+    const settingsRules = SETTINGS.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    for (const selector of ['.admin-row-seed', '.roster-role-chip']) {
+      const base = bodyFor(settingsRules, selector);
+      expect(base, `${selector} has no neutral Settings treatment`).toMatch(/background:\s*var\(--card\)/);
+      expect(base).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+      expect(base).toMatch(/color:\s*var\(--foreground\)/);
+    }
+    expect(SETTINGS).not.toMatch(/\.roster-role-chip-super-admin\s*\{/);
+
+    const darkChip = bodyFor(DARK, "html[data-theme='dark'] .roster-role-chip");
+    expect(darkChip).toMatch(/background:\s*var\(--card\)/);
+    expect(darkChip).toMatch(/border-color:\s*var\(--ast-border-input\)/);
+    expect(darkChip).toMatch(/color:\s*var\(--foreground\)/);
+
+    const remove = bodyFor(settingsRules, "html[data-theme='dark'] .settings-page .settings-destructive");
+    expect(remove).toMatch(/background:\s*var\(--ast-destructive-control\)/);
+    expect(remove).toMatch(/border-color:\s*var\(--ast-destructive-control\)/);
+    expect(remove).toMatch(/color:\s*var\(--destructive-foreground\)/);
   });
 
   it('corrects every selector that uses deep ink as text', () => {

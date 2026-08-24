@@ -611,16 +611,36 @@
   padding: 4px 16px 16px;
 }
 
-/* The table matrix, which is where an answer's table link lands. */
+/*
+ * The table matrix, which is where an answer's table link lands.
+ *
+ * This is a real comparison table rather than three loose text columns: the
+ * header gets the same band used by an expanded connection head, every body row
+ * owns a separator, and hover follows the connection rows above it. Keeping
+ * these on the shared surface tokens makes the matrix gain exactly the same
+ * dark treatment as its pane rather than becoming a second, nested card.
+ */
 .connections-table {
   font-size: var(--text-sm);
 }
 .connections-table th {
+  padding-block: 8px;
+  background: var(--ast-fill-band);
   font-weight: 700;
   color: var(--muted-foreground);
 }
+.connections-table tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+.connections-table tbody tr:last-child {
+  border-bottom: 0;
+}
+.connections-table tbody tr:hover {
+  background: var(--db-row-hover);
+}
 .connections-table-name {
   font-family: var(--font-mono);
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 /*
@@ -1544,10 +1564,10 @@
    be undone. The recoverable Remove and Put back controls remain quiet. */
 .plane-confirm-forever {
   padding: 4px 10px;
-  border: 1px solid var(--ast-neg-text);
+  border: 1px solid var(--destructive);
   border-radius: var(--ast-radius-control);
-  background: var(--ast-neg-text);
-  color: var(--ast-white);
+  background: var(--destructive);
+  color: var(--destructive-foreground);
   font-size: var(--ast-fs-12);
   cursor: pointer;
 }

@@ -45,6 +45,21 @@ html[data-theme='dark'] .app-frame {
   isolation: isolate;
 }
 
+/*
+ * Filled destruction on the night sky.
+ *
+ * `--ast-neg-text` becomes the pale on-dark negative rung, which is exactly what
+ * a warning sentence and a one-pixel failure edge need. It is not a button fill:
+ * white on that pale pink is low contrast and the mass reads hot before it reads
+ * dangerous. The base `--destructive` is also used as error TEXT in six places,
+ * so remapping it would make those labels dark on navy. A control-only semantic
+ * token takes the existing deep red rung instead; negative text, borders, washes
+ * and chart marks keep their deliberately lighter treatment.
+ */
+html[data-theme='dark'] {
+  --ast-destructive-control: var(--db-red-700);
+}
+
 html[data-theme='dark'] .ask-layout {
   background-color: transparent;
   background-image: none;
@@ -220,6 +235,7 @@ html[data-theme='dark'] .arch-flow,
 html[data-theme='dark'] .arch-node,
 html[data-theme='dark'] .arch-rail,
 html[data-theme='dark'] .connection-rows,
+html[data-theme='dark'] .connection-block,
 html[data-theme='dark'] .plane-card,
 html[data-theme='dark'] .bench-ledger,
 html[data-theme='dark'] .first-open-card,
@@ -233,11 +249,14 @@ html[data-theme='dark'] .live-step {
 }
 
 /*
- * The portaled menus, at the overlay weight rather than the pane weight.
+ * Overlays cover prose; panes sit beside it.
  *
- * A select menu is rendered into the body, so it floats over the live sky with
- * nothing between: at 5% white the options sit on stars. Both take the popover's
- * 7% and the heavier blur every other floating surface here uses.
+ * A menu, modal or drawer is temporarily the reader's foreground. The previous
+ * 6-7% white fills blurred the page but did not remove it: headings, connector
+ * lines and constellation marks remained legible through the control's own
+ * labels. Blur cannot promise that two glyphs will not coincide, so these use the
+ * opaque surface token. The page panes above deliberately remain frosted because
+ * they sit ON the sky rather than over another readable interface.
  *
  * `.monitoring-chip-menu` also has to restate its INK. It sets `--background` as
  * its fill and `--ast-navy` as its text, which on white is a white menu with navy
@@ -246,8 +265,8 @@ html[data-theme='dark'] .live-step {
  */
 html[data-theme='dark'] .app-select-content,
 html[data-theme='dark'] .monitoring-chip-menu {
-  background: var(--popover);
-  backdrop-filter: blur(6px);
+  background: var(--ast-surface-solid);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
   color: var(--foreground);
 }
@@ -258,23 +277,23 @@ html[data-theme='dark'] .monitoring-chip-menu [data-slot='select-item'][data-hig
 }
 
 html[data-theme='dark'] .account-menu {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(6px);
+  background: var(--ast-surface-solid);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 html[data-theme='dark'] .settings-page.settings-modal {
-  background: var(--popover);
-  backdrop-filter: blur(8px);
+  background: var(--ast-surface-solid);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 html[data-theme='dark'] .monitoring-drawer,
 html[data-theme='dark'] [data-slot='sheet-content'] {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(6px);
+  background: var(--ast-surface-solid);
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
 }
@@ -313,6 +332,27 @@ html[data-theme='dark'] .ast-flick-row {
 
 html[data-theme='dark'] .trace-dag.map .dag-sql-more {
   background: linear-gradient(to bottom, transparent, var(--card) 60%);
+}
+
+/*
+ * Two controls inherited light-theme emphasis as literal brightness.
+ *
+ * Agent step indices alone use `--db-blue-700`; tool indices use secondary
+ * on-dark ink. The former stays deep blue in this theme, so decisions looked
+ * disabled while calls remained readable. Match the figures and leave the agent
+ * distinction in its blue border, Ice fill and Astrolabe mark.
+ *
+ * The Rendered/Raw control has the opposite problem: `--ast-blue` becomes the
+ * palest Ice accent. Its existing on-dark blue is one rung quieter while the
+ * navy label preserves the pressed segment's contrast and obvious selection.
+ */
+html[data-theme='dark'] .trace-dag.map .dag-index.agent {
+  color: var(--muted-foreground);
+}
+
+html[data-theme='dark'] .trace-dag.map .dag-seg button[aria-pressed='true'] {
+  background: var(--ast-blue-on-dark);
+  color: var(--ast-navy);
 }
 
 /*
@@ -565,20 +605,32 @@ html[data-theme='dark'] .time-range-segment:hover:not([aria-checked='true']) {
 }
 
 /*
- * The two destructive controls, which both hovered DARKER.
+ * The two bespoke destructive controls join AppKit's destructive token.
  *
- * Deleting a conversation and forgetting a connection are the presses that most
- * need to feel like they landed, and both dimmed instead -- one to the red -700
- * rung, one through `brightness(0.9)`. Lightening the same red keeps the colour
- * saying what it says; a different hue would be a different warning.
+ * Deleting a conversation and forgetting a connection predate the shared Button
+ * component, so their base styles name two different palette roles. Restating
+ * both from the control token above gives filled deletion one app-wide colour
+ * without turning negative prose and chart marks into dark, unreadable red.
+ * Hover mixes toward white just enough to confirm the pointer without returning
+ * to the pale pink that prompted this correction.
  */
+html[data-theme='dark'] .conversation-confirm-delete,
+html[data-theme='dark'] .plane-confirm-forever,
+html[data-theme='dark'] [data-slot='button'][data-variant='destructive'] {
+  background: var(--ast-destructive-control);
+  border-color: var(--ast-destructive-control);
+  color: var(--destructive-foreground);
+}
+
 html[data-theme='dark'] .conversation-confirm-delete:hover {
-  background: color-mix(in srgb, var(--db-red-600) 70%, white);
-  border-color: color-mix(in srgb, var(--db-red-600) 70%, white);
+  background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
+  border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
 }
 
 html[data-theme='dark'] .plane-confirm-forever:hover {
-  filter: brightness(1.15);
+  background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
+  border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
+  filter: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -609,6 +661,7 @@ html[data-theme='dark'] .plane-confirm-forever:hover {
   html[data-theme='dark'] .arch-node,
   html[data-theme='dark'] .arch-rail,
   html[data-theme='dark'] .connection-rows,
+  html[data-theme='dark'] .connection-block,
   html[data-theme='dark'] .plane-card,
   html[data-theme='dark'] .bench-ledger,
   html[data-theme='dark'] .first-open-card,

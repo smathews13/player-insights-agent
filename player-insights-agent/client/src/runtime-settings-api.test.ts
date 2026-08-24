@@ -16,6 +16,11 @@ describe('runtime settings API responses', () => {
     );
   });
 
+  it('does not default a saved light scheme back to dark on the response path', async () => {
+    const light = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
+    await expect(runtimeSettingsFromResponse(json({ settings: light }), 'saved')).resolves.toEqual(light);
+  });
+
   it('surfaces the server detail on a failed save', async () => {
     const response = json(
       {

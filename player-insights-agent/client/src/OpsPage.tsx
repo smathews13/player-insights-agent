@@ -36,8 +36,8 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { ChevronLeft, ChevronRight, ExternalLink, Info } from 'lucide-react';
-import { Button, Skeleton } from './ui';
+import { ChevronLeft, ChevronRight, ExternalLink, Info, Search, X } from 'lucide-react';
+import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
 import { PageHeading } from './page-chrome';
@@ -902,6 +902,13 @@ export type MonitoringHref = (outcome: 'failed' | 'refused') => string;
  */
 const LATENCY_PAGE_SIZE = 10;
 
+/** The already-read routes matching one route-or-method query. */
+function filterLatencyRoutes(routes: readonly RouteLatency[], search: string): RouteLatency[] {
+  const query = search.trim().toLocaleLowerCase();
+  if (!query) return [...routes];
+  return routes.filter((route) => route.route.toLocaleLowerCase().includes(query));
+}
+
 /**
  * Per-route latency, from the server spans.
  *
@@ -913,7 +920,14 @@ const LATENCY_PAGE_SIZE = 10;
  * prior-half median, and only when both halves clear the baseline floor. Thin
  * samples say so in words and never draw a fault colour.
  */
-export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
+export function LatencyBody({
+  block,
+  initialSearch = '',
+}: {
+  block: Block<OpsLatencyPayload>;
+  /** A deterministic starting query for restored views and render-level tests. */
+  initialSearch?: string;
+}) {
   const payload = block.data;
   /*
    * Which page of routes is on screen.
@@ -923,6 +937,7 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
    * effect, so nothing here can draw a stale page before correcting it.
    */
   const [page, setPage] = useState(0);
+  const [search, setSearch] = useState(initialSearch);
 
   if (block.failed) {
     return (
@@ -948,7 +963,14 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
    * the end would draw an empty table under a populated head. An effect correcting
    * it would draw that empty table first and then replace it.
    */
-  const routes = absence ? [] : (payload?.routes ?? []);
+  const allRoutes = absence ? [] : (payload?.routes ?? []);
+  /*
+   * The server has already paid to read every route, so narrowing this list is a
+   * browser operation just like Monitoring's filters. Searching the combined
+   * recorded value deliberately covers both halves: "POST" and "ask" must lead
+   * to the same row without a second request or a second field.
+   */
+  const routes = filterLatencyRoutes(allRoutes, search);
   const pages = Math.max(1, Math.ceil(routes.length / LATENCY_PAGE_SIZE));
   const current = Math.min(page, pages - 1);
   const from = current * LATENCY_PAGE_SIZE;
@@ -975,6 +997,29 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
           <Absence notice={absence}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
         ) : payload ? (
           <>
+            <div className="run-search monitoring-search ops-latency-search">
+              <Search aria-hidden="true" />
+              <Input
+                type="search"
+                placeholder="Search routes or methods…"
+                aria-label="Search latency routes by route or method"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              {/* This is Monitoring's clear affordance verbatim rather than the
+                  browser's inconsistent search cancel. Keeping its class also
+                  keeps the dark treatment and focus ring one shared decision. */}
+              {search !== '' ? (
+                <button
+                  type="button"
+                  className="monitoring-search-clear"
+                  onClick={() => setSearch('')}
+                  aria-label="Clear the route search"
+                >
+                  <X className="size-3" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
             {/* THE FACT TRUE OF EVERY ROW, SAID ONCE. Replaces the columns of
                 repeated dashes p95/p99/trend became on a quiet window. When a
                 route crosses the span floor the columns come back and this
@@ -985,71 +1030,84 @@ export function LatencyBody({ block }: { block: Block<OpsLatencyPayload> }) {
                 <span>{facts.line}</span>
               </p>
             ) : null}
-            <div className="ops-latency-scroll">
-              <table
-                className={`ops-table ops-latency-table${facts.showPercentiles ? ' ops-latency-table-expanded' : ''}`}
-                data-testid="ops-latency"
-              >
-                <colgroup>
-                  <col className="ops-lat-col-method" />
-                  <col className="ops-lat-col-route" />
-                  <col className="ops-lat-col-hit" />
-                  <col className="ops-lat-col-spans" />
-                  <col className="ops-lat-col-p50" />
-                  <col className="ops-lat-col-bar" />
-                  <col className="ops-lat-col-slowest" />
-                  {facts.showPercentiles ? (
-                    <>
-                      <col className="ops-lat-col-percentile" />
-                      <col className="ops-lat-col-percentile" />
-                      <col className="ops-lat-col-trend" />
-                    </>
-                  ) : null}
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col" className="ops-lat-method">
-                      Method
-                    </th>
-                    <th scope="col" className="ops-lat-route">
-                      Route
-                    </th>
-                    <th scope="col" className="ops-lat-hit">
-                      Last hit
-                    </th>
-                    <th scope="col" className="ops-lat-spans">
-                      Spans
-                    </th>
-                    <th scope="col" className="ops-lat-p50">
-                      p50
-                    </th>
-                    <th scope="col" className="ops-lat-bar-head">
-                      P50 · log scale
-                    </th>
-                    <th scope="col" className="ops-lat-slowest">
-                      Slowest
-                    </th>
+            {routes.length === 0 && search.trim() ? (
+              /* The same one-line list absence and named escape Monitoring uses.
+                 A search has hidden rows; it has not made the telemetry empty. */
+              <div className="monitoring-empty">
+                <p className="monitoring-empty-line">Nothing matches &quot;{search.trim()}&quot;.</p>
+                <div className="monitoring-empty-actions">
+                  <Button variant="outline" size="sm" onClick={() => setSearch('')}>
+                    Clear search
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="ops-latency-scroll">
+                <table
+                  className={`ops-table ops-latency-table${facts.showPercentiles ? ' ops-latency-table-expanded' : ''}`}
+                  data-testid="ops-latency"
+                >
+                  <colgroup>
+                    <col className="ops-lat-col-method" />
+                    <col className="ops-lat-col-route" />
+                    <col className="ops-lat-col-hit" />
+                    <col className="ops-lat-col-spans" />
+                    <col className="ops-lat-col-p50" />
+                    <col className="ops-lat-col-bar" />
+                    <col className="ops-lat-col-slowest" />
                     {facts.showPercentiles ? (
                       <>
-                        <th scope="col">p95</th>
-                        <th scope="col">p99</th>
-                        <th scope="col">Trend</th>
+                        <col className="ops-lat-col-percentile" />
+                        <col className="ops-lat-col-percentile" />
+                        <col className="ops-lat-col-trend" />
                       </>
                     ) : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((route, index) => (
-                    <LatencyRow
-                      key={route.route}
-                      route={route}
-                      barWidth={barWidths[index]}
-                      showPercentiles={facts.showPercentiles}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th scope="col" className="ops-lat-method">
+                        Method
+                      </th>
+                      <th scope="col" className="ops-lat-route">
+                        Route
+                      </th>
+                      <th scope="col" className="ops-lat-hit">
+                        Last hit
+                      </th>
+                      <th scope="col" className="ops-lat-spans">
+                        Spans
+                      </th>
+                      <th scope="col" className="ops-lat-p50">
+                        p50
+                      </th>
+                      <th scope="col" className="ops-lat-bar-head">
+                        P50 · log scale
+                      </th>
+                      <th scope="col" className="ops-lat-slowest">
+                        Slowest
+                      </th>
+                      {facts.showPercentiles ? (
+                        <>
+                          <th scope="col">p95</th>
+                          <th scope="col">p99</th>
+                          <th scope="col">Trend</th>
+                        </>
+                      ) : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shown.map((route, index) => (
+                      <LatencyRow
+                        key={route.route}
+                        route={route}
+                        barWidth={barWidths[index]}
+                        showPercentiles={facts.showPercentiles}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
         ) : null}
       </BlockBody>

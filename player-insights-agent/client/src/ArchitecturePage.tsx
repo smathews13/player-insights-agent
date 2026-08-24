@@ -72,6 +72,8 @@ import {
   type ArchitectureAccent,
   type NodeBox,
 } from './architecture-layout';
+import { edgeControlBounds, nodeControlBounds } from './architecture-control-scopes';
+import type { ChainBound } from './agent-chain';
 import { countConnections, readConnections, readingsById, type ConnectionReading } from './connection-model';
 import { DRIFT_MARKER_LABEL } from './connection-status';
 import { checkedAtOf } from './check-session';
@@ -217,6 +219,7 @@ function workspaceObject(
  * verdicts, and only they are tinted.
  */
 function ArchitectureNodeCard({
+  activeBound,
   node,
   reading,
   indexReading,
@@ -224,6 +227,7 @@ function ArchitectureNodeCard({
   box,
   now,
 }: {
+  activeBound: ChainBound | null;
   node: ArchitectureNode;
   reading: ConnectionReading | undefined;
   /**
@@ -245,6 +249,7 @@ function ArchitectureNodeCard({
   const age = nodeContentAge(node, reading, now);
   const object = workspaceObject(node, reading, payload);
   const deepLink = object && payload?.workspaceHost ? databricksLink(payload.workspaceHost, object) : null;
+  const controlBounds = nodeControlBounds(node.id);
 
   const body = (
     <>
@@ -305,6 +310,9 @@ function ArchitectureNodeCard({
       data-accent={box.accent}
       data-tone={report.tone}
       data-drift={reading && reading.marker !== 'none' ? reading.marker : undefined}
+      data-control-bounds={controlBounds.join(' ') || undefined}
+      data-control-active={activeBound && controlBounds.includes(activeBound) ? 'true' : undefined}
+      data-control-bound={activeBound && controlBounds.includes(activeBound) ? activeBound : undefined}
       style={{ left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px` }}
     >
       {node.resourceId ? (
@@ -323,6 +331,10 @@ function ArchitectureNodeCard({
       <p className="arch-node-role">{node.role}</p>
       {deepLink ? (
         <a className="arch-node-open" href={deepLink} rel="noopener noreferrer" target="_blank">
+          {/* The experiment is the one Databricks destination whose product mark
+              is a wordmark. Keep it in the action itself, as Monitoring does, so
+              every MLflow hyperlink identifies its destination before its copy. */}
+          {node.product === 'mlflow' ? <BrandIcon product="mlflow" size={12} /> : null}
           Open in Databricks <ExternalLink className="size-3" aria-hidden="true" />
           <span className="sr-only"> ({node.label})</span>
         </a>
@@ -361,10 +373,13 @@ const LEGEND: ReadonlyArray<{ accent: ArchitectureAccent; label: string }> = [
  * assert the unchecked state.
  */
 export function ArchitectureCanvas({
+  activeBound = null,
   byResource,
   payload,
   now,
 }: {
+  /** The setting a pointer or keyboard focus is currently explaining. */
+  activeBound?: ChainBound | null;
   byResource: ReadonlyMap<string, ConnectionReading>;
   payload: ArchitecturePayload | null;
   /**
@@ -429,6 +444,7 @@ export function ArchitectureCanvas({
             data-testid="architecture-canvas"
             role="group"
             aria-label="Live data flow. Each card links to that dependency on the Connections page."
+            data-active-bound={activeBound ?? undefined}
             style={{
               width: `${CANVAS_WIDTH}px`,
               height: `${CANVAS_HEIGHT}px`,
@@ -444,14 +460,24 @@ export function ArchitectureCanvas({
               aria-hidden="true"
               focusable="false"
             >
-              {edges.map((edge) => (
-                <g key={edge.id}>
-                  <path className="arch-edge" d={edge.d} />
-                  <text className="arch-edge-label" x={edge.labelX} y={edge.labelY} textAnchor={edge.labelAnchor}>
-                    {edge.label}
-                  </text>
-                </g>
-              ))}
+              {edges.map((edge) => {
+                const controlBounds = edgeControlBounds(edge.from, edge.to);
+                const controlled = activeBound !== null && controlBounds.includes(activeBound);
+                return (
+                  <g key={edge.id}>
+                    <path
+                      className="arch-edge"
+                      d={edge.d}
+                      data-control-bounds={controlBounds.join(' ') || undefined}
+                      data-control-active={controlled ? 'true' : undefined}
+                      data-control-bound={controlled ? activeBound : undefined}
+                    />
+                    <text className="arch-edge-label" x={edge.labelX} y={edge.labelY} textAnchor={edge.labelAnchor}>
+                      {edge.label}
+                    </text>
+                  </g>
+                );
+              })}
             </svg>
             {edges.map((edge) => (
               <span
@@ -472,6 +498,7 @@ export function ArchitectureCanvas({
               if (!box) return null;
               return (
                 <ArchitectureNodeCard
+                  activeBound={activeBound}
                   box={box}
                   indexReading={byResource.get('semantic-index')}
                   key={node.id}
@@ -597,14 +624,38 @@ export function ArchitectureTiles({
  * Labelled in the Settings pane's own words, so a reader who wants to change one
  * has a string to search the gear for. See CHAIN_BOUND_LABEL.
  */
-export function ChainBoundTiles({ loop }: { loop: RuntimeSettings['loop'] | null }) {
+export function ChainBoundTiles({
+  activeBound = null,
+  loop,
+  onActiveBoundChange,
+}: {
+  activeBound?: ChainBound | null;
+  loop: RuntimeSettings['loop'] | null;
+  onActiveBoundChange?: (bound: ChainBound | null) => void;
+}) {
   const unknown = '\u2014';
   return (
     <ul className="arch-tiles arch-tiles-loop" data-testid="architecture-loop-tiles">
       {CHAIN_BOUNDS.map((bound) => (
-        <li key={bound} title={CHAIN_BOUND_NOTE[bound]}>
-          <span>{CHAIN_BOUND_LABEL[bound]}</span>
-          <strong className="ast-num">{loop ? loop[bound] : unknown}</strong>
+        <li
+          data-bound={bound}
+          data-active={activeBound === bound ? 'true' : undefined}
+          key={bound}
+          title={CHAIN_BOUND_NOTE[bound]}
+          onMouseEnter={() => onActiveBoundChange?.(bound)}
+          onMouseLeave={() => onActiveBoundChange?.(null)}
+        >
+          <Link
+            className="arch-bound-settings-link"
+            to="/settings#settings-runtime-form"
+            state={{ settingsFrom: '/architecture' }}
+            aria-label={`${CHAIN_BOUND_LABEL[bound]}: ${loop ? loop[bound] : 'not available'}. Show the architecture it controls; open Runtime settings to change it.`}
+            onFocus={() => onActiveBoundChange?.(bound)}
+            onBlur={() => onActiveBoundChange?.(null)}
+          >
+            <span>{CHAIN_BOUND_LABEL[bound]}</span>
+            <strong className="ast-num">{loop ? loop[bound] : unknown}</strong>
+          </Link>
         </li>
       ))}
     </ul>
@@ -672,6 +723,7 @@ function RailStep({ label }: { label: string }) {
 export function ArchitecturePage() {
   const [payload, setPayload] = useState<ArchitecturePayload | null>(null);
   const [payloadError, setPayloadError] = useState('');
+  const [activeBound, setActiveBound] = useState<ChainBound | null>(null);
   /**
    * The checks, from the one mechanism that runs them.
    *
@@ -826,7 +878,7 @@ export function ArchitecturePage() {
       ))}
 
       <ArchitectureTiles dependencies={dependencyNodes().length} readings={drawn} />
-      <ChainBoundTiles loop={loop} />
+      <ChainBoundTiles activeBound={activeBound} loop={loop} onActiveBoundChange={setActiveBound} />
 
       <section className="arch-flow" aria-labelledby="arch-flow-title">
         <div className="arch-flow-head">
@@ -835,7 +887,7 @@ export function ArchitecturePage() {
           </h3>
         </div>
         <ArchitectureDiagramBoundary key={`${checkedAt}:${payload?.readAt ?? ''}`}>
-          <ArchitectureCanvas byResource={byResource} now={now} payload={payload} />
+          <ArchitectureCanvas activeBound={activeBound} byResource={byResource} now={now} payload={payload} />
         </ArchitectureDiagramBoundary>
       </section>
 
