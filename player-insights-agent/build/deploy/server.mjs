@@ -167012,6 +167012,9 @@ function stageOf(event) {
 function isFlush(event) {
   return event.type === "response.in_progress";
 }
+function isAnnouncement(stage) {
+  return stage.status === "running";
+}
 async function* sseEvents(body) {
   const decoder = new TextDecoder();
   let buffer = "";
@@ -167060,12 +167063,14 @@ async function consumeServingStream(body, onStage) {
   const output = [];
   let customOutputs2 = null;
   let stages = 0;
+  let announced = 0;
   try {
     for await (const event of sseEvents(body)) {
       if (isFlush(event)) continue;
       const stage = stageOf(event);
       if (stage) {
-        stages += 1;
+        if (isAnnouncement(stage)) announced += 1;
+        else stages += 1;
         try {
           onStage(stage);
         } catch (error48) {
@@ -167081,16 +167086,16 @@ async function consumeServingStream(body, onStage) {
   } catch (error48) {
     if (customOutputs2 === null && output.length === 0) {
       console.warn(
-        `[serving] Stream died after ${stages} stage(s): ${error48.message}`
+        `[serving] Stream died after ${stages} stage(s) and ${announced} announcement(s): ${error48.message}`
       );
-      throw new TruncatedStreamError(stages);
+      throw new TruncatedStreamError(stages, announced);
     }
     console.warn(
       `[serving] Stream died after the answer arrived (${error48.message}); keeping it.`
     );
   }
   if (customOutputs2 === null && output.length === 0) {
-    throw new TruncatedStreamError(stages);
+    throw new TruncatedStreamError(stages, announced);
   }
   return { output, custom_outputs: customOutputs2 ?? {} };
 }
@@ -167098,11 +167103,27 @@ var TruncatedStreamError;
 var init_serving_stream = __esm({
   "server/lib/serving-stream.ts"() {
     TruncatedStreamError = class extends Error {
+      /**
+       * Stages that reported finished work.
+       *
+       * COUNTS WORK, NOT EVENTS, because this is the number the transport branches
+       * on when it decides whether asking again would run the stack twice. A
+       * `running` announcement says a step has started and nothing else: no tool
+       * has returned, nothing has been read, and there is no result a second
+       * attempt could duplicate. Counting those made a stream that died after two
+       * early pings look like a run worth keeping, so the blocking fallback -- the
+       * one path that still produces an answer at that point -- was skipped and the
+       * reader got STREAM_INTERRUPTED instead.
+       */
       stages;
-      constructor(stages) {
-        super(`The endpoint's stream ended after ${stages} stage(s) without returning an answer.`);
+      /** `running` announcements seen, kept so the log says what actually arrived. */
+      announced;
+      constructor(stages, announced = 0) {
+        const alsoSeen = announced > 0 ? ` (and ${announced} announcement(s))` : "";
+        super(`The endpoint's stream ended after ${stages} stage(s)${alsoSeen} without returning an answer.`);
         this.name = "TruncatedStreamError";
         this.stages = stages;
+        this.announced = announced;
       }
     };
   }
@@ -167319,12 +167340,6 @@ function appServicePrincipal() {
 function observedServingPrincipal() {
   return servingPrincipal;
 }
-function rememberServingPrincipal(report) {
-  if (report.principal_resolved !== true) return;
-  const id = typeof report.principal === "string" ? report.principal.trim() : "";
-  if (!id) return;
-  servingPrincipal = { id, observedAt: (/* @__PURE__ */ new Date()).toISOString() };
-}
 function declareAccessMode(email3, mode, detail) {
   if (mode === "user-verified") {
     throw new Error(
@@ -167396,6 +167411,7 @@ __export(insights_routes_exports, {
   SHARED_RUN_OWNER: () => SHARED_RUN_OWNER,
   TraceSchema: () => TraceSchema,
   agentEndpointCheck: () => agentEndpointCheck,
+  agentEndpointMetadataCheck: () => agentEndpointMetadataCheck,
   applySchema: () => applySchema,
   benchmarkRunTrace: () => benchmarkRunTrace,
   bootMigrationMode: () => bootMigrationMode,
@@ -167750,6 +167766,22 @@ function agentEndpointCheck(endpointName, outcome) {
       // API call, so both facts are already in front of the reader.
       guidance: ""
     }
+  };
+}
+function agentEndpointMetadataCheck(endpointName, outcome) {
+  return {
+    id: "agent-endpoint",
+    kind: "serving-endpoint",
+    name: endpointName || "(unset)",
+    label: `Agent endpoint \xB7 ${endpointName || "(unset)"}`,
+    status: outcome.status,
+    detail: outcome.detail,
+    checked_with: "GET /api/2.0/serving-endpoints/:name",
+    duration_ms: 0,
+    error: outcome.error ?? "",
+    // A metadata read cannot distinguish CAN_QUERY from its absence. Offering a
+    // query grant here would claim that CAN_VIEW proved a query denial.
+    remedy: null
   };
 }
 function countChecks(checks) {
@@ -168210,8 +168242,12 @@ function createServingTransport(resolveClient) {
       return await consumeServingStream(streamed.contents, onStage);
     } catch (error48) {
       if (!(error48 instanceof TruncatedStreamError)) throw error48;
+      if (error48.stages > 0) {
+        console.warn(`[serving] ${error48.message} Keeping the partial run; no second invocation will be started.`);
+        throw error48;
+      }
       console.warn(
-        `[serving] ${error48.message} Asking again without streaming, which does not depend on the connection surviving the whole run.`
+        `[serving] ${error48.message} No stage reported work; asking once without streaming.`
       );
       const blocking = { ...payload, stream: false };
       return client.request({
@@ -168310,6 +168346,28 @@ async function invokeServingAsUser(appkit, payload, userToken, onStage, timeoutM
 async function invokePreflight(appkit, candidate) {
   return invokeServing(appkit, buildPreflightServingBody(candidate), void 0, PREFLIGHT_TIMEOUT_MS);
 }
+async function readServingEndpointMetadata(appkit, endpointName) {
+  const existing = endpointMetadataFlights.get(appkit);
+  if (existing) return existing;
+  const request = (async () => {
+    if (appkit.servingEndpointReader) return appkit.servingEndpointReader(endpointName);
+    const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+    return new WorkspaceClient6({}).servingEndpoints.get({ name: endpointName });
+  })();
+  endpointMetadataFlights.set(appkit, request);
+  try {
+    return await request;
+  } finally {
+    if (endpointMetadataFlights.get(appkit) === request) endpointMetadataFlights.delete(appkit);
+  }
+}
+function servingEndpointReadyState(metadata) {
+  if (!metadata || typeof metadata !== "object") return "";
+  const state = metadata.state;
+  if (!state || typeof state !== "object") return "";
+  const ready = state.ready;
+  return typeof ready === "string" ? ready.trim() : "";
+}
 async function safeQuery(appkit, sql3, params = []) {
   const read2 = await readStored(appkit, describeSql(sql3), sql3, params);
   return { rows: read2.available ? read2.rows : [] };
@@ -168380,8 +168438,9 @@ function setupInsightsRoutes(appkit, options = {}) {
     app.use(requireAdmin(appkit.lakebase, userEmail));
     app.use(requireSuperAdmin(appkit.lakebase, userEmail));
     app.use(requestLatencyRecorder(appkit.lakebase));
-    app.post("/api/warehouse-warmup", (_req, res) => {
+    app.post("/api/warehouse-warmup", (req, res) => {
       warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
+      warmGenieWarehousesForArrival(req, {});
       res.status(202).json({ accepted: true });
     });
     app.get("/api/identity", async (req, res) => {
@@ -168571,24 +168630,38 @@ function setupInsightsRoutes(appkit, options = {}) {
       console.log(`[access] ${email3} \u2192 user-verified on warehouse ${warehouseId2} (${outcome.ok} tables)`);
       res.json({ verified: true, ...outcome, decision, servingPrincipal: serving2 });
     });
-    app.get("/api/preflight", async (req, res) => {
-      warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
+    app.get("/api/preflight", async (_req, res) => {
       const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "";
-      let raw2;
+      if (!endpointName.trim()) {
+        const missing = withStorageCheck(
+          preflightFailure(
+            agentEndpointMetadataCheck(endpointName, {
+              status: "failed",
+              detail: "No agent endpoint is configured for this app.",
+              error: "DATABRICKS_SERVING_ENDPOINT_NAME is unset."
+            }),
+            "No serving invocation was attempted. Endpoint visibility and query permission are separate checks."
+          ),
+          lakebaseStorageCheck()
+        );
+        res.status(503).json({ ...missing, error: "preflight_unavailable" });
+        return;
+      }
+      let metadata;
       try {
-        raw2 = await invokePreflight(appkit);
+        metadata = await readServingEndpointMetadata(appkit, endpointName);
       } catch (error48) {
         const message = error48.message;
-        console.warn("[preflight] Agent endpoint could not be invoked:", message);
+        console.warn("[preflight] Agent endpoint metadata could not be read:", message);
         res.status(503).json({
           ...withStorageCheck(
             preflightFailure(
-              agentEndpointCheck(endpointName, {
+              agentEndpointMetadataCheck(endpointName, {
                 status: "failed",
-                detail: "The app could not invoke the agent endpoint, so nothing behind it was checked.",
+                detail: "The app could not read the configured agent endpoint metadata.",
                 error: message
               }),
-              "Nothing beyond the endpoint was checked, so the agent\u2019s own dependencies are unknown rather than healthy."
+              "No serving invocation was attempted. CAN_VIEW and CAN_QUERY are separate grants, so this says nothing about whether this principal can ask a question."
             ),
             lakebaseStorageCheck()
           ),
@@ -168596,42 +168669,18 @@ function setupInsightsRoutes(appkit, options = {}) {
         });
         return;
       }
-      warmGenieWarehousesForArrival(req, raw2);
-      const report = extractPreflightReport(raw2);
-      if (!report) {
-        const retired = withStorageCheck(
-          preflightFailure(
-            agentEndpointCheck(endpointName, {
-              status: "ok",
-              detail: "The app invoked the agent endpoint and it answered."
-            }),
-            "The agent endpoint no longer reports on its dependencies. Whether a principal can reach a table, a warehouse or a Genie space is answered by Unity Catalog and the workspace, which hold the grants."
-          ),
-          lakebaseStorageCheck()
-        );
-        res.status(preflightHttpStatus(retired)).json({ ...retired, error: "preflight_retired" });
-        return;
-      }
-      rememberServingPrincipal(report);
-      const checks = [
-        agentEndpointCheck(endpointName, {
-          status: "ok",
-          detail: "The app invoked the agent endpoint and it returned a dependency report."
-        }),
-        // The agent reports on what the agent can reach. Lakebase is the app's
-        // own dependency, so a healthy agent must not be able to make the page
-        // look green while the app is failing to read its store.
-        lakebaseStorageCheck(),
-        ...report.checks
-      ];
-      const answered = {
-        ...report,
-        checks,
-        status: overallStatus(checks),
-        counts: countChecks(checks),
-        source: "agent"
-      };
-      res.status(preflightHttpStatus(answered)).json(answered);
+      const state = servingEndpointReadyState(metadata);
+      const report = withStorageCheck(
+        preflightFailure(
+          agentEndpointMetadataCheck(endpointName, {
+            status: "ok",
+            detail: `The configured endpoint metadata is reachable${state ? ` (state ${state})` : ""}. This does not prove that the current principal may query it.`
+          }),
+          "No serving invocation was attempted. Endpoint visibility (CAN_VIEW) and query permission (CAN_QUERY) are separate, and dependencies remain unchecked."
+        ),
+        lakebaseStorageCheck()
+      );
+      res.status(preflightHttpStatus(report)).json({ ...report, error: "preflight_metadata_only" });
     });
     app.get("/api/conversations", async (req, res) => {
       const { sql: sql3, params } = conversationListQuery(userEmail(req));
@@ -169252,6 +169301,30 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           return;
         }
       } catch (error48) {
+        if (error48 instanceof TruncatedStreamError && error48.stages > 0) {
+          console.error(
+            `[serving] The stream ended after ${error48.stages} stage(s). The partial run was kept and no second invocation was started.`
+          );
+          await settleRun(appkit, admission, {
+            to: terminalStateFor("STREAM_INTERRUPTED"),
+            code: "STREAM_INTERRUPTED"
+          });
+          reply.status(unavailableHttpStatus("STREAM_INTERRUPTED")).json(
+            unavailableResult({
+              code: "STREAM_INTERRUPTED",
+              requestId: identity.correlationId,
+              runId: admission.run?.runId ?? null,
+              persistence: admission.run ? "stored" : "not_stored",
+              executionIdentity: executionIdentityClaim(identity),
+              detail: error48.message,
+              evidence: agentEndpointEvidence(error48, {
+                principal: email3,
+                ...lastStage ? { stage: lastStage } : {}
+              })
+            })
+          );
+          return;
+        }
         if (error48 instanceof AuthorizationRefused) {
           await settleRun(appkit, admission, { to: terminalStateFor(error48.code), code: error48.code });
           reply.status(error48.httpStatus).json(
@@ -169633,7 +169706,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -170317,6 +170390,7 @@ var init_insights_routes = __esm({
         return this.code === "USER_NOT_AUTHORIZED" ? "The endpoint refused this request under the signed-in user\u2019s own credential." : "The signed-in user\u2019s credential was not accepted by the endpoint.";
       }
     };
+    endpointMetadataFlights = /* @__PURE__ */ new WeakMap();
     MIGRATIONS = buildMigrations(schemaStatements);
     MIGRATE_ON_BOOT_ENV = "PLAYER_INSIGHTS_MIGRATE_ON_BOOT";
   }
