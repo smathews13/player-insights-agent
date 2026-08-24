@@ -1701,6 +1701,75 @@ def _json_payload(text: str) -> dict[str, Any]:
 
 SALVAGED_TAKEAWAY = "The analysis completed, but the structured presentation was incomplete."
 SALVAGED_CAVEAT = "Review the generated SQL and source details before using this result."
+DEADLINE_UNWRITTEN = "The turn deadline was reached before the answer could be written."
+DEADLINE_NO_RESULT = "The turn deadline was reached before a governed data result returned."
+DEADLINE_NO_RETRY = "The turn deadline left no time for a second formatting attempt."
+UNREACHABLE_TAKEAWAY = "This question was not answered."
+# Never a reader-facing takeaway. It was the deadline path's headline over a real
+# table, and it read as a clean finish the rest of the card then contradicted.
+CANNED_COMPLETED_TAKEAWAY = "The analysis completed from assessed sources."
+
+
+def _first_reader_takeaway(narrative: str) -> str:
+    """The first sentence a reader could take as a finding, or empty.
+
+    Tables, headings and the canned completion line are skipped: those are not
+    a takeaway, and promoting the canned line is the defect this exists to stop.
+    """
+
+    for line in narrative.splitlines():
+        text = line.strip().lstrip("#").strip()
+        if not text or "|" in text:
+            continue
+        if text == CANNED_COMPLETED_TAKEAWAY or text.lower().startswith("the analysis completed"):
+            continue
+        return text[:220]
+    return ""
+
+
+def _incomplete_synthesis(findings: str, *, has_readings: bool, reason: str) -> Synthesis:
+    """What the card gets when the writer never ran, without inventing a success.
+
+    A canned "the analysis completed" line over a real table is the reported
+    defect: the run had findings and the takeaway pretended it had finished
+    writing them. The findings stay; the headline is the first real sentence
+    in them, or an honest statement that the turn ended first.
+    """
+
+    narrative, package_caveats = reader_facing_findings(findings)
+    takeaway = _first_reader_takeaway(narrative)
+    if not takeaway:
+        takeaway = (
+            "The run gathered sources but the turn ended before a written answer."
+            if has_readings
+            else "The turn ended before all required evidence was available."
+        )
+    if not narrative.strip():
+        # LiveAnswerSchema used to require a non-empty narrative. An empty one
+        # dropped the whole structured result and the app stored a 0.0s
+        # prose-only card with no steps. Keep a sentence so the stages survive.
+        narrative = takeaway
+    return Synthesis(
+        takeaway=takeaway,
+        narrative=narrative,
+        caveats=[reason, *package_caveats],
+    )
+
+
+def _synthesis_stage_status(synthesis: Synthesis) -> str:
+    """Whether the writer finished, or the card is findings without an answer."""
+
+    if synthesis.takeaway == UNREACHABLE_TAKEAWAY:
+        return "failed"
+    joined = " ".join(synthesis.caveats).casefold()
+    if (
+        "turn deadline" in joined
+        or synthesis.caveats[:1] == [SALVAGED_CAVEAT]
+        or "structured presentation was incomplete" in joined
+        or "not reachable" in joined
+    ):
+        return "partial"
+    return "complete"
 
 
 def _salvaged_synthesis(text: str, findings: str) -> Synthesis:
@@ -1753,8 +1822,14 @@ def _salvaged_synthesis(text: str, findings: str) -> Synthesis:
     if not narrative:
         narrative, package_caveats = reader_facing_findings(findings)
 
+    takeaway = text_field("takeaway") or _first_reader_takeaway(narrative) or SALVAGED_TAKEAWAY
+    if takeaway == CANNED_COMPLETED_TAKEAWAY:
+        takeaway = _first_reader_takeaway(narrative) or SALVAGED_TAKEAWAY
+    if not narrative.strip():
+        narrative = takeaway
+
     return Synthesis(
-        takeaway=text_field("takeaway") or SALVAGED_TAKEAWAY,
+        takeaway=takeaway,
         narrative=narrative,
         content=text_field("content"),
         caveats=[SALVAGED_CAVEAT, *salvaged_caveats, *package_caveats],
@@ -3867,25 +3942,13 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             # before it is shown; see reader_facing_findings for what comes out and
             # why. It used to be passed through whole, which put the finder's column
             # inventory and per-query provenance on the customer's screen under a
-            # `## DATA PACKAGE` heading.
-            narrative, package_caveats = reader_facing_findings(findings)
-            deadline = "The turn deadline was reached before the answer could be written."
-            return Synthesis(
-                takeaway=(
-                    "The analysis completed from assessed sources."
-                    if log.readings
-                    else "The turn ended before all required evidence was available."
-                ),
-                narrative=narrative,
-                # The deadline is stated first because it governs how everything
-                # under it should be read: these are the run's own findings rather
-                # than an answer written from them.
-                caveats=[
-                    deadline
-                    if log.readings
-                    else "The turn deadline was reached before a governed data result returned.",
-                    *package_caveats,
-                ],
+            # `## DATA PACKAGE` heading. The takeaway used to be a canned
+            # "analysis completed" line over those findings, which is why a real
+            # table sat under a headline that claimed the answer was finished.
+            return _incomplete_synthesis(
+                findings,
+                has_readings=bool(log.readings),
+                reason=DEADLINE_UNWRITTEN if log.readings else DEADLINE_NO_RESULT,
             )
         _, client = self._runtime()
         log.calls += 1
@@ -3972,17 +4035,10 @@ Tables actually read this run:
                 if log.remaining < 5.0:
                     # Reduced, not pasted: the same argument as the budget branch at
                     # the top of this method. See reader_facing_findings.
-                    narrative, package_caveats = reader_facing_findings(findings)
-                    return Synthesis(
-                        takeaway=(
-                            "The analysis completed, but the structured presentation "
-                            "was incomplete."
-                        ),
-                        narrative=narrative,
-                        caveats=[
-                            "The turn deadline left no time for a second formatting attempt.",
-                            *package_caveats,
-                        ],
+                    return _incomplete_synthesis(
+                        findings,
+                        has_readings=bool(log.readings),
+                        reason=DEADLINE_NO_RETRY,
                     )
                 try:
                     response = client.chat.completions.create(**kwargs)
@@ -4002,15 +4058,12 @@ Tables actually read this run:
                     # a scratchpad into -- the takeaway already says the question was
                     # not answered, so the internal apparatus under it was the only
                     # thing on the card and read as the answer.
-                    narrative, package_caveats = reader_facing_findings(findings)
-                    return Synthesis(
-                        takeaway="This question was not answered.",
-                        narrative=narrative,
-                        caveats=[
-                            f"The model that writes the answer was not reachable: {reason}.",
-                            *package_caveats,
-                        ],
+                    incomplete = _incomplete_synthesis(
+                        findings,
+                        has_readings=bool(log.readings),
+                        reason=f"The model that writes the answer was not reachable: {reason}.",
                     )
+                    return incomplete.model_copy(update={"takeaway": UNREACHABLE_TAKEAWAY})
             text = response.choices[0].message.content or ""
             span.set_outputs({"text": text[:6000], "structured_output": structured})
             log.add_usage(record_llm_usage(span, response))
@@ -4891,6 +4944,7 @@ Tables available to this analysis, with their columns:
             synthesis_started,
             outcome.answer_text or "(the loop produced no findings)",
             synthesis.takeaway,
+            _synthesis_stage_status(synthesis),
             depth=1,
             parent_id=orchestrator.id,
         )

@@ -170,6 +170,13 @@ describe('the finder’s internal package', () => {
     expect(proseOnlyAnswer('msg-1', PACKAGE).takeaway).toBe('This question was not answered.');
   });
 
+  it('does not headline a canned completion line as a finding', () => {
+    const answer = proseOnlyAnswer('msg-1', 'The analysis completed from assessed sources.');
+    expect(answer.takeaway).toBe(PROSE_ONLY_FALLBACK_TAKEAWAY);
+    expect(answer.narrative).toBe('');
+    expect(answer.takeaway).not.toContain('analysis completed');
+  });
+
   it('leaves an ordinary prose reply completely alone', () => {
     // The common case, and the one this must not touch: no lead-ins means there
     // is no package here, only somebody's sentences.

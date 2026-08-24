@@ -39,7 +39,7 @@ import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { PROSE_ONLY_ANSWER_CAVEAT } from '../../shared/prose-only-answer';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
-import { runVerdict, VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
+import { answerRunVerdict, runVerdict, VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
 import { unavailableHttpStatus } from '../../shared/terminal-response';
 import type { FailureEvidence } from '../../shared/failure-evidence';
 import {
@@ -96,6 +96,16 @@ describe('extractStructuredAnswer', () => {
 
   it('rejects incomplete custom output', () => {
     expect(extractStructuredAnswer({ custom_outputs: { answer: { takeaway: 'Missing fields' } } })).toBeNull();
+  });
+
+  it('keeps a deadline answer whose narrative is empty so the stages are not thrown away', () => {
+    const stored = liveAnswerResponse.custom_outputs.answer;
+    const result = extractStructuredAnswer({
+      custom_outputs: { answer: { ...stored, narrative: '' } },
+    });
+    expect(result).not.toBeNull();
+    expect(result?.narrative).toBe('');
+    expect(result?.trace.stages.length).toBeGreaterThan(0);
   });
 
   it('round-trips a real response from the deployed serving endpoint', () => {
@@ -2521,7 +2531,17 @@ describe('the run verdict a chart cannot degrade', () => {
     expect(runVerdict([{ id: 'discover', status: 'partial' }, { id: 'synthesis', status: 'failed' }])).toBe('failed');
     // A step this rule cannot recognise counts, rather than being waved through.
     expect(runVerdict([{ status: 'partial' }])).toBe('partial');
-    expect(runVerdict([])).toBe('complete');
+    expect(runVerdict([])).toBe('failed');
+  });
+
+  it('does not call a deadline or salvage caveat a complete answer', () => {
+    expect(
+      answerRunVerdict({
+        stages: [{ id: 'synthesis', status: 'complete' }],
+        caveats: ['The turn deadline was reached before the answer could be written.'],
+      })
+    ).toBe('partial');
+    expect(answerRunVerdict({ stages: [], caveats: [] })).toBe('failed');
   });
 
   it('carries the same exemption into the SQL the store actually runs', () => {
@@ -2536,6 +2556,8 @@ describe('the run verdict a chart cannot degrade', () => {
     }
     expect(sql).toContain(`'$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})'`);
     expect(sql).toContain(`'$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'`);
+    expect(sql).toContain("jsonb_array_length(a.trace->'stages') = 0");
+    expect(sql).toContain('turn deadline');
     // No unfiltered stage-status predicate left anywhere in it, which is how the
     // old rule would come back: one branch updated and the other not.
     expect(sql).not.toContain('(@.status == "failed")');

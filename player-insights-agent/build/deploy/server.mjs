@@ -159875,6 +159875,10 @@ var init_repair_conversation_titles = __esm({
 });
 
 // shared/prose-only-answer.ts
+function isCannedFirstLine(text16) {
+  const value = text16.trim();
+  return !value || CANNED_FIRST_LINE.some((pattern) => pattern.test(value));
+}
 function readerFacingFindings(findings) {
   const sections = [];
   const preamble = [];
@@ -159914,10 +159918,19 @@ function readerFacingFindings(findings) {
 function proseOnlyAnswer(id, prose) {
   const firstLine = prose.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
   const reader = readerFacingFindings(prose);
+  const usableFirst = firstLine && !isCannedFirstLine(firstLine) ? firstLine : "";
+  const usableNarrative = reader.narrative.trim();
+  const takeaway = usableFirst ? usableFirst.slice(0, TAKEAWAY_LIMIT) : usableNarrative && !isCannedFirstLine(usableNarrative.split("\n")[0] ?? "") ? usableNarrative.split("\n")[0].slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY;
+  let narrative = usableNarrative;
+  if (isCannedFirstLine(narrative)) {
+    narrative = "";
+  } else if (isCannedFirstLine(narrative.split("\n")[0] ?? "")) {
+    narrative = narrative.split("\n").slice(1).join("\n").trim();
+  }
   return {
     id,
-    takeaway: firstLine ? firstLine.slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY,
-    narrative: reader.narrative,
+    takeaway,
+    narrative,
     content: "",
     figures: [],
     charts: [],
@@ -159942,12 +159955,17 @@ function stageCount(trace2) {
   const stages = trace2.stages;
   return Array.isArray(stages) ? stages.length : 0;
 }
-var PROSE_ONLY_ANSWER_CAVEAT, PROSE_ONLY_FALLBACK_TAKEAWAY, TAKEAWAY_LIMIT, PROSE_SECTIONS, CAVEAT_SECTIONS, LEAD_IN;
+var PROSE_ONLY_ANSWER_CAVEAT, PROSE_ONLY_FALLBACK_TAKEAWAY, CANNED_FIRST_LINE, TAKEAWAY_LIMIT, PROSE_SECTIONS, CAVEAT_SECTIONS, LEAD_IN;
 var init_prose_only_answer = __esm({
   "shared/prose-only-answer.ts"() {
     init_setup_remedies();
-    PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} the agent replied in prose rather than with a result, so the words above are its own and there are no figures, sources, SQL or stage timings under them. Nothing has been put in their place: this app shows what came back and does not complete an answer from anything stored.`;
-    PROSE_ONLY_FALLBACK_TAKEAWAY = "The agent answered in prose, without a structured result.";
+    PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived: there are no figures, sources, SQL or stage timings, and no tool steps were recorded. The agent did not complete a tool-backed answer. This app shows the text that came back and does not invent the rest.`;
+    PROSE_ONLY_FALLBACK_TAKEAWAY = "The agent did not return a structured result.";
+    CANNED_FIRST_LINE = [
+      /^the analysis completed\b/i,
+      /\bfrom assessed sources\b/i,
+      /^the agent answered in prose\b/i
+    ];
     TAKEAWAY_LIMIT = 220;
     PROSE_SECTIONS = ["Interpretation", "Findings / data"];
     CAVEAT_SECTIONS = ["Caveats & rules applied", "Gaps"];
@@ -159956,13 +159974,16 @@ var init_prose_only_answer = __esm({
 });
 
 // shared/run-verdict.ts
-var VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL;
+var VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, DEADLINE_TRUNCATED_SQL;
 var init_run_verdict = __esm({
   "shared/run-verdict.ts"() {
     VERDICT_EXEMPT_STAGE_IDS = ["plot"];
     VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
       (id) => `&& @.id != "${id}"`
     ).join(" ");
+    EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
+    INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable')`;
+    DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
   }
 });
 
@@ -164093,7 +164114,18 @@ var init_admin_roles_schema = __esm({
 });
 
 // shared/runtime-settings.ts
-var RuntimeEntityKindSchema, EntityStyleSchema, RuntimeSettingsSchema, DEFAULT_RUNTIME_SETTINGS;
+function sameHexStyle(left, right) {
+  return left.foreground.toLowerCase() === right.foreground.toLowerCase() && left.background.toLowerCase() === right.background.toLowerCase();
+}
+function upgradePaperEntityStyles(styles) {
+  return Object.fromEntries(
+    RuntimeEntityKindSchema.options.map((kind) => [
+      kind,
+      sameHexStyle(styles[kind], PAPER_ENTITY_STYLES[kind]) ? DEFAULT_ENTITY_STYLES[kind] : styles[kind]
+    ])
+  );
+}
+var RuntimeEntityKindSchema, EntityStyleSchema, PAPER_ENTITY_STYLES, DEFAULT_ENTITY_STYLES, RuntimeSettingsSchema, DEFAULT_RUNTIME_SETTINGS;
 var init_runtime_settings = __esm({
   "shared/runtime-settings.ts"() {
     init_zod();
@@ -164102,6 +164134,22 @@ var init_runtime_settings = __esm({
       foreground: external_exports.string().regex(/^#[0-9a-f]{6}$/i, "Use a six-digit hex color."),
       background: external_exports.string().regex(/^#[0-9a-f]{6}$/i, "Use a six-digit hex color.")
     });
+    PAPER_ENTITY_STYLES = {
+      catalog: { foreground: "#ffffff", background: "#0e538b" },
+      schema: { foreground: "#16324f", background: "#ddeaf4" },
+      table: { foreground: "#3a3838", background: "#e8e8e8" },
+      column: { foreground: "#3a3838", background: "#f4f4f4" },
+      quote: { foreground: "#46596b", background: "#f7f7f7" },
+      tag: { foreground: "#ffffff", background: "#243746" }
+    };
+    DEFAULT_ENTITY_STYLES = {
+      catalog: { foreground: "#8fc1e8", background: "#1b3049" },
+      schema: { foreground: "#f2f6fa", background: "#25323c" },
+      table: { foreground: "#f2f6fa", background: "#2e3337" },
+      column: { foreground: "#e8f2fa", background: "#1e2830" },
+      quote: { foreground: "#b7d6ee", background: "#181e23" },
+      tag: { foreground: "#f2f6fa", background: "#243746" }
+    };
     RuntimeSettingsSchema = external_exports.strictObject({
       loop: external_exports.strictObject({
         maxSteps: external_exports.number().int().min(1).max(20),
@@ -164142,14 +164190,7 @@ var init_runtime_settings = __esm({
         column: EntityStyleSchema,
         quote: EntityStyleSchema,
         tag: EntityStyleSchema
-      }).default({
-        catalog: { foreground: "#ffffff", background: "#0e538b" },
-        schema: { foreground: "#16324f", background: "#ddeaf4" },
-        table: { foreground: "#3a3838", background: "#e8e8e8" },
-        column: { foreground: "#3a3838", background: "#f4f4f4" },
-        quote: { foreground: "#46596b", background: "#f7f7f7" },
-        tag: { foreground: "#ffffff", background: "#243746" }
-      })
+      }).default(DEFAULT_ENTITY_STYLES).transform(upgradePaperEntityStyles)
     });
     DEFAULT_RUNTIME_SETTINGS = {
       loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 90 },
@@ -164175,14 +164216,7 @@ var init_runtime_settings = __esm({
         injectCurrentDate: false
       },
       colorScheme: "dark",
-      entityStyles: {
-        catalog: { foreground: "#ffffff", background: "#0e538b" },
-        schema: { foreground: "#16324f", background: "#ddeaf4" },
-        table: { foreground: "#3a3838", background: "#e8e8e8" },
-        column: { foreground: "#3a3838", background: "#f4f4f4" },
-        quote: { foreground: "#46596b", background: "#f7f7f7" },
-        tag: { foreground: "#ffffff", background: "#243746" }
-      }
+      entityStyles: DEFAULT_ENTITY_STYLES
     };
   }
 });
@@ -169936,7 +169970,10 @@ var init_insights_routes = __esm({
     LiveAnswerSchema = external_exports.looseObject({
       id: external_exports.string().min(1),
       takeaway: external_exports.string().min(1),
-      narrative: external_exports.string().min(1),
+      // Empty is allowed: a deadline-stopped run can have a takeaway and no written
+      // narrative. Requiring a sentence here used to drop the structured result and
+      // store a 0.0s prose-only card with the stages thrown away.
+      narrative: external_exports.string(),
       // Added by the notebook answer shape. Defaulted so an older served model and
       // a newer app can overlap safely during rollout.
       content: external_exports.string().default(""),
@@ -169994,7 +170031,7 @@ var init_insights_routes = __esm({
     SHARED_RUN_OWNER = "Another team member";
     RUNS_QUERY = `
   WITH answers AS (SELECT m.id, m.conversation_id, m.created_at,
-           m.response_json->'trace' AS trace, c.user_email
+           m.response_json->'trace' AS trace, m.response_json->'caveats' AS caveats, c.user_email
     FROM ${APP_SCHEMA}.messages m
     JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
     -- A plan proposal has no trace and is not yet a run; an answer always has one.
@@ -170017,9 +170054,14 @@ var init_insights_routes = __esm({
          -- chart used to publish a sound answer as 'partial' on every surface
          -- that draws this column; see shared/run-verdict.ts for why that is the
          -- one step whose outcome says nothing about the answer above it.
+         -- Empty stages used to fall through to complete, which painted a green
+         -- badge on a 0.0s card that recorded nothing. A deadline caveat on an
+         -- otherwise-green stage list is partial, not a finished answer.
          CASE
+           WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("a.trace")} THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
+           WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join("a.caveats")} THEN 'partial'
            ELSE 'complete'
          END AS status,
          -- Whether the run stopped before it had finished. The two halves record
@@ -170028,9 +170070,12 @@ var init_insights_routes = __esm({
          -- conversation run that hit one of the agent's bounds closes with the
          -- cap stage, which the agent emits on that path and no other. Matched on
          -- the stage id rather than its name, because the name is prose someone
-         -- will reword. NO BACKTICKS BELOW THIS LINE: this is a template literal,
+         -- will reword. Deadline caveats are the other half: synthesis can stop
+         -- for time without emitting a cap stage.
+         -- NO BACKTICKS BELOW THIS LINE: this is a template literal,
          -- and one in a SQL comment ends the query rather than quoting a word.
-         jsonb_path_exists(a.trace, '$.stages[*] ? (@.id == "cap")') AS truncated,
+         (jsonb_path_exists(a.trace, '$.stages[*] ? (@.id == "cap")')
+           OR ${DEADLINE_TRUNCATED_SQL.split("caveats").join("a.caveats")}) AS truncated,
          -- Which Genie spaces answered this run, as the run itself recorded them.
          -- The choice is made at request time from settings baked into the model
          -- artifact, so the app cannot look it up: this column is the only place
@@ -170307,11 +170352,14 @@ var init_insights_routes = __esm({
   LEFT JOIN LATERAL (
     SELECT
       CASE
+        WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("m.response_json->'trace'")} THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
+        WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join("m.response_json->'caveats'")} THEN 'partial'
         ELSE 'complete'
       END AS status,
-      jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")') AS truncated,
+      (jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")')
+        OR ${DEADLINE_TRUNCATED_SQL.split("caveats").join("m.response_json->'caveats'")}) AS truncated,
       ROUND((m.response_json->'trace'->>'totalMs')::numeric)::int AS duration_ms
     FROM ${APP_SCHEMA}.messages m
     WHERE m.conversation_id = c.id

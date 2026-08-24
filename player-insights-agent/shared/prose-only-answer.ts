@@ -37,10 +37,9 @@ import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
  * had nothing to show" from "this app dropped them".
  */
 export const PROSE_ONLY_ANSWER_CAVEAT =
-  `${DEGRADED_ANSWER_MARKER} the agent replied in prose rather than with a result, so the words above ` +
-  'are its own and there are no figures, sources, SQL or stage timings under them. Nothing has been ' +
-  'put in their place: this app shows what came back and does not complete an answer from anything ' +
-  'stored.';
+  `${DEGRADED_ANSWER_MARKER} no structured result arrived: there are no figures, sources, SQL or ` +
+  'stage timings, and no tool steps were recorded. The agent did not complete a tool-backed answer. ' +
+  'This app shows the text that came back and does not invent the rest.';
 
 /**
  * The takeaway when the prose opens with nothing usable as one.
@@ -49,7 +48,18 @@ export const PROSE_ONLY_ANSWER_CAVEAT =
  * about data. Anything with a subject from the question in it would be this
  * module writing a finding.
  */
-export const PROSE_ONLY_FALLBACK_TAKEAWAY = 'The agent answered in prose, without a structured result.';
+export const PROSE_ONLY_FALLBACK_TAKEAWAY = 'The agent did not return a structured result.';
+
+const CANNED_FIRST_LINE = [
+  /^the analysis completed\b/i,
+  /\bfrom assessed sources\b/i,
+  /^the agent answered in prose\b/i,
+];
+
+function isCannedFirstLine(text: string): boolean {
+  const value = text.trim();
+  return !value || CANNED_FIRST_LINE.some((pattern) => pattern.test(value));
+}
 
 /** How much of the first line is used as the takeaway. */
 const TAKEAWAY_LIMIT = 220;
@@ -212,10 +222,23 @@ export function proseOnlyAnswer(id: string, prose: string): ProseOnlyAnswer {
    */
   const firstLine = prose.split('\n').map((line) => line.trim()).find((line) => line.length > 0);
   const reader = readerFacingFindings(prose);
+  const usableFirst = firstLine && !isCannedFirstLine(firstLine) ? firstLine : '';
+  const usableNarrative = reader.narrative.trim();
+  const takeaway = usableFirst
+    ? usableFirst.slice(0, TAKEAWAY_LIMIT)
+    : usableNarrative && !isCannedFirstLine(usableNarrative.split('\n')[0] ?? '')
+      ? usableNarrative.split('\n')[0].slice(0, TAKEAWAY_LIMIT)
+      : PROSE_ONLY_FALLBACK_TAKEAWAY;
+  let narrative = usableNarrative;
+  if (isCannedFirstLine(narrative)) {
+    narrative = '';
+  } else if (isCannedFirstLine(narrative.split('\n')[0] ?? '')) {
+    narrative = narrative.split('\n').slice(1).join('\n').trim();
+  }
   return {
     id,
-    takeaway: firstLine ? firstLine.slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY,
-    narrative: reader.narrative,
+    takeaway,
+    narrative,
     content: '',
     figures: [],
     charts: [],

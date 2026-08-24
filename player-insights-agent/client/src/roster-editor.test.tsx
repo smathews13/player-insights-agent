@@ -15,6 +15,7 @@
  * customer domain, and a real address in a test file is a real address in the
  * published tree.
  */
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
@@ -93,6 +94,7 @@ describe('the row offers only what the server allows', () => {
       entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
     });
     expect(markup).toContain('settings-destructive');
+    expect(markup).toContain('roster-control');
   });
 
   it('names the row in the control, so a screen reader is not given a bare menu', () => {
@@ -119,6 +121,8 @@ describe('the #24a roster row', () => {
     expect(text(markup)).toContain(`${LEAD} you Seed Super admin`);
     expect(markup).toContain('title="Set at deployment. Edit the bundle variable to change it."');
     expect(markup).toContain('roster-role-chip-super-admin');
+    expect(markup).toContain('roster-control');
+    expect(markup).toContain('roster-grid');
     expect(markup).toContain('roster-row-lock');
   });
 
@@ -175,23 +179,29 @@ describe('the #24a Roles geometry', () => {
   });
 
   /**
-   * SAM'S REPORT, AS A TEST. "Role · Admin" was clipped to "Role · A..." and Add sat
-   * against the card's right edge nearly on top of the dropdown. The three controls
-   * shared one flex line and the two fixed-width ones were shrinking, so the fix is
-   * about which control gives way: the address field, which is the only one whose
-   * content is not a fixed label.
+   * SAM'S REPORT, AS A TEST. The add email field was wider than the addresses
+   * above it, so Role and Add did not line up with the row controls, and a
+   * leftover flex gap sat between the name and the actions. One three-column
+   * grid for every row and the Add line is the whole of the geometry.
    */
-  it('shrinks the address field rather than the role dropdown or the Add button', () => {
-    // The dropdown is never narrower than "Role · Super admin", in the add row or
-    // in a row's own controls.
+  it('puts identity, role and action on one shared grid, including Add', () => {
+    expect(css).toMatch(
+      /\.roster-grid \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(10\.5rem, max-content\) 5\.75rem/
+    );
+    expect(rows({ entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })] })).toContain(
+      'roster-grid'
+    );
+
+    const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
+    expect(editor).toMatch(/className="admin-add roster-grid"/);
+    expect(editor).toContain('roster-frame');
+  });
+
+  it('gives the address field the shrinking column and keeps role and action whole', () => {
     expect(css).toMatch(/\.roster-role-select \{[^}]*flex:\s*0 0 auto/);
+    expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*15rem/);
     expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*flex:\s*none/);
-    // The one control with room to give, and it may give all of it.
-    expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*flex:\s*1 1 14rem/);
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
-    // Too narrow for all three and the row wraps, rather than overlapping.
-    expect(css).toMatch(/\.admin-add \{[^}]*flex-wrap:\s*wrap/);
-    // Inside the card's own 16px, with the same gap between all three.
     expect(css).toMatch(/\.admin-add \{[^}]*gap:\s*8px/);
     expect(css).toMatch(/\.settings-page \[data-slot='card-content'\] \{[^}]*padding-inline:\s*16px/);
   });
@@ -410,6 +420,8 @@ describe('the badge and the layout', () => {
 });
 
 describe("the controls are the app's own", () => {
+  const css = partial('settings.css');
+
   it('uses the shared app dropdown recipe for roles', () => {
     const base = partial('base.css');
     expect(base).toMatch(/\.app-select-trigger \{[^}]*border-radius: var\(--radius-sm\)/);
@@ -417,7 +429,34 @@ describe("the controls are the app's own", () => {
   });
 
   it('holds the locked line in the column the select would occupy', () => {
-    expect(partial('settings.css')).toMatch(/\.roster-row-locked \{[^}]*text-align: right/);
+    expect(css).toMatch(/\.roster-row-locked \{[^}]*text-align: left/);
+  });
+
+  /**
+   * SAM'S REPORT, AS A TEST. Four unrelated control recipes sat in one list:
+   * a Super-admin plaque, a Role dropdown, a solid red Remove, and a blue Add.
+   * One quiet field language covers the dropdown, the lock, Add and Remove;
+   * Remove stays destructive by ink, not by a filled slab.
+   */
+  it('shares one quiet control language across the roster, with Remove as an outline', () => {
+    expect(css).toMatch(/\.roster-control,\s*\.roster-role-chip \{[^}]*height:\s*32px/);
+    expect(css).toMatch(/\.roster-control,\s*\.roster-role-chip \{[^}]*border:\s*1px solid var\(--ast-border-input\)/);
+    expect(css).toMatch(/\.roster-control,\s*\.roster-role-chip \{[^}]*background:\s*var\(--card\)/);
+    expect(css).toMatch(
+      /\.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*transparent/
+    );
+    expect(css).toMatch(
+      /html\[data-theme='dark'\] \.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*transparent/
+    );
+    expect(css).toMatch(
+      /html\[data-theme='dark'\] \.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*color:\s*var\(--ast-destructive-control\)/
+    );
+
+    const markup = rows({
+      entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
+    });
+    expect(markup).toContain('roster-control roster-role-select');
+    expect(markup).toContain('roster-control settings-destructive');
   });
 });
 

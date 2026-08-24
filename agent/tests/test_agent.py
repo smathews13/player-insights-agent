@@ -3357,32 +3357,69 @@ class TestTheInternalPackageIsNotShownAsAnAnswer:
         endpoint, and what has to be pinned is that NONE of the three ways out of this
         method hands the raw package over.
 
-        There were three, which is why this is asserted as an absence rather than per
-        branch: the budget check at the top, the structured-output fallback with no
-        time for a second attempt, and the endpoint failure. The last was the worst --
-        its takeaway already says the question was not answered, so the apparatus
-        underneath was the only thing on the card and read as the answer.
+        The three exits all go through `_incomplete_synthesis`, which is the one
+        place that may read the findings, so a fourth paste cannot be added in a
+        branch without showing up here.
         """
 
         source = inspect.getsource(agent.PlayerInsightsResponsesAgent._synthesize)
         assert "narrative=findings" not in source
-        assert source.count("reader_facing_findings(findings)") == 3
-        assert source.count("*package_caveats") == 3
-        # And in each branch the run's own reason is the caveat BEFORE the package's,
-        # because it governs how everything under it should be read: these are
-        # findings, not an answer written from them. Asserted on the shape of the
-        # list rather than on a distance in characters, so reformatting the branch
-        # cannot fail it and reordering the list still does.
-        leads = re.findall(r"caveats=\[\s*([^\[\]]*?),\s*\*package_caveats", source, re.S)
-        assert len(leads) == 3
-        for lead in leads:
-            assert lead.strip(), "the package's caveats are not first in the list"
+        assert source.count("_incomplete_synthesis(") == 3
+        assert "CANNED_COMPLETED_TAKEAWAY" not in source
         for reason in (
-            "The turn deadline was reached before the answer could be written",
-            "The turn deadline left no time for a second formatting attempt",
+            "DEADLINE_UNWRITTEN",
+            "DEADLINE_NO_RESULT",
+            "DEADLINE_NO_RETRY",
             "The model that writes the answer was not reachable",
         ):
             assert reason in source
+
+
+class TestIncompleteSynthesis:
+    """Deadline and salvage must not headline a real table with a canned success."""
+
+    PACKAGE = (
+        "## DATA PACKAGE\n"
+        "- **Interpretation:** Distinct players for Iron Frontier Reckoning 2 by platform.\n"
+        "- **Findings / data:**\n"
+        "PC led on distinct players.\n\n"
+        "| platform | total_distinct_players |\n"
+        "| --- | ---: |\n"
+        "| PC | 18402 |\n"
+        "- **Gaps:** The turn deadline was reached before the answer could be written."
+    )
+
+    def test_a_deadline_run_headlines_the_finding_not_a_canned_completion(self):
+        salvaged = agent._incomplete_synthesis(
+            self.PACKAGE, has_readings=True, reason=agent.DEADLINE_UNWRITTEN
+        )
+        assert salvaged.takeaway != "The analysis completed from assessed sources."
+        assert "The analysis completed from assessed sources." not in salvaged.takeaway
+        assert salvaged.caveats[0] == agent.DEADLINE_UNWRITTEN
+        assert "PC | 18402" in salvaged.narrative
+        assert salvaged.takeaway  # a real sentence, not empty
+
+    def test_no_readings_says_the_turn_ended_without_evidence(self):
+        salvaged = agent._incomplete_synthesis(
+            "", has_readings=False, reason=agent.DEADLINE_NO_RESULT
+        )
+        assert salvaged.takeaway == "The turn ended before all required evidence was available."
+        assert salvaged.narrative.strip() != ""
+        assert salvaged.caveats[0] == agent.DEADLINE_NO_RESULT
+
+    def test_synthesis_stage_is_partial_when_the_writer_never_ran(self):
+        salvaged = agent._incomplete_synthesis(
+            self.PACKAGE, has_readings=True, reason=agent.DEADLINE_UNWRITTEN
+        )
+        assert agent._synthesis_stage_status(salvaged) == "partial"
+
+    def test_an_unreachable_writer_fails_the_stage(self):
+        assert (
+            agent._synthesis_stage_status(
+                agent.Synthesis(takeaway=agent.UNREACHABLE_TAKEAWAY, narrative="x")
+            )
+            == "failed"
+        )
 
 
 def test_headline_figures_are_bounded_without_fabricating_them():
@@ -3504,13 +3541,20 @@ class TestSalvagedSynthesis:
 
         assert agent._salvaged_synthesis(self.PAYLOAD, "").figures == []
 
-    def test_a_response_that_is_not_json_falls_back_to_the_readable_findings(self):
-        package = "## DATA PACKAGE\nInterpretation: counted the tables\nSources used: catalog"
+    def test_a_payload_with_no_takeaway_uses_the_finding_not_a_canned_line(self):
+        package = (
+            "## DATA PACKAGE\n- **Findings / data:**\nFive tables are queryable in the catalog."
+        )
         salvaged = agent._salvaged_synthesis("The model wrote prose instead.", package)
+        assert salvaged.takeaway == "Five tables are queryable in the catalog."
+        assert salvaged.takeaway != agent.SALVAGED_TAKEAWAY
+        assert salvaged.takeaway != agent.CANNED_COMPLETED_TAKEAWAY
 
+    def test_a_blank_payload_and_blank_findings_uses_the_honest_fallback(self):
+        salvaged = agent._salvaged_synthesis("", "")
         assert salvaged.takeaway == agent.SALVAGED_TAKEAWAY
-        # The finder's package is an internal handoff; its scaffolding is not prose.
-        assert "## DATA PACKAGE" not in salvaged.narrative
+        assert salvaged.narrative == agent.SALVAGED_TAKEAWAY
+        assert salvaged.caveats[0] == agent.SALVAGED_CAVEAT
 
     def test_a_payload_with_no_narrative_does_not_leave_the_card_blank(self):
         package = "## DATA PACKAGE\nInterpretation: counted the tables\nSources used: catalog"

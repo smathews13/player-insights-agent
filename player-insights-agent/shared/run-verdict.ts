@@ -70,15 +70,48 @@ export function countsTowardVerdict(stage: VerdictStage): boolean {
 /**
  * The run's verdict, from its stages.
  *
- * `failed` outranks `partial` outranks `complete`, and a run with no stages at
- * all is `complete`: that is what the query has always returned for one, and a
- * verdict is a statement about steps that ran rather than about their absence.
+ * `failed` outranks `partial` outranks `complete`. A run with no stages at all
+ * is `failed`: that used to be `complete`, which painted a green Complete badge
+ * over a 0.0s card that recorded nothing. Absence of steps is not a successful
+ * answer; it is a run that never produced one.
  */
 export function runVerdict(stages: readonly VerdictStage[]): RunVerdict {
+  if (stages.length === 0) return 'failed';
   const counted = stages.filter(countsTowardVerdict);
   const holds = (status: string) => counted.some((stage) => stage.status === status);
   if (holds('failed')) return 'failed';
   if (holds('partial')) return 'partial';
+  return 'complete';
+}
+
+/**
+ * Caveat phrases that mean the writer never finished, even when every recorded
+ * step is green. The deadline path used to emit a complete synthesis stage over
+ * a "turn deadline was reached" caveat, so the rail said Complete while Keep in
+ * mind admitted the opposite.
+ */
+export const INCOMPLETE_ANSWER_CAVEAT = /turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable/i;
+
+/**
+ * The run's verdict from stages and the caveats the agent already wrote.
+ *
+ * Stages win when they are failed. Otherwise a deadline or salvage caveat
+ * downgrades a green stage list to `partial`, which is the 100-second run that
+ * had a real table and still was not a finished answer.
+ */
+export function answerRunVerdict(input: {
+  stages?: readonly VerdictStage[];
+  caveats?: readonly string[];
+}): RunVerdict {
+  const fromStages = runVerdict(input.stages ?? []);
+  if (fromStages === 'failed') return 'failed';
+  const caveats = input.caveats ?? [];
+  if (caveats.some((text) => /this question was not answered|was not reachable/i.test(text))) {
+    return 'failed';
+  }
+  if (fromStages === 'partial' || caveats.some((text) => INCOMPLETE_ANSWER_CAVEAT.test(text))) {
+    return 'partial';
+  }
   return 'complete';
 }
 
@@ -102,3 +135,20 @@ export function runVerdict(stages: readonly VerdictStage[]): RunVerdict {
 export const VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
   (id) => `&& @.id != "${id}"`
 ).join(' ');
+
+/**
+ * Empty-stage predicate for the stored-run queries. A missing or empty stages
+ * array is a failed turn, not a completed one.
+ */
+export const EMPTY_STAGES_FAILED_SQL =
+  `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
+
+/**
+ * Caveat predicate that matches {@link INCOMPLETE_ANSWER_CAVEAT} in SQL.
+ */
+export const INCOMPLETE_ANSWER_CAVEAT_SQL =
+  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable')`;
+
+/** Deadline / early-stop only, for the stored `truncated` flag. */
+export const DEADLINE_TRUNCATED_SQL =
+  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;

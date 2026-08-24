@@ -18,6 +18,7 @@
  */
 import { stepNumber } from './agent-map';
 import type { AgentReadiness } from './agent-readiness';
+import type { RunVerdict } from '../../shared/run-verdict';
 
 export type RunTone = 'is-ready' | 'is-live' | 'is-failed' | 'is-waiting';
 
@@ -84,6 +85,7 @@ export function runStatusFor({
   awaitingApproval,
   asked,
   answered,
+  verdict,
   readiness,
 }: {
   loading: boolean;
@@ -102,6 +104,12 @@ export function runStatusFor({
   awaitingApproval: boolean;
   asked: boolean;
   answered: boolean;
+  /**
+   * How the finished answer actually ended. `answered` only means a card was
+   * stored. A 0.0s empty run and a deadline-stopped table used to both paint
+   * Complete because that flag was true.
+   */
+  verdict?: RunVerdict;
   readiness: AgentReadiness;
 }): RunStatus {
   // A description of the rail below rather than of the request: it fills in as
@@ -153,9 +161,14 @@ export function runStatusFor({
   }
   if (awaitingApproval) return { label: 'Approval needed', tone: 'is-waiting', alive: false, finished: false };
   if (asked) return { label: 'Question asked', tone: 'is-waiting', alive: false, finished: false };
-  // Complete is a fact about the run that just finished and is not re-derived
-  // from the endpoint: the run itself is the evidence the endpoint answered, and
-  // a stale readiness reading must not be able to contradict a run that landed.
-  if (answered) return { label: 'Complete', tone: 'is-ready', alive: false, finished: true };
+  // The word is a fact about the run that just finished, not about the endpoint.
+  // A stale readiness reading must not contradict a run that landed — but a
+  // stored card is not automatically a finished analysis. Failed and partial
+  // keep the check (the turn ended) and drop the green Complete claim.
+  if (answered) {
+    if (verdict === 'failed') return { label: 'Failed', tone: 'is-failed', alive: false, finished: true };
+    if (verdict === 'partial') return { label: 'Partial', tone: 'is-waiting', alive: false, finished: true };
+    return { label: 'Complete', tone: 'is-ready', alive: false, finished: true };
+  }
   return IDLE[readiness];
 }

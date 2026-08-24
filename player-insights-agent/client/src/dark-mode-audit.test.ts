@@ -444,10 +444,13 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(darkChip).toMatch(/border-color:\s*var\(--ast-border-input\)/);
     expect(darkChip).toMatch(/color:\s*var\(--foreground\)/);
 
-    const remove = bodyFor(settingsRules, "html[data-theme='dark'] .settings-page .settings-destructive");
-    expect(remove).toMatch(/background:\s*var\(--ast-destructive-control\)/);
+    const remove = bodyFor(
+      settingsRules,
+      "html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive"
+    );
+    expect(remove).toMatch(/background:\s*transparent/);
     expect(remove).toMatch(/border-color:\s*var\(--ast-destructive-control\)/);
-    expect(remove).toMatch(/color:\s*var\(--destructive-foreground\)/);
+    expect(remove).toMatch(/color:\s*var\(--ast-destructive-control\)/);
     for (const component of ['AdminListEditor.tsx', 'UserRoleEditor.tsx']) {
       expect(source(component), `${component} does not identify Remove as destructive`).toContain(
         'data-variant="destructive"'

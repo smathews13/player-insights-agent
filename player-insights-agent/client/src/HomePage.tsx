@@ -76,6 +76,7 @@ import { railStagesFor, runningElapsed, runningStepNumber } from './live-progres
 import { beginLiveAsk, endLiveAsk, hydrateLiveAsk, openLiveAsk, recordLiveStage, useLiveAsk } from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
+import { answerRunVerdict } from '../../shared/run-verdict';
 import { RunStatusPill } from './RunStatusPill';
 import {
   isWorkingConversationRun,
@@ -622,6 +623,9 @@ export function HomePage() {
     awaitingApproval: latestResponse?.type === 'plan',
     asked: !!asked,
     answered: !!answer,
+    verdict: answer
+      ? answerRunVerdict({ stages: answer.trace.stages, caveats: answer.caveats })
+      : undefined,
     readiness,
   });
 

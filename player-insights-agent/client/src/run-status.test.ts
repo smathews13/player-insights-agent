@@ -225,6 +225,35 @@ describe('ready and live are not the same pill', () => {
     expect(draw(done)).not.toContain('Live');
   });
 
+  it('will not call an empty or deadline-stopped run Complete', () => {
+    const empty = runStatusFor({
+      loading: false,
+      liveSteps: 0,
+      runStopped: false,
+      awaitingApproval: false,
+      asked: false,
+      answered: true,
+      verdict: 'failed',
+      readiness: 'ready',
+    });
+    expect(empty.label).toBe('Failed');
+    expect(empty.tone).toBe('is-failed');
+    expect(empty.finished).toBe(true);
+    const deadline = runStatusFor({
+      loading: false,
+      liveSteps: 9,
+      runStopped: false,
+      awaitingApproval: false,
+      asked: false,
+      answered: true,
+      verdict: 'partial',
+      readiness: 'ready',
+    });
+    expect(deadline.label).toBe('Partial');
+    expect(deadline.tone).not.toBe('is-ready');
+    expect(draw(deadline)).not.toContain('Complete');
+  });
+
   it('leaves every state that is merely waiting perfectly still', () => {
     for (const still of [
       idle('checking'),

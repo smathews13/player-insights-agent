@@ -26,6 +26,7 @@ const CANNED_TAKEAWAY = [
   /^the analysis completed\b/i,
   /\bfrom assessed sources\b/i,
   /^the agent returned an answer\b/i,
+  /^the agent answered in prose\b/i,
 ];
 
 /** How much of a surviving sentence is used when the stored takeaway was canned. */
@@ -114,6 +115,28 @@ export function readerFacingTakeaway(takeaway: string, narrative: string): strin
     .find((line) => line && !line.includes('|') && !isCannedTakeaway(line) && !TOOL_CALL.test(line));
   if (!first) return '';
   return first.length > TAKEAWAY_LIMIT ? `${first.slice(0, TAKEAWAY_LIMIT - 1)}…` : first;
+}
+
+/**
+ * The narrative with the headline removed when it is the same sentence twice.
+ *
+ * The deadline path used to put the canned takeaway in both slots. The card
+ * then printed it as the title and again as the first line of the body.
+ */
+export function readerFacingNarrative(takeaway: string, narrative: string): string {
+  const cleaned = stripToolCallDumps(narrative);
+  const headline = readerFacingTakeaway(takeaway, narrative);
+  const lines = cleaned.split('\n');
+  const firstAt = lines.findIndex((line) => line.trim());
+  if (firstAt < 0) return cleaned;
+  const first = lines[firstAt].trim();
+  // Drop a leading line that restates the title: the stored takeaway, the
+  // headline we just chose, or the canned completion the deadline path wrote.
+  if (first === headline || first === takeaway.trim() || isCannedTakeaway(first)) {
+    lines.splice(firstAt, 1);
+    return lines.join('\n').replace(/^\n+/, '').trim();
+  }
+  return cleaned;
 }
 
 export interface AnswerWarning {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   answerHonesty,
   isCannedTakeaway,
+  readerFacingNarrative,
   readerFacingTakeaway,
   stripToolCallDumps,
 } from './reader-facing-answer';
@@ -45,6 +46,15 @@ describe('the takeaway a reader is shown', () => {
     expect(isCannedTakeaway('The analysis completed from assessed sources.')).toBe(true);
     expect(readerFacingTakeaway('The analysis completed from assessed sources.', `${DUMP}\n\nPC led on distinct players.`))
       .toBe('PC led on distinct players.');
+  });
+
+  it('does not print the canned headline again as the first line of the body', () => {
+    expect(
+      readerFacingNarrative(
+        'The analysis completed from assessed sources.',
+        'The analysis completed from assessed sources.\n\nPC led on distinct players.'
+      )
+    ).toBe('PC led on distinct players.');
   });
 
   it('refuses to invent a finding when only a dump survived', () => {

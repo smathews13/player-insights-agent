@@ -451,8 +451,8 @@
 .admin-row-email {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 400;
+  font-size: 12px;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -471,15 +471,16 @@
 
 .admin-row-origin {
   margin: 0;
+  padding-top: 2px;
   font-size: var(--text-xs);
+  line-height: 1.45;
   color: var(--muted-foreground);
 }
 
 .admin-row-who {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -492,6 +493,48 @@
   white-space: nowrap;
 }
 
+/*
+ * Identity | role | action. One template for every roster row and the Add row,
+ * so the email field occupies the same column the addresses do and the quiet
+ * controls stack. AdminListEditor (no role column) keeps the older flex add
+ * line below; `.admin-add:not(.roster-grid)` is that path.
+ */
+.roster-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10.5rem, max-content) 5.75rem;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+/*
+ * Same framed browser Appearance and Environment use: one edge, quiet header,
+ * ruled rows. The add line is the last row of this frame, not a second toolbar.
+ */
+.roster-frame {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+.roster-frame > .admin-list-note:first-child {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
+  max-width: none;
+  font-size: 12px;
+}
+
+.roster-frame .admin-row {
+  padding: 10px;
+}
+
+.roster-frame .admin-add {
+  padding: 10px;
+  margin: 0;
+}
+
 .admin-add {
   display: flex;
   flex-wrap: wrap;
@@ -502,11 +545,21 @@
   border-top: 1px solid var(--border);
 }
 
+.admin-add.roster-grid {
+  display: grid;
+  flex-wrap: unset;
+}
+
 .admin-add > [data-slot='input'] {
   flex: 1 1 14rem;
   min-width: 0;
   max-width: none;
   height: 32px;
+}
+
+.admin-add.roster-grid > [data-slot='input'] {
+  flex: none;
+  width: 100%;
 }
 
 /* The roster's shared app dropdown and the line that replaces it.
@@ -516,7 +569,31 @@
    add row and the row controls, sit beside something that can give instead. */
 .roster-role-select {
   flex: 0 0 auto;
+  min-width: 0;
   max-width: 15rem;
+  width: 100%;
+}
+
+.roster-role {
+  display: flex;
+  align-items: center;
+  justify-self: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.roster-role .roster-role-select {
+  flex: 1 1 auto;
+}
+
+.roster-action {
+  display: flex;
+  justify-content: stretch;
+  min-width: 0;
+}
+
+.roster-action > [data-slot='button'] {
+  width: 100%;
 }
 
 .roster-row-controls {
@@ -527,21 +604,62 @@
 }
 
 /*
- * Roles is the only Settings pane with deletion, so the class remains a
- * page-local backstop beside the shared `data-variant="destructive"` route.
- * Negative prose keeps the lighter `--destructive`; Remove cannot turn hot pink
- * or disappear into the night pane if AppKit changes how it emits variant
- * metadata again.
+ * Shared quiet field language: the locked Super-admin plaque, the role
+ * dropdown, Add, and Remove all sit at 32px with the same hairline as the
+ * rest of Settings. Remove stays clearly destructive by ink, not by a solid
+ * fill that outshouts the pane.
  */
-html[data-theme='dark'] .settings-page .settings-destructive {
-  border-color: var(--ast-destructive-control);
-  background: var(--ast-destructive-control);
-  color: var(--destructive-foreground);
+.roster-control,
+.roster-role-chip {
+  height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  white-space: nowrap;
 }
 
-html[data-theme='dark'] .settings-page .settings-destructive:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
-  background: color-mix(in srgb, var(--ast-destructive-control) 82%, white);
+.roster-role-chip {
+  justify-content: flex-start;
+  font-weight: 500;
+}
+
+/*
+ * Roles is the only Settings pane with deletion, so the class remains a
+ * page-local backstop beside the shared `data-variant="destructive"` route.
+ * Outline rather than a filled slab: the rest of Settings is frost and
+ * hairlines, and a solid fire-engine Remove was the loudest object in the
+ * pane. Negative prose still keeps the lighter `--destructive`.
+ */
+.settings-page [data-slot='button'].settings-destructive {
+  border-color: var(--destructive);
+  background: transparent;
+  color: var(--destructive);
+}
+
+.settings-page [data-slot='button'].settings-destructive:hover:not(:disabled) {
+  border-color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+}
+
+html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive {
+  border-color: var(--ast-destructive-control);
+  background: transparent;
+  color: var(--ast-destructive-control);
+}
+
+html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive:hover:not(:disabled) {
+  border-color: var(--ast-destructive-control);
+  background: color-mix(in srgb, var(--ast-destructive-control) 16%, transparent);
+  color: var(--ast-destructive-control);
 }
 
 .admin-add [data-slot='button'] {
@@ -549,30 +667,24 @@ html[data-theme='dark'] .settings-page .settings-destructive:hover:not(:disabled
   height: 32px;
 }
 
-.roster-role-chip {
-  padding: 2px 6px;
-  border: 1px solid var(--ast-border-input);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--foreground);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  white-space: nowrap;
+.admin-add.roster-grid [data-slot='button'] {
+  width: 100%;
 }
 
 .roster-row-lock {
   width: 13px;
   height: 13px;
+  flex: none;
   color: var(--muted-foreground);
 }
 
 /* A row whose role cannot be changed here prints the role as text, with the reason
-   beside it. Right-aligned so it occupies the same column the select would, and the
-   rows do not shift as roles change. */
+   beside it. It occupies the same column the select would, so the rows do not
+   shift as roles change. */
 .roster-row-locked {
   margin: 0;
   font-size: var(--text-sm);
-  text-align: right;
+  text-align: left;
   display: grid;
   gap: 2px;
 }

@@ -104,7 +104,7 @@ export function AdminRows({
                 <Button
                   variant="destructive"
                   data-variant="destructive"
-                  className="settings-destructive"
+                  className="roster-control settings-destructive"
                   size="sm"
                   disabled={busy}
                   onClick={() => onRemove(entry)}
@@ -223,7 +223,13 @@ export function AdminListEditor() {
             placeholder="name@example.com"
             aria-label="Email address of the administrator to add"
           />
-          <Button disabled={!canSubmit(draft, busy)} onClick={() => void add()}>
+          <Button
+            variant="outline"
+            data-variant="outline"
+            className="roster-control"
+            disabled={!canSubmit(draft, busy)}
+            onClick={() => void add()}
+          >
             <UserPlus className="size-3.5" /> Add
           </Button>
         </div>

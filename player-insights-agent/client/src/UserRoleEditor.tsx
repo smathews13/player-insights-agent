@@ -81,7 +81,7 @@ function RoleControl({
       disabled={busy}
       onValueChange={(role) => onChange(entry, role)}
       options={roleOptions(entry)}
-      className="roster-role-select"
+      className="roster-control roster-role-select"
     />
   );
 }
@@ -124,7 +124,7 @@ export function RosterRows({
       <ul className="admin-list">
         {payload.entries.map((entry) => (
           <li key={entry.email} className="admin-row">
-            <div className="admin-row-head">
+            <div className="roster-grid">
               <div className="admin-row-who">
                 <p className="admin-row-email">
                   {entry.email}
@@ -144,10 +144,12 @@ export function RosterRows({
                   </span>
                 ) : null}
               </div>
-              <div className="roster-row-controls">
+              <div className="roster-role">
                 {entry.assignable.length === 0 ? (
                   <>
-                    <span className={`roster-role-chip roster-role-chip-${entry.role.replace('_', '-')}`}>
+                    <span
+                      className={`roster-control roster-role-chip roster-role-chip-${entry.role.replace('_', '-')}`}
+                    >
                       {roleWord(entry.role)}
                     </span>
                     <Lock
@@ -158,11 +160,13 @@ export function RosterRows({
                 ) : (
                   <RoleControl entry={entry} payload={payload} busy={busy} onChange={onChange} />
                 )}
+              </div>
+              <div className="roster-action">
                 {entry.canRemove ? (
                   <Button
                     variant="destructive"
                     data-variant="destructive"
-                    className="settings-destructive"
+                    className="roster-control settings-destructive"
                     size="sm"
                     disabled={busy}
                     onClick={() => onRemove(entry)}
@@ -267,52 +271,60 @@ export function UserRoleEditor() {
           </p>
         ) : null}
 
-        {payload ? (
-          <RosterRows
-            payload={payload}
-            busy={busy}
-            onChange={(entry, role) =>
-              void write({
-                url: `/api/users/${encodeURIComponent(entry.email)}`,
-                method: 'PATCH',
-                body: { role },
-                // The warning goes in the outcome line, before the panel this reader
-                // is standing on disappears from under them.
-                said: [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
-                  .filter(Boolean)
-                  .join(' '),
-              })
-            }
-            onRemove={(entry) =>
-              void write({
-                url: `/api/users/${encodeURIComponent(entry.email)}`,
-                method: 'DELETE',
-                body: {},
-                said: `${entry.email} is off the roster.`,
-              })
-            }
-          />
-        ) : null}
+        <div className="roster-frame">
+          {payload ? (
+            <RosterRows
+              payload={payload}
+              busy={busy}
+              onChange={(entry, role) =>
+                void write({
+                  url: `/api/users/${encodeURIComponent(entry.email)}`,
+                  method: 'PATCH',
+                  body: { role },
+                  // The warning goes in the outcome line, before the panel this reader
+                  // is standing on disappears from under them.
+                  said: [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
+                    .filter(Boolean)
+                    .join(' '),
+                })
+              }
+              onRemove={(entry) =>
+                void write({
+                  url: `/api/users/${encodeURIComponent(entry.email)}`,
+                  method: 'DELETE',
+                  body: {},
+                  said: `${entry.email} is off the roster.`,
+                })
+              }
+            />
+          ) : null}
 
-        <div className="admin-add">
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="name@example.com"
-            aria-label="Email address to put on the roster"
-          />
-          <AppSelect
-            label="Role"
-            ariaLabel="Role to give them"
-            value={draftRole}
-            disabled={busy}
-            onValueChange={setDraftRole}
-            options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
-            className="roster-role-select"
-          />
-          <Button disabled={!canSubmit(draft, busy)} onClick={() => void add()}>
-            <UserPlus className="size-3.5" /> Add
-          </Button>
+          <div className="admin-add roster-grid">
+            <Input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="name@example.com"
+              aria-label="Email address to put on the roster"
+            />
+            <AppSelect
+              label="Role"
+              ariaLabel="Role to give them"
+              value={draftRole}
+              disabled={busy}
+              onValueChange={setDraftRole}
+              options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
+              className="roster-control roster-role-select"
+            />
+            <Button
+              variant="outline"
+              data-variant="outline"
+              className="roster-control"
+              disabled={!canSubmit(draft, busy)}
+              onClick={() => void add()}
+            >
+              <UserPlus className="size-3.5" /> Add
+            </Button>
+          </div>
         </div>
 
         {/* One live region for both, because they are the same slot on screen and two

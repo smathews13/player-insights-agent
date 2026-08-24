@@ -19,7 +19,12 @@ import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer';
-import { VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
+import {
+  DEADLINE_TRUNCATED_SQL,
+  EMPTY_STAGES_FAILED_SQL,
+  INCOMPLETE_ANSWER_CAVEAT_SQL,
+  VERDICT_STAGE_EXEMPTION_SQL,
+} from '../../shared/run-verdict';
 import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
 import { credentialLifetime } from '../lib/benchmark-identity';
 import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
@@ -422,7 +427,10 @@ const DocumentSnippetSchema = z.looseObject({
 const LiveAnswerSchema = z.looseObject({
   id: z.string().min(1),
   takeaway: z.string().min(1),
-  narrative: z.string().min(1),
+  // Empty is allowed: a deadline-stopped run can have a takeaway and no written
+  // narrative. Requiring a sentence here used to drop the structured result and
+  // store a 0.0s prose-only card with the stages thrown away.
+  narrative: z.string(),
   // Added by the notebook answer shape. Defaulted so an older served model and
   // a newer app can overlap safely during rollout.
   content: z.string().default(''),
@@ -556,7 +564,7 @@ export const SHARED_RUN_OWNER = 'Another team member';
  */
 export const RUNS_QUERY = `
   WITH answers AS (SELECT m.id, m.conversation_id, m.created_at,
-           m.response_json->'trace' AS trace, c.user_email
+           m.response_json->'trace' AS trace, m.response_json->'caveats' AS caveats, c.user_email
     FROM ${APP_SCHEMA}.messages m
     JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
     -- A plan proposal has no trace and is not yet a run; an answer always has one.
@@ -579,9 +587,14 @@ export const RUNS_QUERY = `
          -- chart used to publish a sound answer as 'partial' on every surface
          -- that draws this column; see shared/run-verdict.ts for why that is the
          -- one step whose outcome says nothing about the answer above it.
+         -- Empty stages used to fall through to complete, which painted a green
+         -- badge on a 0.0s card that recorded nothing. A deadline caveat on an
+         -- otherwise-green stage list is partial, not a finished answer.
          CASE
+           WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join('a.trace')} THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
+           WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split('caveats').join('a.caveats')} THEN 'partial'
            ELSE 'complete'
          END AS status,
          -- Whether the run stopped before it had finished. The two halves record
@@ -590,9 +603,12 @@ export const RUNS_QUERY = `
          -- conversation run that hit one of the agent's bounds closes with the
          -- cap stage, which the agent emits on that path and no other. Matched on
          -- the stage id rather than its name, because the name is prose someone
-         -- will reword. NO BACKTICKS BELOW THIS LINE: this is a template literal,
+         -- will reword. Deadline caveats are the other half: synthesis can stop
+         -- for time without emitting a cap stage.
+         -- NO BACKTICKS BELOW THIS LINE: this is a template literal,
          -- and one in a SQL comment ends the query rather than quoting a word.
-         jsonb_path_exists(a.trace, '$.stages[*] ? (@.id == "cap")') AS truncated,
+         (jsonb_path_exists(a.trace, '$.stages[*] ? (@.id == "cap")')
+           OR ${DEADLINE_TRUNCATED_SQL.split('caveats').join('a.caveats')}) AS truncated,
          -- Which Genie spaces answered this run, as the run itself recorded them.
          -- The choice is made at request time from settings baked into the model
          -- artifact, so the app cannot look it up: this column is the only place
@@ -1793,11 +1809,14 @@ const CONVERSATION_VERDICT_JOIN = `
   LEFT JOIN LATERAL (
     SELECT
       CASE
+        WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join("m.response_json->'trace'")} THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
+        WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split('caveats').join("m.response_json->'caveats'")} THEN 'partial'
         ELSE 'complete'
       END AS status,
-      jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")') AS truncated,
+      (jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")')
+        OR ${DEADLINE_TRUNCATED_SQL.split('caveats').join("m.response_json->'caveats'")}) AS truncated,
       ROUND((m.response_json->'trace'->>'totalMs')::numeric)::int AS duration_ms
     FROM ${APP_SCHEMA}.messages m
     WHERE m.conversation_id = c.id

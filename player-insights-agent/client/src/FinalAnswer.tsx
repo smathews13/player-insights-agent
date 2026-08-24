@@ -17,6 +17,7 @@ import { SourcesModule } from './SourcesModule';
 import { mentionedIdentifiers } from './data-entities';
 import {
   answerHonesty,
+  readerFacingNarrative,
   readerFacingTakeaway,
 } from './reader-facing-answer';
 import type { Derivation } from './answer-shape';
@@ -45,6 +46,7 @@ export function FinalAnswer({
 }) {
   const honesty = answerHonesty({ truncated, caveats });
   const headline = readerFacingTakeaway(takeaway, narrative);
+  const story = readerFacingNarrative(takeaway, narrative);
   const warningTexts = new Set(honesty.warnings.map((warning) => warning.text));
   const restCaveats = caveats.filter((caveat) => !warningTexts.has(caveat.trim()));
   const columns = mentionedIdentifiers([narrative]);
@@ -80,8 +82,8 @@ export function FinalAnswer({
         {headline ? <h4 className="final-answer-takeaway">{headline}</h4> : null}
         {/* Prose only: the tables that came with it are evidence and are drawn
             below under the same charts-or-rows rule the live card uses. */}
-        <AnswerProse text={narrative} sources={sources} columns={columns} blocks="prose" />
-        <AnswerEvidence narrative={narrative} charts={charts} sources={sources} />
+        <AnswerProse text={story} sources={sources} columns={columns} blocks="prose" />
+        <AnswerEvidence narrative={story} charts={charts} sources={sources} />
         <SourcesModule
           layout="list"
           sources={sources}

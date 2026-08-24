@@ -87,12 +87,30 @@ export const ANSWER_FALLBACK_NOTICES: Record<AnswerFallback, { badge: string; he
     headline: 'This answer was built on fallback data.',
   },
   'no-evidence': {
-    badge: 'No figures or sources',
+    badge: 'No result recorded',
     headline:
-      'This answer is the agent\u2019s words only. There are no figures, sources, SQL or stage ' +
-      'timings under it, and the app has not supplied any in their place.',
+      'This run recorded no steps and no structured result. The agent never returned figures, ' +
+      'sources, SQL or a tool trace \u2014 the question was not answered from catalogs, tables or ' +
+      'Genie spaces. The card shows only the text that arrived.',
   },
 };
+
+/**
+ * The notice a card should lead with, when it should lead with one.
+ *
+ * Empty-stage runs get the no-result wording even if a leftover caveat still
+ * talks about "prose": that sentence was written for a reply that had words and
+ * no contract, and it is the wrong diagnosis when nothing ran.
+ */
+export function answerFallbackNotice(answer: AnswerEvidenceSections & {
+  mode: string;
+  caveats: string[];
+  provenance?: string;
+}): { badge: string; headline: string } | null {
+  const kind = answerFallback(answer);
+  if (!kind) return null;
+  return ANSWER_FALLBACK_NOTICES[kind];
+}
 
 /**
  * What the server said about where this answer's contents came from.

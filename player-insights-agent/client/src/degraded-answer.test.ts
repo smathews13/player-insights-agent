@@ -264,7 +264,7 @@ describe('an answer carrying prose and nothing else', () => {
   it('says what is missing instead of naming data that is not there', () => {
     const notice = ANSWER_FALLBACK_NOTICES['no-evidence'];
     expect(notice.headline).not.toContain('fallback data');
-    expect(notice.headline).toContain('no figures, sources, SQL or stage');
+    expect(notice.headline).toContain('no structured result');
     expect(notice.badge).not.toBe(ANSWER_FALLBACK_NOTICES['degraded-data'].badge);
   });
 

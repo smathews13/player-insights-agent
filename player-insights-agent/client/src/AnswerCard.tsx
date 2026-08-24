@@ -13,7 +13,8 @@
  */
 import { useState } from 'react';
 import { dataAccessDisclosure } from './analytical-execution';
-import { answerBadge, answerFallback, ANSWER_FALLBACK_NOTICES, splitCaveats } from './degraded-answer';
+import { answerBadge, answerFallbackNotice, splitCaveats } from './degraded-answer';
+import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
 import {
   Alert,
   AlertDescription,
@@ -97,7 +98,12 @@ export function AnswerCard({
   // Whether this card may be read as an answer to the question at all, and if
   // not, which of the two ways it failed. See degraded-answer.ts for why this
   // reads `mode` rather than looking for the representative caveat.
-  const fallback = answerFallback(answer);
+  const fallbackNotice = answerFallbackNotice(answer);
+  const honesty = answerHonesty({ caveats: answer.caveats });
+  const headline = readerFacingTakeaway(answer.takeaway, answer.narrative);
+  const narrative = readerFacingNarrative(answer.takeaway, answer.narrative);
+  const warningTexts = new Set(honesty.warnings.map((warning) => warning.text));
+  const keepCaveats = ordinaryCaveats.filter((caveat) => !warningTexts.has(caveat.trim()));
   const badge = answerBadge(answer);
   const usedAttachments = answer.trace.stages.some((stage) => stage.id === 'attachment');
   const missingDocumentFootnotes = usedAttachments && answer.document_snippets.length === 0;
@@ -129,21 +135,26 @@ export function AnswerCard({
               <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
                 {badge.label}
               </Badge>
-              {fallback && (
+              {honesty.tone === 'partial' && (
+                <Badge variant="outline" className="provenance-chip ast-pill ast-pill--warn">
+                  {honesty.eyebrow}
+                </Badge>
+              )}
+              {fallbackNotice && (
                 <Badge variant="destructive" className="provenance-chip" data-tone="stored">
-                  {ANSWER_FALLBACK_NOTICES[fallback].badge}
+                  {fallbackNotice.badge}
                 </Badge>
               )}
             </div>
           </div>
-          <CardTitle className="answer-takeaway">{answer.takeaway}</CardTitle>
+          {headline ? <CardTitle className="answer-takeaway">{headline}</CardTitle> : null}
         </div>
       </CardHeader>
       <CardContent className="answer-card-content">
         {/* First in the card, above the narrative and the figures, because it
             governs how every number below it should be read. Below them it was
             a footnote to a conclusion the reader had already drawn. */}
-        {fallback && (
+        {fallbackNotice && (
           <Alert variant="destructive">
             <CircleAlert />
             <AlertDescription>
@@ -154,7 +165,7 @@ export function AnswerCard({
                   sentence -- the defect that shipped the storage banner reading
                   "Nothing stored yet.Lakebase is connected". */}
               <p>
-                <strong>{ANSWER_FALLBACK_NOTICES[fallback].headline}</strong>{' '}
+                <strong>{fallbackNotice.headline}</strong>{' '}
                 {/* Whatever produced the card stated the reason here, which for a
                     prose reply is PROSE_ONLY_ANSWER_CAVEAT and for an agent that
                     fell back to its own SQL is the agent's own sentence. Empty
@@ -166,12 +177,23 @@ export function AnswerCard({
             </AlertDescription>
           </Alert>
         )}
+        {honesty.warnings.length > 0 && !fallbackNotice ? (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription>
+              <p>
+                <strong>{honesty.warnings[0].label}.</strong>{' '}
+                <EntityText text={honesty.warnings.map((warning) => warning.text).join(' ')} sources={answer.sources} />
+              </p>
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <div className="answer-main-row">
           <div className="answer-narrative">
             <AnswerProse
-              text={answer.narrative}
+              text={narrative}
               sources={answer.sources}
-              columns={mentionedIdentifiers([answer.narrative])}
+              columns={mentionedIdentifiers([narrative])}
               blocks="prose"
             />
             {answer.content ? (
@@ -224,12 +246,12 @@ export function AnswerCard({
             Folded, so the card still reads as one piece of evidence. Reachable,
             so nothing the agent measured is only in a picture. */}
         <AnswerEvidence
-          narrative={answer.narrative}
+          narrative={narrative}
           content={answer.content}
           charts={answer.charts}
           sources={answer.sources}
         />
-        <SourcesModule sources={answer.sources} caveats={ordinaryCaveats} derivation={answer.derivation} />
+        <SourcesModule sources={answer.sources} caveats={keepCaveats} derivation={answer.derivation} />
         {answer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
             <h3 className="answer-heading">Document footnotes</h3>
