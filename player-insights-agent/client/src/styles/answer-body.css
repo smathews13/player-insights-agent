@@ -621,24 +621,43 @@
  * WHEN THE FIGURES MAY TAKE A COLUMN OFF THE PROSE, AND WHEN THEY MAY NOT.
  * ============================================================================
  *
- * THE FIGURES NEVER TAKE A COLUMN OFF THE PROSE. There is no threshold any
- * more, and removing it is the whole of "the answer cards are too narrow".
+ * The design's card is the narrative with the figures stacked in a column down
+ * its right-hand side, and that is what this restores. It is the shape the card
+ * is drawn in in the handoff and the shape it is signed off in.
  *
- * This used to be a two-column flex above 839px of card: the narrative took the
- * slack and the stat rail a fixed 190px beside it. The threshold was derived
- * from a measure the card was assumed to reach, and it does not reach it. The
- * middle column is the window less a 264px conversation rail and a 340px
- * inspector, so `--conversation-measure` (1120px) is aspirational rather than
- * real -- and once the card's own insets, the 190px rail and its 18px gap came
- * off what was left, the narrative was down to roughly 450px: bulleted claims
- * wrapping every eight words and evidence tables reduced to scrollers.
+ * It was removed, not by accident: a fixed 190px rail beside the prose left the
+ * narrative around 450px on a laptop, because the middle column is the window
+ * less a 264px conversation rail and a 340px inspector, and a bulleted claim
+ * wrapping every eight words is worse than figures under the prose. Both of
+ * those readings are true. They are true at DIFFERENT CARD WIDTHS, which is why
+ * the answer is a container query on the card and not a global choice between
+ * them:
  *
- * So the rail stacks unconditionally. `auto-fit` with `minmax(190px, 1fr)` lays
- * the figures out in as many columns as the card can hold rather than one wide
- * cell each, and 190px is the width the agent's unit strings ("3,118
- * player-days") fit on one line in -- see the note on `.answer-stat-value`,
- * which is the same decision and must move with it.
+ *  - At 840px of card and up, the narrative still has 570px with the rail and
+ *    its gap taken off, which is a reading measure. The figures go beside it.
+ *    This is the normal case now that the inspector's track is released when no
+ *    run is being inspected (see `.ask-layout` in rail.css), which is what makes
+ *    `--conversation-measure` a width the card reaches rather than an aspiration.
+ *  - Below it -- a live run holding the inspector open, a narrow window, the
+ *    Monitoring drawer's 620px -- the rail stacks under the prose and lays out
+ *    in as many columns as fit. Nothing is lost; the figures are simply read
+ *    after the sentence instead of beside it.
  *
- * The inspector track this was fighting for room against is now released when
- * the inspector is not drawn; see `.ask-layout` in rail.css.
+ * The query is on the CARD, so the drawer, the transcript and a future surface
+ * all get the shape their own width earns, with no surface named in here.
  */
+@container answer-card (min-width: 840px) {
+  .answer-main-row {
+    /* The rail's own track, not a fraction: a figure column that grows with the
+       card is a column of white space around four short strings. 230px is the
+       design's, and its floor is the 190px the longest unit string this agent
+       writes fits on one line in -- see `.answer-stat-value`. */
+    grid-template-columns: minmax(0, 1fr) minmax(190px, 230px);
+    align-items: start;
+  }
+  /* One figure per row when the rail is a rail. `auto-fit` here would put two
+     190px cells side by side inside a 230px track and clip them both. */
+  .answer-stat-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

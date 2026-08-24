@@ -1172,17 +1172,14 @@ describe('the drawing keeps its shape at every width', () => {
   });
 });
 
-describe('the runtime-bound colours stay local and palette-derived', () => {
-  it('declares three different semantic tokens without adding a colour literal', () => {
-    const page = rule(CSS, '.architecture-page');
-    const values = ['steps', 'tools', 'run'].map(
-      (name) => new RegExp(`--arch-bound-${name}:\\s*([^;]+)`).exec(page)?.[1]?.trim() ?? ''
-    );
+describe('the runtime-bound colour follows the architecture legend', () => {
+  it('uses the agent family rather than three unrelated API colours', () => {
+    const bounds = rule(CSS, ".arch-tiles-loop li[data-accent='agent']");
+    const active = rule(CSS, '.arch-canvas[data-active-bound]');
 
-    expect(values.every(Boolean)).toBe(true);
-    expect(new Set(values).size).toBe(3);
-    expect(values.every((value) => /var\(--(?:ast|db)-/.test(value))).toBe(true);
-    expect(values.every((value) => !/#[0-9a-f]{6}/i.test(value))).toBe(true);
+    expect(bounds).toMatch(/--arch-bound-color:\s*var\(--ast-navy\)/);
+    expect(active).toMatch(/--arch-active-bound:\s*var\(--ast-navy\)/);
+    expect(CSS).not.toMatch(/--arch-bound-(?:steps|tools|run)/);
   });
 });
 

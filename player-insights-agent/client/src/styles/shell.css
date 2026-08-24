@@ -261,7 +261,10 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  /* 8px, which is the account badge's gap. It was 6px, and paired with a 12px
+     glyph it made the release stamp read as a denser, smaller-grade chip than
+     the two controls it sits beside. */
+  gap: 8px;
   flex: none;
   min-height: 30px;
   padding: 0 10px;
@@ -274,6 +277,23 @@
 }
 .deployment-time-chip > svg {
   flex: none;
+  /* Stated rather than left to the utility class, so the glyph cannot fall back
+     to a different size than the account badge's if the markup changes. */
+  width: 14px;
+  height: 14px;
+}
+/*
+ * Hover, because the two controls beside it have one.
+ *
+ * The account badge lifts to `--muted` under the pointer and the gear does the
+ * same. This chip had no hover response at all, so on a rail of three chips one
+ * of them was inert -- the reported "styled differently from its neighbours".
+ * The chip is focusable and carries a described-by tooltip, so responding to
+ * the pointer is honest here rather than an invitation to click something dead.
+ */
+.deployment-time-chip:hover,
+.deployment-time-chip:focus-visible {
+  background: var(--muted);
 }
 /* The DATE only. This was `> span`, which now also matches the tooltip and would
    hold a two-line sentence on one nowrap line and ellipsise it. */

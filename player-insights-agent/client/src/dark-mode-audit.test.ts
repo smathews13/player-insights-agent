@@ -130,6 +130,41 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-detail-head")).toMatch(
       /background:\s*transparent/
     );
+    /*
+     * The live panel is three layers deep on Ask: the working card carries the
+     * pane, the list carried a second frost and every row carried a third card
+     * fill. Only the card may hold a fill; the list is a bordered region and
+     * the rows are rows.
+     */
+    for (const selector of [
+      "html[data-theme='dark'] .live-steps",
+      "html[data-theme='dark'] .live-step",
+    ]) {
+      const body = bodyFor(DARK, selector);
+      expect(body, `${selector} still stacks white inside the working card`).toMatch(
+        /background:\s*transparent/
+      );
+      expect(body).toMatch(/backdrop-filter:\s*none/);
+    }
+    // The panes that DO sit straight on the sky keep their frost.
+    expect(bodyFor(DARK, "html[data-theme='dark'] .conversation-rail")).toMatch(
+      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
+    );
+    /*
+     * Inside the map's open panel, every band resolves through
+     * `--ast-fill-band`, which is a fourth 3% white in dark. They have their own
+     * hairlines, so they carry no fill; the payload blocks, which have no
+     * border, deepen towards the scrim instead of lightening.
+     */
+    for (const selector of [
+      "html[data-theme='dark'] .trace-dag.map .dag-sql-head",
+      "html[data-theme='dark'] .trace-dag.map .dag-result-table th",
+    ]) {
+      expect(DARK, `${selector} still stacks white inside the detail panel`).toContain(selector);
+    }
+    expect(bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-block")).toMatch(
+      /color-mix\(in srgb, var\(--ast-scrim\)/
+    );
     // No wrapper-scoped twin may come back, on either surface: one rule has to
     // answer for both, or the next mount point is another report of this bug.
     expect(DARK).not.toMatch(/\.run-process \.trace-(?:timeline|gantt|kpi)/);
@@ -161,6 +196,10 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(reduced).toContain("html[data-theme='dark'] .trace-kpi");
     expect(reduced).not.toContain("html[data-theme='dark'] .trace-timeline");
     expect(reduced).not.toContain("html[data-theme='dark'] .trace-gantt");
+    // The live list and its rows are de-stacked containers inside the working
+    // card for the same reason, so neither may grow a pane here either.
+    expect(reduced).not.toContain("html[data-theme='dark'] .live-steps");
+    expect(reduced).not.toContain("html[data-theme='dark'] .live-step,");
   });
 
   it('matches the interaction, chart, and constellation treatments', () => {

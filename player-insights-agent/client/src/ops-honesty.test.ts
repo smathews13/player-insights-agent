@@ -29,7 +29,6 @@ import {
   P50_BAR_MIN_WIDTH,
   p50BarWidths,
   productForCostTile,
-  questionPartView,
   splitMethod,
   telemetryNotice,
   tileView,
@@ -158,22 +157,6 @@ describe('the quality of a number', () => {
     expect(tileView(tile({ quality: 'estimate' }), 'USD').qualityLabel).toBe('Estimate');
   });
 
-  it('cannot render an unknowable per-question component as a figure', () => {
-    const view = questionPartView(
-      {
-        id: 'genie',
-        label: 'Genie spaces',
-        quality: 'unknown',
-        amount: null,
-        unavailable: 'No run attribution key.',
-      },
-      'USD'
-    );
-    expect(view.figure).toBe('');
-    expect(view.absence).toBe('No run attribution key.');
-    expect(view.qualityLabel).toBe('Not knowable');
-  });
-
   /**
    * THE BADGE GOES ON THE APPORTIONMENTS AND NOWHERE ELSE.
    *
@@ -246,7 +229,10 @@ describe('the quality of a number', () => {
     // A figure that arrived needs nothing set, and a remedy beside one reads as
     // an instruction to fix a number that is already right.
     expect(tileView(tile({ remedy: 'Set A_VARIABLE.' }), 'USD').remedy).toBe('');
-    const absent = tileView(tile({ amount: null, unavailable: 'Not attributable', remedy: 'Set A_VARIABLE.' }), 'USD');
+    const absent = tileView(
+      tile({ amount: null, unavailable: 'Resource identifier unavailable', remedy: 'Set A_VARIABLE.' }),
+      'USD'
+    );
     expect(absent.remedy).toBe('Set A_VARIABLE.');
   });
 

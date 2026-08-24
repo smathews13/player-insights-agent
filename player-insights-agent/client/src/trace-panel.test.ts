@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { ToolType } from './trace-timeline';
-import { partial, stylesheet } from './styles/stylesheet';
+import { partial, partialNames, stylesheet } from './styles/stylesheet';
 
 /**
  * The run process panel, as a reader meets it.
@@ -17,6 +17,7 @@ const CARD = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
 const TIMELINE = readFileSync(new URL('./TraceTimeline.tsx', import.meta.url), 'utf8');
 const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 const RUN_EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+const MONITORING = readFileSync(new URL('./MonitoringPage.tsx', import.meta.url), 'utf8');
 const STYLESHEET = stylesheet();
 const TIMELINE_CSS = partial('timeline.css');
 const DARK = partial('dark-mode.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -153,6 +154,35 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
     expect(DARK, 'a wrapper-scoped twin covers one surface only').not.toMatch(
       /\.run-process \.trace-(?:timeline|gantt|kpi)/
     );
+  });
+
+  it('is styled on every surface that draws it, not only on the routes that own a stylesheet', () => {
+    /*
+     * THIS IS THE OVERLAP BUG, and it is one line of import graph.
+     *
+     * `timeline.css` was moved out of index.css into side-effect imports inside
+     * the two lazy ROUTE modules that draw a timeline. `TraceTimeline` is not a
+     * route's component: the answer card draws it on Ask and the Monitoring
+     * drawer draws it in a review panel, and neither of those imported it. So
+     * both rendered the roll-up tiles, the axis and the Gantt with NO RULES AT
+     * ALL -- an unstyled table, tick labels that never took their absolute
+     * position, and KPI tiles with no grid, which is the "Time by tool type"
+     * block landing on top of the answer prose. Run Explorer looked correct
+     * throughout, because Run Explorer is the surface that imported the sheet.
+     *
+     * The sheet is back in the entry cascade and no module imports it. A future
+     * split of it has to answer this test, which is the question the last one
+     * did not ask: which surfaces draw this component?
+     */
+    expect(partialNames(), 'timeline.css is in the entry cascade').toContain('timeline.css');
+    for (const [name, source] of [
+      ['AnswerCard.tsx', CARD],
+      ['MonitoringPage.tsx', MONITORING],
+      ['RunExplorer.tsx', RUN_EXPLORER],
+    ] as const) {
+      expect(source, `${name} draws TraceTimeline`).toContain('<TraceTimeline');
+      expect(source, `${name} does not carry the sheet itself`).not.toContain("import './styles/timeline.css'");
+    }
   });
 });
 

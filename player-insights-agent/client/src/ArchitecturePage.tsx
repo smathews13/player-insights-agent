@@ -35,7 +35,6 @@
  * dependency; where the reference this was modelled on prints a number, this
  * prints what it is waiting for.
  */
-import './styles/architecture.css';
 import { Component, Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
@@ -73,7 +72,7 @@ import {
   type ArchitectureAccent,
   type NodeBox,
 } from './architecture-layout';
-import { edgeControlBounds, nodeControlBounds } from './architecture-control-scopes';
+import { ARCHITECTURE_CONTROL_SCOPES, edgeControlBounds, nodeControlBounds } from './architecture-control-scopes';
 import type { ChainBound } from './agent-chain';
 import { countConnections, readConnections, readingsById, type ConnectionReading } from './connection-model';
 import { DRIFT_MARKER_LABEL } from './connection-status';
@@ -608,13 +607,13 @@ export function ArchitectureTiles({
 }
 
 /**
- * The loop bounds, as a strip of tiles above the drawing.
+ * The loop bounds, as a strip of tiles under the live-data-flow label.
  *
  * THE THREE NUMBERS THAT DECIDE HOW LONG AN ANSWER MAY TAKE, which were readable
  * only by opening the gear -- on a page whose whole job is to say what the
- * deployment does. They sit beside the dependency counts because they are the same
- * kind of fact: a property of this deployment that a reader may need before they
- * can explain a run that stopped early.
+ * deployment does. They sit inside that pane, below its label and above the
+ * drawing, because they bound the run the diagram is of rather than sitting in
+ * the header as if they were a caption of the section.
  *
  * AN EM-DASH RATHER THAN THE DEFAULTS when the read fails. The shared defaults are
  * 12/12/90 and it would be easy to print them here, but a stored setting is what
@@ -640,6 +639,7 @@ export function ChainBoundTiles({
       {CHAIN_BOUNDS.map((bound) => (
         <li
           data-bound={bound}
+          data-accent={ARCHITECTURE_CONTROL_SCOPES[bound].accent}
           data-active={activeBound === bound ? 'true' : undefined}
           key={bound}
           title={CHAIN_BOUND_NOTE[bound]}
@@ -885,8 +885,8 @@ export function ArchitecturePage() {
           <h3 className="section-label" id="arch-flow-title">
             Live data flow
           </h3>
-          <ChainBoundTiles activeBound={activeBound} loop={loop} onActiveBoundChange={setActiveBound} />
         </div>
+        <ChainBoundTiles activeBound={activeBound} loop={loop} onActiveBoundChange={setActiveBound} />
         <ArchitectureDiagramBoundary key={`${checkedAt}:${payload?.readAt ?? ''}`}>
           <ArchitectureCanvas activeBound={activeBound} byResource={byResource} now={now} payload={payload} />
         </ArchitectureDiagramBoundary>

@@ -44,6 +44,9 @@ describe('Astrolabe resource tag inventory', () => {
       },
       report: report([
         { key: 'semantic_index', value: 'app_catalog.app_schema.semantic_layer_index' },
+        { key: 'llm_endpoint', value: 'databricks-claude-sonnet-4-6' },
+        { key: 'data_genie_space_id', value: 'space-data' },
+        { key: 'dictionary_genie_space_id', value: 'space-dictionary' },
         { key: 'model_name', value: 'app_catalog.app_schema.astrolabe_agent' },
         { key: 'model_version', value: '7' },
         { key: 'catalog', value: 'customer_catalog' },
@@ -56,6 +59,9 @@ describe('Astrolabe resource tag inventory', () => {
       'registered-model',
       'model-version',
       'serving-endpoint',
+      'serving-endpoint',
+      'genie-space',
+      'genie-space',
       'mlflow-experiment',
       'vector-index',
       'sql-warehouse',
@@ -68,6 +74,11 @@ describe('Astrolabe resource tag inventory', () => {
       action: 'tag',
       name: 'projects/customer-project',
     });
+    expect(targets.find((target) => target.label.startsWith('Foundation model'))).toMatchObject({
+      action: 'tag',
+      name: 'databricks-claude-sonnet-4-6',
+    });
+    expect(targets.filter((target) => target.kind === 'genie-space')).toHaveLength(2);
   });
 });
 
@@ -158,6 +169,27 @@ describe('applying Astrolabe resource tags', () => {
     expect(summary).toMatchObject({ total: 2, correct: 2, tagged: 2, notSupported: 0, failed: 0 });
     expect(setModelTag).toHaveBeenCalledWith('app.schema.astrolabe_agent');
     expect(setModelVersionTag).toHaveBeenCalledWith('app.schema.astrolabe_agent', '12');
+  });
+
+  it('tags the foundation model endpoint and states why Genie billing follows the warehouse', async () => {
+    const addServingTag = vi.fn(() => Promise.resolve());
+    const summary = await applyAstrolabeTags({
+      environment: {},
+      report: report([
+        { key: 'llm_endpoint', value: 'databricks-claude-sonnet-4-6' },
+        { key: 'data_genie_space_id', value: 'space-data' },
+      ]),
+      platform: platform({ addServingTag }),
+    });
+
+    expect(addServingTag).toHaveBeenCalledWith('databricks-claude-sonnet-4-6');
+    expect(summary.results.find((result) => result.label.startsWith('Foundation model'))).toMatchObject({
+      status: 'tagged',
+    });
+    expect(summary.results.find((result) => result.kind === 'genie-space')).toMatchObject({
+      status: 'not-supported',
+      detail: expect.stringContaining('billed through its associated SQL warehouse'),
+    });
   });
 
   it('classifies the seven reported targets into correct, unsupported, grants, and recovered retry', async () => {
@@ -315,6 +347,24 @@ describe('applying Astrolabe resource tags', () => {
     expect(summary).toMatchObject({ tagged: 0, permissionRequired: 1, failed: 0 });
     expect(summary.results[0].label).toContain('warehouse-1');
     expect(summary.results[0].detail).toContain('CAN_MANAGE');
+  });
+
+  it('names CAN_MANAGE when the app service principal cannot tag Lakebase', async () => {
+    const summary = await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_CLIENT_ID: '071769f1-5623-45b6-a172-c8b8060adff1',
+        LAKEBASE_ENDPOINT: 'projects/player-insights-agent-db/branches/production',
+      },
+      report: null,
+      platform: platform({
+        setLakebaseTags: vi.fn(() =>
+          Promise.reject(new Error('Response from server (Forbidden) {"error_code":"PERMISSION_DENIED"}'))
+        ),
+      }),
+    });
+
+    expect(summary.results[0]).toMatchObject({ kind: 'lakebase', status: 'permission-required' });
+    expect(summary.results[0].detail).toContain('CAN_MANAGE (or ownership)');
   });
 
   it('uses Apps-injected service-principal credentials, never the viewer token', () => {

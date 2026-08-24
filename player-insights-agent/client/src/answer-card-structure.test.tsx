@@ -232,8 +232,12 @@ describe('the answer card remains the substantial reading surface', () => {
     expect(css).toMatch(
       /\.answer-card\s*\{[^}]*border:\s*1px solid var\(--ast-hairline\)[^}]*border-top:\s*4px solid var\(--ast-blue\)[^}]*min-height:\s*280px/
     );
+    // 28px inline against 24px block, which is the design's card. It was cut to
+    // 24 to buy measure back, and four pixels of narrative is not a measure fix
+    // -- it is the frame coming off the card that the transcript's primary
+    // reading surface is meant to be. Width comes from --conversation-measure.
     expect(css).toMatch(
-      /\.answer-card > \[data-slot='card-header'\],\s*\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-inline:\s*24px/
+      /\.answer-card > \[data-slot='card-header'\],\s*\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-inline:\s*28px/
     );
     expect(css).toMatch(
       /\.answer-card > \[data-slot='card-header'\]\s*\{[^}]*padding-top:\s*24px/
@@ -246,24 +250,28 @@ describe('the answer card remains the substantial reading surface', () => {
 
 describe('responsive answer rail', () => {
   const css = partial('answer-body.css');
-  it('never takes a column off the prose for the figures', () => {
+  it('gives the figures a column only on a card wide enough to spare one', () => {
     /*
-     * THE THRESHOLD IS GONE, and its removal is the whole of "the answer cards
-     * are too narrow", reported four times.
+     * The design's card is the narrative with the figures down its right-hand
+     * side, and the card is drawn that way wherever it is wide enough to be.
      *
-     * It stacked below 839px of card, derived from a measure the card was
-     * assumed to reach. It does not reach it: the middle column is the window
-     * less a 264px conversation rail and a 340px inspector, so a 1440px laptop
-     * gets a card around 730px -- and once the card's insets, the 190px rail and
-     * its gap came off that, the narrative was reading in roughly 450px on every
-     * ordinary window. The side rail was effectively unconditional and the
-     * stacked arrangement was effectively unreachable, which is the exact
-     * opposite of what the threshold was written to do.
+     * Both of the readings this rule has swung between are true, at different
+     * widths. A fixed rail at every width left the narrative around 450px on a
+     * laptop holding an open inspector, which is a bulleted claim wrapping every
+     * eight words. No rail at any width is the design's card with its right-hand
+     * column deleted. So the threshold is a CONTAINER query on the card -- the
+     * only box whose width actually decides this -- and not a viewport query and
+     * not a global choice.
      */
-    expect(css).not.toMatch(/@container answer-card \(max-width: \d+px\)/);
-    // No media query either: this was never a viewport question.
-    expect(css).not.toMatch(/@media[^{]*\{[^}]*\.answer-stat-rail/s);
+    expect(css).toMatch(/@container answer-card \(min-width: 840px\)/);
+    const sideRail = css.slice(css.indexOf('@container answer-card (min-width: 840px)'));
+    expect(sideRail).toMatch(/\.answer-main-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(190px, 230px\)/s);
+    // Stacked is still the base rule, so a narrow card needs no override to get
+    // it: the Monitoring drawer is 620px and never enters the query above.
     expect(css).toMatch(/\.answer-main-row \{[^}]*display: grid/s);
+    // Not a viewport question. The transcript column is the window less two
+    // rails and four insets, any of which can be absent.
+    expect(css).not.toMatch(/@media[^{]*\{[^}]*\.answer-stat-rail/s);
     expect(css).not.toMatch(/\.answer-stat-rail \{[^}]*flex: 0 0/s);
   });
 
@@ -278,5 +286,38 @@ describe('responsive answer rail', () => {
     // 172/18px pair the last break opportunity that fitted was the HYPHEN, so
     // the rail printed "3,118 player-" above "days".
     expect(css).toMatch(/\.answer-stat-value \{[^}]*font-size: var\(--ast-fs-16\)/s);
+    // And one figure per row once the rail IS a rail: `auto-fit` inside a 230px
+    // track would fit two 190px cells side by side and clip them both.
+    const sideRail = css.slice(css.indexOf('@container answer-card (min-width: 840px)'));
+    expect(sideRail).toMatch(/\.answer-stat-rail \{[^}]*grid-template-columns: minmax\(0, 1fr\)/s);
+  });
+});
+
+describe('the answer card’s state chip sits in its top left corner', () => {
+  const css = partial('answer.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  it('pins the mark and the badge row to the start of the header grid', () => {
+    // The head is a grid, so this row stretches to its track by default and any
+    // later `justify-content` on it could slide "Live agent response" inward.
+    expect(css).toMatch(/\.answer-card-identity \{[^}]*justify-self: start/s);
+    expect(css).toMatch(/\.answer-card-identity \{[^}]*justify-content: flex-start/s);
+  });
+
+  it('draws it before the takeaway rather than beside or under it', () => {
+    const card = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+    const head = card.slice(card.indexOf('answer-card-head'), card.indexOf('</CardHeader>'));
+    expect(head.indexOf('answer-card-identity')).toBeLessThan(head.indexOf('answer-takeaway'));
+  });
+});
+
+describe('an identifier chip is one chip, on one line', () => {
+  const css = partial('answer.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  it('moves a chip down whole instead of tearing it across the break', () => {
+    // `clone` keeps a fragment properly drawn if one ever happens; `nowrap` is
+    // what stops `silver_gameplay_activity` becoming two boxes a reader has to
+    // reassemble. Safe because a qualified name is one chip per segment.
+    expect(css).toMatch(/\.entity-token,\s*\.entity-mark,\s*\.answer-badge \{[^}]*white-space: nowrap/s);
+    expect(css).toMatch(/\.entity-token,\s*\.entity-mark,\s*\.answer-badge \{[^}]*box-decoration-break: clone/s);
   });
 });

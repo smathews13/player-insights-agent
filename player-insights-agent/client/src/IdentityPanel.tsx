@@ -53,16 +53,12 @@
  * is the difference as a row and the action as a line, which is the shape of
  * every other fact here.
  */
-import { Check, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { Card } from './ui';
 import { OAuthBadge } from './OAuthBadge';
 import { UserIdentityChip } from './UserIdentityChip';
 import { CopyButton, NOT_SET, StatusBadge } from './StatusBadge';
-import {
-  questionsRunAs,
-  useDeploymentIdentity,
-  type DeploymentIdentity,
-} from './identity-panel-state';
+import { questionsRunAs, useDeploymentIdentity, type DeploymentIdentity } from './identity-panel-state';
 // WHETHER to say it, decided away from this file. The condition is the part
 // that must not vary between the surfaces that state it, and a card that
 // decided for itself would eventually offer a fresh sign-in to somebody whose
@@ -103,7 +99,8 @@ function when(iso: string | undefined): string {
  */
 /** One label-and-value line. Nothing renders when there is no value. */
 function Fact({ label, wrap, children }: { label: string; wrap?: boolean; children: React.ReactNode }) {
-  return (<div className="identity-fact" data-wrap={wrap ? 'true' : undefined}>
+  return (
+    <div className="identity-fact" data-wrap={wrap ? 'true' : undefined}>
       <p className="identity-fact-label">{label}</p>
       <div className="identity-fact-value">{children}</div>
     </div>
@@ -113,40 +110,18 @@ function Fact({ label, wrap, children }: { label: string; wrap?: boolean; childr
 /** Scopes shown in Identity: declared asks, browse capabilities, and platform defaults. */
 export function identityTableScopes(declared: readonly string[] | null | undefined): string[] {
   const declaredSet = new Set(declared ?? []);
-  const optional = OPTIONAL_USER_API_SCOPES.filter(
-    (scope) => scope !== 'postgres' || declaredSet.has(scope),
+  const optional = OPTIONAL_USER_API_SCOPES.filter((scope) => scope !== 'postgres' || declaredSet.has(scope));
+  return [...new Set([...declaredSet, ...optional, ...PLATFORM_DEFAULT_USER_API_SCOPES])].sort((left, right) =>
+    left.localeCompare(right)
   );
-  return [...new Set([...declaredSet, ...optional, ...PLATFORM_DEFAULT_USER_API_SCOPES])]
-    .sort((left, right) => left.localeCompare(right));
 }
-
-/**
- * What the green check on each scope means, said in the tooltip.
- *
- * THE PRECISE CLAIM, because a green tick beside a permission is the easiest thing
- * on this page to over-read. It says the scope is IN THE GRANT this app's sign-in
- * carries -- declared in app.yaml, or a Databricks platform default. It is not the
- * result of a probe, it does not mean the reader personally can reach any
- * particular table, and it says nothing about whether the sign-in is currently
- * valid. That last question is the OAuth badge at the top of this same card, which
- * is why the check reuses that badge's mark rather than inventing one: same glyph,
- * same green, and a reader who wants to know if the sign-in works looks at the
- * thing that has always answered it.
- */
-const SCOPE_GRANTED_TITLE =
-  'In this app\u2019s OAuth grant. Not a probe: whether the sign-in currently works is the badge above.';
 
 /**
  * The scope contract as a two-column reference table.
  *
- * PILLS ARE BACK, AND THE REASON THEY LEFT NO LONGER APPLIES. The note here used
- * to read "the pills are gone: these are permissions with meaning, not tags", and
- * that was right about what a pill had been doing -- it was decoration on a name,
- * and a bare monospace name reads as the exact string it is. What Sam asked for is
- * a different object in the same place: a status chip saying every row in this list
- * is granted, which is a fact about the scope rather than a restatement of it. So
- * it takes the app's one positive pill recipe and the OAuth badge's own mark, and
- * `SCOPE_GRANTED_TITLE` above holds the claim to what is actually true.
+ * Scope names are plain monospace values. A green status pill on every row only
+ * repeats that each entry came from the app's scope contract; the table itself
+ * already establishes that context.
  *
  * Postgres is conditional because some deployments do not request Lakebase
  * browsing; the two IAM scopes are always shown and marked as Databricks platform
@@ -166,14 +141,7 @@ function ScopeTable({ scopes }: { scopes: readonly string[] }) {
           {scopes.map((scope) => (
             <tr key={scope} data-scope={scope}>
               <td>
-                {/* The mark leads, per the ask, and it is `aria-hidden` for the
-                    reason every mark in this app is: the pill's `title` carries the
-                    whole claim in words, and a tick announced before the scope name
-                    is a wordless duplicate of it. */}
-                <span className="ast-pill ast-pill--pos identity-scope-pill" title={SCOPE_GRANTED_TITLE}>
-                  <Check size={11} strokeWidth={3} aria-hidden="true" />
-                  <code>{scope}</code>
-                </span>
+                <code className="identity-scope-code">{scope}</code>
                 {/* Outside the pill. A platform default is granted exactly like the
                     rest -- that is what the tick says -- and "(default)" qualifies
                     where it came from, which is a different fact and must not be
@@ -252,7 +220,8 @@ export function IdentityCard({
    */
   const stale = remedyStatedElsewhere ? null : staleSignInNotice(session);
 
-  return (<Card className="deployment-card deployment-card-identity" data-testid="identity-panel">
+  return (
+    <Card className="deployment-card deployment-card-identity" data-testid="identity-panel">
       <div className="deployment-card-head">
         <p className="deployment-card-title">
           <Lock className="size-3.5" aria-hidden="true" />
@@ -260,22 +229,26 @@ export function IdentityCard({
         </p>
       </div>
       <div className="deployment-card-body">
-        {failed ? (// One line, in the shape of every other value on the card: a chip that
-        // says what state this is in. The four-sentence recovery instruction it
-        // replaces told a reader to reload the page, which they can see for
-        // themselves, and named the route, which they cannot act on.
-        <Fact label="Identity">
+        {failed ? ( // One line, in the shape of every other value on the card: a chip that
+          // says what state this is in. The four-sentence recovery instruction it
+          // replaces told a reader to reload the page, which they can see for
+          // themselves, and named the route, which they cannot act on.
+          <Fact label="Identity">
             <StatusBadge value="could not be read" tone="blocked" />
           </Fact>
-        ) : (<>
+        ) : (
+          <>
             {/* The badge first, because it is the fact that qualifies the name
                 beside it: an address the app is only assuming is worth less than
                 one a sign-in it read presented. Both come from the same read. */}
-            {runsAs ? (<Fact label="Questions run as">
+            {runsAs ? (
+              <Fact label="Questions run as">
                 <OAuthBadge identity={identity} />
-                {runsAsPerson
-                  ? <UserIdentityChip identity={runsAs} compact className="identity-principal" />
-                  : <span className="identity-principal">{runsAs}</span>}
+                {runsAsPerson ? (
+                  <UserIdentityChip identity={runsAs} compact className="identity-principal" />
+                ) : (
+                  <span className="identity-principal">{runsAs}</span>
+                )}
               </Fact>
             ) : null}
             <Fact label="App client id">
@@ -290,7 +263,8 @@ export function IdentityCard({
               />
               {clientId ? <CopyButton value={clientId} label="Copy the app client id" /> : null}
             </Fact>
-            {orchestrator ? (<Fact label="Orchestrator">
+            {orchestrator ? (
+              <Fact label="Orchestrator">
                 <StatusBadge value={orchestrator} tone="plain" />
                 <CopyButton value={orchestrator} label="Copy the orchestrator principal" />
                 {observedAt ? <span className="identity-fact-when">{observedAt}</span> : null}
@@ -320,7 +294,8 @@ export function IdentityCard({
                 them the same permissions and the same refusal -- and
                 `remedyStatedElsewhere` decides whether it has already been
                 said. */}
-            {stale ? (<Fact label="To fix">
+            {stale ? (
+              <Fact label="To fix">
                 <span className="identity-stale-do" data-testid="identity-stale">
                   {stale.action}
                 </span>

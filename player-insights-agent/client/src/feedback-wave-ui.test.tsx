@@ -61,7 +61,10 @@ describe('Sam’s second feedback wave', () => {
   });
 
   it('widens result surfaces without removing horizontal overflow', () => {
-    expect(TOKENS).toContain('--conversation-measure: 1120px');
+    // 1280, up from 1120: the card carries its figures in a right-hand rail
+    // again, and the cap is the one lever that widens it without taking its
+    // frame or the transcript's gutters off.
+    expect(TOKENS).toContain('--conversation-measure: 1280px');
     expect(TOKENS).toContain('--conversation-inset: clamp(16px, 1.25vw, 24px)');
     expect(rule(TRACE, '.trace-dag.map .dag-grid')).toContain('overflow-x: auto');
     expect(rule(TRACE, '.trace-dag.map .dag-grid table')).toContain('min-width: 100%');

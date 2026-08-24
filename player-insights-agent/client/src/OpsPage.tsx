@@ -34,14 +34,13 @@
  * a workspace-wide table, and a page that re-ran it every thirty seconds would
  * cost money to look at.
  */
-import './styles/time-range.css';
-import './styles/ops.css';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight, ExternalLink, Info, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Search, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
 import { BrandIcon } from './BrandIcon';
+import { ExperimentalBadge } from './ExperimentalBadge';
 import { PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
@@ -235,8 +234,8 @@ function BlockHead({
 }
 
 /** The body inside a block's border, held off the edges by one rule. */
-function BlockBody({ children }: { children: React.ReactNode }) {
-  return <div className="ops-block-body">{children}</div>;
+function BlockBody({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div className={`ops-block-body${className ? ` ${className}` : ''}`}>{children}</div>;
 }
 
 /**
@@ -548,48 +547,6 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
 
 /* ── Cost ────────────────────────────────────────────────────────────────── */
 
-/**
- * The qualifiers that govern every figure in the block, said once.
- *
- * "AT LIST PRICE" LEADS, which is the handoff's line and is not the same claim
- * as the badge beside it. The badge says these figures are not a production
- * account's. This says the rate they were computed at is the published one,
- * before any discount the account actually holds, which is the difference
- * between a figure that is approximately the bill and one that is reliably
- * above it. It was dropped when the badge arrived, on the reading that the two
- * were one caveat wearing two hats. They are two facts and the handoff asks for
- * both.
- */
-function costQualifiers(payload: OpsCostPayload): string {
-  const lag =
-    payload.billingLagDays === null
-      ? 'billing freshness not established'
-      : payload.billingLagDays === 0
-        ? 'billing through range end'
-        : `${payload.billingLagDays} ${payload.billingLagDays === 1 ? 'day' : 'days'} billing lag`;
-  const parts = [
-    'At list price',
-    payload.currency,
-    opsRangeDates(payload.range),
-    spokenDay(payload.throughDay),
-    lag,
-    'read under your own grants',
-  ];
-  return parts.filter(Boolean).join(' \u00b7 ');
-}
-
-/** A day as the handoff writes one: "through Aug 14, the last complete day". */
-function spokenDay(day: string): string {
-  const at = Date.parse(`${day}T00:00:00Z`);
-  if (!Number.isFinite(at)) return '';
-  const spoken = new Date(at).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  });
-  return `through ${spoken}, the last complete day`;
-}
-
 export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
   const payload = block.data;
   const billingHref = databricksLink(useWorkspaceHost(), { kind: 'table', table: 'system.billing.usage' });
@@ -615,7 +572,6 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
         id="ops-cost-heading"
         title="Cost"
         badges={[{ word: 'Experimental', tone: astPill('warn', 'ops-pill') }]}
-        meta={payload ? costQualifiers(payload) : ''}
         control={<RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />}
       />
 
@@ -635,17 +591,20 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                     {/* 14px beside the label, and absent on the two tiles whose
                       spend is not any one product's: a Lakeflow job and the
                       platform's charge for writing telemetry tables. */}
-                    <p className="ops-tile-label">
-                      {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
-                      {/* Truncated with an ellipsis rather than wrapped, and
-                        carrying its own full text on hover. An uppercase
-                        letter-spaced eyebrow is the one line on this card that
-                        cannot wrap without pushing the figure down a row and
-                        taking the card out of step with its neighbours. */}
-                      <span className="ops-tile-label-text" title={view.label}>
-                        {view.label}
-                      </span>
-                    </p>
+                    <div className="ops-tile-head">
+                      <p className="ops-tile-label">
+                        {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
+                        {/* Truncated with an ellipsis rather than wrapped, and
+                          carrying its own full text on hover. An uppercase
+                          letter-spaced eyebrow is the one line on this card that
+                          cannot wrap without pushing the figure down a row and
+                          taking the card out of step with its neighbours. */}
+                        <span className="ops-tile-label-text" title={view.label}>
+                          {view.label}
+                        </span>
+                      </p>
+                      <ExperimentalBadge />
+                    </div>
                     {/* `.ast-num` on the figure and not on the basis beside it.
                       Six of these sit in a three-column grid, so a reader compares
                       them down a column, and DM Sans cannot line them up: the
@@ -696,6 +655,10 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               })}
             </div>
             <QuestionCostAverage payload={payload} />
+            <p className="ops-cost-honesty">
+              Per-question cost token-apportions model-serving spend only; all other figures are resource totals or
+              daily rates.
+            </p>
             {billingHref ? (
               <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer">
                 Open system.billing.usage
@@ -736,19 +699,20 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
 
   return (
     <div className="ops-question-average">
-      <p className="ops-tile-label">Average model serving per question</p>
+      <div className="ops-tile-head">
+        <p className="ops-tile-label">Average model serving per question</p>
+        <ExperimentalBadge />
+      </div>
       {amount !== null ? (
         <p className="ops-tile-figure">
-          <span className="ast-num">{amount.toFixed(2)} {payload.currency}</span>
+          <span className="ast-num">
+            {amount.toFixed(2)} {payload.currency}
+          </span>
           <span className="ops-tile-basis">token-apportioned</span>
         </p>
       ) : (
         <p className="ops-tile-absent">{attribution.reason || 'No token-covered endpoint spend in this range'}</p>
       )}
-      <p className="ops-source-filter">
-        Endpoint spend only · <span className="ast-num">{covered} of {attribution.runsInRange}</span> completed
-        questions recorded tokens. No other product is included.
-      </p>
     </div>
   );
 }
@@ -992,11 +956,11 @@ export function LatencyBody({
   const barWidths = p50BarWidths(shown.map((route) => route.p50Ms));
 
   return (
-    <section className="ops-block" aria-labelledby="ops-latency-heading">
+    <section className="ops-block ops-latency-block" aria-labelledby="ops-latency-heading">
       <BlockHead
         id="ops-latency-heading"
         title="Latency"
-        meta={<LatencyCaption />}
+        meta="By route"
         control={
           <div className="ops-latency-head-controls">
             <div className="run-search monitoring-search ops-latency-search">
@@ -1019,107 +983,97 @@ export function LatencyBody({
                 </button>
               ) : null}
             </div>
-            <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
+            <RefreshButton busy={block.busy} onRefresh={block.refresh} />
           </div>
         }
       />
 
       {block.busy && !payload ? null : (
-        <BlockBody>
+        <BlockBody className={!absence && payload && routes.length > 0 ? 'ops-block-body-flush' : ''}>
           {absence ? (
-          <Absence notice={absence}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
-        ) : payload ? (
-          <>
-            {/* THE FACT TRUE OF EVERY ROW, SAID ONCE. Replaces the columns of
-                repeated dashes p95/p99/trend became on a quiet window. When a
-                route crosses the span floor the columns come back and this
-                line stops claiming there are none. */}
-            {facts.line ? (
-              <p className="ops-latency-facts">
-                <Info className="size-3.5" aria-hidden="true" />
-                <span>{facts.line}</span>
-              </p>
-            ) : null}
-            {routes.length === 0 && search.trim() ? (
-              /* The same one-line list absence and named escape Monitoring uses.
+            <Absence notice={absence}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
+          ) : payload ? (
+            <>
+              {routes.length === 0 && search.trim() ? (
+                /* The same one-line list absence and named escape Monitoring uses.
                  A search has hidden rows; it has not made the telemetry empty. */
-              <div className="monitoring-empty">
-                <p className="monitoring-empty-line">Nothing matches &quot;{search.trim()}&quot;.</p>
-                <div className="monitoring-empty-actions">
-                  <Button variant="outline" size="sm" onClick={() => setSearch('')}>
-                    Clear search
-                  </Button>
+                <div className="monitoring-empty">
+                  <p className="monitoring-empty-line">Nothing matches &quot;{search.trim()}&quot;.</p>
+                  <div className="monitoring-empty-actions">
+                    <Button variant="outline" size="sm" onClick={() => setSearch('')}>
+                      Clear search
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="ops-latency-scroll">
-                <table
-                  className={`ops-table ops-latency-table${facts.showPercentiles ? ' ops-latency-table-expanded' : ''}`}
-                  data-testid="ops-latency"
-                >
-                  <colgroup>
-                    <col className="ops-lat-col-method" />
-                    <col className="ops-lat-col-route" />
-                    <col className="ops-lat-col-hit" />
-                    <col className="ops-lat-col-spans" />
-                    <col className="ops-lat-col-p50" />
-                    <col className="ops-lat-col-bar" />
-                    <col className="ops-lat-col-slowest" />
-                    {facts.showPercentiles ? (
-                      <>
-                        <col className="ops-lat-col-percentile" />
-                        <col className="ops-lat-col-percentile" />
-                        <col className="ops-lat-col-trend" />
-                      </>
-                    ) : null}
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th scope="col" className="ops-lat-method">
-                        Method
-                      </th>
-                      <th scope="col" className="ops-lat-route">
-                        Route
-                      </th>
-                      <th scope="col" className="ops-lat-hit">
-                        Last hit
-                      </th>
-                      <th scope="col" className="ops-lat-spans">
-                        Spans
-                      </th>
-                      <th scope="col" className="ops-lat-p50">
-                        p50
-                      </th>
-                      <th scope="col" className="ops-lat-bar-head">
-                        P50 · log scale
-                      </th>
-                      <th scope="col" className="ops-lat-slowest">
-                        Slowest
-                      </th>
+              ) : (
+                <div className="ops-latency-scroll">
+                  <table
+                    className={`ops-table ops-latency-table${facts.showPercentiles ? ' ops-latency-table-expanded' : ''}`}
+                    data-testid="ops-latency"
+                  >
+                    <colgroup>
+                      <col className="ops-lat-col-method" />
+                      <col className="ops-lat-col-route" />
+                      <col className="ops-lat-col-hit" />
+                      <col className="ops-lat-col-spans" />
+                      <col className="ops-lat-col-p50" />
+                      <col className="ops-lat-col-bar" />
+                      <col className="ops-lat-col-slowest" />
                       {facts.showPercentiles ? (
                         <>
-                          <th scope="col">p95</th>
-                          <th scope="col">p99</th>
-                          <th scope="col">Trend</th>
+                          <col className="ops-lat-col-percentile" />
+                          <col className="ops-lat-col-percentile" />
+                          <col className="ops-lat-col-trend" />
                         </>
                       ) : null}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shown.map((route, index) => (
-                      <LatencyRow
-                        key={route.route}
-                        route={route}
-                        barWidth={barWidths[index]}
-                        showPercentiles={facts.showPercentiles}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        ) : null}
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th scope="col" className="ops-lat-method">
+                          Method
+                        </th>
+                        <th scope="col" className="ops-lat-route">
+                          Route
+                        </th>
+                        <th scope="col" className="ops-lat-hit">
+                          Last hit
+                        </th>
+                        <th scope="col" className="ops-lat-spans">
+                          Spans
+                        </th>
+                        <th scope="col" className="ops-lat-p50">
+                          p50
+                        </th>
+                        <th scope="col" className="ops-lat-bar-head">
+                          P50 · log scale
+                        </th>
+                        <th scope="col" className="ops-lat-slowest">
+                          Slowest
+                        </th>
+                        {facts.showPercentiles ? (
+                          <>
+                            <th scope="col">p95</th>
+                            <th scope="col">p99</th>
+                            <th scope="col">Trend</th>
+                          </>
+                        ) : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.map((route, index) => (
+                        <LatencyRow
+                          key={route.route}
+                          route={route}
+                          barWidth={barWidths[index]}
+                          showPercentiles={facts.showPercentiles}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          ) : null}
         </BlockBody>
       )}
 
@@ -1163,10 +1117,6 @@ export function LatencyBody({
       ) : null}
     </section>
   );
-}
-
-function LatencyCaption() {
-  return <span className="ops-block-meta">By route</span>;
 }
 
 /** One high percentile, or the withheld mark with the reason on the cell. */

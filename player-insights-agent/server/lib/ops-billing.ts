@@ -458,6 +458,16 @@ export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile
       population: description.population,
     };
 
+    if (component === 'genie') {
+      return {
+        ...base,
+        amount: null,
+        note: '',
+        unavailable: 'Covered by SQL warehouse',
+        remedy: '',
+      };
+    }
+
     if (!canAsk(component, ids)) {
       // A workspace-wide figure, if the statement got one, RELABELLED as what it
       // is. Both overrides matter: the population so a reader cannot take it for
@@ -485,7 +495,7 @@ export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile
         ...base,
         amount: null,
         note: '',
-        unavailable: 'Not attributable',
+        unavailable: 'Resource identifier unavailable',
         remedy: description.variable ? `Set ${description.variable}.` : '',
       };
     }
@@ -551,7 +561,7 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
     {
       id: 'genie',
       label: 'Genie spaces',
-      unavailable: 'Billing exposes workspace spend but no run or space attribution key.',
+      unavailable: 'Space tags are organizational only; Genie SQL is billed through the associated warehouse.',
     },
     {
       id: 'vector-search',

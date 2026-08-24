@@ -19,6 +19,7 @@ export type ResourceTagKind =
   | 'model-version'
   | 'mlflow-experiment'
   | 'serving-endpoint'
+  | 'genie-space'
   | 'sql-warehouse'
   | 'lakebase'
   | 'vector-index'
@@ -144,6 +145,33 @@ export function resourceTagInventory(
     });
   }
 
+  const foundationModel = configurationValue(report, 'llm_endpoint');
+  if (foundationModel) {
+    targets.push({
+      kind: 'serving-endpoint',
+      name: foundationModel,
+      label: `Foundation model serving endpoint · ${foundationModel}`,
+      action: 'tag',
+    });
+  }
+
+  for (const [key, label] of [
+    ['data_genie_space_id', 'Data Genie space'],
+    ['dictionary_genie_space_id', 'Dictionary Genie space'],
+  ] as const) {
+    const spaceId = configurationValue(report, key);
+    if (!spaceId) continue;
+    targets.push({
+      kind: 'genie-space',
+      name: spaceId,
+      label: `${label} · ${spaceId}`,
+      action: 'skip',
+      reason:
+        'Genie space tags are organizational only and do not propagate to billing by space id. ' +
+        'SQL issued by this space is billed through its associated SQL warehouse.',
+    });
+  }
+
   const experimentId = text(environment.PLAYER_INSIGHTS_EXPERIMENT_ID);
   if (experimentId) {
     targets.push({
@@ -253,8 +281,8 @@ function permissionRequired(target: ResourceTagTarget, error: unknown, servicePr
       `SQL warehouse “${target.name}”.`;
   } else if (target.kind === 'lakebase') {
     detail =
-      `Workspace admin action: grant service principal ${principal} permission to update Lakebase project ` +
-      `“${target.name.replace(/^projects\//, '')}”.`;
+      `Workspace admin action: grant service principal ${principal} CAN_MANAGE (or ownership) on Lakebase project ` +
+      `“${target.name.replace(/^projects\//, '')}” so it can update custom tags.`;
   } else {
     detail = `Workspace admin action: grant service principal ${principal} management permission on “${target.name}”.`;
   }

@@ -235,7 +235,6 @@ export function StarField({
   const [visitSeed] = useState(() => seed ?? DOCUMENT_SEED);
   const drawing = buildStarField(pageId, visitSeed);
   const asksForDrift = surface === 'ask';
-  const anchorMotion = surface === 'working' ? 'anchor-still' : 'anchor';
 
   return (
     <svg
@@ -287,12 +286,12 @@ export function StarField({
           <circle
             key={`anchor-${index}`}
             className="app-sky-glyph"
-            data-star-motion={anchorMotion}
+            data-star-motion="anchor"
             cx={star.x}
             cy={star.y}
             r="2"
             opacity="0.7"
-            style={surface === 'working' ? undefined : animationStyle(star)}
+            style={animationStyle(star)}
           />
         ))}
       </g>

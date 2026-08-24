@@ -39,7 +39,6 @@ import {
   type OpsCostPayload,
   type OpsLatencyPayload,
   type PlatformReading,
-  type QuestionCostPart,
   type RouteLatency,
   type TelemetryState,
   type TrafficBar,
@@ -88,7 +87,7 @@ export interface TileView {
   label: string;
   /** The figure, or '' when there is none. */
   figure: string;
-  /** The STATE in place of a figure, e.g. 'Not attributable'. '' when there is one. */
+  /** The STATE in place of a figure. Empty when there is one. */
   absence: string;
   /** The contract's quality label. The renderer never invents one. */
   qualityLabel: string;
@@ -145,7 +144,7 @@ export function tileView(tile: CostTile, currency: string): TileView {
     label: tile.label,
     figure,
     // A tile with an amount it could not format is an absence, not a blank.
-    absence: figure ? '' : tile.unavailable || 'Not attributable',
+    absence: figure ? '' : tile.unavailable || 'Billing detail unavailable',
     qualityLabel: COST_QUALITY_LABEL[tile.quality],
     estimate: figure !== '' && tile.quality === 'estimate',
     population: tile.population,
@@ -154,35 +153,6 @@ export function tileView(tile: CostTile, currency: string): TileView {
     // Only ever beside an absence. A figure that arrived needs nothing set.
     remedy: figure ? '' : tile.remedy,
     note: tile.note,
-  };
-}
-
-/**
- * A per-question part rendered without weakening its discriminated contract.
- *
- * `unknown` cannot carry an amount in the shared type, and it stays an absence
- * here even if an untyped caller fabricates one at runtime. That second guard is
- * intentional: Ops is an admin surface reading JSON, not a TypeScript function
- * call, and wire data does not become true because the compiler trusted it.
- */
-export function questionPartView(
-  part: QuestionCostPart,
-  currency: string
-): { figure: string; absence: string; qualityLabel: string; estimate: boolean } {
-  if (part.quality === 'unknown') {
-    return {
-      figure: '',
-      absence: part.unavailable || 'Not knowable from the identifiers recorded today.',
-      qualityLabel: COST_QUALITY_LABEL.unknown,
-      estimate: false,
-    };
-  }
-  const figure = money(part.amount, currency);
-  return {
-    figure,
-    absence: figure ? '' : 'Not attributable',
-    qualityLabel: COST_QUALITY_LABEL[part.quality],
-    estimate: part.quality === 'estimate',
   };
 }
 

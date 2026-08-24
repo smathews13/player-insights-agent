@@ -397,6 +397,15 @@ describe('where the run has got to, on the row and in the rail', () => {
     expect(icon).toMatch(/height: calc\(var\(--text-base\) \* 1\.4\)/);
   });
 
+  it('uses the agent map’s numbered badge for every live row', () => {
+    // One formatter and one badge class make step 07 the same visual address
+    // while a run is live and after it is opened in Run Explorer.
+    expect(PANEL).toContain("import { railTiming, stepNumber } from './agent-map'");
+    expect(PANEL).toContain('live-step-icon step-rail-num ast-num');
+    expect(PANEL).toContain('{stepNumber(number)}');
+    expect(PANEL).toContain('number={index + 1}');
+  });
+
   it('has no pulse on the compact rail left to guard', () => {
     // THE GAP IS CLOSED BY REMOVAL RATHER THAN BY A GUARD, which is the better of
     // the two answers and was not available while the halo was the design.

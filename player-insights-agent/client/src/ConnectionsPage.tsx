@@ -22,7 +22,6 @@
  * the old one. Which affordance a row gets is decided in
  * `shared/deployment-config.ts` rather than here.
  */
-import './styles/connections.css';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { showsAdminSurfaces, useRole } from './role';
 import {

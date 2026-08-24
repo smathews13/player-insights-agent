@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { partial } from './styles/stylesheet';
+import { partial, partialNames } from './styles/stylesheet';
 
 /**
  * The two screens that read a recorded run: the Run Explorer and the Benchmark Lab.
@@ -109,8 +109,47 @@ describe('the Run Explorer’s two columns', () => {
   it('sets the token split as a mono caption on the tile, not as a second value', () => {
     // Two metred numbers to be compared, so they are mono and small; the tile's
     // value stays the one figure a reader takes away.
-    expect(rule(BENCHMARK, '.summary-grid small.tile-mono')).toContain('font-family: var(--font-mono)');
+    expect(rule(RUNS, '.run-explorer .summary-grid small.tile-mono')).toContain(
+      'font-family: var(--font-mono)'
+    );
     expect(EXPLORER).toContain('tile-mono');
+  });
+
+  it('cannot be left with a label welded to its figure', () => {
+    /*
+     * THE REGRESSION THIS GUARDS IS A SHARED RECIPE THAT STOPPED ARRIVING.
+     *
+     * The five measurements are `.summary-grid`, whose recipe is written in
+     * benchmark.css. When the page partials were moved out of index.css and
+     * into lazy route imports, this page kept the markup and lost the rules:
+     * five unstyled AppKit cards, drawn as thin full-bleed bars, each with its
+     * label hard against its value -- "Wall time100.4s".
+     *
+     * So the claim is made twice. The cascade has to reach this page, and the
+     * page's own partial has to floor the arrangement if it ever stops.
+     */
+    expect(partialNames(), 'the shared tile recipe is in the cascade').toContain('benchmark.css');
+    expect(partialNames(), 'this page’s own partial is in the cascade').toContain('runs.css');
+
+    const grid = rule(RUNS, '.run-explorer .summary-grid');
+    expect(grid).toContain('display: grid');
+    expect(grid).toContain('repeat(auto-fit, minmax(148px, 1fr))');
+
+    // A column with a gap: the label above its value, never beside it, and
+    // never touching it.
+    const row = rule(RUNS, ".run-explorer .summary-grid [data-slot='card-content']");
+    expect(row).toContain('flex-direction: column');
+    expect(row).toContain('gap: 2px');
+    expect(row).toContain('padding: 14px 16px');
+    // And the figure never breaks mid-value at the detail pane's width.
+    expect(rule(RUNS, '.run-explorer .summary-grid strong')).toContain('white-space: nowrap');
+  });
+
+  it('keeps the MLflow mark attached to its left-aligned link', () => {
+    const link = rule(RUNS, '.trace-id-row > a');
+    expect(link).toContain('display: inline-flex');
+    expect(link).toContain('gap: 6px');
+    expect(link).not.toContain('margin-left: auto');
   });
 });
 

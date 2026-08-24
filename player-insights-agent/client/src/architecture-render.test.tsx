@@ -782,17 +782,19 @@ describe('the drawing is reachable and readable without seeing it', () => {
     expect(contract).toContain('open its answer content setting');
   });
 
-  it('puts the three loop bounds inside the live-data-flow header', () => {
+  it('puts the three loop bounds under the live-data-flow label, inside the pane', () => {
     const strip = pageMarkup();
     expect(strip).toContain('data-testid="architecture-loop-tiles"');
     const flow = strip.indexOf('class="arch-flow"');
     const heading = strip.indexOf('Live data flow', flow);
+    const headingClose = strip.indexOf('</h3>', heading);
     const bounds = strip.indexOf('architecture-loop-tiles', heading);
     const canvas = strip.indexOf('architecture-canvas', bounds);
     expect(flow).toBeGreaterThan(-1);
     expect(heading).toBeGreaterThan(flow);
-    expect(bounds).toBeGreaterThan(heading);
+    expect(bounds).toBeGreaterThan(headingClose);
     expect(canvas).toBeGreaterThan(bounds);
+    expect(strip.slice(flow, headingClose)).not.toContain('architecture-loop-tiles');
     for (const bound of CHAIN_BOUNDS) {
       expect(text(strip), bound).toContain(CHAIN_BOUND_LABEL[bound]);
     }

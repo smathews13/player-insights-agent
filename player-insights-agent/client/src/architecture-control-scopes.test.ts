@@ -85,9 +85,8 @@ describe('the runtime bounds illuminate only what the agent actually bounds', ()
     }
   });
 
-  it('gives every KPI its own local colour token', () => {
-    const colors = CHAIN_BOUNDS.map((bound) => ARCHITECTURE_CONTROL_SCOPES[bound].colorToken);
-    expect(new Set(colors).size).toBe(CHAIN_BOUNDS.length);
-    expect(colors.every((token) => token.startsWith('--arch-bound-'))).toBe(true);
+  it('uses the diagram legend’s agent family for every runtime bound', () => {
+    const accents = CHAIN_BOUNDS.map((bound) => ARCHITECTURE_CONTROL_SCOPES[bound].accent);
+    expect(accents).toEqual(CHAIN_BOUNDS.map(() => 'agent'));
   });
 });

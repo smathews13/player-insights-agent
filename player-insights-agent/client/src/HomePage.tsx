@@ -738,7 +738,11 @@ export function HomePage() {
   const askRow = useCallback((question: string, approval?: { planId: string; label: string }) => {
     void latest.current.ask(question, approval);
   }, []);
-  const rateRow = useCallback((answerId: string, rating: number) => latest.current.saveFeedback(answerId, rating), []);
+  const rateRow = useCallback(
+    (answerId: string, rating: number, options?: { keepCommentOpen?: boolean }) =>
+      latest.current.saveFeedback(answerId, rating, options),
+    []
+  );
   const changeFeedback = useCallback((answerId: string, changes: Partial<FeedbackEntry>) => {
     setFeedback((current) => ({
       ...current,
@@ -1204,23 +1208,45 @@ export function HomePage() {
    * rather than swallowed: this used to `.catch(() => undefined)` and then say
    * "Feedback saved" regardless, so a rating that never reached the table looked
    * recorded, and the usefulness figure is computed from that table.
+   *
+   * A COMMENT IS NEVER A CONDITION OF A RATING. Both thumbs reach here on the
+   * click of the icon itself, and `keepCommentOpen` is the only difference
+   * between them: the negative one leaves the box open afterwards so a reader
+   * who wants to say why still can, against a rating that is already recorded.
    */
-  async function saveFeedback(messageId: string, usefulness: number) {
+  async function saveFeedback(
+    messageId: string,
+    usefulness: number,
+    options: { keepCommentOpen?: boolean } = {}
+  ) {
     const entry = feedback[messageId] ?? emptyFeedback;
     const patch = (changes: Partial<FeedbackEntry>) =>
       setFeedback((current) => ({ ...current, [messageId]: { ...(current[messageId] ?? emptyFeedback), ...changes } }));
-    patch({ saving: true, error: null });
+    // `saved: false` while the write is in flight, so the confirmation on screen
+    // always belongs to the rating on screen. It used to be left standing, which
+    // is what put "Feedback saved" beside an unlit thumbs-down: the sentence was
+    // the previous rating's and read as though this click had been recorded.
+    patch({ saving: true, saved: false, error: null });
     try {
       const response = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, usefulness, comment: entry.comment }),
+        // Omitted rather than sent empty when nobody typed anything: a bare
+        // thumb is a rating with no comment, and `''` would store a blank
+        // comment that Monitoring then renders as one.
+        body: JSON.stringify({ messageId, usefulness, comment: entry.comment.trim() || undefined }),
       });
       if (!response.ok) throw new Error(`The rating was not recorded (HTTP ${response.status}).`);
       // The rating is held as well as the fact of it, so the thumb that was
       // pressed stays pressed -- and so this session shows what a reload of it
       // will now show, rather than only a confirmation that vanishes.
-      patch({ saving: false, saved: true, open: false, error: null, usefulness });
+      patch({
+        saving: false,
+        saved: true,
+        open: options.keepCommentOpen === true,
+        error: null,
+        usefulness,
+      });
     } catch (error) {
       // `usefulness` is cleared, not left standing. A pressed thumb over an error
       // message would say the rating was taken and the message would say it was
@@ -2311,7 +2337,11 @@ const MessageItem = memo(function MessageItem({
   showFeedback: boolean;
   onAsk: (question: string, approval?: { planId: string; label: string }) => void;
   onFeedbackChange: (answerId: string, changes: Partial<FeedbackEntry>) => void;
-  onSaveFeedback: (answerId: string, rating: number) => Promise<void>;
+  onSaveFeedback: (
+    answerId: string,
+    rating: number,
+    options?: { keepCommentOpen?: boolean }
+  ) => Promise<void>;
 }) {
   if (message.role === 'user') {
     return (
@@ -2378,7 +2408,7 @@ const MessageItem = memo(function MessageItem({
       question={question}
       feedback={feedback}
       onFeedbackChange={(changes) => onFeedbackChange(response.id, changes)}
-      saveFeedback={(rating) => onSaveFeedback(response.id, rating)}
+      saveFeedback={(rating, options) => onSaveFeedback(response.id, rating, options)}
       showFeedback={showFeedback}
     />
   );

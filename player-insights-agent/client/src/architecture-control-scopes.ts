@@ -14,10 +14,11 @@
  * is bounded and survive a reroute.
  */
 import type { ChainBound } from './agent-chain';
+import type { ArchitectureAccent } from './architecture-layout';
 
 export interface ArchitectureControlScope {
-  /** A local CSS token, derived only from declared palette tokens. */
-  colorToken: string;
+  /** The diagram legend family this control belongs to. */
+  accent: ArchitectureAccent;
   nodes: readonly string[];
   edges: readonly string[];
 }
@@ -80,17 +81,17 @@ const RUN_EDGES = [
 
 export const ARCHITECTURE_CONTROL_SCOPES: Readonly<Record<ChainBound, ArchitectureControlScope>> = {
   maxSteps: {
-    colorToken: '--arch-bound-steps',
+    accent: 'agent',
     nodes: FINDER_STEP_NODES,
     edges: FINDER_STEP_EDGES,
   },
   maxToolCalls: {
-    colorToken: '--arch-bound-tools',
+    accent: 'agent',
     nodes: TOOL_NODES,
     edges: TOOL_EDGES,
   },
   maxRunSeconds: {
-    colorToken: '--arch-bound-run',
+    accent: 'agent',
     nodes: RUN_NODES,
     edges: RUN_EDGES,
   },

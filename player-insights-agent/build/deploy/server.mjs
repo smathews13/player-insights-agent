@@ -173153,6 +173153,29 @@ function resourceTagInventory(input = {}) {
       action: "tag"
     });
   }
+  const foundationModel = configurationValue(report, "llm_endpoint");
+  if (foundationModel) {
+    targets.push({
+      kind: "serving-endpoint",
+      name: foundationModel,
+      label: `Foundation model serving endpoint \xB7 ${foundationModel}`,
+      action: "tag"
+    });
+  }
+  for (const [key2, label] of [
+    ["data_genie_space_id", "Data Genie space"],
+    ["dictionary_genie_space_id", "Dictionary Genie space"]
+  ]) {
+    const spaceId = configurationValue(report, key2);
+    if (!spaceId) continue;
+    targets.push({
+      kind: "genie-space",
+      name: spaceId,
+      label: `${label} \xB7 ${spaceId}`,
+      action: "skip",
+      reason: "Genie space tags are organizational only and do not propagate to billing by space id. SQL issued by this space is billed through its associated SQL warehouse."
+    });
+  }
   const experimentId = text13(environment.PLAYER_INSIGHTS_EXPERIMENT_ID);
   if (experimentId) {
     targets.push({
@@ -173238,7 +173261,7 @@ function permissionRequired(target, error48, servicePrincipalId) {
   } else if (target.kind === "sql-warehouse") {
     detail = `Workspace admin action: grant service principal ${principal} CAN_MANAGE (or ownership) on SQL warehouse \u201C${target.name}\u201D.`;
   } else if (target.kind === "lakebase") {
-    detail = `Workspace admin action: grant service principal ${principal} permission to update Lakebase project \u201C${target.name.replace(/^projects\//, "")}\u201D.`;
+    detail = `Workspace admin action: grant service principal ${principal} CAN_MANAGE (or ownership) on Lakebase project \u201C${target.name.replace(/^projects\//, "")}\u201D so it can update custom tags.`;
   } else {
     detail = `Workspace admin action: grant service principal ${principal} management permission on \u201C${target.name}\u201D.`;
   }
@@ -175859,6 +175882,15 @@ function buildTiles(ids, rows) {
       basis: description.basis,
       population: description.population
     };
+    if (component === "genie") {
+      return {
+        ...base,
+        amount: null,
+        note: "",
+        unavailable: "Covered by SQL warehouse",
+        remedy: ""
+      };
+    }
     if (!canAsk(component, ids)) {
       const estimate = byComponent.get(workspaceEstimateRow(component));
       if (estimate && estimate.spend !== null && Number.isFinite(estimate.spend)) {
@@ -175876,7 +175908,7 @@ function buildTiles(ids, rows) {
         ...base,
         amount: null,
         note: "",
-        unavailable: "Not attributable",
+        unavailable: "Resource identifier unavailable",
         remedy: description.variable ? `Set ${description.variable}.` : ""
       };
     }
@@ -176070,7 +176102,7 @@ var init_ops_billing = __esm({
       {
         id: "genie",
         label: "Genie spaces",
-        unavailable: "Billing exposes workspace spend but no run or space attribution key."
+        unavailable: "Space tags are organizational only; Genie SQL is billed through the associated warehouse."
       },
       {
         id: "vector-search",

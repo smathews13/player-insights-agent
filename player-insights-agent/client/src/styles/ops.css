@@ -92,6 +92,11 @@
   gap: 16px;
 }
 
+.ops-block-body-flush {
+  padding: 0;
+  gap: 0;
+}
+
 /*
  * The line a block cannot say inside its own body: the way out of Traffic to the
  * runs themselves, and the pager under the latency table. Cost had one too, and
@@ -481,6 +486,18 @@ a.ops-dependency-label:hover {
   min-width: 0;
 }
 
+.ops-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ops-tile-head .experimental-pane-badge {
+  flex: none;
+}
+
 /* An eyebrow: the product this figure belongs to, small, spaced and quiet, so
    the number under it is the thing the eye lands on. */
 .ops-tile-label {
@@ -614,8 +631,10 @@ a.ops-dependency-label:hover {
   padding: 12px 14px;
 }
 
-.ops-question-average .ops-source-filter {
+.ops-cost-honesty {
   margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ast-text-secondary);
 }
 
 /*
@@ -957,12 +976,21 @@ a.ops-bar-count:hover {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
+}
+
+.ops-latency-block .ops-block-head {
+  flex-wrap: nowrap;
+}
+
+.ops-latency-block .ops-block-head-control {
+  min-width: 0;
 }
 
 .ops-latency-search {
   width: min(240px, 100%);
+  min-width: 10rem;
 }
 
 /*
@@ -1165,29 +1193,6 @@ td.ops-lat-route {
 /* Word + left edge. Colour alone never carries "concerning". */
 .ops-latency-row-slower {
   box-shadow: inset 3px 0 0 var(--ast-neg-text);
-}
-
-/*
- * The shared-facts strip: one fact true of every row, said once above the table
- * instead of as a column of repeated dashes. Body text on the card band, with a
- * quiet info glyph; never a warning colour, because the usual case it states is
- * a quiet window rather than a fault.
- */
-.ops-latency-facts {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0 0 8px;
-  padding: 8px 12px;
-  background: var(--ast-fill-band);
-  border-radius: var(--ast-radius-card);
-  font-size: var(--ast-fs-12);
-  color: var(--ast-text-secondary);
-}
-
-.ops-latency-facts svg {
-  flex: 0 0 auto;
-  margin-top: 2px;
 }
 
 /*

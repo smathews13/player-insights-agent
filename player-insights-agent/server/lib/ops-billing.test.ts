@@ -61,6 +61,22 @@ describe('billing attribution', () => {
     expect(app?.remedy).toContain('Verify');
   });
 
+  it('reports Genie SQL through the warehouse instead of claiming space-level spend', () => {
+    const genie = buildTiles(IDS, [
+      {
+        component: 'genie',
+        spend: 12,
+        currency: 'USD',
+        billedDays: 1,
+        jobRuns: null,
+        lastDay: RANGE.to,
+      },
+    ]).find((tile) => tile.id === 'genie');
+
+    expect(genie?.amount).toBeNull();
+    expect(genie?.unavailable).toBe('Covered by SQL warehouse');
+  });
+
   it('apportions serving by recorded tokens while keeping SQL an estimate', () => {
     const tiles = buildTiles(IDS, [
       {

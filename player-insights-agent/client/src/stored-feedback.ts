@@ -46,11 +46,23 @@ export function storedRating(row: Pick<ConversationMessage, 'usefulness'>): numb
 }
 
 /**
+ * What each thumb writes, named where the reading of it lives.
+ *
+ * The card used to spell 5 and 2 at three call sites -- both icons and the
+ * comment box's Save -- against a `ratedThumb` in this file that decides what
+ * those numbers light. Naming them here means the control and the reading of it
+ * cannot drift apart into a rating that is stored but lights nothing.
+ */
+export const UP_RATING = 5;
+export const DOWN_RATING = 2;
+
+/**
  * Which way a rating reads as a thumb.
  *
- * The two controls write 5 and 2, which is what the thumbs mean here rather than
- * an inference about them. Anything in between is a rating that says neither, and
- * it lights neither control rather than being rounded into one.
+ * The two controls write `UP_RATING` and `DOWN_RATING`, which is what the thumbs
+ * mean here rather than an inference about them. Anything in between is a rating
+ * that says neither, and it lights neither control rather than being rounded
+ * into one.
  */
 export function ratedThumb(usefulness: number | null): 'up' | 'down' | null {
   if (usefulness === null) return null;

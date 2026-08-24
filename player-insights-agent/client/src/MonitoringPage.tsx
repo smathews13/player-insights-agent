@@ -28,8 +28,6 @@
  * conversation does not want the list reordering underneath them, and the query
  * behind it scans every message in the range.
  */
-import './styles/time-range.css';
-import './styles/monitoring.css';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Search, ThumbsDown, ThumbsUp, X } from 'lucide-react';

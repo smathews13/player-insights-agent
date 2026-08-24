@@ -37,22 +37,26 @@
 }
 
 /*
- * A CHIP THAT WRAPS IS STILL ONE CHIP.
+ * A CHIP IS ONE CHIP, ON ONE LINE.
  *
- * These marks are set `overflow-wrap: anywhere`, which is right and is argued for
- * below where it is declared: the chip sits inside a sentence, and a sentence
- * does not get a horizontal scrollbar. What it produced was ugly for a reason
- * that has nothing to do with the break itself -- an inline box that wraps drops
- * its padding, its border and its radius at the break by default, so
- * `silver_gameplay_activity` came apart into a fill running to the card's edge
- * and a bare `y` on the next line with a stray box around it. That reads as a
- * rendering fault rather than as a wrapped word.
+ * An inline box that wraps drops its padding, its border and its radius at the
+ * break by default, so `silver_gameplay_activity` came apart into a fill running
+ * to the card's edge and a bare `y` on the next line with a stray box around it.
+ * That reads as a rendering fault rather than as a wrapped word.
  *
- * `clone` gives every fragment the whole decoration, so a wrapped identifier is
- * two properly drawn chips instead of one broken one.
+ * `clone` was the first answer and it is kept as the backstop, but two properly
+ * drawn half-chips is still an identifier a reader has to reassemble across a
+ * line. `nowrap` is the actual fix: the chip takes a break opportunity BEFORE
+ * itself and moves down whole. It is safe on these because the marks are single
+ * identifier segments -- a qualified name is drawn as one chip per part with the
+ * dots outside them, so nothing in here is long enough to need the break it is
+ * being denied. The `overflow-wrap: anywhere` on `.answer-code` further down
+ * stays, for the one case that has no break opportunity at all.
  */
 .entity-token,
+.entity-mark,
 .answer-badge {
+  white-space: nowrap;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
@@ -138,12 +142,17 @@
 .plan-card {
   gap: 14px;
 }
-/* The answer is the transcript's primary reading surface. Its 24px inset and
-   minimum body height keep it visibly more substantial than the live-step pane
-   and the compact cards nested inside it, without narrowing the page grid. */
+/* The answer is the transcript's primary reading surface. The design's 28px
+   inset and the minimum body height keep it visibly more substantial than the
+   live-step pane and the compact cards nested inside it, without narrowing the
+   page grid. 28 and not 24: the inset is the frame, it is the pair to the 24px
+   top and bottom stated below, and it was cut to 24 to buy four pixels of
+   measure back — which read as the card being pinched rather than as the
+   narrative being wider. Measure comes from `--conversation-measure`, which is
+   the lever that does not cost the card its frame. */
 .answer-card > [data-slot='card-header'],
 .answer-card > [data-slot='card-content'] {
-  padding-inline: 24px;
+  padding-inline: 28px;
 }
 .plan-card > [data-slot='card-header'],
 .plan-card > [data-slot='card-content'] {
@@ -175,9 +184,15 @@
   display: grid;
   gap: 14px;
 }
+/* The mark and the state chip, at the top left corner of the card and nowhere
+   else. `justify-self: start` is what states it: the head is a grid, and a grid
+   item stretches to its track by default, so the row was as wide as the takeaway
+   under it and any later `justify-content` on it could slide the chip inward. */
 .answer-card-identity {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
   gap: 8px;
 }
 .answer-card-mark {

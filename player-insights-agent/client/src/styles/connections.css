@@ -932,25 +932,7 @@
  * in a column that is 36% of a card, and a chip that refuses to wrap either
  * overflows the cell or forces the Details column into two words per line.
  */
-.identity-scope-pill {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  max-width: 100%;
-  white-space: normal;
-}
-.identity-scope-pill > svg {
-  flex: none;
-  /* Held to the first line of a wrapped name rather than floated to the middle of
-     the chip, which is what `baseline` on a two-line flex item would otherwise do. */
-  align-self: flex-start;
-  margin-top: 3px;
-}
-.identity-scope-pill > code {
-  /* The family's green, not the table's grey. Inherited rather than restated so the
-     chip cannot end up a different green from the OAuth badge it borrows its mark
-     from. */
-  color: inherit;
+.identity-scope-code {
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }

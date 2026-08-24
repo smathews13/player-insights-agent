@@ -40,7 +40,7 @@ import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
 import { TraceTimeline } from './TraceTimeline';
-import { ratedThumb } from './stored-feedback';
+import { DOWN_RATING, UP_RATING, ratedThumb } from './stored-feedback';
 import type { Answer, FeedbackEntry } from './app-types';
 
 export function AnswerCard({
@@ -66,7 +66,7 @@ export function AnswerCard({
   question?: string;
   feedback: FeedbackEntry;
   onFeedbackChange: (changes: Partial<FeedbackEntry>) => void;
-  saveFeedback: (rating: number) => Promise<void>;
+  saveFeedback: (rating: number, options?: { keepCommentOpen?: boolean }) => Promise<void>;
   showFeedback: boolean;
   /**
    * Whether this card draws the run process panel, or the surface around it does.
@@ -363,7 +363,7 @@ export function AnswerCard({
               aria-pressed={rated === 'up'}
               className={rated === 'up' ? 'feedback-chosen' : ''}
               disabled={feedback.saving}
-              onClick={() => void saveFeedback(5)}
+              onClick={() => void saveFeedback(UP_RATING)}
             >
               <ThumbsUp />
             </Button>
@@ -374,7 +374,17 @@ export function AnswerCard({
               aria-pressed={rated === 'down'}
               className={rated === 'down' ? 'feedback-chosen' : ''}
               disabled={feedback.saving}
-              onClick={() => onFeedbackChange({ open: true })}
+              // THE THUMB IS THE RATING, on this side as much as on the other.
+              // This used to do nothing but open the text field, so a reader who
+              // pressed it and typed nothing had rated nothing -- and the field
+              // it opened sat under a "Feedback saved" left over from an earlier
+              // press, which said the opposite. The rating is written on the
+              // click, and the field stays open behind it as the optional
+              // follow-up it always was.
+              onClick={() => {
+                onFeedbackChange({ open: true });
+                void saveFeedback(DOWN_RATING, { keepCommentOpen: true });
+              }}
             >
               <ThumbsDown />
             </Button>
@@ -386,7 +396,11 @@ export function AnswerCard({
                   placeholder="What could be better?"
                   aria-label="What could be better?"
                 />
-                <Button size="sm" disabled={feedback.saving} onClick={() => void saveFeedback(2)}>
+                {/* Re-posts the same negative rating with the words attached.
+                    The box is only ever opened by the down thumb, so there is no
+                    rating for this button to invent: it repeats the one already
+                    recorded rather than being the moment it is taken. */}
+                <Button size="sm" disabled={feedback.saving} onClick={() => void saveFeedback(DOWN_RATING)}>
                   {feedback.saving ? 'Saving…' : 'Save'}
                 </Button>
               </div>

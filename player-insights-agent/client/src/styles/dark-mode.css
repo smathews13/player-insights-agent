@@ -254,11 +254,27 @@ html[data-theme='dark'] .app-nav-tab.active {
 
 /* The panes BESIDE the transcript, which may stay frosted: see the header. */
 html[data-theme='dark'] .conversation-rail,
-html[data-theme='dark'] .live-steps,
 html[data-theme='dark'] .trace-inspector {
   background: rgba(255, 255, 255, 0.03);
   background-image: none;
   backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+/*
+ * The live step list is INSIDE the working card, not beside the transcript.
+ *
+ * It was grouped with the rail and the harness column above, which are panes
+ * with the sky directly behind them. This list is not: Ask draws it inside a
+ * `[data-slot='card']` that already carries the 5% pane, so the 3% frost here
+ * was a second layer and each row's own card fill was a third. Three white
+ * layers is the milky wash that was reported. The card is the pane, this is a
+ * bordered region inside it, and the rows are rows.
+ */
+html[data-theme='dark'] .live-steps {
+  background: transparent;
+  background-image: none;
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 
@@ -332,10 +348,24 @@ html[data-theme='dark'] .bench-ledger,
 html[data-theme='dark'] .first-open-card,
 html[data-theme='dark'] .access-gate-panel,
 html[data-theme='dark'] [data-slot='alert'],
-html[data-theme='dark'] [data-slot='card'],
-html[data-theme='dark'] .live-step {
+html[data-theme='dark'] [data-slot='card'] {
   background: var(--card);
   backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
+}
+
+/*
+ * The live list is the pane; its rows are not five more panes.
+ *
+ * `.live-steps` already carries the quiet 3% frost above. Giving every
+ * `.live-step` the generic 5% card fill stacked white over that pane and turned
+ * the bounded list into alternating smoky slabs. Keep ordinary rows clear so
+ * the list has one surface. Outcome and in-progress rows still retain their
+ * semantic red/blue edge, which carries the state without another fill.
+ */
+html[data-theme='dark'] .live-step {
+  background: transparent;
+  backdrop-filter: none;
   border-color: var(--ast-border-input);
 }
 
@@ -373,6 +403,40 @@ html[data-theme='dark'] .trace-dag.map .dag-detail {
 
 html[data-theme='dark'] .trace-dag.map .dag-detail-head {
   background: transparent;
+}
+
+/*
+ * And nothing else inside that panel may add white either.
+ *
+ * `.dag-detail` above is the one layer that carries a fill. Everything drawn
+ * inside it -- the header band, the SQL head, the table heads, the tables note,
+ * the column chips -- resolves through `--ast-fill-band`, which is another 3%
+ * white in dark. Four of those stacked inside a 3% panel is what still read as
+ * a grey slab after the panel itself was de-stacked. Each of these already has
+ * a hairline of its own, so transparent costs them no separation.
+ */
+html[data-theme='dark'] .trace-dag.map .dag-sql-head,
+html[data-theme='dark'] .trace-dag.map .dag-tables-note,
+html[data-theme='dark'] .trace-dag.map .dag-result-table th,
+html[data-theme='dark'] .trace-dag.map .dag-grid th,
+html[data-theme='dark'] .trace-dag.map .dag-col-chip {
+  background: transparent;
+}
+
+/*
+ * The payload blocks DEEPEN instead of lightening.
+ *
+ * A recorded argument, a quoted question and a Markdown code block do need a
+ * boundary, and none of them has a border to fall back on. On the sky the way
+ * to give a block one is to let more night through rather than less: a wash
+ * pulled towards `--ast-scrim` reads as a recess in the panel, where a fourth
+ * white layer read as a slab laid on it.
+ */
+html[data-theme='dark'] .trace-dag.map .dag-block,
+html[data-theme='dark'] .trace-dag.map .dag-md-code,
+html[data-theme='dark'] .trace-dag.map .dag-asked,
+html[data-theme='dark'] .trace-dag.map .dag-inline-code {
+  background: color-mix(in srgb, var(--ast-scrim) 45%, transparent);
 }
 
 /*
@@ -423,6 +487,24 @@ html[data-theme='dark'] [data-slot='sheet-content'] {
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+}
+
+/*
+ * NOTHING INSIDE THE DRAWER MAY BLUR WHAT IS BEHIND IT.
+ *
+ * The drawer is `position: fixed` with its own scroller, and the answer card it
+ * composes carries `backdrop-filter: blur(2px)` from the frosted-pane rung
+ * above. A blurred layer inside a fixed scroll container is repainted against a
+ * backdrop the compositor has already scrolled, and the drawer showed the answer
+ * and the timeline under it drawn at two offsets at once -- text over text, which
+ * is what "horrific" was a picture of. The drawer is already opaque
+ * (`--ast-surface-solid` above), so there is nothing behind these to see: the
+ * blur costs the reader the frost they cannot perceive and buys the smear.
+ */
+html[data-theme='dark'] .monitoring-drawer [data-slot='card'],
+html[data-theme='dark'] .monitoring-drawer .answer-card,
+html[data-theme='dark'] .monitoring-drawer [data-slot='alert'] {
+  backdrop-filter: none;
 }
 
 html[data-theme='dark'] .monitoring-page:has(.monitoring-drawer) > :not(.monitoring-drawer) {
@@ -908,7 +990,6 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .app-header,
   html[data-theme='dark'] .conversation-rail,
   html[data-theme='dark'] .composer,
-  html[data-theme='dark'] .live-steps,
   html[data-theme='dark'] .trace-inspector,
   html[data-theme='dark'] .answer-card,
   html[data-theme='dark'] .plan-card,
@@ -936,7 +1017,6 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .bench-ledger,
   html[data-theme='dark'] .first-open-card,
   html[data-theme='dark'] .access-gate-panel,
-  html[data-theme='dark'] .live-step,
   html[data-theme='dark'] [data-slot='alert'],
   html[data-theme='dark'] [data-slot='card'],
   html[data-theme='dark'] .account-menu,

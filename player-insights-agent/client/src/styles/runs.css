@@ -622,6 +622,73 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 }
 
 /*
+ * THE OVERVIEW TILES CANNOT DEPEND ON ANOTHER PAGE'S STYLESHEET REACHING THEM.
+ *
+ * `.summary-grid` is shared with the Benchmark Lab and its recipe is written in
+ * benchmark.css, which is documented there as one recipe rather than two that
+ * drift. That held while every partial was global. When the page stylesheets
+ * were moved behind lazy route imports, this page kept the markup and lost the
+ * rules: the five measurements rendered as unstyled AppKit cards -- thin
+ * full-bleed bars whose default content row set "Wall time" hard against
+ * "100.4s" with nothing between them.
+ *
+ * index.css imports both partials again, so this block is a floor rather than
+ * an override. It restates the SAME arrangement the shared recipe gives -- the
+ * auto-fit row of tiles, the label above its value, the tile's own padding --
+ * so the two cannot disagree about the design, and this page can no longer be
+ * left with a label welded to a figure by a change made in another lane. The
+ * declarations that are genuinely Run Explorer's, and are not in the shared
+ * recipe, are the row gap and the nowrap: they are what guarantee separation
+ * whichever of the two rules wins.
+ */
+.run-explorer .summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 12px;
+}
+.run-explorer .summary-grid [data-slot='card'] {
+  padding: 0;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+.run-explorer .summary-grid [data-slot='card-content'] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 14px 16px;
+}
+.run-explorer .summary-grid span {
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.run-explorer .summary-grid strong {
+  font-size: var(--text-kpi);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  /* The figure is the tile's subject and never wraps mid-value: "26,437" broken
+     across two lines is what made the token tile unreadable at this width. */
+  white-space: nowrap;
+}
+.run-explorer .summary-grid small {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+.run-explorer .summary-grid small.tile-mono {
+  font-family: var(--font-mono);
+}
+.run-explorer .summary-grid strong.tile-absent {
+  color: var(--muted-foreground);
+}
+.run-explorer .summary-grid .tile-link {
+  margin-top: 2px;
+  color: var(--primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+/*
  * The final answer, as the one card on the detail side.
  *
  * The eyebrow names it and the robot says who wrote it -- the same agent mark the

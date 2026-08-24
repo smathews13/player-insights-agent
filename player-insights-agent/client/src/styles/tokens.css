@@ -351,12 +351,19 @@
    * different faults wearing one sentence: the reading measure was unbounded at
    * the wide end and the gutter was thin at the narrow end.
    *
-   * 1120px is wider than the 720px the hero and composer cap at because an
+   * 1280px is wider than the 720px the hero and composer cap at because an
    * answer carries tables, charts and a source list. Body prose remains inside
    * surfaced cards; result tables use the extra measure and keep their own
    * horizontal scroller when their natural width is larger still.
+   *
+   * 1280 and not 1120, which it was: the card carries its figures in a right-hand
+   * rail again (see `.answer-main-row` in answer-body.css), and 1120 less the
+   * card's 28px insets, the rail and its gap put the narrative under 600px on the
+   * only screens where the cap binds at all. This is the lever that widens the
+   * card, in place of the two that were reached for first and cost it its frame:
+   * the card's own inset and the gutter either side of the transcript.
    */
-  --conversation-measure: 1120px;
+  --conversation-measure: 1280px;
 
   /*
    * The room the fixed composer needs at the bottom of the transcript.

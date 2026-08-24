@@ -134,11 +134,52 @@ html:not([data-theme='dark']) .ask-hero h2 {
   align-items: flex-end;
   justify-content: flex-end;
   gap: 8px;
-  /* Keep the question staggered toward the live-steps pane instead of letting a
-     long prompt share the answer card's left edge. The offset scales down with
-     the transcript while preserving a visible handoff between speaker turns. */
+  /* A long prompt is kept off the answer's left edge, so the two turns do not
+     start in the same column. This is a floor on the question's left inset and
+     nothing more -- see the stagger below for the offset itself, which this
+     property cannot produce: padding on the left of a `flex-end` row narrows the
+     lane the bubble is laid out in and cannot move its right edge by a pixel. */
   padding-left: clamp(28px, 7%, 64px);
   margin-bottom: 22px;
+}
+/*
+ * THE QUESTION IS STAGGERED RIGHT OF THE ANSWER, AND THE LANE COMES OUT OF THE
+ * ANSWER RATHER THAN OUT OF THE PAGE.
+ *
+ * Reported twice: the question sits directly over the answer's right edge, with
+ * open space between the answer and the live-steps column that nothing uses.
+ * Both turns end at the same pixel, because the bubble is right-aligned in the
+ * transcript measure and the answer card fills that measure.
+ *
+ * Moving the bubble was the obvious fix and is the wrong one. The transcript has
+ * no scroller of its own -- the page scrolls and both side columns are sticky --
+ * so a `translateX` on the row pushes the bubble out of the measure and under
+ * `.trace-inspector`, which is a later sibling painting an opaque sky. At 1181px
+ * the middle track is around 600px against a 1120px measure, so there is no
+ * slack there to move into at all: the bubble would simply go behind the harness.
+ *
+ * So the answer gives the lane up instead. Its right edge comes in by the
+ * stagger, the question keeps the full measure, and the offset a reader sees is
+ * the difference between the two. Nothing leaves the measure, so nothing can be
+ * clipped or covered at any width, and the question's own inset above still
+ * keeps it clear of the answer's left edge.
+ *
+ * THE WIDTH THAT TURNS IT OFF IS NOT DECLARED HERE. The app keeps one set of
+ * breakpoints, in responsive.css, and it zeroes this property inside the 1180px
+ * band -- where the harness column goes and the answer needs every pixel of its
+ * measure back. A `min-width` query in this partial would be a second set of
+ * widths, which is the defect breakpoints.test.ts exists to catch.
+ */
+.conversation-main {
+  --question-stagger: clamp(28px, 3vw, 56px);
+}
+/* Scoped to Ask, in Ask's partial: the same card is drawn in Run Explorer and in
+   the Monitoring drawer, and neither has a question above it to stagger
+   against. Declared on the transcript rather than on the row because the card is
+   the bubble's sibling: a custom property set on `.user-message` could not reach
+   it. */
+.conversation-main .answer-card {
+  margin-right: var(--question-stagger);
 }
 .user-bubble {
   width: fit-content;

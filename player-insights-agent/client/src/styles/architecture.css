@@ -32,20 +32,6 @@
    --------------------------------------------------------------------------- */
 
 .architecture-page {
-  /*
-   * Three LOCAL semantic tokens, because the global token files are shared
-   * surfaces and this vocabulary exists only on this diagram. Every ingredient
-   * is already in the declared palette; there is no literal for palette.test.ts
-   * to bless and no almost-the-same purple hiding at a call site.
-   *
-   * Violet, orange and blue-teal stay apart from the status pills' green, pink
-   * and brown, and from one another. They are not statuses: they mean step
-   * iterations, admitted tool calls and the request deadline, respectively.
-   */
-  --arch-bound-steps: color-mix(in srgb, var(--ast-blue) 58%, var(--db-red-600));
-  --arch-bound-tools: var(--db-orange);
-  --arch-bound-run: color-mix(in srgb, var(--db-teal-600) 68%, var(--ast-navy));
-
   gap: 16px;
 }
 
@@ -107,10 +93,12 @@
 /*
  * The loop bounds, three across rather than four.
  *
- * A SECOND STRIP INSIDE THE LIVE-DATA-FLOW HEADER. The four dependency tiles are
- * recounted on every Refresh; these are stored settings and change only in the
- * gear. Keeping them in the diagram uses its header rail without inviting a
- * comparison between "Reachable 9" and "Run budget 90".
+ * A STRIP UNDER THE LIVE-DATA-FLOW LABEL, INSIDE THAT PANE. The four dependency
+ * tiles are recounted on every Refresh; these are stored settings and change
+ * only in the gear. They used to sit in the header row to the right of the
+ * label, which read as a caption of the section rather than as the bounds of
+ * the run the drawing is of. The pane is already a grid, so they take the row
+ * under the label and leave the drawing the row after that.
  *
  * It inherits the strip's tile, label and figure treatment, because it should read
  * as the same kind of object one row down. Only the column count differs, and the
@@ -120,16 +108,11 @@
   grid-template-columns: repeat(3, 1fr);
 }
 .arch-tiles-loop li {
-  --arch-bound-color: var(--arch-bound-steps);
-
   padding: 0;
-  box-shadow: inset 4px 0 0 var(--arch-bound-color);
+  box-shadow: inset 3px 0 0 var(--arch-bound-color);
 }
-.arch-tiles-loop li[data-bound='maxToolCalls'] {
-  --arch-bound-color: var(--arch-bound-tools);
-}
-.arch-tiles-loop li[data-bound='maxRunSeconds'] {
-  --arch-bound-color: var(--arch-bound-run);
+.arch-tiles-loop li[data-accent='agent'] {
+  --arch-bound-color: var(--ast-navy);
 }
 .arch-bound-settings-link {
   display: grid;
@@ -165,21 +148,16 @@
   min-width: 0;
 }
 .arch-flow-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 16px;
+  display: grid;
+  gap: 10px;
 }
-.arch-flow-head .arch-tiles-loop {
-  flex: 1 1 620px;
-  max-width: 720px;
-  margin-left: auto;
+/* The pane's own grid already stacks the label, then these, then the drawing.
+   Width is the pane's, not a 720px rail pinned to the right of the eyebrow. */
+.arch-flow > .arch-tiles-loop {
+  width: 100%;
 }
-.arch-flow-head .arch-tiles-loop li {
+.arch-flow > .arch-tiles-loop li {
   background: var(--card);
-}
-.arch-flow-head .arch-bound-settings-link {
-  padding: 8px 12px;
 }
 /* The one eyebrow on this page that is blue: it heads the live half, and blue is
    what the app paints anything active. */
@@ -217,14 +195,8 @@
 .arch-canvas {
   position: relative;
 }
-.arch-canvas[data-active-bound='maxSteps'] {
-  --arch-active-bound: var(--arch-bound-steps);
-}
-.arch-canvas[data-active-bound='maxToolCalls'] {
-  --arch-active-bound: var(--arch-bound-tools);
-}
-.arch-canvas[data-active-bound='maxRunSeconds'] {
-  --arch-active-bound: var(--arch-bound-run);
+.arch-canvas[data-active-bound] {
+  --arch-active-bound: var(--ast-navy);
 }
 .arch-edges {
   position: absolute;

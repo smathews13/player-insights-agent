@@ -30,6 +30,15 @@ html .app-sky.gate-star-motion {
   stroke: none;
 }
 
+/*
+ * Anchor twinkle is ambient on every surface.
+ *
+ * The working treatment used to render these circles as `anchor-still` and
+ * omit their inline duration. Since every route except Ask is a working
+ * surface, that single branch disabled the visible fade on every other tab.
+ * Working surfaces still omit connector glow and long-range drift; they do not
+ * turn the stars themselves into a static picture.
+ */
 .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
   animation-name: ast-tw;
   animation-timing-function: ease-in-out;
@@ -151,8 +160,7 @@ html:has(.ast-link-live) .star-motion-faint {
  * an arbitrary point in its pulse.
  */
 @media (prefers-reduced-motion: reduce) {
-  .app-sky[data-star-motion-field] [data-star-motion='anchor'],
-  .app-sky[data-star-motion-field] [data-star-motion='anchor-still'] {
+  .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
     animation: none;
     opacity: 0.7;
   }

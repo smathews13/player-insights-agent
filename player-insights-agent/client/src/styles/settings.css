@@ -613,6 +613,47 @@ html[data-theme='dark'] .settings-page .settings-destructive:hover:not(:disabled
   line-height: 1.5;
 }
 
+/*
+ * THE NIGHT-SKY PANE, LESS SEE-THROUGH THAN THE RAIL FROST.
+ *
+ * Reported as "settings styling is really good now but too transparent". The
+ * dark treatment gave this modal the same 3% white and 2px blur the panes
+ * BESIDE the transcript wear, and those two are not the same job: a rail sits on
+ * the sky, while this covers a page of readable prose. At 3% the route behind it
+ * -- headings, cards, constellation marks -- stayed legible through the fields.
+ *
+ * The account dropdown is the surface being mimicked, so the fill is its own
+ * `--ast-surface-solid` rather than a hand-mixed navy. It is mixed back toward
+ * transparent and paired with the composer's heavier blur so the pane still
+ * reads as glass over the sky rather than as a solid slab: a reader can tell
+ * there is a page underneath without being able to read it.
+ *
+ * SPECIFICITY, DELIBERATELY. dark-mode.css is imported after this partial and
+ * declares the rail frost at `html[data-theme='dark'] .settings-page.settings-modal`,
+ * so an equal-weight rule here would lose on position. The overlay is the
+ * modal's own wrapper (SettingsPage.tsx), which buys the one class this needs to
+ * win without an `!important`.
+ */
+html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
+  background: color-mix(in srgb, var(--ast-surface-solid) 92%, transparent);
+  backdrop-filter: blur(18px);
+}
+/*
+ * A reader who has asked for less transparency gets none of it, as before.
+ *
+ * dark-mode.css hands this modal a solid `--ast-surface-solid` and no blur under
+ * `prefers-reduced-transparency`, and the rule above now outranks that one --
+ * so without this the accessibility preference would have been quietly undone by
+ * a change made for the look of the pane. Restated here rather than weakened
+ * there: the same declaration, at the specificity it now has to be stated at.
+ */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
+    background: var(--ast-surface-solid);
+    backdrop-filter: none;
+  }
+}
+
 .settings-modal-header {
   min-height: 56px;
   padding: 12px 16px;

@@ -6,8 +6,6 @@
  * dash rule is about a benchmark metric specifically, and the interval exists
  * because a suite run takes minutes.
  */
-import './styles/benchmark.css';
-import './styles/timeline.css';
 import { Link } from 'react-router';
 import { useState, useEffect } from 'react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';

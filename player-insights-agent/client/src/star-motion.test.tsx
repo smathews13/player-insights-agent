@@ -138,9 +138,28 @@ describe('ambient star motion', () => {
     expect(ambient).not.toContain('has(.first-open)');
   });
 
+  it('keeps anchor fading active on every working tab', () => {
+    /*
+     * The global failure was one branch in `StarField`: a working surface
+     * changed every anchor to `anchor-still` and removed its inline duration.
+     * Every route except Ask uses that surface, so the main stars were static
+     * on every working tab even though the keyframes were still in the CSS.
+     *
+     * Pin both halves. An animation name with the default 0s duration is still
+     * motionless, so checking only the data attribute would miss the same
+     * failure in a slightly different form.
+     */
+    const markup = renderToStaticMarkup(<StarField pageId="/runs" surface="working" seed="working-motion" />);
+    const anchors = [...markup.matchAll(/<circle[^>]*data-star-motion="anchor"[^>]*>/g)].map((match) => match[0]);
+
+    expect(anchors).toHaveLength(OPENING_CONSTELLATION.stars.length);
+    expect(anchors.every((anchor) => /animation-duration:[^;"]+s/.test(anchor))).toBe(true);
+    expect(markup).not.toContain('anchor-still');
+  });
+
   it('fully freezes reduced motion at the named resting opacities', () => {
     const reduced = CSS.slice(CSS.indexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(reduced).toMatch(/\[data-star-motion='anchor-still'\]\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*0\.7/s);
+    expect(reduced).toMatch(/\[data-star-motion='anchor'\]\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*0\.7/s);
     expect(reduced).toMatch(
       /\[data-star-motion-field\] \.star-motion-faint\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*0\.32/s
     );

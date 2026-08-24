@@ -857,20 +857,21 @@ describe('the cost block', () => {
    * above them. What a reader needs from them is that there is no figure and, for
    * the one that has a fix, the variable to set.
    */
-  it('renders an unattributable component as a state and the fix for it', () => {
+  it('renders a missing resource identifier as a state and the fix for it', () => {
     const payload = cost({
       tiles: [
         {
           ...cost().tiles[0],
           label: 'Index rebuild job',
           amount: null,
-          unavailable: 'Not attributable',
+          unavailable: 'Resource identifier unavailable',
           remedy: 'Set PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID.',
         },
       ],
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Not attributable');
+    expect(markup).toContain('Resource identifier unavailable');
+    expect(markup).not.toContain('Not attributable');
     expect(markup).toContain('Set PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID.');
     expect(markup).not.toMatch(/cannot be told apart/);
     expect(markup).not.toContain('0.00');
@@ -879,8 +880,8 @@ describe('the cost block', () => {
   it('keeps one model-serving average without inventing a combined per-question total', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).toContain('Average model serving per question');
-    expect(markup).toContain('Endpoint spend only');
-    expect(markup).toContain('No other product is included');
+    expect(markup).toContain('token-apportions model-serving spend only');
+    expect(markup).toContain('resource totals or daily rates');
     expect(markup).not.toContain('Per-question attribution');
     expect(markup).not.toContain('3.00 USD');
     expect(markup).not.toContain('across 4 questions');
@@ -944,7 +945,6 @@ describe('the cost block', () => {
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('5.00 USD');
     expect(markup).toContain('token-apportioned');
-    expect(markup).toContain('2 of 2');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('Not knowable per question today');
     expect(markup).not.toContain('No run attribution key.');
@@ -973,36 +973,17 @@ describe('the cost block', () => {
     expect(markup).not.toContain('GRANT SELECT');
   });
 
-  /**
-   * THE QUALIFIERS ARE SAID ONCE, IN THE BAND, and the tiles never repeat them.
-   *
-   * The currency, the last complete day and whose grants the figures were read
-   * under are true of every card in the grid. Repeated per card they were the
-   * paragraph this block had removed once already.
-   */
-  it('qualifies the figures once in the band rather than on every card', () => {
+  it('removes the narrative qualifiers from the cost band', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('read under your own grants');
-    expect(markup).toContain('through 14 Aug, the last complete day');
-    expect([...markup.matchAll(/read under your own grants/g)]).toHaveLength(1);
+    expect(markup).not.toContain('read under your own grants');
+    expect(markup).not.toContain('through 14 Aug, the last complete day');
+    expect(markup).not.toContain('At list price');
   });
 
-  /**
-   * BOTH WAYS OF SAYING THESE ARE NOT THE BILL, because they are two facts.
-   *
-   * The badge says how much weight these figures bear at all. "At list price"
-   * says the rate underneath every figure is the published one, before whatever
-   * discount the account holds, which is the difference between a number that is
-   * roughly the bill and one that is reliably above it. The clause was dropped
-   * when the badge arrived, on the reading that the two were one caveat wearing
-   * two hats. The handoff opens the band's line with it and asks for both.
-   */
-  it('says the figures are not the bill, and says at what price', () => {
-    const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('Experimental');
-    expect(markup).toContain('At list price');
-    // Once, in the band. Never repeated onto the cards beneath it.
-    expect([...markup.matchAll(/At list price/g)]).toHaveLength(1);
+  it('marks every cost tile and the average as experimental', () => {
+    const payload = cost();
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    expect([...markup.matchAll(/experimental-pane-badge/g)]).toHaveLength(payload.tiles.length + 1);
   });
 
   /**
@@ -1577,12 +1558,7 @@ describe('the latency block', () => {
     expect(markup).not.toMatch(/<th[^>]*>Refusals<\/th>/);
   });
 
-  /**
-   * WHEN EVERY ROUTE IS THIN THE COLUMNS COLLAPSE INTO ONE LINE. p95, p99 and
-   * trend are withheld on all of them, so five columns of the same dash become
-   * one sentence above the table, and the columns do not render.
-   */
-  it('collapses the empty percentile columns into a shared-facts line', () => {
+  it('removes empty percentile columns without adding a second header row', () => {
     const allThin = latency({
       routes: [
         {
@@ -1616,7 +1592,8 @@ describe('the latency block', () => {
     const markup = markupOf(<LatencyBody block={block(allThin)} />);
     const rendered = text(markup);
 
-    expect(rendered).toContain('Every route is under 20 recorded requests: no p95, p99, or trend yet.');
+    expect(rendered).not.toContain('Every route is under 20 recorded requests');
+    expect(markup).toContain('ops-block-body ops-block-body-flush');
     expect(rendered).not.toContain('No error responses recorded');
     expect(rendered).not.toContain('Refusals are not reported');
     // The columns are gone, not merely blank.
