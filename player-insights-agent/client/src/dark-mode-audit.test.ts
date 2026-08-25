@@ -70,6 +70,7 @@ describe('dark mode covers the shipped surfaces', () => {
       '.monitoring-drawer',
       '.monitoring-question-modal',
       '.arch-flow',
+      '.arch-tiles:not(.arch-tiles-loop) li',
       '.arch-node',
       '.account-menu',
       '.settings-page.settings-modal',
@@ -303,9 +304,9 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).toMatch(
       /html\[data-theme='dark'\] \.app-frame > main,\s*html\[data-theme='dark'\] \.storage-banner,\s*html\[data-theme='dark'\] \.role-lost-notice\s*\{[^}]*z-index:\s*1/
     );
-    expect(bodyFor(DARK, "html[data-theme='dark'] .page-shell:not(.run-explorer) [data-slot='card']")).toMatch(
-      /color-mix\(in srgb,\s*var\(--ast-sky-fill\)\s*86%/
-    );
+    expect(
+      bodyFor(DARK, "html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) [data-slot='card']")
+    ).toMatch(/color-mix\(in srgb,\s*var\(--ast-sky-fill\)\s*86%/);
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='alert']")).toMatch(
       /color-mix\(in oklab,\s*var\(--ast-sky-fill\)\s*80%/
     );
@@ -338,6 +339,26 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='select-content']")).toMatch(
       /background:\s*var\(--ast-surface-solid\)/
     );
+  });
+
+  it('paints Connections from the Ask pane, not a lifted gray', () => {
+    /*
+     * The same 14% white mix that washed Overview also painted Build and
+     * telemetry, Identity, Configuration and the Unity Catalog block as gray
+     * sheets. They reuse `--ast-pane` so the page matches Ask. Granted pills
+     * and edit pencils keep their own tokens. Settings menus stay opaque.
+     */
+    for (const selector of [
+      "html[data-theme='dark'] .connections-page [data-slot='card']",
+      "html[data-theme='dark'] .connections-page .connection-block",
+      "html[data-theme='dark'] .connections-page .connection-rows",
+      "html[data-theme='dark'] .connections-page .plane-card",
+    ]) {
+      const body = bodyFor(DARK, selector);
+      expect(body, `${selector} is not the Ask pane`).toMatch(/background:\s*var\(--ast-pane\)/);
+      expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
+      expect(body, `${selector} is not the overlay slab`).not.toMatch(/--ast-surface-solid/);
+    }
   });
 
   it('makes the dark login backdrop opaque rather than using translucent Ice', () => {
@@ -617,6 +638,20 @@ describe('dark mode covers the shipped surfaces', () => {
       expect(reduced, `${selector} has no reduced-transparency fallback`).toContain(
         `html[data-theme='dark'] ${selector}`
       );
+      expect(bodyFor(normal, `html[data-theme='dark'] ${selector}`)).toMatch(
+        /background:\s*var\(--card\)[\s\S]*backdrop-filter:\s*blur\(2px\)/
+      );
+      expect(bodyFor(reduced, `html[data-theme='dark'] ${selector}`)).toMatch(
+        /backdrop-filter:\s*none[\s\S]*background:\s*var\(--ast-surface-solid\)/
+      );
+    }
+  });
+
+  it('frosts the Architecture KPI tiles with the same pane recipe as LIVE DATA FLOW', () => {
+    const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
+    const normal = DARK.slice(0, reducedAt);
+    const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
+    for (const selector of ['.arch-flow', '.arch-tiles:not(.arch-tiles-loop) li']) {
       expect(bodyFor(normal, `html[data-theme='dark'] ${selector}`)).toMatch(
         /background:\s*var\(--card\)[\s\S]*backdrop-filter:\s*blur\(2px\)/
       );

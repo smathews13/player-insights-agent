@@ -57,6 +57,10 @@
   gap: 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  /* Same pane fill as LIVE DATA FLOW and the rails. A border alone left these
+     four as holes in the sky; `--card` is the Architecture surface, not a new
+     gray and not the washed Connections slab. */
+  background: var(--card);
   padding: 12px 14px;
   min-width: 0;
 }

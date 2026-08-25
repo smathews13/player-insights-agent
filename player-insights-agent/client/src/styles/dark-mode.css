@@ -353,6 +353,7 @@ html[data-theme='dark'] .ops-block,
 html[data-theme='dark'] .ops-block-failed,
 html[data-theme='dark'] .ops-absence,
 html[data-theme='dark'] .arch-flow,
+html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
 html[data-theme='dark'] .arch-node,
 html[data-theme='dark'] .arch-rail,
 html[data-theme='dark'] .connection-rows,
@@ -384,12 +385,14 @@ html[data-theme='dark'] [data-slot='card'] {
  * The mix is toward `--ast-sky-fill` so the field is behind the chrome rather
  * than drawn on it. 10px frost then washes any leftover point into the pane.
  *
- * Run Explorer is not on that mix. Fourteen percent white over the sky is the
- * washed gray slab Overview was reported as -- tiles, Final Answer and the
- * detail column reading as a sheet next to Ask's charcoal. Those surfaces take
- * `--ast-pane` below, the same token the answer card uses. Connections and the
- * other working tabs keep the mix so this change cannot retint their cards
- * (OAuth scopes included). Menus stay on `--ast-surface-solid`.
+ * Run Explorer and Connections are not on that mix. Fourteen percent white
+ * over the sky is the washed gray slab Overview was reported as -- and the
+ * same sheet then showed up on Connections: Build and telemetry, Identity,
+ * the Configuration rows and the Unity Catalog block. Those surfaces take
+ * `--ast-pane` below, the same token the answer card uses. Other working
+ * tabs keep the mix so this change cannot retint their cards. Menus stay
+ * on `--ast-surface-solid`. Settings stays glass for menus; only these
+ * page-panel fills move onto the Ask token.
  */
 html[data-theme='dark'] .app-frame > main,
 html[data-theme='dark'] .storage-banner,
@@ -398,7 +401,7 @@ html[data-theme='dark'] .role-lost-notice {
   z-index: 1;
 }
 
-html[data-theme='dark'] .page-shell:not(.run-explorer) [data-slot='card'] {
+html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) [data-slot='card'] {
   background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
   backdrop-filter: blur(10px);
 }
@@ -406,7 +409,11 @@ html[data-theme='dark'] .page-shell:not(.run-explorer) [data-slot='card'] {
 html[data-theme='dark'] .run-explorer .run-detail,
 html[data-theme='dark'] .run-explorer [data-slot='card'],
 html[data-theme='dark'] .run-explorer .summary-grid [data-slot='card'],
-html[data-theme='dark'] .run-explorer .final-answer {
+html[data-theme='dark'] .run-explorer .final-answer,
+html[data-theme='dark'] .connections-page [data-slot='card'],
+html[data-theme='dark'] .connections-page .connection-block,
+html[data-theme='dark'] .connections-page .connection-rows,
+html[data-theme='dark'] .connections-page .plane-card {
   background: var(--ast-pane);
   backdrop-filter: blur(2px);
   border-color: var(--ast-border-input);
@@ -1062,6 +1069,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .trace-kpi,
   html[data-theme='dark'] .trace-dag.map .dag-node,
   html[data-theme='dark'] .arch-flow,
+  html[data-theme='dark'] .arch-tiles:not(.arch-tiles-loop) li,
   html[data-theme='dark'] .arch-node,
   html[data-theme='dark'] .arch-rail,
   html[data-theme='dark'] .connection-rows,

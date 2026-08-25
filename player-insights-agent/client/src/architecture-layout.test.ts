@@ -1222,6 +1222,15 @@ describe('the runtime-bound colour follows the architecture legend', () => {
     expect(CSS).not.toMatch(/--arch-active-bound:\s*var\(--ast-navy\)/);
     expect(CSS).not.toMatch(/--arch-bound-color:\s*var\(--ast-navy\)/);
   });
+
+  it('gives the four dependency tiles the same pane fill as LIVE DATA FLOW', () => {
+    // Outline-only left stars sitting on Dependencies / Reachable / Not checked
+    // / Drift. `--card` is the Architecture pane token, shared with the flow
+    // and the rails -- not a new gray and not the Connections slab mix.
+    expect(rule(CSS, '.arch-tiles li')).toMatch(/background:\s*var\(--card\)/);
+    expect(rule(CSS, '.arch-flow')).toMatch(/background:\s*var\(--card\)/);
+    expect(rule(CSS, '.arch-rail')).toMatch(/background:\s*var\(--card\)/);
+  });
 });
 
 /**
