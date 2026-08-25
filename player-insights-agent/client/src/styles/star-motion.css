@@ -194,10 +194,12 @@ html:has(.ast-link-live) .star-motion-faint {
 }
 
 /*
- * A connector inking itself, holding, then clearing so the next cycle can
- * draw again. 0–12% is the visible draw; 12–55% the hold; 55–70% the fade;
+ * A connector inking itself, holding, then retracting and fading so the field
+ * breathes — add and remove, not only add. 0–12% is the visible draw (ink
+ * speed is this slice of the cycle, not the spawn stagger); 12–50% the hold;
+ * 50–75% retract and fade together (dashoffset returns to 1, no pop-off);
  * then the line stays gone until the stagger brings it back. Live-window
- * math in StarField (`SKY_DRAW_LIVE_UNTIL`) matches the 70% mark.
+ * math in StarField (`SKY_DRAW_LIVE_UNTIL`) matches the 75% mark.
  */
 @keyframes ast-sky-draw {
   0% {
@@ -208,12 +210,12 @@ html:has(.ast-link-live) .star-motion-faint {
     stroke-dashoffset: 0;
     opacity: 0.45;
   }
-  55% {
+  50% {
     stroke-dashoffset: 0;
     opacity: 0.45;
   }
-  70% {
-    stroke-dashoffset: 0;
+  75% {
+    stroke-dashoffset: 1;
     opacity: 0;
   }
   100% {

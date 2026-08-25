@@ -5,7 +5,11 @@ import { describe, expect, it } from 'vitest';
 import { OPENING_CONSTELLATION } from './constellation';
 import {
   buildStarField,
+  connectorPhaseAt,
   liveConnectorsAt,
+  SKY_ANCHOR_MIN_SECONDS,
+  SKY_APPEAR_STEP,
+  SKY_FAINT_MIN_SECONDS,
   SKY_PAGE_ID,
   StarField,
 } from './StarField';
@@ -43,6 +47,10 @@ describe('ambient star motion', () => {
     expect(keyframes('ast-sky-draw')).toMatch(
       /0%\s*\{\s*stroke-dashoffset:\s*1;[\s\S]*12%\s*\{\s*stroke-dashoffset:\s*0;/
     );
+    expect(keyframes('ast-sky-draw')).toMatch(
+      /50%\s*\{\s*stroke-dashoffset:\s*0;[\s\S]*opacity:\s*0\.45;[\s\S]*75%\s*\{\s*stroke-dashoffset:\s*1;[\s\S]*opacity:\s*0;/
+    );
+    expect(keyframes('ast-sky-draw')).not.toMatch(/70%\s*\{\s*stroke-dashoffset:\s*0/);
     expect(CSS.match(/@keyframes\s+ast-(?:tw|tw2|drift|drift2|sky-draw)\b/g)).toHaveLength(5);
     expect(CSS.match(/animation-timing-function:\s*ease-in-out/g)).toHaveLength(4);
     expect(CSS).not.toMatch(/animation-timing-function:\s*(?:linear|ease;|cubic-bezier)/);
@@ -56,14 +64,14 @@ describe('ambient star motion', () => {
     expect(sky.faint.length).toBeLessThanOrEqual(OPENING_CONSTELLATION.backdrop.length);
 
     sky.anchors.forEach((star, index) => {
-      expect(star.duration).toBeGreaterThanOrEqual(6);
-      expect(star.duration).toBeLessThanOrEqual(12);
+      expect(star.duration).toBeGreaterThanOrEqual(SKY_ANCHOR_MIN_SECONDS);
+      expect(star.duration).toBeLessThanOrEqual(SKY_ANCHOR_MIN_SECONDS + 12);
       expect(Math.abs(star.x - OPENING_CONSTELLATION.stars[index].x)).toBeLessThanOrEqual(6);
       expect(Math.abs(star.y - OPENING_CONSTELLATION.stars[index].y)).toBeLessThanOrEqual(6);
     });
     sky.faint.forEach((star, index) => {
-      expect(star.duration).toBeGreaterThanOrEqual(7);
-      expect(star.duration).toBeLessThanOrEqual(13);
+      expect(star.duration).toBeGreaterThanOrEqual(SKY_FAINT_MIN_SECONDS);
+      expect(star.duration).toBeLessThanOrEqual(SKY_FAINT_MIN_SECONDS + 12);
       expect(Math.abs(star.x - OPENING_CONSTELLATION.backdrop[index].x)).toBeLessThanOrEqual(6);
       expect(Math.abs(star.y - OPENING_CONSTELLATION.backdrop[index].y)).toBeLessThanOrEqual(6);
     });
@@ -242,5 +250,54 @@ describe('ambient star motion', () => {
     expect(app).toContain('star-motion-draw');
     expect(login).toContain('pathLength="1"');
     expect(app).toContain('pathLength="1"');
+  });
+
+  it('starts new lines and blinks half as often as before', () => {
+    expect(SKY_APPEAR_STEP).toBe(2.5);
+    expect(SKY_APPEAR_STEP / 1.25).toBe(2);
+    expect(SKY_ANCHOR_MIN_SECONDS).toBe(12);
+    expect(SKY_ANCHOR_MIN_SECONDS / 6).toBe(2);
+    expect(SKY_FAINT_MIN_SECONDS).toBe(14);
+    expect(SKY_FAINT_MIN_SECONDS / 7).toBe(2);
+
+    const sky = buildStarField(SKY_PAGE_ID, 'cadence');
+    const delays = [...sky.connectors.map((connector) => connector.delay)].sort((a, b) => a - b);
+    const steps = delays.slice(1).map((delay, index) => delay - delays[index]);
+    const mean = steps.reduce((sum, step) => sum + step, 0) / steps.length;
+    expect(mean).toBeGreaterThan(2.2);
+    expect(mean).toBeLessThan(2.8);
+  });
+
+  it('retracts and fades lines instead of only adding them, without emptying the sky', () => {
+    const draw = keyframes('ast-sky-draw');
+    expect(draw).toMatch(/75%\s*\{[^}]*stroke-dashoffset:\s*1;[^}]*opacity:\s*0/s);
+
+    for (const seed of ['alpha', 'beta', 'gamma', 'delta', 'epsilon']) {
+      const sky = buildStarField(SKY_PAGE_ID, seed);
+      let sawDrawing = false;
+      let sawRetracting = false;
+      let sawGrow = false;
+      let sawShrink = false;
+      let previous = liveConnectorsAt(sky, 0).length;
+      expect(previous).toBeGreaterThan(0);
+
+      for (let elapsed = 1; elapsed <= 90; elapsed += 1) {
+        const live = liveConnectorsAt(sky, elapsed);
+        expect(live.length, `${seed} at ${elapsed}s`).toBeGreaterThan(0);
+        if (live.length > previous) sawGrow = true;
+        if (live.length < previous) sawShrink = true;
+        previous = live.length;
+        for (const connector of sky.connectors) {
+          const phase = connectorPhaseAt(connector, elapsed);
+          if (phase === 'drawing') sawDrawing = true;
+          if (phase === 'retracting') sawRetracting = true;
+        }
+      }
+
+      expect(sawDrawing, `${seed} draws`).toBe(true);
+      expect(sawRetracting, `${seed} retracts`).toBe(true);
+      expect(sawGrow, `${seed} adds`).toBe(true);
+      expect(sawShrink, `${seed} removes`).toBe(true);
+    }
   });
 });

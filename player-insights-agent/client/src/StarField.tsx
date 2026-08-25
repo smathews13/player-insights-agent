@@ -28,8 +28,17 @@ export type StarSurface = 'ask' | 'working';
 /** Shared by the login gate and the app shell so both mount the same sky. */
 export const SKY_PAGE_ID = 'app-sky';
 
+/** Seconds between new connectors starting to draw. Half the previous 1.25s cadence. */
+export const SKY_APPEAR_STEP = 2.5;
+
+/** Fraction of a cycle spent inking (matches ast-sky-draw 0–12%). Spawn cadence is not this. */
+export const SKY_DRAW_INK_UNTIL = 0.12;
+
+/** Fraction of a cycle before retract starts (matches ast-sky-draw 12–50% hold). */
+export const SKY_DRAW_HOLD_UNTIL = 0.5;
+
 /** Fraction of a connector cycle that the line is on screen (matches ast-sky-draw). */
-export const SKY_DRAW_LIVE_UNTIL = 0.7;
+export const SKY_DRAW_LIVE_UNTIL = 0.75;
 
 interface Timing {
   duration: number;
@@ -56,15 +65,18 @@ export interface StarFieldDrawing {
   };
 }
 
-const ANCHOR_MIN_SECONDS = 6;
-const FAINT_MIN_SECONDS = 7;
+/** Anchor twinkle cycle floor. Half the previous blink rate (was 6s). */
+export const SKY_ANCHOR_MIN_SECONDS = 12;
+/** Faint twinkle cycle floor. Half the previous blink rate (was 7s). */
+export const SKY_FAINT_MIN_SECONDS = 14;
+const ANCHOR_SPREAD = 12;
+const FAINT_SPREAD = 12;
 const DRAW_MIN_SECONDS = 22;
 const DRAW_SPREAD = 8;
 const DRIFT_ANCHOR_SECONDS = 90;
 const DRIFT_FAINT_SECONDS = 70;
 const JITTER_PX = 6;
-const APPEAR_STEP = 1.25;
-const EARLY_SHIFT = 2.2;
+const EARLY_SHIFT = 4.4;
 const EXTRA_HOPS = 6;
 const MIN_EXTRA_DIST = 90;
 const MAX_EXTRA_DIST = 260;
@@ -162,19 +174,36 @@ const edgeKey = (from: readonly [number, number], to: readonly [number, number])
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 };
 
+export type ConnectorPhase = 'waiting' | 'drawing' | 'holding' | 'retracting' | 'gone';
+
+/**
+ * Where a connector is in its draw–hold–retract cycle at `elapsedSeconds`.
+ *
+ * Retract is a real un-draw (dashoffset returning to 1) plus a fade, not a
+ * pop-off. Tests use this instead of a browser to prove add and remove both
+ * happen, and that the sky never sits empty.
+ */
+export function connectorPhaseAt(connector: AmbientConnector, elapsedSeconds: number): ConnectorPhase {
+  const local = elapsedSeconds - connector.delay;
+  if (local < 0) return 'waiting';
+  const progress = (local % connector.duration) / connector.duration;
+  if (progress < SKY_DRAW_INK_UNTIL) return 'drawing';
+  if (progress < SKY_DRAW_HOLD_UNTIL) return 'holding';
+  if (progress < SKY_DRAW_LIVE_UNTIL) return 'retracting';
+  return 'gone';
+}
+
 /**
  * Whether a connector is on screen at `elapsedSeconds` from first paint.
  *
  * Positive delay means the line has not started drawing yet. After it starts,
- * it is live for the first `SKY_DRAW_LIVE_UNTIL` of its cycle -- the draw and
- * hold -- and then hidden until the cycle repeats. This is the schedule a test
- * can advance without a browser.
+ * it is live through draw, hold, and retract -- the first `SKY_DRAW_LIVE_UNTIL`
+ * of its cycle -- and then hidden until the cycle repeats. This is the
+ * schedule a test can advance without a browser.
  */
 export function connectorIsLiveAt(connector: AmbientConnector, elapsedSeconds: number): boolean {
-  const local = elapsedSeconds - connector.delay;
-  if (local < 0) return false;
-  const progress = (local % connector.duration) / connector.duration;
-  return progress < SKY_DRAW_LIVE_UNTIL;
+  const phase = connectorPhaseAt(connector, elapsedSeconds);
+  return phase === 'drawing' || phase === 'holding' || phase === 'retracting';
 }
 
 export function liveConnectorsAt(drawing: StarFieldDrawing, elapsedSeconds: number): AmbientConnector[] {
@@ -184,7 +213,7 @@ export function liveConnectorsAt(drawing: StarFieldDrawing, elapsedSeconds: numb
 function appearDelay(index: number, random: () => number, used: Set<string>): Timing {
   for (;;) {
     const duration = tenth(DRAW_MIN_SECONDS + random() * DRAW_SPREAD);
-    const delay = tenth(index * APPEAR_STEP - EARLY_SHIFT + (random() * 0.4 - 0.1));
+    const delay = tenth(index * SKY_APPEAR_STEP - EARLY_SHIFT + (random() * 0.4 - 0.1));
     const key = `${duration}/${delay}`;
     if (!used.has(key)) {
       used.add(key);
@@ -235,7 +264,7 @@ export function buildStarField(pageId: string, visitSeed: string | number): Star
     const x = jitter(star.x, random);
     const y = jitter(star.y, random);
     positions.set(pointKey([star.x, star.y]), [x, y]);
-    return { x, y, ...timing(random, ANCHOR_MIN_SECONDS, 6, starTiming) };
+    return { x, y, ...timing(random, SKY_ANCHOR_MIN_SECONDS, ANCHOR_SPREAD, starTiming) };
   });
 
   /*
@@ -255,7 +284,7 @@ export function buildStarField(pageId: string, visitSeed: string | number): Star
   const faint = OPENING_CONSTELLATION.backdrop.slice(0, OPENING_CONSTELLATION.backdrop.length - drop).map((star) => ({
     x: jitter(star.x, random),
     y: jitter(star.y, random),
-    ...timing(random, FAINT_MIN_SECONDS, 6, starTiming),
+    ...timing(random, SKY_FAINT_MIN_SECONDS, FAINT_SPREAD, starTiming),
   }));
 
   const third = OPENING_CONSTELLATION.width / 3;
