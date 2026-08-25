@@ -41,12 +41,14 @@ const TOOL_TYPES: Record<string, ToolType> = {
   dictionary_genie: 'discovery',
   describe_table: 'discovery',
   list_data_assets: 'discovery',
+  resolve_table: 'discovery',
   // The two tools that narrow before anything is described. Both read metadata
   // rather than data, so they belong beside the listing rather than with the SQL
   // rows: filing them as unclassified would make the discovery roll-up under-report
   // exactly the step that is meant to be replacing the expensive one.
   search_tagged_assets: 'discovery',
   search_semantics: 'discovery',
+  new_plot: 'plot',
 };
 
 /**
@@ -202,6 +204,11 @@ export function stageType(stage: Pick<TraceStage, 'id' | 'kind'>): ToolType {
   if (stage.id.endsWith('-clarify')) return 'clarify';
   const tool = toolNameFromId(stage.id);
   if (tool && TOOL_TYPES[tool]) return TOOL_TYPES[tool];
+  // The agent now records sql / discovery / plot / genie on the stage itself.
+  // A tool added there but not yet listed above still lands on the heading the
+  // agent already chose, instead of disappearing into the unclassified bucket.
+  if (stage.kind === 'sql' || stage.kind === 'discovery' || stage.kind === 'plot') return stage.kind;
+  if (stage.kind === 'genie') return 'sql';
   return 'agent';
 }
 
@@ -251,7 +258,7 @@ export function toolPayloadSnippet(input: string): string {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const record = parsed as Record<string, unknown>;
-      for (const key of ['full_name', 'sql', 'query', 'question', 'catalog', 'schema'] as const) {
+      for (const key of ['full_name', 'sql', 'query', 'question', 'name', 'catalog', 'schema'] as const) {
         const value = record[key];
         if (typeof value === 'string' && value.trim()) return clipEventSnippet(value);
       }

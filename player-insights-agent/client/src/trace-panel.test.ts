@@ -128,6 +128,12 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
     expect(gantt.indexOf('<RollUp')).toBeLessThan(gantt.indexOf('Step timeline'));
   });
 
+  it('keeps failed time visible on the explorer kind table, not only on Ask tiles', () => {
+    const summary = functionSource(TIMELINE, 'KindSummary');
+    expect(summary).toContain('row.failedCalls > 0');
+    expect(summary).toContain('trace-failed');
+  });
+
   it('keeps notebook kind colour on Run Explorer only', () => {
     expect(TIMELINE).toContain("variant === 'explorer'");
     expect(TIMELINE).toContain('trace-timeline--explorer');

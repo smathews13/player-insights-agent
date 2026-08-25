@@ -58,6 +58,7 @@ import { astPill } from './run-header';
 import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
+import { formatMs } from './trace-timeline';
 import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import {
@@ -529,7 +530,7 @@ export function RunExplorer() {
                   <CardContent>
                     <span>Wall time</span>
                     <strong className={tileValue(!selected?.duration_ms)}>
-                      {selected?.duration_ms ? `${(selected.duration_ms / 1000).toFixed(1)}s` : ABSENT}
+                      {selected?.duration_ms ? formatMs(selected.duration_ms) : ABSENT}
                     </strong>
                   </CardContent>
                 </Card>

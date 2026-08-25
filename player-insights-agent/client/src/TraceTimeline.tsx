@@ -160,7 +160,18 @@ function KindSummary({ rows }: { rows: RollUpRow[] }) {
               <td className="trace-num ast-num">
                 {row.sharePct === null ? '—' : `${Math.round(row.sharePct)}%`}
               </td>
-              <td className="trace-num ast-num">{row.calls}</td>
+              <td className="trace-num ast-num">
+                {row.calls}
+                {row.failedCalls > 0 && (
+                  <em
+                    className="trace-failed"
+                    title="failed: counted in recorded activity, left out of the duration above"
+                  >
+                    {' '}
+                    · {row.failedCalls} failed
+                  </em>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -108,6 +108,9 @@ describe('the Run Explorer’s two columns', () => {
     // with the duration and is not a measurement, so the face goes on the figure
     // rather than on the line.
     expect(EXPLORER).toContain('<span className="ast-num">{(run.duration_ms / 1000).toFixed(1)}s</span>');
+    // Overview wall time uses the same printer as the Timeline envelope, so a
+    // 24.009s run cannot read as 24.0s on one tab and 24.01s on the other.
+    expect(EXPLORER).toContain('{selected?.duration_ms ? formatMs(selected.duration_ms) : ABSENT}');
     // The score takes it on the wrapper instead, and deliberately: the star and
     // the figure are one sentence three surfaces print identically, which
     // rail-run-summary.test.ts reads as `<Star /> {ratingOutOf(...)}`. A span

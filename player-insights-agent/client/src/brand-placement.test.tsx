@@ -378,3 +378,92 @@ describe('the “what ran” timeline marks a step with the product it called', 
     expect(rollUp).not.toContain('brand-icon');
   });
 });
+
+describe('Run Explorer Timeline uses the notebook vocabulary', () => {
+  const notebookViz = {
+    id: 'tr-notebook-viz',
+    totalMs: 24_009,
+    toolCalls: 6,
+    stages: [
+      { id: 'step-1', name: 'Chose the next step', kind: 'agent', start: 0, duration: 2_350, status: 'complete' as const, calls: 1, input: '', output: '' },
+      {
+        id: 'step-1-1-describe_table',
+        name: "Read a table's columns",
+        kind: 'tool',
+        start: 2_350,
+        duration: 78,
+        status: 'complete' as const,
+        calls: 1,
+        input: '{"full_name": "cdp_share_prod.acme.gold_title_daily"}',
+        output: '',
+      },
+      { id: 'step-2', name: 'Chose the next step', kind: 'agent', start: 2_428, duration: 7_510, status: 'complete' as const, calls: 1, input: '', output: '' },
+      {
+        id: 'step-2-1-query_named_table',
+        name: 'Queried the named table',
+        kind: 'tool',
+        start: 9_938,
+        duration: 3_620,
+        status: 'complete' as const,
+        calls: 1,
+        input: JSON.stringify({ sql: "SELECT COUNT(CASE WHEN title = 'Hoops23' THEN 1 END) AS games FROM gold" }),
+        output: '',
+      },
+      { id: 'step-3', name: 'Prepared the findings', kind: 'agent', start: 13_558, duration: 5_080, status: 'complete' as const, calls: 1, input: '', output: '' },
+      { id: 'plot', name: 'Built the charts', kind: 'tool', start: 18_638, duration: 1_180, status: 'complete' as const, calls: 1, input: '{"data":[{"x":["Hoops23"]}]}', output: '' },
+      { id: 'synthesis', name: 'Prepared the answer', kind: 'agent', start: 19_818, duration: 4_180, status: 'complete' as const, calls: 1, input: '', output: '' },
+    ],
+  };
+
+  it('draws kind pills, matching bars, notebook event names, and the kind table', () => {
+    const drawn = renderToStaticMarkup(
+      <TraceTimeline variant="explorer" trace={notebookViz} question="How many Hoops games do we have?" />
+    );
+
+    expect(drawn).toContain('trace-timeline--explorer');
+    expect(drawn).toContain('trace-kind-summary');
+    expect(drawn).not.toContain('Time by tool type');
+    expect(drawn).not.toContain('Step timeline');
+    expect(drawn).not.toContain('brand-icon');
+
+    expect(drawn).toContain('run - [orchestrator]');
+    expect(drawn).toContain('model call - [orchestrator] turn 1');
+    expect(drawn).toContain('model call - [orchestrator] turn 4');
+    expect(drawn).toContain('describe_table cdp_share_prod.acme.gold_title_daily');
+    expect(drawn).toMatch(/query_named_table SELECT COUNT/);
+    expect(drawn).toMatch(/new_plot /);
+
+    expect(drawn).toContain('trace-chip-run');
+    expect(drawn).toContain('trace-chip-llm');
+    expect(drawn).toContain('trace-chip-discovery');
+    expect(drawn).toContain('trace-chip-sql');
+    expect(drawn).toContain('trace-chip-plot');
+    expect(drawn).toContain('trace-bar-run');
+    expect(drawn).toContain('trace-bar-llm');
+    expect(drawn).toContain('trace-bar-discovery');
+    expect(drawn).toContain('trace-bar-sql');
+    expect(drawn).toContain('trace-bar-plot');
+
+    expect(drawn).toContain('19.12s');
+    expect(drawn).toContain('80%');
+    expect(drawn).toContain('3.62s');
+    expect(drawn).toContain('78ms');
+    expect(drawn).toContain('24.01s');
+    expect(drawn).toContain('+4.80s');
+  });
+
+  it('leaves Ask on stakeholder names, product marks, and the tile roll-up', () => {
+    const drawn = renderToStaticMarkup(
+      <TraceTimeline trace={notebookViz} question="How many Hoops games do we have?" />
+    );
+
+    expect(drawn).not.toContain('trace-timeline--explorer');
+    expect(drawn).toContain('Time by tool type');
+    expect(drawn).toContain('Step timeline');
+    expect(drawn).toContain('Chose the next step');
+    expect(drawn).toContain('Queried the named table');
+    expect(drawn).not.toContain('run - [orchestrator]');
+    expect(drawn).not.toContain('model call - [orchestrator] turn 1');
+    expect(drawn).not.toContain('trace-kind-summary');
+  });
+});
