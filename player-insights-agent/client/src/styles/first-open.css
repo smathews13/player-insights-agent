@@ -259,9 +259,12 @@
  * rules come out right at both parities. The first row is the first two cells,
  * always, so `:nth-child(-n + 2)` clears exactly the rules that would double the
  * header band's own border -- and no row ever carries a trailing rule that would
- * double the box's bottom border or hang under a half-filled last row. Written
- * as `border-bottom` this needs to know whether the count is odd, and gets it
- * wrong on one of the two.
+ * double the box's bottom border. Written as `border-bottom` this needs to know
+ * whether the count is odd, and gets it wrong on one of the two.
+ *
+ * An odd last row still needs a right-hand cell: without one the midline stops
+ * and the last name (`postgres`, today) hangs open. The generated cell below
+ * occupies that track so the last row closes like an even count.
  */
 /*
  * 7px of vertical padding rather than 9. The nine scopes are five ROW-LINES, so
@@ -284,9 +287,24 @@
   border-top: none;
 }
 
-/* The one rule between the columns. On the right-hand cell, so an odd count
-   leaves the lone final cell without a divider it has nothing to divide. */
+/* The one rule between the columns. On the right-hand cell. An odd last row
+   still gets a partner: the generated cell below draws the same left hairline. */
 .fo-scope-row:nth-child(even) {
+  border-left: 1px solid var(--ast-hairline);
+}
+
+/*
+ * Occupies the empty right-hand track when the last scope sits alone. Same two
+ * hairlines a real right-hand cell would draw, so the midline runs through the
+ * last row and the last name is a closed box against the section edge.
+ *
+ * `::after` on the list, not an empty `<li>`: a blank item is announced and the
+ * list's job is the scopes themselves. Narrow windows drop this again -- one
+ * column has no empty track.
+ */
+.fo-scope-list:has(.fo-scope-row:last-child:nth-child(odd))::after {
+  content: '';
+  border-top: 1px solid var(--ast-hairline);
   border-left: 1px solid var(--ast-hairline);
 }
 

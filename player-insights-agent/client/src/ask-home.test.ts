@@ -913,7 +913,7 @@ describe('below 800px the conversation rail is somewhere else, not gone', () => 
   it('dismisses the sheet on the actions that answer the question it was opened to ask', () => {
     // Picking a conversation and starting one both close it, the same way the
     // header's nav sheet closes on choosing a page.
-    expect(HOME_PAGE).toMatch(/setRailSheetOpen\(false\);\s*startNewConversation\(\)/);
+    expect(HOME_PAGE).toMatch(/setRailSheetOpen\(false\);\s*startNewConversation\(\);\s*focusQuestionInput\(\)/);
     expect(HOME_PAGE).toMatch(/setRailSheetOpen\(false\);\s*setSearchParams/);
   });
 });

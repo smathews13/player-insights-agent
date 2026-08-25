@@ -463,6 +463,13 @@ export function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   /**
+   * The Ask question field. New conversation focuses it from the click itself
+   * so the existing composer ring lights and the caret is ready to type. An
+   * effect keyed on the new id would also fire after they had already clicked
+   * somewhere else.
+   */
+  const composerRef = useRef<HTMLFormElement>(null);
+  /**
    * Parsed once per set of messages, not once per render.
    */
   const parsedResponses = useMemo(() => {
@@ -1234,6 +1241,10 @@ export function HomePage() {
     setSearchParams({}, { replace: true });
   }
 
+  function focusQuestionInput() {
+    composerRef.current?.querySelector('textarea')?.focus();
+  }
+
   /**
    * The header lockup's home control. A link to `/` from another tab remounts
    * this page with the session record already cleared. The same click on an
@@ -1534,6 +1545,7 @@ export function HomePage() {
         onClick={() => {
           setRailSheetOpen(false);
           startNewConversation();
+          focusQuestionInput();
         }}
         disabled={loading}
       >
@@ -2022,6 +2034,7 @@ export function HomePage() {
         )}
         <div ref={transcriptEndRef} aria-hidden="true" />
         <form
+          ref={composerRef}
           className="composer"
           // The submit is what prompts a password manager to offer to save, so
           // the form is opted out as well as the field inside it. These are

@@ -356,6 +356,11 @@
   .fo-scope-row:nth-child(even) {
     border-left: none;
   }
+  /* The generated pad is the empty right-hand track. One column has none, and
+     leaving it would draw a blank stripe under the last scope. */
+  .fo-scope-list:has(.fo-scope-row:last-child:nth-child(odd))::after {
+    content: none;
+  }
   .settings-overlay {
     padding: 12px;
   }

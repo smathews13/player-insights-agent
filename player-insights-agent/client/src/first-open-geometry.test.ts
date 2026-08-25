@@ -106,14 +106,25 @@ describe('the first-open card', () => {
    * Two columns need the row rules ABOVE each row, and that is a correctness
    * property rather than a preference: the first row is the first two cells at
    * either count, so clearing `:nth-child(-n + 2)` never doubles the header band's
-   * border and no row carries a trailing rule to hang under a half-filled last
-   * row. Written as `border-bottom` it has to know whether the scope count is odd,
+   * border and no row carries a trailing rule that would double the box's bottom.
+   * Written as `border-bottom` it has to know whether the scope count is odd,
    * and comes out wrong on one of the two.
+   *
+   * The last odd name still has to sit in a closed box. The list grows an empty
+   * right-hand cell for that case so the midline and the row hairline run through
+   * to the section edge, the way an even last row already does.
    */
   it('draws the row hairlines so they cannot double or dangle at either count', () => {
     expect(rule('.fo-scope-row')).toContain('border-top');
     expect(rule('.fo-scope-row')).not.toContain('border-bottom');
     expect(rule('.fo-scope-row:nth-child(-n + 2)')).toContain('border-top: none');
+  });
+
+  it('closes the empty right-hand cell when the last scope sits alone', () => {
+    const pad = rule('.fo-scope-list:has(.fo-scope-row:last-child:nth-child(odd))::after');
+    expect(pad).toContain("content: ''");
+    expect(pad).toContain('border-top');
+    expect(pad).toContain('border-left');
   });
 
   /*
@@ -126,6 +137,9 @@ describe('the first-open card', () => {
     const narrow = partial('responsive.css').match(/@media \(max-width: 800px\)\s*\{([\s\S]*?)\n\}/)![1];
     expect(narrow).toMatch(/\.fo-scope-list\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
     expect(narrow).toMatch(/\.fo-scope-row:nth-child\(even\)\s*\{[^}]*border-left:\s*none/);
+    expect(narrow).toMatch(
+      /\.fo-scope-list:has\(\.fo-scope-row:last-child:nth-child\(odd\)\)::after\s*\{[^}]*content:\s*none/
+    );
     expect(CSS).not.toMatch(/@media\s*\((?:max|min)-width/);
   });
 });

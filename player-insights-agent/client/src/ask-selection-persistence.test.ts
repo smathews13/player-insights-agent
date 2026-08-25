@@ -93,4 +93,16 @@ describe('Ask selection persistence', () => {
     expect(action).toContain('clearSelectedConversation()');
     expect(action).toContain('setMessages([])');
   });
+
+  it('puts the caret in the question box on New conversation, from the click', () => {
+    // Same empty Ask the lockup already reaches. The focus is the click's,
+    // including when that empty conversation is already selected, and not an
+    // effect of the new id — that would steal the caret if they had already
+    // clicked elsewhere.
+    expect(HOME).toMatch(/setRailSheetOpen\(false\);\s*startNewConversation\(\);\s*focusQuestionInput\(\)/);
+    expect(HOME).toMatch(
+      /function focusQuestionInput\(\) \{\s*composerRef\.current\?\.querySelector\('textarea'\)\?\.focus\(\);/
+    );
+    expect(HOME).toContain('ref={composerRef}');
+  });
 });
