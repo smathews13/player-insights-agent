@@ -3,10 +3,8 @@
  * an override is stored and applied.
  *
  * Outcome and rating are the two closed sets an administrator can correct after
- * a run. Conversation, message and user ids are not reassigned from this rail —
- * there is no honest option list that is not "every row in the store". The run
- * number can jump to another turn in the same conversation. Tool count is a
- * measurement, not a label.
+ * a run. Conversation, message, user and tool-count stay as chips; they are not
+ * reassigned from this rail.
  */
 import { DOWN_RATING, UP_RATING } from './stored-feedback';
 import type { Run } from './app-types';
@@ -30,30 +28,6 @@ export type RailRating = (typeof RAIL_RATING_OPTIONS)[number]['value'];
 export interface RunLabelOverride {
   status?: RailOutcome | null;
   rating?: RailRating | null;
-}
-
-export interface ConversationRunChoice {
-  id: string;
-  number: number;
-}
-
-/** Why a rail field is shown in the editor but cannot be chosen. */
-export const RAIL_FIELD_REASONS = {
-  conversation: 'The conversation id is the thread this run already belongs to, and is not reassigned from here.',
-  message: 'The message id is this run’s stored answer row, and is not reassigned from here.',
-  user: 'The asker is recorded on the conversation, and is not reassigned from here.',
-  tools: 'The tool count is measured from the trace, and is not a label that can be chosen.',
-} as const;
-
-export function conversationRunChoices(
-  runs: readonly Run[],
-  selected: Run | null
-): ConversationRunChoice[] {
-  if (!selected?.conversation_id) return [];
-  const chronological = [...runs]
-    .filter((run) => run.conversation_id === selected.conversation_id)
-    .reverse();
-  return chronological.map((run, index) => ({ id: run.id, number: index + 1 }));
 }
 
 export function railOutcomeValue(status: string | null | undefined): RailOutcome {

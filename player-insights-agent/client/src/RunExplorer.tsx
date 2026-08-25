@@ -66,7 +66,6 @@ import { answerRunVerdict } from '../../shared/run-verdict';
 import { UsedThisRun } from './UsedThisRun';
 import {
   applyRunLabelOverride,
-  conversationRunChoices,
   readRunLabelOverride,
   type RunLabelOverride,
 } from './run-header-labels';
@@ -453,12 +452,10 @@ export function RunExplorer() {
             run={displayed}
             conversationId={displayed?.conversation_id ?? undefined}
             conversationRun={conversationRunNumber(runs, displayed)}
-            conversationRuns={conversationRunChoices(runs, displayed)}
             toolCalls={agentToolCalls}
             reference={isReference}
             groundedness={groundedness}
             canEdit={canEdit}
-            onSelectRun={setSelectedId}
             onLabelsSaved={setLabelOverlay}
           />
           {isReference && (

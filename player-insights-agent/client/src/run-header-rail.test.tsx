@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { RunHeader } from './RunHeader';
 import {
-  RAIL_FIELD_REASONS,
   applyRunLabelOverride,
   persistRunLabels,
   railOutcomeValue,
@@ -83,27 +82,20 @@ describe('only an administrator can edit the rail labels', () => {
     expect(SOURCE).toContain('<Pencil');
   });
 
-  it('opens dropdowns for outcome and rating, and disables ids that cannot be reassigned', () => {
+  it('opens dropdowns only for outcome and rating', () => {
     const markup = header({
       canEdit: true,
       editing: true,
-      conversationRuns: [
-        { id: FULL_ID, number: 1 },
-        { id: 'msg-other', number: 2 },
-      ],
     });
     expect(markup).toContain('data-testid="run-header-label-editor"');
+    expect(markup.match(/<select/g)?.length).toBe(2);
     expect(markup).toMatch(/<select[^>]*aria-label="Outcome"[^>]*>[\s\S]*Complete[\s\S]*Partial[\s\S]*Failed/);
     expect(markup).toMatch(/<select[^>]*aria-label="Rating"[^>]*>[\s\S]*Not rated[\s\S]*Helpful[\s\S]*Not helpful/);
-    expect(markup).toMatch(/<select[^>]*aria-label="Run"[^>]*>([\s\S]*Run 1[\s\S]*Run 2)/);
-    expect(markup).toContain(`title="${RAIL_FIELD_REASONS.conversation}"`);
-    expect(markup).toContain(`title="${RAIL_FIELD_REASONS.message}"`);
-    expect(markup).toContain(`title="${RAIL_FIELD_REASONS.user}"`);
-    expect(markup).toContain(`title="${RAIL_FIELD_REASONS.tools}"`);
-    expect(markup).toMatch(/disabled="" aria-label="Conversation"/);
-    expect(markup).toMatch(/disabled="" aria-label="Message"/);
-    expect(markup).toMatch(/disabled="" aria-label="User"/);
-    expect(markup).toMatch(/disabled="" aria-label="Tools"/);
+    expect(markup).not.toMatch(/aria-label="Conversation"/);
+    expect(markup).not.toMatch(/aria-label="Run"/);
+    expect(markup).not.toMatch(/aria-label="Message"/);
+    expect(markup).not.toMatch(/aria-label="User"/);
+    expect(markup).not.toMatch(/aria-label="Tools"/);
   });
 });
 

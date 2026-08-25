@@ -38,7 +38,6 @@ import {
   persistRunLabels,
   railOutcomeValue,
   railRatingValue,
-  type ConversationRunChoice,
   type RailOutcome,
   type RailRating,
   type RunLabelOverride,
@@ -48,19 +47,16 @@ export function RunHeader({
   run,
   conversationId,
   conversationRun,
-  conversationRuns = [],
   toolCalls,
   reference,
   groundedness,
   canEdit = false,
   editing: editingProp,
-  onSelectRun,
   onLabelsSaved,
 }: {
   run: Run | null;
   conversationId?: string;
   conversationRun?: number;
-  conversationRuns?: ConversationRunChoice[];
   /** The agent's own call counter, from the trace rather than from the row. */
   toolCalls: number | null;
   reference: boolean;
@@ -69,7 +65,6 @@ export function RunHeader({
   canEdit?: boolean;
   /** Tests open the editor without a click. Live use is the pencil. */
   editing?: boolean;
-  onSelectRun?: (runId: string) => void;
   onLabelsSaved?: (overlay: RunLabelOverride) => void;
 }) {
   const [editingState, setEditing] = useState(false);
@@ -171,15 +166,10 @@ export function RunHeader({
         )}
         {run && canEdit && editing && (
           <RunHeaderLabelEditor
-            run={run}
-            conversationId={conversationId}
-            conversationRuns={conversationRuns}
-            toolCalls={toolCalls}
             outcome={railOutcomeValue(displayedStatus)}
             rating={railRatingValue(run.rating)}
             onOutcome={(value: RailOutcome) => saveOverlay({ status: value })}
             onRating={(value: RailRating) => saveOverlay({ rating: value })}
-            onSelectRun={onSelectRun}
           />
         )}
       </div>
