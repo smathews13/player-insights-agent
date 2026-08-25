@@ -45,9 +45,11 @@ from failures import (
 # tokenizer and would leave comma joins, CTEs and set operations hand-rolled.
 #
 # EVERYTHING UNRESOLVABLE IS REFUSED: a parse failure, more than one statement, a
-# root that is not a SELECT, a name that is not three parts, a table expression
-# that resolves to no name. There is no fall-back path, because falling back to
-# weaker checking is how the previous version passed all of the above.
+# root that is not a SELECT, a named table that is not three parts, a table
+# expression that resolves to no name. A statement that names no table at all
+# (constants, arithmetic) is allowed: there is nothing to index. There is no
+# fall-back path, because falling back to weaker checking is how the previous
+# version passed all of the above.
 # ---------------------------------------------------------------------------
 
 #: Parsed with the dialect the warehouse actually speaks, so that syntax
@@ -605,15 +607,15 @@ def validate_sql(sql: str, readable: Sequence[str]) -> list[str]:
     attribution and this function has already found them. Deriving sources twice
     is how the two answers drift, and getting them from a pattern rather than a
     parse is how they drifted from the truth.
+
+    A statement that names no table (``SELECT 1``, arithmetic on constants) is
+    allowed and returns an empty list. Governance indexes only fully-qualified
+    ``catalog.schema.table`` names; no table is not the same as an under-qualified
+    one. A named table that is not three parts is still refused.
     """
 
     tree = parse_sql(sql)
     tables = referenced_tables(tree)
-    if not tables:
-        raise SqlRefused(
-            "SQL must reference a fully-qualified catalog.schema.table.", ASSET_UNRESOLVED
-        )
-
     declared = {name.lower(): name for name in readable}
     rejected = sorted(name for name in tables if name.lower() not in declared)
     if rejected:
@@ -626,5 +628,6 @@ def validate_sql(sql: str, readable: Sequence[str]) -> list[str]:
 
     refuse_restricted_columns(tree)
     # Attributed with the declaration's own spelling, so one table cited two ways
-    # in two answers is not read as two tables.
+    # in two answers is not read as two tables. Empty when the statement named
+    # no table: that is a read of nothing, not an unresolved source.
     return [declared[name.lower()] for name in tables]

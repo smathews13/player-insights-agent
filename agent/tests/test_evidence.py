@@ -39,6 +39,8 @@ def gateway(**kwargs) -> evidence.EvidenceGateway:
         "SELECT FROM WHERE ((",
         "DELETE FROM cat.sch.orders",
         "SELECT 1; SELECT 2",
+        "SELECT 1",
+        "SELECT ROUND(452724 / 330477825.0 * 100, 4) AS null_pct",
         "SELECT * FROM orders",
         "SELECT * FROM other.sch.secrets",
         "SELECT email FROM cat.sch.players",

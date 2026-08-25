@@ -63,11 +63,21 @@ def test_a_write_and_a_second_statement_are_the_same_finding():
 
 def test_something_that_cannot_be_tied_to_a_table_is_not_a_manifest_rejection():
     # Two different findings that used to read alike. "Not in the manifest" is a
-    # governance decision about a named table; this is a read nobody can name at
-    # all, and counting them together hides the second.
+    # governance decision about a named table; this is a table nobody can name as
+    # catalog.schema.table, and counting them together hides the second. A
+    # statement that names no table at all is not this finding: it reads nothing.
     assert _code("SELECT * FROM orders") == failures.ASSET_UNRESOLVED
     assert _code("SELECT * FROM sch.orders") == failures.ASSET_UNRESOLVED
-    assert _code("SELECT 1") == failures.ASSET_UNRESOLVED
+
+
+def test_math_only_sql_is_allowed_and_a_named_table_must_be_fully_qualified():
+    """Index tables by catalog.schema.table. No table is not a reason to refuse."""
+
+    math = "SELECT ROUND(452724 / 330477825.0 * 100, 4) AS null_pct"
+    assert sql_policy.validate_sql(math, READABLE) == []
+    assert sql_policy.validate_sql("SELECT 1", READABLE) == []
+    assert _code("SELECT * FROM sch.orders") == failures.ASSET_UNRESOLVED
+    assert sql_policy.validate_sql("SELECT * FROM cat.sch.orders", READABLE) == ["cat.sch.orders"]
 
 
 def test_a_table_outside_the_declaration_is_a_manifest_rejection():

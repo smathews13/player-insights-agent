@@ -424,7 +424,7 @@ def test_the_guard_checks_the_declared_table_set_not_just_the_catalog():
     rejects(f"SELECT * FROM {NAMESPACE}.undeclared_table", "Not in the declared table set")
     rejects(f"SELECT * FROM {ACTIVITY} JOIN other.s.u USING (id)", "other.s.u")
     rejects(f"DELETE FROM {ACTIVITY}", "read-only")
-    rejects("SELECT 1", "fully-qualified")
+    assert validate_sql("SELECT 1", MANIFEST) == []
 
 
 def test_the_guard_returns_what_the_statement_reads():

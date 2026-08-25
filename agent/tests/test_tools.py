@@ -970,6 +970,26 @@ def test_a_bare_table_name_is_refused_rather_than_resolved_against_a_default_sch
         build().query_named_table("SELECT * FROM silver_player_profiles")
 
 
+def test_math_only_sql_is_allowed_and_a_named_table_must_be_fully_qualified():
+    """Constants and arithmetic name no table; a named table still needs three parts.
+
+    The gate used to refuse any statement that did not mention a
+    catalog.schema.table, so a null-rate calculated from two counts already in
+    hand never reached the warehouse.
+    """
+
+    math = "SELECT ROUND(452724 / 330477825.0 * 100, 4) AS null_pct"
+    warehouse = FakeWarehouse(["null_pct"], [["0.137"]])
+    result = build(warehouse).query_named_table(math)
+
+    assert warehouse.statements == [math]
+    assert result.sources == []
+    assert "0.137" in result.text
+    refused("SELECT * FROM silver_player_profiles", "not a fully-qualified table")
+    refused("SELECT * FROM sch.silver_player_profiles", "only partly qualified")
+    assert validate_sql(f"SELECT count(*) FROM {PROFILES}", MANIFEST) == [PROFILES]
+
+
 def test_a_large_result_is_summarized_with_the_count_of_what_is_missing():
     """Both numbers, not a remainder the reader has to add back to get the total.
 
