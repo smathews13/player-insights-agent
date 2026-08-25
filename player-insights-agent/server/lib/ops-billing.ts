@@ -530,7 +530,7 @@ function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
     amount: null,
     basis: 'total-in-range' as const,
     population: 'This space',
-    unavailable: 'Covered by SQL warehouse',
+    unavailable: 'No billing rows',
     remedy: '',
     note: '',
   }));

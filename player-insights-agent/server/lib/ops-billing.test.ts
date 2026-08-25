@@ -103,7 +103,7 @@ describe('billing attribution', () => {
     expect(genie).toHaveLength(2);
     expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
-    expect(genie.every((tile) => tile.unavailable === 'Covered by SQL warehouse')).toBe(true);
+    expect(genie.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
     expect(tiles.some((tile) => tile.id === 'genie')).toBe(false);
   });
 
@@ -113,6 +113,16 @@ describe('billing attribution', () => {
     );
     expect(tile?.resourceId).toBe('cat.schema.index');
     expect(tile?.resourceKind).toBe('vector-index');
+    expect(tile?.unavailable).toBe('No billing rows');
+  });
+
+  it('keeps the Vector Search index id when billing has no rows and the endpoint is unknown', () => {
+    const tile = buildTiles({ ...IDS, vectorIndex: 'cat.schema.index' }, []).find(
+      (item) => item.id === 'vector-search'
+    );
+    expect(tile?.resourceId).toBe('cat.schema.index');
+    expect(tile?.resourceKind).toBe('vector-index');
+    expect(tile?.unavailable).toBe('No billing rows');
   });
 
   it('apportions serving by recorded tokens while keeping SQL an estimate', () => {

@@ -90,6 +90,11 @@ describe('the ranged cost route', () => {
     setupOpsRoutes(
       {
         lakebase: { query: lakebase },
+        servingTransport: () =>
+          Promise.resolve({
+            output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '' }] }],
+            custom_outputs: { type: 'preflight_retired', configuration: [] },
+          }),
         server: { extend: (register: (target: Application) => void) => register(app) },
       } as unknown as InsightsAppKit,
       {
@@ -125,5 +130,113 @@ describe('the ranged cost route', () => {
         expect.objectContaining({ id: 'genie', quality: 'unknown', amount: null }),
       ])
     );
+  });
+
+  it('shows each connected Genie space and Vector Search index even when billing is empty', async () => {
+    let handler: ((req: Request, res: Response) => Promise<void>) | undefined;
+    const app = {
+      get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
+        if (path === '/api/ops/cost') handler = registered;
+      },
+    } as unknown as Application;
+    const lakebase = vi.fn((sql: string) => {
+      if (sql.includes('declared_connections')) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: 'extra-genie',
+              label: 'Extra Genie space',
+              kind: 'genie-space',
+              value: 'space-extra',
+              note: '',
+              state: 'declared',
+              origin: 'app',
+              created_at: new Date('2026-08-01T00:00:00Z'),
+              created_by: 'sam',
+              changed_at: new Date('2026-08-01T00:00:00Z'),
+              changed_by: 'sam',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const fetchImpl = vi.fn((input: string | URL | globalThis.Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.endsWith('/preview/scim/v2/Me')) {
+        return Promise.resolve(
+          new globalThis.Response('{}', {
+            status: 200,
+            headers: { 'x-databricks-org-id': 'workspace-1' },
+          })
+        );
+      }
+      if (url.includes('/vector-search/indexes/')) {
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify({ endpoint_name: 'vs-endpoint' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        );
+      }
+      return Promise.resolve(
+        new globalThis.Response(
+          JSON.stringify({
+            status: { state: 'SUCCEEDED' },
+            result: { data_array: [['__range', null, 'USD', '0', null, '']] },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      );
+    }) as typeof fetch;
+
+    setupOpsRoutes(
+      {
+        lakebase: { query: lakebase },
+        servingTransport: () =>
+          Promise.resolve({
+            output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '' }] }],
+            custom_outputs: {
+              type: 'preflight_retired',
+              configuration: [
+                { key: 'data_genie_space_id', value: 'space-data', source: 'artifact' },
+                { key: 'data_genie_space_title', value: 'Player data', source: 'artifact' },
+                { key: 'dictionary_genie_space_id', value: 'space-dictionary', source: 'artifact' },
+                { key: 'dictionary_genie_space_title', value: 'Dictionary', source: 'artifact' },
+                { key: 'semantic_index', value: 'cat.schema.index', source: 'artifact' },
+              ],
+            },
+          }),
+        server: { extend: (register: (target: Application) => void) => register(app) },
+      } as unknown as InsightsAppKit,
+      {
+        isAdminRoute: () => true,
+        now: () => Date.parse('2026-08-18T12:00:00Z'),
+        fetchImpl,
+      }
+    );
+
+    let payload = {} as OpsCostPayload;
+    await handler!(
+      {
+        query: { from: '2026-08-10', to: '2026-08-17' },
+        headers: {},
+        header: (name: string) => (name === 'x-forwarded-access-token' ? 'caller-token' : undefined),
+      } as unknown as Request,
+      { json: (body: OpsCostPayload) => (payload = body) } as unknown as Response
+    );
+
+    expect(payload.state).toBe('no-rows');
+    const genie = payload.tiles.filter((tile) => tile.id.startsWith('genie:'));
+    expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary', 'space-extra']);
+    expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
+    expect(genie.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
+    expect(payload.tiles.some((tile) => tile.unavailable.includes('identifier unavailable'))).toBe(false);
+    expect(payload.tiles.find((tile) => tile.id === 'vector-search')).toMatchObject({
+      resourceId: 'cat.schema.index',
+      resourceKind: 'vector-index',
+      unavailable: 'No billing rows',
+    });
+    expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
 });

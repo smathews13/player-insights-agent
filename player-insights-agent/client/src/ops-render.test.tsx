@@ -1013,6 +1013,43 @@ describe('the cost block', () => {
     expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(6);
   });
 
+  it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
+    const empty = {
+      amount: null as number | null,
+      quality: 'unknown' as const,
+      basis: 'total-in-range' as const,
+      population: '',
+      unavailable: 'No billing rows',
+      remedy: '',
+      note: '',
+    };
+    const markup = markupOf(
+      <CostBody
+        block={block(
+          cost({
+            state: 'no-rows',
+            tiles: [
+              { ...empty, id: 'serving-endpoint', label: 'Serving endpoint', resourceId: 'an-endpoint', resourceKind: 'serving-endpoint' },
+              { ...empty, id: 'sql-warehouse', label: 'SQL warehouse', resourceId: 'wh-1', resourceKind: 'sql-warehouse' },
+              { ...empty, id: 'genie:space-data', label: 'Player data', resourceId: 'space-data', resourceKind: 'genie-space' },
+              { ...empty, id: 'genie:space-dictionary', label: 'Dictionary', resourceId: 'space-dictionary', resourceKind: 'genie-space' },
+              { ...empty, id: 'vector-search', label: 'Vector search', resourceId: 'cat.schema.index', resourceKind: 'vector-index' },
+              { ...empty, id: 'app-compute', label: 'App compute', resourceId: 'player-insights', resourceKind: 'app' },
+            ],
+            reason: 'No billing rows matched the Astrolabe tag in this range.',
+          })
+        )}
+      />
+    );
+    expect(markup).toContain('Player data');
+    expect(markup).toContain('Dictionary');
+    expect(markup).toContain('Vector search');
+    expect(markup).not.toContain('identifier unavailable');
+    expect(markup).toContain('No billing rows');
+    expect(markup).not.toContain('Index rebuild');
+    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(7);
+  });
+
   it('removes the narrative qualifiers from the cost band', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).not.toContain('read under your own grants');

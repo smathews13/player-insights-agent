@@ -61,8 +61,10 @@ import {
   probeConnections,
   SERVING_ENDPOINT_KIND,
 } from '../lib/dependency-probes';
-import { appEnvironment, readStoredSettings, resourceStates } from '../lib/app-settings';
+import { appEnvironment, readStoredSettings, resourceStates, type ResourceState } from '../lib/app-settings';
+import { readDeclaredConnections } from '../lib/declared-connections';
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
+import { readOrchestratorReport } from './settings-routes';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
@@ -233,24 +235,55 @@ async function lookupVectorEndpoint(input: {
   }
 }
 
+/** The identifier Connections shows for a resource, not a second guess. */
+function shownConnectionValue(state: ResourceState): string {
+  return (state.intended ?? (state.configured || state.actual)).trim();
+}
+
+/**
+ * The Genie spaces and Vector Search names Connections already lists.
+ *
+ * Cost used to ask `resourceStates` with no orchestrator report, so the two
+ * Genie rows and the index — which live on the model artifact, not in the app
+ * container — came back empty and the tiles said the identifier was unavailable
+ * while Connections was showing those same ids. Same list, same values.
+ */
 async function costIdentifiersFor(
   appkit: InsightsAppKit,
   req: Request,
   extras: { workspaceId: string; warehouse: string; fetchImpl?: typeof fetch }
 ): Promise<CostIdentifiers> {
-  const stored = await readStoredSettings(appkit).catch(() => new Map());
-  const states = resourceStates({ report: null, environment: appEnvironment(), stored });
-  const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured.trim()]));
-  const configuration = [
-    configured['genie-data'] ? { key: 'data_genie_space_id', value: configured['genie-data'] } : null,
-    configured['genie-dictionary']
-      ? { key: 'dictionary_genie_space_id', value: configured['genie-dictionary'] }
-      : null,
-    configured['semantic-index'] ? { key: 'semantic_index', value: configured['semantic-index'] } : null,
-  ].filter((entry): entry is { key: string; value: string } => entry !== null);
+  const [{ report }, stored, declared] = await Promise.all([
+    readOrchestratorReport(appkit),
+    readStoredSettings(appkit).catch(() => new Map()),
+    readDeclaredConnections(appkit),
+  ]);
+  const states = resourceStates({ report, environment: appEnvironment(), stored });
+  const configured = Object.fromEntries(states.map((state) => [state.resource.id, shownConnectionValue(state)]));
+  const configuration = report?.configuration?.length
+    ? report.configuration
+    : [
+        configured['genie-data'] ? { key: 'data_genie_space_id', value: configured['genie-data'] } : null,
+        configured['genie-dictionary']
+          ? { key: 'dictionary_genie_space_id', value: configured['genie-dictionary'] }
+          : null,
+        configured['semantic-index'] ? { key: 'semantic_index', value: configured['semantic-index'] } : null,
+      ].filter((entry): entry is { key: string; value: string } => entry !== null);
   const { genieSpaces } = accessDependenciesFrom({ configuration, env: process.env });
+  const spaces = genieSpaces.map((space) => ({ id: space.id.trim(), label: space.label.trim() || space.id.trim() }));
+  const seen = new Set(spaces.map((space) => space.id));
+  for (const row of declared) {
+    if (row.state !== 'declared' || row.kind !== 'genie-space') continue;
+    const id = row.value.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    spaces.push({ id, label: row.label.trim() || 'Genie space' });
+  }
+  const declaredIndex = declared.find(
+    (row) => row.state === 'declared' && row.kind === 'vector-search' && vectorIndexName(row.value)
+  );
   const vectorIndex = vectorIndexName(
-    configured['semantic-index'] || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
+    configured['semantic-index'] || declaredIndex?.value || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
   );
   let vectorEndpoint = queryText(req, 'vectorEndpoint') || configured['semantic-index-endpoint'];
   if (!vectorEndpoint && vectorIndex) {
@@ -267,7 +300,7 @@ async function costIdentifiersFor(
     warehouseId: extras.warehouse,
     vectorEndpoint,
     vectorIndex,
-    genieSpaces: genieSpaces.map((space) => ({ id: space.id, label: space.label })),
+    genieSpaces: spaces.filter((space) => space.id),
     workspaceId: extras.workspaceId,
     telemetryEnabled: Boolean(telemetrySchema()),
   };
