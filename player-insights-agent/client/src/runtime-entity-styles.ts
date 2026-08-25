@@ -1,19 +1,23 @@
 import { useEffect } from 'react';
-import {
-  RuntimeSettingsSchema,
-  runtimeEntityCssVariables,
-  type RuntimeSettings,
-} from '../../shared/runtime-settings';
+import { runtimeEntityCssVariables, type RuntimeSettings } from '../../shared/runtime-settings';
 import { applyColorScheme } from './color-scheme';
+import {
+  loadLiveRuntimeSettings,
+  recalledLiveRuntimeSettings,
+  rememberLiveRuntimeSettings,
+  subscribeLiveRuntimeSettings,
+} from './runtime-settings-live';
 
-let settingsRequest: Promise<RuntimeSettings | null> | null = null;
-
-async function readRuntimeEntityStyles(): Promise<RuntimeSettings | null> {
-  const response = await fetch('/api/runtime-settings');
-  if (!response.ok) return null;
-  const payload = (await response.json()) as { settings?: unknown };
-  const parsed = RuntimeSettingsSchema.safeParse(payload.settings);
-  return parsed.success ? parsed.data : null;
+function paintRuntimeEntityStyles(
+  settings: RuntimeSettings,
+  target: Pick<CSSStyleDeclaration, 'setProperty'> | null
+): void {
+  if (target) {
+    for (const [name, value] of Object.entries(runtimeEntityCssVariables(settings))) {
+      target.setProperty(name, value);
+    }
+  }
+  applyColorScheme(settings.colorScheme);
 }
 
 /**
@@ -22,7 +26,8 @@ async function readRuntimeEntityStyles(): Promise<RuntimeSettings | null> {
  * The request cache used to keep the pre-save settings for the lifetime of the
  * tab, so saving a new date or tag colour appeared to do nothing until reload.
  * Adopting the server's parsed response makes both the document and every later
- * mount agree on the value that actually landed.
+ * mount agree on the value that actually landed — including Architecture's
+ * loop tiles, which read the same remembered row.
  */
 export function adoptRuntimeEntityStyles(
   settings: RuntimeSettings,
@@ -30,26 +35,27 @@ export function adoptRuntimeEntityStyles(
     ? null
     : document.documentElement.style
 ): void {
-  if (target) {
-    for (const [name, value] of Object.entries(runtimeEntityCssVariables(settings))) {
-      target.setProperty(name, value);
-    }
-  }
-  applyColorScheme(settings.colorScheme);
-  settingsRequest = Promise.resolve(settings);
+  paintRuntimeEntityStyles(settings, target);
+  rememberLiveRuntimeSettings(settings);
 }
 
 /** Apply the saved shared entity tokens once for every answer surface. */
 export function useRuntimeEntityStyles(): void {
   useEffect(() => {
     let live = true;
-    settingsRequest ??= readRuntimeEntityStyles().catch(() => null);
-    void settingsRequest.then((settings) => {
+    const paint = () => {
+      const settings = recalledLiveRuntimeSettings();
       if (!live || !settings) return;
-      adoptRuntimeEntityStyles(settings);
-    });
+      paintRuntimeEntityStyles(
+        settings,
+        typeof document === 'undefined' ? null : document.documentElement.style
+      );
+    };
+    const stop = subscribeLiveRuntimeSettings(paint);
+    void loadLiveRuntimeSettings().then(paint);
     return () => {
       live = false;
+      stop();
     };
   }, []);
 }

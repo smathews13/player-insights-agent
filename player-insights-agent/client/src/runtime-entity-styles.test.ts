@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
 import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
+import { forgetLiveRuntimeSettings } from './runtime-settings-live';
 
 describe('saved Appearance colors', () => {
   it('apply to date and tag badges without waiting for a reload', () => {
@@ -45,4 +46,8 @@ describe('saved Appearance colors', () => {
     expect(root.getAttribute('data-theme')).toBe('dark');
     vi.unstubAllGlobals();
   });
+});
+
+afterEach(() => {
+  forgetLiveRuntimeSettings();
 });

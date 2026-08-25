@@ -36,6 +36,7 @@ createApp({
       { setupRuntimeSettingsRoutes },
       { setupEnvironmentRoutes },
       { setupAccountRoutes },
+      { setupRunLabelRoutes },
       { bootstrapSeedRoles, isAdminRoute },
       { respondToHandlerFailures },
     ] = await Promise.all([
@@ -51,6 +52,7 @@ createApp({
       import('./routes/runtime-settings-routes'),
       import('./routes/environment-routes'),
       import('./routes/account-routes'),
+      import('./routes/run-label-routes'),
       import('./lib/admin-roles'),
       import('./lib/handler-failures'),
     ]);
@@ -92,6 +94,7 @@ createApp({
     // is added afterwards. Registered first, `/api/admins` would serve the admin
     // list to every consumer who asked for it.
     setupAdminRoutes(appkit);
+    setupRunLabelRoutes(appkit);
     // After the insights routes for the reason above and for one more: they register
     // the super-admin guard as well, and Express applies middleware to what is added
     // afterwards. Registered first, `/api/users` would let any administrator appoint

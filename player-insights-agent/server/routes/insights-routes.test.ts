@@ -1416,13 +1416,17 @@ describe('what the route actually puts on the wire', () => {
     const captured: CapturedInvocation[] = [];
     const stored: RuntimeSettings = {
       ...DEFAULT_RUNTIME_SETTINGS,
-      loop: { maxSteps: 3, maxToolCalls: 5, maxRunSeconds: 45 },
+      loop: { maxSteps: 10, maxToolCalls: 15, maxRunSeconds: 200 },
       answer: {
         ...DEFAULT_RUNTIME_SETTINGS.answer,
-        takeaway: false,
+        takeaway: true,
+        takeawayGuidance: 'Test',
+        narrativeGuidance: 'Cite the table.',
+        narrativeMaxCharacters: 800,
         maxCharts: 1,
-        maxFigures: 2,
-        maxCaveats: 1,
+        maxFigures: 6,
+        figuresOrder: 'totals-first',
+        chartsTypes: 'bar',
       },
       behavior: {
         ...DEFAULT_RUNTIME_SETTINGS.behavior,

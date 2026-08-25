@@ -46,7 +46,7 @@ import { RefreshControl } from './RefreshControl';
 // The chain and the answer's shape, as data rather than as prose in this file.
 // See the note at the top of agent-chain.ts for why they moved out of here.
 import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUND_NOTE, CHAIN_BOUNDS } from './agent-chain';
-import { runtimeSettingsFromResponse } from './runtime-settings-api';
+import { refreshLiveRuntimeSettings, useLiveRuntimeSettings } from './runtime-settings-live';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import {
   ARCHITECTURE_NODES,
@@ -629,7 +629,7 @@ export function ArchitectureTiles({
  * the header as if they were a caption of the section.
  *
  * AN EM-DASH RATHER THAN THE DEFAULTS when the read fails. The shared defaults are
- * 12/12/90 and it would be easy to print them here, but a stored setting is what
+ * 12/12/150 and it would be easy to print them here, but a stored setting is what
  * the agent actually uses and "12" on a page that could not read the store is a
  * claim about a number nobody checked. Same rule as the tiles above: not knowing
  * and knowing zero are different, and the page says which one it is in.
@@ -773,6 +773,16 @@ export function ArchitecturePage() {
   const settings = session?.settings ?? null;
   const report = session?.report ?? null;
   const checkError = session?.error ?? '';
+  /**
+   * The loop bounds, from the same remembered row Save writes.
+   *
+   * Settings is a modal over this page, so a one-shot fetch on mount kept showing
+   * the previous budget after 200 was saved. Refresh only re-ran the workspace
+   * checks. The live store is what Appearance already used for colours; the tiles
+   * now read it too.
+   */
+  const runtime = useLiveRuntimeSettings();
+  const loop = runtime?.loop ?? null;
 
   // The cheap read, and the only one on mount. It costs the app container's own
   // configuration and no round trip to the workspace, which is what lets the
@@ -792,39 +802,6 @@ export function ArchitecturePage() {
               'The identifiers below are missing.'
           );
         }
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  /**
-   * The loop bounds, for the strip above the drawing.
-   *
-   * A THIRD READ ON MOUNT AND THE CHEAPEST OF THE THREE: it is the app's own
-   * stored row, not a probe of the workspace, so it costs nothing that the info
-   * row's promise about checks depends on. Held as null until it lands, and null
-   * is what the strip draws an em-dash for -- a failed read must not be reported
-   * as the shared defaults, because the number the agent uses is whatever is
-   * stored and nobody checked it.
-   *
-   * The public read rather than the admin one. `/api/runtime-settings` answers
-   * every signed-in reader, and this page is on the consumer navigation; the
-   * admin route is the write.
-   */
-  const [loop, setLoop] = useState<RuntimeSettings['loop'] | null>(null);
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const response = await fetchWithTimeout('/api/runtime-settings', {}, ARCHITECTURE_DESCRIPTION_TIMEOUT_MS);
-        const settings = await runtimeSettingsFromResponse(response, 'loaded');
-        if (live) setLoop(settings.loop);
-      } catch {
-        // Deliberately silent. The strip says it does not know, which is the whole
-        // of what a reader can do about it, and this page already has three alerts
-        // that matter more than a fourth about a tooltip's numbers.
       }
     })();
     return () => {
@@ -862,7 +839,15 @@ export function ArchitecturePage() {
         </div>
         {/* The shared control, on the same clock as the tiles below it, so the
             two cannot report the same instant differently. */}
-        <RefreshControl busy={checking} checkedAt={checkedAt} now={now} onRefresh={() => void refresh()} />
+        <RefreshControl
+          busy={checking}
+          checkedAt={checkedAt}
+          now={now}
+          onRefresh={() => {
+            void refresh();
+            void refreshLiveRuntimeSettings();
+          }}
+        />
       </div>
 
       {payloadError ? (

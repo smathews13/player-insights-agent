@@ -61,6 +61,13 @@ import { TraceTimeline } from './TraceTimeline';
 import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import { conversationFilterOptions, conversationRunNumber, KPI_HINTS, toolStageDurationMs } from './run-explorer-state';
+import { showsAdminSurfaces, useRole } from './role';
+import {
+  applyRunLabelOverride,
+  conversationRunChoices,
+  readRunLabelOverride,
+  type RunLabelOverride,
+} from './run-header-labels';
 
 /**
  * What a tile says when the run recorded no such measurement.
@@ -138,6 +145,8 @@ function tileValue(absent: boolean): string {
 }
 
 export function RunExplorer() {
+  const role = useRole();
+  const canEdit = showsAdminSurfaces(role.state);
   const [searchParams] = useSearchParams();
   const [runs, setRuns] = useState<Run[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -170,6 +179,7 @@ export function RunExplorer() {
   // completely different people.
   const [runsAvailability, setRunsAvailability] = useState<ListAvailability | null>(null);
   const [conversationAvailability, setConversationAvailability] = useState<ListAvailability | null>(null);
+  const [labelOverlay, setLabelOverlay] = useState<RunLabelOverride | null>(null);
   /*
    * Two reads, issued together and awaited separately, and the second one is
    * the fix for the defect Sam reported: Ask listed three conversations while
@@ -297,18 +307,25 @@ export function RunExplorer() {
     typeof tokens?.prompt_tokens === 'number' && typeof tokens?.completion_tokens === 'number'
       ? `${tokens.prompt_tokens.toLocaleString()} in / ${tokens.completion_tokens.toLocaleString()} out`
       : null;
-  const rating = ratingLabel(selected?.rating);
-  // Rating happens on the answer itself, through the feedback control in the
-  // transcript, so the link goes to the conversation this run belongs to, and to
-  // the answer inside it: the control being reached for belongs to one turn, and
-  // landing at the top of a long thread leaves the reader to find which. A run
-  // with no conversation -- a suite run -- has no rating path, and then no link
-  // is offered rather than one that lands nowhere.
-  //
-  // `selected.id` is the answer's own message id, not a separate run key. See
-  // conversation-links.ts, and RUNS_QUERY, which derives a conversation run from
-  // the message that carries the trace.
   const ratePath = selected?.conversation_id ? conversationHref(selected.conversation_id, selected.id) : null;
+  const displayed = selected ? applyRunLabelOverride(selected, labelOverlay) : null;
+  const displayedRating = ratingLabel(displayed?.rating);
+
+  useEffect(() => {
+    if (!canEdit || !selected?.id) {
+      setLabelOverlay(null);
+      return;
+    }
+    const runId = selected.id;
+    let live = true;
+    setLabelOverlay(null);
+    void readRunLabelOverride(runId).then((overlay) => {
+      if (live) setLabelOverlay(overlay);
+    });
+    return () => {
+      live = false;
+    };
+  }, [canEdit, selected?.id]);
   return (
     <div className="page-shell run-explorer">
       {/* No actions. The Advanced switch was here, and the only thing that read
@@ -423,12 +440,16 @@ export function RunExplorer() {
         </Card>
         <div className="run-detail">
           <RunHeader
-            run={selected}
-            conversationId={selected?.conversation_id ?? undefined}
-            conversationRun={conversationRunNumber(runs, selected)}
+            run={displayed}
+            conversationId={displayed?.conversation_id ?? undefined}
+            conversationRun={conversationRunNumber(runs, displayed)}
+            conversationRuns={conversationRunChoices(runs, displayed)}
             toolCalls={agentToolCalls}
             reference={isReference}
             groundedness={groundedness}
+            canEdit={canEdit}
+            onSelectRun={setSelectedId}
+            onLabelsSaved={setLabelOverlay}
           />
           {isReference && (
             <Alert>
@@ -488,10 +509,10 @@ export function RunExplorer() {
                     <span>User rating</span>
                     {/* In words, and with the way to supply one. A run nobody has
                         rated is a normal state: the agent never rates itself. */}
-                    <strong className={tileValue(!rating.rated)}>
-                      {rating.rated ? ratingOutOf(rating.value) : 'Not rated'}
+                    <strong className={tileValue(!displayedRating.rated)}>
+                      {displayedRating.rated ? ratingOutOf(displayedRating.value) : 'Not rated'}
                     </strong>
-                    {!rating.rated && ratePath && (
+                    {!displayedRating.rated && ratePath && (
                       <Link className="tile-link" to={ratePath}>
                         Rate this run
                       </Link>

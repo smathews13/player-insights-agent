@@ -638,7 +638,9 @@ export type AdminAction =
   | 'connection-setting-saved'
   | 'connection-setting-cleared'
   /** An admin asked the app identity to backfill system_billing=astrolabe on managed resources. */
-  | 'resource-tags-applied';
+  | 'resource-tags-applied'
+  /** An admin corrected a run’s outcome or rating on the Run Explorer rail. */
+  | 'run-labels-updated';
 
 /**
  * Record what an admin did: who, when, what.

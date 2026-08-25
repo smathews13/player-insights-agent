@@ -32,9 +32,11 @@
  *
  * NO POLLING, for the reason Monitoring does not poll: the billing query scans
  * a workspace-wide table, and a page that re-ran it every thirty seconds would
- * cost money to look at.
+ * cost money to look at. The same reason the four blocks are kept in
+ * `ops-session.ts` rather than in this page's `useState`: leaving the tab and
+ * coming back is not a reason to scan billing again. Refresh still is.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Search, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
@@ -75,6 +77,7 @@ import {
   type Absence as AbsenceCopy,
   type HealthRow,
 } from './ops-view';
+import { opsCostRangeId, useOpsBlock } from './ops-session';
 import { TimeRangeControl } from './TimeRangeControl';
 import { rangeWindow } from './time-range';
 import type {
@@ -104,68 +107,6 @@ export interface Block<T> {
   /** The sentence for a read that did not come back at all. */
   failed: string;
   refresh: () => void;
-}
-
-/**
- * One block's own read.
- *
- * A hook per block rather than one fetch for the page, which is the independence
- * the file header describes made mechanical: three calls to this cannot
- * accidentally become one.
- *
- * A route that answers 200 with a `reason` inside the payload is NOT a failure
- * here. That is the server saying it looked and could not find out, which is a
- * fact the block renders; `failed` is for the narrower case of the request
- * itself not completing, where there is nothing to render at all.
- */
-function useBlock<T>(path: string, search: string): Block<T> {
-  const [attempt, setAttempt] = useState(0);
-  /**
-   * The last answer, and which request it answered.
-   *
-   * One piece of state carrying its own request key rather than three pieces
-   * kept in step by hand, and `busy` is DERIVED from comparing that key to the
-   * request this render wants. That is what lets the effect below set state only
-   * from its own callbacks: an effect that opens by setting a `busy` flag is a
-   * cascading render, and the flag it sets is information the component already
-   * had.
-   */
-  const [answer, setAnswer] = useState<{ key: string; data: T | null; failed: string } | null>(null);
-
-  const key = `${path}${search}#${attempt}`;
-  useEffect(() => {
-    // Abandoned rather than cancelled: a range change while a read is in flight
-    // must not let the older answer land on top of the newer one. This app has
-    // shipped that race before, on Connections.
-    let current = true;
-    fetch(`${path}${search}`, { headers: { accept: 'application/json' } })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`The server answered ${response.status}.`);
-        return (await response.json()) as T;
-      })
-      .then((payload) => {
-        if (current) setAnswer({ key, data: payload, failed: '' });
-      })
-      .catch((error: Error) => {
-        // The previous payload is deliberately kept. A block that empties itself
-        // on a failed re-read has thrown away the last thing it knew, at the
-        // moment somebody is trying to work out what changed.
-        if (current) setAnswer((last) => ({ key, data: last?.data ?? null, failed: error.message }));
-      });
-    return () => {
-      current = false;
-    };
-  }, [path, search, key]);
-
-  const refresh = useCallback(() => setAttempt((n) => n + 1), []);
-  return {
-    data: answer?.data ?? null,
-    busy: answer?.key !== key,
-    // Only this request's failure. A stale one from the previous range would
-    // report the new read as broken before it has come back.
-    failed: answer?.key === key ? answer.failed : '',
-    refresh,
-  };
 }
 
 /* ── Pieces shared by the three blocks ───────────────────────────────────── */
@@ -1421,15 +1362,17 @@ export function OpsPage() {
   costParams.set('to', range.to);
   const costSearch = `?${costParams.toString()}`;
 
-  // Three reads, started together and finishing whenever each finishes. Nothing
-  // below waits on anything else, which is the whole point of the arrangement.
-  // Cost alone is a complete-day billing window. The other blocks retain their
-  // existing source windows; implying the billing selector also bounded live
-  // health or all-time latency would be a second range bug, not consistency.
-  const health = useBlock<OpsHealthPayload>('/api/ops/health', '');
-  const cost = useBlock<OpsCostPayload>('/api/ops/cost', costSearch);
-  const traffic = useBlock<OpsTrafficPayload>('/api/ops/traffic', '');
-  const latency = useBlock<OpsLatencyPayload>('/api/ops/latency', '');
+  // Four reads, started together on the first visit and finishing whenever
+  // each finishes. Nothing below waits on anything else, which is the whole
+  // point of the arrangement. Cost alone is a complete-day billing window,
+  // keyed on the word in the URL so a remount a second later is not a new
+  // question. The other blocks retain their existing source windows; implying
+  // the billing selector also bounded live health or all-time latency would be
+  // a second range bug, not consistency.
+  const health = useOpsBlock<OpsHealthPayload>('/api/ops/health', '');
+  const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params));
+  const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '');
+  const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '');
 
   /** Monitoring narrowed to one all-time outcome. */
   const monitoringHref: MonitoringHref = (outcome) => {

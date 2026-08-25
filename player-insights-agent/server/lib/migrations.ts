@@ -407,6 +407,28 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     statements: [deploymentDecisionsDdl(appTable(DEPLOYMENT_DECISIONS_TABLE_NAME))],
     down: [`DROP TABLE IF EXISTS ${appTable(DEPLOYMENT_DECISIONS_TABLE_NAME)}`],
   },
+  {
+    version: 10,
+    name: 'run label overrides',
+    statements: [
+      /**
+       * Administrator corrections of a run’s outcome and rating after the fact.
+       *
+       * A NEW TABLE rather than columns on messages or feedback: those already
+       * hold the customer’s history, and an ALTER against them is refused when
+       * the app’s role does not own the table. The classified outcome stays
+       * where it is; this row is only the words an admin chose on the rail.
+       */
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.run_label_overrides (
+         run_id TEXT PRIMARY KEY,
+         status TEXT,
+         rating TEXT,
+         updated_by TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.run_label_overrides`],
+  },
 ];
 
 /**

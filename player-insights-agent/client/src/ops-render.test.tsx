@@ -1345,8 +1345,8 @@ describe('Ops cost uses complete billing days', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
     expect(source).toContain("costParams.set('from', range.from)");
     expect(source).toContain("costParams.set('to', range.to)");
-    expect(source).toContain("useBlock<OpsCostPayload>('/api/ops/cost', costSearch)");
-    expect(source).toContain("useBlock<OpsHealthPayload>('/api/ops/health', '')");
+    expect(source).toContain("useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params))");
+    expect(source).toContain("useOpsBlock<OpsHealthPayload>('/api/ops/health', '')");
     expect(source).toContain('TimeRangeControl page="Ops cost"');
     expect(source).toContain("params.set('range', 'all')");
     expect(source).toContain("const runsHref = () => '/runs?range=all'");

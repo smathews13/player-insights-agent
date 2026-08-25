@@ -22,8 +22,9 @@
  * with no duration, no call count and no rating can be asserted against a
  * rendered tree.
  */
+import { useState } from 'react';
 import { Badge } from './ui';
-import { Check } from 'lucide-react';
+import { Check, Pencil } from 'lucide-react';
 import { ratingLabel } from './benchmark-summary';
 import { astPill, shortRunId, statusFamily } from './run-header';
 import { runLabel } from './run-label';
@@ -32,26 +33,57 @@ import type { Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import { abbreviatedConversationId } from './display-id';
 import { CopyIdChip } from './CopyIdChip';
+import { RunHeaderLabelEditor } from './RunHeaderLabelEditor';
+import {
+  persistRunLabels,
+  railOutcomeValue,
+  railRatingValue,
+  type ConversationRunChoice,
+  type RailOutcome,
+  type RailRating,
+  type RunLabelOverride,
+} from './run-header-labels';
 
 export function RunHeader({
   run,
   conversationId,
   conversationRun,
+  conversationRuns = [],
   toolCalls,
   reference,
   groundedness,
+  canEdit = false,
+  editing: editingProp,
+  onSelectRun,
+  onLabelsSaved,
 }: {
   run: Run | null;
   conversationId?: string;
   conversationRun?: number;
+  conversationRuns?: ConversationRunChoice[];
   /** The agent's own call counter, from the trace rather than from the row. */
   toolCalls: number | null;
   reference: boolean;
   groundedness: number | null;
+  /** Administrators only. Consumers never see the pencil. */
+  canEdit?: boolean;
+  /** Tests open the editor without a click. Live use is the pencil. */
+  editing?: boolean;
+  onSelectRun?: (runId: string) => void;
+  onLabelsSaved?: (overlay: RunLabelOverride) => void;
 }) {
+  const [editingState, setEditing] = useState(false);
+  const editing = editingProp ?? editingState;
   const rating = ratingLabel(run?.rating);
   const displayedStatus = run?.status;
   const family = statusFamily(displayedStatus);
+
+  const saveOverlay = (overlay: RunLabelOverride) => {
+    if (!run) return;
+    void persistRunLabels(run.id, overlay)
+      .then((saved) => onLabelsSaved?.(saved))
+      .catch(() => undefined);
+  };
   return (
     <div className="run-detail-head">
       <div className="min-w-0">
@@ -124,7 +156,31 @@ export function RunHeader({
             <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
               {rating.rated ? 'Rated' : 'Not rated'}
             </Badge>
+            {canEdit && (
+              <button
+                type="button"
+                className="run-header-edit"
+                aria-label="Edit run labels"
+                aria-expanded={editing}
+                onClick={() => setEditing((open) => !open)}
+              >
+                <Pencil aria-hidden="true" />
+              </button>
+            )}
           </div>
+        )}
+        {run && canEdit && editing && (
+          <RunHeaderLabelEditor
+            run={run}
+            conversationId={conversationId}
+            conversationRuns={conversationRuns}
+            toolCalls={toolCalls}
+            outcome={railOutcomeValue(displayedStatus)}
+            rating={railRatingValue(run.rating)}
+            onOutcome={(value: RailOutcome) => saveOverlay({ status: value })}
+            onRating={(value: RailRating) => saveOverlay({ rating: value })}
+            onSelectRun={onSelectRun}
+          />
         )}
       </div>
       <div className="run-detail-figures">

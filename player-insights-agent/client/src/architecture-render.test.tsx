@@ -808,7 +808,7 @@ describe('the drawing is reachable and readable without seeing it', () => {
   });
 
   it('shows an em-dash rather than the shared defaults before the settings land', () => {
-    // 12/12/90 are the defaults and it would be easy to print them here. A stored
+    // 12/12/150 are the defaults and it would be easy to print them here. A stored
     // setting is what the agent actually uses, so a number on a page that has not
     // read the store is a claim about something nobody checked -- the same rule the
     // dependency tiles above follow for `Reachable`.
@@ -823,6 +823,25 @@ describe('the drawing is reachable and readable without seeing it', () => {
         </MemoryRouter>
       )
     ).toContain('>9<');
+  });
+
+  it('shows a saved 200s run budget on the live-data-flow tiles', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <ChainBoundTiles loop={{ maxSteps: 10, maxToolCalls: 15, maxRunSeconds: 200 }} />
+      </MemoryRouter>
+    );
+    expect(markup).toContain('>10<');
+    expect(markup).toContain('>15<');
+    expect(markup).toContain('>200<');
+    expect(markup).not.toContain('>100<');
+  });
+
+  it('reads loop bounds from the live runtime settings, so a Settings save is visible without remount', () => {
+    expect(PAGE_SOURCE).toContain('useLiveRuntimeSettings');
+    expect(PAGE_SOURCE).toContain('refreshLiveRuntimeSettings');
+    expect(PAGE_SOURCE).not.toContain("'/api/runtime-settings'");
+    expect(RUNTIME_PANEL).toContain('adoptRuntimeEntityStyles(saved)');
   });
 
   it('makes every KPI a keyboard-reachable toggle for its architecture scope', () => {
