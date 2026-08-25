@@ -975,9 +975,42 @@ describe('the cost block', () => {
 
   it('renders an unfilled range as a different thing from a missing grant', () => {
     const markup = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
-    expect(markup).toContain('No billing rows yet');
     expect(markup).toMatch(/nothing to grant/);
     expect(markup).not.toContain('GRANT SELECT');
+    expect(markup).not.toContain('You cannot read the billing tables');
+  });
+
+  /**
+   * Empty spend still draws the same boxes as a billed week. A single
+   * "No billing rows yet" card swallowed the resources we are tracking, so
+   * there was nothing to click and no place for a zero to land.
+   */
+  it('keeps the resource tile grid when billing has no matching rows', () => {
+    const markup = markupOf(
+      <CostBody
+        block={block(
+          cost({
+            state: 'no-rows',
+            tiles: [],
+            reason: 'No billing rows matched the Astrolabe tag in this range.',
+          })
+        )}
+      />
+    );
+    expect(markup).toContain('class="ops-tiles"');
+    expect(markup).not.toContain('class="ops-absence"');
+    expect(markup).toContain('Serving endpoint');
+    expect(markup).toContain('SQL warehouse');
+    expect(markup).toContain('Genie');
+    expect(markup).toContain('Vector search');
+    expect(markup).toContain('App compute');
+    expect(markup).toContain('Approx. Average Cost Per Question');
+    expect(markup).not.toContain('Index rebuild');
+    expect(markup).toContain('No billing rows');
+    expect(markup).toContain('No billing rows matched the Astrolabe tag');
+    expect(markup).toContain('system_billing');
+    expect(markup).toContain('astrolabe');
+    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(6);
   });
 
   it('removes the narrative qualifiers from the cost band', () => {

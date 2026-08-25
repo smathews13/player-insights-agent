@@ -13,7 +13,8 @@
  *     which is exactly why nothing stops somebody producing it.
  *  3. Every figure says how good it is, on itself. A legend elsewhere is
  *     consulted once and then not again.
- *  4. No grant and no rows are different sentences. Both are empty blocks.
+ *  4. No grant and no rows are different sentences. Empty spend still draws
+ *     the resource tiles; a missing grant does not.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -21,6 +22,8 @@ import {
   BASIS_LABEL,
   bars,
   costAbsence,
+  costAbsenceReplacesGrid,
+  costTilesForDisplay,
   costTileWorkspaceObject,
   count,
   errorFraming,
@@ -342,6 +345,25 @@ describe('an empty cost block', () => {
 
   it('says nothing at all when there are figures to show', () => {
     expect(costAbsence(costPayload())).toBeNull();
+  });
+
+  it('does not let empty spend swallow the resource tiles', () => {
+    expect(costAbsenceReplacesGrid(costPayload({ state: 'no-rows' }))).toBe(false);
+    expect(costAbsenceReplacesGrid(costPayload({ state: 'no-grant' }))).toBe(true);
+    expect(costAbsenceReplacesGrid(costPayload({ state: 'unreadable' }))).toBe(true);
+  });
+
+  it('still draws one box per tracked resource when billing returned none', () => {
+    const tiles = costTilesForDisplay([]);
+    expect(tiles.map((tile) => tile.id)).toEqual([
+      'serving-endpoint',
+      'sql-warehouse',
+      'genie',
+      'vector-search',
+      'app-compute',
+    ]);
+    expect(tiles.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
+    expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
 });
 

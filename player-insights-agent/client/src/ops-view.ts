@@ -293,6 +293,10 @@ export interface Absence {
  * after the usage, so a range ending today is normally partly empty and that is
  * the system working. Showing one sentence for both sends an admin to ask for
  * something they already hold.
+ *
+ * Empty spend still draws the resource tiles. The no-rows copy is a note under
+ * that grid, not a card that replaces it. A missing grant, a failed read, and a
+ * missing warehouse still replace the grid: there is nothing to attach a box to.
  */
 export function costAbsence(payload: OpsCostPayload): Absence | null {
   if (payload.state === 'ready') return null;
@@ -331,6 +335,47 @@ export function costAbsence(payload: OpsCostPayload): Absence | null {
     body: `${failed} This is not a figure for zero spend: nothing here was measured.`,
   };
 }
+
+/**
+ * Whether the absence copy replaces the tile grid.
+ *
+ * Empty spend does not: the boxes stay, each saying there were no billing rows,
+ * and the note sits under them. A missing grant still swallows the grid, because
+ * the next action is the statement, not a row of blank cards.
+ */
+export function costAbsenceReplacesGrid(payload: OpsCostPayload): boolean {
+  return payload.state !== 'ready' && payload.state !== 'no-rows';
+}
+
+/**
+ * The tiles Cost draws, even when billing returned nothing.
+ *
+ * Index rebuild stays out. An empty payload still gets one box per tracked
+ * resource so the grid does not collapse into a single empty-state card.
+ */
+export function costTilesForDisplay(tiles: readonly CostTile[]): CostTile[] {
+  const visible = tiles.filter((tile) => tile.id !== 'index-rebuild-job');
+  return visible.length > 0 ? [...visible] : EMPTY_COST_TILES.map((tile) => ({ ...tile }));
+}
+
+const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
+  resourceId: '',
+  quality: 'unknown',
+  amount: null,
+  basis: 'total-in-range',
+  population: '',
+  unavailable: 'No billing rows',
+  remedy: '',
+  note: '',
+};
+
+const EMPTY_COST_TILES: readonly CostTile[] = [
+  { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Serving endpoint', resourceKind: 'serving-endpoint' },
+  { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
+  { ...EMPTY_COST_TILE, id: 'genie', label: 'Genie', resourceKind: 'genie-space' },
+  { ...EMPTY_COST_TILE, id: 'vector-search', label: 'Vector search', resourceKind: 'vector-index' },
+  { ...EMPTY_COST_TILE, id: 'app-compute', label: 'App compute', resourceKind: 'app' },
+];
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
 

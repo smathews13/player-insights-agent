@@ -158828,9 +158828,9 @@ async function preserveEnvDecision(input) {
     if (stated) await recordDeploymentDecision(store, table, decision, stated, recordedBy);
     return { value: authored, source, restored: false, authored };
   }
-  const recorded = await readDeploymentDecision(store, table, decision);
-  if (recorded === null) return { value: authored, source, restored: false, authored };
-  return { value: recorded, source, restored: recorded !== stated, authored };
+  const recorded2 = await readDeploymentDecision(store, table, decision);
+  if (recorded2 === null) return { value: authored, source, restored: false, authored };
+  return { value: recorded2, source, restored: recorded2 !== stated, authored };
 }
 async function recordDeploymentDecision(store, table, decision, value, recordedBy) {
   try {
@@ -159392,6 +159392,28 @@ var init_migrations = __esm({
         // Postgres the way the owned schema can.
         statements: [deploymentDecisionsDdl(appTable(DEPLOYMENT_DECISIONS_TABLE_NAME))],
         down: [`DROP TABLE IF EXISTS ${appTable(DEPLOYMENT_DECISIONS_TABLE_NAME)}`]
+      },
+      {
+        version: 10,
+        name: "run label overrides",
+        statements: [
+          /**
+           * Administrator corrections of a run’s outcome and rating after the fact.
+           *
+           * A NEW TABLE rather than columns on messages or feedback: those already
+           * hold the customer’s history, and an ALTER against them is refused when
+           * the app’s role does not own the table. The classified outcome stays
+           * where it is; this row is only the words an admin chose on the rail.
+           */
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.run_label_overrides (
+         run_id TEXT PRIMARY KEY,
+         status TEXT,
+         rating TEXT,
+         updated_by TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.run_label_overrides`]
       }
     ];
   }
@@ -159564,7 +159586,7 @@ async function runMigrations(client, options) {
       `[migrate] VERSION UNKNOWN: ${schema}.${SCHEMA_VERSION_TABLE} could not be read, so what is already applied is unknown. ${mode === "verify" ? "Nothing was run, because this was a verification. On a deployment that has never been migrated the table does not exist yet, which is itself the answer: run the migration step." : "Every version is being attempted, because the statements are idempotent, and the table is created before the first version is recorded."}`
     );
   }
-  const recorded = new Set(applied ?? []);
+  const recorded2 = new Set(applied ?? []);
   const versionBefore = applied === null ? null : applied.length > 0 ? Math.max(...applied) : 0;
   const ahead = (applied ?? []).filter((version4) => !known.includes(version4));
   if (ahead.length > 0) {
@@ -159572,10 +159594,10 @@ async function runMigrations(client, options) {
       `[migrate] This database records version(s) ${ahead.join(", ")}, which this build does not know about. An older build is running against a newer schema. Nothing is being removed: a row this build cannot explain is not a row it may delete.`
     );
   }
-  const pending = migrations.filter((migration) => !recorded.has(migration.version));
+  const pending = migrations.filter((migration) => !recorded2.has(migration.version));
   if (pending.length === 0) {
     console.log(
-      `[migrate] Schema is at version ${versionBefore} (${recorded.size} recorded); nothing to apply. This is not the same as having done nothing: every known version is recorded as applied.`
+      `[migrate] Schema is at version ${versionBefore} (${recorded2.size} recorded); nothing to apply. This is not the same as having done nothing: every known version is recorded as applied.`
     );
     return {
       mode,
@@ -159622,7 +159644,7 @@ async function runMigrations(client, options) {
     );
     break;
   }
-  const stillPending = migrations.filter((migration) => !recorded.has(migration.version)).filter(
+  const stillPending = migrations.filter((migration) => !recorded2.has(migration.version)).filter(
     (migration) => !attempts.some((attempt) => attempt.version === migration.version && attempt.outcome === "applied")
   ).map((migration) => migration.version);
   const ok2 = stillPending.length === 0;
@@ -159886,23 +159908,70 @@ function takeawayWhenTablesLanded(output, evidence) {
   if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
   return output;
 }
-var VERDICT_EXEMPT_STAGE_IDS, TIME_LIMIT_TAKEAWAY, UNANSWERED_LINE, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, ANSWER_LANDED_SQL, SYNTHESIS_INCOMPLETE_SQL, DEADLINE_TRUNCATED_SQL;
+function classifiedRunStatusSql(input) {
+  const empty = EMPTY_STAGES_FAILED_SQL.split("trace").join(input.trace);
+  const landed = ANSWER_LANDED_SQL.split("payload").join(input.payload);
+  const synth = bindSynthesisIncompleteSql(input.trace, input.caveats);
+  const prose = PROSE_ONLY_DEGRADED_SQL.split("payload").join(input.payload).split("caveats").join(input.caveats);
+  const incomplete = INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join(input.caveats);
+  const failedStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
+  const partialStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
+  return `CASE
+           WHEN ${empty} THEN 'failed'
+           WHEN ${prose} THEN
+             CASE WHEN ${failedStage} THEN 'failed' ELSE 'partial' END
+           WHEN ${landed} AND ${synth} THEN 'partial'
+           WHEN ${landed} THEN 'complete'
+           WHEN ${failedStage} THEN 'failed'
+           WHEN ${partialStage} THEN 'partial'
+           WHEN ${incomplete} THEN 'partial'
+           ELSE 'complete'
+         END`;
+}
+function bindSynthesisIncompleteSql(trace2, caveats) {
+  return SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join(trace2).split("__CAVEATS__").join(caveats);
+}
+var VERDICT_EXEMPT_STAGE_IDS, TIME_LIMIT_TAKEAWAY, UNANSWERED_LINE, WRITER_STOPPED_CAVEAT_SQL, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, STRUCTURED_EVIDENCE_SQL, ANSWER_LANDED_SQL, PROSE_ONLY_DEGRADED_SQL, SYNTHESIS_INCOMPLETE_SQL, DEADLINE_TRUNCATED_SQL;
 var init_run_verdict = __esm({
   "shared/run-verdict.ts"() {
     VERDICT_EXEMPT_STAGE_IDS = ["plot"];
     TIME_LIMIT_TAKEAWAY = "The run reached its time limit before the answer could be composed.";
     UNANSWERED_LINE = /^this question was not answered\.?$/i;
+    WRITER_STOPPED_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(__CAVEATS__, '[]'::jsonb)) c WHERE c ~* 'was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured')`;
     VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
       (id) => `&& @.id != "${id}"`
     ).join(" ");
     EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
     INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
-    ANSWER_LANDED_SQL = `(
+    STRUCTURED_EVIDENCE_SQL = `(
   (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
   OR COALESCE(payload->>'narrative', '') ~ '\\|'
   OR COALESCE(payload->>'content', '') ~ '\\|'
 )`;
-    SYNTHESIS_INCOMPLETE_SQL = `jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && (@.status == "failed" || @.status == "partial"))')`;
+    ANSWER_LANDED_SQL = `(
+  ${STRUCTURED_EVIDENCE_SQL}
+  OR COALESCE(payload->>'narrative', '') ~* 'declared tables'
+  OR COALESCE(payload->>'content', '') ~* 'declared tables'
+  OR (
+    length(trim(BOTH FROM COALESCE(payload->>'narrative', '') || ' ' || COALESCE(payload->>'content', ''))) >= 40
+    AND COALESCE(payload->>'narrative', '') !~* '^this question was not answered'
+    AND COALESCE(payload->>'content', '') !~* '^this question was not answered'
+  )
+)`;
+    PROSE_ONLY_DEGRADED_SQL = `(
+  EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c
+    WHERE c ~* 'this answer is degraded' AND c ~* 'structured result'
+  )
+  AND NOT ${STRUCTURED_EVIDENCE_SQL}
+)`;
+    SYNTHESIS_INCOMPLETE_SQL = `(
+  jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")')
+  OR (
+    jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "partial")')
+    AND ${WRITER_STOPPED_CAVEAT_SQL}
+  )
+)`;
     DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
   }
 });
@@ -159952,9 +160021,9 @@ function foldRecordedStages(stages) {
     toolCalls: settled.filter((stage) => stage.kind === "tool").length
   };
 }
-function attachRecordedStages(answer, recorded) {
-  if ((answer.trace.stages?.length ?? 0) > 0 || recorded.length === 0) return answer;
-  const folded = foldRecordedStages(recorded);
+function attachRecordedStages(answer, recorded2) {
+  if ((answer.trace.stages?.length ?? 0) > 0 || recorded2.length === 0) return answer;
+  const folded = foldRecordedStages(recorded2);
   return {
     ...answer,
     trace: {
@@ -160063,6 +160132,68 @@ var init_prose_only_answer = __esm({
     PROSE_SECTIONS = ["Interpretation", "Findings / data"];
     CAVEAT_SECTIONS = ["Caveats & rules applied", "Gaps"];
     LEAD_IN = /^\s{0,3}[-*]\s+\*\*(?<name>[^*:]+?):?\*\*:?\s*(?<rest>.*)$/;
+  }
+});
+
+// server/lib/run-label-overrides.ts
+function asOutcome(value) {
+  return typeof value === "string" && OUTCOMES.has(value) ? value : null;
+}
+function asRating(value) {
+  return typeof value === "string" && RATINGS.has(value) ? value : null;
+}
+function overlayFromRow(row2) {
+  if (!row2) return null;
+  return { status: asOutcome(row2.status), rating: asRating(row2.rating) };
+}
+function overlayJoinSql(runIdExpr, alias = "label_overlay") {
+  return `LEFT JOIN ${RUN_LABEL_OVERRIDES_TABLE} ${alias} ON ${alias}.run_id = ${runIdExpr}`;
+}
+function overlayStatusSql(classifiedSql, alias = "label_overlay") {
+  return `COALESCE(${alias}.status, ${classifiedSql})`;
+}
+function overlayRatingSql(classifiedSql, alias = "label_overlay") {
+  return `CASE
+         WHEN ${alias}.rating = 'unrated' THEN NULL::int
+         WHEN ${alias}.rating = 'up' THEN 5
+         WHEN ${alias}.rating = 'down' THEN 2
+         ELSE (${classifiedSql})
+       END`;
+}
+async function readRunLabelOverride(query, runId) {
+  const result = await query(`SELECT status, rating FROM ${RUN_LABEL_OVERRIDES_TABLE} WHERE run_id = $1`, [runId]);
+  return overlayFromRow(result.rows[0]);
+}
+async function writeRunLabelOverride(query, input) {
+  const current = await readRunLabelOverride(query, input.runId);
+  const status = input.status ?? current?.status ?? null;
+  const rating = input.rating ?? current?.rating ?? null;
+  await query(
+    `INSERT INTO ${RUN_LABEL_OVERRIDES_TABLE} (run_id, status, rating, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4, now())
+     ON CONFLICT (run_id) DO UPDATE SET
+       status = EXCLUDED.status,
+       rating = EXCLUDED.rating,
+       updated_by = EXCLUDED.updated_by,
+       updated_at = now()`,
+    [input.runId, status, rating, input.actor]
+  );
+  return { status, rating };
+}
+var RUN_LABEL_OVERRIDES_TABLE, RUN_LABEL_OVERRIDES_DDL, OUTCOMES, RATINGS;
+var init_run_label_overrides = __esm({
+  "server/lib/run-label-overrides.ts"() {
+    init_app_schema();
+    RUN_LABEL_OVERRIDES_TABLE = `${APP_SCHEMA}.run_label_overrides`;
+    RUN_LABEL_OVERRIDES_DDL = `CREATE TABLE IF NOT EXISTS ${RUN_LABEL_OVERRIDES_TABLE} (
+         run_id TEXT PRIMARY KEY,
+         status TEXT,
+         rating TEXT,
+         updated_by TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+       )`;
+    OUTCOMES = /* @__PURE__ */ new Set(["complete", "partial", "failed"]);
+    RATINGS = /* @__PURE__ */ new Set(["unrated", "up", "down"]);
   }
 });
 
@@ -164349,6 +164480,68 @@ var init_runtime_settings_store = __esm({
   }
 });
 
+// shared/run-runtime-used.ts
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function optionalInt(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+function optionalBool(value) {
+  return typeof value === "boolean" ? value : null;
+}
+function optionalOrder(value) {
+  return value === "as-ranked" || value === "totals-first" || value === "averages-first" ? value : null;
+}
+function storedRuntimeSettings(payload) {
+  const record2 = asObject(payload);
+  if (!record2) return null;
+  const direct = asObject(record2.runtime_settings);
+  if (direct) return direct;
+  const inputs = asObject(record2.custom_inputs);
+  return inputs ? asObject(inputs.runtime_settings) : null;
+}
+function recorded(used) {
+  const { loop, answer } = used;
+  return [
+    loop.maxSteps,
+    loop.maxToolCalls,
+    loop.maxRunSeconds,
+    answer.takeaway,
+    answer.narrative,
+    answer.figures,
+    answer.charts,
+    answer.narrativeMaxCharacters,
+    answer.figuresOrder
+  ].some((value) => value !== null);
+}
+function runRuntimeUsedFromStored(payload) {
+  const raw2 = storedRuntimeSettings(payload);
+  if (!raw2) return null;
+  const loop = asObject(raw2.loop) ?? {};
+  const answer = asObject(raw2.answer) ?? {};
+  const used = {
+    loop: {
+      maxSteps: optionalInt(loop.maxSteps),
+      maxToolCalls: optionalInt(loop.maxToolCalls),
+      maxRunSeconds: optionalInt(loop.maxRunSeconds)
+    },
+    answer: {
+      takeaway: optionalBool(answer.takeaway),
+      narrative: optionalBool(answer.narrative),
+      figures: optionalBool(answer.figures),
+      charts: optionalBool(answer.charts),
+      narrativeMaxCharacters: optionalInt(answer.narrativeMaxCharacters),
+      figuresOrder: optionalOrder(answer.figuresOrder)
+    }
+  };
+  return recorded(used) ? used : null;
+}
+var init_run_runtime_used = __esm({
+  "shared/run-runtime-used.ts"() {
+  }
+});
+
 // server/lib/admin-identity.ts
 function normalizeAdminEmail(raw2) {
   return raw2.trim().toLowerCase();
@@ -167662,7 +167855,7 @@ function toolStagesFromTrace(stages) {
     result: stage.output
   }));
 }
-function runWithoutTrace(identity, note, mode = null) {
+function runWithoutTrace(identity, note, mode = null, runtimeUsed = null) {
   return {
     ...identity,
     state: "no-trace",
@@ -167677,8 +167870,12 @@ function runWithoutTrace(identity, note, mode = null) {
     mlflow: null,
     benchmark: null,
     note,
-    undeclaredKeys: []
+    undeclaredKeys: [],
+    runtimeUsed
   };
+}
+function withAskRuntime(body, runtimeSettings) {
+  return runtimeSettings ? { ...body, runtime_settings: runtimeSettings } : body;
 }
 function conversationRunTrace(row2, experimentId) {
   const identity = {
@@ -167694,12 +167891,14 @@ function conversationRunTrace(row2, experimentId) {
     return runWithoutTrace(identity, "This run stored no response, so there is no trace to show.");
   }
   const record2 = payload;
+  const runtimeUsed = runRuntimeUsedFromStored(record2);
   const mode = record2.mode === "representative" ? "representative" : record2.mode === "live" ? "live" : null;
   if (record2.type === "plan") {
     return runWithoutTrace(
       identity,
       "This turn proposed an analysis plan and the plan was never approved, so no run was executed and there is no trace.",
-      mode
+      mode,
+      runtimeUsed
     );
   }
   if (record2.type === "clarification") {
@@ -167723,20 +167922,27 @@ function conversationRunTrace(row2, experimentId) {
         mlflow: mlflowReference(asked.data.id, experimentId),
         benchmark: null,
         note: "This turn ended in a question back to the user rather than an answer, so the stages stop where it asked.",
-        undeclaredKeys: []
+        undeclaredKeys: [],
+        runtimeUsed
       };
     }
     return runWithoutTrace(
       identity,
       "This turn asked the user for a missing detail, and stored no trace of the steps that led there.",
-      mode
+      mode,
+      runtimeUsed
     );
   }
   const answer = LiveAnswerSchema.safeParse(record2);
   const charts = external_exports.array(ChartSchema).safeParse(record2.charts);
   const trace2 = answer.success ? TraceDetailSchema.safeParse(answer.data.trace) : TraceDetailSchema.safeParse(record2.trace);
   if (!trace2.success) {
-    return runWithoutTrace(identity, "This run stored a response with no trace, so there are no stages to show.", mode);
+    return runWithoutTrace(
+      identity,
+      "This run stored a response with no trace, so there are no stages to show.",
+      mode,
+      runtimeUsed
+    );
   }
   return {
     ...identity,
@@ -167762,7 +167968,8 @@ function conversationRunTrace(row2, experimentId) {
     mlflow: mlflowReference(trace2.data.id, experimentId),
     benchmark: null,
     note: mode === "representative" ? "This run was answered offline from the representative dataset, so these are reference stages rather than a live agent run." : "",
-    undeclaredKeys: answer.success ? undeclaredAnswerKeys(answer.data) : []
+    undeclaredKeys: answer.success ? undeclaredAnswerKeys(answer.data) : [],
+    runtimeUsed
   };
 }
 function benchmarkRunTrace(row2) {
@@ -169248,11 +169455,13 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       let stagesSeen = 0;
       let lastStage;
       const collectedStages = [];
+      let askRuntime;
       try {
         const servingHistory = buildServingHistory(historyResult.rows);
         if (approvedPlanId && servingHistory.length > 0) {
           servingHistory[servingHistory.length - 1] = { role: "user", content: prompt };
         }
+        askRuntime = await readRuntimeSettings(appkit);
         const payload = buildAskServingBody({
           history: servingHistory,
           prompt,
@@ -169265,7 +169474,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           runId: identity.requestId,
           expectedUser: identity.token ? email3 : "",
           deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
-          runtimeSettings: await readRuntimeSettings(appkit)
+          runtimeSettings: askRuntime
         });
         const stageRecorder = admission.run ? createStageRecorder(appkit, admission.run.runId) : null;
         const onStage = (stage) => {
@@ -169332,7 +169541,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
               conversationId,
               "assistant",
               plan.summary,
-              JSON.stringify(planResponse),
+              JSON.stringify(withAskRuntime(planResponse, askRuntime)),
               ...executionIdentityColumns(email3, executionIdentityClaim(identity))
             ]
           );
@@ -169359,7 +169568,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
               conversationId,
               "assistant",
               clarification.question,
-              JSON.stringify(clarificationResponse),
+              JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
               clarification.trace.id,
               ...executionIdentityColumns(email3, executionIdentityClaim(identity))
             ]
@@ -169525,7 +169734,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           conversationId,
           "assistant",
           disclosed.narrative,
-          JSON.stringify(disclosed),
+          JSON.stringify(withAskRuntime(disclosed, askRuntime)),
           disclosed.trace.id,
           // Recorded on the answer rather than on the question, because these
           // name the authority something RAN under and a question runs nothing.
@@ -169843,6 +170052,7 @@ var init_insights_routes = __esm({
     init_repair_conversation_titles();
     init_prose_only_answer();
     init_run_verdict();
+    init_run_label_overrides();
     init_benchmark_runner();
     init_benchmark_identity();
     init_benchmark_suite();
@@ -169852,6 +170062,7 @@ var init_insights_routes = __esm({
     init_admin_roles_schema();
     init_runtime_settings_store();
     init_deployment_decisions();
+    init_run_runtime_used();
     init_admin_roles();
     init_run_admission();
     init_run_replay();
@@ -170086,7 +170297,10 @@ var init_insights_routes = __esm({
       // would otherwise report every answer written since this shipped as agent
       // drift, which is the log that is supposed to mean the agent moved ahead of
       // the app. See shared/answer-provenance.ts.
-      provenance: external_exports.string().optional()
+      provenance: external_exports.string().optional(),
+      // The route's snapshot of the runtime this Ask sent. Declared so storing it
+      // is not reported as the agent shipping a field the app cannot read.
+      runtime_settings: external_exports.looseObject({}).optional()
     });
     PlanStepSchema = external_exports.looseObject({
       id: external_exports.string().min(1),
@@ -170148,16 +170362,11 @@ var init_insights_routes = __esm({
          -- timeout or failed synthesis after those tables landed is partial,
          -- so Monitoring, Ask, and Run Explorer say the same word. A finished
          -- writer with tables stays complete even when another step missed.
-         CASE
-           WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("a.trace")} THEN 'failed'
-           WHEN ${ANSWER_LANDED_SQL.split("payload").join("a.payload")}
-            AND ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("a.trace")} THEN 'partial'
-           WHEN ${ANSWER_LANDED_SQL.split("payload").join("a.payload")} THEN 'complete'
-           WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
-           WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
-           WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join("a.caveats")} THEN 'partial'
-           ELSE 'complete'
-         END AS status,
+         -- A markdown catalog listing (no pipe table) is landed. An admin
+         -- overlay, when one exists, is the word every surface must show.
+         ${overlayStatusSql(
+      classifiedRunStatusSql({ trace: "a.trace", payload: "a.payload", caveats: "a.caveats" })
+    )} AS status,
          -- Whether the run stopped before it had finished. The two halves record
          -- it differently and neither is inferred from the counts: a benchmark
          -- writes a truncation object saying why (see BenchmarkTruncation), and a
@@ -170182,16 +170391,17 @@ var init_insights_routes = __esm({
          -- The caller's own rating. The feedback route accepts any message id,
          -- so without the user_email predicate this would show whatever score
          -- anyone else submitted against the same answer.
-         (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
+         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
           WHERE f.message_id = a.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-          ORDER BY f.created_at DESC LIMIT 1) AS rating,
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
          a.created_at
   FROM answers a
+  ${overlayJoinSql("a.id")}
   UNION ALL
   SELECT b.id, 'benchmark' AS kind, NULL AS conversation_id,
          b.metrics_json->>'prompt' AS prompt,
          CASE WHEN b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
-         b.status,
+         ${overlayStatusSql("b.status")} AS status,
          jsonb_typeof(b.metrics_json->'truncation') = 'object' AS truncated,
          -- NULL because a suite has no single trace to read it off: each case is
          -- its own agent run with its own spaces, and the run row records none of
@@ -170206,11 +170416,12 @@ var init_insights_routes = __esm({
          -- The caller's own rating, from the same table the conversation half
          -- reads. feedback.message_id carries no foreign key and the feedback
          -- route accepts any id, so a run id works here unchanged.
-         (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
+         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
           WHERE f.message_id = b.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-          ORDER BY f.created_at DESC LIMIT 1) AS rating,
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
          b.created_at
   FROM ${APP_SCHEMA}.benchmark_runs b
+  ${overlayJoinSql("b.id")}
   ORDER BY created_at DESC
   LIMIT 200`;
     TraceStageDetailSchema = StageSchema;
@@ -170282,7 +170493,28 @@ var init_insights_routes = __esm({
       benchmark: BenchmarkMetricsSchema.nullable(),
       /** Plain-language reason the panes can render when `state` is 'no-trace'. */
       note: external_exports.string(),
-      undeclaredKeys: external_exports.array(external_exports.string())
+      undeclaredKeys: external_exports.array(external_exports.string()),
+      /**
+       * The runtime this Ask sent, snapshotted onto the stored answer.
+       *
+       * Null when the row predates the snapshot. Never today's Settings and never
+       * the bundle defaults — those would describe an agent that did not run.
+       */
+      runtimeUsed: external_exports.strictObject({
+        loop: external_exports.strictObject({
+          maxSteps: external_exports.number().nullable(),
+          maxToolCalls: external_exports.number().nullable(),
+          maxRunSeconds: external_exports.number().nullable()
+        }),
+        answer: external_exports.strictObject({
+          takeaway: external_exports.boolean().nullable(),
+          narrative: external_exports.boolean().nullable(),
+          figures: external_exports.boolean().nullable(),
+          charts: external_exports.boolean().nullable(),
+          narrativeMaxCharacters: external_exports.number().nullable(),
+          figuresOrder: external_exports.enum(["as-ranked", "totals-first", "averages-first"]).nullable()
+        })
+      }).nullable().default(null)
     });
     MLFLOW_TRACE_ID = /^tr-[0-9a-f]+$/i;
     RUN_TRACE_MESSAGE_QUERY = `
@@ -170445,20 +170677,18 @@ var init_insights_routes = __esm({
     CONVERSATION_VERDICT_JOIN = `
   LEFT JOIN LATERAL (
     SELECT
-      CASE
-        WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("m.response_json->'trace'")} THEN 'failed'
-        WHEN ${ANSWER_LANDED_SQL.split("payload").join("m.response_json")}
-         AND ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("m.response_json->'trace'")} THEN 'partial'
-        WHEN ${ANSWER_LANDED_SQL.split("payload").join("m.response_json")} THEN 'complete'
-        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
-        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
-        WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split("caveats").join("m.response_json->'caveats'")} THEN 'partial'
-        ELSE 'complete'
-      END AS status,
+      ${overlayStatusSql(
+      classifiedRunStatusSql({
+        trace: "m.response_json->'trace'",
+        payload: "m.response_json",
+        caveats: "m.response_json->'caveats'"
+      })
+    )} AS status,
       (jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")')
         OR ${DEADLINE_TRUNCATED_SQL.split("caveats").join("m.response_json->'caveats'")}) AS truncated,
       ROUND((m.response_json->'trace'->>'totalMs')::numeric)::int AS duration_ms
     FROM ${APP_SCHEMA}.messages m
+    ${overlayJoinSql("m.id")}
     WHERE m.conversation_id = c.id
       AND m.role = 'assistant'
       AND jsonb_typeof(m.response_json->'trace') = 'object'
@@ -173254,6 +173484,18 @@ var init_model_release_store = __esm({
   }
 });
 
+// shared/billing-tag.ts
+function billingTagPair() {
+  return `${BILLING_TAG.key}=${BILLING_TAG.value}`;
+}
+var BILLING_TAG, RETIRED_BILLING_TAG_KEY;
+var init_billing_tag = __esm({
+  "shared/billing-tag.ts"() {
+    BILLING_TAG = { key: "system_billing", value: "astrolabe" };
+    RETIRED_BILLING_TAG_KEY = "astrolabe";
+  }
+});
+
 // server/lib/resource-tagging.ts
 function configurationValue(report, key2) {
   const value = report?.configuration.find((entry) => entry.key === key2)?.value;
@@ -173365,7 +173607,14 @@ function hasTag(tags) {
   return tags.some((tag) => tag.key === ASTROLABE_TAG.key && tag.value === ASTROLABE_TAG.value);
 }
 function mergeTag(tags) {
-  return [...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key), { ...ASTROLABE_TAG }];
+  return [
+    ...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key && tag.key !== RETIRED_BILLING_TAG_KEY),
+    { ...ASTROLABE_TAG }
+  ];
+}
+function tagStateDetail(state, extra = "") {
+  const lead = state === "already-correct" ? `Already correct: ${billingTagPair()}.` : `Now correct: tagged ${billingTagPair()}.`;
+  return extra ? `${lead} ${extra}` : lead;
 }
 function errorText(error48) {
   return error48 instanceof Error ? error48.message : String(error48);
@@ -173450,7 +173699,10 @@ async function tagTargetOnce(target, platform) {
       return {
         ...target,
         status: "already-correct",
-        detail: "Already correct: astrolabe=true. Databricks app tags are organizational and currently do not propagate to billing."
+        detail: tagStateDetail(
+          "already-correct",
+          "Databricks app tags are organizational and currently do not propagate to billing."
+        )
       };
     }
     if (current === null) await platform.createAppTag(target.name);
@@ -173458,55 +173710,58 @@ async function tagTargetOnce(target, platform) {
     return {
       ...target,
       status: "tagged",
-      detail: "Now correct: tagged astrolabe=true. Databricks app tags are organizational and currently do not propagate to billing."
+      detail: tagStateDetail(
+        "tagged",
+        "Databricks app tags are organizational and currently do not propagate to billing."
+      )
     };
   }
   if (target.kind === "serving-endpoint") {
     const tags = await platform.getServingTags(target.name);
     if (hasTag(tags)) {
-      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+      return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.addServingTag(target.name);
-    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
   }
   if (target.kind === "registered-model") {
     if (hasTag(await platform.getModelTags(target.name))) {
-      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+      return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.setModelTag(target.name);
-    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
   }
   if (target.kind === "model-version") {
     const version4 = target.version;
     if (!version4) throw new Error("The connected agent model version was not resolved.");
     if (hasTag(await platform.getModelVersionTags(target.name, version4))) {
-      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+      return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.setModelVersionTag(target.name, version4);
-    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
   }
   if (target.kind === "mlflow-experiment") {
     if (hasTag(await platform.getExperimentTags(target.name))) {
-      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+      return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.setExperimentTag(target.name);
-    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
   }
   if (target.kind === "sql-warehouse") {
     const tags = await platform.getWarehouseTags(target.name);
     if (hasTag(tags)) {
-      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+      return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.setWarehouseTags(target.name, mergeTag(tags));
-    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
   }
   if (target.kind === "lakebase") {
     const tags = await platform.getLakebaseTags(target.name);
     if (hasTag(tags)) {
-      return { ...target, status: "already-correct", detail: "Already correct: astrolabe=true." };
+      return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.setLakebaseTags(target.name, mergeTag(tags));
-    return { ...target, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
   }
   return {
     ...target,
@@ -173551,10 +173806,10 @@ async function applyAstrolabeTags(input) {
           };
           const tags = await platform.getVectorEndpointTags(endpointName);
           if (hasTag(tags)) {
-            return { ...endpoint, status: "already-correct", detail: "Already correct: astrolabe=true." };
+            return { ...endpoint, status: "already-correct", detail: tagStateDetail("already-correct") };
           }
           await platform.setVectorEndpointTags(endpointName, mergeTag(tags));
-          return { ...endpoint, status: "tagged", detail: "Now correct: tagged astrolabe=true." };
+          return { ...endpoint, status: "tagged", detail: tagStateDetail("tagged") };
         }, policy2)
       );
     } catch (error48) {
@@ -173716,7 +173971,8 @@ async function workspaceTagPlatform() {
 var ASTROLABE_TAG, RETRYABLE_STATUS, RETRYABLE_CODES2;
 var init_resource_tagging = __esm({
   "server/lib/resource-tagging.ts"() {
-    ASTROLABE_TAG = { key: "astrolabe", value: "true" };
+    init_billing_tag();
+    ASTROLABE_TAG = BILLING_TAG;
     RETRYABLE_STATUS = /* @__PURE__ */ new Set([502, 503, 504]);
     RETRYABLE_CODES2 = /* @__PURE__ */ new Set(["DEADLINE_EXCEEDED", "ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT", "EAI_AGAIN"]);
   }
@@ -173835,7 +174091,7 @@ function setupSettingsRoutes(appkit) {
         await recordAdminAction(appkit.lakebase, {
           actor: userEmail(req),
           action: "resource-tags-applied",
-          subject: "astrolabe=true",
+          subject: "system_billing=astrolabe",
           detail: summary.headline
         });
         res.json(summary);
@@ -175095,6 +175351,7 @@ function classifyOutcome(input) {
     return "partial";
   }
   if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
+  if (input.proseOnlyDegraded) return "partial";
   if (state && state !== "SUCCEEDED") return "partial";
   if (input.answerLanded && (state === "SUCCEEDED" || input.hasStoredAnswer)) {
     return "completed";
@@ -175103,6 +175360,20 @@ function classifyOutcome(input) {
   if (input.traceHasPartialStage) return "partial";
   if (state === "SUCCEEDED" || input.hasStoredAnswer) return "completed";
   return "partial";
+}
+function applyAdminOutcome(classified, overlayStatus) {
+  const word = (overlayStatus ?? "").trim().toLowerCase();
+  if (word === "complete" || word === "completed") return "completed";
+  if (word === "partial") return "partial";
+  if (word === "failed") return "failed";
+  if (word === "refused") return "refused";
+  return classified;
+}
+function applyAdminRating(classified, overlayRating) {
+  const word = (overlayRating ?? "").trim().toLowerCase();
+  if (word === "unrated") return null;
+  if (word === "up" || word === "down") return word;
+  return classified;
 }
 function classifyRefusal(code) {
   const value = (code ?? "").trim();
@@ -175406,14 +175677,18 @@ function rangeTotalsFrom(row2, page) {
 function questionFromRow(row2, ledger) {
   const answerId = text14(row2.answer_id);
   const verdict = answerId ? ledger.get(answerId) : void 0;
-  const outcome = classifyOutcome({
-    runState: verdict?.state ?? null,
-    hasStoredAnswer: answerId !== "",
-    traceHasFailedStage: row2.trace_failed === true,
-    traceHasPartialStage: row2.trace_partial === true,
-    answerLanded: row2.answer_landed === true,
-    synthesisIncomplete: row2.synthesis_incomplete === true
-  });
+  const outcome = applyAdminOutcome(
+    classifyOutcome({
+      runState: verdict?.state ?? null,
+      hasStoredAnswer: answerId !== "",
+      traceHasFailedStage: row2.trace_failed === true,
+      traceHasPartialStage: row2.trace_partial === true,
+      answerLanded: row2.answer_landed === true,
+      synthesisIncomplete: row2.synthesis_incomplete === true,
+      proseOnlyDegraded: row2.prose_only_degraded === true
+    }),
+    text14(row2.overlay_status)
+  );
   return {
     id: text14(row2.question_id),
     conversationId: text14(row2.conversation_id),
@@ -175427,7 +175702,7 @@ function questionFromRow(row2, ledger) {
     outcomeDetail: refusalSentence(verdict?.code),
     durationMs: integer2(row2.total_ms),
     toolCalls: integer2(row2.tool_calls),
-    rating: sentiment(row2.sentiment, integer2(row2.usefulness)),
+    rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text14(row2.overlay_rating)),
     tables: tableList(row2.sources)
   };
 }
@@ -175627,14 +175902,18 @@ function setupMonitoringRoutes(appkit, deps) {
         question: text14(row2.question),
         askedBy: text14(row2.user_email),
         askedAt: stamp(row2.asked_at),
-        outcome: classifyOutcome({
-          runState: verdict?.state ?? null,
-          hasStoredAnswer: answerId !== "",
-          traceHasFailedStage: row2.trace_failed === true,
-          traceHasPartialStage: row2.trace_partial === true,
-          answerLanded: row2.answer_landed === true,
-          synthesisIncomplete: row2.synthesis_incomplete === true
-        }),
+        outcome: applyAdminOutcome(
+          classifyOutcome({
+            runState: verdict?.state ?? null,
+            hasStoredAnswer: answerId !== "",
+            traceHasFailedStage: row2.trace_failed === true,
+            traceHasPartialStage: row2.trace_partial === true,
+            answerLanded: row2.answer_landed === true,
+            synthesisIncomplete: row2.synthesis_incomplete === true,
+            proseOnlyDegraded: row2.prose_only_degraded === true
+          }),
+          text14(row2.overlay_status)
+        ),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,
         // Withheld, not blanked: the field is null and `conditioning` says why.
@@ -175649,7 +175928,7 @@ function setupMonitoringRoutes(appkit, deps) {
         // a half-written claim, and the footer's absent sentence is the truthful
         // reading of one. See normalizeExecutionIdentity in answer-shape.ts.
         execution: executionMode && typeof row2.execution_identity_verified === "boolean" ? { mode: executionMode, verified: row2.execution_identity_verified } : null,
-        rating: sentiment(row2.sentiment, integer2(row2.usefulness)),
+        rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text14(row2.overlay_rating)),
         usefulness: integer2(row2.usefulness),
         comment: text14(row2.comment) || null,
         // Absent rather than dead. `mlflowReference` answers null for a trace id
@@ -175658,7 +175937,10 @@ function setupMonitoringRoutes(appkit, deps) {
         // workspace links off. Withheld HERE rather than in the drawer: a URL
         // suppressed in the browser is a URL that was already delivered.
         mlflowUrl: await workspaceLinksAllowed(appkit) ? mlflow?.url ?? null : null,
-        runId: answerId || null
+        runId: answerId || null,
+        // Always sent, even when the answer body is withheld: the budget is a
+        // record of the agent, not of anybody's data.
+        runtimeUsed: runRuntimeUsedFromStored(row2.response_json)
       };
       res.json(detail);
     });
@@ -175788,7 +176070,9 @@ var init_monitoring_routes = __esm({
   "server/routes/monitoring-routes.ts"() {
     init_app_schema();
     init_run_verdict();
+    init_run_label_overrides();
     init_monitoring_contract();
+    init_run_runtime_used();
     init_lakebase_store();
     init_egress_store();
     init_monitoring_grants();
@@ -175831,7 +176115,10 @@ var init_monitoring_routes = __esm({
            '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
          ) AS trace_partial,
          ${ANSWER_LANDED_SQL.split("payload").join("a.response_json")} AS answer_landed,
-         ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("a.response_json->'trace'")} AS synthesis_incomplete,
+         ${bindSynthesisIncompleteSql("a.response_json->'trace'", "a.response_json->'caveats'")} AS synthesis_incomplete,
+         ${PROSE_ONLY_DEGRADED_SQL.split("payload").join("a.response_json").split("caveats").join("a.response_json->'caveats'")} AS prose_only_degraded,
+         label_overlay.status AS overlay_status,
+         label_overlay.rating AS overlay_rating,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
@@ -175870,6 +176157,7 @@ var init_monitoring_routes = __esm({
     WHERE fb.message_id = a.id AND fb.user_email = q.user_email
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
+  ${overlayJoinSql("a.id")}
   ORDER BY q.asked_at DESC
 `;
     MONITORING_LEDGER_QUERY = `
@@ -175887,7 +176175,10 @@ var init_monitoring_routes = __esm({
            '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
          ) AS trace_partial,
          ${ANSWER_LANDED_SQL.split("payload").join("a.response_json")} AS answer_landed,
-         ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("a.response_json->'trace'")} AS synthesis_incomplete,
+         ${bindSynthesisIncompleteSql("a.response_json->'trace'", "a.response_json->'caveats'")} AS synthesis_incomplete,
+         ${PROSE_ONLY_DEGRADED_SQL.split("payload").join("a.response_json").split("caveats").join("a.response_json->'caveats'")} AS prose_only_degraded,
+         label_overlay.status AS overlay_status,
+         label_overlay.rating AS overlay_rating,
          a.execution_mode, a.execution_identity_verified,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
@@ -175920,6 +176211,7 @@ var init_monitoring_routes = __esm({
     WHERE fb.message_id = a.id AND fb.user_email = c.user_email
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
+  ${overlayJoinSql("a.id")}
   WHERE q.id = $1 AND q.role = 'user'
 `;
     MONITORING_PERSON_SEEN_QUERY = `
@@ -175952,13 +176244,30 @@ function resourceIdFor(component, ids) {
       return ids.warehouseId;
     case "app-compute":
       return ids.appName;
-    case "index-rebuild-job":
-      return ids.rebuildJobId;
     case "vector-search":
-      return ids.vectorEndpoint;
+      return vectorIndexName(ids.vectorIndex);
     case "genie":
       return "";
   }
+}
+function resourceKindFor(component, ids) {
+  switch (component) {
+    case "serving-endpoint":
+      return "serving-endpoint";
+    case "sql-warehouse":
+      return "sql-warehouse";
+    case "app-compute":
+      return "app";
+    case "vector-search":
+      return vectorIndexName(ids.vectorIndex) ? "vector-index" : "";
+    case "genie":
+      return "";
+  }
+}
+function vectorIndexName(raw2) {
+  const name2 = raw2.trim();
+  const parts = name2.split(".").filter((piece) => piece.length > 0);
+  return parts.length === 3 ? name2 : "";
 }
 function buildCostStatement(ids, range) {
   const covered = COST_COMPONENTS.filter((component) => canAsk(component, ids));
@@ -176006,7 +176315,7 @@ ${branches.join("\n")}
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
   WHERE u.usage_date >= :from_day
     AND u.usage_date <= :to_day
-    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
+    AND u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
 )
 SELECT
   component,
@@ -176049,63 +176358,105 @@ function readComponentRows(dataArray) {
 }
 function buildTiles(ids, rows) {
   const byComponent = new Map(rows.map((row2) => [row2.component, row2]));
-  return COST_COMPONENTS.map((component) => {
-    const description = DESCRIPTIONS[component];
-    const base = {
-      id: component,
-      label: description.label,
-      resourceId: resourceIdFor(component, ids),
-      quality: description.quality,
-      basis: description.basis,
-      population: description.population
-    };
+  const tiles = [];
+  for (const component of COST_COMPONENTS) {
     if (component === "genie") {
+      tiles.push(...genieSpaceTiles(ids));
+      continue;
+    }
+    tiles.push(componentTile(component, ids, byComponent));
+  }
+  return tiles;
+}
+function genieSpaceTiles(ids) {
+  const spaces = ids.genieSpaces.filter((space) => space.id.trim());
+  if (spaces.length === 0) {
+    return [
+      {
+        id: "genie",
+        label: "Genie",
+        resourceId: "",
+        resourceKind: "",
+        quality: "estimate",
+        amount: null,
+        basis: "total-in-range",
+        population: "Whole workspace",
+        unavailable: "Genie space identifier unavailable",
+        remedy: "",
+        note: ""
+      }
+    ];
+  }
+  return spaces.map((space) => ({
+    id: `genie:${space.id.trim()}`,
+    label: space.label.trim() || "Genie space",
+    resourceId: space.id.trim(),
+    resourceKind: "genie-space",
+    quality: "estimate",
+    amount: null,
+    basis: "total-in-range",
+    population: "This space",
+    unavailable: "Covered by SQL warehouse",
+    remedy: "",
+    note: ""
+  }));
+}
+function componentTile(component, ids, byComponent) {
+  const description = DESCRIPTIONS[component];
+  const base = {
+    id: component,
+    label: description.label,
+    resourceId: resourceIdFor(component, ids),
+    resourceKind: resourceKindFor(component, ids),
+    quality: description.quality,
+    basis: description.basis,
+    population: description.population
+  };
+  if (!canAsk(component, ids)) {
+    const estimate = byComponent.get(workspaceEstimateRow(component));
+    if (estimate && estimate.spend !== null && Number.isFinite(estimate.spend)) {
+      return {
+        ...base,
+        quality: "estimate",
+        population: "Whole workspace",
+        amount: description.basis === "per-day" ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
+        note: "",
+        unavailable: "",
+        remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : ""
+      };
+    }
+    if (component === "vector-search") {
       return {
         ...base,
         amount: null,
         note: "",
-        unavailable: "Covered by SQL warehouse",
+        unavailable: base.resourceId ? "No billing rows" : "Vector Search index identifier unavailable",
         remedy: ""
       };
     }
-    if (!canAsk(component, ids)) {
-      const estimate = byComponent.get(workspaceEstimateRow(component));
-      if (estimate && estimate.spend !== null && Number.isFinite(estimate.spend)) {
-        return {
-          ...base,
-          quality: "estimate",
-          population: "Whole workspace",
-          amount: description.basis === "per-day" ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
-          note: "",
-          unavailable: "",
-          remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : ""
-        };
-      }
+    return {
+      ...base,
+      amount: null,
+      note: "",
+      unavailable: "Resource identifier unavailable",
+      remedy: description.variable ? `Set ${description.variable}.` : ""
+    };
+  }
+  const row2 = byComponent.get(component);
+  if (!row2 || row2.spend === null || !Number.isFinite(row2.spend)) {
+    if (component === "app-compute") {
       return {
         ...base,
         amount: null,
         note: "",
-        unavailable: "Resource identifier unavailable",
-        remedy: description.variable ? `Set ${description.variable}.` : ""
+        unavailable: "Billing tag match unverified",
+        remedy: `Verify whether app compute propagates ${BILLING_TAG.key}=${BILLING_TAG.value}.`
       };
     }
-    const row2 = byComponent.get(component);
-    if (!row2 || row2.spend === null || !Number.isFinite(row2.spend)) {
-      if (component === "app-compute") {
-        return {
-          ...base,
-          amount: null,
-          note: "",
-          unavailable: "Billing tag match unverified",
-          remedy: "Verify whether app compute propagates the Astrolabe billing tag."
-        };
-      }
-      return { ...base, amount: null, note: "", unavailable: "No billing rows", remedy: "" };
-    }
-    const amount = description.basis === "per-day" ? row2.spend / Math.max(row2.billedDays, 1) : row2.spend;
-    const note = component === "index-rebuild-job" && row2.jobRuns !== null ? `${row2.jobRuns} ${row2.jobRuns === 1 ? "run" : "runs"}` : "";
-    return { ...base, amount, note, unavailable: "", remedy: "" };
-  });
+    return { ...base, amount: null, note: "", unavailable: "No billing rows", remedy: "" };
+  }
+  const amount = description.basis === "per-day" ? row2.spend / Math.max(row2.billedDays, 1) : row2.spend;
+  return { ...base, amount, note: "", unavailable: "", remedy: "" };
 }
 function unknownPart(id, label, unavailable4) {
   return { id, label, quality: "unknown", amount: null, unavailable: unavailable4 };
@@ -176178,16 +176529,16 @@ function buildQuestionAttribution(runs, tiles, limit) {
     reason: runsInRange === 0 ? "No completed runs were recorded in this billing range." : ""
   };
 }
-var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, DESCRIPTIONS, UNKNOWN_QUESTION_PARTS;
+var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, BILLING_TAG_VALUE, DESCRIPTIONS, UNKNOWN_QUESTION_PARTS;
 var init_ops_billing = __esm({
   "server/lib/ops-billing.ts"() {
+    init_billing_tag();
     COST_COMPONENTS = [
       "serving-endpoint",
       "sql-warehouse",
       "genie",
       "vector-search",
-      "app-compute",
-      "index-rebuild-job"
+      "app-compute"
     ];
     WORKSPACE_ESTIMATE_SUFFIX = ":workspace";
     MATCHERS = {
@@ -176217,16 +176568,11 @@ var init_ops_billing = __esm({
         column: "u.usage_metadata.app_name",
         parameter: "appName",
         type: "STRING"
-      },
-      "index-rebuild-job": {
-        product: "JOBS",
-        column: "u.usage_metadata.job_id",
-        parameter: "rebuildJobId",
-        type: "STRING"
       }
     };
     RANGE_ROW = "__range";
-    BILLING_TAG_KEY = "astrolabe";
+    BILLING_TAG_KEY = BILLING_TAG.key;
+    BILLING_TAG_VALUE = BILLING_TAG.value;
     DESCRIPTIONS = {
       "serving-endpoint": {
         label: "Serving endpoint",
@@ -176266,13 +176612,6 @@ var init_ops_billing = __esm({
         population: "This app",
         basis: "per-day",
         variable: "DATABRICKS_APP_NAME"
-      },
-      "index-rebuild-job": {
-        label: "Index rebuild job",
-        quality: "real",
-        population: "This job",
-        basis: "total-in-range",
-        variable: "PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID"
       }
     };
     UNKNOWN_QUESTION_PARTS = [
@@ -176290,11 +176629,6 @@ var init_ops_billing = __esm({
         id: "app-compute",
         label: "App compute",
         unavailable: "Compute time cannot be joined to one run; billing-tag propagation also needs live verification."
-      },
-      {
-        id: "index-rebuild-job",
-        label: "Index rebuild job",
-        unavailable: "A rebuild is shared maintenance work rather than work caused by one question."
       },
       {
         id: "foundation-model",
@@ -176365,6 +176699,57 @@ async function resolveWorkspaceId(input) {
 }
 function forgetWorkspaceId() {
   knownWorkspaceId = "";
+}
+async function lookupVectorEndpoint(input) {
+  if (!input.host || !input.token || !input.index) return "";
+  const call = input.fetchImpl ?? fetch;
+  try {
+    const response = await call(
+      `${input.host}/api/2.0/vector-search/indexes/${encodeURIComponent(input.index)}`,
+      {
+        headers: { authorization: `Bearer ${input.token}`, accept: "application/json" },
+        signal: AbortSignal.timeout(1e4)
+      }
+    );
+    if (!response.ok) return "";
+    const body = await response.json();
+    return typeof body.endpoint_name === "string" ? body.endpoint_name.trim() : "";
+  } catch {
+    return "";
+  }
+}
+async function costIdentifiersFor(appkit, req, extras) {
+  const stored = await readStoredSettings(appkit).catch(() => /* @__PURE__ */ new Map());
+  const states = resourceStates({ report: null, environment: appEnvironment(), stored });
+  const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured.trim()]));
+  const configuration = [
+    configured["genie-data"] ? { key: "data_genie_space_id", value: configured["genie-data"] } : null,
+    configured["genie-dictionary"] ? { key: "dictionary_genie_space_id", value: configured["genie-dictionary"] } : null,
+    configured["semantic-index"] ? { key: "semantic_index", value: configured["semantic-index"] } : null
+  ].filter((entry) => entry !== null);
+  const { genieSpaces } = accessDependenciesFrom({ configuration, env: process.env });
+  const vectorIndex = vectorIndexName(
+    configured["semantic-index"] || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
+  );
+  let vectorEndpoint = queryText(req, "vectorEndpoint") || configured["semantic-index-endpoint"];
+  if (!vectorEndpoint && vectorIndex) {
+    vectorEndpoint = await lookupVectorEndpoint({
+      host: host(),
+      token: forwardedUserToken(req) ?? "",
+      index: vectorIndex,
+      fetchImpl: extras.fetchImpl
+    });
+  }
+  return {
+    appName: (process.env.DATABRICKS_APP_NAME ?? "").trim(),
+    endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
+    warehouseId: extras.warehouse,
+    vectorEndpoint,
+    vectorIndex,
+    genieSpaces: genieSpaces.map((space) => ({ id: space.id, label: space.label })),
+    workspaceId: extras.workspaceId,
+    telemetryEnabled: Boolean(telemetrySchema())
+  };
 }
 async function runStatement2(input) {
   const call = input.fetchImpl ?? fetch;
@@ -176655,20 +177040,12 @@ function setupOpsRoutes(appkit, deps) {
       const workspace = host();
       const warehouse = warehouseId();
       const token = forwardedUserToken(req);
-      const ids = {
-        appName: (process.env.DATABRICKS_APP_NAME ?? "").trim(),
-        endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
-        warehouseId: warehouse,
-        // Resolved by the client from the index probe on the health block, since
-        // the app is never told its vector endpoint by configuration.
-        vectorEndpoint: queryText(req, "vectorEndpoint"),
-        rebuildJobId: (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? "").trim(),
-        // Read off a response header rather than taken from configuration.
-        // Nothing hands the container a workspace id, and a literal in a tracked
-        // file would be a real workspace id in a repository that is published.
-        workspaceId: token ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl }) : "",
-        telemetryEnabled: Boolean(telemetrySchema())
-      };
+      const workspaceId = token ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl }) : "";
+      const ids = await costIdentifiersFor(appkit, req, {
+        workspaceId,
+        warehouse,
+        fetchImpl: deps.fetchImpl
+      });
       const empty = {
         grant: null,
         reason: "",
@@ -177168,7 +177545,7 @@ function setupEgressRoutes(appkit, deps) {
         return;
       }
       const { controls } = await readEgressControls(appkit);
-      const recorded = await recordEgress(appkit, {
+      const recorded2 = await recordEgress(appkit, {
         actor: userEmail(req),
         report: {
           channel: parsed.data.channel,
@@ -177181,8 +177558,8 @@ function setupEgressRoutes(appkit, deps) {
         now: new Date(clock())
       });
       res.status(202).json({
-        outcome: recorded.event.outcome,
-        recorded: recorded.written
+        outcome: recorded2.event.outcome,
+        recorded: recorded2.written
       });
     });
     app.put("/api/egress/admin/controls", async (req, res) => {
@@ -177438,6 +177815,77 @@ function setupAccountRoutes(appkit) {
 var init_account_routes = __esm({
   "server/routes/account-routes.ts"() {
     init_databricks_links();
+  }
+});
+
+// server/routes/run-label-routes.ts
+var run_label_routes_exports = {};
+__export(run_label_routes_exports, {
+  setupRunLabelRoutes: () => setupRunLabelRoutes
+});
+function setupRunLabelRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/admin/run-labels/:runId", async (req, res) => {
+      const runId = req.params.runId?.trim() ?? "";
+      if (!runId) {
+        res.status(400).json({ error: "run_id_required" });
+        return;
+      }
+      try {
+        const overlay = await readRunLabelOverride(appkit.lakebase.query.bind(appkit.lakebase), runId);
+        if (!overlay) {
+          res.status(404).json({ error: "not_found" });
+          return;
+        }
+        res.json(overlay);
+      } catch (error48) {
+        res.status(503).json({
+          error: "run_labels_unreadable",
+          detail: error48.message
+        });
+      }
+    });
+    app.put("/api/admin/run-labels/:runId", async (req, res) => {
+      const runId = req.params.runId?.trim() ?? "";
+      const parsed = OverlayBody.safeParse(req.body);
+      if (!runId || !parsed.success || parsed.data.status === void 0 && parsed.data.rating === void 0) {
+        res.status(400).json({ error: "invalid_run_labels" });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const overlay = await writeRunLabelOverride(appkit.lakebase.query.bind(appkit.lakebase), {
+          runId,
+          actor,
+          ...parsed.data
+        });
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "run-labels-updated",
+          subject: runId,
+          detail: `Updated run rail labels${parsed.data.status ? ` outcome=${parsed.data.status}` : ""}${parsed.data.rating ? ` rating=${parsed.data.rating}` : ""}.`
+        });
+        res.json(overlay);
+      } catch (error48) {
+        res.status(503).json({
+          error: "run_labels_not_saved",
+          detail: error48.message
+        });
+      }
+    });
+  });
+}
+var OverlayBody;
+var init_run_label_routes = __esm({
+  "server/routes/run-label-routes.ts"() {
+    init_zod();
+    init_admin_roles();
+    init_run_label_overrides();
+    init_insights_routes();
+    OverlayBody = external_exports.object({
+      status: external_exports.enum(["complete", "partial", "failed"]).optional(),
+      rating: external_exports.enum(["unrated", "up", "down"]).optional()
+    });
   }
 });
 
@@ -189799,6 +190247,7 @@ createApp({
       { setupRuntimeSettingsRoutes: setupRuntimeSettingsRoutes2 },
       { setupEnvironmentRoutes: setupEnvironmentRoutes2 },
       { setupAccountRoutes: setupAccountRoutes2 },
+      { setupRunLabelRoutes: setupRunLabelRoutes2 },
       { bootstrapSeedRoles: bootstrapSeedRoles2, isAdminRoute: isAdminRoute2 },
       { respondToHandlerFailures: respondToHandlerFailures2 }
     ] = await Promise.all([
@@ -189814,6 +190263,7 @@ createApp({
       Promise.resolve().then(() => (init_runtime_settings_routes(), runtime_settings_routes_exports)),
       Promise.resolve().then(() => (init_environment_routes(), environment_routes_exports)),
       Promise.resolve().then(() => (init_account_routes(), account_routes_exports)),
+      Promise.resolve().then(() => (init_run_label_routes(), run_label_routes_exports)),
       Promise.resolve().then(() => (init_admin_roles(), admin_roles_exports)),
       Promise.resolve().then(() => (init_handler_failures(), handler_failures_exports))
     ]);
@@ -189831,6 +190281,7 @@ createApp({
     setupBrowseRoutes2(appkit);
     setupArchitectureRoutes2(appkit);
     setupAdminRoutes2(appkit);
+    setupRunLabelRoutes2(appkit);
     setupUserRoutes2(appkit);
     setupMonitoringRoutes2(appkit, { isAdminRoute: isAdminRoute2 });
     setupOpsRoutes2(appkit, { isAdminRoute: isAdminRoute2 });

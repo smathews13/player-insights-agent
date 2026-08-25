@@ -412,6 +412,13 @@ a.ops-dependency-name:hover {
   font-weight: 500;
   align-self: flex-start;
 }
+.ops-cost-empty-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ast-text-secondary);
+  max-width: 72ch;
+}
+
 .ops-source-filter {
   margin: 4px 0 0;
   font-size: var(--text-xs);

@@ -53,6 +53,8 @@ import { databricksLink } from '../../shared/databricks-links';
 import {
   bars,
   costAbsence,
+  costAbsenceReplacesGrid,
+  costTilesForDisplay,
   costTileWorkspaceObject,
   count,
   errorFraming,
@@ -547,6 +549,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
   }
 
   const absent = payload ? costAbsence(payload) : null;
+  const replaceGrid = payload ? costAbsenceReplacesGrid(payload) : false;
 
   return (
     <section className="ops-block" aria-labelledby="ops-cost-heading">
@@ -560,14 +563,12 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
       <BlockBody>
         {block.busy && !payload ? (
           <Skeleton className="ops-skeleton" />
-        ) : absent ? (
+        ) : replaceGrid && absent ? (
           <Absence notice={absent}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
         ) : payload ? (
           <>
             <div className="ops-tiles">
-              {payload.tiles
-                .filter((tile) => tile.id !== 'index-rebuild-job')
-                .map((tile) => {
+              {costTilesForDisplay(payload.tiles).map((tile) => {
                 const view = tileView(tile, payload.currency);
                 const product = productForCostTile(tile.id);
                 const object = costTileWorkspaceObject(tile);
@@ -605,6 +606,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               })}
               <QuestionCostAverage payload={payload} />
             </div>
+            {absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
             {billingHref ? (
               <a
                 className="ops-external"
