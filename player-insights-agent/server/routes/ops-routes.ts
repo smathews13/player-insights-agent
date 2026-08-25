@@ -40,6 +40,7 @@ import {
   type CostIdentifiers,
   type QuestionRunInput,
   type StatementParameter,
+  vectorIndexName,
 } from '../lib/ops-billing';
 import {
   buildTelemetryStatement,
@@ -53,7 +54,7 @@ import {
   telemetrySchema,
   uncheckedMeasurement,
 } from '../lib/ops-telemetry';
-import { classifyDenial, forwardedUserToken, UNKNOWN_PRINCIPAL } from './access-verification';
+import { classifyDenial, forwardedUserToken, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './access-verification';
 import {
   ANSWER_PATH_ENDPOINT_IDS,
   declaredTables,
@@ -200,6 +201,76 @@ export async function resolveWorkspaceId(input: {
 /** For tests, which must not inherit a workspace id from an earlier case. */
 export function forgetWorkspaceId(): void {
   knownWorkspaceId = '';
+}
+
+/**
+ * The endpoint serving a Vector Search index, or ''.
+ *
+ * Only the index payload names it. A failure here is not a cost failure: the
+ * tile can still open the index, and spend stays blank rather than guessed.
+ */
+async function lookupVectorEndpoint(input: {
+  host: string;
+  token: string;
+  index: string;
+  fetchImpl?: typeof fetch;
+}): Promise<string> {
+  if (!input.host || !input.token || !input.index) return '';
+  const call = input.fetchImpl ?? fetch;
+  try {
+    const response = await call(
+      `${input.host}/api/2.0/vector-search/indexes/${encodeURIComponent(input.index)}`,
+      {
+        headers: { authorization: `Bearer ${input.token}`, accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    if (!response.ok) return '';
+    const body = (await response.json()) as { endpoint_name?: unknown };
+    return typeof body.endpoint_name === 'string' ? body.endpoint_name.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+async function costIdentifiersFor(
+  appkit: InsightsAppKit,
+  req: Request,
+  extras: { workspaceId: string; warehouse: string; fetchImpl?: typeof fetch }
+): Promise<CostIdentifiers> {
+  const stored = await readStoredSettings(appkit).catch(() => new Map());
+  const states = resourceStates({ report: null, environment: appEnvironment(), stored });
+  const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured.trim()]));
+  const configuration = [
+    configured['genie-data'] ? { key: 'data_genie_space_id', value: configured['genie-data'] } : null,
+    configured['genie-dictionary']
+      ? { key: 'dictionary_genie_space_id', value: configured['genie-dictionary'] }
+      : null,
+    configured['semantic-index'] ? { key: 'semantic_index', value: configured['semantic-index'] } : null,
+  ].filter((entry): entry is { key: string; value: string } => entry !== null);
+  const { genieSpaces } = accessDependenciesFrom({ configuration, env: process.env });
+  const vectorIndex = vectorIndexName(
+    configured['semantic-index'] || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
+  );
+  let vectorEndpoint = queryText(req, 'vectorEndpoint') || configured['semantic-index-endpoint'];
+  if (!vectorEndpoint && vectorIndex) {
+    vectorEndpoint = await lookupVectorEndpoint({
+      host: host(),
+      token: forwardedUserToken(req) ?? '',
+      index: vectorIndex,
+      fetchImpl: extras.fetchImpl,
+    });
+  }
+  return {
+    appName: (process.env.DATABRICKS_APP_NAME ?? '').trim(),
+    endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
+    warehouseId: extras.warehouse,
+    vectorEndpoint,
+    vectorIndex,
+    genieSpaces: genieSpaces.map((space) => ({ id: space.id, label: space.label })),
+    workspaceId: extras.workspaceId,
+    telemetryEnabled: Boolean(telemetrySchema()),
+  };
 }
 
 /**
@@ -815,20 +886,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       const workspace = host();
       const warehouse = warehouseId();
       const token = forwardedUserToken(req);
-      const ids: CostIdentifiers = {
-        appName: (process.env.DATABRICKS_APP_NAME ?? '').trim(),
-        endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
-        warehouseId: warehouse,
-        // Resolved by the client from the index probe on the health block, since
-        // the app is never told its vector endpoint by configuration.
-        vectorEndpoint: queryText(req, 'vectorEndpoint'),
-        rebuildJobId: (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? '').trim(),
-        // Read off a response header rather than taken from configuration.
-        // Nothing hands the container a workspace id, and a literal in a tracked
-        // file would be a real workspace id in a repository that is published.
-        workspaceId: token ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl }) : '',
-        telemetryEnabled: Boolean(telemetrySchema()),
-      };
+      const workspaceId = token
+        ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl })
+        : '';
+      const ids: CostIdentifiers = await costIdentifiersFor(appkit, req, {
+        workspaceId,
+        warehouse,
+        fetchImpl: deps.fetchImpl,
+      });
       const empty = {
         grant: null,
         reason: '',

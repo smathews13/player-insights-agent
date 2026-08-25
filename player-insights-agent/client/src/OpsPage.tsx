@@ -46,6 +46,7 @@ import { RefreshButton, RefreshControl } from './RefreshControl';
 import { ageAgo, checkedAgoLine } from './refresh-state';
 import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
+import { BILLING_TAG } from '../../shared/billing-tag';
 import { databricksLink } from '../../shared/databricks-links';
 import {
   bars,
@@ -63,6 +64,8 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
+  QUESTION_COST_FORMULA,
+  questionServingAverage,
   splitMethod,
   telemetryNotice,
   WITHHELD,
@@ -621,75 +624,30 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
         ) : payload ? (
           <>
             <div className="ops-tiles">
-              {payload.tiles.map((tile) => {
+              {payload.tiles
+                .filter((tile) => tile.id !== 'index-rebuild-job')
+                .map((tile) => {
                 const view = tileView(tile, payload.currency);
                 const product = productForCostTile(tile.id);
                 const object = costTileWorkspaceObject(tile);
                 const href = object ? databricksLink(host, object) : null;
                 return (
                   <div key={tile.id} className="ops-tile">
-                    {/* 14px beside the label, and absent on the two tiles whose
-                      spend is not any one product's: a Lakeflow job and the
-                      platform's charge for writing telemetry tables. */}
                     <div className="ops-tile-head">
                       <p className="ops-tile-label">
                         {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
-                        {/* Truncated with an ellipsis rather than wrapped, and
-                          carrying its own full text on hover. An uppercase
-                          letter-spaced eyebrow is the one line on this card that
-                          cannot wrap without pushing the figure down a row and
-                          taking the card out of step with its neighbours.
-                          A Databricks URL, when one can be built from the live
-                          workspace host and this tile's own identifier. */}
-                        {href ? (
-                          <a
-                            className="ops-tile-label-text"
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`Open ${view.label} in Databricks`}
-                          >
-                            {view.label}
-                          </a>
-                        ) : (
-                          <span className="ops-tile-label-text" title={view.label}>
-                            {view.label}
-                          </span>
-                        )}
+                        <CostTileTitle label={view.label} href={href} />
                       </p>
                       <ExperimentalBadge />
                     </div>
-                    {/* `.ast-num` on the figure and not on the basis beside it.
-                      Six of these sit in a three-column grid, so a reader compares
-                      them down a column, and DM Sans cannot line them up: the
-                      basis is a phrase and belongs in DM Sans. */}
                     {view.figure ? (
                       <p className="ops-tile-figure">
                         <span className="ast-num">{view.figure}</span>{' '}
                         <span className="ops-tile-basis">{view.basisLabel}</span>
                       </p>
                     ) : (
-                      /* Not a dash and not a zero. A component nobody could
-                       attribute and one that cost nothing are different facts. */
                       <p className="ops-tile-absent">{view.absence}</p>
                     )}
-                    {/*
-                    THE FOOT OF THE CARD, and it holds a badge or a remedy and
-                    never a sentence. Six cards of prose under six numbers was a
-                    grid nobody read to the end of, and the captions wrapped into
-                    the card's own border on the way.
-
-                    The badge is the block's own pill, so "Estimate" on a card
-                    reads as the same kind of statement as "Experimental" over all
-                    of them. It is drawn only on the apportionments: a badge
-                    on a measurement would say the wrong thing about it, and a
-                    card with no figure has nothing for it to qualify.
-
-                    Beside it, on the two cards whose meter is the whole
-                    warehouse or the whole workspace, the scope. In the neutral
-                    pill and not the amber one: it states what the figure covers,
-                    and there is nothing about it for anybody to fix.
-                  */}
                     {view.estimate || view.sharedScope || view.remedy ? (
                       <p className="ops-tile-foot">
                         {view.estimate ? (
@@ -698,29 +656,29 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                         {view.sharedScope ? (
                           <span className={astPill('neutral-outline', 'ops-pill')}>{view.population}</span>
                         ) : null}
-                        {/* The one thing that would make this figure attributable,
-                          and only where there is one. It is not description: it
-                          is the single action that fills the card in. */}
                         {view.remedy ? <span className="ops-tile-remedy">{view.remedy}</span> : null}
                       </p>
                     ) : null}
                   </div>
                 );
               })}
+              <QuestionCostAverage payload={payload} />
             </div>
-            <QuestionCostAverage payload={payload} />
-            <p className="ops-cost-honesty">
-              Per-question cost token-apportions model-serving spend only; all other figures are resource totals or
-              daily rates.
-            </p>
             {billingHref ? (
-              <a className="ops-external" href={billingHref} target="_blank" rel="noreferrer">
+              <a
+                className="ops-external"
+                href={billingHref}
+                target="_blank"
+                rel="noreferrer"
+                title={`Open system.billing.usage filtered to ${BILLING_TAG.key} = ${BILLING_TAG.value}`}
+              >
                 Open system.billing.usage
                 <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             ) : null}
             <p className="ops-source-filter">
-              Filtered to <code>{"custom_tags['astrolabe']"}</code>.
+              Filtered to key = <code>{`"${BILLING_TAG.key}"`}</code> and value ={' '}
+              <code>{`"${BILLING_TAG.value}"`}</code>.
             </p>
           </>
         ) : null}
@@ -730,31 +688,50 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
 }
 
 /**
- * The one per-question KPI this block can defend.
+ * Tile title: a Databricks link when one exists, plain text when it does not.
  *
- * This is deliberately MODEL SERVING ONLY. The endpoint total is apportioned by
- * the token counts recorded on completed runs, then averaged over the covered
- * questions. SQL, Genie, Vector Search, app compute, jobs, the foundation model,
- * and Lakebase have no run-level billing join here, so none is folded into this
- * figure and no combined per-question dollar amount is invented.
+ * Split so a test can render a real href. CostBody itself cannot: the workspace
+ * host is read in an effect, and static markup never runs one.
+ */
+export function CostTileTitle({ label, href }: { label: string; href: string | null }) {
+  if (!href) {
+    return (
+      <span className="ops-tile-label-text" title={label}>
+        {label}
+      </span>
+    );
+  }
+  return (
+    <a
+      className="ops-tile-label-link"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`Open ${label} in Databricks`}
+    >
+      <span className="ops-tile-label-text">{label}</span>
+      <ExternalLink className="ops-tile-label-open" aria-hidden="true" />
+    </a>
+  );
+}
+
+/**
+ * The one per-question KPI this block can defend: endpoint spend in range
+ * divided by the questions that recorded tokens. Same size as the resource
+ * tiles, in the same grid.
  */
 function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
-  const attribution = payload.perQuestion;
-  const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
-  const covered = attribution.tokenCoveredRuns;
-  const amount =
-    serving?.quality === 'real' &&
-    typeof serving.amount === 'number' &&
-    Number.isFinite(serving.amount) &&
-    covered > 0 &&
-    attribution.totalRecordedTokens > 0
-      ? serving.amount / covered
-      : null;
+  const amount = questionServingAverage(payload);
+  const reason = payload.perQuestion.reason || 'No token-covered endpoint spend in this range';
 
   return (
-    <div className="ops-question-average">
+    <div className="ops-tile">
       <div className="ops-tile-head">
-        <p className="ops-tile-label">Average model serving per question</p>
+        <p className="ops-tile-label">
+          <span className="ops-tile-label-text" title="Approx. Average Cost Per Question">
+            Approx. Average Cost Per Question
+          </span>
+        </p>
         <ExperimentalBadge />
       </div>
       {amount !== null ? (
@@ -762,11 +739,11 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
           <span className="ast-num">
             {amount.toFixed(2)} {payload.currency}
           </span>
-          <span className="ops-tile-basis">token-apportioned</span>
         </p>
       ) : (
-        <p className="ops-tile-absent">{attribution.reason || 'No token-covered endpoint spend in this range'}</p>
+        <p className="ops-tile-absent">{reason}</p>
       )}
+      <p className="ops-tile-formula">{QUESTION_COST_FORMULA}</p>
     </div>
   );
 }

@@ -32,11 +32,14 @@ import {
   P50_BAR_MIN_WIDTH,
   p50BarWidths,
   productForCostTile,
+  QUESTION_COST_FORMULA,
+  questionServingAverage,
   splitMethod,
   telemetryNotice,
   tileView,
   trafficCaption,
 } from './ops-view';
+import { databricksLink } from '../../shared/databricks-links';
 import {
   COST_QUALITY_LABEL,
   LATENCY_BASELINE_FLOOR,
@@ -497,26 +500,38 @@ describe('the copy', () => {
  * survives.
  */
 describe('the mark on a cost tile', () => {
-  /**
-   * The one the handoff leaves bare, and why it is right rather than pending.
-   *
-   * The index rebuild is a Lakeflow job and there is no job mark in the set; the
-   * handoff says so outright, so any candidate mark would name a product the
-   * figure is not about.
-   */
-  const bare = new Set(['index-rebuild-job']);
-
-  it('names a product for every component that has one', () => {
-    const undecided = COST_COMPONENTS.filter((id) => !bare.has(id) && productForCostTile(id) === null);
+  it('names a product for every billed component', () => {
+    const undecided = COST_COMPONENTS.filter((id) => productForCostTile(id) === null);
     expect(undecided).toEqual([]);
   });
 
-  it('names none for the one whose spend is not a product’s', () => {
-    expect([...bare].map(productForCostTile)).toEqual([null]);
+  it('marks each Genie space tile as Genie', () => {
+    expect(productForCostTile('genie:space-data')).toBe('genie');
   });
 
   it('answers null for an id it has never seen, rather than guessing', () => {
     expect(productForCostTile('a-component-added-after-this-was-written')).toBeNull();
+  });
+});
+
+describe('approx average cost per question', () => {
+  it('divides measured endpoint spend by token-covered questions', () => {
+    expect(QUESTION_COST_FORMULA).toBe('serving endpoint spend ÷ questions with recorded tokens');
+    expect(
+      questionServingAverage(
+        costPayload({
+          tiles: [tile({ id: 'serving-endpoint', quality: 'real', amount: 10 })],
+          perQuestion: {
+            runs: [],
+            runsInRange: 2,
+            tokenCoveredRuns: 2,
+            totalRecordedTokens: 1000,
+            limited: false,
+            reason: '',
+          },
+        })
+      )
+    ).toBe(5);
   });
 });
 
@@ -538,16 +553,43 @@ describe('which Ops resources open in Databricks', () => {
       kind: 'app',
       name: 'astrolabe',
     });
-    expect(costTileWorkspaceObject({ id: 'index-rebuild-job', resourceId: '99' })).toEqual({
-      kind: 'job',
-      jobId: '99',
+  });
+
+  it('opens a Genie space and a Vector Search index when those ids are real', () => {
+    expect(
+      costTileWorkspaceObject({ id: 'genie:01ab', resourceId: '01ab', resourceKind: 'genie-space' })
+    ).toEqual({
+      kind: 'genie-space',
+      spaceId: '01ab',
+    });
+    expect(
+      costTileWorkspaceObject({ id: 'vector-search', resourceId: 'a.b.c', resourceKind: 'vector-index' })
+    ).toEqual({
+      kind: 'vector-index',
+      index: 'a.b.c',
     });
   });
 
-  it('leaves Genie and Vector Search unlinked: no space, no verified endpoint path', () => {
+  it('does not turn a workspace id or a Vector Search endpoint name into a link', () => {
     expect(costTileWorkspaceObject({ id: 'genie', resourceId: '' })).toBeNull();
     expect(costTileWorkspaceObject({ id: 'genie', resourceId: 'a-workspace' })).toBeNull();
     expect(costTileWorkspaceObject({ id: 'vector-search', resourceId: 'vs-endpoint' })).toBeNull();
+  });
+
+  it('builds Databricks URLs for a Genie space and a Vector Search index', () => {
+    const host = 'https://example-workspace.invalid';
+    expect(
+      databricksLink(
+        host,
+        costTileWorkspaceObject({ id: 'genie:01ab', resourceId: '01ab', resourceKind: 'genie-space' })!
+      )
+    ).toBe(`${host}/genie/rooms/01ab`);
+    expect(
+      databricksLink(
+        host,
+        costTileWorkspaceObject({ id: 'vector-search', resourceId: 'a.b.c', resourceKind: 'vector-index' })!
+      )
+    ).toBe(`${host}/explore/data/a/b/c`);
   });
 
   it('opens Health identifiers the Architecture page already knows how to open', () => {

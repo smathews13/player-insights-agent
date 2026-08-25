@@ -159773,6 +159773,10 @@ function workspacePath(object2) {
       return unityCatalogPath(object2.table, part);
     case "registered-model":
       return unityCatalogPath(object2.model, part, "models/");
+    case "app":
+      return object2.name.trim() ? `/apps/${part(object2.name)}` : null;
+    case "job":
+      return object2.jobId.trim() ? `/jobs/${part(object2.jobId)}` : null;
     case "model-version": {
       const model = unityCatalogPath(object2.model, part, "models/");
       const version4 = object2.version.trim();
@@ -159871,6 +159875,35 @@ var init_repair_conversation_titles = __esm({
      AND c.title <> m.content
      AND m.content LIKE c.title || '%'
    ORDER BY c.id, m.created_at ASC`;
+  }
+});
+
+// shared/run-verdict.ts
+function takeawayWhenTablesLanded(output, evidence) {
+  const text16 = output.trim();
+  if (!UNANSWERED_LINE.test(text16)) return output;
+  const held = [evidence, output].filter(Boolean).join("\n");
+  if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
+  return output;
+}
+var VERDICT_EXEMPT_STAGE_IDS, TIME_LIMIT_TAKEAWAY, UNANSWERED_LINE, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, ANSWER_LANDED_SQL, SYNTHESIS_INCOMPLETE_SQL, DEADLINE_TRUNCATED_SQL;
+var init_run_verdict = __esm({
+  "shared/run-verdict.ts"() {
+    VERDICT_EXEMPT_STAGE_IDS = ["plot"];
+    TIME_LIMIT_TAKEAWAY = "The run reached its time limit before the answer could be composed.";
+    UNANSWERED_LINE = /^this question was not answered\.?$/i;
+    VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
+      (id) => `&& @.id != "${id}"`
+    ).join(" ");
+    EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
+    INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
+    ANSWER_LANDED_SQL = `(
+  (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
+  OR COALESCE(payload->>'narrative', '') ~ '\\|'
+  OR COALESCE(payload->>'content', '') ~ '\\|'
+)`;
+    SYNTHESIS_INCOMPLETE_SQL = `jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && (@.status == "failed" || @.status == "partial"))')`;
+    DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
   }
 });
 
@@ -159977,7 +160010,8 @@ function proseOnlyAnswer(id, prose, recordedStages = []) {
   const reader = readerFacingFindings(prose);
   const usableFirst = firstLine && !isCannedFirstLine(firstLine) ? firstLine : "";
   const usableNarrative = reader.narrative.trim();
-  const takeaway = usableFirst ? usableFirst.slice(0, TAKEAWAY_LIMIT) : usableNarrative && !isCannedFirstLine(usableNarrative.split("\n")[0] ?? "") ? usableNarrative.split("\n")[0].slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY;
+  const rawTakeaway = usableFirst ? usableFirst.slice(0, TAKEAWAY_LIMIT) : usableNarrative && !isCannedFirstLine(usableNarrative.split("\n")[0] ?? "") ? usableNarrative.split("\n")[0].slice(0, TAKEAWAY_LIMIT) : PROSE_ONLY_FALLBACK_TAKEAWAY;
+  const takeaway = UNANSWERED_LINE.test(rawTakeaway) ? takeawayWhenTablesLanded(rawTakeaway, usableNarrative) : rawTakeaway;
   let narrative = usableNarrative;
   if (isCannedFirstLine(narrative)) {
     narrative = "";
@@ -160016,6 +160050,7 @@ function stageCount(trace2) {
 var PROSE_ONLY_ANSWER_CAVEAT, PROSE_ONLY_FALLBACK_TAKEAWAY, CANNED_FIRST_LINE, TAKEAWAY_LIMIT, PROSE_SECTIONS, CAVEAT_SECTIONS, LEAD_IN;
 var init_prose_only_answer = __esm({
   "shared/prose-only-answer.ts"() {
+    init_run_verdict();
     init_setup_remedies();
     PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
     PROSE_ONLY_FALLBACK_TAKEAWAY = "The agent did not return a structured result.";
@@ -160028,25 +160063,6 @@ var init_prose_only_answer = __esm({
     PROSE_SECTIONS = ["Interpretation", "Findings / data"];
     CAVEAT_SECTIONS = ["Caveats & rules applied", "Gaps"];
     LEAD_IN = /^\s{0,3}[-*]\s+\*\*(?<name>[^*:]+?):?\*\*:?\s*(?<rest>.*)$/;
-  }
-});
-
-// shared/run-verdict.ts
-var VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL, EMPTY_STAGES_FAILED_SQL, INCOMPLETE_ANSWER_CAVEAT_SQL, ANSWER_LANDED_SQL, DEADLINE_TRUNCATED_SQL;
-var init_run_verdict = __esm({
-  "shared/run-verdict.ts"() {
-    VERDICT_EXEMPT_STAGE_IDS = ["plot"];
-    VERDICT_STAGE_EXEMPTION_SQL = VERDICT_EXEMPT_STAGE_IDS.map(
-      (id) => `&& @.id != "${id}"`
-    ).join(" ");
-    EMPTY_STAGES_FAILED_SQL = `(jsonb_typeof(trace->'stages') IS DISTINCT FROM 'array' OR jsonb_array_length(trace->'stages') = 0)`;
-    INCOMPLETE_ANSWER_CAVEAT_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
-    ANSWER_LANDED_SQL = `(
-  (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
-  OR COALESCE(payload->>'narrative', '') ~ '\\|'
-  OR COALESCE(payload->>'content', '') ~ '\\|'
-)`;
-    DEADLINE_TRUNCATED_SQL = `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early')`;
   }
 });
 
@@ -170127,10 +170143,15 @@ var init_insights_routes = __esm({
          -- that draws this column; see shared/run-verdict.ts for why that is the
          -- one step whose outcome says nothing about the answer above it.
          -- Empty stages used to fall through to complete, which painted a green
-         -- badge on a 0.0s card that recorded nothing. Incomplete-sources and
-         -- deadline notes do not flip a card that already has figures or tables.
+         -- badge on a 0.0s card that recorded nothing. Incomplete-sources notes
+         -- do not flip a card that already has figures or tables. A writer
+         -- timeout or failed synthesis after those tables landed is partial,
+         -- so Monitoring, Ask, and Run Explorer say the same word. A finished
+         -- writer with tables stays complete even when another step missed.
          CASE
            WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("a.trace")} THEN 'failed'
+           WHEN ${ANSWER_LANDED_SQL.split("payload").join("a.payload")}
+            AND ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("a.trace")} THEN 'partial'
            WHEN ${ANSWER_LANDED_SQL.split("payload").join("a.payload")} THEN 'complete'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
@@ -170426,6 +170447,8 @@ var init_insights_routes = __esm({
     SELECT
       CASE
         WHEN ${EMPTY_STAGES_FAILED_SQL.split("trace").join("m.response_json->'trace'")} THEN 'failed'
+        WHEN ${ANSWER_LANDED_SQL.split("payload").join("m.response_json")}
+         AND ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("m.response_json->'trace'")} THEN 'partial'
         WHEN ${ANSWER_LANDED_SQL.split("payload").join("m.response_json")} THEN 'complete'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
@@ -175067,8 +175090,15 @@ var init_user_routes = __esm({
 // shared/monitoring-contract.ts
 function classifyOutcome(input) {
   const state = (input.runState ?? "").trim().toUpperCase();
+  const writerMissed = state === "DEADLINE_EXCEEDED" || input.synthesisIncomplete === true;
+  if (input.answerLanded && writerMissed && state !== "REFUSED") {
+    return "partial";
+  }
   if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
   if (state && state !== "SUCCEEDED") return "partial";
+  if (input.answerLanded && (state === "SUCCEEDED" || input.hasStoredAnswer)) {
+    return "completed";
+  }
   if (input.traceHasFailedStage) return "failed";
   if (input.traceHasPartialStage) return "partial";
   if (state === "SUCCEEDED" || input.hasStoredAnswer) return "completed";
@@ -175380,7 +175410,9 @@ function questionFromRow(row2, ledger) {
     runState: verdict?.state ?? null,
     hasStoredAnswer: answerId !== "",
     traceHasFailedStage: row2.trace_failed === true,
-    traceHasPartialStage: row2.trace_partial === true
+    traceHasPartialStage: row2.trace_partial === true,
+    answerLanded: row2.answer_landed === true,
+    synthesisIncomplete: row2.synthesis_incomplete === true
   });
   return {
     id: text14(row2.question_id),
@@ -175599,7 +175631,9 @@ function setupMonitoringRoutes(appkit, deps) {
           runState: verdict?.state ?? null,
           hasStoredAnswer: answerId !== "",
           traceHasFailedStage: row2.trace_failed === true,
-          traceHasPartialStage: row2.trace_partial === true
+          traceHasPartialStage: row2.trace_partial === true,
+          answerLanded: row2.answer_landed === true,
+          synthesisIncomplete: row2.synthesis_incomplete === true
         }),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,
@@ -175791,11 +175825,13 @@ var init_monitoring_routes = __esm({
          a.response_json->'trace'->>'totalMs' AS total_ms,
          a.response_json->'trace'->>'toolCalls' AS tool_calls,
          a.response_json->'trace'->>'total_tokens' AS total_tokens,
-         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS trace_failed,
+         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') AS trace_failed,
          jsonb_path_exists(
            a.response_json->'trace',
            '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
          ) AS trace_partial,
+         ${ANSWER_LANDED_SQL.split("payload").join("a.response_json")} AS answer_landed,
+         ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("a.response_json->'trace'")} AS synthesis_incomplete,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
@@ -175845,11 +175881,13 @@ var init_monitoring_routes = __esm({
   SELECT q.id AS question_id, q.conversation_id, q.content AS question,
          q.created_at AS asked_at, c.user_email,
          a.id AS answer_id, a.trace_id, a.response_json,
-         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed")') AS trace_failed,
+         jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') AS trace_failed,
          jsonb_path_exists(
            a.response_json->'trace',
            '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
          ) AS trace_partial,
+         ${ANSWER_LANDED_SQL.split("payload").join("a.response_json")} AS answer_landed,
+         ${SYNTHESIS_INCOMPLETE_SQL.split("__TRACE__").join("a.response_json->'trace'")} AS synthesis_incomplete,
          a.execution_mode, a.execution_identity_verified,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
@@ -175905,6 +175943,22 @@ function workspaceEstimateRow(component) {
 }
 function canAsk(component, ids) {
   return Boolean(ids[MATCHERS[component].parameter]);
+}
+function resourceIdFor(component, ids) {
+  switch (component) {
+    case "serving-endpoint":
+      return ids.endpointName;
+    case "sql-warehouse":
+      return ids.warehouseId;
+    case "app-compute":
+      return ids.appName;
+    case "index-rebuild-job":
+      return ids.rebuildJobId;
+    case "vector-search":
+      return ids.vectorEndpoint;
+    case "genie":
+      return "";
+  }
 }
 function buildCostStatement(ids, range) {
   const covered = COST_COMPONENTS.filter((component) => canAsk(component, ids));
@@ -176000,6 +176054,7 @@ function buildTiles(ids, rows) {
     const base = {
       id: component,
       label: description.label,
+      resourceId: resourceIdFor(component, ids),
       quality: description.quality,
       basis: description.basis,
       population: description.population

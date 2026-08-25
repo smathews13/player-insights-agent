@@ -1,5 +1,5 @@
 /**
- * The app-wide ambient sky: stable coordinates, CSS-only motion, and no input.
+ * The app-wide ambient sky: one drawing for login and every tab, CSS-only motion.
  *
  * The geometry comes from the opening constellation rather than from a second
  * star map. That matters beyond keeping two drawings visually related. The old
@@ -8,15 +8,27 @@
  * right side of the login gate was empty. Rendering every shared hop removes
  * the order-dependent sample that caused the defect.
  *
- * JavaScript decides the drawing once. It never advances an animation: every
- * frame is opacity or transform from star-motion.css. The seed combines the
- * page identity with a tab-local value, so React may render the tree repeatedly
- * without moving a star while a new tab still gets a different sky.
+ * JavaScript decides the drawing and the appear-schedule once. It never advances
+ * a frame: every tick is opacity, transform, or stroke-dashoffset from
+ * star-motion.css. Connectors are staggered into the future on purpose -- a
+ * line with a positive delay is absent on first paint and draws itself later --
+ * which is what "new connections being drawn" is, without a rAF loop that dies
+ * when the tab is hidden.
+ *
+ * Login and the in-app shell share `SKY_PAGE_ID` plus the tab-local document
+ * seed, so Continue does not swap one constellation for another. A new load
+ * still gets a different stagger, jitter, and extra hops.
  */
 import { useState, type CSSProperties } from 'react';
 import { OPENING_CONSTELLATION, type Hop } from './constellation';
 
 export type StarSurface = 'ask' | 'working';
+
+/** Shared by the login gate and the app shell so both mount the same sky. */
+export const SKY_PAGE_ID = 'app-sky';
+
+/** Fraction of a connector cycle that the line is on screen (matches ast-sky-draw). */
+export const SKY_DRAW_LIVE_UNTIL = 0.7;
 
 interface Timing {
   duration: number;
@@ -45,11 +57,16 @@ export interface StarFieldDrawing {
 
 const ANCHOR_MIN_SECONDS = 6;
 const FAINT_MIN_SECONDS = 7;
-const GLOW_MIN_SECONDS = 10;
+const DRAW_MIN_SECONDS = 22;
+const DRAW_SPREAD = 8;
 const DRIFT_ANCHOR_SECONDS = 90;
 const DRIFT_FAINT_SECONDS = 70;
 const JITTER_PX = 6;
-const HOPS_PER_SIDE = 6;
+const APPEAR_STEP = 1.25;
+const EARLY_SHIFT = 2.2;
+const EXTRA_HOPS = 6;
+const MIN_EXTRA_DIST = 90;
+const MAX_EXTRA_DIST = 260;
 
 /** A small deterministic generator whose state advances only while the drawing is built. */
 export function mulberry32(seed: number): () => number {
@@ -106,6 +123,17 @@ function jitter(value: number, random: () => number): number {
   return tenth(value + (random() * 2 - 1) * JITTER_PX);
 }
 
+function shuffle<T>(items: readonly T[], random: () => number): T[] {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    const held = copy[index];
+    copy[index] = copy[swap];
+    copy[swap] = held;
+  }
+  return copy;
+}
+
 function documentSeed(): string {
   if (typeof window === 'undefined') return 'server';
 
@@ -125,6 +153,68 @@ const DOCUMENT_SEED = documentSeed();
 
 /** One coordinate as a map key, written once so a lookup cannot spell it differently. */
 const pointKey = (point: readonly [number, number]): string => `${point[0]},${point[1]}`;
+
+const edgeKey = (from: readonly [number, number], to: readonly [number, number]): string => {
+  const a = pointKey(from);
+  const b = pointKey(to);
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+};
+
+/**
+ * Whether a connector is on screen at `elapsedSeconds` from first paint.
+ *
+ * Positive delay means the line has not started drawing yet. After it starts,
+ * it is live for the first `SKY_DRAW_LIVE_UNTIL` of its cycle -- the draw and
+ * hold -- and then hidden until the cycle repeats. This is the schedule a test
+ * can advance without a browser.
+ */
+export function connectorIsLiveAt(connector: AmbientConnector, elapsedSeconds: number): boolean {
+  const local = elapsedSeconds - connector.delay;
+  if (local < 0) return false;
+  const progress = (local % connector.duration) / connector.duration;
+  return progress < SKY_DRAW_LIVE_UNTIL;
+}
+
+export function liveConnectorsAt(drawing: StarFieldDrawing, elapsedSeconds: number): AmbientConnector[] {
+  return drawing.connectors.filter((connector) => connectorIsLiveAt(connector, elapsedSeconds));
+}
+
+function appearDelay(index: number, random: () => number, used: Set<string>): Timing {
+  for (;;) {
+    const duration = tenth(DRAW_MIN_SECONDS + random() * DRAW_SPREAD);
+    const delay = tenth(index * APPEAR_STEP - EARLY_SHIFT + (random() * 0.4 - 0.1));
+    const key = `${duration}/${delay}`;
+    if (!used.has(key)) {
+      used.add(key);
+      return { duration, delay };
+    }
+  }
+}
+
+function extraHops(
+  anchors: AmbientStar[],
+  taken: Set<string>,
+  random: () => number,
+  width: number
+): { from: readonly [number, number]; to: readonly [number, number] }[] {
+  const candidates: { from: readonly [number, number]; to: readonly [number, number] }[] = [];
+  for (let i = 0; i < anchors.length; i += 1) {
+    for (let j = i + 1; j < anchors.length; j += 1) {
+      const from = [anchors[i].x, anchors[i].y] as const;
+      const to = [anchors[j].x, anchors[j].y] as const;
+      if (taken.has(edgeKey(from, to))) continue;
+      const dist = Math.hypot(from[0] - to[0], from[1] - to[1]);
+      if (dist < MIN_EXTRA_DIST || dist > MAX_EXTRA_DIST) continue;
+      const minX = Math.min(from[0], to[0]);
+      const maxX = Math.max(from[0], to[0]);
+      if (minX < width * 0.38 && maxX > width * 0.62) continue;
+      candidates.push({ from, to });
+    }
+  }
+  const picked = shuffle(candidates, random).slice(0, EXTRA_HOPS);
+  for (const hop of picked) taken.add(edgeKey(hop.from, hop.to));
+  return picked;
+}
 
 /**
  * Builds one complete sky from the shared opening geometry.
@@ -166,47 +256,60 @@ export function buildStarField(pageId: string, visitSeed: string | number): Star
     ...timing(random, FAINT_MIN_SECONDS, 6, starTiming),
   }));
 
-  /*
-   * Equal samples from the left and right preserve quiet space around the hero
-   * without reviving the old order bug. The previous single filtered slice took
-   * six from a list whose first seven entries are all upper-left; sampling each
-   * side independently is what guarantees the gate has a right-hand chain.
-   */
-  const leftHops = OPENING_CONSTELLATION.hops
-    .filter(
-      (hop) =>
-        anchored(hop) && (hop.from[0] < OPENING_CONSTELLATION.width / 3 || hop.to[0] < OPENING_CONSTELLATION.width / 3)
-    )
-    .slice(0, HOPS_PER_SIDE);
-  const rightHops = OPENING_CONSTELLATION.hops
-    .filter(
+  const third = OPENING_CONSTELLATION.width / 3;
+  const leftHops = shuffle(
+    OPENING_CONSTELLATION.hops.filter(
+      (hop) => anchored(hop) && (hop.from[0] < third || hop.to[0] < third)
+    ),
+    random
+  );
+  const rightHops = shuffle(
+    OPENING_CONSTELLATION.hops.filter(
       (hop) =>
         anchored(hop) &&
-        (hop.from[0] > (OPENING_CONSTELLATION.width * 2) / 3 || hop.to[0] > (OPENING_CONSTELLATION.width * 2) / 3)
-    )
-    .slice(0, HOPS_PER_SIDE);
-  const connectors = [...leftHops, ...rightHops].flatMap((hop) => {
+        (hop.from[0] > OPENING_CONSTELLATION.width - third || hop.to[0] > OPENING_CONSTELLATION.width - third)
+    ),
+    random
+  );
+
+  /*
+   * Interleave the two sides after a seed shuffle so a session is not always
+   * the left polygon first, while still putting a line on both thirds early.
+   * Taking every hop -- not six per side -- is what gives later ticks new
+   * edges to draw instead of pulsing the same twelve forever.
+   */
+  const ordered: Hop[] = [];
+  for (let index = 0; index < Math.max(leftHops.length, rightHops.length); index += 1) {
+    if (index < leftHops.length) ordered.push(leftHops[index]);
+    if (index < rightHops.length) ordered.push(rightHops[index]);
+  }
+
+  const taken = new Set<string>();
+  const hopConnectors: AmbientConnector[] = [];
+  for (const hop of ordered) {
     const from = positions.get(pointKey(hop.from));
     const to = positions.get(pointKey(hop.to));
-    if (!from || !to) return [];
-    return [
-      {
-        from,
-        to,
-        /*
-         * The 2–7 second phase window is the connector treatment's stagger. It is
-         * negative because first paint must show a line already inside its cycle,
-         * never a synchronized row of lines waiting to begin.
-         */
-        ...timing(random, GLOW_MIN_SECONDS, 3, glowTiming, 2, 7),
-      },
-    ];
-  });
+    if (!from || !to) continue;
+    taken.add(edgeKey(from, to));
+    hopConnectors.push({ from, to, ...appearDelay(hopConnectors.length, random, glowTiming) });
+  }
+
+  /*
+   * Extra hops continue the appear schedule after the opening chains, so a
+   * unique pair starts drawing once the familiar constellations are already
+   * on screen. Re-count from the current length rather than a parallel index
+   * so a dropped opening hop cannot collide with an extra's delay key.
+   */
+  const extraConnectors = extraHops(anchors, taken, random, OPENING_CONSTELLATION.width).map((hop, index) => ({
+    from: hop.from,
+    to: hop.to,
+    ...appearDelay(hopConnectors.length + index, random, glowTiming),
+  }));
 
   return {
     anchors,
     faint,
-    connectors,
+    connectors: [...hopConnectors, ...extraConnectors],
     drift: {
       anchorDelay: -tenth(0.1 + random() * (DRIFT_ANCHOR_SECONDS - 0.1)),
       faintDelay: -tenth(0.1 + random() * (DRIFT_FAINT_SECONDS - 0.1)),
@@ -234,7 +337,6 @@ export function StarField({
 }) {
   const [visitSeed] = useState(() => seed ?? DOCUMENT_SEED);
   const drawing = buildStarField(pageId, visitSeed);
-  const asksForDrift = surface === 'ask';
 
   return (
     <svg
@@ -263,24 +365,25 @@ export function StarField({
        * neither instead of pulling one group back from under the other.
        */}
       <g
-        className={asksForDrift ? 'star-motion-drift star-motion-drift-anchor' : undefined}
-        style={asksForDrift ? { animationDelay: `${drawing.drift.anchorDelay}s` } : undefined}
+        className="star-motion-drift star-motion-drift-anchor"
+        style={{ animationDelay: `${drawing.drift.anchorDelay}s` }}
       >
-        {surface === 'ask' ? (
-          <g className="star-motion-connectors">
-            {drawing.connectors.map((connector, index) => (
-              <line
-                key={`line-${index}`}
-                className="app-sky-line star-motion-glow"
-                x1={connector.from[0]}
-                y1={connector.from[1]}
-                x2={connector.to[0]}
-                y2={connector.to[1]}
-                style={animationStyle(connector)}
-              />
-            ))}
-          </g>
-        ) : null}
+        <g className="star-motion-connectors">
+          {drawing.connectors.map((connector, index) => (
+            <line
+              key={`line-${index}`}
+              className="app-sky-line star-motion-draw"
+              data-sky-appear={connector.delay}
+              x1={connector.from[0]}
+              y1={connector.from[1]}
+              x2={connector.to[0]}
+              y2={connector.to[1]}
+              pathLength={1}
+              strokeDasharray={1}
+              style={animationStyle(connector)}
+            />
+          ))}
+        </g>
 
         {drawing.anchors.map((star, index) => (
           <circle
@@ -297,8 +400,8 @@ export function StarField({
       </g>
 
       <g
-        className={asksForDrift ? 'star-motion-drift star-motion-drift-faint' : undefined}
-        style={asksForDrift ? { animationDelay: `${drawing.drift.faintDelay}s` } : undefined}
+        className="star-motion-drift star-motion-drift-faint"
+        style={{ animationDelay: `${drawing.drift.faintDelay}s` }}
       >
         {drawing.faint.map((star, index) => (
           <circle

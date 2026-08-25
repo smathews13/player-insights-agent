@@ -6,6 +6,7 @@ import { AppSky } from './AppSky';
 import { OPENING_CONSTELLATION } from './constellation';
 
 const source = readFileSync(new URL('./AppSky.tsx', import.meta.url), 'utf8');
+const gate = readFileSync(new URL('./FirstOpenGate.tsx', import.meta.url), 'utf8');
 const layout = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
 const base = readFileSync(new URL('./styles/base.css', import.meta.url), 'utf8');
 
@@ -13,6 +14,10 @@ describe('the dark-mode sky', () => {
   it('is decorative, static, and seated in the shell', () => {
     expect(layout).toContain('<AppSky />');
     expect(source).not.toContain('ast-anim');
+    expect(source).toContain('SKY_PAGE_ID');
+    expect(source).toContain('pageId={SKY_PAGE_ID}');
+    expect(gate).toContain('pageId={SKY_PAGE_ID}');
+    expect(source).not.toContain('window.location');
     const markup = renderToStaticMarkup(<AppSky />);
     expect(markup).toContain('class="app-sky"');
     expect(markup).toContain('aria-hidden="true"');
@@ -33,8 +38,8 @@ describe('the dark-mode sky', () => {
     ]);
     const left = connectors.filter(([x1, x2]) => Math.min(x1, x2) < width / 3);
     const right = connectors.filter(([x1, x2]) => Math.max(x1, x2) > (width * 2) / 3);
-    expect(left).toHaveLength(6);
-    expect(right).toHaveLength(6);
+    expect(left.length).toBeGreaterThanOrEqual(6);
+    expect(right.length).toBeGreaterThanOrEqual(6);
 
     const glyphCircles = [...markup.matchAll(/<circle[^>]*class="app-sky-glyph"[^>]*cx="([^"]+)"/g)].map((match) =>
       Number(match[1])

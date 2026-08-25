@@ -38,8 +38,10 @@
  * endpoint and warehouse ids out of the repository.
  */
 
+import { BILLING_TAG } from '../../shared/billing-tag';
 import type {
   CostQuality,
+  CostResourceKind,
   CostTile,
   QuestionCostAttribution,
   QuestionCostPart,
@@ -62,7 +64,6 @@ export const COST_COMPONENTS = [
   'genie',
   'vector-search',
   'app-compute',
-  'index-rebuild-job',
 ] as const;
 
 export type CostComponent = (typeof COST_COMPONENTS)[number];
@@ -82,11 +83,13 @@ export interface CostIdentifiers {
   endpointName: string;
   /** `DATABRICKS_SQL_WAREHOUSE_ID`. */
   warehouseId: string;
-  /** Resolved from the index probe on the health block, not from configuration. */
+  /** Resolved from the index when this deployment searches one. */
   vectorEndpoint: string;
-  /** `PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID`. Not set on any deployment today. */
-  rebuildJobId: string;
-  /** `DATABRICKS_WORKSPACE_ID`. The only handle Genie and telemetry have. */
+  /** Three-level Vector Search index name, or ''. Used to open the index, not to bill. */
+  vectorIndex: string;
+  /** The Genie spaces this deployment asks, in display order. */
+  genieSpaces: readonly { id: string; label: string }[];
+  /** `DATABRICKS_WORKSPACE_ID`. The only handle workspace-wide Genie billing has. */
   workspaceId: string;
   /**
    * Whether a telemetry destination is configured.
@@ -200,17 +203,12 @@ const MATCHERS: Record<
     parameter: 'appName',
     type: 'STRING',
   },
-  'index-rebuild-job': {
-    product: 'JOBS',
-    column: 'u.usage_metadata.job_id',
-    parameter: 'rebuildJobId',
-    type: 'STRING',
-  },
 };
 
 /** The row this statement adds so the block can date itself even with no matches. */
 export const RANGE_ROW = '__range';
-export const BILLING_TAG_KEY = 'astrolabe';
+export const BILLING_TAG_KEY = BILLING_TAG.key;
+export const BILLING_TAG_VALUE = BILLING_TAG.value;
 
 /**
  * Whether this deployment knows enough to ask about a component.
@@ -237,13 +235,33 @@ export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): s
       return ids.warehouseId;
     case 'app-compute':
       return ids.appName;
-    case 'index-rebuild-job':
-      return ids.rebuildJobId;
     case 'vector-search':
-      return ids.vectorEndpoint;
+      return vectorIndexName(ids.vectorIndex);
     case 'genie':
       return '';
   }
+}
+
+function resourceKindFor(component: CostComponent, ids: CostIdentifiers): CostResourceKind | '' {
+  switch (component) {
+    case 'serving-endpoint':
+      return 'serving-endpoint';
+    case 'sql-warehouse':
+      return 'sql-warehouse';
+    case 'app-compute':
+      return 'app';
+    case 'vector-search':
+      return vectorIndexName(ids.vectorIndex) ? 'vector-index' : '';
+    case 'genie':
+      return '';
+  }
+}
+
+/** A three-level index name the Architecture page already knows how to open, or ''. */
+export function vectorIndexName(raw: string): string {
+  const name = raw.trim();
+  const parts = name.split('.').filter((piece) => piece.length > 0);
+  return parts.length === 3 ? name : '';
 }
 
 /**
@@ -319,7 +337,7 @@ ${branches.join('\n')}
    AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
   WHERE u.usage_date >= :from_day
     AND u.usage_date <= :to_day
-    AND u.custom_tags['${BILLING_TAG_KEY}'] IS NOT NULL
+    AND u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
 )
 SELECT
   component,
@@ -452,13 +470,6 @@ const DESCRIPTIONS: Record<
     basis: 'per-day',
     variable: 'DATABRICKS_APP_NAME',
   },
-  'index-rebuild-job': {
-    label: 'Index rebuild job',
-    quality: 'real',
-    population: 'This job',
-    basis: 'total-in-range',
-    variable: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID',
-  },
 };
 
 /**
@@ -469,87 +480,125 @@ const DESCRIPTIONS: Record<
  * that nothing identifies the job on this deployment; an absent tile tells them
  * nothing and reads as an app that forgot.
  */
+/**
+ * Turn the rows into the tiles the page draws.
+ *
+ * Genie is one tile per configured space, because a single workspace-wide card
+ * cannot be opened. Vector Search names the index when this deployment has a
+ * three-level name, so the title can open a real page rather than a guessed
+ * endpoint URL.
+ */
 export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile[] {
   const byComponent = new Map(rows.map((row) => [row.component, row]));
+  const tiles: CostTile[] = [];
 
-  return COST_COMPONENTS.map((component): CostTile => {
-    const description = DESCRIPTIONS[component];
-    const base = {
-      id: component,
-      label: description.label,
-      resourceId: resourceIdFor(component, ids),
-      quality: description.quality,
-      basis: description.basis,
-      population: description.population,
-    };
-
+  for (const component of COST_COMPONENTS) {
     if (component === 'genie') {
+      tiles.push(...genieSpaceTiles(ids));
+      continue;
+    }
+    tiles.push(componentTile(component, ids, byComponent));
+  }
+  return tiles;
+}
+
+function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
+  const spaces = ids.genieSpaces.filter((space) => space.id.trim());
+  if (spaces.length === 0) {
+    return [
+      {
+        id: 'genie',
+        label: 'Genie',
+        resourceId: '',
+        resourceKind: '',
+        quality: 'estimate',
+        amount: null,
+        basis: 'total-in-range',
+        population: 'Whole workspace',
+        unavailable: 'Genie space identifier unavailable',
+        remedy: '',
+        note: '',
+      },
+    ];
+  }
+  return spaces.map((space) => ({
+    id: `genie:${space.id.trim()}`,
+    label: space.label.trim() || 'Genie space',
+    resourceId: space.id.trim(),
+    resourceKind: 'genie-space' as const,
+    quality: 'estimate' as const,
+    amount: null,
+    basis: 'total-in-range' as const,
+    population: 'This space',
+    unavailable: 'Covered by SQL warehouse',
+    remedy: '',
+    note: '',
+  }));
+}
+
+function componentTile(
+  component: Exclude<CostComponent, 'genie'>,
+  ids: CostIdentifiers,
+  byComponent: Map<string, ComponentRow>
+): CostTile {
+  const description = DESCRIPTIONS[component];
+  const base = {
+    id: component,
+    label: description.label,
+    resourceId: resourceIdFor(component, ids),
+    resourceKind: resourceKindFor(component, ids),
+    quality: description.quality,
+    basis: description.basis,
+    population: description.population,
+  };
+
+  if (!canAsk(component, ids)) {
+    const estimate = byComponent.get(workspaceEstimateRow(component));
+    if (estimate && estimate.spend !== null && Number.isFinite(estimate.spend)) {
+      return {
+        ...base,
+        quality: 'estimate',
+        population: 'Whole workspace',
+        amount: description.basis === 'per-day' ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
+        note: '',
+        unavailable: '',
+        remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : '',
+      };
+    }
+    if (component === 'vector-search') {
       return {
         ...base,
         amount: null,
         note: '',
-        unavailable: 'Covered by SQL warehouse',
+        unavailable: base.resourceId ? 'No billing rows' : 'Vector Search index identifier unavailable',
         remedy: '',
       };
     }
+    return {
+      ...base,
+      amount: null,
+      note: '',
+      unavailable: 'Resource identifier unavailable',
+      remedy: description.variable ? `Set ${description.variable}.` : '',
+    };
+  }
 
-    if (!canAsk(component, ids)) {
-      // A workspace-wide figure, if the statement got one, RELABELLED as what it
-      // is. Both overrides matter: the population so a reader cannot take it for
-      // this deployment, and the quality because the narrowed tile's claim does
-      // not survive the widening -- a whole-workspace serving total is not
-      // per-token for this endpoint. The remedy still names the variable that
-      // would turn this into the real thing.
-      const estimate = byComponent.get(workspaceEstimateRow(component));
-      if (estimate && estimate.spend !== null && Number.isFinite(estimate.spend)) {
-        return {
-          ...base,
-          quality: 'estimate',
-          population: 'Whole workspace',
-          amount: description.basis === 'per-day' ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
-          note: '',
-          unavailable: '',
-          remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : '',
-        };
-      }
-      // A state and, where one exists, the one thing that would change it. This
-      // was a two-sentence paragraph per card, and on the two deployments where
-      // both of these cards were unattributable the paragraph was the entire
-      // card: no figure above it and nothing to do about it below.
+  const row = byComponent.get(component);
+  if (!row || row.spend === null || !Number.isFinite(row.spend)) {
+    if (component === 'app-compute') {
       return {
         ...base,
         amount: null,
         note: '',
-        unavailable: 'Resource identifier unavailable',
-        remedy: description.variable ? `Set ${description.variable}.` : '',
+        unavailable: 'Billing tag match unverified',
+        remedy: `Verify whether app compute propagates ${BILLING_TAG.key}=${BILLING_TAG.value}.`,
       };
     }
+    return { ...base, amount: null, note: '', unavailable: 'No billing rows', remedy: '' };
+  }
 
-    const row = byComponent.get(component);
-    if (!row || row.spend === null || !Number.isFinite(row.spend)) {
-      if (component === 'app-compute') {
-        return {
-          ...base,
-          amount: null,
-          note: '',
-          unavailable: 'Billing tag match unverified',
-          remedy: 'Verify whether app compute propagates the Astrolabe billing tag.',
-        };
-      }
-      return { ...base, amount: null, note: '', unavailable: 'No billing rows', remedy: '' };
-    }
-
-    const amount = description.basis === 'per-day' ? row.spend / Math.max(row.billedDays, 1) : row.spend;
-    // A second FIGURE, never a second sentence. The vector search tile carried a
-    // paragraph here about a usage count this deployment does not record, which
-    // is a fact about our instrumentation rather than about anybody's bill.
-    const note =
-      component === 'index-rebuild-job' && row.jobRuns !== null
-        ? `${row.jobRuns} ${row.jobRuns === 1 ? 'run' : 'runs'}`
-        : '';
-
-    return { ...base, amount, note, unavailable: '', remedy: '' };
-  });
+  const amount = description.basis === 'per-day' ? row.spend / Math.max(row.billedDays, 1) : row.spend;
+  return { ...base, amount, note: '', unavailable: '', remedy: '' };
 }
 
 /*
@@ -597,11 +646,6 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
       id: 'app-compute',
       label: 'App compute',
       unavailable: 'Compute time cannot be joined to one run; billing-tag propagation also needs live verification.',
-    },
-    {
-      id: 'index-rebuild-job',
-      label: 'Index rebuild job',
-      unavailable: 'A rebuild is shared maintenance work rather than work caused by one question.',
     },
     {
       id: 'foundation-model',

@@ -637,7 +637,7 @@ export type AdminAction =
   /** An admin recorded or cleared a Connections setting intention (or live value). */
   | 'connection-setting-saved'
   | 'connection-setting-cleared'
-  /** An admin asked the app identity to backfill astrolabe=true on managed resources. */
+  /** An admin asked the app identity to backfill system_billing=astrolabe on managed resources. */
   | 'resource-tags-applied';
 
 /**

@@ -1,7 +1,8 @@
 /*
  * Ambient star motion is isolated on the app's fixed decorative SVG. Nothing in
  * the content tree inherits an animation, and every animated property below is
- * either opacity or transform so a frame cannot change layout or repaint text.
+ * opacity, transform, or stroke-dashoffset so a frame cannot change layout or
+ * repaint text.
  */
 .app-sky[data-star-motion-field] {
   /*
@@ -60,8 +61,8 @@ html:not([data-theme='dark']) .app-sky.gate-star-motion {
  * The working treatment used to render these circles as `anchor-still` and
  * omit their inline duration. Since every route except Ask is a working
  * surface, that single branch disabled the visible fade on every other tab.
- * Working surfaces still omit connector glow and long-range drift; they do not
- * turn the stars themselves into a static picture.
+ * Connectors and drift used to be Ask-only as well, which is why Continue
+ * landed on a sky with no lines. Every surface now gets the same living field.
  */
 .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
   animation-name: ast-tw;
@@ -75,14 +76,27 @@ html:not([data-theme='dark']) .app-sky.gate-star-motion {
   animation-iteration-count: infinite;
 }
 
-.star-motion-glow {
+/*
+ * Connectors DRAW themselves. Opacity pulse (`ast-glow`) left every line fully
+ * painted from first frame, so the sky read as a still PNG. `pathLength="1"`
+ * with `stroke-dasharray: 1` lets one keyframe ink lines of every length:
+ * dashoffset 1 is undrawn, 0 is complete. `animation-fill-mode: both` keeps a
+ * line with a future delay invisible during that wait -- without it, cascade
+ * opacity would show the whole constellation immediately and the stagger
+ * would be wasted.
+ */
+.star-motion-draw {
   fill: none;
   stroke: var(--ast-blue-on-dark);
   stroke-width: 1px;
-  opacity: 0.35;
-  animation-name: ast-glow;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0.45;
+  animation-name: ast-sky-draw;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
+  animation-fill-mode: both;
 }
 
 .star-motion-drift {
@@ -167,13 +181,32 @@ html:has(.ast-link-live) .star-motion-faint {
   }
 }
 
-@keyframes ast-glow {
-  0%,
-  100% {
-    opacity: 0.35;
+/*
+ * A connector inking itself, holding, then clearing so the next cycle can
+ * draw again. 0–12% is the visible draw; 12–55% the hold; 55–70% the fade;
+ * then the line stays gone until the stagger brings it back. Live-window
+ * math in StarField (`SKY_DRAW_LIVE_UNTIL`) matches the 70% mark.
+ */
+@keyframes ast-sky-draw {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0;
   }
-  50% {
-    opacity: 0.75;
+  12% {
+    stroke-dashoffset: 0;
+    opacity: 0.45;
+  }
+  55% {
+    stroke-dashoffset: 0;
+    opacity: 0.45;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 1;
+    opacity: 0;
   }
 }
 
@@ -194,9 +227,10 @@ html:has(.ast-link-live) .star-motion-faint {
     opacity: 0.32;
   }
 
-  .app-sky[data-star-motion-field] .star-motion-glow {
+  .app-sky[data-star-motion-field] .star-motion-draw {
     animation: none;
-    opacity: 0.35;
+    stroke-dashoffset: 0;
+    opacity: 0.45;
   }
 
   .app-sky[data-star-motion-field] .star-motion-drift {

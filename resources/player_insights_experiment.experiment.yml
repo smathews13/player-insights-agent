@@ -6,8 +6,8 @@ resources:
     player_insights_experiment:
       name: ${var.experiment_path}
       tags:
-        - key: astrolabe
-          value: "true"
+        - key: system_billing
+          value: "astrolabe"
       lifecycle:
         # Destroying the experiment permanently removes runs and traces.
         prevent_destroy: true

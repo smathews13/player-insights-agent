@@ -24,7 +24,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { CostBody, HealthBody, LatencyBody, OpsPage, TrafficBody, type Block } from './OpsPage';
+import { CostBody, CostTileTitle, HealthBody, LatencyBody, OpsPage, TrafficBody, type Block } from './OpsPage';
 import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
@@ -790,7 +790,7 @@ describe('the cost block', () => {
   it('carries no caption under any figure', () => {
     const payload = cost({
       tiles: (
-        ['serving-endpoint', 'sql-warehouse', 'genie', 'vector-search', 'app-compute', 'index-rebuild-job'] as const
+        ['serving-endpoint', 'sql-warehouse', 'genie', 'vector-search', 'app-compute'] as const
       ).map((id) => ({ ...cost().tiles[0], id })),
     });
     const markup = render(<CostBody block={block(payload)} />);
@@ -813,7 +813,9 @@ describe('the cost block', () => {
   });
 
   it('states the Astrolabe billing-tag filter beside the source', () => {
-    expect(render(<CostBody block={block(cost())} />)).toContain("custom_tags['astrolabe']");
+    expect(render(<CostBody block={block(cost())} />)).toContain('system_billing');
+    expect(render(<CostBody block={block(cost())} />)).toContain('astrolabe');
+    expect(render(<CostBody block={block(cost())} />)).not.toContain("custom_tags['astrolabe']");
   });
 
   /**
@@ -881,9 +883,10 @@ describe('the cost block', () => {
 
   it('keeps one model-serving average without inventing a combined per-question total', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('Average model serving per question');
-    expect(markup).toContain('token-apportions model-serving spend only');
-    expect(markup).toContain('resource totals or daily rates');
+    expect(markup).toContain('Approx. Average Cost Per Question');
+    expect(markup).toContain('serving endpoint spend ÷ questions with recorded tokens');
+    expect(markup).not.toContain('Average model serving per question');
+    expect(markup).not.toContain('token-apportions model-serving spend only');
     expect(markup).not.toContain('Per-question attribution');
     expect(markup).not.toContain('3.00 USD');
     expect(markup).not.toContain('across 4 questions');
@@ -947,7 +950,8 @@ describe('the cost block', () => {
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('5.00 USD');
-    expect(markup).toContain('token-apportioned');
+    expect(markup).toContain('serving endpoint spend ÷ questions with recorded tokens');
+    expect(markup).not.toContain('token-apportioned');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('Not knowable per question today');
     expect(markup).not.toContain('No run attribution key.');
@@ -1012,13 +1016,37 @@ describe('the cost block', () => {
    * outright: the index rebuild is a Lakeflow job and there is no job mark in
    * the set, so any mark would name a product the figure is not about.
    */
-  it('leaves a tile unmarked where the spend is not one product’s', () => {
+  it('hides the index rebuild job even if a payload still carries it', () => {
     const payload = cost({
       tiles: [{ ...cost().tiles[0], id: 'index-rebuild-job', label: 'Index rebuild job' }],
     });
-    const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Index rebuild job');
-    expect(markup).not.toContain('ops-tile-mark');
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).not.toContain('Index rebuild job');
+    expect(markup).not.toContain('PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID');
+  });
+
+  it('draws a tile title as a hyperlink with the Databricks mark when it has a URL', () => {
+    const markup = markupOf(
+      <CostTileTitle label="Serving endpoint" href="https://example-workspace.invalid/ml/endpoints/an-endpoint" />
+    );
+    expect(markup).toContain('href="https://example-workspace.invalid/ml/endpoints/an-endpoint"');
+    expect(markup).toContain('ops-tile-label-link');
+    expect(markup).toContain('lucide-external-link');
+    expect(markup).toContain('Open Serving endpoint in Databricks');
+  });
+
+  it('leaves a title as plain text when there is no URL', () => {
+    const markup = markupOf(<CostTileTitle label="Genie" href={null} />);
+    expect(markup).not.toContain('<a ');
+    expect(markup).not.toContain('lucide-external-link');
+    expect(markup).toContain('Genie');
+  });
+
+  it('sits the average in the same tile grid as the resource cards', () => {
+    const markup = markupOf(<CostBody block={block(cost())} />);
+    expect(markup).not.toContain('ops-question-average');
+    const tiles = markup.match(/class="ops-tile"/g) ?? [];
+    expect(tiles.length).toBe(cost().tiles.length + 1);
   });
 
   it('shows a state rather than a zero where a figure could not be sourced', () => {

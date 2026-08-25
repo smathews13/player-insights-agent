@@ -56,7 +56,7 @@ import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // the two seatings cannot come apart. See GithubMark.tsx.
 import { GithubMark } from './GithubMark';
 import { OpeningSequence } from './OpeningSequence';
-import { StarField } from './StarField';
+import { SKY_PAGE_ID, StarField } from './StarField';
 import {
   RISE_SETTLE_MS,
   gateRiseMs,
@@ -439,14 +439,15 @@ export function FirstOpenPanel({
  * The gate's sky, in one place because four seatings have to agree on it.
  *
  * The hold, the opening sequence, the card and the reduced-motion path all draw
- * this, and the drawing is deterministic in `pageId` and the module-level
+ * this, and the drawing is deterministic in `SKY_PAGE_ID` and the module-level
  * document seed -- so every one of them produces the same stars in the same
  * positions. That is what lets the gate cross its stages without the surface
- * behind the reader changing. Written out four times, it is four chances for
- * one of them to drift to a different `pageId` and put the swap back.
+ * behind the reader changing, and what lets Continue land on the same sky the
+ * app shell mounts. Written out four times, it is four chances for one of them
+ * to drift to a different `pageId` and put the swap back.
  */
 function GateSky() {
-  return <StarField pageId="login-gate" surface="ask" className="gate-star-motion" />;
+  return <StarField pageId={SKY_PAGE_ID} surface="ask" className="gate-star-motion" />;
 }
 
 function FirstOpenHold() {

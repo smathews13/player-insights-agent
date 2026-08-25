@@ -14,7 +14,8 @@ const IDS: CostIdentifiers = {
   endpointName: 'player-insights-agent',
   warehouseId: 'warehouse-1',
   vectorEndpoint: '',
-  rebuildJobId: '',
+  vectorIndex: '',
+  genieSpaces: [],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
 };
@@ -24,8 +25,8 @@ describe('billing attribution', () => {
   it('limits every cost figure to resources tagged for Astrolabe', () => {
     const query = buildCostStatement(IDS, RANGE);
 
-    expect(BILLING_TAG_KEY).toBe('astrolabe');
-    expect(query?.statement).toContain("u.custom_tags['astrolabe'] IS NOT NULL");
+    expect(BILLING_TAG_KEY).toBe('system_billing');
+    expect(query?.statement).toContain("u.custom_tags['system_billing'] = 'astrolabe'");
   });
 
   it('bounds the billing scan to the complete days the page requested', () => {
@@ -59,9 +60,9 @@ describe('billing attribution', () => {
     expect(tiles.find((tile) => tile.id === 'serving-endpoint')?.resourceId).toBe(IDS.endpointName);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.resourceId).toBe(IDS.warehouseId);
     expect(tiles.find((tile) => tile.id === 'app-compute')?.resourceId).toBe(IDS.appName);
-    expect(tiles.find((tile) => tile.id === 'index-rebuild-job')?.resourceId).toBe('');
     expect(tiles.find((tile) => tile.id === 'genie')?.resourceId).toBe('');
     expect(tiles.find((tile) => tile.id === 'vector-search')?.resourceId).toBe('');
+    expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
 
   it('does not turn a missing app-tag match into zero app-compute spend', () => {
@@ -84,7 +85,34 @@ describe('billing attribution', () => {
     ]).find((tile) => tile.id === 'genie');
 
     expect(genie?.amount).toBeNull();
-    expect(genie?.unavailable).toBe('Covered by SQL warehouse');
+    expect(genie?.unavailable).toBe('Genie space identifier unavailable');
+  });
+
+  it('emits one Genie tile per configured space and links the space id', () => {
+    const tiles = buildTiles(
+      {
+        ...IDS,
+        genieSpaces: [
+          { id: 'space-data', label: 'Data Genie space' },
+          { id: 'space-dictionary', label: 'Dictionary Genie space' },
+        ],
+      },
+      []
+    );
+    const genie = tiles.filter((tile) => tile.id.startsWith('genie:'));
+    expect(genie).toHaveLength(2);
+    expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
+    expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
+    expect(genie.every((tile) => tile.unavailable === 'Covered by SQL warehouse')).toBe(true);
+    expect(tiles.some((tile) => tile.id === 'genie')).toBe(false);
+  });
+
+  it('opens Vector Search as the index when a three-level name is known', () => {
+    const tile = buildTiles({ ...IDS, vectorIndex: 'cat.schema.index', vectorEndpoint: 'vs-endpoint' }, []).find(
+      (item) => item.id === 'vector-search'
+    );
+    expect(tile?.resourceId).toBe('cat.schema.index');
+    expect(tile?.resourceKind).toBe('vector-index');
   });
 
   it('apportions serving by recorded tokens while keeping SQL an estimate', () => {

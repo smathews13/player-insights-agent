@@ -55,6 +55,14 @@ export const COST_QUALITY_LABEL: Record<CostQuality, string> = {
  * attribute and a component that cost nothing are different facts, and drawing
  * the first as `$0.00` is the invented number the honesty rules forbid.
  */
+/** The workspace object a cost tile can open, when it can open one. */
+export type CostResourceKind =
+  | 'serving-endpoint'
+  | 'sql-warehouse'
+  | 'app'
+  | 'genie-space'
+  | 'vector-index';
+
 export interface CostTile {
   id: string;
   /** What it is, in the reader's words. */
@@ -62,12 +70,17 @@ export interface CostTile {
   /**
    * The workspace identifier this tile's spend is for, or '' if there is none.
    *
-   * Warehouse id, serving-endpoint name, app name, job id. Empty when this
-   * deployment cannot name the object, or when the figure is not one object
-   * (Genie is workspace-wide). The page builds a Databricks link from this and
-   * the live workspace host; it does not invent a host or a path.
+   * Warehouse id, serving-endpoint name, app name, Genie space id, or a
+   * three-level Vector Search index. Empty when this deployment cannot name the
+   * object. The page builds a Databricks link from this and the live workspace
+   * host; it does not invent a host or a path.
    */
   resourceId: string;
+  /**
+   * What `resourceId` is, when the page can open it. Absent or '' when there is
+   * no verified workspace path for this tile.
+   */
+  resourceKind?: CostResourceKind | '';
   quality: CostQuality;
   /** Spend, or null where it could not be sourced. */
   amount: number | null;

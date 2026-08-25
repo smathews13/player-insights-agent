@@ -87,7 +87,7 @@ describe('applying Astrolabe resource tags', () => {
     const createAppTag = vi.fn(() => Promise.resolve());
     const updateAppTag = vi.fn(() => Promise.resolve());
     const fake = platform({
-      getAppTag: vi.fn(() => Promise.resolve('true')),
+      getAppTag: vi.fn(() => Promise.resolve('astrolabe')),
       createAppTag,
       updateAppTag,
     });
@@ -119,7 +119,7 @@ describe('applying Astrolabe resource tags', () => {
       },
       report: null,
       platform: platform({
-        getAppTag: vi.fn(() => Promise.resolve('true')),
+        getAppTag: vi.fn(() => Promise.resolve('astrolabe')),
       }),
     });
 
@@ -150,7 +150,7 @@ describe('applying Astrolabe resource tags', () => {
     });
     expect(setTags).toHaveBeenCalledWith('semantic-endpoint', [
       { key: 'owner', value: 'platform' },
-      { key: 'astrolabe', value: 'true' },
+      { key: 'system_billing', value: 'astrolabe' },
     ]);
   });
 
@@ -231,8 +231,8 @@ describe('applying Astrolabe resource tags', () => {
       report: report([{ key: 'semantic_index', value: '<your_catalog>.<your_schema>.semantic_layer_index' }]),
       platform: platform({
         createAppTag: vi.fn(() => Promise.reject(appDenial)),
-        getServingTags: vi.fn(() => Promise.resolve([{ key: 'astrolabe', value: 'true' }])),
-        getExperimentTags: vi.fn(() => Promise.resolve([{ key: 'astrolabe', value: 'true' }])),
+        getServingTags: vi.fn(() => Promise.resolve([{ key: 'system_billing', value: 'astrolabe' }])),
+        getExperimentTags: vi.fn(() => Promise.resolve([{ key: 'system_billing', value: 'astrolabe' }])),
         getVectorIndexEndpoint: vi.fn(() => Promise.resolve('player-insights-vector-endpoint')),
         setVectorEndpointTags: vi.fn(() => Promise.reject(vectorDenial)),
         setWarehouseTags: vi.fn(() => Promise.reject(warehouseDenial)),

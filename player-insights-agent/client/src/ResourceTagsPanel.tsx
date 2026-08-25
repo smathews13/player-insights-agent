@@ -100,8 +100,8 @@ export function ResourceTagsPanel() {
       <div>
         <p className="settings-row-label">Astrolabe resource tags</p>
         <p className="settings-row-note">
-          Apply <code>astrolabe=true</code> to everything this app manages. This repairs older deployments that were
-          created before Astrolabe added the tag automatically.
+          Apply <code>system_billing=astrolabe</code> to everything this app manages. This repairs older deployments
+          that were created before Astrolabe added the tag automatically.
         </p>
         {summary ? <ResourceTagResults summary={summary} /> : null}
         {error ? (

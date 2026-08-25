@@ -10,8 +10,9 @@
  * custom tags on their endpoint.
  */
 import type { PreflightReport } from '../routes/insights-routes';
+import { BILLING_TAG, RETIRED_BILLING_TAG_KEY, billingTagPair } from '../../shared/billing-tag';
 
-export const ASTROLABE_TAG = { key: 'astrolabe', value: 'true' } as const;
+export const ASTROLABE_TAG = BILLING_TAG;
 
 export type ResourceTagKind =
   | 'app'
@@ -223,7 +224,16 @@ function hasTag(tags: readonly KeyValueTag[]): boolean {
 }
 
 function mergeTag(tags: readonly KeyValueTag[]): KeyValueTag[] {
-  return [...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key), { ...ASTROLABE_TAG }];
+  return [
+    ...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key && tag.key !== RETIRED_BILLING_TAG_KEY),
+    { ...ASTROLABE_TAG },
+  ];
+}
+
+function tagStateDetail(state: 'already-correct' | 'tagged', extra = ''): string {
+  const lead =
+    state === 'already-correct' ? `Already correct: ${billingTagPair()}.` : `Now correct: tagged ${billingTagPair()}.`;
+  return extra ? `${lead} ${extra}` : lead;
 }
 
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
@@ -343,67 +353,69 @@ async function tagTargetOnce(target: ResourceTagTarget, platform: ResourceTagPla
       return {
         ...target,
         status: 'already-correct',
-        detail:
-          'Already correct: astrolabe=true. Databricks app tags are organizational and currently do not ' +
-          'propagate to billing.',
+        detail: tagStateDetail(
+          'already-correct',
+          'Databricks app tags are organizational and currently do not propagate to billing.'
+        ),
       };
     }
     if (current === null) await platform.createAppTag(target.name);
     else await platform.updateAppTag(target.name);
     return {
       ...target,
-      status: 'tagged',
-      detail:
-        'Now correct: tagged astrolabe=true. Databricks app tags are organizational and currently do not ' +
-        'propagate to billing.',
+        status: 'tagged',
+        detail: tagStateDetail(
+          'tagged',
+          'Databricks app tags are organizational and currently do not propagate to billing.'
+        ),
     };
   }
   if (target.kind === 'serving-endpoint') {
     const tags = await platform.getServingTags(target.name);
     if (hasTag(tags)) {
-      return { ...target, status: 'already-correct', detail: 'Already correct: astrolabe=true.' };
+      return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.addServingTag(target.name);
-    return { ...target, status: 'tagged', detail: 'Now correct: tagged astrolabe=true.' };
+    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
   }
   if (target.kind === 'registered-model') {
     if (hasTag(await platform.getModelTags(target.name))) {
-      return { ...target, status: 'already-correct', detail: 'Already correct: astrolabe=true.' };
+      return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.setModelTag(target.name);
-    return { ...target, status: 'tagged', detail: 'Now correct: tagged astrolabe=true.' };
+    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
   }
   if (target.kind === 'model-version') {
     const version = target.version;
     if (!version) throw new Error('The connected agent model version was not resolved.');
     if (hasTag(await platform.getModelVersionTags(target.name, version))) {
-      return { ...target, status: 'already-correct', detail: 'Already correct: astrolabe=true.' };
+      return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.setModelVersionTag(target.name, version);
-    return { ...target, status: 'tagged', detail: 'Now correct: tagged astrolabe=true.' };
+    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
   }
   if (target.kind === 'mlflow-experiment') {
     if (hasTag(await platform.getExperimentTags(target.name))) {
-      return { ...target, status: 'already-correct', detail: 'Already correct: astrolabe=true.' };
+      return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.setExperimentTag(target.name);
-    return { ...target, status: 'tagged', detail: 'Now correct: tagged astrolabe=true.' };
+    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
   }
   if (target.kind === 'sql-warehouse') {
     const tags = await platform.getWarehouseTags(target.name);
     if (hasTag(tags)) {
-      return { ...target, status: 'already-correct', detail: 'Already correct: astrolabe=true.' };
+      return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.setWarehouseTags(target.name, mergeTag(tags));
-    return { ...target, status: 'tagged', detail: 'Now correct: tagged astrolabe=true.' };
+    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
   }
   if (target.kind === 'lakebase') {
     const tags = await platform.getLakebaseTags(target.name);
     if (hasTag(tags)) {
-      return { ...target, status: 'already-correct', detail: 'Already correct: astrolabe=true.' };
+      return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.setLakebaseTags(target.name, mergeTag(tags));
-    return { ...target, status: 'tagged', detail: 'Now correct: tagged astrolabe=true.' };
+    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
   }
   return {
     ...target,
@@ -460,10 +472,10 @@ export async function applyAstrolabeTags(input: {
           };
           const tags = await platform.getVectorEndpointTags(endpointName);
           if (hasTag(tags)) {
-            return { ...endpoint, status: 'already-correct', detail: 'Already correct: astrolabe=true.' };
+            return { ...endpoint, status: 'already-correct', detail: tagStateDetail('already-correct') };
           }
           await platform.setVectorEndpointTags(endpointName, mergeTag(tags));
-          return { ...endpoint, status: 'tagged', detail: 'Now correct: tagged astrolabe=true.' };
+          return { ...endpoint, status: 'tagged', detail: tagStateDetail('tagged') };
         }, policy)
       );
     } catch (error) {

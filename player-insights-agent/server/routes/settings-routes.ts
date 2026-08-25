@@ -322,7 +322,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         await recordAdminAction(appkit.lakebase, {
           actor: userEmail(req),
           action: 'resource-tags-applied',
-          subject: 'astrolabe=true',
+          subject: 'system_billing=astrolabe',
           detail: summary.headline,
         });
         res.json(summary);

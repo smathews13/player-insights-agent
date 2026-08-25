@@ -3,7 +3,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { OPENING_CONSTELLATION } from './constellation';
-import { buildStarField, StarField } from './StarField';
+import {
+  buildStarField,
+  liveConnectorsAt,
+  SKY_PAGE_ID,
+  StarField,
+} from './StarField';
 
 const CSS = readFileSync(new URL('./styles/star-motion.css', import.meta.url), 'utf8');
 const INDEX = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
@@ -35,8 +40,10 @@ describe('ambient star motion', () => {
     expect(keyframes('ast-drift2')).toMatch(
       /from\s*\{\s*transform:\s*translate\(0,\s*0\);\s*\}[\s\S]*to\s*\{\s*transform:\s*translate\(10px,\s*-6px\)/
     );
-    expect(keyframes('ast-glow')).toMatch(/0%,\s*100%\s*\{\s*opacity:\s*0\.35;\s*\}[\s\S]*50%\s*\{\s*opacity:\s*0\.75/);
-    expect(CSS.match(/@keyframes\s+ast-(?:tw|tw2|drift|drift2|glow)\b/g)).toHaveLength(5);
+    expect(keyframes('ast-sky-draw')).toMatch(
+      /0%\s*\{\s*stroke-dashoffset:\s*1;[\s\S]*12%\s*\{\s*stroke-dashoffset:\s*0;/
+    );
+    expect(CSS.match(/@keyframes\s+ast-(?:tw|tw2|drift|drift2|sky-draw)\b/g)).toHaveLength(5);
     expect(CSS.match(/animation-timing-function:\s*ease-in-out/g)).toHaveLength(4);
     expect(CSS).not.toMatch(/animation-timing-function:\s*(?:linear|ease;|cubic-bezier)/);
     expect(CSS).not.toContain('will-change');
@@ -61,18 +68,17 @@ describe('ambient star motion', () => {
       expect(Math.abs(star.y - OPENING_CONSTELLATION.backdrop[index].y)).toBeLessThanOrEqual(6);
     });
     sky.connectors.forEach((connector) => {
-      expect(connector.duration).toBeGreaterThanOrEqual(10);
-      expect(connector.duration).toBeLessThanOrEqual(13);
+      expect(connector.duration).toBeGreaterThanOrEqual(22);
+      expect(connector.duration).toBeLessThanOrEqual(30);
     });
 
-    const delays = [
+    const starDelays = [
       ...sky.anchors.map((star) => star.delay),
       ...sky.faint.map((star) => star.delay),
-      ...sky.connectors.map((connector) => connector.delay),
       sky.drift.anchorDelay,
       sky.drift.faintDelay,
     ];
-    expect(delays.every((delay) => delay < 0)).toBe(true);
+    expect(starDelays.every((delay) => delay < 0)).toBe(true);
     const starPairs = [...sky.anchors, ...sky.faint].map((star) => `${star.duration}/${star.delay}`);
     expect(new Set(starPairs).size).toBe(starPairs.length);
     expect(CSS).toMatch(/animation-duration:\s*90s/);
@@ -113,8 +119,8 @@ describe('ambient star motion', () => {
     const ends = [...markup.matchAll(/<line[^>]*x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/g)].flatMap(
       (match) => [`${match[1]},${match[2]}`, `${match[3]},${match[4]}`]
     );
-    expect(ends.length).toBe(24);
     expect(ends.filter((end) => !stars.has(end))).toEqual([]);
+    expect(ends.length).toBeGreaterThan(24);
   });
 
   it('switches nothing off for a reader who did not ask for less motion', () => {
@@ -155,6 +161,8 @@ describe('ambient star motion', () => {
     expect(anchors).toHaveLength(OPENING_CONSTELLATION.stars.length);
     expect(anchors.every((anchor) => /animation-duration:[^;"]+s/.test(anchor))).toBe(true);
     expect(markup).not.toContain('anchor-still');
+    expect(markup).toContain('star-motion-draw');
+    expect(markup).toContain('pathLength="1"');
   });
 
   it('fully freezes reduced motion at the named resting opacities', () => {
@@ -163,7 +171,9 @@ describe('ambient star motion', () => {
     expect(reduced).toMatch(
       /\[data-star-motion-field\] \.star-motion-faint\s*\{[^}]*animation:\s*none;[^}]*opacity:\s*0\.32/s
     );
-    expect(reduced).toMatch(/\[data-star-motion-field\] \.star-motion-glow\s*\{[^}]*animation:\s*none/s);
+    expect(reduced).toMatch(
+      /\[data-star-motion-field\] \.star-motion-draw\s*\{[^}]*animation:\s*none;[^}]*stroke-dashoffset:\s*0/s
+    );
     expect(reduced).toMatch(/\[data-star-motion-field\] \.star-motion-drift\s*\{[^}]*animation:\s*none/s);
   });
 
@@ -179,9 +189,9 @@ describe('ambient star motion', () => {
   });
 
   it('covers the full login viewport and retains right-side stars and connectors', () => {
-    const sky = buildStarField('login-gate', 'full-width');
+    const sky = buildStarField(SKY_PAGE_ID, 'full-width');
     const markup = renderToStaticMarkup(
-      <StarField pageId="login-gate" surface="ask" seed="full-width" className="gate-star-motion" />
+      <StarField pageId={SKY_PAGE_ID} surface="ask" seed="full-width" className="gate-star-motion" />
     );
     expect(markup).toContain('class="app-sky gate-star-motion"');
     expect(markup).toContain('preserveAspectRatio="xMidYMid slice"');
@@ -189,7 +199,48 @@ describe('ambient star motion', () => {
       /\[data-star-motion-field\]\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*auto;[^}]*width:\s*100vw;[^}]*height:\s*100vh/s
     );
     expect(sky.anchors.some((star) => star.x > (OPENING_CONSTELLATION.width * 2) / 3)).toBe(true);
-    expect(sky.connectors).toHaveLength(12);
+    expect(sky.connectors.length).toBeGreaterThanOrEqual(OPENING_CONSTELLATION.hops.length);
     expect(sky.connectors.some((connector) => Math.max(connector.from[0], connector.to[0]) > 900)).toBe(true);
+  });
+
+  it('draws new connectors after first paint instead of pulsing a finished sky', () => {
+    /*
+     * THE REPORTED DEFECT: the login sky was a still constellation. Every line
+     * existed on first paint with a negative delay and an opacity pulse, so
+     * nothing ever appeared -- the field just breathed. A later tick must show
+     * edges that were not live at t=0, and those edges must be stroke-drawn
+     * (dasharray / pathLength), not merely faded in.
+     */
+    const markup = renderToStaticMarkup(<StarField pageId={SKY_PAGE_ID} surface="ask" seed="living" />);
+    expect(markup).toContain('star-motion-draw');
+    expect(markup).toContain('pathLength="1"');
+    expect(markup).toContain('stroke-dasharray="1"');
+    expect(CSS).toMatch(/animation-fill-mode:\s*both/);
+    expect(CSS).toMatch(/animation-name:\s*ast-sky-draw/);
+
+    for (const seed of ['alpha', 'beta', 'gamma', 'delta', 'epsilon']) {
+      const sky = buildStarField(SKY_PAGE_ID, seed);
+      const now = liveConnectorsAt(sky, 0);
+      const later = liveConnectorsAt(sky, 8);
+      expect(later.length, `${seed} grows`).toBeGreaterThan(now.length);
+      expect(sky.connectors.some((connector) => connector.delay > 2)).toBe(true);
+      expect(now.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('is the same sky on the login gate and inside the app', () => {
+    const login = renderToStaticMarkup(
+      <StarField pageId={SKY_PAGE_ID} surface="ask" seed="session" className="gate-star-motion" />
+    );
+    const app = renderToStaticMarkup(<StarField pageId={SKY_PAGE_ID} surface="working" seed="session" />);
+    const lines = (markup: string) =>
+      [...markup.matchAll(/<line[^>]*x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/g)].map((match) =>
+        match.slice(1).join(',')
+      );
+    expect(lines(login)).toEqual(lines(app));
+    expect(login).toContain('star-motion-draw');
+    expect(app).toContain('star-motion-draw');
+    expect(login).toContain('pathLength="1"');
+    expect(app).toContain('pathLength="1"');
   });
 });

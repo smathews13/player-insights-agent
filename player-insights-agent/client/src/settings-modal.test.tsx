@@ -47,7 +47,7 @@ describe('Settings modal', () => {
   it('puts the legacy-deployment tag repair under Experimental', () => {
     const markup = render('experimental');
     expect(markup).toContain('Astrolabe resource tags');
-    expect(markup).toContain('astrolabe=true');
+    expect(markup).toContain('system_billing=astrolabe');
     expect(markup).toContain('>Apply Astrolabe tags</button>');
     expect(markup).not.toContain('Admin only');
   });

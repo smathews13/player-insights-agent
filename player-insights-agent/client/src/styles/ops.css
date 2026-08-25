@@ -552,13 +552,35 @@ a.ops-dependency-name:hover {
   white-space: nowrap;
 }
 
-a.ops-tile-label-text {
-  color: inherit;
+/*
+ * A title that opens Databricks. Blue and underlined, with the same external
+ * mark the billing-table link uses, so it is not a surprise click on an
+ * uppercase eyebrow that looked like a label.
+ */
+.ops-tile-label-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--ast-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-a.ops-tile-label-text:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--ast-border-input);
+.ops-tile-label-link:hover {
+  color: var(--ast-blue);
+}
+
+.ops-tile-label-open {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.ops-tile-formula {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ast-text-secondary);
 }
 
 /* Geometry only, as in the table above: the uppercase eyebrow beside it is
@@ -647,17 +669,6 @@ a.ops-tile-label-text:hover {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-/* One compact per-question KPI beneath the resource tiles. It uses the tile
-   figure recipe, but spans the block because it is an apportionment of one tile,
-   not a seventh billable resource. */
-.ops-question-average {
-  display: grid;
-  gap: 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--ast-radius-card);
-  padding: 12px 14px;
 }
 
 .ops-cost-honesty {

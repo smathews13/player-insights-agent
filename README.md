@@ -307,11 +307,11 @@ endpoint. The third applies the app's database grants and releases the app code.
 **Do not create the App by hand**, exclude it with `--select`, or introduce a
 Terraform-engine path as an alternative. The App is bundle-owned.
 
-The deploy preserves existing tags while adding `astrolabe=true` to the attached
-Lakebase project and SQL warehouse, and to the AI Search endpoint where one is
-configured. The agent release tags the registered model and serving endpoint. AI
-Search indexes expose no custom-tag field or patch API, so their billed compute
-is attributed through their tagged endpoint.
+The deploy preserves existing tags while adding `system_billing=astrolabe` to the
+attached Lakebase project and SQL warehouse, and to the AI Search endpoint where
+one is configured. The agent release tags the registered model and serving
+endpoint. AI Search indexes expose no custom-tag field or patch API, so their
+billed compute is attributed through their tagged endpoint.
 
 ### Deployment landmines
 

@@ -139,25 +139,41 @@ export const BASIS_LABEL: Record<CostTile['basis'], string> = {
  * The workspace object a cost tile can open, or null.
  *
  * Null when the tile names no object, or when this app has no verified path for
- * the object it does name. Vector Search billing is an endpoint; Architecture
- * already refuses to guess a path for one. Genie billing is workspace-wide, so
- * a workspace id is not a space to open.
+ * the object it does name. Vector Search links the index (Architecture already
+ * opens those); a bare endpoint name is not a path. Genie links only a space
+ * id, never a workspace id.
  */
-export function costTileWorkspaceObject(tile: Pick<CostTile, 'id' | 'resourceId'>): DatabricksObject | null {
+export function costTileWorkspaceObject(
+  tile: Pick<CostTile, 'id' | 'resourceId' | 'resourceKind'>
+): DatabricksObject | null {
   const id = tile.resourceId.trim();
   if (!id) return null;
-  switch (tile.id) {
+  const kind = tile.resourceKind || kindFromCostTileId(tile.id);
+  switch (kind) {
     case 'serving-endpoint':
       return { kind: 'serving-endpoint', name: id };
     case 'sql-warehouse':
       return { kind: 'sql-warehouse', warehouseId: id };
-    case 'app-compute':
+    case 'app':
       return { kind: 'app', name: id };
-    case 'index-rebuild-job':
-      return { kind: 'job', jobId: id };
+    case 'genie-space':
+      return { kind: 'genie-space', spaceId: id };
+    case 'vector-index': {
+      const parts = id.split('.').filter((piece) => piece.length > 0);
+      return parts.length === 3 ? { kind: 'vector-index', index: id } : null;
+    }
     default:
       return null;
   }
+}
+
+function kindFromCostTileId(id: string): CostTile['resourceKind'] {
+  if (id === 'serving-endpoint') return 'serving-endpoint';
+  if (id === 'sql-warehouse') return 'sql-warehouse';
+  if (id === 'app-compute') return 'app';
+  if (id.startsWith('genie:')) return 'genie-space';
+  if (id === 'vector-search') return 'vector-index';
+  return '';
 }
 
 export function tileView(tile: CostTile, currency: string): TileView {
@@ -578,12 +594,11 @@ const PROBE_PRODUCTS: Record<string, BrandProduct> = {
 /**
  * The product behind a cost tile, or null.
  *
- * ONE OF THE SIX HAS NO MARK, and that is the handoff's own instruction. The
- * index rebuild job is a Lakeflow job, which has no product mark in the set. An
- * approximate mark on it would be the block naming a product that is not what
- * the figure is for.
+ * Genie space tiles are keyed `genie:<space id>` so each space can be its own
+ * card; they still carry the Genie mark.
  */
 export function productForCostTile(id: string): BrandProduct | null {
+  if (id === 'genie' || id.startsWith('genie:')) return 'genie';
   return COST_TILE_PRODUCTS[id] ?? null;
 }
 
@@ -591,9 +606,32 @@ const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
   'serving-endpoint': 'mosaic-ai',
   'vector-search': 'mosaic-ai',
   'sql-warehouse': 'databricks-sql',
-  genie: 'genie',
   'app-compute': 'apps',
 };
+
+/**
+ * Model-serving spend in range, divided by the questions that recorded tokens.
+ *
+ * That is the only per-question dollar figure this block can defend. Averaging
+ * the token-apportioned per-run shares is the same division: they sum to the
+ * endpoint total.
+ */
+export const QUESTION_COST_FORMULA = 'serving endpoint spend ÷ questions with recorded tokens';
+
+export function questionServingAverage(payload: OpsCostPayload): number | null {
+  const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
+  const covered = payload.perQuestion.tokenCoveredRuns;
+  if (
+    serving?.quality !== 'real' ||
+    typeof serving.amount !== 'number' ||
+    !Number.isFinite(serving.amount) ||
+    covered <= 0 ||
+    payload.perQuestion.totalRecordedTokens <= 0
+  ) {
+    return null;
+  }
+  return serving.amount / covered;
+}
 
 /*
  * Whether the app itself was up is the platform's reading and not this app's,

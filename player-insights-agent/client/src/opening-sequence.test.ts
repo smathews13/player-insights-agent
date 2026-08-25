@@ -155,7 +155,7 @@ describe('the intro hands over to the real gate', () => {
     expect(GATE).toMatch(/<FirstOpenPanel[\s\S]*?\n\s+onSky\n/);
     // The field is named in one place, because four seatings have to agree on
     // its `pageId` for the drawing to be the same across all of them.
-    expect(GATE).toMatch(/function GateSky\(\) \{\s*return <StarField pageId="login-gate"/);
+    expect(GATE).toMatch(/function GateSky\(\) \{\s*return <StarField pageId=\{SKY_PAGE_ID\}/);
   });
 
   it('layers the sky under the gate rather than over it', () => {

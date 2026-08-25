@@ -1,22 +1,18 @@
 /**
  * The fixed sky mounted by the app shell.
  *
+ * Same drawing as the login gate: `SKY_PAGE_ID` plus the tab-local document
+ * seed. Route changes used to rebuild a different constellation (and drop the
+ * connectors on every tab that was not Ask). The sky stays one surface from
+ * Continue through Settings.
+ *
  * It remains mounted in both themes because theme previews update the root
  * attribute without updating React state. base.css and dark-mode.css therefore
  * remain the authority on whether the layer is painted; this component only
- * chooses whether the current route is the Ask hero or a dense working screen.
+ * seats the field.
  */
-import { StarField, type StarSurface } from './StarField';
-
-function currentPage(): string {
-  return typeof window === 'undefined' ? '/' : `${window.location.pathname}${window.location.search}`;
-}
-
-function surfaceFor(pageId: string): StarSurface {
-  return pageId === '/' ? 'ask' : 'working';
-}
+import { SKY_PAGE_ID, StarField } from './StarField';
 
 export function AppSky() {
-  const pageId = currentPage();
-  return <StarField pageId={pageId} surface={surfaceFor(pageId)} />;
+  return <StarField pageId={SKY_PAGE_ID} surface="ask" />;
 }
