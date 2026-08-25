@@ -351,7 +351,11 @@
   background: transparent;
 }
 /*
- * The step numerals. White on #2272B4 is 5.08:1.
+ * The step numerals. Filled from `--ast-seg-pressed`, the same pair Rendered |
+ * Raw already uses, because `--ast-blue` remaps to ice on the night sky and ice
+ * as a mass is the neon chip the reader asked to darken. Daylight stays the
+ * action blue (white on #2272B4 is 5.08:1); dark takes the hover rung, still
+ * selected, no longer a sky chip.
  *
  * THE FACE COMES FROM `.ast-num` ON THE MARKUP, and this rule no longer asks for
  * tabular figures, because asking was the whole of what it did. These sit in a
@@ -368,8 +372,8 @@
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  background: var(--ast-blue);
-  color: var(--ast-white);
+  background: var(--ast-seg-pressed);
+  color: var(--ast-seg-pressed-ink);
   font-size: var(--ast-fs-12);
   font-weight: 700;
 }

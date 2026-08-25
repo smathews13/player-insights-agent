@@ -367,10 +367,16 @@ describe('the plan card says which state it is in, in the colour that state mean
     expect(rule).toContain('border-color: var(--ast-pos-border)');
   });
 
-  it('numbers the steps in the action colour at 22px, in the face that can line them up', () => {
+  it('numbers the steps in the pressed-segment fill at 22px, in the face that can line them up', () => {
+    // Same pair Rendered | Raw uses. `--ast-blue` remaps to ice on the night
+    // sky, which as a filled 22px circle is the neon chip the reader asked to
+    // darken. The shared token stays action-blue in daylight and the hover
+    // rung in dark.
     const rule = ruleFor(ANSWER_CSS, '.plan-step > span {');
     expect(rule).toContain('width: 22px');
-    expect(rule).toContain('background: var(--ast-blue)');
+    expect(rule).toContain('background: var(--ast-seg-pressed)');
+    expect(rule).toContain('color: var(--ast-seg-pressed-ink)');
+    expect(rule).not.toContain('--ast-blue');
     // MONO ON THE MARKUP, AND NO `tabular-nums` LEFT IN THE RULE. The reason
     // given for the property was that a ten-step plan should not have a wider
     // circle at 10 than at 9, and the circle is 22px either way, so that was

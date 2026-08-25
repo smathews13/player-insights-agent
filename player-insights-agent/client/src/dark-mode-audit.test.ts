@@ -499,8 +499,9 @@ describe('dark mode covers the shipped surfaces', () => {
      * Agent indices were the only step figures painted in the unreversed deep
      * blue; their border and fill still distinguish decisions from calls. The
      * segmented control had the inverse defect and used ice as a solid mass.
-     * `--ast-seg-pressed` is the one fill both toggles read, remapped here to
-     * the deep action rung so a pressed pill is selected, not a sky chip.
+     * `--ast-seg-pressed` is the one fill the toggles and the plan-step badges
+     * read, remapped here to the deep action rung so a filled chip is selected,
+     * not a sky chip.
      */
     expect(bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-index.agent")).toMatch(
       /color:\s*var\(--muted-foreground\)/
@@ -513,6 +514,7 @@ describe('dark mode covers the shipped surfaces', () => {
     for (const selector of [
       ".trace-dag.map .dag-seg button[aria-pressed='true']",
       ".trace-payload-seg button[aria-pressed='true']",
+      '.plan-step > span',
     ]) {
       const pressed = bodyFor(ALL_CSS, selector);
       expect(pressed, `${selector} misses the shared pressed fill`).toMatch(

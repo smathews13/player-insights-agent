@@ -94,12 +94,13 @@
    */
   --ast-primary-control-border: #4a8cbf;
   /*
-   * The Rendered | Raw pressed fill. `--ast-blue` remaps to ice on the night
-   * sky, which is correct for a link or a bar and wrong as a filled pill: ice
-   * as a mass is the neon chip the reader asked to darken. Daylight keeps the
-   * action blue; dark takes the hover rung of the same family, still selected,
-   * no longer a sky chip. Both payload toggles (map and timeline) read this
-   * pair so they cannot drift.
+   * The Rendered | Raw pressed fill, and the numbered circles on a proposed
+   * plan. `--ast-blue` remaps to ice on the night sky, which is correct for a
+   * link or a bar and wrong as a filled pill: ice as a mass is the neon chip
+   * the reader asked to darken. Daylight keeps the action blue; dark takes the
+   * hover rung of the same family, still selected, no longer a sky chip. Both
+   * payload toggles (map and timeline) and the plan-step badges read this pair
+   * so they cannot drift.
    */
   --ast-seg-pressed: var(--ast-blue);
   --ast-seg-pressed-ink: var(--ast-white);
