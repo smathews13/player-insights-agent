@@ -11,6 +11,7 @@ import {
   SKY_ANCHOR_RADIUS_MAX,
   SKY_ANCHOR_RADIUS_MIN,
   SKY_APPEAR_STEP,
+  SKY_DRAW_MIN_SECONDS,
   SKY_FAINT_MIN_SECONDS,
   SKY_FAINT_RADIUS_MAX,
   SKY_FAINT_RADIUS_MIN,
@@ -88,8 +89,8 @@ describe('ambient star motion', () => {
       expect(Math.abs(star.y - OPENING_CONSTELLATION.backdrop[index].y)).toBeLessThanOrEqual(6);
     });
     sky.connectors.forEach((connector) => {
-      expect(connector.duration).toBeGreaterThanOrEqual(22);
-      expect(connector.duration).toBeLessThanOrEqual(30);
+      expect(connector.duration).toBeGreaterThanOrEqual(SKY_DRAW_MIN_SECONDS);
+      expect(connector.duration).toBeLessThanOrEqual(SKY_DRAW_MIN_SECONDS + 8);
     });
 
     const starDelays = [
@@ -264,20 +265,25 @@ describe('ambient star motion', () => {
     expect(app).toContain('pathLength="1"');
   });
 
-  it('starts new lines and blinks half as often as before', () => {
-    expect(SKY_APPEAR_STEP).toBe(2.5);
-    expect(SKY_APPEAR_STEP / 1.25).toBe(2);
-    expect(SKY_ANCHOR_MIN_SECONDS).toBe(12);
-    expect(SKY_ANCHOR_MIN_SECONDS / 6).toBe(2);
-    expect(SKY_FAINT_MIN_SECONDS).toBe(14);
-    expect(SKY_FAINT_MIN_SECONDS / 7).toBe(2);
+  it('starts new lines, retracts, and blinks slower than the e0e254a9 cadence', () => {
+    expect(SKY_APPEAR_STEP).toBeGreaterThan(2.5);
+    expect(SKY_APPEAR_STEP).toBe(5);
+    expect(SKY_ANCHOR_MIN_SECONDS).toBeGreaterThan(12);
+    expect(SKY_ANCHOR_MIN_SECONDS).toBe(24);
+    expect(SKY_FAINT_MIN_SECONDS).toBeGreaterThan(14);
+    expect(SKY_FAINT_MIN_SECONDS).toBe(28);
+    expect(SKY_DRAW_MIN_SECONDS).toBeGreaterThan(22);
+    expect(SKY_DRAW_MIN_SECONDS).toBe(44);
 
     const sky = buildStarField(SKY_PAGE_ID, 'cadence');
     const delays = [...sky.connectors.map((connector) => connector.delay)].sort((a, b) => a - b);
     const steps = delays.slice(1).map((delay, index) => delay - delays[index]);
     const mean = steps.reduce((sum, step) => sum + step, 0) / steps.length;
-    expect(mean).toBeGreaterThan(2.2);
-    expect(mean).toBeLessThan(2.8);
+    expect(mean).toBeGreaterThan(4.7);
+    expect(mean).toBeLessThan(5.3);
+    expect(sky.connectors.every((connector) => connector.duration > 22)).toBe(true);
+    expect(sky.anchors.every((star) => star.duration > 12)).toBe(true);
+    expect(sky.faint.every((star) => star.duration > 14)).toBe(true);
   });
 
   it('retracts and fades lines instead of only adding them, without emptying the sky', () => {

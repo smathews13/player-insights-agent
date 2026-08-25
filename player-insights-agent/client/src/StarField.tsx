@@ -29,8 +29,8 @@ export type StarSurface = 'ask' | 'working';
 /** Shared by the login gate and the app shell so both mount the same sky. */
 export const SKY_PAGE_ID = 'app-sky';
 
-/** Seconds between new connectors starting to draw. Half the previous 1.25s cadence. */
-export const SKY_APPEAR_STEP = 2.5;
+/** Seconds between new connectors starting to draw. Half the e0e254a9 2.5s cadence. */
+export const SKY_APPEAR_STEP = 5;
 
 /** Fraction of a cycle spent inking (matches ast-sky-draw 0–12%). Spawn cadence is not this. */
 export const SKY_DRAW_INK_UNTIL = 0.12;
@@ -68,18 +68,19 @@ export interface StarFieldDrawing {
   };
 }
 
-/** Anchor twinkle cycle floor. Half the previous blink rate (was 6s). */
-export const SKY_ANCHOR_MIN_SECONDS = 12;
-/** Faint twinkle cycle floor. Half the previous blink rate (was 7s). */
-export const SKY_FAINT_MIN_SECONDS = 14;
+/** Anchor twinkle cycle floor. Half the e0e254a9 blink rate (was 12s). */
+export const SKY_ANCHOR_MIN_SECONDS = 24;
+/** Faint twinkle cycle floor. Half the e0e254a9 blink rate (was 14s). */
+export const SKY_FAINT_MIN_SECONDS = 28;
 const ANCHOR_SPREAD = 12;
 const FAINT_SPREAD = 12;
-const DRAW_MIN_SECONDS = 22;
+/** Connector cycle floor. Half the e0e254a9 retract rate (was 22s). */
+export const SKY_DRAW_MIN_SECONDS = 44;
 const DRAW_SPREAD = 8;
 const DRIFT_ANCHOR_SECONDS = 90;
 const DRIFT_FAINT_SECONDS = 70;
 const JITTER_PX = 6;
-const EARLY_SHIFT = 4.4;
+const EARLY_SHIFT = 8.8;
 const EXTRA_HOPS = 6;
 const DROP_HOPS_MIN = 2;
 const DROP_HOPS_SPREAD = 3;
@@ -221,7 +222,7 @@ export function liveConnectorsAt(drawing: StarFieldDrawing, elapsedSeconds: numb
 
 function appearDelay(index: number, random: () => number, used: Set<string>): Timing {
   for (;;) {
-    const duration = tenth(DRAW_MIN_SECONDS + random() * DRAW_SPREAD);
+    const duration = tenth(SKY_DRAW_MIN_SECONDS + random() * DRAW_SPREAD);
     const delay = tenth(index * SKY_APPEAR_STEP - EARLY_SHIFT + (random() * 0.4 - 0.1));
     const key = `${duration}/${delay}`;
     if (!used.has(key)) {
