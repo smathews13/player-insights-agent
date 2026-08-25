@@ -9,6 +9,8 @@
  * and the envelope are all on the same axis and can be compared directly.
  */
 import type { TraceStage, TraceSummary } from './answer-shape';
+import { withDisplayedStageStatus } from '../../shared/run-verdict';
+import type { RunVerdict } from '../../shared/run-verdict';
 
 /**
  * What a row was, in the vocabulary a reader thinks in.
@@ -269,12 +271,18 @@ function countOverlaps(rows: TimelineRow[]): number {
 /**
  * Turns a recorded trace into everything the panel draws.
  *
- * `question` is the run's own prompt, shown on the envelope row. It is the only
- * argument that is not read from the trace, and it is display text rather than
- * a measurement.
+ * `question` is the run's own prompt, shown on the envelope row. It is display
+ * text rather than a measurement. `verdict` is the run's answer status: when
+ * that is Complete, a synthesis span the agent stored as `partial` (optional
+ * DSF clip on a finished listing) is shown as complete, so this panel cannot
+ * disagree with Ask.
  */
-export function buildTimeline(trace: TraceSummary | null | undefined, question = ''): TimelineModel {
-  const stages = trace?.stages ?? [];
+export function buildTimeline(
+  trace: TraceSummary | null | undefined,
+  question = '',
+  verdict?: RunVerdict
+): TimelineModel {
+  const stages = [...withDisplayedStageStatus(trace?.stages ?? [], verdict)];
   const wallClockMs = measuredTotal(trace?.totalMs);
   const { origin } = runOrigin(stages);
 

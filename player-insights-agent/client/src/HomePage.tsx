@@ -77,7 +77,7 @@ import { railStagesFor, runningElapsed, runningStepNumber } from './live-progres
 import { beginLiveAsk, endLiveAsk, hydrateLiveAsk, openLiveAsk, recordLiveStage, useLiveAsk } from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
-import { answerRunVerdict } from '../../shared/run-verdict';
+import { answerRunVerdict, withDisplayedStageStatus } from '../../shared/run-verdict';
 import { RunStatusPill } from './RunStatusPill';
 import {
   isWorkingConversationRun,
@@ -510,13 +510,24 @@ export function HomePage() {
   // was empty, which is exactly the state a reader returning to a working
   // conversation arrives in, so the rail narrated the previous question's run
   // under a pill saying this one was live. See `railStagesFor`.
-  const railStages = railStagesFor({
-    loading,
-    runStopped: Boolean(runStopped),
-    liveStages,
-    answeredStages: answer?.trace.stages ?? [],
-    clarificationStages: asked?.trace.stages ?? [],
-  });
+  const railStages = withDisplayedStageStatus(
+    railStagesFor({
+      loading,
+      runStopped: Boolean(runStopped),
+      liveStages,
+      answeredStages: answer?.trace.stages ?? [],
+      clarificationStages: asked?.trace.stages ?? [],
+    }),
+    !loading && answer
+      ? answerRunVerdict({
+          stages: answer.trace.stages,
+          caveats: answer.caveats,
+          figures: answer.figures,
+          narrative: answer.narrative,
+          content: answer.content,
+        })
+      : undefined
+  );
   /**
    * Which step is in progress, one-based, or 0 when the run has not said so.
    *

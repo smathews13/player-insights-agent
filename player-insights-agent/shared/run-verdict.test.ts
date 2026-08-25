@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   answerHasLanded,
   answerRunVerdict,
+  displayedStageStatus,
   DSF_CLIP_NOTE,
   runVerdict,
   takeawayWhenTablesLanded,
   TIME_LIMIT_TAKEAWAY,
+  withDisplayedStageStatus,
   WRITER_STOPPED_CAVEAT,
 } from './run-verdict';
 
@@ -110,6 +112,19 @@ describe('the verdict a caveat cannot steal', () => {
         narrative: listing,
       })
     ).toBe('complete');
+  });
+
+  it('shows Prepared the answer as Complete when the run is Complete', () => {
+    const synthesis = { id: 'synthesis', status: 'partial' };
+    expect(displayedStageStatus(synthesis, 'complete')).toBe('complete');
+    expect(displayedStageStatus(synthesis, 'partial')).toBe('partial');
+    expect(displayedStageStatus({ id: 'synthesis', status: 'failed' }, 'complete')).toBe('failed');
+    expect(displayedStageStatus({ id: 'sql', status: 'partial' }, 'complete')).toBe('partial');
+    expect(withDisplayedStageStatus([synthesis], 'complete')).toEqual([
+      { id: 'synthesis', status: 'complete' },
+    ]);
+    const native = [synthesis];
+    expect(withDisplayedStageStatus(native, 'partial')).toBe(native);
   });
 
   it('calls a writer timeout after tables landed Partial, not Failed or unanswered', () => {

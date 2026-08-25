@@ -12,6 +12,7 @@ import { ChevronDown } from 'lucide-react';
 
 import type { TraceStage, TraceSummary } from './answer-shape';
 import { buildTimeline, formatMs, toolNameFromId, type RollUpRow, type TimelineRow, type ToolType } from './trace-timeline';
+import type { RunVerdict } from '../../shared/run-verdict';
 import { describePayload, payloadSize } from './trace-payload';
 import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
@@ -368,15 +369,21 @@ function Gantt({ model, expanded, onToggle }: { model: ReturnType<typeof buildTi
 export function TraceTimeline({
   trace,
   question = '',
+  verdict,
   className = '',
 }: {
   trace: TraceSummary | { stages: TraceStage[]; totalMs?: number; toolCalls?: number } | null | undefined;
   /** The run's own prompt, shown on the envelope row. Display text, not a measurement. */
   question?: string;
+  /**
+   * The run's answer status. When Complete, "Prepared the answer" stored as
+   * native PARTIAL (optional DSF clip on a finished listing) is shown Complete.
+   */
+  verdict?: RunVerdict;
   className?: string;
 }) {
   const summary = (trace ?? null) as TraceSummary | null;
-  const model = useMemo(() => buildTimeline(summary, question), [summary, question]);
+  const model = useMemo(() => buildTimeline(summary, question, verdict), [summary, question, verdict]);
   // One row open at a time. The rows carry whole SQL statements and whole tool
   // results now that the contract no longer truncates them, and several open at
   // once buries the chart they are meant to explain.

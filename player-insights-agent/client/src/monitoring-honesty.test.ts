@@ -401,6 +401,14 @@ describe('an outcome is what a store recorded, never the good case by default', 
     ).toBe('partial');
     expect(
       classifyOutcome({
+        hasStoredAnswer: true,
+        traceHasPartialStage: true,
+        synthesisIncomplete: false,
+        answerLanded: true,
+      })
+    ).toBe('completed');
+    expect(
+      classifyOutcome({
         runState: 'SUCCEEDED',
         hasStoredAnswer: true,
         traceHasFailedStage: true,

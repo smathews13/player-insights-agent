@@ -62,6 +62,7 @@ import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
 import { conversationFilterOptions, conversationRunNumber, KPI_HINTS, toolStageDurationMs } from './run-explorer-state';
 import { showsAdminSurfaces, useRole } from './role';
+import { answerRunVerdict } from '../../shared/run-verdict';
 import {
   applyRunLabelOverride,
   conversationRunChoices,
@@ -276,6 +277,14 @@ export function RunExplorer() {
   const traceState = useRunTrace(selected?.id);
   const runTrace = traceState.status === 'ready' ? traceState.data : null;
   const stages = runTrace?.trace?.stages ?? [];
+  const answerVerdict = runTrace
+    ? answerRunVerdict({
+        stages,
+        caveats: runTrace.caveats,
+        narrative: runTrace.narrative,
+        content: runTrace.takeaway,
+      })
+    : undefined;
   const isReference = runTrace?.mode === 'representative';
   // Two different quantities, deliberately not reconciled into one. `trace.toolCalls`
   // is the agent's own counter, incremented once per external call it makes.
@@ -551,6 +560,7 @@ export function RunExplorer() {
                   charts={runTrace?.charts}
                   trace={runTrace?.trace}
                   question={runTrace?.prompt ?? ''}
+                  verdict={answerVerdict}
                 />
               ) : (
                 <TraceUnavailable state={traceState} />
@@ -560,7 +570,7 @@ export function RunExplorer() {
               {/* The prompt, for the envelope row, which is the run's own
                   question here just as it is on the card. */}
               {stages.length > 0 && runTrace?.trace ? (
-                <TraceTimeline trace={runTrace.trace} question={runTrace.prompt ?? ''} />
+                <TraceTimeline trace={runTrace.trace} question={runTrace.prompt ?? ''} verdict={answerVerdict} />
               ) : (
                 <TraceUnavailable state={traceState} />
               )}

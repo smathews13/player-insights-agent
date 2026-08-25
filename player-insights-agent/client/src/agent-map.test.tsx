@@ -878,6 +878,30 @@ describe('a node opens what its stage recorded', () => {
     expect(markup).toContain('characters');
   });
 
+  it('does not mark Prepared the answer partial when the run is Complete', () => {
+    const markup = renderToStaticMarkup(
+      <TraceDag
+        stages={[stage({ id: 'synthesis', name: 'Prepared the answer', status: 'partial' })]}
+        activeIndex={-1}
+        verdict="complete"
+      />
+    );
+    expect(markup).toContain('Prepared the answer');
+    expect(markup).toContain('dag-node complete');
+    expect(markup).not.toContain('dag-node partial');
+  });
+
+  it('keeps Prepared the answer partial when the write actually stopped short', () => {
+    const markup = renderToStaticMarkup(
+      <TraceDag
+        stages={[stage({ id: 'synthesis', name: 'Prepared the answer', status: 'partial' })]}
+        activeIndex={-1}
+        verdict="partial"
+      />
+    );
+    expect(markup).toContain('dag-node partial');
+  });
+
   it('marks the rows with something to report, and folds the ones without', () => {
     // Derived from the numbers rather than from any knowledge of what the table is:
     // a table with nothing at zero has no findings to mark, because then every row

@@ -195,6 +195,46 @@ export function synthesisIncomplete(
 }
 
 /**
+ * The status "Prepared the answer" should show.
+ *
+ * The agent still stores the native LLM span. A finished catalog listing that
+ * clipped optional DSF detail is recorded as synthesis `partial` while the
+ * answer is Complete. Showing PARTIAL on that step is a second wording of the
+ * same fact (D13). When the run verdict is Complete, this step says Complete.
+ *
+ * A real incomplete write — failed synthesis, or partial plus a writer-stop
+ * caveat, which makes the card Partial — stays as recorded. This does not
+ * rewrite the stored trace.
+ */
+export function displayedStageStatus(stage: VerdictStage, verdict: RunVerdict): string {
+  const status = typeof stage.status === 'string' ? stage.status : '';
+  if (stage.id === 'synthesis' && verdict === 'complete' && status === 'partial') {
+    return 'complete';
+  }
+  return status;
+}
+
+/**
+ * Stages with "Prepared the answer" matching the run verdict when it is Complete.
+ *
+ * Same array when nothing changes, so a caller can keep a reference.
+ */
+export function withDisplayedStageStatus<T extends VerdictStage>(
+  stages: readonly T[],
+  verdict: RunVerdict | undefined
+): T[] {
+  if (verdict !== 'complete') return stages as T[];
+  let changed = false;
+  const next = stages.map((stage) => {
+    const status = displayedStageStatus(stage, verdict);
+    if (status === stage.status) return stage;
+    changed = true;
+    return { ...stage, status } as T;
+  });
+  return changed ? next : (stages as T[]);
+}
+
+/**
  * The run's verdict from stages, and only then from caveats that mean nothing
  * usable was written.
  *

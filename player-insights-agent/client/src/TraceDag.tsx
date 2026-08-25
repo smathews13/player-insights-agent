@@ -68,7 +68,7 @@ import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { reportEgress } from './egress-policy';
 import type { TraceStage, TraceSummary } from './answer-shape';
-import { takeawayWhenTablesLanded } from '../../shared/run-verdict';
+import { takeawayWhenTablesLanded, withDisplayedStageStatus, type RunVerdict } from '../../shared/run-verdict';
 import { describePayload, payloadSize, type Payload } from './trace-payload';
 import { buildTimeline, runOrigin, toolNameFromId } from './trace-timeline';
 import { AgentReport, ChipText, EntityName, GenieCard, MarkdownText, ResultSource, SemanticCard } from './StepResult';
@@ -670,6 +670,7 @@ export function TraceDag({
   charts,
   trace = null,
   question = '',
+  verdict,
 }: {
   stages: TraceStage[];
   activeIndex: number;
@@ -690,8 +691,14 @@ export function TraceDag({
   trace?: TraceSummary | null;
   /** The run prompt carried by the envelope's detail panel. */
   question?: string;
+  /**
+   * The run's answer status. When Complete, "Prepared the answer" stored as
+   * native PARTIAL is shown Complete, matching Ask.
+   */
+  verdict?: RunVerdict;
 }) {
-  const envelope = !compact && trace ? buildTimeline(trace, question).rows.find((row) => row.container) : undefined;
+  const shownStages = [...withDisplayedStageStatus(stages, verdict)];
+  const envelope = !compact && trace ? buildTimeline(trace, question, verdict).rows.find((row) => row.container) : undefined;
   const envelopeStage: TraceStage | null = envelope
     ? {
         id: envelope.id,
@@ -706,7 +713,7 @@ export function TraceDag({
         startMeasured: true,
       }
     : null;
-  const displayedStages = envelopeStage ? [envelopeStage, ...stages] : stages;
+  const displayedStages = envelopeStage ? [envelopeStage, ...shownStages] : shownStages;
   const displayedActiveIndex = envelopeStage && activeIndex >= 0 ? activeIndex + 1 : activeIndex;
   // The step the reader opened, by id rather than by position, and looked up in
   // the current stages rather than trusted: selecting a different run in the
@@ -719,7 +726,7 @@ export function TraceDag({
   // The instant the panel's offsets are measured from, decided in one place for
   // the whole app. See runOrigin: `start` is milliseconds since the run's own
   // origin today, and an absolute clock if the agent's convention ever changes.
-  const { origin } = runOrigin(stages);
+  const { origin } = runOrigin(shownStages);
   // Every stage, in both arrangements, in the order the run recorded them and
   // never re-sorted. The rail used to draw four evenly spread ones and drop the
   // rest, which live.css already records as the defect the live step list was
@@ -930,7 +937,7 @@ export function TraceDag({
    * and the record opens.
    */
   return (<div className="agent-path">
-      <AgentPathConstellation stages={stages} activeIndex={activeIndex} elapsedMs={elapsedMs} />
+      <AgentPathConstellation stages={shownStages} activeIndex={activeIndex} elapsedMs={elapsedMs} />
       {steps}
       {railPanel}
     </div>

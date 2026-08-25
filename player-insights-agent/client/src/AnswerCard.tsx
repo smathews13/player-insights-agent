@@ -16,6 +16,7 @@ import { dataAccessDisclosure } from './analytical-execution';
 import type { TraceStage } from './answer-shape';
 import { answerBadge, answerFallbackNotice, splitCaveats } from './degraded-answer';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
+import { answerRunVerdict } from '../../shared/run-verdict';
 import {
   Alert,
   AlertDescription,
@@ -144,6 +145,13 @@ export function AnswerCard({
     narrative: answer.narrative,
     content: answer.content,
     stages: displayed.trace.stages,
+  });
+  const processVerdict = answerRunVerdict({
+    stages: displayed.trace.stages,
+    caveats: answer.caveats,
+    figures: answer.figures,
+    narrative: answer.narrative,
+    content: answer.content,
   });
   const headline = readerFacingTakeaway(answer.takeaway, answer.narrative, {
     figures: answer.figures,
@@ -359,7 +367,7 @@ export function AnswerCard({
                 </CollapsibleTrigger>
               </div>
               <CollapsibleContent className="run-process-body">
-                <TraceTimeline trace={processTrace} question={question} />
+                <TraceTimeline trace={processTrace} question={question} verdict={processVerdict} />
               </CollapsibleContent>
             </Collapsible>
           </div>
