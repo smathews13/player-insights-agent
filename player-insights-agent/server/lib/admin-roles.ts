@@ -640,7 +640,9 @@ export type AdminAction =
   /** An admin asked the app identity to backfill system_billing=astrolabe on managed resources. */
   | 'resource-tags-applied'
   /** An admin corrected a run’s outcome or rating on the Run Explorer rail. */
-  | 'run-labels-updated';
+  | 'run-labels-updated'
+  /** An admin saved MLflow / bake-off values on Settings → Experimental. */
+  | 'benchmark-settings-updated';
 
 /**
  * Record what an admin did: who, when, what.
