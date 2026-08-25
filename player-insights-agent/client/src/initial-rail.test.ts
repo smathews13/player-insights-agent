@@ -18,6 +18,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { forgetRunLabelOverrides } from './run-header-labels';
 import { loadInitialRail, readRunSummaries, startInitialRail } from './initial-rail';
 
 const HOME = readFileSync(new URL('HomePage.tsx', import.meta.url), 'utf8');
@@ -40,6 +41,7 @@ function ok(body: unknown, headers: Record<string, string> = {}) {
 }
 
 afterEach(() => {
+  forgetRunLabelOverrides();
   vi.unstubAllGlobals();
 });
 

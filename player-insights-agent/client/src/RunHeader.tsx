@@ -38,6 +38,7 @@ import {
   persistRunLabels,
   railOutcomeValue,
   railRatingValue,
+  RUN_LABELS_NOT_SAVED,
   type RailOutcome,
   type RailRating,
   type RunLabelOverride,
@@ -52,6 +53,7 @@ export function RunHeader({
   groundedness,
   canEdit = false,
   editing: editingProp,
+  labelError: labelErrorProp,
   onLabelsSaved,
 }: {
   run: Run | null;
@@ -65,19 +67,26 @@ export function RunHeader({
   canEdit?: boolean;
   /** Tests open the editor without a click. Live use is the pencil. */
   editing?: boolean;
+  /** Tests pin a failed save. Live use is the persist catch. */
+  labelError?: string | null;
   onLabelsSaved?: (overlay: RunLabelOverride) => void;
 }) {
   const [editingState, setEditing] = useState(false);
+  const [labelErrorState, setLabelError] = useState<string | null>(null);
   const editing = editingProp ?? editingState;
+  const labelError = labelErrorProp ?? labelErrorState;
   const rating = ratingLabel(run?.rating);
   const displayedStatus = run?.status;
   const family = statusFamily(displayedStatus);
 
   const saveOverlay = (overlay: RunLabelOverride) => {
     if (!run) return;
+    setLabelError(null);
     void persistRunLabels(run.id, overlay)
       .then((saved) => onLabelsSaved?.(saved))
-      .catch(() => undefined);
+      .catch(() => {
+        setLabelError(RUN_LABELS_NOT_SAVED);
+      });
   };
   return (
     <div className="run-detail-head">
@@ -165,12 +174,19 @@ export function RunHeader({
           </div>
         )}
         {run && canEdit && editing && (
-          <RunHeaderLabelEditor
-            outcome={railOutcomeValue(displayedStatus)}
-            rating={railRatingValue(run.rating)}
-            onOutcome={(value: RailOutcome) => saveOverlay({ status: value })}
-            onRating={(value: RailRating) => saveOverlay({ rating: value })}
-          />
+          <>
+            <RunHeaderLabelEditor
+              outcome={railOutcomeValue(displayedStatus)}
+              rating={railRatingValue(run.rating)}
+              onOutcome={(value: RailOutcome) => saveOverlay({ status: value })}
+              onRating={(value: RailRating) => saveOverlay({ rating: value })}
+            />
+            {labelError ? (
+              <p className="run-header-label-error" role="alert">
+                {labelError}
+              </p>
+            ) : null}
+          </>
         )}
       </div>
       <div className="run-detail-figures">

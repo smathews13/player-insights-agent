@@ -70,6 +70,11 @@ import { attachControlState } from './attach-control';
 import { ANSWER_PARAM, CONVERSATION_PARAM, answerRowId } from './conversation-links';
 import { formatDuration, ratingOutOf } from './benchmark-summary';
 import { conversationRunSummary, railDuration, type RailRunSummary } from './rail-run-summary';
+import {
+  applyRunLabelOverrideToConversations,
+  applyRunLabelOverrideToSummaries,
+  subscribeRunLabelOverrides,
+} from './run-header-labels';
 import { slowestStageName } from './progress-labels';
 import { AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
 import { LiveProgress } from './LiveProgress';
@@ -1280,6 +1285,16 @@ export function HomePage() {
    * open thread does not remount, so the starter has to be reached from here.
    */
   useEffect(() => subscribeAskHome(() => startNewConversation()));
+  /**
+   * A pencil save on Run Explorer. That page updates its own list immediately;
+   * this map used to keep the first `/api/runs` Partial until a turn finished.
+   */
+  useEffect(() =>
+    subscribeRunLabelOverrides((conversationId, overlay) => {
+      setRunSummaries((current) => applyRunLabelOverrideToSummaries(current, conversationId, overlay));
+      setConversations((items) => applyRunLabelOverrideToConversations(items, conversationId, overlay));
+    })
+  );
 
   /**
    * Records one rating against one message.

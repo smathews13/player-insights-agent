@@ -6,8 +6,9 @@
  * a run. Conversation, message, user and tool-count stay as chips; they are not
  * reassigned from this rail.
  */
+import type { Conversation, Run } from './app-types';
+import { railStatusTone, type RailRunSummary } from './rail-run-summary';
 import { DOWN_RATING, UP_RATING } from './stored-feedback';
-import type { Run } from './app-types';
 
 export const RAIL_OUTCOME_OPTIONS = [
   { value: 'complete', label: 'Complete' },
@@ -77,6 +78,109 @@ export function applyRunLabelOverrideToList(
   return runs.map((run) => (run.id === runId ? applyRunLabelOverride(run, overlay) : run));
 }
 
+export const RUN_LABELS_NOT_SAVED = 'The run labels were not saved.';
+
+/**
+ * The Ask rail's scoped run-summaries map, after an administrator's choice.
+ *
+ * Ask prefers that map over the conversation list, and it used to keep the
+ * first `/api/runs` Partial after Run Explorer had already been told Complete.
+ * Same overlay rule as the recent-runs list: absent fields stay as they were.
+ */
+export function applyRunLabelOverrideToSummaries(
+  summaries: Map<string, RailRunSummary>,
+  conversationId: string,
+  overlay: RunLabelOverride | null | undefined
+): Map<string, RailRunSummary> {
+  const id = conversationId.trim();
+  if (!overlay || !id) return summaries;
+  const held = summaries.get(id);
+  if (!held) return summaries;
+  const status = overlay.status ?? held.status;
+  const rating =
+    overlay.rating === undefined || overlay.rating === null ? held.rating : ratingFromRail(overlay.rating);
+  const next = new Map(summaries);
+  next.set(id, {
+    ...held,
+    status,
+    tone: railStatusTone(status),
+    rating,
+  });
+  return next;
+}
+
+/**
+ * The conversation-list fallback, when `/api/runs` never described the row.
+ *
+ * Rating stays off this list: it is one reader's opinion and that route does
+ * not know whose it is.
+ */
+export function applyRunLabelOverrideToConversations(
+  conversations: readonly Conversation[],
+  conversationId: string,
+  overlay: RunLabelOverride | null | undefined
+): Conversation[] {
+  const id = conversationId.trim();
+  if (!overlay?.status || !id) return [...conversations];
+  return conversations.map((row) => (row.id === id ? { ...row, status: overlay.status } : row));
+}
+
+const rememberedOverlays = new Map<string, RunLabelOverride>();
+const overlayListeners = new Set<(conversationId: string, overlay: RunLabelOverride) => void>();
+
+/**
+ * Remember a saved overlay so Ask can apply it without waiting for a new turn.
+ *
+ * HomePage unmounts when Run Explorer opens, so a `useState` map there cannot
+ * hear the save. This is the cache that can: keyed by conversation, merged so
+ * a later rating edit does not forget the outcome just written.
+ */
+export function rememberRunLabelOverride(
+  conversationId: string,
+  overlay: RunLabelOverride
+): RunLabelOverride {
+  const id = conversationId.trim();
+  const next = { ...(rememberedOverlays.get(id) ?? {}), ...overlay };
+  if (!id) return next;
+  rememberedOverlays.set(id, next);
+  for (const listener of overlayListeners) listener(id, next);
+  return next;
+}
+
+/** Ask subscribes so a save on Run Explorer can rewrite the rail it already drew. */
+export function subscribeRunLabelOverrides(
+  listener: (conversationId: string, overlay: RunLabelOverride) => void
+): () => void {
+  overlayListeners.add(listener);
+  return () => overlayListeners.delete(listener);
+}
+
+export function applyRememberedRunLabelOverrides(
+  summaries: Map<string, RailRunSummary>
+): Map<string, RailRunSummary> {
+  let next = summaries;
+  for (const [id, overlay] of rememberedOverlays) {
+    next = applyRunLabelOverrideToSummaries(next, id, overlay);
+  }
+  return next;
+}
+
+export function applyRememberedRunLabelOverridesToConversations(
+  conversations: readonly Conversation[]
+): Conversation[] {
+  let next = [...conversations];
+  for (const [id, overlay] of rememberedOverlays) {
+    next = applyRunLabelOverrideToConversations(next, id, overlay);
+  }
+  return next;
+}
+
+/** Test isolation. Live use never forgets a save the administrator just made. */
+export function forgetRunLabelOverrides(): void {
+  rememberedOverlays.clear();
+  overlayListeners.clear();
+}
+
 export async function persistRunLabels(
   runId: string,
   overlay: RunLabelOverride,
@@ -88,7 +192,7 @@ export async function persistRunLabels(
     body: JSON.stringify(overlay),
   });
   if (!response.ok) {
-    throw new Error('The run labels were not saved.');
+    throw new Error(RUN_LABELS_NOT_SAVED);
   }
   return (await response.json()) as RunLabelOverride;
 }

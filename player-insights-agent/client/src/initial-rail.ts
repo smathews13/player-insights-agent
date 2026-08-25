@@ -27,6 +27,10 @@
 import type { Conversation, Run } from './app-types';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { railRunSummaries, type RailRunSummary } from './rail-run-summary';
+import {
+  applyRememberedRunLabelOverrides,
+  applyRememberedRunLabelOverridesToConversations,
+} from './run-header-labels';
 
 export interface InitialRail {
   /**
@@ -64,7 +68,9 @@ export async function readRunSummaries(): Promise<Map<string, RailRunSummary>> {
     const response = await fetch('/api/runs');
     if (!response.ok) return new Map();
     const rows = (await response.json()) as Run[];
-    return railRunSummaries(rows);
+    // Overlays saved in Run Explorer while Ask was unmounted. Without this the
+    // first `/api/runs` map can still be Partial after the pencil wrote Complete.
+    return applyRememberedRunLabelOverrides(railRunSummaries(rows));
   } catch {
     // No pills, and no stand-in ones.
     return new Map();
@@ -86,7 +92,7 @@ export async function readConversationList(): Promise<ConversationList> {
     if (!response.ok) throw new Error('Conversations unavailable');
     const items = (await response.json()) as Conversation[];
     return {
-      conversations: items,
+      conversations: applyRememberedRunLabelOverridesToConversations(items),
       // From the headers rather than from the row count: an unreadable store
       // answers with an empty array too, and only the header tells them apart.
       availability: listAvailability({ headers: response.headers, rowCount: items.length }),

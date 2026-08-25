@@ -1,23 +1,31 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RunHeader } from './RunHeader';
 import {
   applyRunLabelOverride,
+  applyRunLabelOverrideToConversations,
   applyRunLabelOverrideToList,
+  applyRunLabelOverrideToSummaries,
+  forgetRunLabelOverrides,
   persistRunLabels,
   railOutcomeValue,
   railRatingValue,
+  rememberRunLabelOverride,
+  RUN_LABELS_NOT_SAVED,
 } from './run-header-labels';
+import { readRunSummaries } from './initial-rail';
 import { RunListItem } from './RunExplorer';
 import { railRunSummaries } from './rail-run-summary';
 import { UP_RATING, DOWN_RATING } from './stored-feedback';
 import { partial } from './styles/stylesheet';
-import type { Run } from './app-types';
+import type { Conversation, Run } from './app-types';
 
 const RUNS_CSS = partial('runs.css');
 const SOURCE = readFileSync(new URL('./RunHeader.tsx', import.meta.url), 'utf8');
+const HOME = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
+const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 
 function rule(selector: string): string {
   const start = RUNS_CSS.indexOf(`\n${selector} {`);
@@ -103,6 +111,11 @@ describe('only an administrator can edit the rail labels', () => {
 });
 
 describe('an administrator’s rail choice is what a later open draws', () => {
+  afterEach(() => {
+    forgetRunLabelOverrides();
+    vi.unstubAllGlobals();
+  });
+
   it('applies a stored outcome and rating without changing the classified row when nothing was saved', () => {
     const stored = run({ status: 'partial', rating: null });
     expect(applyRunLabelOverride(stored, null).status).toBe('partial');
@@ -137,5 +150,61 @@ describe('an administrator’s rail choice is what a later open draws', () => {
     expect(markup).toMatch(/>complete</i);
     expect(markup).not.toMatch(/>partial</i);
     expect(railRunSummaries(listed).get('conv-9abcdef')?.status).toBe('complete');
+  });
+
+  it('refreshes the Ask rail cache when the pencil writes Complete', async () => {
+    const summaries = railRunSummaries([run({ status: 'partial', rating: null })]);
+    expect(summaries.get('conv-9abcdef')?.status).toBe('partial');
+    const next = applyRunLabelOverrideToSummaries(summaries, 'conv-9abcdef', {
+      status: 'complete',
+      rating: 'up',
+    });
+    expect(next.get('conv-9abcdef')).toMatchObject({ status: 'complete', rating: UP_RATING });
+    expect(next.get('conv-9abcdef')?.tone).toBe('ast-pill--pos');
+    const conversations: Conversation[] = [
+      { id: 'conv-9abcdef', title: 'tables', updated_at: '2026-08-25T10:00:00Z', status: 'partial' },
+    ];
+    expect(applyRunLabelOverrideToConversations(conversations, 'conv-9abcdef', { status: 'complete' })[0].status).toBe(
+      'complete'
+    );
+
+    rememberRunLabelOverride('conv-9abcdef', { status: 'complete', rating: 'up' });
+    vi.stubGlobal('fetch', async () =>
+      ({
+        ok: true,
+        json: async () => [run({ status: 'partial', rating: null })],
+      }) as Response
+    );
+    const reread = await readRunSummaries();
+    expect(reread.get('conv-9abcdef')?.status).toBe('complete');
+    expect(reread.get('conv-9abcdef')?.rating).toBe(UP_RATING);
+    expect(HOME).toContain('subscribeRunLabelOverrides');
+    expect(HOME).toContain('applyRunLabelOverrideToSummaries');
+    expect(EXPLORER).toContain('rememberRunLabelOverride');
+  });
+});
+
+describe('a failed label save is visible', () => {
+  afterEach(() => {
+    forgetRunLabelOverrides();
+    vi.unstubAllGlobals();
+  });
+
+  it('refuses to swallow a persist failure, and names it on the rail', async () => {
+    const send = vi.fn(async () => ({ ok: false, status: 503 }) as Response);
+    await expect(
+      persistRunLabels(FULL_ID, { status: 'complete' }, send as unknown as typeof fetch)
+    ).rejects.toThrow(RUN_LABELS_NOT_SAVED);
+    expect(SOURCE).not.toMatch(/\.catch\(\(\) => undefined\)/);
+    expect(SOURCE).toContain('setLabelError(RUN_LABELS_NOT_SAVED)');
+    const markup = header({
+      canEdit: true,
+      editing: true,
+      labelError: RUN_LABELS_NOT_SAVED,
+    });
+    expect(markup).toContain('run-header-label-error');
+    expect(markup).toContain(RUN_LABELS_NOT_SAVED);
+    expect(markup).toContain('role="alert"');
+    expect(rule('.run-header-label-error')).toContain('color: var(--destructive)');
   });
 });

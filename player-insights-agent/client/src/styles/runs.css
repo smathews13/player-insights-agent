@@ -504,6 +504,11 @@
   font: inherit;
   font-size: var(--text-sm);
 }
+.run-header-label-error {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  color: var(--destructive);
+}
 /* Conversation context is compact and distinct from status. The conversation
    badge copies the full id while showing only the shared six-character prefix.
    Its shared ast-pill status class supplies the complete/partial/refused color;

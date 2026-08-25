@@ -68,6 +68,7 @@ import {
   applyRunLabelOverride,
   applyRunLabelOverrideToList,
   readRunLabelOverride,
+  rememberRunLabelOverride,
   type RunLabelOverride,
 } from './run-header-labels';
 
@@ -465,6 +466,7 @@ export function RunExplorer() {
               const id = selected?.id;
               setLabelOverlay(overlay);
               if (id) setRuns((rows) => applyRunLabelOverrideToList(rows, id, overlay));
+              if (selected?.conversation_id) rememberRunLabelOverride(selected.conversation_id, overlay);
             }}
           />
           {isReference && (
