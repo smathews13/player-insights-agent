@@ -106,6 +106,14 @@ describe('the two rails share one width and the card sits in the middle', () => 
     );
   });
 
+  it('pulls the answer and working cards a few pixels off both rails', () => {
+    // 16px total, 8px a side. The composer stays on `--conversation-inset`;
+    // shrinking the track would move the box a reader types in as well.
+    expect(ASK).toMatch(
+      /\.conversation-main \.answer-card,\s*\.conversation-main \.plan-card\s*\{[^}]*width:\s*calc\(100% - 16px\)/
+    );
+  });
+
   it('keeps the Asked by chip a compact pill, not a full-width slab', () => {
     expect(RAIL).toMatch(/\.conversation-owner\s*\{[^}]*flex:\s*none[^}]*width:\s*auto/);
     expect(RAIL).not.toMatch(/\.conversation-owner\s*\{[^}]*width:\s*100%/);

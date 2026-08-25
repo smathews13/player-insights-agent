@@ -22,7 +22,7 @@ import {
   tokensTile,
 } from './monitoring-view';
 import * as viewModule from './monitoring-view';
-import { classifyOutcome, classifyRefusal, codesForCause } from '../../shared/monitoring-contract';
+import { classifyOutcome, classifyRefusal, codesForCause, applyAdminOutcome } from '../../shared/monitoring-contract';
 import type { MonitoringSummary } from '../../shared/monitoring-contract';
 
 /**
@@ -416,6 +416,13 @@ describe('an outcome is what a store recorded, never the good case by default', 
       })
     ).toBe('completed');
     expect(classifyOutcome({ runState: 'DEADLINE_EXCEEDED', answerLanded: true })).toBe('partial');
+    expect(
+      classifyOutcome({
+        hasStoredAnswer: true,
+        proseOnlyDegraded: true,
+        answerLanded: true,
+      })
+    ).toBe('partial');
   });
 
   /**
@@ -427,6 +434,11 @@ describe('an outcome is what a store recorded, never the good case by default', 
     expect(classifyOutcome({})).toBe('partial');
     expect(classifyOutcome({ hasStoredAnswer: false })).toBe('partial');
     expect(classifyOutcome({ runState: 'RUNNING' })).toBe('partial');
+  });
+
+  it('shows an administrator’s Complete on the same outcome the lists read', () => {
+    expect(applyAdminOutcome('partial', 'complete')).toBe('completed');
+    expect(applyAdminOutcome('partial', null)).toBe('partial');
   });
 });
 

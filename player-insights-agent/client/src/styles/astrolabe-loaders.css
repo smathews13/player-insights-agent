@@ -435,15 +435,17 @@ html:not([data-theme='dark']) .ast-working .ast-mark--dark {
  * Tight, because this block is read in a transcript rather than on a splash
  * screen: the step list is directly under it and the question directly above,
  * and the 48/40/40 inset this carried was set around a 220px panel that is no
- * longer here. The gap is the card rung rather than the panel's 24 for the same
- * reason -- three short lines with a stanza between each read as three blocks.
+ * longer here. Top is 28 rather than 18 so the 72px mark is not tight under
+ * the card's hairline; it is not the old 48, which was a band of empty sky.
+ * The gap stays the card rung rather than the panel's 24 -- three short lines
+ * with a stanza between each read as three blocks.
  */
 .ast-splash {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  padding: 18px 24px 20px;
+  padding: 28px 24px 20px;
 }
 
 .ast-splash-copy {

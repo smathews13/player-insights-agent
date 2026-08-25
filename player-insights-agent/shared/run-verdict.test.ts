@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   answerHasLanded,
+  ANSWER_LANDED_SQL,
   answerRunVerdict,
+  classifiedRunStatusSql,
   displayedStageStatus,
   DSF_CLIP_NOTE,
+  PROSE_ONLY_DEGRADED_SQL,
   runVerdict,
   takeawayWhenTablesLanded,
   TIME_LIMIT_TAKEAWAY,
@@ -30,6 +33,15 @@ describe('whether an answer actually landed', () => {
     expect(answerHasLanded({ narrative: TABLE })).toBe(true);
     expect(answerHasLanded({ narrative: '', figures: [] })).toBe(false);
     expect(answerHasLanded({ narrative: 'This question was not answered.' })).toBe(false);
+  });
+
+  it('treats a markdown catalog listing as landed without a pipe table', () => {
+    expect(
+      answerHasLanded({
+        narrative:
+          'All 12 declared tables in <your_catalog>.<your_schema> are listed below.',
+      })
+    ).toBe(true);
   });
 });
 
@@ -110,6 +122,27 @@ describe('the verdict a caveat cannot steal', () => {
         stages: [{ id: 'synthesis', status: 'partial' }],
         caveats: [],
         narrative: listing,
+      })
+    ).toBe('complete');
+  });
+
+  it('keeps a markdown catalog listing Complete when there is no pipe table', () => {
+    expect(
+      answerRunVerdict({
+        stages: [
+          { id: 'data_source_finder', status: 'partial' },
+          { id: 'synthesis', status: 'partial' },
+        ],
+        caveats: [],
+        narrative: [
+          'All 12 declared tables in <your_catalog>.<your_schema> are listed below.',
+          '',
+          '### Gold',
+          '`gold_player_180d_summary`',
+          '',
+          '### Silver',
+          '`silver_gameplay_activity`',
+        ].join('\n'),
       })
     ).toBe('complete');
   });
@@ -203,5 +236,21 @@ describe('the verdict a caveat cannot steal', () => {
         narrative: 'VLH Online leads the last 30 days on distinct players in the window.',
       })
     ).toBe('partial');
+  });
+});
+
+describe('the store query lands a catalog listing the same way the card does', () => {
+  it('treats declared tables and a 40-character narrative as landed, not only a pipe table', () => {
+    expect(ANSWER_LANDED_SQL).toMatch(/declared tables/i);
+    expect(ANSWER_LANDED_SQL).toContain('>= 40');
+    expect(PROSE_ONLY_DEGRADED_SQL).toContain('this answer is degraded');
+    const sql = classifiedRunStatusSql({
+      trace: 'a.trace',
+      payload: 'a.payload',
+      caveats: 'a.caveats',
+    });
+    expect(sql).toContain('declared tables');
+    expect(sql).toContain('this answer is degraded');
+    expect(sql).toContain("THEN 'complete'");
   });
 });

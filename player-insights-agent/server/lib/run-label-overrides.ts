@@ -54,6 +54,25 @@ export function applyOverlayToRunRow(
   return next;
 }
 
+/** Join the overlay row so every list read can COALESCE it onto the classified verdict. */
+export function overlayJoinSql(runIdExpr: string, alias = 'label_overlay'): string {
+  return `LEFT JOIN ${RUN_LABEL_OVERRIDES_TABLE} ${alias} ON ${alias}.run_id = ${runIdExpr}`;
+}
+
+/** Overlay wins when present. Classification is the fallback, not a second wording. */
+export function overlayStatusSql(classifiedSql: string, alias = 'label_overlay'): string {
+  return `COALESCE(${alias}.status, ${classifiedSql})`;
+}
+
+export function overlayRatingSql(classifiedSql: string, alias = 'label_overlay'): string {
+  return `CASE
+         WHEN ${alias}.rating = 'unrated' THEN NULL::int
+         WHEN ${alias}.rating = 'up' THEN 5
+         WHEN ${alias}.rating = 'down' THEN 2
+         ELSE (${classifiedSql})
+       END`;
+}
+
 export async function readRunLabelOverride(
   query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>,
   runId: string

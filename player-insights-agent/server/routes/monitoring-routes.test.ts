@@ -154,6 +154,9 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_DETAIL_QUERY).toContain('AS answer_landed');
     expect(MONITORING_QUESTIONS_QUERY).toContain('AS synthesis_incomplete');
     expect(MONITORING_DETAIL_QUERY).toContain('AS synthesis_incomplete');
+    expect(MONITORING_QUESTIONS_QUERY).toContain('AS overlay_status');
+    expect(MONITORING_DETAIL_QUERY).toContain('AS overlay_status');
+    expect(MONITORING_QUESTIONS_QUERY).toContain('declared tables');
   });
 
   /**
@@ -248,6 +251,38 @@ describe('one row, from what the stores recorded', () => {
     expect(
       questionFromRow(row({ synthesis_incomplete: true, answer_landed: true }), ledger()).outcome
     ).toBe('partial');
+  });
+
+  it('calls a finished catalog listing Completed even when a step was stored partial', () => {
+    const catalog = questionFromRow(
+      row({
+        question_id: 'tables',
+        answer_id: 'msg-tables',
+        trace_partial: true,
+        answer_landed: true,
+        synthesis_incomplete: false,
+      }),
+      ledger()
+    );
+    expect(catalog.outcome).toBe('completed');
+  });
+
+  it('shows an administrator’s Complete on the Monitoring row and in the KPI count', () => {
+    const overlaid = questionFromRow(
+      row({
+        question_id: 'tables',
+        answer_id: 'msg-tables',
+        trace_partial: true,
+        overlay_status: 'complete',
+      }),
+      ledger()
+    );
+    const leftover = questionFromRow(row({ question_id: 'q2', answer_id: 'a2', trace_partial: true }), ledger());
+    expect(overlaid.outcome).toBe('completed');
+    expect(leftover.outcome).toBe('partial');
+    const summary = summarize([overlaid, leftover], 1);
+    expect(summary.completed).toBe(1);
+    expect(summary.partial).toBe(1);
   });
 
   it('records a question with no terminal answer as partial', () => {

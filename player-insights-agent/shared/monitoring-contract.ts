@@ -80,6 +80,12 @@ export function classifyOutcome(input: {
    * a finished answer Partial whenever one SQL or Genie call had missed.
    */
   synthesisIncomplete?: boolean;
+  /**
+   * Words-only degraded reply: enough narrative to look landed, no figures
+   * or table. Same rule as the Ask card, so Monitoring cannot call it Completed
+   * while Ask says Partial.
+   */
+  proseOnlyDegraded?: boolean;
 }): QuestionOutcome {
   const state = (input.runState ?? '').trim().toUpperCase();
   const writerMissed =
@@ -88,6 +94,7 @@ export function classifyOutcome(input: {
     return 'partial';
   }
   if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
+  if (input.proseOnlyDegraded) return 'partial';
   if (state && state !== 'SUCCEEDED') return 'partial';
   if (input.answerLanded && (state === 'SUCCEEDED' || input.hasStoredAnswer)) {
     return 'completed';
@@ -96,6 +103,33 @@ export function classifyOutcome(input: {
   if (input.traceHasPartialStage) return 'partial';
   if (state === 'SUCCEEDED' || input.hasStoredAnswer) return 'completed';
   return 'partial';
+}
+
+/**
+ * An administrator's stored outcome, when one exists. Classification is
+ * unchanged; this is the same word every surface must show after a pencil save.
+ */
+export function applyAdminOutcome(
+  classified: QuestionOutcome,
+  overlayStatus?: string | null
+): QuestionOutcome {
+  const word = (overlayStatus ?? '').trim().toLowerCase();
+  if (word === 'complete' || word === 'completed') return 'completed';
+  if (word === 'partial') return 'partial';
+  if (word === 'failed') return 'failed';
+  if (word === 'refused') return 'refused';
+  return classified;
+}
+
+/** An administrator's stored rating, when one exists. */
+export function applyAdminRating(
+  classified: 'up' | 'down' | null,
+  overlayRating?: string | null
+): 'up' | 'down' | null {
+  const word = (overlayRating ?? '').trim().toLowerCase();
+  if (word === 'unrated') return null;
+  if (word === 'up' || word === 'down') return word;
+  return classified;
 }
 
 /**

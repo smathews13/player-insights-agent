@@ -34,6 +34,13 @@
 .conversation-main .plan-card {
   max-width: var(--conversation-measure);
   margin-inline: auto;
+  /*
+   * A few extra pixels off each side, so the working and answer cards sit a
+   * little off both rails. The track still fills and the composer still uses
+   * `--conversation-inset`; only these cards shorten. 16px is 8px a side.
+   * Specificity beats `.answer-card { width: 100% }` in answer.css.
+   */
+  width: calc(100% - 16px);
 }
 .conversation-main .answer-card > [data-slot='card-content'] {
   padding-inline: 20px;

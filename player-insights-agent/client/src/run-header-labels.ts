@@ -64,6 +64,19 @@ export function applyRunLabelOverride(run: Run, overlay: RunLabelOverride | null
   return { ...run, status, rating };
 }
 
+/**
+ * The same overlay, on every row of a list. The header used to apply it
+ * alone, so Recent runs / Ask / Monitoring kept the classified Partial.
+ */
+export function applyRunLabelOverrideToList(
+  runs: readonly Run[],
+  runId: string,
+  overlay: RunLabelOverride | null | undefined
+): Run[] {
+  if (!overlay) return [...runs];
+  return runs.map((run) => (run.id === runId ? applyRunLabelOverride(run, overlay) : run));
+}
+
 export async function persistRunLabels(
   runId: string,
   overlay: RunLabelOverride,

@@ -176,11 +176,13 @@ describe('the splash flicker is the splash’s drawing, not a second loader', ()
 
   it('keeps the splash tight enough to read as part of the transcript', () => {
     // The 48/40/40 inset and the 24px gap were set around the panel, and with it
-    // gone they are a third of a viewport of nothing above "Working on it". The
-    // numbers are what the block is allowed to grow back to.
+    // gone they are a third of a viewport of nothing above "Working on it". Top
+    // has to clear the 72px mark off the card hairline (28) without growing
+    // back into that band. The gap ceiling is what the block may not reopen.
     const splash = body('.ast-splash', LOADERS);
     const [top] = splash.match(/padding:\s*(\d+)px/)?.slice(1) ?? [];
-    expect(Number(top)).toBeLessThanOrEqual(24);
+    expect(Number(top)).toBeGreaterThanOrEqual(24);
+    expect(Number(top)).toBeLessThanOrEqual(32);
     expect(Number(splash.match(/gap:\s*(\d+)px/)?.[1])).toBeLessThanOrEqual(16);
   });
 });

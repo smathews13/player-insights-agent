@@ -24,9 +24,17 @@
  * costing the page.
  */
 import { APP_SCHEMA } from '../../shared/app-schema';
-import { ANSWER_LANDED_SQL, bindSynthesisIncompleteSql, VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
+import {
+  ANSWER_LANDED_SQL,
+  bindSynthesisIncompleteSql,
+  PROSE_ONLY_DEGRADED_SQL,
+  VERDICT_STAGE_EXEMPTION_SQL,
+} from '../../shared/run-verdict';
+import { overlayJoinSql } from '../lib/run-label-overrides';
 import type { Application, Request, Response } from 'express';
 import {
+  applyAdminOutcome,
+  applyAdminRating,
   classifyOutcome,
   classifyRefusal,
   refusalSentence,
@@ -259,6 +267,9 @@ export const MONITORING_QUESTIONS_QUERY = `
          ) AS trace_partial,
          ${ANSWER_LANDED_SQL.split('payload').join('a.response_json')} AS answer_landed,
          ${bindSynthesisIncompleteSql("a.response_json->'trace'", "a.response_json->'caveats'")} AS synthesis_incomplete,
+         ${PROSE_ONLY_DEGRADED_SQL.split('payload').join('a.response_json').split('caveats').join("a.response_json->'caveats'")} AS prose_only_degraded,
+         label_overlay.status AS overlay_status,
+         label_overlay.rating AS overlay_rating,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
@@ -297,6 +308,7 @@ export const MONITORING_QUESTIONS_QUERY = `
     WHERE fb.message_id = a.id AND fb.user_email = q.user_email
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
+  ${overlayJoinSql('a.id')}
   ORDER BY q.asked_at DESC
 `;
 
@@ -333,6 +345,9 @@ export const MONITORING_DETAIL_QUERY = `
          ) AS trace_partial,
          ${ANSWER_LANDED_SQL.split('payload').join('a.response_json')} AS answer_landed,
          ${bindSynthesisIncompleteSql("a.response_json->'trace'", "a.response_json->'caveats'")} AS synthesis_incomplete,
+         ${PROSE_ONLY_DEGRADED_SQL.split('payload').join('a.response_json').split('caveats').join("a.response_json->'caveats'")} AS prose_only_degraded,
+         label_overlay.status AS overlay_status,
+         label_overlay.rating AS overlay_rating,
          a.execution_mode, a.execution_identity_verified,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
@@ -365,6 +380,7 @@ export const MONITORING_DETAIL_QUERY = `
     WHERE fb.message_id = a.id AND fb.user_email = c.user_email
     ORDER BY fb.created_at DESC LIMIT 1
   ) f ON TRUE
+  ${overlayJoinSql('a.id')}
   WHERE q.id = $1 AND q.role = 'user'
 `;
 
@@ -553,14 +569,18 @@ export function rangeTotalsFrom(row: Record<string, unknown> | undefined,
 export function questionFromRow(row: Record<string, unknown>, ledger: Map<string, LedgerVerdict>): MonitoringQuestion {
   const answerId = text(row.answer_id);
   const verdict = answerId ? ledger.get(answerId) : undefined;
-  const outcome = classifyOutcome({
-    runState: verdict?.state ?? null,
-    hasStoredAnswer: answerId !== '',
-    traceHasFailedStage: row.trace_failed === true,
-    traceHasPartialStage: row.trace_partial === true,
-    answerLanded: row.answer_landed === true,
-    synthesisIncomplete: row.synthesis_incomplete === true,
-  });
+  const outcome = applyAdminOutcome(
+    classifyOutcome({
+      runState: verdict?.state ?? null,
+      hasStoredAnswer: answerId !== '',
+      traceHasFailedStage: row.trace_failed === true,
+      traceHasPartialStage: row.trace_partial === true,
+      answerLanded: row.answer_landed === true,
+      synthesisIncomplete: row.synthesis_incomplete === true,
+      proseOnlyDegraded: row.prose_only_degraded === true,
+    }),
+    text(row.overlay_status)
+  );
   return {
     id: text(row.question_id),
     conversationId: text(row.conversation_id),
@@ -574,7 +594,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
     outcomeDetail: refusalSentence(verdict?.code),
     durationMs: integer(row.total_ms),
     toolCalls: integer(row.tool_calls),
-    rating: sentiment(row.sentiment, integer(row.usefulness)),
+    rating: applyAdminRating(sentiment(row.sentiment, integer(row.usefulness)), text(row.overlay_rating)),
     tables: tableList(row.sources),
   };
 }
@@ -900,14 +920,18 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         question: text(row.question),
         askedBy: text(row.user_email),
         askedAt: stamp(row.asked_at),
-        outcome: classifyOutcome({
-          runState: verdict?.state ?? null,
-          hasStoredAnswer: answerId !== '',
-          traceHasFailedStage: row.trace_failed === true,
-          traceHasPartialStage: row.trace_partial === true,
-          answerLanded: row.answer_landed === true,
-          synthesisIncomplete: row.synthesis_incomplete === true,
-        }),
+        outcome: applyAdminOutcome(
+          classifyOutcome({
+            runState: verdict?.state ?? null,
+            hasStoredAnswer: answerId !== '',
+            traceHasFailedStage: row.trace_failed === true,
+            traceHasPartialStage: row.trace_partial === true,
+            answerLanded: row.answer_landed === true,
+            synthesisIncomplete: row.synthesis_incomplete === true,
+            proseOnlyDegraded: row.prose_only_degraded === true,
+          }),
+          text(row.overlay_status)
+        ),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,
         // Withheld, not blanked: the field is null and `conditioning` says why.
@@ -925,7 +949,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
           executionMode && typeof row.execution_identity_verified === 'boolean'
             ? { mode: executionMode, verified: row.execution_identity_verified }
             : null,
-        rating: sentiment(row.sentiment, integer(row.usefulness)),
+        rating: applyAdminRating(sentiment(row.sentiment, integer(row.usefulness)), text(row.overlay_rating)),
         usefulness: integer(row.usefulness),
         comment: text(row.comment) || null,
         // Absent rather than dead. `mlflowReference` answers null for a trace id

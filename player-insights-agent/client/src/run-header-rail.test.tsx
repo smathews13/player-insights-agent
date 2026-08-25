@@ -5,10 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { RunHeader } from './RunHeader';
 import {
   applyRunLabelOverride,
+  applyRunLabelOverrideToList,
   persistRunLabels,
   railOutcomeValue,
   railRatingValue,
 } from './run-header-labels';
+import { RunListItem } from './RunExplorer';
+import { railRunSummaries } from './rail-run-summary';
 import { UP_RATING, DOWN_RATING } from './stored-feedback';
 import { partial } from './styles/stylesheet';
 import type { Run } from './app-types';
@@ -121,5 +124,18 @@ describe('an administrator’s rail choice is what a later open draws', () => {
     });
     await persistRunLabels(FULL_ID, { status: 'complete', rating: 'up' }, send as unknown as typeof fetch);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts Complete on the recent-runs row, Ask rail, and a later reload of the same list', () => {
+    const stored = run({ status: 'partial', rating: null });
+    const listed = applyRunLabelOverrideToList([stored], FULL_ID, { status: 'complete', rating: 'up' });
+    expect(listed[0].status).toBe('complete');
+    expect(listed[0].rating).toBe(UP_RATING);
+    const markup = renderToStaticMarkup(
+      <RunListItem run={listed[0]} active={true} onSelect={() => undefined} />
+    );
+    expect(markup).toMatch(/>complete</i);
+    expect(markup).not.toMatch(/>partial</i);
+    expect(railRunSummaries(listed).get('conv-9abcdef')?.status).toBe('complete');
   });
 });

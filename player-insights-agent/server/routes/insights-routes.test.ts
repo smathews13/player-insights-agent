@@ -2599,6 +2599,10 @@ describe('the run verdict a chart cannot degrade', () => {
     expect(sql).toContain("a.payload->'figures'");
     expect(sql).toContain("THEN 'partial'");
     expect(sql).toContain("THEN 'complete'");
+    expect(sql).toContain('declared tables');
+    expect(sql).toContain('>= 40');
+    expect(sql).toContain('label_overlay');
+    expect(sql).toContain('this answer is degraded');
     // No unfiltered any-stage failed predicate. A finished answer with one
     // missed SQL call must not become Partial on read.
     expect(sql).not.toContain('(@.status == "failed")');

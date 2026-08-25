@@ -325,15 +325,73 @@ export const INCOMPLETE_ANSWER_CAVEAT_SQL =
   `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
 
 /**
- * Figures, a pipe table, or a real narrative — the same test as
- * {@link answerHasLanded}, for the stored-run queries. `payload` is the
- * answer JSON object (`response_json`).
+ * Figures or a pipe table. Catalog inventory is markdown, not a pipe table,
+ * so this is not enough on its own to call an answer landed.
  */
-export const ANSWER_LANDED_SQL = `(
+export const STRUCTURED_EVIDENCE_SQL = `(
   (jsonb_typeof(payload->'figures') = 'array' AND jsonb_array_length(payload->'figures') > 0)
   OR COALESCE(payload->>'narrative', '') ~ '\\|'
   OR COALESCE(payload->>'content', '') ~ '\\|'
 )`;
+
+/**
+ * Figures, a pipe table, a catalog listing, or a real narrative — the same
+ * test as {@link answerHasLanded}, for the stored-run queries. `payload` is
+ * the answer JSON object (`response_json`).
+ *
+ * Pipe tables used to be the only prose path. Catalog inventory is markdown
+ * headings and backtick table names, so a finished 12-table listing never
+ * matched, the list fell through to "a step was partial", and Ask / Monitoring
+ * / Run Explorer said Partial while the card said Complete.
+ */
+export const ANSWER_LANDED_SQL = `(
+  ${STRUCTURED_EVIDENCE_SQL}
+  OR COALESCE(payload->>'narrative', '') ~* 'declared tables'
+  OR COALESCE(payload->>'content', '') ~* 'declared tables'
+  OR (
+    length(trim(BOTH FROM COALESCE(payload->>'narrative', '') || ' ' || COALESCE(payload->>'content', ''))) >= 40
+    AND COALESCE(payload->>'narrative', '') !~* '^this question was not answered'
+    AND COALESCE(payload->>'content', '') !~* '^this question was not answered'
+  )
+)`;
+
+/**
+ * Words-only degraded replies. Matching {@link answerRunVerdict}: enough
+ * narrative to trip {@link ANSWER_LANDED_SQL}, but not a finished analysis.
+ * Bind `payload` and `caveats` the same way as the other SQL fragments.
+ */
+export const PROSE_ONLY_DEGRADED_SQL = `(
+  EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c
+    WHERE c ~* 'this answer is degraded' AND c ~* 'structured result'
+  )
+  AND NOT ${STRUCTURED_EVIDENCE_SQL}
+)`;
+
+/**
+ * The classified run status, one CASE, for every list that publishes a
+ * verdict. An admin overlay wraps this with COALESCE; it does not replace it.
+ */
+export function classifiedRunStatusSql(input: { trace: string; payload: string; caveats: string }): string {
+  const empty = EMPTY_STAGES_FAILED_SQL.split('trace').join(input.trace);
+  const landed = ANSWER_LANDED_SQL.split('payload').join(input.payload);
+  const synth = bindSynthesisIncompleteSql(input.trace, input.caveats);
+  const prose = PROSE_ONLY_DEGRADED_SQL.split('payload').join(input.payload).split('caveats').join(input.caveats);
+  const incomplete = INCOMPLETE_ANSWER_CAVEAT_SQL.split('caveats').join(input.caveats);
+  const failedStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
+  const partialStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
+  return `CASE
+           WHEN ${empty} THEN 'failed'
+           WHEN ${prose} THEN
+             CASE WHEN ${failedStage} THEN 'failed' ELSE 'partial' END
+           WHEN ${landed} AND ${synth} THEN 'partial'
+           WHEN ${landed} THEN 'complete'
+           WHEN ${failedStage} THEN 'failed'
+           WHEN ${partialStage} THEN 'partial'
+           WHEN ${incomplete} THEN 'partial'
+           ELSE 'complete'
+         END`;
+}
 
 /**
  * "Prepared the answer" failed, or stopped short with a real writer-stop

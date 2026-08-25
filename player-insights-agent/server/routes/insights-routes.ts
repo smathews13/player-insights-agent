@@ -19,14 +19,8 @@ import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer';
-import {
-  ANSWER_LANDED_SQL,
-  bindSynthesisIncompleteSql,
-  DEADLINE_TRUNCATED_SQL,
-  EMPTY_STAGES_FAILED_SQL,
-  INCOMPLETE_ANSWER_CAVEAT_SQL,
-  VERDICT_STAGE_EXEMPTION_SQL,
-} from '../../shared/run-verdict';
+import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
+import { overlayJoinSql, overlayRatingSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
 import { credentialLifetime } from '../lib/benchmark-identity';
 import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
@@ -600,16 +594,11 @@ export const RUNS_QUERY = `
          -- timeout or failed synthesis after those tables landed is partial,
          -- so Monitoring, Ask, and Run Explorer say the same word. A finished
          -- writer with tables stays complete even when another step missed.
-         CASE
-           WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join('a.trace')} THEN 'failed'
-           WHEN ${ANSWER_LANDED_SQL.split('payload').join('a.payload')}
-            AND ${bindSynthesisIncompleteSql('a.trace', 'a.caveats')} THEN 'partial'
-           WHEN ${ANSWER_LANDED_SQL.split('payload').join('a.payload')} THEN 'complete'
-           WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
-           WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
-           WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split('caveats').join('a.caveats')} THEN 'partial'
-           ELSE 'complete'
-         END AS status,
+         -- A markdown catalog listing (no pipe table) is landed. An admin
+         -- overlay, when one exists, is the word every surface must show.
+         ${overlayStatusSql(
+           classifiedRunStatusSql({ trace: 'a.trace', payload: 'a.payload', caveats: 'a.caveats' })
+         )} AS status,
          -- Whether the run stopped before it had finished. The two halves record
          -- it differently and neither is inferred from the counts: a benchmark
          -- writes a truncation object saying why (see BenchmarkTruncation), and a
@@ -634,16 +623,17 @@ export const RUNS_QUERY = `
          -- The caller's own rating. The feedback route accepts any message id,
          -- so without the user_email predicate this would show whatever score
          -- anyone else submitted against the same answer.
-         (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
+         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
           WHERE f.message_id = a.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-          ORDER BY f.created_at DESC LIMIT 1) AS rating,
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
          a.created_at
   FROM answers a
+  ${overlayJoinSql('a.id')}
   UNION ALL
   SELECT b.id, 'benchmark' AS kind, NULL AS conversation_id,
          b.metrics_json->>'prompt' AS prompt,
          CASE WHEN b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
-         b.status,
+         ${overlayStatusSql('b.status')} AS status,
          jsonb_typeof(b.metrics_json->'truncation') = 'object' AS truncated,
          -- NULL because a suite has no single trace to read it off: each case is
          -- its own agent run with its own spaces, and the run row records none of
@@ -658,11 +648,12 @@ export const RUNS_QUERY = `
          -- The caller's own rating, from the same table the conversation half
          -- reads. feedback.message_id carries no foreign key and the feedback
          -- route accepts any id, so a run id works here unchanged.
-         (SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
+         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
           WHERE f.message_id = b.id AND f.user_email = $2 AND f.usefulness IS NOT NULL
-          ORDER BY f.created_at DESC LIMIT 1) AS rating,
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
          b.created_at
   FROM ${APP_SCHEMA}.benchmark_runs b
+  ${overlayJoinSql('b.id')}
   ORDER BY created_at DESC
   LIMIT 200`;
 
@@ -1869,20 +1860,18 @@ export const CONVERSATION_RAIL_LIMIT = 100;
 const CONVERSATION_VERDICT_JOIN = `
   LEFT JOIN LATERAL (
     SELECT
-      CASE
-        WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join("m.response_json->'trace'")} THEN 'failed'
-        WHEN ${ANSWER_LANDED_SQL.split('payload').join('m.response_json')}
-         AND ${bindSynthesisIncompleteSql("m.response_json->'trace'", "m.response_json->'caveats'")} THEN 'partial'
-        WHEN ${ANSWER_LANDED_SQL.split('payload').join('m.response_json')} THEN 'complete'
-        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
-        WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
-        WHEN ${INCOMPLETE_ANSWER_CAVEAT_SQL.split('caveats').join("m.response_json->'caveats'")} THEN 'partial'
-        ELSE 'complete'
-      END AS status,
+      ${overlayStatusSql(
+        classifiedRunStatusSql({
+          trace: "m.response_json->'trace'",
+          payload: 'm.response_json',
+          caveats: "m.response_json->'caveats'",
+        })
+      )} AS status,
       (jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.id == "cap")')
         OR ${DEADLINE_TRUNCATED_SQL.split('caveats').join("m.response_json->'caveats'")}) AS truncated,
       ROUND((m.response_json->'trace'->>'totalMs')::numeric)::int AS duration_ms
     FROM ${APP_SCHEMA}.messages m
+    ${overlayJoinSql('m.id')}
     WHERE m.conversation_id = c.id
       AND m.role = 'assistant'
       AND jsonb_typeof(m.response_json->'trace') = 'object'

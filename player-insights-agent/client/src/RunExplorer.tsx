@@ -66,6 +66,7 @@ import { answerRunVerdict } from '../../shared/run-verdict';
 import { UsedThisRun } from './UsedThisRun';
 import {
   applyRunLabelOverride,
+  applyRunLabelOverrideToList,
   readRunLabelOverride,
   type RunLabelOverride,
 } from './run-header-labels';
@@ -329,7 +330,11 @@ export function RunExplorer() {
     let live = true;
     setLabelOverlay(null);
     void readRunLabelOverride(runId).then((overlay) => {
-      if (live) setLabelOverlay(overlay);
+      if (!live) return;
+      setLabelOverlay(overlay);
+      if (overlay) {
+        setRuns((rows) => applyRunLabelOverrideToList(rows, runId, overlay));
+      }
     });
     return () => {
       live = false;
@@ -439,7 +444,7 @@ export function RunExplorer() {
               visibleRuns.map((run) => (
                 <RunListItem
                   key={run.id}
-                  run={run}
+                  run={run.id === displayed?.id && displayed ? displayed : run}
                   active={run.id === selected?.id}
                   onSelect={() => setSelectedId(run.id)}
                 />
@@ -456,7 +461,11 @@ export function RunExplorer() {
             reference={isReference}
             groundedness={groundedness}
             canEdit={canEdit}
-            onLabelsSaved={setLabelOverlay}
+            onLabelsSaved={(overlay) => {
+              const id = selected?.id;
+              setLabelOverlay(overlay);
+              if (id) setRuns((rows) => applyRunLabelOverrideToList(rows, id, overlay));
+            }}
           />
           {isReference && (
             <Alert>

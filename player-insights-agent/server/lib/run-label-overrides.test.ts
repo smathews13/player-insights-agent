@@ -3,6 +3,8 @@ import { isAdminRoute } from '../lib/admin-roles';
 import {
   applyOverlayToRunRow,
   overlayFromRow,
+  overlayJoinSql,
+  overlayStatusSql,
   writeRunLabelOverride,
 } from '../lib/run-label-overrides';
 
@@ -47,5 +49,11 @@ describe('run label overlay persistence', () => {
     );
     expect(listed.status).toBe('complete');
     expect(listed.rating).toBe(5);
+  });
+
+  it('wraps the classified status so every list read can COALESCE the overlay', () => {
+    expect(overlayJoinSql('a.id')).toContain('run_label_overrides');
+    expect(overlayStatusSql(`'partial'`)).toContain('COALESCE');
+    expect(overlayStatusSql(`'partial'`)).toContain('label_overlay.status');
   });
 });
