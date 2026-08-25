@@ -826,11 +826,11 @@ describe('a node opens what its stage recorded', () => {
     // anything: it measures what pressing that button shows. Above a rendered
     // card it was the length of a payload the reader was no longer looking at.
     expect(markup).toMatch(/aria-pressed="false" title="2 lines · \d+ characters">Raw · 2 lines<\/button>/);
-    // The app's one segmented treatment: an outlined group whose pressed segment is
-    // filled in the action colour with white on it.
+    // The app's one segmented treatment: an outlined group whose pressed segment
+    // is filled from the shared token the timeline toggle also reads.
     const pressed = rule(".trace-dag.map .dag-seg button[aria-pressed='true']");
-    expect(pressed).toMatch(/background: var\(--ast-blue\)/);
-    expect(pressed).toMatch(/color: var\(--ast-white\)/);
+    expect(pressed).toMatch(/background: var\(--ast-seg-pressed\)/);
+    expect(pressed).toMatch(/color: var\(--ast-seg-pressed-ink\)/);
   });
 
   it('draws a result that is a grid as a table, and one that is not as prose', () => {

@@ -552,8 +552,8 @@
   color: var(--ast-text-secondary);
 }
 .trace-payload-seg button[aria-pressed='true'] {
-  background: var(--ast-blue);
-  color: var(--ast-white);
+  background: var(--ast-seg-pressed);
+  color: var(--ast-seg-pressed-ink);
 }
 /* The agent's own ceiling, surfaced. A cap the reader does not notice is worse
    than no cap, because they would take the box for the whole value. */

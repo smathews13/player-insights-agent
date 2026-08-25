@@ -887,7 +887,8 @@
   color: var(--ast-text-secondary);
 }
 /* Rendered | Raw, as the app's one segmented control: a hairline outline, and the
-   pressed segment filled in the action colour with white on it. */
+   pressed segment filled from `--ast-seg-pressed` so the timeline toggle and this
+   one cannot pick different blues. */
 .trace-dag.map .dag-seg {
   flex: none;
   margin-left: auto;
@@ -905,8 +906,8 @@
   color: var(--ast-text-secondary);
 }
 .trace-dag.map .dag-seg button[aria-pressed='true'] {
-  background: var(--ast-blue);
-  color: var(--ast-white);
+  background: var(--ast-seg-pressed);
+  color: var(--ast-seg-pressed-ink);
 }
 /*
  * ── A result drawn as the shape it is ─────────────────────────────────────

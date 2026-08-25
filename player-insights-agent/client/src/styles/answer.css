@@ -523,10 +523,14 @@
  */
 .answer-prose {
   /* Body grey rather than the ink the headings take: this is long-form prose and
-     #3A3838 is what the design sets it in, at 11.65:1 on white. */
+     #3A3838 is what the design sets it in, at 11.65:1 on white. 14px is one
+     rung above the old 12.5px body: the Source line and these paragraphs
+     share that size everywhere the card is drawn, so Ask, Monitoring and
+     the Run Explorer do not disagree. The takeaway and the figure rail stay
+     on their own rungs. */
   color: var(--ast-text-long);
   text-wrap: pretty;
-  font-size: 12.5px;
+  font-size: var(--ast-fs-14);
   line-height: 1.5;
 }
 .answer-prose > * {

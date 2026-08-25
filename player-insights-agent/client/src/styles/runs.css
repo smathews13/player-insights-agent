@@ -769,7 +769,7 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   color: var(--ast-neg-text);
 }
 .final-answer .answer-prose {
-  font-size: 13px;
+  font-size: var(--ast-fs-14);
   line-height: 1.55;
   min-width: 0;
 }

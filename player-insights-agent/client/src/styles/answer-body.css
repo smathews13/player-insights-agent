@@ -604,7 +604,9 @@
 .source-line {
   margin: 0;
   color: var(--ast-text-secondary);
-  font-size: var(--ast-fs-11);
+  /* Same rung as `.answer-prose`: Source through the following paragraphs
+     are one reading block, and 11px made the line the hardest part of it. */
+  font-size: var(--ast-fs-14);
   line-height: 1.5;
 }
 .source-line-label {
@@ -621,7 +623,7 @@
 .source-line .derivation-source a {
   color: var(--ast-pos-text);
   font-family: var(--font-mono);
-  font-size: var(--ast-fs-11);
+  font-size: var(--ast-fs-14);
   font-weight: 500;
 }
 .source-line-name .source-name-short,
@@ -637,12 +639,12 @@
 }
 .source-line .derivation-label {
   color: var(--ast-text-secondary);
-  font-size: var(--ast-fs-11);
+  font-size: var(--ast-fs-14);
   font-weight: 400;
 }
 .source-line .derivation-value {
   color: var(--ast-pos-text);
-  font-size: var(--ast-fs-11);
+  font-size: var(--ast-fs-14);
 }
 .source-line a {
   vertical-align: baseline;

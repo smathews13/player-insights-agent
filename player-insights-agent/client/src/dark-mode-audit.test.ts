@@ -421,15 +421,28 @@ describe('dark mode covers the shipped surfaces', () => {
     /*
      * Agent indices were the only step figures painted in the unreversed deep
      * blue; their border and fill still distinguish decisions from calls. The
-     * segmented control had the inverse defect and used the palest blue as a
-     * solid mass, so its pressed state moves one on-dark rung quieter.
+     * segmented control had the inverse defect and used ice as a solid mass.
+     * `--ast-seg-pressed` is the one fill both toggles read, remapped here to
+     * the deep action rung so a pressed pill is selected, not a sky chip.
      */
     expect(bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-index.agent")).toMatch(
       /color:\s*var\(--muted-foreground\)/
     );
-    const pressed = bodyFor(DARK, "html[data-theme='dark'] .trace-dag.map .dag-seg button[aria-pressed='true']");
-    expect(pressed).toMatch(/background:\s*var\(--ast-blue-on-dark\)/);
-    expect(pressed).toMatch(/color:\s*var\(--ast-navy\)/);
+    const darkTokens = ASTROLABE.split("html[data-theme='dark']")[1] ?? '';
+    expect(darkTokens).toMatch(/--ast-seg-pressed:\s*var\(--db-blue-700\)/);
+    expect(darkTokens).toMatch(/--ast-seg-pressed-ink:\s*var\(--ast-ink-on-dark\)/);
+    expect(DARK).not.toMatch(/\.dag-seg button\[aria-pressed='true'\]/);
+    expect(DARK).not.toMatch(/\.trace-payload-seg button\[aria-pressed='true'\]/);
+    for (const selector of [
+      ".trace-dag.map .dag-seg button[aria-pressed='true']",
+      ".trace-payload-seg button[aria-pressed='true']",
+    ]) {
+      const pressed = bodyFor(ALL_CSS, selector);
+      expect(pressed, `${selector} misses the shared pressed fill`).toMatch(
+        /background:\s*var\(--ast-seg-pressed\)/
+      );
+      expect(pressed).toMatch(/color:\s*var\(--ast-seg-pressed-ink\)/);
+    }
   });
 
   it('routes every filled destructive control through the darker semantic token', () => {

@@ -91,6 +91,18 @@ describe('the answer and plan cards sit on the design’s scale, not the library
     expect(rule).toContain('line-height: 1.5');
     expect(rule).not.toContain('var(--ast-lh-body)');
   });
+
+  it('sets Source and the following paragraphs on the same 14px body rung', () => {
+    // 12.5px prose and an 11px Source line were the same reading block drawn
+    // two sizes too small for the unused measure. One type step to 14px; the
+    // takeaway and the figure rail stay on the rungs already pinned above.
+    expect(ruleFor(ANSWER_CSS, '.answer-prose {')).toContain('font-size: var(--ast-fs-14)');
+    expect(ruleFor(BODY_CSS, '.source-line {')).toContain('font-size: var(--ast-fs-14)');
+    expect(ruleFor(ANSWER_CSS, '.answer-takeaway {')).toContain(
+      'font-size: calc(var(--ast-fs-16) + 0.5px)'
+    );
+    expect(ruleFor(BODY_CSS, '.answer-stat-value {')).toContain('font-size: var(--ast-fs-16)');
+  });
 });
 
 describe('the provenance chip has three tones and none is the action colour', () => {
@@ -683,7 +695,7 @@ describe('the card holds text it did not write', () => {
     expect(readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8')).toContain(
       '<p className="source-line">'
     );
-    expect(ruleFor(BODY_CSS, '.source-line {')).toContain('font-size: var(--ast-fs-11)');
+    expect(ruleFor(BODY_CSS, '.source-line {')).toContain('font-size: var(--ast-fs-14)');
   });
 
   it('places each recorded role after its source name', () => {

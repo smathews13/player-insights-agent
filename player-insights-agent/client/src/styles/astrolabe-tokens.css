@@ -93,6 +93,16 @@
    * brighter ice accent on the whole control.
    */
   --ast-primary-control-border: #4a8cbf;
+  /*
+   * The Rendered | Raw pressed fill. `--ast-blue` remaps to ice on the night
+   * sky, which is correct for a link or a bar and wrong as a filled pill: ice
+   * as a mass is the neon chip the reader asked to darken. Daylight keeps the
+   * action blue; dark takes the hover rung of the same family, still selected,
+   * no longer a sky chip. Both payload toggles (map and timeline) read this
+   * pair so they cannot drift.
+   */
+  --ast-seg-pressed: var(--ast-blue);
+  --ast-seg-pressed-ink: var(--ast-white);
   --ast-ice: #f0f6fb; /* AI-context surface. Replaces oat --db-warm #F9F7F4 everywhere */
   --ast-ice-accent: #8fc1e8; /* active tab, links, bars on the night sky */
   --ast-ink-on-dark: #f2f6fa;
@@ -360,6 +370,8 @@ html[data-theme='dark'] {
   --ast-info-text: var(--ast-ice-accent);
   --ast-info-fill: rgba(143, 193, 232, 0.16);
   --ast-blue: var(--ast-ice-accent);
+  --ast-seg-pressed: var(--db-blue-700);
+  --ast-seg-pressed-ink: var(--ast-ink-on-dark);
 }
 
 /*

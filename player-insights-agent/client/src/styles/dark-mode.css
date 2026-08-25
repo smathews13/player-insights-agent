@@ -683,17 +683,12 @@ html[data-theme='dark'] .trace-dag.map .dag-sql-more {
  * disabled while calls remained readable. Match the figures and leave the agent
  * distinction in its blue border, Ice fill and Astrolabe mark.
  *
- * The Rendered/Raw control has the opposite problem: `--ast-blue` becomes the
- * palest Ice accent. Its existing on-dark blue is one rung quieter while the
- * navy label preserves the pressed segment's contrast and obvious selection.
+ * Rendered | Raw used to inherit `--ast-blue` → ice here. That fill now lives
+ * on `--ast-seg-pressed`, remapped in the dark token block, so this file does
+ * not restyle the pills.
  */
 html[data-theme='dark'] .trace-dag.map .dag-index.agent {
   color: var(--muted-foreground);
-}
-
-html[data-theme='dark'] .trace-dag.map .dag-seg button[aria-pressed='true'] {
-  background: var(--ast-blue-on-dark);
-  color: var(--ast-navy);
 }
 
 /*

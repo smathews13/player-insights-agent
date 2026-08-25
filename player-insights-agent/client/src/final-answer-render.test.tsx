@@ -174,6 +174,13 @@ describe('the Overview column width', () => {
     expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*width:\s*100%/s);
     expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*max-width:\s*none/s);
   });
+
+  it('reads the Final Answer body at the same 14px rung as AnswerCard', () => {
+    const runs = partial('runs.css');
+    const answer = partial('answer.css');
+    expect(runs).toMatch(/\.final-answer \.answer-prose \{[^}]*font-size:\s*var\(--ast-fs-14\)/s);
+    expect(answer).toMatch(/\.answer-prose \{[^}]*font-size:\s*var\(--ast-fs-14\)/s);
+  });
 });
 
 describe('the Overview warning family', () => {
