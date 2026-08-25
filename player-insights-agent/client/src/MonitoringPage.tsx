@@ -93,6 +93,7 @@ import {
 } from './monitoring-filters';
 // Shared with Ops, so the two tabs cannot be over different windows.
 import { TimeRangeControl } from './TimeRangeControl';
+import { monitoringRangeId, useMonitoringQuestions } from './monitoring-session';
 import { rangeWindow } from './time-range';
 import { codesForCause } from '../../shared/monitoring-contract';
 import type {
@@ -1263,8 +1264,6 @@ export function MonitoringPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [payload, setPayload] = useState<MonitoringQuestionsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<MonitoringDetail | null>(null);
   const [panel, setPanel] = useState<PersonPanelPayload | null>(null);
   // The clock is read once per render pass rather than per row, so every
@@ -1276,34 +1275,14 @@ export function MonitoringPage() {
   const filters = filtersFromParams(searchParams);
   const drawer = drawerFromParams(searchParams);
   const window_ = rangeWindow(searchParams, now);
-
-  const load = useCallback(async (from: string, to: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/monitoring/questions?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-      );
-      // A 403 is the guard doing its job for a consumer who reached the URL.
-      // The body still parses as a payload shape, and `readState` carries the
-      // outcome, so there is no separate error path to keep in step.
-      const body = (await response.json()) as MonitoringQuestionsPayload;
-      setPayload(response.ok ? body : { ...body, readState: 'unavailable' });
-    } catch {
-      // No stand-in rows and no invented figures. The page swaps its body for
-      // the storage-failure panel, which says the list is blank because nobody
-      // could read it.
-      setPayload(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Once, and again on the range or on Refresh. Never on a filter change, which
-  // is applied in the browser, and never on a drawer opening.
-  useEffect(() => {
-    void load(window_.from, window_.to);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [load, searchParams.get('range'), searchParams.get('from'), searchParams.get('to')]);
+  // Once per range for the session, and again on Refresh. Never on a filter
+  // change, a drawer opening, or a remount of this page -- those used to
+  // re-run the list query because the route unmounts on navigation.
+  const { payload, loading, refresh } = useMonitoringQuestions(
+    monitoringRangeId(searchParams),
+    window_.from,
+    window_.to
+  );
 
   // The drawer's own read, keyed on which question is open.
   useEffect(() => {
@@ -1440,7 +1419,7 @@ export function MonitoringPage() {
             now={now}
             onRefresh={() => {
               setNow(Date.now());
-              void load(window_.from, window_.to);
+              refresh();
             }}
           />
         }
@@ -1457,7 +1436,7 @@ export function MonitoringPage() {
         onOpen={open}
         onChangeFilters={changeFilters}
         onClearFilters={() => setSearchParams(new URLSearchParams(clearedFilters(location.search)), { replace: true })}
-        onRetry={() => void load(window_.from, window_.to)}
+        onRetry={refresh}
       />
 
       {detail && drawer.question ? (
