@@ -59,6 +59,15 @@ export interface CostTile {
   id: string;
   /** What it is, in the reader's words. */
   label: string;
+  /**
+   * The workspace identifier this tile's spend is for, or '' if there is none.
+   *
+   * Warehouse id, serving-endpoint name, app name, job id. Empty when this
+   * deployment cannot name the object, or when the figure is not one object
+   * (Genie is workspace-wide). The page builds a Databricks link from this and
+   * the live workspace host; it does not invent a host or a path.
+   */
+  resourceId: string;
   quality: CostQuality;
   /** Spend, or null where it could not be sourced. */
   amount: number | null;

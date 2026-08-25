@@ -365,6 +365,26 @@ a.ops-dependency-label:hover {
   overflow-wrap: anywhere;
 }
 
+a.ops-dependency-name {
+  color: var(--ast-blue);
+  font-weight: 500;
+}
+
+a.ops-dependency-name:hover {
+  text-decoration: underline;
+}
+
+.ops-resource-open {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ast-blue);
+  flex: none;
+}
+
+.ops-resource-open:hover {
+  text-decoration: none;
+}
+
 /* The probe's own sentence, verbatim, so it is allowed to be long. */
 .ops-reason {
   color: var(--ast-text-long);
@@ -530,6 +550,15 @@ a.ops-dependency-label:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+a.ops-tile-label-text {
+  color: inherit;
+}
+
+a.ops-tile-label-text:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--ast-border-input);
 }
 
 /* Geometry only, as in the table above: the uppercase eyebrow beside it is

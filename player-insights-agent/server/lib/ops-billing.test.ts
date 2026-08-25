@@ -54,6 +54,16 @@ describe('billing attribution', () => {
     expect(endpoint?.quality).toBe('real');
   });
 
+  it('puts the configured identifier on each tile that has one', () => {
+    const tiles = buildTiles(IDS, []);
+    expect(tiles.find((tile) => tile.id === 'serving-endpoint')?.resourceId).toBe(IDS.endpointName);
+    expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.resourceId).toBe(IDS.warehouseId);
+    expect(tiles.find((tile) => tile.id === 'app-compute')?.resourceId).toBe(IDS.appName);
+    expect(tiles.find((tile) => tile.id === 'index-rebuild-job')?.resourceId).toBe('');
+    expect(tiles.find((tile) => tile.id === 'genie')?.resourceId).toBe('');
+    expect(tiles.find((tile) => tile.id === 'vector-search')?.resourceId).toBe('');
+  });
+
   it('does not turn a missing app-tag match into zero app-compute spend', () => {
     const app = buildTiles(IDS, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();

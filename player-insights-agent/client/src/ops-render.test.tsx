@@ -139,6 +139,7 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       {
         id: 'endpoint',
         label: 'Agent endpoint',
+        resourceId: '',
         quality: 'per-token',
         amount: 1.5,
         basis: 'total-in-range',
@@ -150,6 +151,7 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       {
         id: 'index-endpoint',
         label: 'Vector search endpoint',
+        resourceId: '',
         quality: 'rate',
         amount: 4,
         basis: 'per-day',
@@ -893,6 +895,7 @@ describe('the cost block', () => {
         {
           id: 'serving-endpoint',
           label: 'Serving endpoint',
+          resourceId: 'an-endpoint',
           quality: 'real',
           amount: 10,
           basis: 'total-in-range',
@@ -1319,6 +1322,9 @@ describe('Ops cost uses complete billing days', () => {
     expect(source).toContain('TimeRangeControl page="Ops cost"');
     expect(source).toContain("params.set('range', 'all')");
     expect(source).toContain("const runsHref = () => '/runs?range=all'");
+    expect(source).toContain('costTileWorkspaceObject(tile)');
+    expect(source).toContain('healthResourceObject(row)');
+    expect(source).toContain('databricksLink(host, object)');
   });
 });
 

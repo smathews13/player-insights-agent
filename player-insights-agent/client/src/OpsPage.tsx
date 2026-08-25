@@ -50,8 +50,10 @@ import { databricksLink } from '../../shared/databricks-links';
 import {
   bars,
   costAbsence,
+  costTileWorkspaceObject,
   count,
   errorFraming,
+  healthResourceObject,
   healthRows,
   latencyAbsence,
   latencyFigure,
@@ -370,6 +372,7 @@ function ResultPill({ pill }: { pill: HealthRow['pill'] }) {
 }
 
 export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
+  const host = useWorkspaceHost();
   const payload = block.data;
 
   if (block.failed) {
@@ -445,7 +448,10 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {rows.map((row) => {
+                    const object = healthResourceObject(row);
+                    const resourceHref = object ? databricksLink(host, object) : null;
+                    return (
                     <tr key={row.id}>
                       <th scope="row">
                         <span className="ops-dependency">
@@ -472,13 +478,42 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                           ) : (
                             <span className="ops-dependency-label">{row.label}</span>
                           )}
+                          {/* Databricks, beside Connections, and only where a
+                              verified path exists. Architecture does the same
+                              split: the in-app row always works, leaving the
+                              workspace is a second control. */}
+                          {resourceHref && row.name && row.label.includes(row.name) ? (
+                            <a
+                              className="ops-resource-open"
+                              href={resourceHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Open ${row.label} in Databricks`}
+                            >
+                              <ExternalLink className="size-3.5" aria-hidden="true" />
+                              <span className="sr-only">Open in Databricks</span>
+                            </a>
+                          ) : null}
                         </span>
                         {/* The configured identifier, and only where the label is
                             not already carrying it. Most probe labels are
                             "SQL warehouse · <id>" and the second line was the
-                            same string again under the first. */}
+                            same string again under the first. When a Databricks
+                            URL can be built, this identifier is that link. */}
                         {row.name && !row.label.includes(row.name) ? (
-                          <span className="ops-dependency-name">{row.name}</span>
+                          resourceHref ? (
+                            <a
+                              className="ops-dependency-name"
+                              href={resourceHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Open ${row.name} in Databricks`}
+                            >
+                              {row.name}
+                            </a>
+                          ) : (
+                            <span className="ops-dependency-name">{row.name}</span>
+                          )
                         ) : null}
                       </th>
                       <td className="ops-col-result">
@@ -495,7 +530,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                       </td>
                       <td className="ops-reason">{row.notes}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             ) : null}
@@ -550,7 +586,8 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
 
 export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
   const payload = block.data;
-  const billingHref = databricksLink(useWorkspaceHost(), { kind: 'table', table: 'system.billing.usage' });
+  const host = useWorkspaceHost();
+  const billingHref = databricksLink(host, { kind: 'table', table: 'system.billing.usage' });
 
   if (block.failed) {
     return (
@@ -587,6 +624,8 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               {payload.tiles.map((tile) => {
                 const view = tileView(tile, payload.currency);
                 const product = productForCostTile(tile.id);
+                const object = costTileWorkspaceObject(tile);
+                const href = object ? databricksLink(host, object) : null;
                 return (
                   <div key={tile.id} className="ops-tile">
                     {/* 14px beside the label, and absent on the two tiles whose
@@ -599,10 +638,24 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                           carrying its own full text on hover. An uppercase
                           letter-spaced eyebrow is the one line on this card that
                           cannot wrap without pushing the figure down a row and
-                          taking the card out of step with its neighbours. */}
-                        <span className="ops-tile-label-text" title={view.label}>
-                          {view.label}
-                        </span>
+                          taking the card out of step with its neighbours.
+                          A Databricks URL, when one can be built from the live
+                          workspace host and this tile's own identifier. */}
+                        {href ? (
+                          <a
+                            className="ops-tile-label-text"
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Open ${view.label} in Databricks`}
+                          >
+                            {view.label}
+                          </a>
+                        ) : (
+                          <span className="ops-tile-label-text" title={view.label}>
+                            {view.label}
+                          </span>
+                        )}
                       </p>
                       <ExperimentalBadge />
                     </div>

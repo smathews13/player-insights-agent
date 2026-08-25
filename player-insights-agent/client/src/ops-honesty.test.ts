@@ -21,8 +21,10 @@ import {
   BASIS_LABEL,
   bars,
   costAbsence,
+  costTileWorkspaceObject,
   count,
   errorFraming,
+  healthResourceObject,
   latencyRouteMatchesTrend,
   latencyRouteView,
   latencySharedFacts,
@@ -66,6 +68,7 @@ function tile(overrides: Partial<CostTile> = {}): CostTile {
   return {
     id: 'endpoint',
     label: 'Agent endpoint',
+    resourceId: '',
     quality: 'per-token',
     amount: 1.23,
     basis: 'total-in-range',
@@ -514,6 +517,66 @@ describe('the mark on a cost tile', () => {
 
   it('answers null for an id it has never seen, rather than guessing', () => {
     expect(productForCostTile('a-component-added-after-this-was-written')).toBeNull();
+  });
+});
+
+/**
+ * A tile or Health row is a Databricks link only when this app already knows
+ * the object and a verified workspace path. A guessed URL is worse than none.
+ */
+describe('which Ops resources open in Databricks', () => {
+  it('opens the cost tiles that name a workspace object', () => {
+    expect(costTileWorkspaceObject({ id: 'serving-endpoint', resourceId: 'an-endpoint' })).toEqual({
+      kind: 'serving-endpoint',
+      name: 'an-endpoint',
+    });
+    expect(costTileWorkspaceObject({ id: 'sql-warehouse', resourceId: 'wh-1' })).toEqual({
+      kind: 'sql-warehouse',
+      warehouseId: 'wh-1',
+    });
+    expect(costTileWorkspaceObject({ id: 'app-compute', resourceId: 'astrolabe' })).toEqual({
+      kind: 'app',
+      name: 'astrolabe',
+    });
+    expect(costTileWorkspaceObject({ id: 'index-rebuild-job', resourceId: '99' })).toEqual({
+      kind: 'job',
+      jobId: '99',
+    });
+  });
+
+  it('leaves Genie and Vector Search unlinked: no space, no verified endpoint path', () => {
+    expect(costTileWorkspaceObject({ id: 'genie', resourceId: '' })).toBeNull();
+    expect(costTileWorkspaceObject({ id: 'genie', resourceId: 'a-workspace' })).toBeNull();
+    expect(costTileWorkspaceObject({ id: 'vector-search', resourceId: 'vs-endpoint' })).toBeNull();
+  });
+
+  it('opens Health identifiers the Architecture page already knows how to open', () => {
+    expect(healthResourceObject({ kind: 'sql-warehouse', name: 'wh-1' })).toEqual({
+      kind: 'sql-warehouse',
+      warehouseId: 'wh-1',
+    });
+    expect(healthResourceObject({ kind: 'genie-space', name: '01ab' })).toEqual({
+      kind: 'genie-space',
+      spaceId: '01ab',
+    });
+    expect(healthResourceObject({ kind: 'serving-endpoint', name: 'an-endpoint' })).toEqual({
+      kind: 'serving-endpoint',
+      name: 'an-endpoint',
+    });
+    expect(healthResourceObject({ kind: 'catalog', name: 'a_catalog' })).toEqual({
+      kind: 'catalog',
+      catalog: 'a_catalog',
+    });
+    expect(healthResourceObject({ kind: 'vector-index', name: 'a.b.c' })).toEqual({
+      kind: 'vector-index',
+      index: 'a.b.c',
+    });
+  });
+
+  it('does not invent a Lakebase or Vector Search endpoint URL', () => {
+    expect(healthResourceObject({ kind: 'lakebase', name: 'a-branch' })).toBeNull();
+    expect(healthResourceObject({ kind: 'vector-endpoint', name: 'vs-endpoint' })).toBeNull();
+    expect(healthResourceObject({ kind: 'sql-warehouse', name: '' })).toBeNull();
   });
 });
 

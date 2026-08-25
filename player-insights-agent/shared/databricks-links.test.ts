@@ -29,6 +29,8 @@ describe('workspacePath', () => {
     expect(workspacePath({ kind: 'experiment', experimentId: '123' })).toBe('/ml/experiments/123');
     expect(workspacePath({ kind: 'vector-index', index: 'a.b.c' })).toBe('/explore/data/a/b/c');
     expect(workspacePath({ kind: 'table', table: 'a_catalog.a_schema.a_table' })).toBe('/explore/data/a_catalog/a_schema/a_table');
+    expect(workspacePath({ kind: 'app', name: 'astrolabe' })).toBe('/apps/astrolabe');
+    expect(workspacePath({ kind: 'job', jobId: '123' })).toBe('/jobs/123');
   });
 
   it('refuses to build a path from a missing identifier', () => {
@@ -37,6 +39,8 @@ describe('workspacePath', () => {
     expect(workspacePath({ kind: 'sql-warehouse', warehouseId: '' })).toBeNull();
     expect(workspacePath({ kind: 'catalog', catalog: '' })).toBeNull();
     expect(workspacePath({ kind: 'experiment', experimentId: '' })).toBeNull();
+    expect(workspacePath({ kind: 'app', name: '' })).toBeNull();
+    expect(workspacePath({ kind: 'job', jobId: '  ' })).toBeNull();
   });
 
   // A schema path with an empty catalog segment resolves to a different object,

@@ -27,6 +27,7 @@
 // decides WHICH product a row is about and never how the artwork is drawn.
 import { astPill } from './astrolabe-pill';
 import type { BrandProduct } from './brand-icons';
+import type { DatabricksObject } from '../../shared/databricks-links';
 import {
   COST_QUALITY_LABEL,
   DEPENDENCY_RESULT_LABEL,
@@ -133,6 +134,31 @@ export const BASIS_LABEL: Record<CostTile['basis'], string> = {
   'total-in-range': 'in range',
   'per-day': 'per day',
 };
+
+/**
+ * The workspace object a cost tile can open, or null.
+ *
+ * Null when the tile names no object, or when this app has no verified path for
+ * the object it does name. Vector Search billing is an endpoint; Architecture
+ * already refuses to guess a path for one. Genie billing is workspace-wide, so
+ * a workspace id is not a space to open.
+ */
+export function costTileWorkspaceObject(tile: Pick<CostTile, 'id' | 'resourceId'>): DatabricksObject | null {
+  const id = tile.resourceId.trim();
+  if (!id) return null;
+  switch (tile.id) {
+    case 'serving-endpoint':
+      return { kind: 'serving-endpoint', name: id };
+    case 'sql-warehouse':
+      return { kind: 'sql-warehouse', warehouseId: id };
+    case 'app-compute':
+      return { kind: 'app', name: id };
+    case 'index-rebuild-job':
+      return { kind: 'job', jobId: id };
+    default:
+      return null;
+  }
+}
 
 export function tileView(tile: CostTile, currency: string): TileView {
   // `CostTile` predates the discriminated per-question part, so defend the wire
@@ -353,6 +379,42 @@ const KIND_LABEL: Record<string, string> = {
   lakebase: 'Lakebase',
   app: 'App',
 };
+
+/**
+ * The workspace object a Health resource can open, or null.
+ *
+ * Same rule as Architecture: a guessed URL is a dead affordance that looks live.
+ * Vector Search endpoints and Lakebase have no verified workspace path here.
+ */
+export function healthResourceObject(row: { kind: string; name: string }): DatabricksObject | null {
+  const id = row.name.trim();
+  if (!id) return null;
+  switch (row.kind) {
+    case 'serving-endpoint':
+      return { kind: 'serving-endpoint', name: id };
+    case 'sql-warehouse':
+      return { kind: 'sql-warehouse', warehouseId: id };
+    case 'genie-space':
+      return { kind: 'genie-space', spaceId: id };
+    case 'vector-index':
+      return { kind: 'vector-index', index: id };
+    case 'catalog':
+      return { kind: 'catalog', catalog: id };
+    case 'schema': {
+      const [catalog, schema] = id.split('.');
+      return catalog && schema ? { kind: 'schema', catalog, schema } : null;
+    }
+    case 'table':
+      return { kind: 'table', table: id };
+    case 'app':
+      return { kind: 'app', name: id };
+    case 'experiment':
+    case 'experiment-id':
+      return { kind: 'experiment', experimentId: id };
+    default:
+      return null;
+  }
+}
 
 export function resourceWord(row: { kind: string; label: string }): string {
   const named = KIND_LABEL[row.kind];

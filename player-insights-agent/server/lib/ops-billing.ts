@@ -223,6 +223,30 @@ export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean 
 }
 
 /**
+ * The workspace identifier a tile can open, or ''.
+ *
+ * Separate from {@link canAsk}: Genie can be asked about (workspace id) but
+ * that id is not a Genie space, so the tile has nothing to open. Vector Search
+ * can name its endpoint and still have no verified workspace path for one.
+ */
+export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): string {
+  switch (component) {
+    case 'serving-endpoint':
+      return ids.endpointName;
+    case 'sql-warehouse':
+      return ids.warehouseId;
+    case 'app-compute':
+      return ids.appName;
+    case 'index-rebuild-job':
+      return ids.rebuildJobId;
+    case 'vector-search':
+      return ids.vectorEndpoint;
+    case 'genie':
+      return '';
+  }
+}
+
+/**
  * The one statement the cost block runs.
  *
  * One statement rather than seven because a warehouse charges by the second it
@@ -453,6 +477,7 @@ export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile
     const base = {
       id: component,
       label: description.label,
+      resourceId: resourceIdFor(component, ids),
       quality: description.quality,
       basis: description.basis,
       population: description.population,

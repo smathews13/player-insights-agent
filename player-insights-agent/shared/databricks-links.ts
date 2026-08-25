@@ -55,7 +55,9 @@ export type DatabricksObject =
   | { kind: 'vector-index'; index: string }
   | { kind: 'table'; table: string }
   | { kind: 'registered-model'; model: string }
-  | { kind: 'model-version'; model: string; version: string };
+  | { kind: 'model-version'; model: string; version: string }
+  | { kind: 'app'; name: string }
+  | { kind: 'job'; jobId: string };
 
 /**
  * The Explore path for a three-level name, or null for anything else.
@@ -117,6 +119,13 @@ export function workspacePath(object: DatabricksObject): string | null {
       return unityCatalogPath(object.table, part);
     case 'registered-model':
       return unityCatalogPath(object.model, part, 'models/');
+    case 'app':
+      // The app's own workspace page. Same path `appPageUrl` already builds in
+      // app-metadata: `/apps/<name>`. The Apps list (`workspaceAppsUrl`) is a
+      // different object and is not a substitute for a named app.
+      return object.name.trim() ? `/apps/${part(object.name)}` : null;
+    case 'job':
+      return object.jobId.trim() ? `/jobs/${part(object.jobId)}` : null;
     case 'model-version': {
       // The version page, which is where the Artifacts tab -- and so `agent.py`
       // -- lives. THE TAB ITSELF IS NOT ADDRESSABLE as far as this app can
