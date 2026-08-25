@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ENTITY_STYLES,
   DEFAULT_RUNTIME_SETTINGS,
+  FONT_FAMILY_STACKS,
   PAPER_ENTITY_STYLES,
   RuntimeSettingsSchema,
+  THEME_FONT_COLORS,
+  fontColorsForScheme,
   parseRuntimeSettings,
+  runtimeAppearanceCssVariables,
   runtimeEntityCssVariables,
   upgradePaperEntityStyles,
 } from './runtime-settings';
@@ -84,6 +88,54 @@ describe('runtime settings contract', () => {
     const { colorScheme: _ignored, ...withoutTheme } = DEFAULT_RUNTIME_SETTINGS;
     expect(RuntimeSettingsSchema.parse(withoutTheme).colorScheme).toBe('dark');
     expect(DEFAULT_RUNTIME_SETTINGS.colorScheme).toBe('dark');
+  });
+
+  it('fills type settings from the row theme when an older store omitted them', () => {
+    const { fontBodyColor: _b, fontMutedColor: _m, fontFamily: _f, fontSize: _s, ...legacy } = DEFAULT_RUNTIME_SETTINGS;
+    expect(RuntimeSettingsSchema.parse(legacy)).toMatchObject({
+      fontBodyColor: THEME_FONT_COLORS.dark.body,
+      fontMutedColor: THEME_FONT_COLORS.dark.muted,
+      fontFamily: 'dm-sans',
+      fontSize: 'm',
+    });
+    expect(
+      RuntimeSettingsSchema.parse({
+        ...legacy,
+        colorScheme: 'light',
+      })
+    ).toMatchObject({
+      fontBodyColor: THEME_FONT_COLORS.light.body,
+      fontMutedColor: THEME_FONT_COLORS.light.muted,
+    });
+  });
+
+  it('writes type onto the same CSS variables every surface already reads', () => {
+    const typed = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      fontBodyColor: '#ffeecc',
+      fontMutedColor: '#8899aa',
+      fontFamily: 'system' as const,
+      fontSize: 'l' as const,
+    };
+    expect(runtimeAppearanceCssVariables(typed)).toMatchObject({
+      '--ast-text': '#ffeecc',
+      '--foreground': '#ffeecc',
+      '--ast-text-secondary': '#8899aa',
+      '--muted-foreground': '#8899aa',
+      '--font-sans': FONT_FAMILY_STACKS.system,
+      '--text-base': '15px',
+      '--ast-fs-13': '15px',
+    });
+  });
+
+  it('follows the new theme when type colours were still the previous default', () => {
+    expect(fontColorsForScheme(DEFAULT_RUNTIME_SETTINGS, 'light')).toEqual({
+      fontBodyColor: THEME_FONT_COLORS.light.body,
+      fontMutedColor: THEME_FONT_COLORS.light.muted,
+    });
+    expect(
+      fontColorsForScheme({ ...DEFAULT_RUNTIME_SETTINGS, fontBodyColor: '#ffeecc', fontMutedColor: '#8899aa' }, 'light')
+    ).toEqual({ fontBodyColor: '#ffeecc', fontMutedColor: '#8899aa' });
   });
 
   it('refuses unsafe or ineffective values', () => {

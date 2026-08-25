@@ -118,4 +118,26 @@ describe('runtime settings persistence', () => {
     const value = await readRuntimeSettings(client([{ settings: legacy }]) as never, { maxAgeMs: 0 });
     expect(value.colorScheme).toBe('dark');
   });
+
+  it('persists type settings and restores them on a later read', async () => {
+    forgetRuntimeSettings();
+    const typed = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      fontBodyColor: '#ffeecc',
+      fontMutedColor: '#8899aa',
+      fontFamily: 'system' as const,
+      fontSize: 'l' as const,
+    };
+    const writer = client();
+
+    expect(await writeRuntimeSettings(writer as never, typed, 'admin@example.com')).toEqual(typed);
+    expect(writer.calls[0]?.values?.[1]).toBe(JSON.stringify(typed));
+
+    forgetRuntimeSettings();
+    const reloaded = await readRuntimeSettings(client([{ settings: typed }]) as never, { maxAgeMs: 0 });
+    expect(reloaded.fontBodyColor).toBe('#ffeecc');
+    expect(reloaded.fontMutedColor).toBe('#8899aa');
+    expect(reloaded.fontFamily).toBe('system');
+    expect(reloaded.fontSize).toBe('l');
+  });
 });

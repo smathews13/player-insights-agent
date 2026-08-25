@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
+import { DEFAULT_RUNTIME_SETTINGS, FONT_FAMILY_STACKS } from '../../shared/runtime-settings';
 import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
 import { forgetLiveRuntimeSettings } from './runtime-settings-live';
 
@@ -45,6 +45,28 @@ describe('saved Appearance colors', () => {
     adoptRuntimeEntityStyles(DEFAULT_RUNTIME_SETTINGS, root.style);
     expect(root.getAttribute('data-theme')).toBe('dark');
     vi.unstubAllGlobals();
+  });
+
+  it('applies saved type to CSS variables without waiting for a reload', () => {
+    const setProperty = vi.fn();
+    adoptRuntimeEntityStyles(
+      {
+        ...DEFAULT_RUNTIME_SETTINGS,
+        fontBodyColor: '#ffeecc',
+        fontMutedColor: '#8899aa',
+        fontFamily: 'system',
+        fontSize: 'l',
+      },
+      { setProperty }
+    );
+
+    expect(setProperty).toHaveBeenCalledWith('--ast-text', '#ffeecc');
+    expect(setProperty).toHaveBeenCalledWith('--foreground', '#ffeecc');
+    expect(setProperty).toHaveBeenCalledWith('--ast-text-secondary', '#8899aa');
+    expect(setProperty).toHaveBeenCalledWith('--muted-foreground', '#8899aa');
+    expect(setProperty).toHaveBeenCalledWith('--font-sans', FONT_FAMILY_STACKS.system);
+    expect(setProperty).toHaveBeenCalledWith('--text-base', '15px');
+    expect(setProperty).toHaveBeenCalledWith('--ast-fs-13', '15px');
   });
 });
 

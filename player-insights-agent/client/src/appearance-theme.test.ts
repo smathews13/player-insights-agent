@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
+import { DEFAULT_RUNTIME_SETTINGS, FONT_FAMILY_STACKS } from '../../shared/runtime-settings';
+import { previewRuntimeTypography } from './runtime-entity-styles';
 import { previewColorScheme } from './RuntimeSettingsPanel';
 
 afterEach(() => {
@@ -28,5 +29,23 @@ describe('Appearance theme switch', () => {
     expect(root.getAttribute('data-theme')).toBe('light');
     expect(themeColor.setAttribute).toHaveBeenCalledWith('content', '#ffffff');
     expect({ ...DEFAULT_RUNTIME_SETTINGS, colorScheme }.colorScheme).toBe('light');
+  });
+
+  it('writes type onto the document as soon as Appearance changes it', () => {
+    const setProperty = vi.fn();
+    previewRuntimeTypography(
+      {
+        ...DEFAULT_RUNTIME_SETTINGS,
+        fontBodyColor: '#ffffff',
+        fontMutedColor: '#c5ccd4',
+        fontFamily: 'dm-mono',
+        fontSize: 's',
+      },
+      { setProperty }
+    );
+
+    expect(setProperty).toHaveBeenCalledWith('--ast-text', '#ffffff');
+    expect(setProperty).toHaveBeenCalledWith('--font-sans', FONT_FAMILY_STACKS['dm-mono']);
+    expect(setProperty).toHaveBeenCalledWith('--text-base', '12px');
   });
 });

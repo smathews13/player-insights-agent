@@ -76,6 +76,13 @@ import {
 } from '../../shared/scorer-catalog';
 import type { Scorecard, ScorecardState } from '../../shared/scorecard-contract';
 import { formatScore, labelSourceSummary, scoreCoverage } from './benchmark-state';
+import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
+import {
+  compareSides,
+  DEFAULT_BENCHMARK_SETTINGS,
+  EVAL_SET_OPTIONS,
+  suiteIdFromSettings,
+} from '../../shared/benchmark-settings';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
 
 /**
@@ -471,6 +478,22 @@ export function BenchmarkLab() {
   const [runError, setRunError] = useState<string | null>(null);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [bakeOff, setBakeOff] = useState(DEFAULT_BENCHMARK_SETTINGS);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/benchmark-settings')
+      .then((response) => benchmarkSettingsFromResponse(response, 'loaded'))
+      .then((payload) => {
+        if (!cancelled) setBakeOff(payload.settings);
+      })
+      .catch(() => {
+        if (!cancelled) setBakeOff(DEFAULT_BENCHMARK_SETTINGS);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -536,34 +559,33 @@ export function BenchmarkLab() {
     setRunning(true);
     setRunError(null);
     try {
-      const response = await fetch('/api/benchmarks/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ suiteId: 'poc-benchmark' }),
-      });
-      if (!response.ok) {
-        // The server's own sentence, not a status code. This route refuses a
-        // run whose session is too near its end, and that refusal is only
-        // useful if the person reads "sign in again and start it" rather than
-        // "HTTP 401", which tells them nothing they can act on. Falls back to
-        // the code when the body carries no message.
-        const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
-        const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
-        throw new Error(message || `The suite could not be started (HTTP ${response.status}).`);
+      const sides = compareSides(bakeOff);
+      const suiteId = suiteIdFromSettings(bakeOff);
+      let firstId: string | null = null;
+      for (const side of sides) {
+        const response = await fetch('/api/benchmarks/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            suiteId,
+            agentEndpoint: side === 'current' ? undefined : side,
+          }),
+        });
+        if (!response.ok) {
+          const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
+          const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
+          throw new Error(message || `The suite could not be started (HTTP ${response.status}).`);
+        }
+        const created = (await response.json()) as { id?: unknown };
+        const id = typeof created.id === 'string' ? created.id : null;
+        if (!firstId) firstId = id;
       }
-      // The response is read rather than discarded, and the run is then polled, so
-      // the page reports the run that exists rather than announcing a completion
-      // on a timer. The old version faked one 1.1 seconds after the POST.
-      const created = (await response.json()) as { id?: unknown };
-      const id = typeof created.id === 'string' ? created.id : null;
-      setLastRunId(id);
-      if (id) setSelectedId(id);
+      setLastRunId(firstId);
+      if (firstId) setSelectedId(firstId);
       setReloadToken((token) => token + 1);
     } catch (error) {
       setRunError((error as Error).message || 'The suite could not be started.');
     } finally {
-      // Only the request is finished here. Whether the suite is finished is the
-      // run's business, and it is read from the run.
       setRunning(false);
     }
   }
@@ -585,6 +607,14 @@ export function BenchmarkLab() {
           </Button>
         }
       />
+
+      <p className="settings-row-note bench-settings-used">
+        Runs the {EVAL_SET_OPTIONS.find((option) => option.id === bakeOff.evalSetId)?.label ?? bakeOff.evalSetId},
+        judged by {bakeOff.judgeEndpoint}
+        {compareSides(bakeOff).length > 1
+          ? `, comparing ${compareSides(bakeOff).join(' and ')}`
+          : ''}. Change that in Settings → Experimental.
+      </p>
 
       {runError && (<Alert variant="destructive">
           <CircleAlert />

@@ -24,11 +24,14 @@ import { overlayJoinSql, overlayRatingSql, overlayStatusSql } from '../lib/run-l
 import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
 import { credentialLifetime } from '../lib/benchmark-identity';
 import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
+import { HELD_OUT_CASES, HELD_OUT_SUITE_ID, HELD_OUT_SUITE_NAME } from '../../shared/held-out-suite';
 import { DEPLOYMENT_SETTINGS_DDL, resolveExperimentId, resolveJudgeEndpoint } from '../lib/app-settings';
 import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
 import { ADMIN_ROLES_DDL } from '../lib/admin-roles-schema';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
+import { readBenchmarkSettings } from '../lib/benchmark-settings-store';
+import { CURRENT_AGENT_SIDE } from '../../shared/benchmark-settings';
 import {
   DEPLOYMENT_DECISIONS_TABLE_NAME,
   SHARED_RAIL_DECISION,
@@ -283,7 +286,10 @@ const FeedbackBody = z.object({
   usefulness: z.number().int().min(1).max(5).optional(),
   comment: z.string().max(2000).optional(),
 });
-const BenchmarkRunBody = z.object({ suiteId: z.string().min(1).optional() });
+const BenchmarkRunBody = z.object({
+  suiteId: z.string().min(1).optional(),
+  agentEndpoint: z.string().min(1).optional(),
+});
 // Every object in the answer contract is loose. Zod's default would strip a
 // field the agent starts returning, silently, between the endpoint and the
 // browser; strict parsing would fail the whole answer over one unknown key.
@@ -2630,9 +2636,9 @@ export async function invokeServing(
   payload: Record<string, unknown>,
   onStage?: StageSink,
   timeoutMs: number = SERVING_INVOKE_TIMEOUT_MS,
-  userToken?: string
+  userToken?: string,
+  endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME
 ) {
-  const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
   if (!endpointName) {
     throw new Error('DATABRICKS_SERVING_ENDPOINT_NAME is not set.');
   }
@@ -2828,10 +2834,11 @@ export async function invokeServingAsUser(
   payload: Record<string, unknown>,
   userToken: string,
   onStage?: StageSink,
-  timeoutMs: number = SERVING_INVOKE_TIMEOUT_MS
+  timeoutMs: number = SERVING_INVOKE_TIMEOUT_MS,
+  endpointName?: string
 ): Promise<unknown> {
   try {
-    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken);
+    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken, endpointName);
   } catch (error) {
     const code = authorizationFailureFor(rejectionStatus(error) ?? 0);
     if (!code) throw error;
@@ -4805,6 +4812,21 @@ export function setupInsightsRoutes(
      */
     app.get('/api/benchmarks/suite', async (req, res) => {
       const requestedSuiteId = typeof req.query.suiteId === 'string' ? req.query.suiteId : CANONICAL_SUITE.id;
+      if (requestedSuiteId === HELD_OUT_SUITE_ID) {
+        res.json({
+          suiteId: HELD_OUT_SUITE_ID,
+          suiteName: HELD_OUT_SUITE_NAME,
+          caseListSource: 'catalog',
+          cases: HELD_OUT_CASES.map((entry) => ({
+            id: entry.caseId,
+            name: entry.caseId,
+            question: entry.question,
+            intent: entry.group,
+            questionSource: 'catalog' as const,
+          })),
+        });
+        return;
+      }
       const suite = canonicalSuite(requestedSuiteId);
       if (!suite) {
         res.status(404).json({
@@ -4849,7 +4871,11 @@ export function setupInsightsRoutes(
      */
     app.post('/api/benchmarks/run', async (req, res) => {
       const parsed = BenchmarkRunBody.safeParse(req.body);
-      const requestedSuiteId = parsed.success ? (parsed.data.suiteId ?? CANONICAL_SUITE.id) : CANONICAL_SUITE.id;
+      const savedBench = await readBenchmarkSettings(appkit);
+      const requestedSuiteId = parsed.success
+        ? (parsed.data.suiteId ?? savedBench.evalSetId)
+        : savedBench.evalSetId;
+      const namedAgent = parsed.success ? parsed.data.agentEndpoint?.trim() ?? '' : '';
       const email = userEmail(req);
 
       /**
@@ -4893,7 +4919,10 @@ export function setupInsightsRoutes(
         return;
       }
 
-      const agentEndpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+      const agentEndpoint =
+        namedAgent && namedAgent !== CURRENT_AGENT_SIDE
+          ? namedAgent
+          : process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
       if (!agentEndpoint) {
         // Said plainly rather than answered with a representative run. Every
         // other read path in this file may fall back to demo data and label it;
@@ -4953,8 +4982,22 @@ export function setupInsightsRoutes(
             // or a 403 becomes an AuthorizationRefused rather than a retry
             // under the app's own principal.
             raw = identity.token
-              ? await invokeServingAsUser(appkit, payload, identity.token)
-              : await invokeServing(appkit, payload);
+              ? await invokeServingAsUser(
+                  appkit,
+                  payload,
+                  identity.token,
+                  undefined,
+                  SERVING_INVOKE_TIMEOUT_MS,
+                  agentEndpoint
+                )
+              : await invokeServing(
+                  appkit,
+                  payload,
+                  undefined,
+                  SERVING_INVOKE_TIMEOUT_MS,
+                  undefined,
+                  agentEndpoint
+                );
           } catch (error) {
             if (!(error instanceof AuthorizationRefused)) throw error;
             // `disclosable`, not `message`, for the reason spelled out on the

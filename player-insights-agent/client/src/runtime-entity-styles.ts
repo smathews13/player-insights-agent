@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
-import { runtimeEntityCssVariables, type RuntimeSettings } from '../../shared/runtime-settings';
+import {
+  runtimeAppearanceCssVariables,
+  runtimeTypographyCssVariables,
+  type RuntimeSettings,
+} from '../../shared/runtime-settings';
 import { applyColorScheme } from './color-scheme';
 import {
   loadLiveRuntimeSettings,
@@ -8,15 +12,34 @@ import {
   subscribeLiveRuntimeSettings,
 } from './runtime-settings-live';
 
-function paintRuntimeEntityStyles(
-  settings: RuntimeSettings,
+function writeVariables(
+  variables: Record<string, string>,
   target: Pick<CSSStyleDeclaration, 'setProperty'> | null
 ): void {
-  if (target) {
-    for (const [name, value] of Object.entries(runtimeEntityCssVariables(settings))) {
-      target.setProperty(name, value);
-    }
+  if (!target) return;
+  for (const [name, value] of Object.entries(variables)) {
+    target.setProperty(name, value);
   }
+}
+
+function paintRuntimeStyles(settings: RuntimeSettings, target: Pick<CSSStyleDeclaration, 'setProperty'> | null): void {
+  writeVariables(runtimeAppearanceCssVariables(settings), target);
+  applyColorScheme(settings.colorScheme);
+}
+
+/**
+ * Preview type on the document without treating the draft as saved.
+ *
+ * Theme already paints on the switch. Font colour, family and size have to do
+ * the same or Appearance looks like it only restyles one sample label.
+ */
+export function previewRuntimeTypography(
+  settings: RuntimeSettings,
+  target: Pick<CSSStyleDeclaration, 'setProperty'> | null = typeof document === 'undefined'
+    ? null
+    : document.documentElement.style
+): void {
+  writeVariables(runtimeTypographyCssVariables(settings), target);
   applyColorScheme(settings.colorScheme);
 }
 
@@ -35,7 +58,7 @@ export function adoptRuntimeEntityStyles(
     ? null
     : document.documentElement.style
 ): void {
-  paintRuntimeEntityStyles(settings, target);
+  paintRuntimeStyles(settings, target);
   rememberLiveRuntimeSettings(settings);
 }
 
@@ -46,10 +69,7 @@ export function useRuntimeEntityStyles(): void {
     const paint = () => {
       const settings = recalledLiveRuntimeSettings();
       if (!live || !settings) return;
-      paintRuntimeEntityStyles(
-        settings,
-        typeof document === 'undefined' ? null : document.documentElement.style
-      );
+      paintRuntimeStyles(settings, typeof document === 'undefined' ? null : document.documentElement.style);
     };
     const stop = subscribeLiveRuntimeSettings(paint);
     void loadLiveRuntimeSettings().then(paint);

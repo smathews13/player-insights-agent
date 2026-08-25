@@ -33,13 +33,19 @@ describe('Settings modal', () => {
     for (const label of ['Roles', 'Runtime', 'Environment', 'Appearance', 'Egress controls', 'Experimental']) {
       expect(markup).toContain(`>${label}</button>`);
     }
+    expect(markup).not.toContain('>Benchmarking</button>');
   });
 
   it('renders Runtime, Environment, Appearance and Egress as separate selected panes', () => {
     expect(render('runtime')).toContain('Live behavior for the next ask.');
     expect(render('environment')).toContain('<h3>Environment</h3>');
-    expect(render('appearance')).toContain('Answer entity colors, shared by Ask and Run Explorer.');
+    expect(render('appearance')).toContain(
+      'Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.'
+    );
     expect(render('appearance')).toContain('aria-label="Dark"');
+    expect(render('appearance')).toContain('Body text color');
+    expect(render('appearance')).toContain('Secondary text color');
+    expect(render('appearance')).toContain('aria-label="Font size L"');
     expect(render('appearance')).not.toContain('Quote colors');
     expect(render('egress')).toContain('What can leave this deployment: downloads, copies, and outbound links.');
   });
@@ -50,6 +56,29 @@ describe('Settings modal', () => {
     expect(markup).toContain('system_billing=astrolabe');
     expect(markup).toContain('>Apply Astrolabe tags</button>');
     expect(markup).not.toContain('Admin only');
+  });
+
+  it('puts MLflow and bake-off controls on Experimental, disabled while Benchmarking is off', () => {
+    const off = render('experimental');
+    expect(off).toContain('MLflow experiment');
+    expect(off).toContain('Always-on traces');
+    expect(off).toContain('Eval set');
+    expect(off).toContain('Judge model');
+    expect(off).toContain('Compare two versions');
+    expect(off).toContain('disabled=""');
+    expect(off).not.toContain('>Save</button>');
+
+    const on = renderToStaticMarkup(
+      <SettingsPage
+        initialSection="experimental"
+        features={{ benchmarkLab: true, egressControls: true }}
+        setFeature={() => {}}
+        role={roleFrom(NORMAL_IDENTITY)}
+      />
+    );
+    expect(on).toContain('MLflow experiment');
+    expect(on).toContain('>Save</button>');
+    expect(on).not.toContain('>Benchmarking</button>');
   });
 
   it('keeps one active-section Save in the modal footer', () => {

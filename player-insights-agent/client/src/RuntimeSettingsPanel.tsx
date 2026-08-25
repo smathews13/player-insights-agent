@@ -1,12 +1,32 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
-import { appliedColorScheme, applyColorScheme, type ColorScheme } from './color-scheme';
+import {
+  DEFAULT_RUNTIME_SETTINGS,
+  FONT_SIZE_IDS,
+  fontColorsForScheme,
+  isHexColor,
+  type FontFamilyId,
+  type FontSizeId,
+  type RuntimeSettings,
+} from '../../shared/runtime-settings';
+import { applyColorScheme, type ColorScheme } from './color-scheme';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
-import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
+import { adoptRuntimeEntityStyles, previewRuntimeTypography } from './runtime-entity-styles';
 import { wholeNumberFrom } from './runtime-number';
 import { SETTINGS_SAVE_IDLE, type SettingsSaveState } from './settings-save-state';
 import { Input, Switch } from './ui';
+
+const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
+  { value: 'dm-sans', label: 'DM Sans' },
+  { value: 'system', label: 'System' },
+  { value: 'dm-mono', label: 'DM Mono' },
+];
+
+const FONT_SIZE_LABELS: Record<FontSizeId, string> = {
+  s: 'S',
+  m: 'M',
+  l: 'L',
+};
 
 export const RUNTIME_SETTINGS_FORM_ID = 'settings-runtime-form';
 
@@ -135,8 +155,8 @@ export function RuntimeSettingsPanel({
   const [settings, setSettings] = useState<RuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
-  const savedColorScheme = useRef<ColorScheme | null>(null);
-  const themePreviewed = useRef(false);
+  const savedSettings = useRef<RuntimeSettings | null>(null);
+  const appearancePreviewed = useRef(false);
 
   const load = useCallback(async () => {
     setState('loading');
@@ -144,9 +164,9 @@ export function RuntimeSettingsPanel({
     try {
       const response = await fetch('/api/runtime-settings');
       const loaded = await runtimeSettingsFromResponse(response, 'loaded');
-      savedColorScheme.current = loaded.colorScheme;
+      savedSettings.current = loaded;
       setSettings(loaded);
-      if (!themePreviewed.current) applyColorScheme(loaded.colorScheme);
+      if (!appearancePreviewed.current) applyColorScheme(loaded.colorScheme);
       setState('ready');
     } catch (caught) {
       setState('failed');
@@ -168,10 +188,19 @@ export function RuntimeSettingsPanel({
        * choosing another section) unmounts it, so one cleanup closes all of the
        * otherwise easy-to-miss ways an unsaved theme could leak into the app.
        */
-      if (themePreviewed.current && savedColorScheme.current) applyColorScheme(savedColorScheme.current);
+      if (appearancePreviewed.current && savedSettings.current) {
+        adoptRuntimeEntityStyles(savedSettings.current);
+      }
     },
     []
   );
+
+  useEffect(() => {
+    if (section !== 'appearance' || state === 'loading') return;
+    if (!isHexColor(settings.fontBodyColor) || !isHexColor(settings.fontMutedColor)) return;
+    appearancePreviewed.current = true;
+    previewRuntimeTypography(settings);
+  }, [section, state, settings]);
 
   const save = async () => {
     /*
@@ -201,8 +230,8 @@ export function RuntimeSettingsPanel({
         body: JSON.stringify(settings),
       });
       const saved = await runtimeSettingsFromResponse(response, 'saved');
-      savedColorScheme.current = saved.colorScheme;
-      themePreviewed.current = false;
+      savedSettings.current = saved;
+      appearancePreviewed.current = false;
       setSettings(saved);
       adoptRuntimeEntityStyles(saved);
       setState('saved');
@@ -368,7 +397,7 @@ export function RuntimeSettingsPanel({
         <>
           <div className="settings-pane-heading">
             <h3>Appearance</h3>
-            <p>Answer entity colors, shared by Ask and Run Explorer.</p>
+            <p>Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.</p>
           </div>
           <section className="runtime-section appearance-theme-section">
             <h4 className="runtime-section-label">Theme</h4>
@@ -380,15 +409,83 @@ export function RuntimeSettingsPanel({
               <Switch
                 checked={settings.colorScheme === 'dark'}
                 onCheckedChange={(on) => {
-                  if (!themePreviewed.current) {
-                    savedColorScheme.current ??= appliedColorScheme() ?? settings.colorScheme;
-                    themePreviewed.current = true;
-                  }
+                  appearancePreviewed.current = true;
                   const colorScheme = previewColorScheme(on);
-                  setSettings((current) => ({ ...current, colorScheme }));
+                  setSettings((current) => ({
+                    ...current,
+                    colorScheme,
+                    ...fontColorsForScheme(current, colorScheme),
+                  }));
                 }}
                 aria-label="Dark"
               />
+            </div>
+          </section>
+          <section className="runtime-section appearance-type-section">
+            <div className="appearance-section-heading">
+              <h4 className="runtime-section-label">Type</h4>
+              <span>Colour, face, and size for questions and body text. Secondary is captions and timestamps.</span>
+            </div>
+            <div className="appearance-type-colors">
+              {(
+                [
+                  ['fontBodyColor', 'Body text', 'Body text color'],
+                  ['fontMutedColor', 'Secondary', 'Secondary text color'],
+                ] as const
+              ).map(([key, label, aria]) => (
+                <label className="appearance-color" key={key}>
+                  <span className="appearance-type-color-label">{label}</span>
+                  <span className="appearance-color-swatch" aria-hidden="true">
+                    <span style={{ background: settings[key] }} />
+                  </span>
+                  <Input
+                    aria-label={aria}
+                    value={settings[key]}
+                    onChange={(event) =>
+                      setSettings((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="appearance-type-controls">
+              <label className="runtime-field appearance-type-family">
+                <span className="runtime-field-label">Font</span>
+                <AppSelect
+                  label="Font"
+                  ariaLabel="Font"
+                  value={settings.fontFamily}
+                  onValueChange={(value) => setSettings((current) => ({ ...current, fontFamily: value }))}
+                  options={FONT_FAMILY_OPTIONS}
+                />
+              </label>
+              <div className="runtime-field">
+                <span className="runtime-field-label" id="appearance-font-size-label">
+                  Size
+                </span>
+                <div className="appearance-size" role="radiogroup" aria-labelledby="appearance-font-size-label">
+                  {FONT_SIZE_IDS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      role="radio"
+                      aria-checked={settings.fontSize === size}
+                      aria-label={`Font size ${FONT_SIZE_LABELS[size]}`}
+                      onClick={() => setSettings((current) => ({ ...current, fontSize: size }))}
+                    >
+                      {FONT_SIZE_LABELS[size]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="appearance-type-preview" aria-hidden="true">
+              <p className="appearance-type-preview-kicker">Preview</p>
+              <p className="appearance-type-preview-body">How many players returned this week?</p>
+              <p className="appearance-type-preview-muted">Secondary text · timestamps · captions</p>
             </div>
           </section>
           <section className="runtime-section runtime-section-last appearance-palette-section">

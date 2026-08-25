@@ -88,14 +88,20 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('aria-label="Dark"');
     expect(source).toContain('previewColorScheme(on)');
     expect(source).toContain('appearance-sample-plaque');
+    expect(source).toContain('fontBodyColor');
+    expect(source).toContain('fontMutedColor');
+    expect(source).toContain('fontFamily');
+    expect(source).toContain('fontSize');
+    expect(source).toContain('previewRuntimeTypography(settings)');
+    expect(source).toContain('appearance-type-preview');
   });
 
   it('keeps the Appearance caption, previews theme changes and applies a save immediately', () => {
-    expect(source).toContain('Answer entity colors, shared by Ask and Run Explorer.');
+    expect(source).toContain('Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.');
     expect(source).not.toContain('Limits how many reasoning passes');
     expect(source).toContain('2026-07-22 – 2026-08-03');
     expect(source).toContain('Northwind, Contoso');
-    expect(source).toContain('applyColorScheme(savedColorScheme.current)');
+    expect(source).toContain('adoptRuntimeEntityStyles(savedSettings.current)');
     expect(source).toContain('adoptRuntimeEntityStyles(saved)');
     expect(styles).toMatch(/\.appearance-sample-plaque\s*\{[^}]*background:\s*var\(--background\)/);
     expect(answerStyles).toMatch(/\.answer-badge--date\s*\{[^}]*--ast-entity-quote-fg[^}]*--ast-entity-quote-bg/);

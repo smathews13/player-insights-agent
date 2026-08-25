@@ -375,6 +375,9 @@
   .settings-modal-body {
     grid-template-columns: 138px minmax(0, 1fr);
   }
+  .appearance-type-colors {
+    grid-template-columns: 1fr;
+  }
   .appearance-grid-head,
   .appearance-grid-row {
     grid-template-columns: 70px 1fr;

@@ -429,6 +429,19 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     ],
     down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.run_label_overrides`],
   },
+  {
+    version: 11,
+    name: 'benchmark settings',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.benchmark_settings (
+         id TEXT PRIMARY KEY,
+         settings JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.benchmark_settings`],
+  },
 ];
 
 /**

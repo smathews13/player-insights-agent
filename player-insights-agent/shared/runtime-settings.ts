@@ -53,6 +53,60 @@ function sameHexStyle(left: RuntimeEntityStyle, right: RuntimeEntityStyle): bool
   );
 }
 
+function sameHex(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const HexColorSchema = z.string().regex(HEX_COLOR, 'Use a six-digit hex color.');
+
+export const FONT_FAMILY_IDS = ['dm-sans', 'system', 'dm-mono'] as const;
+export type FontFamilyId = (typeof FONT_FAMILY_IDS)[number];
+
+export const FONT_SIZE_IDS = ['s', 'm', 'l'] as const;
+export type FontSizeId = (typeof FONT_SIZE_IDS)[number];
+
+/**
+ * Night-sky body is white so completed questions match step titles instead of
+ * sitting on the secondary grey. Light follows the existing ink / slate pair.
+ */
+export const THEME_FONT_COLORS: Record<'dark' | 'light', { body: string; muted: string }> = {
+  dark: { body: '#ffffff', muted: '#c5ccd4' },
+  light: { body: '#161616', muted: '#6f6f6f' },
+};
+
+export const FONT_FAMILY_STACKS: Record<FontFamilyId, string> = {
+  'dm-sans': "'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  system: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  'dm-mono': "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+};
+
+export const FONT_SIZE_SCALE: Record<FontSizeId, number> = {
+  s: 0.92,
+  m: 1,
+  l: 1.15,
+};
+
+const TYPE_TOKEN_PX = [
+  ['--text-xs', 11],
+  ['--text-sm', 12],
+  ['--text-base', 13],
+  ['--text-h-sub', 14],
+  ['--text-h-section', 16],
+  ['--text-h-card', 18],
+  ['--text-h-page', 22],
+  ['--text-kpi', 22],
+  ['--text-hero', 32],
+  ['--ast-fs-11', 11],
+  ['--ast-fs-12', 12],
+  ['--ast-fs-13', 13],
+  ['--ast-fs-14', 14],
+  ['--ast-fs-16', 16],
+  ['--ast-fs-18', 18],
+  ['--ast-fs-22', 22],
+  ['--ast-fs-32', 32],
+] as const;
+
 /** Replace leftover paper pairs; leave any pair someone actually set. */
 export function upgradePaperEntityStyles(styles: RuntimeEntityStyles): RuntimeEntityStyles {
   return Object.fromEntries(
@@ -63,51 +117,61 @@ export function upgradePaperEntityStyles(styles: RuntimeEntityStyles): RuntimeEn
   ) as RuntimeEntityStyles;
 }
 
-export const RuntimeSettingsSchema = z.strictObject({
-  loop: z.strictObject({
-    maxSteps: z.number().int().min(1).max(20),
-    maxToolCalls: z.number().int().min(1).max(40),
-    maxRunSeconds: z.number().int().min(30).max(200),
-  }),
-  answer: z.strictObject({
-    takeaway: z.boolean(),
-    narrative: z.boolean(),
-    charts: z.boolean(),
-    figures: z.boolean(),
-    caveats: z.boolean(),
-    maxCharts: z.number().int().min(0).max(6),
-    maxFigures: z.number().int().min(0).max(12),
-    maxCaveats: z.number().int().min(0).max(20),
-    narrativeMaxCharacters: z.number().int().min(0).max(12_000),
-    sources: z.enum(['compact', 'standard', 'detailed']),
-    // Free-text guidance handed to the agent with the section it belongs to.
-    // Defaulted so a row stored before these fields existed parses rather than
-    // being dropped back to defaults on the next read. Empty ships nothing.
-    takeawayGuidance: z.string().trim().max(2_000).default(''),
-    narrativeGuidance: z.string().trim().max(2_000).default(''),
-    // How the agent orders the figure cards it returns, and which chart shapes
-    // it may draw. Both travel to the agent as part of runtime_settings.
-    figuresOrder: z.enum(['as-ranked', 'totals-first', 'averages-first']).default('as-ranked'),
-    chartsTypes: z.enum(['auto', 'bar', 'bar-line']).default('auto'),
-  }),
-  behavior: z.strictObject({
-    clarification: z.enum(['strict', 'balanced', 'proceed-with-caveat']),
-    timezone: z.string().trim().max(80),
-    injectCurrentDate: z.boolean(),
-  }),
-  colorScheme: z.enum(['dark', 'light']).default('dark'),
-  entityStyles: z
-    .strictObject({
-      catalog: EntityStyleSchema,
-      schema: EntityStyleSchema,
-      table: EntityStyleSchema,
-      column: EntityStyleSchema,
-      quote: EntityStyleSchema,
-      tag: EntityStyleSchema,
-    })
-    .default(DEFAULT_ENTITY_STYLES)
-    .transform(upgradePaperEntityStyles),
-});
+export const RuntimeSettingsSchema = z
+  .strictObject({
+    loop: z.strictObject({
+      maxSteps: z.number().int().min(1).max(20),
+      maxToolCalls: z.number().int().min(1).max(40),
+      maxRunSeconds: z.number().int().min(30).max(200),
+    }),
+    answer: z.strictObject({
+      takeaway: z.boolean(),
+      narrative: z.boolean(),
+      charts: z.boolean(),
+      figures: z.boolean(),
+      caveats: z.boolean(),
+      maxCharts: z.number().int().min(0).max(6),
+      maxFigures: z.number().int().min(0).max(12),
+      maxCaveats: z.number().int().min(0).max(20),
+      narrativeMaxCharacters: z.number().int().min(0).max(12_000),
+      sources: z.enum(['compact', 'standard', 'detailed']),
+      // Free-text guidance handed to the agent with the section it belongs to.
+      // Defaulted so a row stored before these fields existed parses rather than
+      // being dropped back to defaults on the next read. Empty ships nothing.
+      takeawayGuidance: z.string().trim().max(2_000).default(''),
+      narrativeGuidance: z.string().trim().max(2_000).default(''),
+      // How the agent orders the figure cards it returns, and which chart shapes
+      // it may draw. Both travel to the agent as part of runtime_settings.
+      figuresOrder: z.enum(['as-ranked', 'totals-first', 'averages-first']).default('as-ranked'),
+      chartsTypes: z.enum(['auto', 'bar', 'bar-line']).default('auto'),
+    }),
+    behavior: z.strictObject({
+      clarification: z.enum(['strict', 'balanced', 'proceed-with-caveat']),
+      timezone: z.string().trim().max(80),
+      injectCurrentDate: z.boolean(),
+    }),
+    colorScheme: z.enum(['dark', 'light']).default('dark'),
+    entityStyles: z
+      .strictObject({
+        catalog: EntityStyleSchema,
+        schema: EntityStyleSchema,
+        table: EntityStyleSchema,
+        column: EntityStyleSchema,
+        quote: EntityStyleSchema,
+        tag: EntityStyleSchema,
+      })
+      .default(DEFAULT_ENTITY_STYLES)
+      .transform(upgradePaperEntityStyles),
+    fontBodyColor: HexColorSchema.optional(),
+    fontMutedColor: HexColorSchema.optional(),
+    fontFamily: z.enum(FONT_FAMILY_IDS).default('dm-sans'),
+    fontSize: z.enum(FONT_SIZE_IDS).default('m'),
+  })
+  .transform((settings) => ({
+    ...settings,
+    fontBodyColor: settings.fontBodyColor ?? THEME_FONT_COLORS[settings.colorScheme].body,
+    fontMutedColor: settings.fontMutedColor ?? THEME_FONT_COLORS[settings.colorScheme].muted,
+  }));
 
 export type RuntimeSettings = z.infer<typeof RuntimeSettingsSchema>;
 
@@ -137,6 +201,10 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
   },
   colorScheme: 'dark',
   entityStyles: DEFAULT_ENTITY_STYLES,
+  fontBodyColor: THEME_FONT_COLORS.dark.body,
+  fontMutedColor: THEME_FONT_COLORS.dark.muted,
+  fontFamily: 'dm-sans',
+  fontSize: 'm',
 };
 
 export type RuntimeEntityCssVariables = Record<`--entity-${RuntimeEntityKind}-${'fg' | 'bg'}`, string>;
@@ -147,8 +215,56 @@ export function runtimeEntityCssVariables(settings: RuntimeSettings): RuntimeEnt
     RuntimeEntityKindSchema.options.flatMap((kind) => [
       [`--entity-${kind}-fg`, settings.entityStyles[kind].foreground],
       [`--entity-${kind}-bg`, settings.entityStyles[kind].background],
-    ]),
+    ])
   ) as RuntimeEntityCssVariables;
+}
+
+/** Type tokens written onto the document so every surface reads one choice. */
+export function runtimeTypographyCssVariables(settings: RuntimeSettings): Record<string, string> {
+  const scale = FONT_SIZE_SCALE[settings.fontSize];
+  const sizes = Object.fromEntries(TYPE_TOKEN_PX.map(([name, px]) => [name, `${Math.round(px * scale)}px`]));
+  return {
+    '--ast-text': settings.fontBodyColor,
+    '--ast-text-long': settings.fontBodyColor,
+    '--foreground': settings.fontBodyColor,
+    '--card-foreground': settings.fontBodyColor,
+    '--popover-foreground': settings.fontBodyColor,
+    '--secondary-foreground': settings.fontBodyColor,
+    '--accent-foreground': settings.fontBodyColor,
+    '--db-ink': settings.fontBodyColor,
+    '--db-body': settings.fontBodyColor,
+    '--ast-text-secondary': settings.fontMutedColor,
+    '--ast-caption': settings.fontMutedColor,
+    '--muted-foreground': settings.fontMutedColor,
+    '--db-slate': settings.fontMutedColor,
+    '--font-sans': FONT_FAMILY_STACKS[settings.fontFamily],
+    ...sizes,
+  };
+}
+
+/** Entity chips plus type — the full Appearance result on the app root. */
+export function runtimeAppearanceCssVariables(settings: RuntimeSettings): Record<string, string> {
+  return {
+    ...runtimeEntityCssVariables(settings),
+    ...runtimeTypographyCssVariables(settings),
+  };
+}
+
+export function isHexColor(value: string): boolean {
+  return HEX_COLOR.test(value);
+}
+
+/** Keep a custom colour; follow the new theme when the reader was still on defaults. */
+export function fontColorsForScheme(
+  settings: Pick<RuntimeSettings, 'colorScheme' | 'fontBodyColor' | 'fontMutedColor'>,
+  nextScheme: 'dark' | 'light'
+): Pick<RuntimeSettings, 'fontBodyColor' | 'fontMutedColor'> {
+  const from = THEME_FONT_COLORS[settings.colorScheme];
+  const to = THEME_FONT_COLORS[nextScheme];
+  return {
+    fontBodyColor: sameHex(settings.fontBodyColor, from.body) ? to.body : settings.fontBodyColor,
+    fontMutedColor: sameHex(settings.fontMutedColor, from.muted) ? to.muted : settings.fontMutedColor,
+  };
 }
 
 export function parseRuntimeSettings(value: unknown): RuntimeSettings {

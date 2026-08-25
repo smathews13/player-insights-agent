@@ -4,6 +4,7 @@ import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
 import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
+import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
 import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsUserRoster, type RoleResolution } from './role';
@@ -147,7 +148,9 @@ export function SettingsPage({
       ? RUNTIME_SETTINGS_FORM_ID
       : active === 'egress'
         ? EGRESS_SETTINGS_FORM_ID
-        : undefined;
+        : active === 'experimental' && showsBenchmarkLab(features)
+          ? BENCHMARK_SETTINGS_FORM_ID
+          : undefined;
   const notice = saveNotice(saveState);
   const saving = saveInFlight(saveState);
 
@@ -228,6 +231,10 @@ export function SettingsPage({
                       aria-label="Show Benchmarking, scorers and judge details"
                     />
                   </div>
+                  <BenchmarkSettingsPanel
+                    enabled={showsBenchmarkLab(features)}
+                    onSaveState={setSaveState}
+                  />
                   <div className="settings-row">
                     <div>
                       <p className="settings-row-label">

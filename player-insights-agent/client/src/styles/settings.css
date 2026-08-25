@@ -1053,6 +1053,97 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   padding: 2px 0;
 }
 
+.appearance-type-section {
+  gap: 12px;
+}
+
+.appearance-type-colors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.appearance-type-colors .appearance-color {
+  flex-wrap: wrap;
+}
+
+.appearance-type-color-label {
+  flex: 1 0 100%;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.appearance-type-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+}
+
+.appearance-type-family {
+  min-width: 220px;
+}
+
+.appearance-size {
+  display: flex;
+  gap: 6px;
+}
+
+.appearance-size button {
+  min-width: 36px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font: 500 var(--text-sm) var(--font-sans);
+  cursor: pointer;
+}
+
+.appearance-size button[aria-checked='true'] {
+  background: var(--ast-seg-pressed);
+  color: var(--ast-seg-pressed-ink);
+  border-color: var(--ast-primary-control-border);
+}
+
+.appearance-type-preview {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+}
+
+.appearance-type-preview-kicker,
+.appearance-type-preview-body,
+.appearance-type-preview-muted {
+  margin: 0;
+}
+
+.appearance-type-preview-kicker {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.appearance-type-preview-body {
+  margin-top: 6px;
+  color: var(--ast-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: 500;
+}
+
+.appearance-type-preview-muted {
+  margin-top: 4px;
+  color: var(--ast-text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
 .appearance-section-heading {
   display: flex;
   flex-wrap: wrap;
@@ -1451,4 +1542,37 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   background-color: transparent;
   font-family: inherit;
   cursor: pointer;
+}
+
+/* Settings → Experimental: MLflow + bake-off cluster. Grayed while the
+   Benchmarking tab is off; the fieldset is what actually disables the controls. */
+.benchmark-settings {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.benchmark-settings-cluster {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.benchmark-settings-cluster:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.benchmark-settings-compare {
+  display: grid;
+  gap: 10px;
+}
+
+.benchmark-settings-link {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: var(--text-sm);
 }
