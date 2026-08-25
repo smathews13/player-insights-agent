@@ -301,6 +301,13 @@ def test_simple_inventory_uses_only_the_manifest_listing():
     assert tools.named("search_tagged_assets") == []
     assert tools.named("search_semantics") == []
     assert llm.loop_calls == []
+    synthesis = next(
+        call for call in llm.calls if "assessed data package" in call["messages"][-1]["content"]
+    )
+    findings = synthesis["messages"][-1]["content"]
+    assert "Access note" not in findings
+    assert "declared source set" not in findings
+    assert "does not guarantee read access" not in findings
 
 
 def test_finder_tool_budget_does_not_inherit_an_enclosing_trace_count():

@@ -118,6 +118,8 @@ describe('whether the section may call itself a final answer', () => {
   it('does not paint a successful table listing as Request refused', () => {
     const grantTiming =
       'These 12 tables are declared by the deployment; Unity Catalog grant evaluation happens at query time, so the signed-in user may not have SELECT access to all of them. Any refused table will be named explicitly if a query against it fails.';
+    const liveWording =
+      'Declaring a table does not guarantee read access; Unity Catalog grants are evaluated per query and a refusal will be named explicitly if it occurs.';
     const listing = [
       'This deployment has access to 12 declared tables in the catalog.',
       '',
@@ -126,7 +128,7 @@ describe('whether the section may call itself a final answer', () => {
     ].join('\n');
     const honesty = answerHonesty({
       truncated: false,
-      caveats: [grantTiming, identity],
+      caveats: [grantTiming, liveWording, identity],
       narrative: listing,
     });
 

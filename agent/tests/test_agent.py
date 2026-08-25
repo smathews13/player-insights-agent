@@ -32,6 +32,7 @@ from agent import (
     SYNTHESIS_INSTRUCTIONS,
     SYNTHESIS_PROVENANCE_RULE,
     PlayerInsightsResponsesAgent,
+    _is_grant_timing_note,
     _needs_dictionary,
     _plan_id,
     reader_facing_findings,
@@ -3237,9 +3238,46 @@ def test_the_make_no_claim_rule_is_still_in_the_prompt_verbatim():
     assert "make no claim about whether the data is synthetic" in SYNTHESIS_INSTRUCTIONS
     assert "Do not write a caveat about whose identity produced the answer" in SYNTHESIS_INSTRUCTIONS
     assert "row filters and column masks apply without reporting themselves" in SYNTHESIS_INSTRUCTIONS
+    assert "declaring a table does not guarantee read access" in SYNTHESIS_INSTRUCTIONS
+    assert "do not open it with a refusal verdict" in SYNTHESIS_INSTRUCTIONS
+    assert "Catalog and listing questions are allowed" in SYNTHESIS_INSTRUCTIONS
     # And nothing in it asks for the opposite, which is what used to sit behind a setting.
     for framing in ("figures are invented", "synthetic data", "demo data", "not real"):
         assert framing not in SYNTHESIS_INSTRUCTIONS.lower()
+
+
+def test_a_grant_timing_note_is_not_a_refusal_and_does_not_reach_the_card():
+    """The live catalog listing opened with this sentence and the card painted
+    it Request refused. Listing the tables answered the question; the sentence
+    is a standing fact, not a denial.
+    """
+
+    live = (
+        "Declaring a table does not guarantee read access; Unity Catalog grants "
+        "are evaluated per query and a refusal will be named explicitly if it occurs."
+    )
+    refusal = (
+        "A governance control refused part of this request, so that part is not "
+        "answered here and was not answered another way."
+    )
+    assert _is_grant_timing_note(live)
+    assert not _is_grant_timing_note(refusal)
+
+    synthesis = json.dumps(
+        {
+            "takeaway": "This deployment declares 12 tables.",
+            "narrative": "| Layer | Table |\n| Raw | raw_purchases |",
+            "caveats": [live, "Review the generated SQL before using this result."],
+        }
+    )
+    llm = ScriptedLlm(charts=False, synthesis=synthesis)
+    answer = ask(build(llm, FakeTools()), "what data do you have access to").custom_outputs[
+        "answer"
+    ]
+
+    assert live not in answer["caveats"]
+    assert not any("does not guarantee read access" in caveat for caveat in answer["caveats"])
+    assert any("Review the generated SQL" in caveat for caveat in answer["caveats"])
 
 
 def test_the_takeaway_leads_and_the_narrative_does_not_repeat_it():

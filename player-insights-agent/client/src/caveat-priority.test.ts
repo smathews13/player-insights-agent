@@ -102,9 +102,12 @@ describe('what a caveat is read as threatening', () => {
       'These 12 tables are declared by the deployment; Unity Catalog grant evaluation happens at query time, so the signed-in user may not have SELECT access to all of them. Any refused table will be named explicitly if a query against it fails.';
     const inventoryNote =
       "This is the deployment's declared source set. Unity Catalog still evaluates the signed-in user's grants when a table is read.";
+    const liveWording =
+      'Declaring a table does not guarantee read access; Unity Catalog grants are evaluated per query and a refusal will be named explicitly if it occurs.';
 
     expect(caveatRisk(grantTiming)).toBe(CAVEAT_RISK.identity);
     expect(caveatRisk(inventoryNote)).toBe(CAVEAT_RISK.identity);
+    expect(caveatRisk(liveWording)).toBe(CAVEAT_RISK.identity);
     expect(caveatRisk(REFUSAL)).toBe(CAVEAT_RISK.refused);
     expect(
       caveatRisk(
@@ -184,6 +187,20 @@ describe('the five a reader sees', () => {
     expect(isIdentityGrantLecture(IDENTITY)).toBe(true);
     expect(isIdentityGrantLecture(REFUSAL)).toBe(false);
     expect(rankCaveats([IDENTITY, DATASET_ENDS]).top).toEqual([DATASET_ENDS]);
+  });
+
+  it('drops the grant-timing lecture rather than painting it as a denial', () => {
+    const liveWording =
+      'Declaring a table does not guarantee read access; Unity Catalog grants are evaluated per query and a refusal will be named explicitly if it occurs.';
+
+    expect(isIdentityGrantLecture(liveWording)).toBe(true);
+    expect(isIdentityGrantLecture(REFUSAL)).toBe(false);
+    expect(rankCaveats([liveWording, DATASET_ENDS]).top).toEqual([DATASET_ENDS]);
+    expect(
+      isIdentityGrantLecture(
+        'A governance control refused part of this request. Grant evaluation happens at query time for the tables that remain.'
+      )
+    ).toBe(false);
   });
 
   it('drops the empty strings a stored row can carry rather than drawing blank bullets', () => {

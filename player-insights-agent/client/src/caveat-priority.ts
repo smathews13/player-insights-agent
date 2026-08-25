@@ -205,7 +205,7 @@ const RISK_PATTERNS: readonly (readonly [CaveatRisk, readonly RegExp[]])[] = [
  * sentence as "Request refused" on a catalog listing that had already answered.
  */
 const GRANT_TIMING_NOTE =
-  /grant evaluation happens at query time|unity catalog still evaluates|declared by the deployment|declared source set|tables this deployment declares|any refused table will be named|may not have SELECT access|if a query against (?:it|them) fails/i;
+  /grant evaluation happens at query time|unity catalog still evaluates|unity catalog grants are evaluated|grants are evaluated per query|declared by the deployment|declared source set|tables this deployment declares|declaring a table does not guarantee|does not guarantee read access|any refused table will be named|a refusal will be named|may not have SELECT access|if a query against (?:it|them) fails/i;
 
 /**
  * The standing lecture that every authorized answer used to open with: who it
@@ -214,14 +214,13 @@ const GRANT_TIMING_NOTE =
  * Not a finding about this answer's figures. Dropped in {@link rankCaveats}
  * rather than ranked last, so a stored answer that still carries it does not
  * show it, and a model that volunteers it does not get it onto the card.
+ *
+ * The grant-timing sentence is the same family: declaring a table does not
+ * refuse the request that just listed it. Keep it out of the card entirely
+ * rather than letting the word "refusal" become a red banner.
  */
 const IDENTITY_GRANT_LECTURE =
   /covers only the data that identity is granted|row filters and column masks apply without reporting themselves|this answer was produced as /i;
-
-/** Whether this caveat is the identity / row-filter lecture, not a real risk note. */
-export function isIdentityGrantLecture(caveat: string): boolean {
-  return IDENTITY_GRANT_LECTURE.test(caveat);
-}
 
 /**
  * The request itself was denied. A grant-timing note that also says this is
@@ -230,6 +229,12 @@ export function isIdentityGrantLecture(caveat: string): boolean {
  */
 const ACTUAL_REFUSAL =
   /governance control refused|refused part of this request|(?:this|the) request was refused|access was (?:refused|blocked|denied)|not authori[sz]ed/i;
+
+/** Whether this caveat is the identity / row-filter / grant-timing lecture, not a real risk note. */
+export function isIdentityGrantLecture(caveat: string): boolean {
+  if (IDENTITY_GRANT_LECTURE.test(caveat)) return true;
+  return GRANT_TIMING_NOTE.test(caveat) && !ACTUAL_REFUSAL.test(caveat);
+}
 
 /**
  * What this caveat threatens.

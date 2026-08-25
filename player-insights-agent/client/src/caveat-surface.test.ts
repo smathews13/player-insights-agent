@@ -21,6 +21,11 @@ describe('how loudly a Keep in mind bullet is drawn', () => {
         'These 12 tables are declared by the deployment; Unity Catalog grant evaluation happens at query time, so the signed-in user may not have SELECT access to all of them. Any refused table will be named explicitly if a query against it fails.'
       )
     ).toBe('note');
+    expect(
+      caveatSurface(
+        'Declaring a table does not guarantee read access; Unity Catalog grants are evaluated per query and a refusal will be named explicitly if it occurs.'
+      )
+    ).toBe('note');
   });
 
   it('leaves an ordinary qualification as an ordinary bullet', () => {

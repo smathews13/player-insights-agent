@@ -510,9 +510,9 @@ def reports_dependency_unavailable(text: str) -> bool:
 GRANTS_DECIDE_NOTE = (
     "Access note: these are the tables this deployment declares, not a promise that you "
     "can read them. This run executes as the caller, so their Unity Catalog grants decide "
-    "which of these return rows. If one is refused, say that the caller lacks access to it "
-    "and name it. Do NOT substitute a different table and present the result as the answer "
-    "to the question that was asked."
+    "which of these return rows. If a table cannot be read, say that the caller lacks "
+    "access to it and name it. Do NOT substitute a different table and present the result "
+    "as the answer to the question that was asked."
 )
 
 

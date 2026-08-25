@@ -319,9 +319,11 @@ Caveats stay in caveats, one limitation per entry, however long that list gets. 
 fold them into the narrative and do not leave one out to make the answer shorter.
 A check that passed is not a caveat: do not report a zero null rate, a successful
 describe, or any other passed check as a warning.
-Do not write a caveat about whose identity produced the answer, or that Unity Catalog
-row filters and column masks apply without reporting themselves. Those are standing
-facts about the warehouse, not findings about this answer.
+Do not write a caveat about whose identity produced the answer, that Unity Catalog
+row filters and column masks apply without reporting themselves, or that declaring a table does not guarantee read access. Those are standing facts about the warehouse,
+not findings about this answer. A catalog listing that names the declared tables has
+answered the question: do not open it with a refusal verdict, and do not write that
+a refusal will be named later as if this request was refused. Catalog and listing questions are allowed.
 """
 
 _NON_ACTION_FILLER = re.compile(
@@ -339,6 +341,31 @@ def _without_non_action_filler(text: str) -> str:
         if not _NON_ACTION_FILLER.search(line)
     ]
     return "\n".join(kept).strip()
+
+
+#: Standing grant-timing lecture the synthesiser still volunteers on a catalog
+#: listing. The word "refusal" in it is why the card used to paint a successful
+#: table list as Request refused. Dropped here, as well as in the prompt, so a
+#: model that ignores the instruction cannot put the sentence on the wire.
+_GRANT_TIMING_NOTE = re.compile(
+    r"(?i)declaring a table does not guarantee|does not guarantee read access|"
+    r"grant evaluation happens at query time|grants are evaluated per query|"
+    r"unity catalog still evaluates|unity catalog grants are evaluated|"
+    r"declared source set|tables this deployment declares|"
+    r"any refused table will be named|a refusal will be named|"
+    r"may not have SELECT access"
+)
+_ACTUAL_REFUSAL = re.compile(
+    r"(?i)governance control refused|refused part of this request|"
+    r"(?:this|the) request was refused|access was (?:refused|blocked|denied)|"
+    r"not authori[sz]ed"
+)
+
+
+def _is_grant_timing_note(text: str) -> bool:
+    """True for the standing UC grant-timing lecture, not for a real denial."""
+
+    return bool(_GRANT_TIMING_NOTE.search(text)) and not _ACTUAL_REFUSAL.search(text)
 
 # ---------------------------------------------------------------------------
 # What bounds the loop
@@ -3235,8 +3262,6 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 "## DATA OVERVIEW\n"
                 "- **Declared governed sources:**\n"
                 + result.text
-                + "\n- **Access note:** This is the deployment's declared source set. "
-                "Unity Catalog still evaluates the signed-in user's grants when a table is read."
             )
             return LoopOutcome(answer_text=package, complete=True)
         max_steps = runtime_settings.current().loop.max_steps
@@ -5070,13 +5095,16 @@ Tables available to this analysis, with their columns:
 
         presentation = runtime_settings.current().answer
         caveats = list(synthesis.caveats) if presentation.caveats else []
+        # Do not keep the identity / row-filter / grant-timing lecture. Whose
+        # grants bounded the query is a standing fact about Unity Catalog, not a
+        # risk note about this answer's figures, and Keep in mind does not show
+        # it. A catalog listing that already named the tables is complete.
+        # Filtered before the cap so the lecture cannot consume a caveat slot.
+        caveats = [caveat for caveat in caveats if not _is_grant_timing_note(caveat)]
         # This setting governs analyst-authored caveats. Governance, access, and
         # outage warnings are added below and remain mandatory, as the UI says.
         if presentation.max_caveats:
             caveats = caveats[: presentation.max_caveats]
-        # Do not insert the identity / row-filter lecture. Whose grants bounded
-        # the query is a standing fact about Unity Catalog, not a risk note about
-        # this answer's figures, and Keep in mind does not show it.
         if not log.sources_complete:
             # Checked BEFORE the empty case, not as its else: with the tables
             # unknown, "no governed table was read" is a claim nothing here can
