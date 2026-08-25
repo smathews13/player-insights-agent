@@ -36,7 +36,8 @@ import {
 } from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { runRuntimeUsedFromStored, type RunRuntimeUsed } from '../../shared/run-runtime-used';
-import { isAdminRoute, requireAdmin, requireSuperAdmin, rolePayload } from '../lib/admin-roles';
+import { isAdminRoute, requireAdmin, requireSuperAdmin, resolveRole, rolePayload } from '../lib/admin-roles';
+import { opensAdminSurfaces } from '../../shared/user-roster-contract';
 import {
   admitRun,
   executorName,
@@ -561,6 +562,10 @@ export const SHARED_RUN_OWNER = 'Another team member';
  * Conversation runs are derived from the assistant messages that already carry a
  * trace rather than written as separate rows, so runs stored before this existed
  * still appear.
+ *
+ * `$1` is the plan-approval skip string, `$2` is the caller, `$3` is whether
+ * that caller may read every conversation (administrators and super
+ * administrators). A consumer still matches `c.user_email = $2` only.
  */
 export const RUNS_QUERY = `
   WITH answers AS (SELECT m.id, m.conversation_id, m.created_at,
@@ -570,7 +575,7 @@ export const RUNS_QUERY = `
     JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
     -- A plan proposal has no trace and is not yet a run; an answer always has one.
     WHERE m.role = 'assistant' AND jsonb_typeof(m.response_json->'trace') = 'object'
-      AND c.user_email = $2
+      AND ($3 OR c.user_email = $2)
   )
   SELECT a.id, 'conversation' AS kind, a.conversation_id,
          COALESCE((SELECT u.content FROM ${APP_SCHEMA}.messages u
@@ -632,7 +637,7 @@ export const RUNS_QUERY = `
   UNION ALL
   SELECT b.id, 'benchmark' AS kind, NULL AS conversation_id,
          b.metrics_json->>'prompt' AS prompt,
-         CASE WHEN b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
+         CASE WHEN $3 OR b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
          ${overlayStatusSql('b.status')} AS status,
          jsonb_typeof(b.metrics_json->'truncation') = 'object' AS truncated,
          -- NULL because a suite has no single trace to read it off: each case is
@@ -656,6 +661,18 @@ export const RUNS_QUERY = `
   ${overlayJoinSql('b.id')}
   ORDER BY created_at DESC
   LIMIT 200`;
+
+/**
+ * Whether Run Explorer lists every conversation, not only the caller's.
+ *
+ * Same check the admin tabs already use: administrator and super administrator
+ * both open. A failed roster read denies rather than admits, so a consumer
+ * stays on their own runs.
+ */
+async function callerReadsEveryRun(store: InsightsAppKit['lakebase'], email: string): Promise<boolean> {
+  const { role } = await resolveRole(store, email);
+  return opensAdminSurfaces(role);
+}
 
 /**
  * The only thing `POST /api/insights/ask` can end up serving as an answer.
@@ -1144,11 +1161,13 @@ export function benchmarkRunTrace(row: Record<string, unknown>): RunTrace {
 }
 
 /**
- * `$1` is the run id, `$2` is `PLAN_APPROVAL_MESSAGE`, `$3` is the caller.
+ * `$1` is the run id, `$2` is `PLAN_APPROVAL_MESSAGE`, `$3` is the caller,
+ * `$4` is whether that caller may open every conversation run.
  *
  * Mirrors how `RUNS_QUERY` labels a run, and now mirrors its scope too: a run id
  * is a message id, so without the caller predicate this returned any user's
- * prompt, answer and address to anyone who could name one.
+ * prompt, answer and address to anyone who could name one. Administrators pass
+ * true for `$4` so a row they can see in the list also opens.
  */
 export const RUN_TRACE_MESSAGE_QUERY = `
   SELECT m.id, m.conversation_id, m.created_at, m.response_json, m.trace_id,
@@ -1161,7 +1180,7 @@ export const RUN_TRACE_MESSAGE_QUERY = `
          ) AS prompt
   FROM ${APP_SCHEMA}.messages m
   JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
-  WHERE m.id = $1 AND c.user_email = $3`;
+  WHERE m.id = $1 AND ($4 OR c.user_email = $3)`;
 
 /**
  * `$1` is the run id, `$2` is the caller.
@@ -1840,12 +1859,13 @@ export const CONVERSATION_RAIL_LIMIT = 100;
  * What each conversation's latest answered turn ended on, for the rail's badge.
  *
  * WHY THIS IS NOT READ OFF `/api/runs`. The rail lists everyone's
- * conversations when the shared rail is on, but `RUNS_QUERY` is scoped
- * `AND c.user_email = $2` and an identity-boundary test holds it there. So the
- * rail drew a Complete badge and a wall time on the reader's own rows and
- * nothing at all on anybody else's -- reported as "other user questions should
- * show badges too". The scoping is right for that route: a run carries the
- * prompt, the trace, the generated SQL and the spaces it opened.
+ * conversations when the shared rail is on, but `RUNS_QUERY` still scopes a
+ * consumer to `c.user_email = $2`. Administrators pass `$3` true and see
+ * every conversation; a consumer does not. The rail badge used to go blank
+ * on anybody else's row because it read the scoped list -- reported as
+ * "other user questions should show badges too". A run still carries the
+ * prompt, the trace, the generated SQL and the spaces it opened, so the
+ * consumer half stays on the caller.
  *
  * What a badge needs is none of that. It is the verdict and the wall clock, and
  * both are already implied by a row this query returns unscoped: the rail is
@@ -4620,7 +4640,13 @@ export function setupInsightsRoutes(
     });
 
     app.get('/api/runs', async (req, res) => {
-      await respondWithStored(appkit, res, 'GET /api/runs', RUNS_QUERY, [PLAN_APPROVAL_MESSAGE, userEmail(req)]);
+      const email = userEmail(req);
+      const everyRun = await callerReadsEveryRun(appkit.lakebase, email);
+      await respondWithStored(appkit, res, 'GET /api/runs', RUNS_QUERY, [
+        PLAN_APPROVAL_MESSAGE,
+        email,
+        everyRun,
+      ]);
     });
 
     /**
@@ -4651,6 +4677,7 @@ export function setupInsightsRoutes(
     app.get('/api/runs/:id/trace', async (req, res) => {
       const runId = req.params.id;
       const email = userEmail(req);
+      const everyRun = await callerReadsEveryRun(appkit.lakebase, email);
       // Read per request, not cached: `experiment-id` is an `app-runtime`
       // resource, so a value saved in the settings pane has to take effect on
       // the next trace opened rather than on the next deploy. Falls back to the
@@ -4658,7 +4685,12 @@ export function setupInsightsRoutes(
       const experimentId = await resolveExperimentId(appkit);
       let resolved: RunTrace | null = null;
       try {
-        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [runId, PLAN_APPROVAL_MESSAGE, email]);
+        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [
+          runId,
+          PLAN_APPROVAL_MESSAGE,
+          email,
+          everyRun,
+        ]);
         if (message.rows[0]) {
           resolved = conversationRunTrace(message.rows[0], experimentId);
         } else {

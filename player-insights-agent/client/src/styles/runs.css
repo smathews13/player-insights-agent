@@ -248,7 +248,18 @@
   font-size: var(--text-h-sub);
   font-weight: 700;
 }
-.run-conversation-filter {
+.run-list-filters {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: stretch;
+}
+.run-list-filters > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.run-conversation-filter,
+.run-username-filter {
   width: 100%;
   justify-content: space-between;
 }

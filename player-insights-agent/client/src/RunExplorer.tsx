@@ -60,7 +60,14 @@ import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
 import type { Conversation, Run } from './app-types';
 import { UserIdentityChip } from './UserIdentityChip';
-import { conversationFilterOptions, conversationRunNumber, KPI_HINTS, toolStageDurationMs } from './run-explorer-state';
+import {
+  conversationFilterOptions,
+  conversationRunNumber,
+  KPI_HINTS,
+  matchingRuns,
+  toolStageDurationMs,
+  usernameFilterOptions,
+} from './run-explorer-state';
 import { showsAdminSurfaces, useRole } from './role';
 import { answerRunVerdict } from '../../shared/run-verdict';
 import { UsedThisRun } from './UsedThisRun';
@@ -175,6 +182,7 @@ export function RunExplorer() {
   // for. Narrowing the list is the reader's decision; the carried-over
   // conversation only decides which run OPENS (see `conversationRun` below).
   const [conversationFilter, setConversationFilter] = useState('');
+  const [usernameFilter, setUsernameFilter] = useState('');
   // Whether the rows below are stored runs, seeded ones, or nothing at all
   // because nobody could find out. Classified in list-availability.ts from what
   // the server said, not guessed from the ids or the row count: an empty store
@@ -239,12 +247,11 @@ export function RunExplorer() {
   }, []);
   const conversationsUnreadable = conversationAvailability?.origin === 'unavailable';
   const conversationOptions = conversationFilterOptions(conversations, runs);
-  const visibleRuns = runs.filter((run) => {
-    const inConversation = !conversationFilter || run.conversation_id === conversationFilter;
-    const matchesSearch = `${runLabel(run)} ${run.stakeholder ?? ''} ${run.conversation_id ?? ''}`
-      .toLowerCase()
-      .includes(searchText.toLowerCase());
-    return inConversation && matchesSearch;
+  const usernameOptions = usernameFilterOptions(runs);
+  const visibleRuns = matchingRuns(runs, {
+    conversationId: conversationFilter,
+    username: usernameFilter,
+    search: searchText,
   });
   /**
    * Whether a `?run=` deep link asked for a run that is not here.
@@ -371,36 +378,65 @@ export function RunExplorer() {
         <Card className="run-list">
           <CardHeader>
             <CardTitle>Recent runs</CardTitle>
-            <Select
-              value={conversationFilter || 'all'}
-              onValueChange={(value) => setConversationFilter(value === 'all' ? '' : value)}
-            >
-              <SelectTrigger className="run-conversation-filter" aria-label="Filter runs by conversation">
-                {/* An unreadable conversation list says so here rather than
-                    standing as "All conversations" over a store nobody could
-                    reach. The runs below are unaffected and still listed: what
-                    is missing is the list of threads to narrow them by. */}
-                <span>
-                  {conversationsUnreadable
-                    ? 'Conversations could not be read'
-                    : (conversationOptions.find((option) => option.id === conversationFilter)?.label ??
-                      'All conversations')}
-                </span>
-              </SelectTrigger>
-              <SelectContent
-                className="app-select-content"
-                position="popper"
-                align="start"
-                sideOffset={4}
-              >
-                <SelectItem value="all">All conversations</SelectItem>
-                {conversationOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="run-list-filters">
+              <div>
+                <Select
+                  value={conversationFilter || 'all'}
+                  onValueChange={(value) => setConversationFilter(value === 'all' ? '' : value)}
+                >
+                  <SelectTrigger className="run-conversation-filter" aria-label="Filter runs by conversation">
+                    {/* An unreadable conversation list says so here rather than
+                        standing as "All conversations" over a store nobody could
+                        reach. The runs below are unaffected and still listed: what
+                        is missing is the list of threads to narrow them by. */}
+                    <span>
+                      {conversationsUnreadable
+                        ? 'Conversations could not be read'
+                        : (conversationOptions.find((option) => option.id === conversationFilter)?.label ??
+                          'All conversations')}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent
+                    className="app-select-content"
+                    position="popper"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <SelectItem value="all">All conversations</SelectItem>
+                    {conversationOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Select
+                  value={usernameFilter || 'all'}
+                  onValueChange={(value) => setUsernameFilter(value === 'all' ? '' : value)}
+                >
+                  <SelectTrigger className="run-username-filter" aria-label="Filter runs by username">
+                    <span>
+                      {usernameOptions.find((option) => option.value === usernameFilter)?.label ?? 'All users'}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent
+                    className="app-select-content"
+                    position="popper"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <SelectItem value="all">All users</SelectItem>
+                    {usernameOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="run-search">
               <Search />
               <Input
@@ -437,7 +473,7 @@ export function RunExplorer() {
                   </EmptyMedia>
                   <EmptyTitle>No matching runs</EmptyTitle>
                   <EmptyDescription>
-                    Try a different conversation filter, prompt, or stakeholder search.
+                    Try a different conversation, username, prompt, or stakeholder search.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>

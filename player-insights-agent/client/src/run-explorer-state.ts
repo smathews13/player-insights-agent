@@ -1,6 +1,10 @@
 import type { TraceStage } from './answer-shape';
 import type { Conversation, Run } from './app-types';
 import { runLabel } from './run-label';
+import { identityName } from './user-identity';
+
+/** Withheld owner on a shared benchmark run. Not a username that has runs. */
+const SHARED_RUN_OWNER = 'Another team member';
 
 function isDataWork(stage: TraceStage): boolean {
   return stage.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${stage.id} ${stage.name}`);
@@ -97,11 +101,55 @@ export function conversationFilterOptions(
       firstRunByConversation.set(run.conversation_id, run);
     }
   }
-  return conversations.map((conversation) => {
+  const options = conversations.map((conversation) => {
     const firstRun = firstRunByConversation.get(conversation.id);
     return {
       id: conversation.id,
       label: firstRun ? conversationSummary(firstRun) : conversation.title,
     };
+  });
+  const seen = new Set(options.map((option) => option.id));
+  for (const [id, run] of firstRunByConversation) {
+    if (seen.has(id)) continue;
+    options.push({ id, label: conversationSummary(run) });
+    seen.add(id);
+  }
+  return options;
+}
+
+/**
+ * Usernames that actually have a run in this list. Local part only, sorted,
+ * never invented: a person who has not asked does not appear.
+ */
+export function usernameFilterOptions(runs: readonly Run[]): Array<{ value: string; label: string }> {
+  const seen = new Map<string, string>();
+  for (const run of runs) {
+    const raw = run.stakeholder?.trim() ?? '';
+    if (!raw || raw === SHARED_RUN_OWNER) continue;
+    const name = identityName(raw);
+    if (!name || name === 'Unknown') continue;
+    const key = name.toLowerCase();
+    if (!seen.has(key)) seen.set(key, name);
+  }
+  return [...seen.entries()]
+    .sort((left, right) => left[1].localeCompare(right[1]))
+    .map(([value, label]) => ({ value, label }));
+}
+
+/**
+ * The recent-runs list after conversation, username, and search all apply.
+ */
+export function matchingRuns(
+  runs: readonly Run[],
+  filters: { conversationId?: string; username?: string; search?: string }
+): Run[] {
+  const search = (filters.search ?? '').toLowerCase();
+  const username = (filters.username ?? '').toLowerCase();
+  return runs.filter((run) => {
+    const inConversation = !filters.conversationId || run.conversation_id === filters.conversationId;
+    const inUser = !username || identityName(run.stakeholder).toLowerCase() === username;
+    const haystack = `${runLabel(run)} ${run.stakeholder ?? ''} ${run.conversation_id ?? ''} ${identityName(run.stakeholder)}`;
+    const matchesSearch = haystack.toLowerCase().includes(search);
+    return inConversation && inUser && matchesSearch;
   });
 }

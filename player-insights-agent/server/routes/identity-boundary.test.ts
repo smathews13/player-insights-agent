@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEVELOPMENT_IDENTITY, setupInsightsRoutes, type InsightsAppKit } from './insights-routes';
+import { announceSeedAdmins } from '../lib/admin-roles';
 import { resetLakebaseHealth } from '../lib/lakebase-store';
 
 /**
@@ -314,8 +315,10 @@ function twoTenantStore() {
     { id: 'msg-alice', conversation_id: 'conv-alice', content: "Alice's question about retention" },
     { id: 'msg-bob', conversation_id: 'conv-bob', content: "Bob's question about severance" },
   ];
-  const scoped = (sql: string, caller: unknown) =>
-    messages.filter((row) => !/user_email = \$\d/.test(sql) || owners[row.conversation_id] === caller);
+  const scoped = (sql: string, caller: unknown, everyRun?: unknown) =>
+    messages.filter(
+      (row) => everyRun === true || !/user_email = \$\d/.test(sql) || owners[row.conversation_id] === caller
+    );
 
   return {
     lakebase: {
@@ -332,7 +335,7 @@ function twoTenantStore() {
 
         // GET /api/runs, conversation half
         if (sql.includes("'conversation' AS kind")) {
-          const rows = scoped(sql, params[1]).map((row) => ({
+          const rows = scoped(sql, params[1], params[2]).map((row) => ({
             id: row.id,
             kind: 'conversation',
             conversation_id: row.conversation_id,
@@ -348,7 +351,7 @@ function twoTenantStore() {
 
         // GET /api/runs/:id/trace, conversation half
         if (sql.includes('WHERE m.id = $1')) {
-          const rows = scoped(sql, params[2])
+          const rows = scoped(sql, params[2], params[3])
             .filter((row) => row.id === params[0])
             .map((row) => ({
               id: row.id,
@@ -414,6 +417,7 @@ describe('one signed-in user cannot read another', () => {
   });
 
   it("keeps another user's prompts and address out of Run Explorer", async () => {
+    announceSeedAdmins('');
     const app = await startApp(twoTenantStore().lakebase);
 
     try {
@@ -427,7 +431,41 @@ describe('one signed-in user cannot read another', () => {
     }
   });
 
+  it.each(['admin', 'super_admin'] as const)(
+    'lists every conversation in Run Explorer when the caller is a %s',
+    async (rank) => {
+      announceSeedAdmins(rank === 'super_admin' ? `super:${ALICE}` : ALICE);
+      const app = await startApp(twoTenantStore().lakebase);
+
+      try {
+        const body = await app.fetch('/api/runs', { headers: asAlice }).then((r) => r.text());
+
+        expect(body).toContain('retention');
+        expect(body).toContain('severance');
+        expect(body).toContain(BOB);
+      } finally {
+        await app.close();
+        announceSeedAdmins('');
+      }
+    }
+  );
+
+  it('opens another user\'s run when the caller is an administrator', async () => {
+    announceSeedAdmins(ALICE);
+    const app = await startApp(twoTenantStore().lakebase);
+
+    try {
+      const response = await app.fetch('/api/runs/msg-bob/trace', { headers: asAlice });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('severance');
+    } finally {
+      await app.close();
+      announceSeedAdmins('');
+    }
+  });
+
   it("will not open another user's run trace", async () => {
+    announceSeedAdmins('');
     const app = await startApp(twoTenantStore().lakebase);
 
     try {

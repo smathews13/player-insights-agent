@@ -6,7 +6,9 @@ import {
   conversationFilterOptions,
   conversationRunNumber,
   conversationSummary,
+  matchingRuns,
   toolStageDurationMs,
+  usernameFilterOptions,
 } from './run-explorer-state';
 import type { Conversation, Run } from './app-types';
 import type { TraceStage } from './answer-shape';
@@ -172,5 +174,73 @@ describe('Run Explorer feedback', () => {
       { id: 'conv-player-comparison', label: conversationSummary(first) },
     ]);
     expect(conversationSummary(first)).toBe('Compare active players by title over the last 30 days…');
+  });
+
+  it('offers a conversation that has a run even when the conversation list missed it', () => {
+    const run: Run = {
+      id: 'msg-jay',
+      conversation_id: 'conv-jay',
+      created_at: '2026-08-25T01:00:00Z',
+      kind: 'conversation',
+      prompt: 'How is VLH doing this week?',
+      stakeholder: 'jay.mehta@example.example',
+      status: 'complete',
+      duration_ms: 1,
+      rating: null,
+    };
+    expect(conversationFilterOptions([], [run])).toEqual([
+      { id: 'conv-jay', label: 'How is VLH doing this week?' },
+    ]);
+  });
+
+  it('lists only usernames that have runs, and never invents one', () => {
+    const run = (id: string, stakeholder: string): Run => ({
+      id,
+      conversation_id: `conv-${id}`,
+      created_at: '2026-08-25T01:00:00Z',
+      kind: 'conversation',
+      prompt: id,
+      stakeholder,
+      status: 'complete',
+      duration_ms: 1,
+      rating: null,
+    });
+    expect(
+      usernameFilterOptions([
+        run('a', '<your-username>@example.example'),
+        run('b', 'jay.mehta@example.example'),
+        run('c', '<your-username>@example.example'),
+        run('d', 'Another team member'),
+        run('e', ''),
+      ])
+    ).toEqual([
+      { value: 'jay.mehta', label: 'jay.mehta' },
+      { value: '<your-username>', label: '<your-username>' },
+    ]);
+  });
+
+  it('narrows the list by username and still honours search', () => {
+    const run = (id: string, stakeholder: string, prompt: string): Run => ({
+      id,
+      conversation_id: `conv-${id}`,
+      created_at: '2026-08-25T01:00:00Z',
+      kind: 'conversation',
+      prompt,
+      stakeholder,
+      status: 'complete',
+      duration_ms: 1,
+      rating: null,
+    });
+    const rows = [
+      run('sam-vlh', '<your-username>@example.example', 'is VLH bringing in more users than Iron Frontier 2?'),
+      run('jay-vlh', 'jay.mehta@example.example', 'How is VLH doing this week?'),
+      run('sam-ifr', '<your-username>@example.example', 'Iron Frontier retention'),
+    ];
+
+    expect(matchingRuns(rows, { username: 'jay.mehta' }).map((item) => item.id)).toEqual(['jay-vlh']);
+    expect(matchingRuns(rows, { username: '<your-username>', search: 'VLH' }).map((item) => item.id)).toEqual([
+      'sam-vlh',
+    ]);
+    expect(matchingRuns(rows, { search: 'VLH' }).map((item) => item.id)).toEqual(['sam-vlh', 'jay-vlh']);
   });
 });
