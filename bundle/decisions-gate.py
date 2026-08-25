@@ -137,7 +137,7 @@ DISPLAYED = [
     (
         "D11",
         "Keep in mind shows the three highest-risk caveats and folds the rest "
-        "behind a control that counts them. This overrides the sources-module "
+        "behind show more. This overrides the sources-module "
         "specification, which asks for all of them uncollapsed.",
     ),
     (

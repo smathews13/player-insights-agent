@@ -3235,6 +3235,8 @@ def test_the_make_no_claim_rule_is_still_in_the_prompt_verbatim():
 
     assert SYNTHESIS_PROVENANCE_RULE in SYNTHESIS_INSTRUCTIONS
     assert "make no claim about whether the data is synthetic" in SYNTHESIS_INSTRUCTIONS
+    assert "Do not write a caveat about whose identity produced the answer" in SYNTHESIS_INSTRUCTIONS
+    assert "row filters and column masks apply without reporting themselves" in SYNTHESIS_INSTRUCTIONS
     # And nothing in it asks for the opposite, which is what used to sit behind a setting.
     for framing in ("figures are invented", "synthetic data", "demo data", "not real"):
         assert framing not in SYNTHESIS_INSTRUCTIONS.lower()

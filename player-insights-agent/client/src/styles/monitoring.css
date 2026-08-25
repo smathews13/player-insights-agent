@@ -657,16 +657,22 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-/* The compact chip's 150px cap is for a header sharing a row with the wordmark
-   and the nav. This row wraps, so there is nothing here for a cut name to save:
-   "sam.mathe..." over a line that then spells the same name out in full is the
-   one place the truncation is pure loss. */
+/*
+ * Compact, always. `max-width: none` here grew Asked-by into a washed banner
+ * across the modal. The chip now sits in the answer card's corner; when it
+ * remains on this row (no card) it still wears the 150px compact cap.
+ */
 .monitoring-drawer-meta-row .identity-chip {
-  max-width: none;
+  flex: none;
+  max-width: 150px;
 }
-.monitoring-drawer-meta-row .identity-chip-text {
-  overflow: visible;
-  text-overflow: clip;
+/*
+ * Same corner seating Ask restates on the transcript. The modal is not
+ * `.conversation-main`, so a later AppKit header utility would otherwise drop
+ * "Live agent response" a gutter down from the card edge.
+ */
+.monitoring-question-modal .answer-card > [data-slot='card-header'] {
+  padding: 0 8px;
 }
 .monitoring-drawer-meta {
   margin: 0;

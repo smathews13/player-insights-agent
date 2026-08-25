@@ -140,12 +140,12 @@ describe('the Overview Final Answer module', () => {
     expect(html).not.toMatch(/<p class="source-list-derivation"/);
   });
 
-  it('paints a real failure as a dark-red warning and identity as a secondary note', () => {
+  it('paints a real failure as a dark-red warning and does not draw the identity lecture', () => {
     const html = markup();
     expect(html).toContain('data-surface="failure"');
     expect(html).toContain('APITimeoutError');
-    expect(html).toContain('data-surface="note"');
-    expect(html).toContain('analyst@example.com');
+    expect(html).not.toContain('analyst@example.com');
+    expect(html).not.toContain('covers only the data that identity is granted');
   });
 
   it('keeps Open full response inside the card', () => {
@@ -205,8 +205,9 @@ describe('the Overview warning family', () => {
   it('sits in the section corner with no padding gap under the KPI divider', () => {
     const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(css).toMatch(
-      /\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*0 20px 16px 8px/s
+      /\.final-answer \[data-slot='card-content'\][^}]*padding:\s*0 20px 16px 8px/s
     );
+    expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*padding:\s*0/s);
     expect(css).not.toMatch(
       /\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*18px/s
     );

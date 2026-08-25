@@ -56,6 +56,7 @@ export function AnswerCard({
   showRunProcess = true,
   processStages,
   afterEvidence,
+  headerExtra,
 }: {
   answer: Answer;
   /**
@@ -102,6 +103,12 @@ export function AnswerCard({
    * modal's height-capped column. Ask does not pass one.
    */
   afterEvidence?: ReactNode;
+  /**
+   * A compact chip that belongs in the same top-left corner as "Live agent
+   * response". Monitoring passes Asked-by here so that name is a corner chip
+   * on the answer, not a washed bar above it. Ask does not pass one.
+   */
+  headerExtra?: ReactNode;
 }) {
   const [advanced, setAdvanced] = useState(false);
   /** Which thumb this answer's rating lights, or neither. See stored-feedback.ts. */
@@ -178,6 +185,7 @@ export function AnswerCard({
               <Badge variant={badge.variant} className="provenance-chip" data-tone={badge.tone}>
                 {badge.label}
               </Badge>
+              {headerExtra}
               {honesty.tone === 'partial' && (
                 <Badge variant="outline" className="provenance-chip ast-pill ast-pill--warn">
                   {honesty.eyebrow}

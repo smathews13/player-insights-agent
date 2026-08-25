@@ -105,7 +105,6 @@ from unattributed_figures import waiver_caveat
 from user_authorization import (
     UserCredentialsUnavailable,
     announce,
-    coverage_caveat,
     executing_identity,
     from_artifact,
     is_user_credentials_unavailable,
@@ -320,6 +319,9 @@ Caveats stay in caveats, one limitation per entry, however long that list gets. 
 fold them into the narrative and do not leave one out to make the answer shorter.
 A check that passed is not a caveat: do not report a zero null rate, a successful
 describe, or any other passed check as a warning.
+Do not write a caveat about whose identity produced the answer, or that Unity Catalog
+row filters and column masks apply without reporting themselves. Those are standing
+facts about the warehouse, not findings about this answer.
 """
 
 _NON_ACTION_FILLER = re.compile(
@@ -5072,12 +5074,9 @@ Tables available to this analysis, with their columns:
         # outage warnings are added below and remain mandatory, as the UI says.
         if presentation.max_caveats:
             caveats = caveats[: presentation.max_caveats]
-        if self.user_authorization:
-            # Unconditional, and first, because it changes what every figure
-            # below is a figure ABOUT. A row filter returns a successful query
-            # over fewer rows and reports nothing, so there is no condition to
-            # attach this to.
-            caveats.insert(0, coverage_caveat(log.executed_as))
+        # Do not insert the identity / row-filter lecture. Whose grants bounded
+        # the query is a standing fact about Unity Catalog, not a risk note about
+        # this answer's figures, and Keep in mind does not show it.
         if not log.sources_complete:
             # Checked BEFORE the empty case, not as its else: with the tables
             # unknown, "no governed table was read" is a claim nothing here can

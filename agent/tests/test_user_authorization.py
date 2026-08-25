@@ -417,25 +417,21 @@ def test_every_other_first_use_failure_still_reports_an_empty_identity():
     assert executing_identity(SimpleNamespace(current_user=SimpleNamespace(me=explode))) == ""
 
 
-def test_the_coverage_caveat_names_the_failure_that_cannot_be_detected():
-    """Row filters and column masks, which succeed and return less.
+def test_the_coverage_caveat_is_the_lecture_the_card_must_not_show():
+    """The standing identity / row-filter wording, named so a matcher can find it.
 
-    A table the caller cannot read fails loudly and the model reports it. A row
-    filter does not fail at all, so no signal exists to make this disclosure
-    conditional on, which is why the caveat has to be unconditional and has to
-    name the mechanism rather than gesture at "permissions".
+    It is not inserted on the answer path. Keep in mind drops any leftover copy.
     """
 
     caveat = coverage_caveat("ada@example.com")
     assert "ada@example.com" in caveat
+    assert "covers only the data that identity is granted" in caveat
     assert "row filters" in caveat.lower()
     assert "column masks" in caveat.lower()
 
-    # Still says what it can when the identity would not answer, rather than
-    # dropping the disclosure along with the name.
     anonymous = coverage_caveat("")
     assert "invoked this endpoint" in anonymous
-    assert "row filters" in anonymous.lower()
+    assert "covers only the data that identity is granted" in anonymous
 
 
 # ---------------------------------------------------------------------------
@@ -721,17 +717,14 @@ def answer_under(user_authorization: bool, identity: str):
     )
 
 
-def test_an_answer_computed_under_a_caller_says_whose_grants_bounded_it():
-    """First in the list, because it changes what every figure below it is about.
-
-    Under passthrough an answer's coverage is the declared manifest and is the
-    same for every reader. Under user authorization it is whatever that caller
-    happens to hold, and the run cannot measure how much was left out.
-    """
+def test_an_answer_computed_under_a_caller_does_not_lecture_about_grants():
+    """Whose grants bounded the query is not a Keep in mind bullet."""
 
     caveats = answer_under(True, "ada@example.com").caveats
-    assert caveats[0] == coverage_caveat("ada@example.com")
-    assert "ada@example.com" in caveats[0]
+    lecture = coverage_caveat("ada@example.com")
+    assert lecture not in caveats
+    assert not any("covers only the data that identity is granted" in caveat for caveat in caveats)
+    assert not any("row filters" in caveat.lower() for caveat in caveats)
 
 
 def test_an_answer_under_passthrough_gains_no_such_caveat():
@@ -741,8 +734,9 @@ def test_an_answer_under_passthrough_gains_no_such_caveat():
     assert not any("row filters" in caveat.lower() for caveat in caveats)
 
 
-def test_the_disclosure_survives_an_identity_that_would_not_answer():
-    """An unknown identity narrows the claim; it does not drop the disclosure."""
+def test_an_unreadable_identity_still_does_not_emit_the_lecture():
+    """An unknown caller is not a reason to put the lecture back."""
 
     caveats = answer_under(True, "").caveats
-    assert caveats[0] == coverage_caveat("")
+    assert coverage_caveat("") not in caveats
+    assert not any("covers only the data that identity is granted" in caveat for caveat in caveats)

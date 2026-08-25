@@ -124,7 +124,8 @@ describe('the caveats an answer arrives with', () => {
 
     expect(markup).toContain('Keep in mind');
     expect(caveatBullets(markup)).toHaveLength(3);
-    expect(markup).toContain('Show all 5 · 2 more');
+    expect(markup).toContain('show more');
+    expect(markup).not.toMatch(/Show all \d/);
   });
 
   /**
@@ -155,7 +156,7 @@ describe('the caveats an answer arrives with', () => {
    */
   it('does not delete lower-ranked disclosures when it folds them', () => {
     const markup = renderCard(WIRE_CAVEATS);
-    expect(markup).toContain('Show all 5 · 2 more');
+    expect(markup).toContain('show more');
     expect(markup).not.toContain('produced as analyst@example.com');
   });
 
@@ -170,7 +171,7 @@ describe('the caveats an answer arrives with', () => {
    */
   it('draws them in risk order rather than the order they arrived', () => {
     const bullets = caveatBullets(renderCard(WIRE_CAVEATS));
-    const ranked = [COVERAGE, PLAYER_DAYS, OMITTED, IDENTITY, SYNTHETIC];
+    const ranked = [COVERAGE, PLAYER_DAYS, OMITTED, SYNTHETIC];
 
     // Compared whole. Each caveat is rendered through `EntityText`, which links
     // table names and bolds column names inside it, so a bullet is the caveat's
@@ -310,27 +311,36 @@ describe('the three a reader is shown first', () => {
   });
 
   /**
-   * The one guarantee that is not about tidiness. A refusal means the answer above
-   * it is not the answer to the question that was asked, so it cannot be the thing
-   * that ends up behind the fold.
+   * A refusal is lifted into a warning above the figures, not left to compete
+   * for the three Keep in mind slots. It still has to be on the card, and it
+   * cannot be the thing that ends up behind show more.
    */
-  it('leads with the refusal, wherever the agent put it', () => {
-    expect(caveatBullets(renderCard(TEN))[0]).toContain('A governance control refused part of this request');
+  it('shows the refusal on the card, not behind the fold', () => {
+    const markup = renderCard(TEN);
+    expect(markup).toContain('A governance control refused part of this request');
+    expect(markup).toContain('Request refused');
+    expect(caveatBullets(markup).join(' ')).not.toContain('A governance control refused');
   });
 
-  it('offers the rest, and counts them, rather than dropping them silently', () => {
+  it('offers the rest behind show more, rather than dropping them silently', () => {
     const markup = renderCard(TEN);
 
-    // " · ", not an em dash. Section 3 forbids the dash outright and gives this
-    // separator in its place; the two counts either side are unchanged.
-    expect(markup).toContain('Show all 7 · 4 more');
+    expect(markup).toContain('show more');
+    expect(markup).not.toMatch(/Show all \d/);
     expect(markup).not.toContain('—');
-    // Collapsed, so the two are absent from the list until the control is used --
-    // and the control is what says they exist.
+    expect(markup).not.toContain('produced as analyst@example.com');
+    // Collapsed, so the synthetic line is absent from the list until the control
+    // is used -- and the control is what says more exist.
     expect(markup).not.toContain('does not represent real player behavior');
   });
 
   it('draws no control when there is nothing behind it', () => {
-    expect(renderCard([IDENTITY, SYNTHETIC])).not.toContain('Show all');
+    expect(renderCard([IDENTITY, SYNTHETIC])).not.toContain('show more');
+  });
+
+  it('never draws the identity and row-filter lecture', () => {
+    const markup = renderCard(WIRE_CAVEATS);
+    expect(markup).not.toContain('covers only the data that identity is granted');
+    expect(markup).not.toContain('row filters and column masks');
   });
 });

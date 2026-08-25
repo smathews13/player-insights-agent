@@ -341,6 +341,16 @@ describe('dark mode covers the shipped surfaces', () => {
     );
   });
 
+  it('paints the Monitoring answer from the Ask pane, not a lifted gray', () => {
+    /*
+     * The selector also appears on the no-blur group above, so match the
+     * standalone pane rule rather than the first grouped block.
+     */
+    expect(DARK).toMatch(
+      /html\[data-theme='dark'\] \.monitoring-question-modal \.answer-card\s*\{\s*background:\s*var\(--ast-pane\)/
+    );
+  });
+
   it('paints Connections from the Ask pane, not a lifted gray', () => {
     /*
      * The same 14% white mix that washed Overview also painted Build and

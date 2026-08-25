@@ -17,9 +17,8 @@
  * here is only how the parts are drawn.
  *
  * THE FOLD IS DELIBERATE. Three qualifications stay visible and the remainder
- * sit behind the counted control, exactly as the current answer-card spec says.
- * The earlier five-item decision was tightened after the compact anatomy landed;
- * D11 in `bundle/DECISIONS.md` records both decisions.
+ * sit behind "show more". D11 in `bundle/DECISIONS.md` records the fold; the
+ * control does not count the hidden bullets.
  */
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
@@ -38,8 +37,7 @@ import { caveatSurface } from './caveat-surface';
  * `EntityText` as it arrived. A renderer that split a caveat on sentence
  * boundaries to win a shorter bullet, or trimmed one to its first clause, would
  * be deciding what a disclosure says from the surface furthest from the
- * reasoning that wrote it -- and the identity caveat, whose second sentence is
- * the row-filter warning, is the one such a rule would maul.
+ * reasoning that wrote it.
  *
  * `columns` is computed over the WHOLE caveat rather than per run, so an
  * identifier is recognised from the sentence it appears in rather than from the
@@ -104,23 +102,13 @@ export function KeepInMind({
           rest.map((caveat) => (<CaveatBullet caveat={caveat} sources={sources} key={caveat} />
           ))}
       </ul>
-      {/* The count is in the label rather than left to be discovered. "Show
-          all" alone does not tell a reader whether it hides one line or eight,
-          so it cannot tell them whether opening it is worth doing -- and the
-          runs where it hides eight are the runs where it matters. Once open it
-          says how to get back rather than restating the number, which is on
-          screen by then.
-
-          The separator is " · ". It was an em dash, which section 3 forbids
-          outright; this one was a real separator between two counts rather than
-          one of the placeholders that mean "no value", so it converts cleanly. */}
       {rest.length > 0 && (<Button
           className="keep-in-mind-toggle"
           onClick={() => setShowAll((open) => !open)}
           size="sm"
           variant="ghost"
         >
-          {showAll ? 'Show fewer' : `Show all ${top.length + rest.length} · ${rest.length} more`}
+          {showAll ? 'Show fewer' : 'show more'}
           <ChevronDown className={showAll ? 'rotate-180 transition-transform' : 'transition-transform'} />
         </Button>
       )}

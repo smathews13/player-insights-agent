@@ -222,7 +222,9 @@ describe('compact provenance and caveats', () => {
     const caveats = ['one', 'two', 'three', 'four', 'five'];
     const markup = renderToStaticMarkup(<KeepInMind caveats={caveats} sources={[]} />);
     expect(markup.match(/<li\b/g)).toHaveLength(3);
-    expect(markup).toContain('Show all 5 · 2 more');
+    expect(markup).toContain('show more');
+    expect(markup).not.toMatch(/Show all \d/);
+    expect(markup).not.toMatch(/\d more/);
   });
 });
 
@@ -316,6 +318,14 @@ describe('the answer card’s state chip sits in its top left corner', () => {
     expect(ask).not.toMatch(
       /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
     );
+    const monitoring = partial('monitoring.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    expect(monitoring).toMatch(
+      /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0 8px/s
+    );
+    expect(monitoring).not.toMatch(
+      /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
+    );
+    expect(css).toMatch(/\.answer-card-identity \.identity-chip \{[^}]*max-width:\s*150px/s);
   });
 
   it('draws it before the takeaway rather than beside or under it', () => {

@@ -124,13 +124,10 @@ describe('the caveats under an answer', () => {
     expect(PANEL_SOURCE).not.toMatch(/\brest\b[^\n]*\.slice\(/);
   });
 
-  /**
-   * A fold a reader cannot size is a fold they cannot decide about. "Show all"
-   * alone does not say whether it holds one line or eight, and the runs where it
-   * holds eight are the runs where the eighth was the point.
-   */
-  it('says how many are behind the toggle rather than only that some are', () => {
-    expect(PANEL_SOURCE).toContain('rest.length} more');
+  it('opens the fold with show more, and does not count the hidden bullets', () => {
+    expect(PANEL_SOURCE).toContain("'show more'");
+    expect(PANEL_SOURCE).not.toMatch(/Show all \$\{/);
+    expect(PANEL_SOURCE).not.toContain('rest.length} more');
   });
 
   /**
@@ -164,18 +161,11 @@ describe('every caveat reaching a bullet', () => {
     expect(ordinary).toEqual(REPORTED_CAVEATS);
   });
 
-  /**
-   * The two governance disclosures, named rather than counted. These are the
-   * ones a "tidy up the caveats" change would take first: the identity line is
-   * boilerplate on every answer, and the masking sentence is the second half of
-   * an item somebody would be tempted to trim to its first.
-   */
-  it('carries the identity and the masking disclosure through in full', () => {
+  it('still hands the lecture through as ordinary text, so ranking can drop it', () => {
     const [coverage] = splitCaveats(REPORTED_CAVEATS).ordinary;
 
     expect(coverage).toContain('covers only the data that identity is granted');
     expect(coverage).toContain('row filters and column masks apply without reporting themselves');
-    expect(coverage).toContain('a subset of the rows another reader would see');
   });
 
   /**

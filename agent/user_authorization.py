@@ -311,12 +311,10 @@ def executing_identity(client: Any) -> str:
 
 
 def coverage_caveat(identity: str) -> str:
-    """What an answer has to say about itself when it ran as the caller.
+    """The identity / row-filter lecture. Not inserted on the answer path.
 
-    UNCONDITIONAL on the user-authorized path. A row filter or column mask does
-    not fail: the query succeeds, returns fewer rows, and every figure computed
-    from it is a confident number about a subset. There is no signal to condition
-    the disclosure on.
+    Kept so tests can name the wording the card and the assembler must not emit.
+    A leftover copy from a stored answer is dropped in Keep in mind.
     """
 
     ran_as = f"as {identity}" if identity else "as the identity that invoked this endpoint"

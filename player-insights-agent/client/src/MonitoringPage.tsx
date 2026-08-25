@@ -776,8 +776,12 @@ export function QuestionDrawer({
             Joined rather than concatenated because the third segment is absent on
             a run that recorded no identity, and a hardcoded separator would leave
             the line ending in a dangling middot. */}
+        {/* Asked-by is a compact corner chip on the answer card, the same
+            register as "Live agent response". It stays here only when there is
+            no card — a conditioned or failed run still has to name who asked.
+            The timestamp and grants stay a caption, not a second washed bar. */}
         <div className="monitoring-drawer-meta-row">
-          <UserIdentityChip identity={detail.askedBy} label="Asked by" compact />
+          {!answer ? <UserIdentityChip identity={detail.askedBy} label="Asked by" compact /> : null}
           <p className="monitoring-drawer-meta">
             {[askedAtLabel(detail.askedAt), askerGrantsLine(detail.execution, identityName(detail.askedBy))]
               .filter((segment): segment is string => Boolean(segment))
@@ -825,6 +829,7 @@ export function QuestionDrawer({
             saveFeedback={async () => {}}
             showFeedback={false}
             afterEvidence={tokensNote(detail.tokens)}
+            headerExtra={<UserIdentityChip identity={detail.askedBy} label="Asked by" compact />}
           />
         ) : (
           /* A refusal or a failure: the taxonomy's own sentence, with the code in

@@ -140,6 +140,22 @@ describe('a Monitoring question opens as a centered modal over the list', () => 
     expect(MONITORING).not.toContain('<TraceTimeline');
   });
 
+  it('seats Asked-by as a compact chip in the answer corner, not a banner above it', () => {
+    const markup = drawer();
+    const rendered = text(markup);
+    const cardAt = markup.indexOf('class="answer-card');
+    const chipAt = markup.indexOf('identity-chip--compact');
+    expect(cardAt).toBeGreaterThan(-1);
+    expect(chipAt).toBeGreaterThan(cardAt);
+    expect(rendered).toContain('Asked by first.person');
+    expect(rendered.indexOf('Live agent response')).toBeLessThan(rendered.indexOf('Asked by first.person'));
+    expect(rendered.indexOf('Asked by first.person')).toBeLessThan(
+      rendered.indexOf('The leading title is ahead on daily active players.')
+    );
+    expect(MONITORING).toContain('headerExtra=');
+    expect(CARD).toContain('headerExtra');
+  });
+
   it('does not keep the Monitoring-only What ran stack over the prose', () => {
     const markup = drawer();
     const rendered = text(markup);

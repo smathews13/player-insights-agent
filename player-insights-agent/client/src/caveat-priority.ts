@@ -10,11 +10,9 @@
  * synthetic, and a reader who stops after three bullets had read the two that
  * change nothing about the figures.
  *
- * So the list is ordered by what a caveat threatens, five are shown, and the
- * rest go behind a toggle. NOT DROPPED. Every caveat the agent sent still
- * reaches the document, and the toggle says how many are behind it, because the
- * cases these disclosures exist for are exactly the ones where the reader needed
- * the twelfth line.
+ * So the list is ordered by what a caveat threatens, three stay visible, and
+ * the rest go behind "show more". The identity-and-row-filter lecture is the
+ * one exception: it is not a risk note, so it is dropped rather than folded.
  *
  * WHY THE ORDER IS DECIDED HERE AND NOT IN THE AGENT. `_assemble` in agent.py
  * chooses each insert position deliberately and documents the reason at each
@@ -210,6 +208,22 @@ const GRANT_TIMING_NOTE =
   /grant evaluation happens at query time|unity catalog still evaluates|declared by the deployment|declared source set|tables this deployment declares|any refused table will be named|may not have SELECT access|if a query against (?:it|them) fails/i;
 
 /**
+ * The standing lecture that every authorized answer used to open with: who it
+ * ran as, and that row filters can silently narrow the rows.
+ *
+ * Not a finding about this answer's figures. Dropped in {@link rankCaveats}
+ * rather than ranked last, so a stored answer that still carries it does not
+ * show it, and a model that volunteers it does not get it onto the card.
+ */
+const IDENTITY_GRANT_LECTURE =
+  /covers only the data that identity is granted|row filters and column masks apply without reporting themselves|this answer was produced as /i;
+
+/** Whether this caveat is the identity / row-filter lecture, not a real risk note. */
+export function isIdentityGrantLecture(caveat: string): boolean {
+  return IDENTITY_GRANT_LECTURE.test(caveat);
+}
+
+/**
  * The request itself was denied. A grant-timing note that also says this is
  * still a refusal; one that only mentions a table that *would* be named later
  * is not.
@@ -303,6 +317,8 @@ export interface RankedCaveats {
   rest: string[];
   /** How many were collapsed as restatements, for a test to hold this honest. */
   merged: number;
+  /** Identity / row-filter lectures that never reach the card. */
+  dropped: number;
 }
 
 /**
@@ -318,10 +334,15 @@ export function rankCaveats(caveats: readonly string[], limit = 5): RankedCaveat
   const kept: { text: string; risk: CaveatRisk; index: number }[] = [];
   const claims = new Set<string>();
   let merged = 0;
+  let dropped = 0;
 
   caveats.forEach((caveat, index) => {
     const text = caveat.trim();
     if (!text) return;
+    if (isIdentityGrantLecture(text)) {
+      dropped += 1;
+      return;
+    }
     const risk = caveatRisk(text);
     const claim = claimOf(text, risk);
     if (claims.has(claim)) {
@@ -334,5 +355,5 @@ export function rankCaveats(caveats: readonly string[], limit = 5): RankedCaveat
 
   kept.sort((left, right) => left.risk - right.risk || left.index - right.index);
   const ordered = kept.map((entry) => entry.text);
-  return { top: ordered.slice(0, limit), rest: ordered.slice(limit), merged };
+  return { top: ordered.slice(0, limit), rest: ordered.slice(limit), merged, dropped };
 }

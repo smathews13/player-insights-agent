@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAVEAT_RISK, caveatRisk, rankCaveats } from './caveat-priority';
+import { CAVEAT_RISK, caveatRisk, isIdentityGrantLecture, rankCaveats } from './caveat-priority';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 
 /**
@@ -135,12 +135,13 @@ describe('the five a reader sees', () => {
   });
 
   it('holds the rest back rather than dropping them', () => {
-    const { top, rest, merged } = rankCaveats(REPORTED);
+    const { top, rest, merged, dropped } = rankCaveats(REPORTED);
 
-    // Ten in, one collapsed as a restatement, nine out. Asserted as a sum so
-    // that a change which quietly drops one fails here rather than on a screen.
-    expect(top.length + rest.length + merged).toBe(REPORTED.length);
-    expect(rest).toEqual([SESSION_MINUTES, BAR_WIDTHS, IDENTITY, SYNTHETIC_FIRST]);
+    // Ten in, one collapsed as a restatement, one lecture dropped, eight out.
+    expect(top.length + rest.length + merged + dropped).toBe(REPORTED.length);
+    expect(dropped).toBe(1);
+    expect(rest).toEqual([SESSION_MINUTES, BAR_WIDTHS, SYNTHETIC_FIRST]);
+    expect([...top, ...rest]).not.toContain(IDENTITY);
   });
 
   /**
@@ -175,8 +176,14 @@ describe('the five a reader sees', () => {
   it('folds nothing when the answer sent five or fewer', () => {
     const { top, rest } = rankCaveats([REFUSAL, IDENTITY, SYNTHETIC_FIRST]);
 
-    expect(top).toHaveLength(3);
+    expect(top).toEqual([REFUSAL, SYNTHETIC_FIRST]);
     expect(rest).toEqual([]);
+  });
+
+  it('drops the identity and row-filter lecture rather than folding it', () => {
+    expect(isIdentityGrantLecture(IDENTITY)).toBe(true);
+    expect(isIdentityGrantLecture(REFUSAL)).toBe(false);
+    expect(rankCaveats([IDENTITY, DATASET_ENDS]).top).toEqual([DATASET_ENDS]);
   });
 
   it('drops the empty strings a stored row can carry rather than drawing blank bullets', () => {

@@ -592,6 +592,19 @@ html[data-theme='dark'] .monitoring-question-modal [data-slot='alert'] {
   backdrop-filter: none;
 }
 
+/*
+ * THE MODAL ANSWER IS ASK'S PANE, NOT THE WORKING-TAB MIX.
+ *
+ * The working-tab card mix (sky + 14% white) is the washed gray slab Overview
+ * was reported as. The question modal lives inside `.page-shell.monitoring-page`,
+ * so that mix landed on Ask PIA's own card and read as a second, lighter sheet
+ * over the solid modal. `--ast-pane` is the token the transcript already uses.
+ * No new gray.
+ */
+html[data-theme='dark'] .monitoring-question-modal .answer-card {
+  background: var(--ast-pane);
+}
+
 html[data-theme='dark'] .monitoring-page:has(.monitoring-drawer) > :not(.monitoring-drawer) {
   opacity: 0.55;
 }

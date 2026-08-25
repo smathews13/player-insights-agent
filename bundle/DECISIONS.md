@@ -242,7 +242,7 @@ specification said the caveats render with "no truncation, no Show all N collaps
 no merging". Sam overruled that after seeing a live answer arrive with nine
 bullets and calling it far too much information. The answer-card specification
 then set the final fold at three: the top three stay visible and the rest remain
-behind the counted "Show all N · M more" control.
+behind "show more".
 
 Keep in mind is now a separate compact box after the one-line provenance sentence,
 not a footer inside a tall Sources card. One bullet per caveat, the scope tag
@@ -250,7 +250,7 @@ naming the single table a caveat is about, the mono tag on every entity name
 inside it, and the bold numbers remain.
 
 Nothing is dropped by the fold. `rankCaveats` returns both halves, the component
-renders both, and the control says how many are behind it. A refusal or a coverage
+renders both, and the control says "show more" rather than counting them. A refusal or a coverage
 gap is ranked to the top and cannot be what ends up hidden. The ranking is in
 `client/src/caveat-priority.ts`; the rendering is `client/src/KeepInMind.tsx`, whose
 header states this override so a reader of the file does not need this one.
