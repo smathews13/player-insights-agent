@@ -30,6 +30,8 @@ const PROSE = CARD.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, '').replace(/^\s*\/\/.*$/g
 const PLAN = readFileSync(new URL('./PlanCard.tsx', import.meta.url), 'utf8');
 const CHARTS = readFileSync(new URL('./AnswerCharts.tsx', import.meta.url), 'utf8');
 const ANSWER_CSS = partial('answer.css');
+const ASK_CSS = partial('ask.css');
+const MONITORING_CSS = partial('monitoring.css');
 const BODY_CSS = partial('answer-body.css');
 const STYLESHEET = stylesheet();
 
@@ -58,6 +60,18 @@ describe('the answer and plan cards sit on the design’s scale, not the library
       expect(ruleFor(ANSWER_CSS, selector)).toContain('border-radius: var(--ast-radius-card)');
       expect(ruleFor(ANSWER_CSS, selector)).toContain('box-shadow: none');
     }
+  });
+
+  it('cancels AppKit card padding so Live sits on the top edge', () => {
+    // Header padding 8px was already set; AppKit Card's py-6 still dropped the
+    // row a gutter. Zero the card itself. Ask and Monitoring restate it.
+    const card = ruleFor(ANSWER_CSS, '.answer-card {');
+    expect(card).toMatch(/padding:\s*0/);
+    expect(card).not.toMatch(/padding-top:\s*(1[2-9]|2[0-9])px/);
+    expect(ruleFor(ASK_CSS, '.conversation-main .answer-card {')).toMatch(/padding:\s*0/);
+    expect(ruleFor(MONITORING_CSS, '.monitoring-question-modal .answer-card {')).toMatch(
+      /padding:\s*0/
+    );
   });
 
   it('closes the gap between sections to the answer-card specification’s 14px', () => {

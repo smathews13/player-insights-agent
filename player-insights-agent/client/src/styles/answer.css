@@ -43,6 +43,13 @@
   overflow: visible;
   container-type: inline-size;
   container-name: answer-card;
+  /*
+   * AppKit Card ships `py-6`. The 8px header stamp sits inside that, so Live
+   * drops a gutter under the top edge on Ask and Monitoring alike. Zero the
+   * card's own padding — same as `.final-answer` — so the header is the first
+   * pixel under the hairline. Header and content keep their own insets.
+   */
+  padding: 0;
 }
 
 .entity-token {
