@@ -4,23 +4,65 @@ import { describe, expect, it } from 'vitest';
 
 import { AppSky } from './AppSky';
 import { OPENING_CONSTELLATION } from './constellation';
+import { SKY_DOCUMENT_SEED } from './StarField';
+import { skyCoversShell } from './login-transition';
 
 const source = readFileSync(new URL('./AppSky.tsx', import.meta.url), 'utf8');
 const gate = readFileSync(new URL('./FirstOpenGate.tsx', import.meta.url), 'utf8');
 const layout = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
 const base = readFileSync(new URL('./styles/base.css', import.meta.url), 'utf8');
+const motion = readFileSync(new URL('./styles/star-motion.css', import.meta.url), 'utf8');
+
+function code(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ');
+}
 
 describe('the dark-mode sky', () => {
   it('is decorative, static, and seated in the shell', () => {
-    expect(layout).toContain('<AppSky />');
+    expect(layout).toContain('<AppSky cover={skyCoversShell(firstOpen.stage)} />');
     expect(source).not.toContain('ast-anim');
     expect(source).toContain('SKY_PAGE_ID');
     expect(source).toContain('pageId={SKY_PAGE_ID}');
-    expect(gate).toContain('pageId={SKY_PAGE_ID}');
+    expect(code(gate)).not.toContain('StarField');
+    expect(code(gate)).not.toContain('GateSky');
     expect(source).not.toContain('window.location');
     const markup = renderToStaticMarkup(<AppSky />);
     expect(markup).toContain('class="app-sky"');
     expect(markup).toContain('aria-hidden="true"');
+    expect(markup).toContain(`data-sky-seed="${SKY_DOCUMENT_SEED}"`);
+  });
+
+  it('keeps one sky instance through Continue, covering then sitting behind', () => {
+    /*
+     * THE REPORTED DEFECT: stars vanished for a beat after Continue, then
+     * reappeared when Ask arrived. Login painted one canvas; the shell mounted
+     * another the moment the card closed. Same seed, new SVG, so every line
+     * restarted from undrawn. The covering class is a stacking change on that
+     * one element — not a remount — and it drops before the chrome fades in.
+     */
+    expect(skyCoversShell('pending')).toBe(true);
+    expect(skyCoversShell('gate')).toBe(true);
+    expect(skyCoversShell('arriving')).toBe(false);
+    expect(skyCoversShell('open')).toBe(false);
+
+    const layoutCode = code(layout);
+    expect(layoutCode).not.toMatch(/stage === 'open' \? <AppSky/);
+    expect(layoutCode.match(/<AppSky cover=\{skyCoversShell\(firstOpen\.stage\)\} \/>/g)).toHaveLength(2);
+    expect(layoutCode).toContain('className="app-sky-host"');
+    expect(motion).toMatch(/\.app-sky-host\s*\{[^}]*isolation:\s*isolate/s);
+
+    const frameAt = layoutCode.indexOf('app-frame');
+    const skyAt = layoutCode.indexOf('<AppSky cover={skyCoversShell(firstOpen.stage)} />');
+    expect(skyAt).toBeGreaterThan(-1);
+    expect(skyAt).toBeLessThan(frameAt);
+    expect(layoutCode.slice(frameAt)).not.toContain('<AppSky');
+
+    const cover = renderToStaticMarkup(<AppSky cover />);
+    const behind = renderToStaticMarkup(<AppSky />);
+    expect(cover).toContain('gate-star-motion');
+    expect(behind).not.toContain('gate-star-motion');
+    expect(cover.match(/data-sky-seed="([^"]+)"/)?.[1]).toBe(behind.match(/data-sky-seed="([^"]+)"/)?.[1]);
+    expect(cover.match(/data-sky-seed="([^"]+)"/)?.[1]).toBe(SKY_DOCUMENT_SEED);
   });
 
   it('draws stars and connectors in both thirds of the canvas', () => {

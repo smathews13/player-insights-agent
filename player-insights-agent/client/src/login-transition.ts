@@ -149,6 +149,23 @@ export function isArriving(stage: GateStage): boolean {
 }
 
 /**
+ * Whether the one sky sits over the shell, covering Ask while the login card is
+ * still the thing being read.
+ *
+ * The card's overlay is transparent so the stars show through it. The shell is
+ * already mounted behind that overlay (so Continue does not first-paint Ask
+ * inside the fade). Without a covering sky those two facts fight: Ask would be
+ * visible through the login. Login used to solve that with a second canvas, and
+ * Continue then unmounted it and mounted the in-app one — every line restarted
+ * from undrawn and the stars vanished. One `AppSky` now changes only its
+ * stacking class: covering through the card, behind the chrome the moment
+ * Continue starts the fade. Same element, same seed, same animation clock.
+ */
+export function skyCoversShell(stage: GateStage): boolean {
+  return stage === 'pending' || stage === 'gate';
+}
+
+/**
  * Whether the animation runs at all.
  *
  * `login-transition.md`: "Reduced motion (`prefers-reduced-motion: reduce`): no

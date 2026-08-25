@@ -57,20 +57,19 @@ export function OpeningSequence({
   /**
    * Whether the gate's own sky is already on screen behind this layer.
    *
-   * WHEN IT IS, THIS LAYER DRAWS NO SKY OF ITS OWN, and that is the whole of
-   * the fix for the opening reading as two views in sequence. The gate mounts
-   * one `StarField` for as long as it is up. This layer used to paint its own
-   * navy over that and draw `OPENING_CONSTELLATION` on it -- a drawing that
-   * arrives progressively, so early in the intro the right-hand side has not
-   * been drawn yet. When the intro ended the whole layer was unmounted and the
-   * gate's field appeared already complete, so the reader saw an empty right
-   * side fill in and the sky shift under the card. Two surfaces in sequence,
-   * which is what was reported.
+   * WHEN IT IS, THIS LAYER DRAWS NO SKY OF ITS OWN. Layout mounts one `AppSky`
+   * for the whole session. This layer used to paint its own navy over that and
+   * draw `OPENING_CONSTELLATION` on it -- a drawing that arrives progressively,
+   * so early in the intro the right-hand side has not been drawn yet. When the
+   * intro ended the whole layer was unmounted and a second field appeared
+   * already complete, so the reader saw an empty right side fill in and the
+   * sky shift under the card. Two surfaces in sequence, which is what was
+   * reported.
    *
    * Transparent, with no field of its own, this is the concepts and the
-   * wordmark ON the sky the reader is already looking at. Nothing behind them
-   * mounts, unmounts or moves when the intro hands over -- the marks fade and
-   * the card rises, and the sky is the same element throughout.
+   * wordmark ON the sky Layout already seated. Nothing behind them mounts,
+   * unmounts or moves when the intro hands over -- the marks fade and the
+   * card rises, and the sky is the same element throughout.
    *
    * The exit keeps its own field: `leaving` travels every star to the lockup,
    * which is a drawing this layer has to own because it is animating it.

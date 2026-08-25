@@ -26,6 +26,18 @@
 }
 
 /*
+ * The parent that survives Continue. Isolation keeps a negative-layer sky from
+ * sinking behind the page background; the shell's own `isolation` used to do
+ * this when the SVG lived inside `.app-frame`, and Continue then unmounted that
+ * tree. The host is always in the document, sky first, chrome fading beside it.
+ */
+.app-sky-host {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+}
+
+/*
  * The gate is the one sky that is a page in its own right in DARK: it sits
  * directly under the dialog's z-index 60. The two-class selector intentionally
  * ties the light-theme ban in base.css and wins by later import order. Light

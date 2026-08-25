@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
 import { useFirstOpen } from './FirstOpenGate';
-import { LANDED_ANNOUNCEMENT, drawsAppShell, isArriving } from './login-transition';
+import { LANDED_ANNOUNCEMENT, drawsAppShell, isArriving, skyCoversShell } from './login-transition';
 import { Disclosure } from './page-chrome';
 import { formatCheckedAt } from './preflight';
 import { useDeployment, useIdentity, useStorageHealth } from './app-state';
@@ -442,23 +442,28 @@ export function Layout() {
   );
 
   /*
-   * The gate alone, on the one stage where the app may not draw.
+   * ONE SKY FOR THE WHOLE SESSION, seated here so Continue cannot take it down.
    *
-   * An early return rather than a conditional around the shell, because the point
-   * is that NONE of it renders: no header, no navigation, no outlet, and so none of
-   * the requests a page fires on mount either.
+   * Login used to paint its own canvas and the shell painted another the moment
+   * the card closed. Same stars, same seed — and a brand-new SVG, so every line
+   * restarted from undrawn and the sky vanished for a beat. This host is the
+   * parent that survives that click: first child is always `AppSky`, whether
+   * the shell is withheld (`pending`) or fading in. `cover` only changes
+   * stacking. The chrome — not the sky — is what `ast-x-app` fades.
    */
-  if (!drawsAppShell(firstOpen.stage)) return <>{firstOpen.gate}</>;
+  if (!drawsAppShell(firstOpen.stage)) {
+    return (
+      <div className="app-sky-host">
+        <AppSky cover={skyCoversShell(firstOpen.stage)} />
+        {firstOpen.gate}
+      </div>
+    );
+  }
 
   return (
+    <div className="app-sky-host">
+      <AppSky cover={skyCoversShell(firstOpen.stage)} />
     <div className={`min-h-screen flex flex-col app-frame${arriving ? ' ast-anim-x-app' : ''}`}>
-      {/* Mounted in both themes, painted in dark only, and the reason it is not
-          conditional on the theme is in AppSky.tsx: nothing in React holds
-          `data-theme`, so a conditional mount would follow no state change and
-          would leave the sky up over a daylight page after an Appearance preview.
-          The two `display` rules -- dark-mode.css's opt-in, base.css's ban outside
-          dark -- are the whole of it. */}
-      {firstOpen.stage === 'open' ? <AppSky /> : null}
       {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
           the app, which is the soft-ground treatment DuBois replaces with
           hairlines on a solid surface.
@@ -622,15 +627,6 @@ export function Layout() {
         {arriving ? <span className="ast-anim-x-bar fo-x-bar" aria-hidden="true" /> : null}
       </header>
 
-      {/* Once per session, above everything, and handed the identity this frame
-          has already read rather than fetching a second one. In the layout rather
-          than around the router in App.tsx for exactly that reason: App.tsx has no
-          identity, so a gate mounted there would have to ask for one, and two
-          reads of `/api/identity` are two answers that can disagree. Being
-          re-rendered on every navigation costs nothing -- the panel's own latch is
-          what makes it once per session rather than once per page. */}
-      {firstOpen.gate}
-
       {/* The ONE thing the transition says out loud (spec, Keyframes). Every layer
           of the animation is aria-hidden, so without this a reader on a screen
           reader gets a second of silence and then a different page. */}
@@ -671,6 +667,20 @@ export function Layout() {
           </Suspense>
         </AdminOnly>
       ) : null}
+    </div>
+      {/* Once per session, above everything, and handed the identity this frame
+          has already read rather than fetching a second one. In the layout rather
+          than around the router in App.tsx for exactly that reason: App.tsx has no
+          identity, so a gate mounted there would have to ask for one, and two
+          reads of `/api/identity` are two answers that can disagree. Being
+          re-rendered on every navigation costs nothing -- the panel's own latch is
+          what makes it once per session rather than once per page.
+
+          Sibling of the fading frame, not a child of it: Continue fades the
+          chrome in and the card out. Putting the overlay inside `ast-x-app`
+          took the stars with it (fill-mode backwards starts the frame at
+          opacity 0). */}
+      {firstOpen.gate}
     </div>
   );
 }

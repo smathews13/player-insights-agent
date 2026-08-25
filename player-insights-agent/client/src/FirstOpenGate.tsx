@@ -56,7 +56,6 @@ import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // the two seatings cannot come apart. See GithubMark.tsx.
 import { GithubMark } from './GithubMark';
 import { OpeningSequence } from './OpeningSequence';
-import { SKY_PAGE_ID, StarField } from './StarField';
 import {
   RISE_SETTLE_MS,
   gateRiseMs,
@@ -436,51 +435,26 @@ export function FirstOpenPanel({
  * this frame is a still mark on Ice for a reader who asked for no motion.
  */
 /**
- * The gate's sky, in one place because four seatings have to agree on it.
+ * The hold frame: the cycling mark on the layout's sky, nothing else.
  *
- * The hold, the opening sequence, the card and the reduced-motion path all draw
- * this, and the drawing is deterministic in `SKY_PAGE_ID` and the module-level
- * document seed -- so every one of them produces the same stars in the same
- * positions. That is what lets the gate cross its stages without the surface
- * behind the reader changing, and what lets Continue land on the same sky the
- * app shell mounts. Written out four times, it is four chances for one of them
- * to drift to a different `pageId` and put the swap back.
+ * THE SKY IS NOT DRAWN HERE. Layout mounts one `AppSky` for the whole session,
+ * including this frame. This used to paint a second canvas as a sibling of the
+ * mark, and Continue then unmounted it — same stars, new SVG, every line
+ * restarted from undrawn. The hold is now only the mark ON that sky.
+ *
+ * `on-sky` FOR THE SAME REASON THE CARD CARRIES IT. `.first-open` is an opaque
+ * backdrop -- Ice in daylight, `--ast-sky-fill` under the dark theme -- which is
+ * right only while nothing is drawn behind it. Something is: the field Layout
+ * already seated. Opaque, this frame covered it completely, so the first thing
+ * a reader met was a flat panel and the stars appeared to switch on when the
+ * frame gave way. Transparent, the hold is the mark ON the sky the rest of the
+ * gate is on.
  */
-function GateSky() {
-  return <StarField pageId={SKY_PAGE_ID} surface="ask" className="gate-star-motion" />;
-}
-
 function FirstOpenHold() {
-  /*
-   * THE SKY IS DRAWN HERE TOO, and it is the same sky, from the same call.
-   *
-   * This frame used to be the overlay and the mark alone. The gate that follows
-   * it renders `StarField` as a sibling of the card, so the first thing a reader
-   * saw was an empty field with a constellation only on the left -- the opening
-   * drawing's own geometry, which is upper-left weighted -- and then, when the
-   * card arrived, a second surface appeared underneath it and stars popped in on
-   * the right. Two views in sequence, and the handover read as a stutter.
-   *
-   * The drawing is deterministic in `pageId` and the module-level document seed,
-   * so this call and the gate's produce the same stars in the same places. The
-   * card lands ON the sky rather than replacing the surface under it, and
-   * nothing behind it moves.
-   *
-   * `on-sky` FOR THE SAME REASON THE CARD CARRIES IT, and its absence is why the
-   * sky looked like it started late. `.first-open` is an opaque backdrop --
-   * Ice in daylight, `--ast-sky-fill` under the dark theme -- which is right only
-   * while nothing is drawn behind it. Something is now: the field on the line
-   * above. Opaque, this frame covered it completely, so the first thing a reader
-   * met was a flat panel and the stars appeared to switch on when the frame gave
-   * way. Transparent, the hold is the mark ON the sky the rest of the gate is on.
-   */
   return (
-    <>
-      <GateSky />
-      <div className="first-open on-sky first-open-hold" aria-hidden="true">
-        <ConceptFlicker seat="splash" className="fo-hold-mark" />
-      </div>
-    </>
+    <div className="first-open on-sky first-open-hold" aria-hidden="true">
+      <ConceptFlicker seat="splash" className="fo-hold-mark" />
+    </div>
   );
 }
 
@@ -699,18 +673,7 @@ export function useFirstOpen(identity: Identity): FirstOpen {
   if (stage === 'pending') {
     return {
       stage,
-      gate: sequence ? (
-        <>
-          {/* The same sky, mounted here and never taken down until the gate is.
-              See the fragment at the end of this hook: pending, intro and gate
-              all render this one element, so the reader crosses three stages
-              without a surface changing underneath them. */}
-          <GateSky />
-          <OpeningSequence intro={intro} onSky />
-        </>
-      ) : (
-        <FirstOpenHold />
-      ),
+      gate: sequence ? <OpeningSequence intro={intro} onSky /> : <FirstOpenHold />,
     };
   }
 
@@ -753,27 +716,12 @@ export function useFirstOpen(identity: Identity): FirstOpen {
     gate: (
       <>
         {/*
-         * ONE SKY FOR THE WHOLE GATE, AND IT IS THIS ONE.
-         *
-         * The ambient field is the right sky to end on: its travel is capped at
-         * 14px, its cycles are at least six seconds, and reduced motion is
-         * genuinely static, none of which is true of the opening drawing's
-         * login-transition travel. That much was already settled.
-         *
-         * What was wrong is that it used to be reached by SWAPPING. The intro
-         * rendered `OpeningSequence`, which paints its own navy and draws
-         * `OPENING_CONSTELLATION` progressively; when the intro ended that
-         * layer was unmounted and this field was mounted in its place, already
-         * complete. The reader watched a sky with an undrawn right-hand side
-         * become a different, fully drawn sky at the same instant the card
-         * arrived -- reported as the opening being skewed left with no stars on
-         * the right, and then stuttering as the login appeared.
-         *
-         * So the field is mounted unconditionally and the opening layer goes ON
-         * it (`onSky`), carrying only the concepts and the wordmark. The intro
-         * still plays in full; what it no longer does is bring its own surface.
+         * THE SKY IS NOT HERE. Layout mounts one `AppSky` for the whole session
+         * and this overlay sits on it. The opening layer goes ON that sky
+         * (`onSky`), carrying only the concepts and the wordmark. Continue fades
+         * the card out and the shell in; the constellation is the same SVG the
+         * reader has been looking at since the first frame.
          */}
-        <GateSky />
         {sequence && intro ? <OpeningSequence intro onSky /> : null}
         {card}
       </>

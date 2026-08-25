@@ -15,9 +15,10 @@
  * which is what "new connections being drawn" is, without a rAF loop that dies
  * when the tab is hidden.
  *
- * Login and the in-app shell share `SKY_PAGE_ID` plus the tab-local document
- * seed, so Continue does not swap one constellation for another. A new load
- * still gets a different stagger, jitter, and extra hops.
+ * Login and the in-app shell share one mounted SVG: `SKY_PAGE_ID` plus the
+ * tab-local document seed, held in `useState` so a later render cannot pick a
+ * new stagger. Layout is what must not remount this. A new load still gets a
+ * different stagger, jitter, and extra hops.
  */
 import { useState, type CSSProperties } from 'react';
 import { OPENING_CONSTELLATION, type Hop } from './constellation';
@@ -149,7 +150,8 @@ function documentSeed(): string {
     : `${Date.now().toString(36)}-${performance.now().toString(36)}`;
 }
 
-const DOCUMENT_SEED = documentSeed();
+/** One value per page load. Layout must keep this component mounted so Continue cannot mint another. */
+export const SKY_DOCUMENT_SEED = documentSeed();
 
 /** One coordinate as a map key, written once so a lookup cannot spell it differently. */
 const pointKey = (point: readonly [number, number]): string => `${point[0]},${point[1]}`;
@@ -335,7 +337,7 @@ export function StarField({
   /** A seating class may change stacking, never the drawing or its motion rules. */
   className?: string;
 }) {
-  const [visitSeed] = useState(() => seed ?? DOCUMENT_SEED);
+  const [visitSeed] = useState(() => seed ?? SKY_DOCUMENT_SEED);
   const drawing = buildStarField(pageId, visitSeed);
 
   return (
@@ -343,6 +345,7 @@ export function StarField({
       className={`app-sky${className ? ` ${className}` : ''}`}
       data-star-motion-field=""
       data-star-surface={surface}
+      data-sky-seed={String(visitSeed)}
       viewBox={`0 0 ${OPENING_CONSTELLATION.width} ${OPENING_CONSTELLATION.height}`}
       preserveAspectRatio="xMidYMid slice"
       aria-hidden="true"

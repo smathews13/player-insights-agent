@@ -11,12 +11,14 @@
  */
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, beforeEach } from 'vitest';
 import type { SessionReport } from '../../shared/session-contract';
 import { OPTIONAL_USER_API_SCOPES } from '../../shared/optional-user-api-scopes';
 import type { Identity } from './app-types';
 import { OPENING_CONSTELLATION } from './constellation';
 import { FirstOpenGate, FirstOpenPanel } from './FirstOpenGate';
+import { Layout } from './Layout';
 import {
   DISCLAIMER_BODY,
   FIRST_OPEN_KEY,
@@ -32,6 +34,15 @@ import {
 
 const GATE = readFileSync(new URL('./FirstOpenGate.tsx', import.meta.url), 'utf8');
 const STATE = readFileSync(new URL('./first-open.ts', import.meta.url), 'utf8');
+
+/** The app's very first paint, with the identity read still in flight. */
+function firstPaint(): string {
+  return renderToStaticMarkup(
+    <MemoryRouter>
+      <Layout />
+    </MemoryRouter>
+  );
+}
 
 /**
  * A source file with its comments stripped.
@@ -350,7 +361,7 @@ describe('once per session', () => {
     /*
      * The claim is right-third coverage on the first screen, and it is held
      * whichever element is drawing it. That matters now because the element
-     * changed: the gate mounts one `StarField` for its whole life and the
+     * lives on Layout, not the gate: one `AppSky` for the session, and the
      * opening layer goes on top of it, so the connectors are `<line>` rather
      * than ConstellationField's `<path>`.
      *
@@ -358,7 +369,7 @@ describe('once per session', () => {
      * revived: a connector sample taken in list order is all upper-left, and
      * the login screen comes out empty down its right-hand side.
      */
-    const opening = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
+    const opening = firstPaint();
     const rightEdge = (OPENING_CONSTELLATION.width * 2) / 3;
     const starXs = [...opening.matchAll(/<circle[^>]*cx="([^"]+)"/g)].map((match) => Number(match[1]));
     const connectorXs = [
@@ -390,11 +401,13 @@ describe('once per session', () => {
      * Now the first screen already carries the field the gate ends on, and the
      * opening layer is transparent over it.
      */
-    const opening = renderToStaticMarkup(<FirstOpenGate identity={identity()} />);
-    expect(opening, 'the gate sky is up on the first frame').toContain('gate-star-motion');
+    const opening = firstPaint();
+    expect(opening, 'the sky is up on the first frame').toContain('gate-star-motion');
     expect(opening, 'and the intro is on it rather than instead of it').toContain('ast-opening-on-sky');
-    // One field, not two: the opening layer contributes no drawing of its own.
+    expect(opening.match(/data-star-motion-field/g)).toHaveLength(1);
     expect(opening).not.toContain('ast-opening-sky');
+    expect(code(GATE)).not.toContain('StarField');
+    expect(code(GATE)).not.toContain('GateSky');
   });
 
   it('holds the resolving frame on the sky as well, rather than over it', () => {

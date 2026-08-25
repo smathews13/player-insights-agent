@@ -38,6 +38,7 @@ import {
   drawsGate,
   isArriving,
   phase,
+  skyCoversShell,
   stageAfterContinue,
   starDelaySeconds,
   starTravel,
@@ -113,7 +114,7 @@ describe('the flicker: nothing of the app is drawn before the gate decision', ()
   it('states the permission as a function rather than inline in the layout', () => {
     // So the stage that withholds it is a thing a test can name. The layout asks
     // and returns early; it does not re-derive the answer.
-    expect(code(LAYOUT)).toContain('if (!drawsAppShell(firstOpen.stage)) return');
+    expect(code(LAYOUT)).toContain('if (!drawsAppShell(firstOpen.stage))');
     expect(drawsAppShell('pending')).toBe(false);
     for (const stage of ['gate', 'arriving', 'open'] as const) {
       expect(drawsAppShell(stage), stage).toBe(true);
@@ -148,6 +149,21 @@ describe('Continue advances to the app', () => {
     expect(drawsAppShell('arriving')).toBe(true);
     expect(drawsGate('arriving')).toBe(true);
     expect(isArriving('arriving')).toBe(true);
+  });
+
+  it('does not remount the sky: covering is a class, not a second canvas', () => {
+    /*
+     * THE REPORTED DEFECT: stars vanished after Continue, then came back with
+     * Ask. Login's canvas unmounted; the shell's canvas mounted; CSS animations
+     * restarted from undrawn. Covering the shell is a stacking class on the
+     * one sky, and it drops the moment the chrome starts to fade in.
+     */
+    expect(skyCoversShell('gate')).toBe(true);
+    expect(skyCoversShell('arriving')).toBe(false);
+    expect(skyCoversShell(stageAfterContinue({ reducedMotion: false }))).toBe(false);
+    expect(code(LAYOUT).match(/<AppSky cover=\{skyCoversShell\(firstOpen\.stage\)\} \/>/g)).toHaveLength(2);
+    expect(code(LAYOUT)).not.toMatch(/stage === 'open' \? <AppSky/);
+    expect(code(GATE)).not.toContain('StarField');
   });
 
   it('files the outcome before it starts the animation', () => {
