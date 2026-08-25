@@ -23,6 +23,7 @@ describe('the dark-mode sky', () => {
     expect(source).not.toContain('ast-anim');
     expect(source).toContain('SKY_PAGE_ID');
     expect(source).toContain('pageId={SKY_PAGE_ID}');
+    expect(source).not.toMatch(/\bseed=/);
     expect(code(gate)).not.toContain('StarField');
     expect(code(gate)).not.toContain('GateSky');
     expect(source).not.toContain('window.location');
@@ -63,6 +64,10 @@ describe('the dark-mode sky', () => {
     expect(behind).not.toContain('gate-star-motion');
     expect(cover.match(/data-sky-seed="([^"]+)"/)?.[1]).toBe(behind.match(/data-sky-seed="([^"]+)"/)?.[1]);
     expect(cover.match(/data-sky-seed="([^"]+)"/)?.[1]).toBe(SKY_DOCUMENT_SEED);
+    const field = readFileSync(new URL('./StarField.tsx', import.meta.url), 'utf8');
+    expect(field).toContain('useState(() => seed ?? SKY_DOCUMENT_SEED)');
+    expect(field).toContain('crypto.getRandomValues');
+    expect(field.replace(/\/\*[\s\S]*?\*\//g, ' ')).not.toMatch(/sessionStorage/);
   });
 
   it('draws stars and connectors in both thirds of the canvas', () => {

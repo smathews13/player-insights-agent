@@ -951,8 +951,8 @@ html[data-theme='dark'] .final-answer .entity-catalog {
 }
 
 /*
- * The runtime this Ask sent, as a compact chip row on Overview (and reused on
- * Monitoring). Not the rail chips: those name the run. These name the bounds
+ * The runtime this Ask sent, as a compact chip row on Overview, Agent map, and
+ * Monitoring. Not the rail chips: those name the run. These name the bounds
  * it ran under. Distinct class, so a restyle of outcome/tools/rating cannot
  * pick this row up.
  */

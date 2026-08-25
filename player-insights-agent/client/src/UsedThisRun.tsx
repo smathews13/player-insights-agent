@@ -2,9 +2,9 @@
  * The compact row that says which runtime a run actually used.
  *
  * One component, quoted by Monitoring's question chrome and Run Explorer
- * Overview, so the two surfaces cannot disagree about a budget. The numbers are
- * the snapshot stored on that Ask, never today's Settings and never the
- * bundle's defaults. A run stored before this field existed says "Not recorded".
+ * Overview and Agent map, so those surfaces cannot disagree about a budget. The
+ * numbers are the snapshot stored on that Ask, never today's Settings and never
+ * the bundle's defaults. A run stored before this field existed says "Not recorded".
  */
 import {
   RUN_RUNTIME_USED_ABSENT,

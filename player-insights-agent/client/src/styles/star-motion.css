@@ -65,6 +65,8 @@ html:not([data-theme='dark']) .app-sky.gate-star-motion {
 .app-sky[data-star-motion-field] circle.app-sky-glyph {
   fill: var(--ast-white);
   stroke: none;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 /*
@@ -80,12 +82,14 @@ html:not([data-theme='dark']) .app-sky.gate-star-motion {
   animation-name: ast-tw;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
+  animation-fill-mode: both;
 }
 
 .star-motion-faint {
   animation-name: ast-tw2;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
+  animation-fill-mode: both;
 }
 
 /*
@@ -153,25 +157,30 @@ html:not([data-theme='dark']) .app-sky.gate-star-motion {
 html:has(.ast-link-live) .star-motion-faint {
   animation-play-state: paused;
   opacity: 0.32;
+  transform: scale(1);
 }
 
 @keyframes ast-tw {
   0%,
   100% {
-    opacity: 0.25;
+    opacity: 0;
+    transform: scale(0.45);
   }
   50% {
     opacity: 0.85;
+    transform: scale(1.2);
   }
 }
 
 @keyframes ast-tw2 {
   0%,
   100% {
-    opacity: 0.15;
+    opacity: 0;
+    transform: scale(0.4);
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.55;
+    transform: scale(1.15);
   }
 }
 
@@ -234,11 +243,13 @@ html:has(.ast-link-live) .star-motion-faint {
   .app-sky[data-star-motion-field] [data-star-motion='anchor'] {
     animation: none;
     opacity: 0.7;
+    transform: none;
   }
 
   .app-sky[data-star-motion-field] .star-motion-faint {
     animation: none;
     opacity: 0.32;
+    transform: none;
   }
 
   .app-sky[data-star-motion-field] .star-motion-draw {

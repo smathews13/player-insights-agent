@@ -6,11 +6,11 @@
  * a different agent than the one that answered. Old rows stored no snapshot;
  * those read as "Not recorded" rather than as today's defaults or the bundle's.
  *
- * Extracted once. Monitoring and Run Explorer both render the chips this file
- * names, so they cannot disagree about a budget. D13.
+ * Extracted once. Monitoring, Run Explorer Overview, and Agent map all render
+ * the chips this file names, so they cannot disagree about a budget. D13.
  */
 
-export const RUN_RUNTIME_USED_HEADING = 'Used this run';
+export const RUN_RUNTIME_USED_HEADING = 'Settings applied in this run';
 export const RUN_RUNTIME_USED_ABSENT = 'Not recorded';
 
 /**

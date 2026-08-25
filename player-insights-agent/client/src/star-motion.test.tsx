@@ -8,8 +8,12 @@ import {
   connectorPhaseAt,
   liveConnectorsAt,
   SKY_ANCHOR_MIN_SECONDS,
+  SKY_ANCHOR_RADIUS_MAX,
+  SKY_ANCHOR_RADIUS_MIN,
   SKY_APPEAR_STEP,
   SKY_FAINT_MIN_SECONDS,
+  SKY_FAINT_RADIUS_MAX,
+  SKY_FAINT_RADIUS_MIN,
   SKY_PAGE_ID,
   StarField,
 } from './StarField';
@@ -36,8 +40,12 @@ function keyframes(name: string): string {
 
 describe('ambient star motion', () => {
   it('pins the five source-of-truth keyframes and uses ease-in-out only', () => {
-    expect(keyframes('ast-tw')).toMatch(/0%,\s*100%\s*\{\s*opacity:\s*0\.25;\s*\}[\s\S]*50%\s*\{\s*opacity:\s*0\.85/);
-    expect(keyframes('ast-tw2')).toMatch(/0%,\s*100%\s*\{\s*opacity:\s*0\.15;\s*\}[\s\S]*50%\s*\{\s*opacity:\s*0\.5/);
+    expect(keyframes('ast-tw')).toMatch(
+      /0%,\s*100%\s*\{\s*opacity:\s*0;[\s\S]*transform:\s*scale\(0\.45\)[\s\S]*50%\s*\{\s*opacity:\s*0\.85;[\s\S]*transform:\s*scale\(1\.2\)/
+    );
+    expect(keyframes('ast-tw2')).toMatch(
+      /0%,\s*100%\s*\{\s*opacity:\s*0;[\s\S]*transform:\s*scale\(0\.4\)[\s\S]*50%\s*\{\s*opacity:\s*0\.55;[\s\S]*transform:\s*scale\(1\.15\)/
+    );
     expect(keyframes('ast-drift')).toMatch(
       /from\s*\{\s*transform:\s*translate\(0,\s*0\);\s*\}[\s\S]*to\s*\{\s*transform:\s*translate\(-14px,\s*8px\)/
     );
@@ -66,12 +74,16 @@ describe('ambient star motion', () => {
     sky.anchors.forEach((star, index) => {
       expect(star.duration).toBeGreaterThanOrEqual(SKY_ANCHOR_MIN_SECONDS);
       expect(star.duration).toBeLessThanOrEqual(SKY_ANCHOR_MIN_SECONDS + 12);
+      expect(star.r).toBeGreaterThanOrEqual(SKY_ANCHOR_RADIUS_MIN);
+      expect(star.r).toBeLessThanOrEqual(SKY_ANCHOR_RADIUS_MAX);
       expect(Math.abs(star.x - OPENING_CONSTELLATION.stars[index].x)).toBeLessThanOrEqual(6);
       expect(Math.abs(star.y - OPENING_CONSTELLATION.stars[index].y)).toBeLessThanOrEqual(6);
     });
     sky.faint.forEach((star, index) => {
       expect(star.duration).toBeGreaterThanOrEqual(SKY_FAINT_MIN_SECONDS);
       expect(star.duration).toBeLessThanOrEqual(SKY_FAINT_MIN_SECONDS + 12);
+      expect(star.r).toBeGreaterThanOrEqual(SKY_FAINT_RADIUS_MIN);
+      expect(star.r).toBeLessThanOrEqual(SKY_FAINT_RADIUS_MAX);
       expect(Math.abs(star.x - OPENING_CONSTELLATION.backdrop[index].x)).toBeLessThanOrEqual(6);
       expect(Math.abs(star.y - OPENING_CONSTELLATION.backdrop[index].y)).toBeLessThanOrEqual(6);
     });
@@ -299,5 +311,35 @@ describe('ambient star motion', () => {
       expect(sawGrow, `${seed} adds`).toBe(true);
       expect(sawShrink, `${seed} removes`).toBe(true);
     }
+  });
+
+  it('blinks stars in and out at mixed sizes, not only as line motion', () => {
+    expect(CSS).toMatch(/transform-box:\s*fill-box/);
+    expect(CSS).toMatch(/\[data-star-motion='anchor'\][^}]*animation-fill-mode:\s*both/s);
+    expect(keyframes('ast-tw')).toMatch(/opacity:\s*0;/);
+    expect(keyframes('ast-tw')).toMatch(/transform:\s*scale\(1\.2\)/);
+    expect(keyframes('ast-tw2')).toMatch(/opacity:\s*0;/);
+
+    const sky = buildStarField(SKY_PAGE_ID, 'sizes');
+    const anchors = sky.anchors.map((star) => star.r);
+    const faint = sky.faint.map((star) => star.r);
+    expect(new Set(anchors).size).toBeGreaterThan(5);
+    expect(new Set(faint).size).toBeGreaterThan(3);
+    expect(Math.min(...anchors)).toBeLessThan(Math.max(...anchors));
+
+    const markup = renderToStaticMarkup(<StarField pageId={SKY_PAGE_ID} surface="ask" seed="sizes" />);
+    const drawn = [...markup.matchAll(/class="app-sky-glyph"[^>]*r="([^"]+)"/g)].map((match) => match[1]);
+    expect(new Set(drawn).size).toBeGreaterThan(5);
+  });
+
+  it('picks a different line foundation for each fresh visit, not a restagger of one default', () => {
+    const layouts = ['visit-a', 'visit-b', 'visit-c', 'visit-d', 'visit-e'].map((seed) =>
+      buildStarField(SKY_PAGE_ID, seed)
+        .connectors.map((connector) => `${connector.from.join(',')}-${connector.to.join(',')}`)
+        .sort()
+        .join('|')
+    );
+    expect(new Set(layouts).size).toBeGreaterThan(1);
+    expect(layouts[0]).not.toEqual(layouts[1]);
   });
 });

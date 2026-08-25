@@ -18,7 +18,8 @@
  * Login and the in-app shell share one mounted SVG: `SKY_PAGE_ID` plus the
  * tab-local document seed, held in `useState` so a later render cannot pick a
  * new stagger. Layout is what must not remount this. A new load still gets a
- * different stagger, jitter, and extra hops.
+ * different foundation — which hops exist, which extras fill in, star sizes —
+ * not a cached default drawing with a new blink schedule.
  */
 import { useState, type CSSProperties } from 'react';
 import { OPENING_CONSTELLATION, type Hop } from './constellation';
@@ -48,6 +49,8 @@ interface Timing {
 export interface AmbientStar extends Timing {
   x: number;
   y: number;
+  /** Drawn radius. Varies per star so blink-in/out reads as size, not only opacity. */
+  r: number;
 }
 
 export interface AmbientConnector extends Timing {
@@ -78,6 +81,12 @@ const DRIFT_FAINT_SECONDS = 70;
 const JITTER_PX = 6;
 const EARLY_SHIFT = 4.4;
 const EXTRA_HOPS = 6;
+const DROP_HOPS_MIN = 2;
+const DROP_HOPS_SPREAD = 3;
+export const SKY_ANCHOR_RADIUS_MIN = 1.4;
+export const SKY_ANCHOR_RADIUS_MAX = 3.4;
+export const SKY_FAINT_RADIUS_MIN = 0.8;
+export const SKY_FAINT_RADIUS_MAX = 2.2;
 const MIN_EXTRA_DIST = 90;
 const MAX_EXTRA_DIST = 260;
 
@@ -222,11 +231,16 @@ function appearDelay(index: number, random: () => number, used: Set<string>): Ti
   }
 }
 
+function starRadius(random: () => number, min: number, max: number): number {
+  return tenth(min + random() * (max - min));
+}
+
 function extraHops(
   anchors: AmbientStar[],
   taken: Set<string>,
   random: () => number,
-  width: number
+  width: number,
+  count: number
 ): { from: readonly [number, number]; to: readonly [number, number] }[] {
   const candidates: { from: readonly [number, number]; to: readonly [number, number] }[] = [];
   for (let i = 0; i < anchors.length; i += 1) {
@@ -242,7 +256,7 @@ function extraHops(
       candidates.push({ from, to });
     }
   }
-  const picked = shuffle(candidates, random).slice(0, EXTRA_HOPS);
+  const picked = shuffle(candidates, random).slice(0, count);
   for (const hop of picked) taken.add(edgeKey(hop.from, hop.to));
   return picked;
 }
@@ -264,7 +278,12 @@ export function buildStarField(pageId: string, visitSeed: string | number): Star
     const x = jitter(star.x, random);
     const y = jitter(star.y, random);
     positions.set(pointKey([star.x, star.y]), [x, y]);
-    return { x, y, ...timing(random, SKY_ANCHOR_MIN_SECONDS, ANCHOR_SPREAD, starTiming) };
+    return {
+      x,
+      y,
+      r: starRadius(random, SKY_ANCHOR_RADIUS_MIN, SKY_ANCHOR_RADIUS_MAX),
+      ...timing(random, SKY_ANCHOR_MIN_SECONDS, ANCHOR_SPREAD, starTiming),
+    };
   });
 
   /*
@@ -284,63 +303,85 @@ export function buildStarField(pageId: string, visitSeed: string | number): Star
   const faint = OPENING_CONSTELLATION.backdrop.slice(0, OPENING_CONSTELLATION.backdrop.length - drop).map((star) => ({
     x: jitter(star.x, random),
     y: jitter(star.y, random),
+    r: starRadius(random, SKY_FAINT_RADIUS_MIN, SKY_FAINT_RADIUS_MAX),
     ...timing(random, SKY_FAINT_MIN_SECONDS, FAINT_SPREAD, starTiming),
   }));
 
   const third = OPENING_CONSTELLATION.width / 3;
+  const allOpening = shuffle(
+    OPENING_CONSTELLATION.hops.filter((hop) => anchored(hop)),
+    random
+  );
+  const dropHops = DROP_HOPS_MIN + Math.floor(random() * DROP_HOPS_SPREAD);
+  const candidateKept = allOpening.slice(0, allOpening.length - dropHops);
+  const leftCount = candidateKept.filter((hop) => hop.from[0] < third || hop.to[0] < third).length;
+  const rightCount = candidateKept.filter(
+    (hop) =>
+      hop.from[0] > OPENING_CONSTELLATION.width - third || hop.to[0] > OPENING_CONSTELLATION.width - third
+  ).length;
+  /*
+   * A visit drops a few opening hops so the foundation is not the same 19
+   * edges every load. Both thirds still keep enough of their own chains that
+   * extras cannot leave one side of the gate empty.
+   */
+  const keptOpening = leftCount >= 4 && rightCount >= 4 ? candidateKept : allOpening;
+  const dropped = allOpening.length - keptOpening.length;
+
   const leftHops = shuffle(
-    OPENING_CONSTELLATION.hops.filter(
-      (hop) => anchored(hop) && (hop.from[0] < third || hop.to[0] < third)
-    ),
+    keptOpening.filter((hop) => hop.from[0] < third || hop.to[0] < third),
     random
   );
   const rightHops = shuffle(
-    OPENING_CONSTELLATION.hops.filter(
+    keptOpening.filter(
       (hop) =>
-        anchored(hop) &&
-        (hop.from[0] > OPENING_CONSTELLATION.width - third || hop.to[0] > OPENING_CONSTELLATION.width - third)
+        hop.from[0] > OPENING_CONSTELLATION.width - third || hop.to[0] > OPENING_CONSTELLATION.width - third
     ),
     random
   );
 
   /*
-   * Interleave the two sides after a seed shuffle so a session is not always
-   * the left polygon first, while still putting a line on both thirds early.
-   * Taking every hop -- not six per side -- is what gives later ticks new
-   * edges to draw instead of pulsing the same twelve forever.
+   * One line on each third first, so a seed shuffle cannot empty a side on
+   * first paint. The rest — leftover opening hops plus extras — are mixed so
+   * this visit is not always the left polygon, then the right chains, then
+   * extras. Taking a seed-specific subset rather than every hop is what makes
+   * a reload a different constellation, not a restagger of the same one.
    */
-  const ordered: Hop[] = [];
-  for (let index = 0; index < Math.max(leftHops.length, rightHops.length); index += 1) {
-    if (index < leftHops.length) ordered.push(leftHops[index]);
-    if (index < rightHops.length) ordered.push(rightHops[index]);
-  }
+  const early: Hop[] = [];
+  if (leftHops[0]) early.push(leftHops[0]);
+  if (rightHops[0]) early.push(rightHops[0]);
+  const earlyKeys = new Set(early.map((hop) => edgeKey(hop.from, hop.to)));
+  const restOpening = keptOpening.filter((hop) => !earlyKeys.has(edgeKey(hop.from, hop.to)));
 
   const taken = new Set<string>();
-  const hopConnectors: AmbientConnector[] = [];
-  for (const hop of ordered) {
+  const openingEdges: { from: readonly [number, number]; to: readonly [number, number] }[] = [];
+  for (const hop of [...early, ...restOpening]) {
     const from = positions.get(pointKey(hop.from));
     const to = positions.get(pointKey(hop.to));
     if (!from || !to) continue;
     taken.add(edgeKey(from, to));
-    hopConnectors.push({ from, to, ...appearDelay(hopConnectors.length, random, glowTiming) });
+    openingEdges.push({ from, to });
   }
 
-  /*
-   * Extra hops continue the appear schedule after the opening chains, so a
-   * unique pair starts drawing once the familiar constellations are already
-   * on screen. Re-count from the current length rather than a parallel index
-   * so a dropped opening hop cannot collide with an extra's delay key.
-   */
-  const extraConnectors = extraHops(anchors, taken, random, OPENING_CONSTELLATION.width).map((hop, index) => ({
+  const extraEdges = extraHops(
+    anchors,
+    taken,
+    random,
+    OPENING_CONSTELLATION.width,
+    EXTRA_HOPS + dropped
+  );
+  const mixedTail = shuffle([...openingEdges.slice(early.length), ...extraEdges], random);
+  const sessionEdges = [...openingEdges.slice(0, early.length), ...mixedTail];
+
+  const hopConnectors: AmbientConnector[] = sessionEdges.map((hop, index) => ({
     from: hop.from,
     to: hop.to,
-    ...appearDelay(hopConnectors.length + index, random, glowTiming),
+    ...appearDelay(index, random, glowTiming),
   }));
 
   return {
     anchors,
     faint,
-    connectors: [...hopConnectors, ...extraConnectors],
+    connectors: hopConnectors,
     drift: {
       anchorDelay: -tenth(0.1 + random() * (DRIFT_ANCHOR_SECONDS - 0.1)),
       faintDelay: -tenth(0.1 + random() * (DRIFT_FAINT_SECONDS - 0.1)),
@@ -424,7 +465,7 @@ export function StarField({
             data-star-motion="anchor"
             cx={star.x}
             cy={star.y}
-            r="2"
+            r={star.r}
             opacity="0.7"
             style={animationStyle(star)}
           />
@@ -441,7 +482,7 @@ export function StarField({
             className="star-motion-faint"
             cx={star.x}
             cy={star.y}
-            r="1.3"
+            r={star.r}
             opacity="0.32"
             style={animationStyle(star)}
           />

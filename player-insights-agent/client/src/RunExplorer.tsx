@@ -556,7 +556,10 @@ export function RunExplorer() {
                 </p>
               )}
             </TabsContent>
-            <TabsContent value="map" className="pt-5">
+            <TabsContent value="map" className="space-y-4 pt-5">
+              {selected && traceState.status === 'ready' ? (
+                <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
+              ) : null}
               {stages.length > 0 ? (
                 <TraceDag
                   stages={stages}

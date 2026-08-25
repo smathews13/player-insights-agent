@@ -37,12 +37,24 @@ function text(markup: string): string {
     .trim();
 }
 
-describe('Used this run', () => {
-  it('is the same component on Monitoring and Run Explorer Overview', () => {
+describe('Settings applied in this run', () => {
+  it('is the same wording on every surface that prints the row', () => {
+    expect(RUN_RUNTIME_USED_HEADING).toBe('Settings applied in this run');
     expect(EXPLORER).toContain("from './UsedThisRun'");
     expect(EXPLORER).toContain('<UsedThisRun');
     expect(MONITORING).toContain("from './UsedThisRun'");
     expect(MONITORING).toContain('<UsedThisRun');
+  });
+
+  it('puts that same rail above the Agent map diagram, not a second copy of the numbers', () => {
+    const mapPane = EXPLORER.slice(
+      EXPLORER.indexOf('<TabsContent value="map"'),
+      EXPLORER.indexOf('<TabsContent value="timeline"')
+    );
+    const railAt = mapPane.indexOf('<UsedThisRun used={runTrace?.runtimeUsed ?? null}');
+    const diagramAt = mapPane.indexOf('<TraceDag');
+    expect(railAt).toBeGreaterThan(-1);
+    expect(diagramAt).toBeGreaterThan(railAt);
   });
 
   it('shows the budget, steps and tools that ask sent', () => {
