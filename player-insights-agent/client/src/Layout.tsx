@@ -45,7 +45,14 @@ import { AccountMenu } from './AccountMenu';
 import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
 import { settingsOriginPath } from './settings-origin';
-import { navEntries, roleFrom, showsSettingsGear, type AppOutletContext, type RoleResolution } from './role';
+import {
+  navEntries,
+  roleFrom,
+  showsHeaderRoleBadge,
+  showsSettingsGear,
+  type AppOutletContext,
+  type RoleResolution,
+} from './role';
 
 const SettingsPage = lazy(() => import('./SettingsPage').then((loaded) => ({ default: loaded.SettingsPage })));
 
@@ -263,12 +270,13 @@ export function IdentityChip({ identity }: { identity: Identity }) {
  * app's own identity rather than the reader's badges, which is what it is: the
  * date names the build somebody is looking at.
  *
- * IT FITS BESIDE THE LOCKUP, not in a reserved hole after it. The column hugs
- * the lockup, the date and the divider, which is what lets the tab row sit next
- * to the date instead of after an empty stretch of rail-width. Widen the chip
- * and the wordmark truncates against the column's ceiling; do not put the slack
- * back as a fixed width -- that hole is what shoved Built on Databricks off the
- * right edge once Benchmarking added a seventh tab.
+ * THE COLUMN IS THE CONVERSATION RAIL, not a hug of the lockup and the date.
+ * Hugging shoved Ask over the sidebar. The reserved width puts the first tab on
+ * the rail's hairline -- the corner above the divider under it -- while the
+ * lockup and the date stay left inside it. Super admin leaves the rail when
+ * Benchmarking is on, which is the width that seventh tab needs so Built on
+ * Databricks stays on screen. Widen the chip and the wordmark truncates against
+ * the column; do not shrink the column back to its contents.
  */
 export function HeaderBrand({
   deployedAt,
@@ -321,7 +329,9 @@ export function HeaderBrand({
  *
  * Spacing is the row's single 12px gap for Super admin → identity → gear. The
  * chrome rule and Built on Databricks sit after that cluster so attribution
- * stays visually separated from the reader's badges.
+ * stays visually separated from the reader's badges. Super admin leaves this
+ * rail while Benchmarking is on (`hideRoleBadge`); the signed-in menu still
+ * names the rank.
  *
  * THE GEAR ARRIVES AS A SLOT RATHER THAN BEING DRAWN HERE, and it is the one
  * member of the cluster that does. Whether it is drawn at all is a role
@@ -347,6 +357,7 @@ export function IdentityChips({
   buildSha,
   className,
   gear,
+  hideRoleBadge,
 }: {
   identity: Identity;
   role: RoleResolution;
@@ -355,10 +366,12 @@ export function IdentityChips({
   buildSha?: string;
   className?: string;
   gear?: ReactNode;
+  /** Top rail only, and only while Benchmarking is on the tab row. */
+  hideRoleBadge?: boolean;
 }) {
   return (
     <div className={`identity-chips ${className ?? ''}`}>
-      <RoleBadge state={role.state} />
+      {hideRoleBadge ? null : <RoleBadge state={role.state} />}
       <AccountMenu identity={identity} role={role.state} />
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       {gear}
@@ -475,15 +488,15 @@ export function Layout() {
           time somebody adjusts a font size. */}
       <header className="app-header border-b bg-background flex items-center sticky top-0 z-30">
         {/* The lockup, the release date, and then the divider §1 puts between
-            the column and the tabs. The column hugs those three, so the first
-            tab starts after the date rather than after a rail-width hole -- the
-            hole is what shoved Built on Databricks off the right once
-            Benchmarking added a seventh tab. The divider sits inside the column
-            rather than after it. The wordmark IS the app's name, so it is the
-            page's h1. The partner plate and the "Player Intelligence" kicker
-            that used to be here are gone: the app has its own identity now, and
-            the plate reserved a position for a trademark this repository must
-            not carry. */}
+            the column and the tabs. The column is the conversation rail, so Ask
+            sits on the hairline above that divider -- not over the sidebar, not
+            after a gap into the main pane. Super admin leaves this rail when
+            Benchmarking is on so Built on Databricks still fits. The divider
+            sits inside the column rather than after it. The wordmark IS the
+            app's name, so it is the page's h1. The partner plate and the
+            "Player Intelligence" kicker that used to be here are gone: the app
+            has its own identity now, and the plate reserved a position for a
+            trademark this repository must not carry. */}
         <HeaderBrand
           deployedAt={deployment.deployedAt}
           deployedBy={deployment.deployedBy}
@@ -504,8 +517,8 @@ export function Layout() {
             Six tabs do not over-subscribe it, but they leave the chips much less
             room than four did, so responsive.css takes 4px off each side of every
             tab in the 1180-1365 band -- the same band where the chip already
-            sheds its label because the header is tight. The first tab keeps its
-            zero left padding there, which is what holds the rail alignment.
+            sheds its label because the header is tight. Where the row starts is
+            the rail-width of `.brand-lockup`, not a first-tab padding exception.
 
             Which width that is now lives in responsive.css with the other three,
             rather than in a `xl:` utility here. The two systems disagreed: the nav
@@ -567,6 +580,7 @@ export function Layout() {
         <IdentityChips
           identity={identity}
           role={role}
+          hideRoleBadge={!showsHeaderRoleBadge(features)}
           gear={
             showsSettingsGear(role.state) ? (
               <Button

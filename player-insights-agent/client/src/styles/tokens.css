@@ -263,30 +263,11 @@
   --app-header-h: 52px;
 
   /* The header's horizontal inset, as a token because the brand column's
-     ceiling is arithmetic on it: the rail is measured from the window's edge and
-     the header's contents from inside this padding, so .brand-lockup cannot grow
-     past the rail's width less this. Typed as a bare 20px in both rules it would
-     be one number in two places. */
+     width is arithmetic on it: the rail is measured from the window's edge and
+     the header's contents from inside this padding, so `.brand-lockup` ends
+     where the conversation rail ends. Typed as a bare 20px in both rules it
+     would be one number in two places. */
   --app-header-pad-x: 20px;
-
-  /*
-   * How far a long wordmark may push the first nav tab past the conversation
-   * rail's hairline -- the last term of `.brand-lockup`'s ceiling, not of its
-   * used width.
-   *
-   * The column used to reserve the rail's width plus this inset so every tab
-   * row began clear of the hairline. That reservation is what left a hole
-   * between the date and Ask, and what shoved Built on Databricks off the
-   * right once Benchmarking added a seventh tab. The used width now hugs the
-   * lockup and the date; this number only matters when a longer wordmark hits
-   * the ceiling, so the first tab still cannot land ON the rail's edge.
-   *
-   * 16px, which is the rail's own padding. It is added to the ceiling rather
-   * than to the first tab, because a padding-left on that tab alone would push
-   * its label right and leave its box, and therefore the underline, where it
-   * was.
-   */
-  --app-nav-inset: 16px;
 
   /* The three columns of the ask surface. The composer is `position: fixed` and
      insets itself off these two, so they are declared here rather than on
@@ -296,7 +277,7 @@
      flat 264px on .ask-layout, on the argument that this file is shared and the
      page should say what it uses. That held while the rail was the only thing
      that cared. It is not: the header's brand column reads the same token as
-     its ceiling, and the header is not inside .ask-layout, so reading a clamp
+     its width, and the header is not inside .ask-layout, so reading a clamp
      here used to give the header 220px at ordinary widths while the rail was
      264. Two surfaces reading one name and getting two answers is worse than a
      token in a shared file, so the number lives here once and the rail, the

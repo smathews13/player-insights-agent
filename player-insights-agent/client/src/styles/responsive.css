@@ -54,7 +54,7 @@
      THE FIRST TAB IS NOT SINGLED OUT, HERE OR IN shell.css. It used to keep a
      `padding-left: 0` that outranked this rule, which left Ask PIA's icon against
      its own left edge and reading as cut off. Where the row starts is the width of
-     `.brand-lockup`, which hugs the lockup and the date, so every tab tightens
+     `.brand-lockup`, which is the conversation rail, so every tab tightens
      together in this band. */
   .app-nav-tab {
     padding: 0 8px;
@@ -243,9 +243,9 @@
   .app-header > .brand-lockup {
     flex: 0 1 auto;
     min-width: 0;
-    /* Hug is the desktop used-width. Here the wordmark has to be able to
-       truncate, and max-content would hold the column open against the menu
-       button. */
+    /* Hug is the phone used-width. On desktop the column is the rail so Ask
+       sits on the hairline; here the wordmark has to truncate, and a reserved
+       width would hold the column open against the menu button. */
     width: auto;
   }
   /* The divider between the lockup and the tabs goes with the tabs: below this

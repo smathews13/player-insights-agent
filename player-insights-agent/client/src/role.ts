@@ -257,6 +257,18 @@ export function showsSettingsGear(state: RoleState): boolean {
   return showsAdminSurfaces(state) || SHOW_EVERY_TAB_TO_EVERYONE;
 }
 
+/**
+ * Whether the rank pill is drawn in the top rail.
+ *
+ * Off when Benchmarking is on the tab row. That seventh tab is what used to shove
+ * Built on Databricks off the right, and the Super admin chip is the slack the
+ * extra tab needs. The signed-in menu still names the rank; only the rail copy
+ * yields. When Benchmarking is off, the pill stays if the row has room.
+ */
+export function showsHeaderRoleBadge(features: ExperimentalFeatures): boolean {
+  return !BENCHMARK_LAB_ENABLED || !showsBenchmarkLab(features);
+}
+
 /* ── The header's right-hand cluster ─────────────────────────────────────── */
 
 /**
@@ -280,7 +292,9 @@ export function showsSettingsGear(state: RoleState): boolean {
  * and Databricks on the other, which is what §1 says the divider is for.
  *
  * Gaps between Super admin, the identity chip, and the gear are the row's single
- * 12px gap. Do not add margin on the gear or chip.
+ * 12px gap. Do not add margin on the gear or chip. Super admin itself leaves the
+ * top rail while Benchmarking is on the tab row (`showsHeaderRoleBadge`); the
+ * signed-in menu still names the rank.
  *
  * It is drawn as a member of `IdentityChips` for that reason, but only in the
  * header copy: the mobile sheet's copy of the cluster is handed no gear, so

@@ -145,6 +145,38 @@ describe('the header draws a badge at all', () => {
   });
 });
 
+describe('the Super admin chip leaves the top rail while Benchmarking is on', () => {
+  it('omits the rail pill when asked, and keeps it otherwise', () => {
+    expect(cluster('super_admin')).toContain('data-testid="role-badge"');
+    expect(cluster('super_admin')).toContain('Super admin');
+    const hidden = renderToStaticMarkup(
+      <IdentityChips identity={identity()} role={resolution('super_admin')} hideRoleBadge />
+    );
+    expect(hidden).not.toContain('data-testid="role-badge"');
+    expect(hidden).not.toContain('Super admin');
+    expect(hidden).toContain('data-testid="identity-chip"');
+  });
+
+  it('still names the rank in the signed-in menu', () => {
+    const layout = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8');
+    expect(layout).toContain('<AccountMenu identity={identity} role={role.state} />');
+    const menu = readFileSync(new URL('AccountMenu.tsx', import.meta.url), 'utf8');
+    expect(menu).toContain('<RoleBadgePill state={role} />');
+  });
+
+  it('hides the rail copy only, and only on the header', () => {
+    const source = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8').replace(
+      /\{\/\*[\s\S]*?\*\/\}/g,
+      ' '
+    );
+    expect(source).toContain('hideRoleBadge={!showsHeaderRoleBadge(features)}');
+    expect((source.match(/hideRoleBadge=\{!showsHeaderRoleBadge\(features\)\}/g) ?? []).length).toBe(1);
+    expect(source).toMatch(
+      /<IdentityChips\s+identity=\{identity\}\s+role=\{role\}\s+deployedAt=\{deployment\.deployedAt\}[\s\S]*?className="mobile-identity"/
+    );
+  });
+});
+
 describe('badge, then who, then what they can open, then who built it', () => {
   it('draws the badge to the LEFT of the reader it qualifies', () => {
     // Binding, and already corrected once: the design handoff puts it on the

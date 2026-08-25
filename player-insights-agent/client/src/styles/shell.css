@@ -94,9 +94,8 @@
      the design's 24px between the wordmark and the first tab, which meant the
      row began at "wherever the wordmark ended, plus 24" -- a position nobody
      could state. The column after the lockup is what decides where the tabs
-     start, and that column hugs the lockup and the date rather than reserving
-     the rail's width, so the first tab sits next to the date instead of after
-     a hole. */
+     start, and that column is the conversation rail, so Ask sits on the hairline
+     above the divider under it. */
   gap: 4px;
 }
 /*
@@ -104,16 +103,17 @@
  * `:first-child` rule here any more and one must not come back.
  *
  * It used to drop the first tab's `padding-left` to 0, so that its LABEL and its
- * box began in the same place -- --app-nav-inset clear of the rail's hairline.
- * That bought the label an alignment nobody asked for and cost it the 12px of
- * room every other tab's label has, which is what made Ask PIA read as cut off
- * against the tab's own left edge. It was reported twice.
+ * box began in the same place, flush with the rail's hairline. That bought the
+ * label an alignment nobody asked for and cost it the 12px of room every other
+ * tab's label has, which is what made Ask PIA read as cut off against the tab's
+ * own left edge. It was reported twice.
  *
  * The row's position is unaffected by removing it, because the position was never
  * this tab's padding: it is the width of `.brand-lockup`'s column below, which
- * hugs the lockup and the date. So the first tab's BOX -- and therefore the 2px
- * active rule drawn along the bottom of that box -- starts after the date, and
- * only the icon and label inside it have the same 12px inset as the other tabs.
+ * is the conversation rail. So the first tab's BOX -- and therefore the 2px
+ * active rule drawn along the bottom of that box -- starts on the rail's
+ * hairline, and only the icon and label inside it have the same 12px inset as
+ * the other tabs.
  */
 .app-nav-tab {
   display: flex;
@@ -156,29 +156,23 @@
 /*
  * The brand, and the header's first column.
  *
- * Not just a flex row: the used width is what the first tab sits after, and a
- * stated ceiling is what stops a longer wordmark from shoving the row past the
- * conversation rail. The tabs used to begin wherever the wordmark measured --
- * about 202px of type, then a reserved rail-width column that put Ask on the
- * rail's hairline and left a hole between the date and the first tab.
+ * Not just a flex row: the used width is what the first tab sits after. The
+ * lockup and the date stay left inside it; the leftover is empty on purpose, so
+ * Ask begins on the conversation rail's hairline -- the corner above the
+ * divider under it -- rather than over the sidebar.
  *
- * THE USED WIDTH HUGS THE LOCKUP AND THE DATE, and that is the reported fix.
- * The column used to claim the rail's full width so the first tab would begin
- * on the rail's hairline. That left a hole between the date and Ask, and with
- * Benchmarking on -- a seventh tab nobody had budgeted -- the hole stayed empty
- * while Built on Databricks went off the right edge. Closing the hole is what
- * keeps the attribution on screen: the tabs sit in the leftover, the labels
- * stay the size they are, and the flag still decides whether Benchmarking is
- * drawn. The rail formula is the CEILING, so a longer wordmark still cannot
- * push the row past where the rail ends; it is not a reservation.
+ * Hugging the contents shoved Ask left of that corner. The reservation puts it
+ * back. Super admin leaves the rail when Benchmarking is on, which is the width
+ * the seventh tab needs so Built on Databricks stays on screen. Do not shrink
+ * this column back to max-content to "close the hole": the hole is the sidebar,
+ * and Ask belongs on its right edge.
  *
  * The 24px that used to sit on .app-nav as a stated gap is still gone. A gap
  * AND a column width would be two rules deciding one position.
  *
- * --app-nav-inset is the last term of the ceiling rather than of the used
- * width, for the same reason it used to be added to the reservation: landing a
- * tab ON the rail's hairline reads as leaning on the divider. A long wordmark
- * that hits the ceiling still clears it.
+ * Header pad is subtracted because the rail is measured from the window's edge
+ * and the header's contents from inside that padding. No extra inset: landing
+ * a tab past the hairline is the gap this reservation exists to avoid.
  *
  * Below 1180px the nav is not drawn at all and responsive.css relaxes this to
  * `flex: 0 1 auto`, which is what lets the wordmark truncate on a phone rather
@@ -190,8 +184,8 @@
   /* §1's gap between the lockup and the divider that follows it. The 8px inside
      the lockup, between mark and wordmark, is the component's own. */
   gap: 14px;
-  width: max-content;
-  max-width: calc(var(--conversation-width) - var(--app-header-pad-x) + var(--app-nav-inset));
+  width: calc(var(--conversation-width) - var(--app-header-pad-x));
+  max-width: calc(var(--conversation-width) - var(--app-header-pad-x));
 }
 /*
  * The lockup inside the header's first column.

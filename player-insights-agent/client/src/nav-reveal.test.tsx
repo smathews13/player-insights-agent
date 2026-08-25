@@ -23,7 +23,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { NavLinks } from './Layout';
-import { navEntries, showsSettingsGear, ADMIN_PAGE_NAMES, type RoleResolution, type RoleState } from './role';
+import { navEntries, showsHeaderRoleBadge, showsSettingsGear, ADMIN_PAGE_NAMES, type RoleResolution, type RoleState } from './role';
 import { NO_EXPERIMENTS } from './experimental-features';
 import { BENCHMARK_LAB_ENABLED, SHOW_EVERY_TAB_TO_EVERYONE } from './nav-reveal';
 
@@ -93,6 +93,11 @@ describe('Benchmarking follows the operator setting', () => {
   it('appears when the operator turns the setting on', () => {
     const withToggle = navEntries('admin', { ...NO_EXPERIMENTS, benchmarkLab: true });
     expect(withToggle.some((entry) => entry.to === '/benchmarks')).toBe(true);
+  });
+
+  it('hides the top-rail rank chip only while that tab is visible', () => {
+    expect(showsHeaderRoleBadge(NO_EXPERIMENTS)).toBe(true);
+    expect(showsHeaderRoleBadge({ ...NO_EXPERIMENTS, benchmarkLab: true })).toBe(false);
   });
 
   it('gates a direct Benchmarking URL with the same live setting', () => {

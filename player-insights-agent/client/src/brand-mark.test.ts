@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { partial, stylesheet } from './styles/stylesheet';
 
 /**
- * The brand mark is drawn, not shipped; and the brand column hugs its contents
- * rather than reserving the rail.
+ * The brand mark is drawn, not shipped; and the brand column is the conversation
+ * rail, so Ask sits on that hairline.
  *
  * Two unrelated-looking things in one file because they are the same header and
  * the same change, and because each of them is the kind of claim that no other
@@ -32,17 +32,17 @@ import { partial, stylesheet } from './styles/stylesheet';
  * back.
  *
  * THE ALIGNMENT. The nav tabs are laid out after the brand lockup, so the first
- * tab landed at "wherever the wordmark happened to measure, plus 24px". The
- * column then reserved the rail's full width so Ask would sit on the hairline,
- * which left a hole between the date and the first tab. With Benchmarking on,
- * that hole stayed empty while Built on Databricks went off the right edge.
+ * tab landed at "wherever the wordmark happened to measure, plus 24px". Hugging
+ * the lockup and the date then shoved Ask over the conversation sidebar. The
+ * column is the rail again, so Ask sits on the hairline above that divider.
+ * Super admin leaves the rail when Benchmarking is on, which is how Built on
+ * Databricks stays on screen with a seventh tab.
  *
- * The used width now hugs the lockup and the date; the rail formula is only a
- * ceiling. What is pinned is that the ceiling is still an EXPRESSION over the
- * same tokens, that the used width is max-content rather than a reservation,
- * and that neither file contains the literal. A future reader who "simplifies"
- * the ceiling back to a number, or who puts the hole back as `width:`, fails
- * here rather than in somebody's screenshot a month later.
+ * What is pinned is that the used width is an EXPRESSION over the same tokens
+ * the rail reads, and that neither file contains the literal. A future reader
+ * who "simplifies" it back to a number, or who hugs the date again with
+ * `width: max-content`, fails here rather than in somebody's screenshot a month
+ * later.
  */
 
 const SHELL = partial('shell.css');
@@ -95,11 +95,11 @@ const CLIENT = fileURLToPath(new URL('..', import.meta.url));
 
 describe('the header leads with the lockup, which is the app’s own mark and name', () => {
   it('draws the lockup, the release chip and the divider in the brand column', () => {
-    // The column holds three things and they are all small. The release chip
-    // joined it when it was moved out of the right-hand cluster, where it was in
-    // the half of the header that gives and had its label cut off. It sits
-    // between the wordmark and the divider; the column hugs those three rather
-    // than reserving a hole after the date.
+    // The column holds three things on the left of a rail-width reservation.
+    // The release chip joined it when it was moved out of the right-hand
+    // cluster, where it was in the half of the header that gives and had its
+    // label cut off. It sits between the wordmark and the divider; the leftover
+    // after the date is the sidebar, so Ask begins on the rail's hairline.
     const column = LAYOUT.match(/<div className="brand-lockup">([\s\S]*?)<\/div>/)?.[1] ?? '';
     expect(column, 'the header still has a brand lockup column').not.toEqual('');
     expect(column).toContain('<AstrolabeLockup');
@@ -114,8 +114,7 @@ describe('the header leads with the lockup, which is the app’s own mark and na
 
   it('puts that column before the nav in the header, and the chip inside it', () => {
     // The chip must be a child of the column and not a sibling of it. Placed
-    // between the column and the nav it would sit in the gap the tabs now occupy
-    // next to the date, which is the leftover the seventh tab needs.
+    // between the column and the nav it would push Ask past the rail's hairline.
     const header = LAYOUT.match(/<header[\s\S]*?<\/header>/)?.[0] ?? '';
     expect(header, 'the header is still rendered here').not.toEqual('');
     expect(header.indexOf('<HeaderBrand')).toBeGreaterThan(-1);
@@ -238,25 +237,22 @@ describe('the removed trademark is gone from the tree, not merely unreferenced',
   });
 });
 
-describe('the brand column hugs the lockup and the date, and does not reserve the rail', () => {
-  it('uses the rail formula as a ceiling, not as the column’s used width', () => {
-    // The used width used to BE this calc, which left a hole between the date
-    // and Ask the size of the unused rail. Benchmarking's seventh tab then
-    // shoved Built on Databricks off the right while that hole stayed empty.
-    // Hugging the contents closes the hole; the same expression remains the
-    // max so a longer wordmark still cannot grow past the rail.
+describe('the brand column is the conversation rail, so Ask sits on its corner', () => {
+  it('uses the rail formula as the column’s used width, not as a hug of the date', () => {
+    // Hugging the lockup and the date shoved Ask over the sidebar. The column
+    // is the rail so the first tab begins on the hairline; Super admin leaving
+    // the rail when Benchmarking is on is what keeps Built on Databricks on
+    // screen. No extra inset: that was the gap past the corner.
     const lockup = body('.brand-lockup', SHELL);
-    expect(lockup).toMatch(/width:\s*max-content/);
-    expect(lockup).toMatch(
-      /max-width:\s*calc\(\s*var\(--conversation-width\)\s*-\s*var\(--app-header-pad-x\)\s*\+\s*var\(--app-nav-inset\)\s*\)/,
-    );
-    expect(lockup).not.toMatch(/(?:^|[;{\s])width:\s*calc\(/);
+    const rail = /calc\(\s*var\(--conversation-width\)\s*-\s*var\(--app-header-pad-x\)\s*\)/;
+    expect(lockup).toMatch(new RegExp(`(?:^|[;{\\s])width:\\s*${rail.source}`));
+    expect(lockup).toMatch(new RegExp(`max-width:\\s*${rail.source}`));
+    expect(lockup).not.toMatch(/width:\s*max-content/);
+    expect(lockup).not.toMatch(/--app-nav-inset/);
   });
 
-  it('states that ceiling once, as a token, rather than as a length in the header', () => {
-    const declarations = [...withoutComments(TOKENS).matchAll(/--app-nav-inset:\s*([^;]+);/g)];
-    expect(declarations).toHaveLength(1);
-    expect(declarations[0][1].trim()).toEqual('16px');
+  it('does not keep a leftover inset token that would park Ask past the hairline', () => {
+    expect(withoutComments(TOKENS)).not.toMatch(/--app-nav-inset/);
   });
 
   it('draws the rail’s own column from the same token', () => {
@@ -287,12 +283,12 @@ describe('the brand column hugs the lockup and the date, and does not reserve th
   });
 
   it('keeps Built on Databricks from shrinking or wrapping when Benchmarking adds a seventh tab', () => {
-    // The hole the column used to reserve is what the seventh tab needed. The
+    // Super admin leaving the rail is what the seventh tab needs. The
     // attribution itself must not be the thing that gives: flex-none and nowrap
     // are what keep the bricks and the words on screen instead of clipping or
-    // folding once the tabs have moved left. The 1365 band may hide the WORDS
-    // (font-size: 0) and keep the symbol; it must not hide the mark at the
-    // widths where the desktop nav is still drawn.
+    // folding. The 1365 band may hide the WORDS (font-size: 0) and keep the
+    // symbol; it must not hide the mark at the widths where the desktop nav is
+    // still drawn.
     const attribution = body('.built-on-databricks', partial('astrolabe-chrome.css'));
     expect(attribution).toMatch(/flex:\s*none/);
     expect(attribution).toMatch(/white-space:\s*nowrap/);
