@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  conversationTranscript,
   extractJudgeContent,
   formatPrompt,
   GROUNDEDNESS_FEEDBACK_NAME,
@@ -92,6 +93,13 @@ describe('the ported prompts', () => {
     expect(grounded).toContain('<document>DOC</document>');
     expect(grounded).not.toContain('{{');
     expect(relevanceToQueryPrompt('Q?', 'A.')).not.toContain('{{');
+  });
+
+  it('renders a one-turn conversation the multi-turn Guidelines judges read', () => {
+    const transcript = conversationTranscript('How many players?', 'Twelve.');
+    expect(transcript).toBe('User: How many players?\nAssistant: Twelve.');
+    const prompt = guidelinesPrompt(['Address every question.'], { conversation: transcript });
+    expect(prompt).toContain('<conversation>User: How many players?\nAssistant: Twelve.</conversation>');
   });
 });
 

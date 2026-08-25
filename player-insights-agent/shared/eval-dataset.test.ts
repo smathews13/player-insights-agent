@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   accuracyScore,
+  customJudgeAssessmentName,
   datasetCounts,
   datasetSizeLabel,
   EMPTY_EVAL_DATASET,
+  extraJudgesFromSettings,
   normalizeSql,
+  parseCustomJudges,
   parseEnabledJudges,
+  parseEnabledMultiTurnJudges,
   parseEvalDataset,
   POC_STARTER_QUESTIONS,
   sqlMatches,
@@ -101,5 +105,48 @@ describe('judge selection', () => {
 
   it('drops unknown names rather than inventing a judge', () => {
     expect(parseEnabledJudges(['guidelines', 'custom', 'relevance'])).toEqual(['guidelines', 'relevance']);
+  });
+
+  it('lets an operator pick conversational judges from the published list', () => {
+    expect(parseEnabledMultiTurnJudges(undefined)).toEqual([]);
+    expect(parseEnabledMultiTurnJudges(['conversation_completeness', 'invented', 'user_frustration'])).toEqual([
+      'conversation_completeness',
+      'user_frustration',
+    ]);
+  });
+
+  it('keeps named custom judges and slugs them the way Guidelines(name=…) does', () => {
+    expect(customJudgeAssessmentName('English only')).toBe('custom_english_only');
+    expect(parseCustomJudges([{ name: 'english', guidelines: 'The response must be in English.' }])).toEqual([
+      { name: 'english', guidelines: 'The response must be in English.' },
+    ]);
+    expect(parseCustomJudges([{ name: '', guidelines: 'x' }])).toEqual([]);
+  });
+
+  it('builds extra judges from settings without inventing a score', () => {
+    const extras = extraJudgesFromSettings({
+      enabledMultiTurnJudges: ['conversation_completeness', 'conversational_guidelines'],
+      customJudges: [{ name: 'english', guidelines: 'The response must be in English.' }],
+      guidelinesText: 'Be professional.',
+    });
+    expect(extras).toEqual([
+      {
+        name: 'conversation_completeness',
+        guidelines: [
+          'The assistant addresses every question the user asked in the conversation. A single unanswered request is a no.',
+        ],
+        kind: 'multi-turn',
+      },
+      {
+        name: 'conversational_guidelines',
+        guidelines: ['Be professional.'],
+        kind: 'multi-turn',
+      },
+      {
+        name: 'custom_english',
+        guidelines: ['The response must be in English.'],
+        kind: 'custom',
+      },
+    ]);
   });
 });

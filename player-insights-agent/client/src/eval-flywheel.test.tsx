@@ -24,7 +24,7 @@ describe('connected Genie spaces for accuracy', () => {
 });
 
 describe('Benchmarking flywheel copy', () => {
-  it('tells the two-step story and starts from an empty add-row dataset', () => {
+  it('tells the eight-step story and starts from an empty add-row dataset', () => {
     const markup = renderToStaticMarkup(
       <EvalFlywheel onAgentRun={() => {}} agentRunning={false} agentError={null} />
     );
@@ -37,7 +37,12 @@ describe('Benchmarking flywheel copy', () => {
     expect(markup).toContain('Pull questions from Ask and Monitoring');
     expect(markup).toContain('Align guidelines from labels');
     expect(markup).toContain('SQL correct?');
-    expect(markup).toContain('Multi-turn and custom judges are not wired yet');
+    expect(markup).toContain('Turn Benchmarking on');
+    expect(markup).toContain('Pick judges and a candidate');
+    expect(markup).toContain('Promote the winner');
+    expect(markup).toContain('Accuracy history');
+    expect(markup).toContain('Guidelines(name=');
+    expect(markup).not.toContain('Multi-turn and custom judges are not wired yet');
     expect(markup).not.toContain('Eval set');
     expect(markup).not.toContain('side B');
   });

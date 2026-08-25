@@ -316,6 +316,8 @@ export interface BenchmarkRunMetrics {
     relevance_to_context: BenchmarkJudgeRate;
     guidelines: BenchmarkJudgeRate;
   };
+  /** Named `Guidelines(name=…)` and multi-turn rates, keyed by assessment name. */
+  extraJudgeRates?: Record<string, BenchmarkJudgeRate>;
   /** Suite wall time. `durationMs` for the trace route, `duration_ms` for `RUNS_QUERY`. */
   durationMs: number | null;
   duration_ms: number | null;

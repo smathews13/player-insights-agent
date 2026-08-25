@@ -85,12 +85,26 @@ export interface SideScore {
   groundedness: number | null;
   relevance: number | null;
   guidelines: number | null;
+  extraRates?: { name: string; rate: number | null }[];
 }
 
 export function compareSidesSummary(baseline: SideScore, candidate: SideScore): string {
   const left = formatSide(baseline);
   const right = formatSide(candidate);
   return `Baseline (${baseline.side}): ${left}. Candidate (${candidate.side}): ${right}.`;
+}
+
+export function formatJudgeRate(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  return `${Math.round(value * 100)}%`;
+}
+
+export function compareTileRates(side: SideScore): string {
+  const base = `Groundedness ${formatJudgeRate(side.groundedness)} · Relevance ${formatJudgeRate(side.relevance)} · Guidelines ${formatJudgeRate(side.guidelines)}`;
+  const extras = (side.extraRates ?? [])
+    .map((entry) => `${entry.name} ${formatJudgeRate(entry.rate)}`)
+    .join(' · ');
+  return extras ? `${base} · ${extras}` : base;
 }
 
 function formatSide(side: SideScore): string {

@@ -1,3 +1,4 @@
+import type { ExtraJudgeSpec } from '../../shared/eval-dataset';
 import {
   GROUNDEDNESS_FEEDBACK_NAME,
   GUIDELINES_FEEDBACK_NAME,
@@ -199,6 +200,7 @@ export interface ResolvedCase {
   judges: JudgeName[];
   structuralChecks: StructuralCheckId[];
   judgeNotes: Partial<Record<JudgeName, string>>;
+  extraJudges?: ExtraJudgeSpec[];
 }
 
 /** A `cases_json` entry, read loosely: anything beyond `id` is optional. */

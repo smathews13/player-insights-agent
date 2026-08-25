@@ -3,6 +3,7 @@ import { alignGuidelinesFromLabels, type EvalRow } from './eval-dataset';
 import {
   classifyGenieMiss,
   compareSidesSummary,
+  compareTileRates,
   deterministicChecks,
   historyLine,
   pickWinner,
@@ -42,6 +43,10 @@ describe('baseline vs candidate', () => {
     expect(pickWinner(baseline, candidate)).toBe('candidate');
     expect(compareSidesSummary(baseline, candidate)).toContain('6/10');
     expect(compareSidesSummary(baseline, candidate)).toContain('9/10');
+    expect(compareTileRates(baseline)).toBe('Groundedness 60% · Relevance 60% · Guidelines 60%');
+    expect(compareTileRates({ ...candidate, guidelines: null })).toBe(
+      'Groundedness 90% · Relevance 90% · Guidelines —'
+    );
   });
 });
 

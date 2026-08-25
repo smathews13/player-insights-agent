@@ -642,7 +642,15 @@ export type AdminAction =
   /** An admin corrected a run’s outcome or rating on the Run Explorer rail. */
   | 'run-labels-updated'
   /** An admin saved MLflow / bake-off values on Settings → Experimental. */
-  | 'benchmark-settings-updated';
+  | 'benchmark-settings-updated'
+  /** An admin saved the evaluation dataset from Benchmarking. */
+  | 'eval-dataset-updated'
+  /** An admin added questions from traces to the evaluation dataset. */
+  | 'eval-dataset-curated'
+  /** An admin aligned judge guidelines from labelled evaluation rows. */
+  | 'eval-guidelines-aligned'
+  /** An admin promoted a bake-off winner for the next Ask. */
+  | 'eval-agent-promoted';
 
 /**
  * Record what an admin did: who, when, what.

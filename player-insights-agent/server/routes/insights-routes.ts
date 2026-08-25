@@ -743,6 +743,7 @@ const BenchmarkMetricsSchema = z.looseObject({
   total: z.number().nullable(),
   groundedness: z.number().nullable(),
   relevance: z.number().nullable(),
+  guidelines: z.number().nullable().optional(),
   durationMs: z.number().nullable(),
 });
 
@@ -1164,6 +1165,7 @@ export function benchmarkRunTrace(row: Record<string, unknown>): RunTrace {
       total: numberOrNull(metrics.total),
       groundedness: numberOrNull(metrics.groundedness),
       relevance: numberOrNull(metrics.relevance),
+      guidelines: numberOrNull(metrics.guidelines),
       durationMs: numberOrNull(metrics.durationMs ?? metrics.duration_ms),
     },
   };

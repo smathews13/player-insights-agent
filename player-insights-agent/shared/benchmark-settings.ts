@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { DEFAULT_JUDGE_ENDPOINT } from './benchmark-contract';
-import { AGENT_JUDGE_IDS, DEFAULT_GUIDELINES_TEXT, OPERATOR_EVAL_SUITE_ID } from './eval-dataset';
+import {
+  AGENT_JUDGE_IDS,
+  CustomJudgeSchema,
+  DEFAULT_GUIDELINES_TEXT,
+  MULTI_TURN_JUDGE_IDS,
+  OPERATOR_EVAL_SUITE_ID,
+} from './eval-dataset';
 
 /**
  * MLflow defaults the Settings Experimental pane edits.
@@ -42,6 +48,8 @@ export const BenchmarkSettingsSchema = z.strictObject({
   compareSideB: z.string().trim().max(200).default(''),
   guidelinesText: z.string().trim().max(4000).default(DEFAULT_GUIDELINES_TEXT),
   enabledJudges: z.array(z.enum(AGENT_JUDGE_IDS)).default([...AGENT_JUDGE_IDS]),
+  enabledMultiTurnJudges: z.array(z.enum(MULTI_TURN_JUDGE_IDS)).default([]),
+  customJudges: z.array(CustomJudgeSchema).max(12).default([]),
 });
 
 export type BenchmarkSettings = z.infer<typeof BenchmarkSettingsSchema>;
@@ -55,6 +63,8 @@ export const DEFAULT_BENCHMARK_SETTINGS: BenchmarkSettings = {
   compareSideB: '',
   guidelinesText: DEFAULT_GUIDELINES_TEXT,
   enabledJudges: [...AGENT_JUDGE_IDS],
+  enabledMultiTurnJudges: [],
+  customJudges: [],
 };
 
 export function parseBenchmarkSettings(value: unknown): BenchmarkSettings {

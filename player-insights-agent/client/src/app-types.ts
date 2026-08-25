@@ -208,6 +208,8 @@ export interface RunTrace {
     total: number | null;
     groundedness: number | null;
     relevance: number | null;
+    guidelines: number | null;
+    extraJudgeRates?: Record<string, { rate: number | null }>;
     durationMs: number | null;
   } | null;
   note: string;

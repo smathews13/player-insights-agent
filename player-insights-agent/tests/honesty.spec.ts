@@ -295,7 +295,7 @@ test('a suite whose numbers contradict each other is reported, not rendered', as
         trace: null,
         toolStages: [],
         mlflow: null,
-        benchmark: { suiteId: 'poc', passed: 12, total: 10, groundedness: 0.9, relevance: 0.9, durationMs: 7_340 },
+        benchmark: { suiteId: 'poc', passed: 12, total: 10, groundedness: 0.9, relevance: 0.9, guidelines: null, durationMs: 7_340 },
         note: '',
         undeclaredKeys: [],
       },

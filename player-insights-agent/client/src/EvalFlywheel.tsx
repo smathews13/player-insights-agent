@@ -3,6 +3,7 @@ import {
   datasetCounts,
   datasetSizeLabel,
   emptyEvalRow,
+  extraJudgesFromSettings,
   labeledRowCount,
   newEvalRowId,
   OPERATOR_EVAL_SUITE_ID,
@@ -13,6 +14,7 @@ import {
 import { compareSides, DEFAULT_BENCHMARK_SETTINGS } from '../../shared/benchmark-settings';
 import {
   compareSidesSummary,
+  compareTileRates,
   EMPTY_FLYWHEEL_STATE,
   genieMissLabel,
   historyLine,
@@ -73,6 +75,15 @@ export interface GenieAccuracyView {
   cases: GenieAccuracyCaseView[];
 }
 
+function extraRatesFromTrace(trace: RunTrace | null): { name: string; rate: number | null }[] {
+  const rates = trace?.benchmark?.extraJudgeRates;
+  if (!rates || typeof rates !== 'object') return [];
+  return Object.entries(rates).map(([name, value]) => ({
+    name,
+    rate: typeof value?.rate === 'number' ? value.rate : null,
+  }));
+}
+
 function sideFromTrace(side: string, trace: RunTrace | null): SideScore {
   return {
     side,
@@ -81,7 +92,8 @@ function sideFromTrace(side: string, trace: RunTrace | null): SideScore {
     total: trace?.benchmark?.total ?? null,
     groundedness: trace?.benchmark?.groundedness ?? null,
     relevance: trace?.benchmark?.relevance ?? null,
-    guidelines: null,
+    guidelines: trace?.benchmark?.guidelines ?? null,
+    extraRates: extraRatesFromTrace(trace),
   };
 }
 
@@ -167,7 +179,11 @@ export function EvalFlywheel({
         const named = compareSides(loaded.settings);
         setSides(named);
         setCurrentAgentEndpoint(loaded.currentAgentEndpoint);
-        const judges = loaded.settings.enabledJudges.join(', ');
+        const extras = extraJudgesFromSettings(loaded.settings);
+        const judges = [
+          ...loaded.settings.enabledJudges,
+          ...extras.map((entry) => entry.name),
+        ].join(', ');
         setJudgeNote(
           `Phase B uses ${loaded.settings.judgeEndpoint} in experiment ${loaded.settings.experimentId || '(the one already configured)'} · ${judges}. ${
             named.length > 1
@@ -415,13 +431,32 @@ export function EvalFlywheel({
     <div className="eval-flywheel">
       <ol className="eval-steps">
         <li>
-          <strong>1. Dataset</strong> Add questions, or pull them from real Ask / Monitoring turns.
+          <strong>1. Turn Benchmarking on</strong> Settings → Experimental. Those controls stay gray until this is on.
         </li>
         <li>
-          <strong>2. Genie accuracy</strong> Run SQL-backed rows. A warehouse still starting is not scored as Genie wrong.
+          <strong>2. Pick judges and a candidate</strong> Built-in, multi-turn, and custom judges live there. Add a second
+          endpoint only if you want a bake-off.
         </li>
         <li>
-          <strong>3. Agent judges</strong> Same questions, two versions if you set a candidate, then promote the winner.
+          <strong>3. Open this tab</strong> The dataset and both phases stay here.
+        </li>
+        <li>
+          <strong>4. Add questions</strong> Type them, load the six demo ones, or pull real Ask / Monitoring turns.
+          Optional: thumbs and SQL correct, then Align guidelines from labels.
+        </li>
+        <li>
+          <strong>5. Run Genie accuracy</strong> One connected space, SQL-backed rows only. A warehouse still starting is
+          not scored as Genie wrong.
+        </li>
+        <li>
+          <strong>6. Re-run last suite</strong> After you change that space&apos;s instructions or tables. Same questions.
+        </li>
+        <li>
+          <strong>7. Run agent judges</strong> Same dataset, baseline and candidate if you set one.
+        </li>
+        <li>
+          <strong>8. Promote the winner</strong> Next Ask uses that agent. This does not change Connections, and it cannot
+          write Genie space instructions.
         </li>
       </ol>
 
@@ -670,16 +705,18 @@ export function EvalFlywheel({
               </ul>
             </div>
           ) : null}
-          {flywheel.history.length > 0 ? (
-            <div className="eval-history">
-              <p className="eval-history-title">Accuracy history</p>
+          <div className="eval-history">
+            <p className="eval-history-title">Accuracy history</p>
+            {flywheel.history.length > 0 ? (
               <ul>
                 {flywheel.history.map((entry) => (
                   <li key={`${entry.at}-${entry.spaceId}`}>{historyLine(entry)}</li>
                 ))}
               </ul>
-            </div>
-          ) : null}
+            ) : (
+              <p className="settings-row-note">No accuracy history yet. Run Genie accuracy once and it lands here.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -687,8 +724,8 @@ export function EvalFlywheel({
         <CardHeader>
           <CardTitle className="text-base">Phase B · Agent judges</CardTitle>
           <CardDescription>
-            Same dataset, scored by built-in MLflow judges (groundedness, relevance, guidelines). Multi-turn and
-            custom judges are not wired yet.
+            Same dataset, scored by the judges you picked: built-in (groundedness, relevance, guidelines), plus any
+            multi-turn or custom <code>Guidelines(name=…, guidelines=…)</code> judges from Settings → Experimental.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -719,9 +756,7 @@ export function EvalFlywheel({
                   <p className="ast-num">
                     {compare.baseline.passed ?? '—'}/{compare.baseline.total ?? '—'}
                   </p>
-                  <p className="settings-row-note">
-                    Groundedness {compare.baseline.groundedness ?? '—'} · Relevance {compare.baseline.relevance ?? '—'}
-                  </p>
+                  <p className="settings-row-note">{compareTileRates(compare.baseline)}</p>
                   <Button type="button" variant="outline" onClick={() => void promote('baseline')}>
                     Use baseline for the next Ask
                   </Button>
@@ -731,9 +766,7 @@ export function EvalFlywheel({
                   <p className="ast-num">
                     {compare.candidate.passed ?? '—'}/{compare.candidate.total ?? '—'}
                   </p>
-                  <p className="settings-row-note">
-                    Groundedness {compare.candidate.groundedness ?? '—'} · Relevance {compare.candidate.relevance ?? '—'}
-                  </p>
+                  <p className="settings-row-note">{compareTileRates(compare.candidate)}</p>
                   <Button
                     type="button"
                     variant="outline"

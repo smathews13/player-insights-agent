@@ -14,10 +14,17 @@ export const GROUNDEDNESS_FEEDBACK_NAME = 'groundedness';
 export const RELEVANCE_TO_QUERY_ASSESSMENT_NAME = 'relevance_to_context';
 export const GUIDELINES_FEEDBACK_NAME = 'guidelines';
 
-export type JudgeName =
+export type BuiltinJudgeName =
   | typeof GROUNDEDNESS_FEEDBACK_NAME
   | typeof RELEVANCE_TO_QUERY_ASSESSMENT_NAME
   | typeof GUIDELINES_FEEDBACK_NAME;
+
+/** Built-in names, plus custom / multi-turn `Guidelines(name=…)` assessments. */
+export type JudgeName = BuiltinJudgeName | string;
+
+export function conversationTranscript(question: string, response: string): string {
+  return `User: ${question}\nAssistant: ${response}`;
+}
 
 // ---------------------------------------------------------------------------
 // The prompts, verbatim from mlflow 3.14.0

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AGENT_JUDGE_IDS, type AgentJudgeId } from '../../shared/eval-dataset';
+import {
+  AGENT_JUDGE_IDS,
+  MULTI_TURN_JUDGES,
+  type AgentJudgeId,
+  type CustomJudge,
+  type MultiTurnJudgeId,
+} from '../../shared/eval-dataset';
 import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { SETTINGS_SAVE_IDLE, type SettingsSaveState } from './settings-save-state';
@@ -11,6 +17,10 @@ export const BENCHMARK_SETTINGS_FORM_ID = 'settings-benchmark-form';
 function toggleJudge(current: AgentJudgeId[], judge: AgentJudgeId, enabled: boolean): AgentJudgeId[] {
   const next = enabled ? [...new Set([...current, judge])] : current.filter((id) => id !== judge);
   return next.length > 0 ? next : current;
+}
+
+function toggleMultiTurn(current: MultiTurnJudgeId[], judge: MultiTurnJudgeId, enabled: boolean): MultiTurnJudgeId[] {
+  return enabled ? [...new Set([...current, judge])] : current.filter((id) => id !== judge);
 }
 
 export function BenchmarkSettingsPanel({
@@ -27,6 +37,7 @@ export function BenchmarkSettingsPanel({
   const [lastTrace, setLastTrace] = useState<{ traceId: string; url: string | null } | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
+  const [customDraft, setCustomDraft] = useState<CustomJudge>({ name: '', guidelines: '' });
 
   const load = useCallback(async () => {
     setState('loading');
@@ -196,7 +207,7 @@ export function BenchmarkSettingsPanel({
             onChange={(event) => setSettings((current) => ({ ...current, judgeEndpoint: event.target.value }))}
           />
           <span className="runtime-control-note">
-            The model that scores Phase B (groundedness, relevance, guidelines). Changing it here
+            The model that scores Phase B (built-in, multi-turn, and custom judges). Changing it here
             updates the same setting Connections already uses.
           </span>
         </label>
@@ -230,6 +241,95 @@ export function BenchmarkSettingsPanel({
             />
           </div>
         ))}
+
+        <p className="runtime-section-label">Multi-turn judges</p>
+        <p className="settings-row-note">
+          Conversational judges from MLflow. Pick the ones you want. Each is{' '}
+          <code>Guidelines(name=…, guidelines=…)</code> over the question and answer as a conversation.
+        </p>
+        {MULTI_TURN_JUDGES.map((judge) => (
+          <div className="settings-row" key={judge.id}>
+            <div>
+              <p className="settings-row-label">
+                {judge.label}
+                {' · '}
+                {settings.enabledMultiTurnJudges.includes(judge.id) ? 'On' : 'Off'}
+              </p>
+              <p className="settings-row-note">{judge.note}</p>
+            </div>
+            <Switch
+              checked={settings.enabledMultiTurnJudges.includes(judge.id)}
+              disabled={!enabled}
+              onCheckedChange={(checked) =>
+                setSettings((current) => ({
+                  ...current,
+                  enabledMultiTurnJudges: toggleMultiTurn(current.enabledMultiTurnJudges, judge.id, checked),
+                }))
+              }
+              aria-label={judge.label}
+            />
+          </div>
+        ))}
+
+        <p className="runtime-section-label">Custom judges</p>
+        <p className="settings-row-note">
+          Your own <code>Guidelines(name=…, guidelines=…)</code> judges. Saved here, used on the next Phase B run.
+        </p>
+        {settings.customJudges.map((judge, index) => (
+          <div className="eval-custom-judge" key={`${judge.name}-${index}`}>
+            <p className="settings-row-label">{judge.name}</p>
+            <p className="settings-row-note">{judge.guidelines}</p>
+            <button
+              type="button"
+              className="tile-link"
+              disabled={!enabled}
+              onClick={() =>
+                setSettings((current) => ({
+                  ...current,
+                  customJudges: current.customJudges.filter((_, entryIndex) => entryIndex !== index),
+                }))
+              }
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <label className="runtime-field runtime-field-wide">
+          <span className="runtime-field-label">Custom judge name</span>
+          <Input
+            type="text"
+            autoComplete="off"
+            aria-label="Custom judge name"
+            placeholder="e.g. english"
+            value={customDraft.name}
+            disabled={!enabled}
+            onChange={(event) => setCustomDraft((current) => ({ ...current, name: event.target.value }))}
+          />
+        </label>
+        <label className="runtime-field runtime-field-wide">
+          <span className="runtime-field-label">Custom judge guidelines</span>
+          <Textarea
+            aria-label="Custom judge guidelines"
+            rows={2}
+            placeholder="e.g. The response must be in English."
+            value={customDraft.guidelines}
+            disabled={!enabled}
+            onChange={(event) => setCustomDraft((current) => ({ ...current, guidelines: event.target.value }))}
+          />
+        </label>
+        <button
+          type="button"
+          className="tile-link"
+          disabled={!enabled}
+          onClick={() => {
+            const next = { name: customDraft.name.trim(), guidelines: customDraft.guidelines.trim() };
+            if (!next.name || !next.guidelines) return;
+            setSettings((current) => ({ ...current, customJudges: [...current.customJudges, next].slice(0, 12) }));
+            setCustomDraft({ name: '', guidelines: '' });
+          }}
+        >
+          Add this custom judge
+        </button>
 
         <label className="runtime-field runtime-field-wide">
           <span className="runtime-field-label">Guidelines</span>

@@ -29,6 +29,8 @@ describe('benchmark settings contract', () => {
     expect(parsed.compareSideA).toBe(CURRENT_AGENT_SIDE);
     expect(parsed.guidelinesText.length).toBeGreaterThan(0);
     expect(parsed.enabledJudges).toEqual(['groundedness', 'relevance', 'guidelines']);
+    expect(parsed.enabledMultiTurnJudges).toEqual([]);
+    expect(parsed.customJudges).toEqual([]);
   });
 
   it('refuses an invented eval set', () => {

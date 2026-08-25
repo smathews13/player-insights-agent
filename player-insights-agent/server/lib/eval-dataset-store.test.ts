@@ -37,7 +37,16 @@ describe('evaluation dataset persistence', () => {
 
   it('writes the rows as JSON and reads them back', async () => {
     const dataset = {
-      rows: [{ id: 'q-1', question: 'How many players?', groundTruthSql: 'SELECT 1', expectedAnswer: '' }],
+      rows: [
+        {
+          id: 'q-1',
+          question: 'How many players?',
+          groundTruthSql: 'SELECT 1',
+          expectedAnswer: '',
+          sqlCorrect: '' as const,
+          thumbs: '' as const,
+        },
+      ],
     };
     const writer = client();
     await writeEvalDataset(writer as never, dataset, 'admin@example.com');

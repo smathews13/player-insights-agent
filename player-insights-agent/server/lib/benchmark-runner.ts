@@ -20,6 +20,7 @@ import {
 import { type FailureCode } from '../../shared/failure-taxonomy';
 import { coverage, endsTheSuite, type CredentialLifetime } from './benchmark-identity';
 import {
+  conversationTranscript,
   GROUNDEDNESS_FEEDBACK_NAME,
   GUIDELINES_FEEDBACK_NAME,
   groundednessPrompt,
@@ -49,6 +50,7 @@ import {
   heldOutCase,
 } from '../../shared/held-out-suite';
 import {
+  extraJudgesFromSettings,
   OPERATOR_EVAL_SUITE_ID,
   OPERATOR_EVAL_SUITE_NAME,
   parseEnabledJudges,
@@ -444,6 +446,28 @@ async function judgeCase(judge: JudgeConfig,
         guidelinesPrompt(resolved.guidelines, { request: question, response })
       )
     );
+  }
+
+  for (const extra of resolved.extraJudges ?? []) {
+    if (extra.guidelines.length === 0) {
+      judgements.push(
+        notApplicable(
+          extra.name,
+          judge.judgeEndpoint,
+          extra.kind === 'multi-turn'
+            ? 'This conversational judge has no guideline text to apply.'
+            : 'This custom judge has no guidelines.'
+        )
+      );
+      continue;
+    }
+    const prompt =
+      extra.kind === 'multi-turn'
+        ? guidelinesPrompt(extra.guidelines, {
+            conversation: conversationTranscript(question, response),
+          })
+        : guidelinesPrompt(extra.guidelines, { request: question, response });
+    judgements.push(await runJudge(judge, extra.name, prompt));
   }
 
   return judgements;
@@ -1072,6 +1096,17 @@ export function buildMetrics(input: {
   const groundedness = summariseJudge(judgements, GROUNDEDNESS_FEEDBACK_NAME);
   const relevance = summariseJudge(judgements, RELEVANCE_TO_QUERY_ASSESSMENT_NAME);
   const guidelines = summariseJudge(judgements, GUIDELINES_FEEDBACK_NAME);
+  const builtinNames = new Set([
+    GROUNDEDNESS_FEEDBACK_NAME,
+    RELEVANCE_TO_QUERY_ASSESSMENT_NAME,
+    GUIDELINES_FEEDBACK_NAME,
+  ]);
+  const extraJudgeRates = Object.fromEntries(
+    [...new Set(judgements.map((entry) => entry.name).filter((name) => !builtinNames.has(name)))].map((name) => [
+      name,
+      summariseJudge(judgements, name),
+    ])
+  );
   const caseDurations = input.cases
     .map((result) => result.durationMs)
     .filter((value): value is number => typeof value === 'number');
@@ -1091,6 +1126,7 @@ export function buildMetrics(input: {
       relevance_to_context: relevance,
       guidelines,
     },
+    ...(Object.keys(extraJudgeRates).length > 0 ? { extraJudgeRates } : {}),
     durationMs: input.durationMs,
     duration_ms: input.durationMs,
     medianCaseMs: median(caseDurations),
@@ -1303,6 +1339,7 @@ export async function operatorResolvedCases(store: BenchmarkStore): Promise<Reso
   }
   const enabled = new Set(parseEnabledJudges(settings.enabledJudges).map((id) => JUDGE_BY_SETTING[id]));
   const fallbackGuideline = settings.guidelinesText.trim();
+  const extraJudges = extraJudgesFromSettings(settings);
   return questionRows(rows).map((row) => {
     const guidelines = row.expectedAnswer.trim()
       ? [row.expectedAnswer.trim()]
@@ -1319,6 +1356,7 @@ export async function operatorResolvedCases(store: BenchmarkStore): Promise<Reso
       judges: judges.length > 0 ? judges : [RELEVANCE_TO_QUERY_ASSESSMENT_NAME],
       structuralChecks: [],
       judgeNotes: {},
+      extraJudges,
     };
   });
 }
