@@ -1769,6 +1769,12 @@ def _first_reader_takeaway(narrative: str) -> str:
     return ""
 
 
+def _findings_have_tables(text: str) -> bool:
+    """A pipe table in the finder package is a landed answer, not a blank card."""
+
+    return any("|" in line for line in text.splitlines())
+
+
 def _incomplete_synthesis(
     findings: str,
     *,
@@ -1776,28 +1782,40 @@ def _incomplete_synthesis(
     seconds: int | None = None,
     reason: str = "",
 ) -> Synthesis:
-    """Budget exhausted: the raw finder package, headed as a time-limit.
+    """Budget exhausted or the writer stopped: findings as the body, time-limit as the headline.
 
-    The body is the package the finder already produced. The takeaway says the
-    run reached its time limit. The caveat names that limit and states whether
+    The body is the reader-facing half of the package the finder already
+    produced -- tables stay, apparatus does not. The takeaway says the run
+    reached its time limit. The caveat names that limit and states whether
     the figures above it were measured. Ran-out-of-time and found-nothing do
-    not share a sentence.
+    not share a sentence. A card that already has tables is never headed
+    "This question was not answered."
     """
 
     limit = seconds if seconds is not None else runtime_settings.current().loop.max_run_seconds
-    takeaway = DEADLINE_TAKEAWAY if has_readings else DEADLINE_TAKEAWAY_NO_DATA
-    narrative = findings.strip() or takeaway
+    prose, package_caveats = reader_facing_findings(findings)
+    landed = has_readings or _findings_have_tables(findings) or bool(prose.strip())
+    takeaway = DEADLINE_TAKEAWAY if landed else DEADLINE_TAKEAWAY_NO_DATA
+    narrative = prose.strip() or takeaway
     caveat = reason or _deadline_caveat(has_readings=has_readings, seconds=limit)
-    return Synthesis(takeaway=takeaway, narrative=narrative, caveats=[caveat])
+    return Synthesis(takeaway=takeaway, narrative=narrative, caveats=[caveat, *package_caveats])
 
 
 def _synthesis_stage_status(synthesis: Synthesis) -> str:
-    """Whether the writer finished, or the card is findings without an answer."""
+    """Whether the writer finished, or the card is findings without an answer.
 
-    if synthesis.takeaway == UNREACHABLE_TAKEAWAY:
+    A failed writer after SQL already produced tables is a partial synthesis,
+    not "no answer". Unanswered is reserved for a card that has nothing on it.
+    """
+
+    landed = _findings_have_tables(synthesis.narrative) or bool(synthesis.figures)
+    if synthesis.takeaway == UNREACHABLE_TAKEAWAY and not landed:
         return "failed"
     joined = " ".join(synthesis.caveats).casefold()
     if (
+        landed
+        and synthesis.takeaway == UNREACHABLE_TAKEAWAY
+    ) or (
         "run limit was reached" in joined
         or "time limit" in joined
         or "turn deadline" in joined
@@ -4100,16 +4118,16 @@ Tables actually read this run:
                     reason = gateway_refusal(
                         error, self.settings.llm_gateway
                     ) or reasoning_endpoint_failure(error)
-                    # Reduced here too. This is the worst of the three paths to paste
-                    # a scratchpad into -- the takeaway already says the question was
-                    # not answered, so the internal apparatus under it was the only
-                    # thing on the card and read as the answer.
-                    incomplete = _incomplete_synthesis(
+                    # The writer stopped. Findings already measured stay on the
+                    # card, headed as a time-limit, stage partial. Overwriting
+                    # that takeaway with unanswered painted real tables as no
+                    # answer, Monitoring Failed, and Run Explorer Complete --
+                    # three words for one run.
+                    return _incomplete_synthesis(
                         findings,
                         has_readings=bool(log.readings),
                         reason=f"The model that writes the answer was not reachable: {reason}.",
                     )
-                    return incomplete.model_copy(update={"takeaway": UNREACHABLE_TAKEAWAY})
             text = response.choices[0].message.content or ""
             span.set_outputs({"text": text[:6000], "structured_output": structured})
             log.add_usage(record_llm_usage(span, response))

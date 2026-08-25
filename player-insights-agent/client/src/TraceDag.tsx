@@ -68,6 +68,7 @@ import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { reportEgress } from './egress-policy';
 import type { TraceStage, TraceSummary } from './answer-shape';
+import { takeawayWhenTablesLanded } from '../../shared/run-verdict';
 import { describePayload, payloadSize, type Payload } from './trace-payload';
 import { buildTimeline, runOrigin, toolNameFromId } from './trace-timeline';
 import { AgentReport, ChipText, EntityName, GenieCard, MarkdownText, ResultSource, SemanticCard } from './StepResult';
@@ -544,7 +545,7 @@ export function StageDetail({
   // the model's own vocabulary is recoverable for every stage rather than some.
   const tool = toolNameFromId(stage.id);
   const args = describePayload(stage.input);
-  const result = describePayload(stage.output);
+  const result = describePayload(takeawayWhenTablesLanded(stage.output, stage.input));
   // The one argument that becomes the Generated SQL block. Named rather than
   // sniffed for SQL keywords: `data_genie` and `run_sql` both record the
   // statement under a key, and a heuristic would eventually promote a question

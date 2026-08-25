@@ -3401,16 +3401,19 @@ class TestTheInternalPackageIsNotShownAsAnAnswer:
         assert caveats == []
 
     def test_the_timeout_path_goes_through_incomplete_synthesis(self):
-        """Budget exhausted: raw package as the body, time-limit as the headline.
+        """Budget exhausted: findings as the body, time-limit as the headline.
 
         Acme's contract: the takeaway says the run reached its time limit,
-        the narrative is the finder package, and the caveat names the limit.
+        the narrative is the reader-facing package, and the caveat names the limit.
+        A writer timeout must not overwrite that takeaway with unanswered.
         """
 
         source = inspect.getsource(agent.PlayerInsightsResponsesAgent._synthesize)
         assert source.count("_incomplete_synthesis(") == 3
         assert "CANNED_COMPLETED_TAKEAWAY" not in source
         assert "The model that writes the answer was not reachable" in source
+        assert 'update={"takeaway": UNREACHABLE_TAKEAWAY}' not in source
+        assert "This question was not answered" not in source
 
 
 class TestIncompleteSynthesis:
@@ -3430,10 +3433,14 @@ class TestIncompleteSynthesis:
     def test_a_deadline_run_names_the_limit_over_the_raw_package(self):
         salvaged = agent._incomplete_synthesis(self.PACKAGE, has_readings=True, seconds=150)
         assert salvaged.takeaway == agent.DEADLINE_TAKEAWAY
+        assert salvaged.takeaway != agent.UNREACHABLE_TAKEAWAY
         assert "The analysis completed from assessed sources." not in salvaged.takeaway
         assert "The 150s run limit was reached after the data was read" in salvaged.caveats[0]
         assert "The figures in it were measured." in salvaged.caveats[0]
-        assert self.PACKAGE in salvaged.narrative
+        assert "| platform | total_distinct_players |" in salvaged.narrative
+        assert "PC led on distinct players." in salvaged.narrative
+        assert "DATA PACKAGE" not in salvaged.narrative
+        assert "Package note" not in salvaged.narrative
 
     def test_no_readings_says_nothing_was_measured(self):
         salvaged = agent._incomplete_synthesis("", has_readings=False, seconds=150)
@@ -3451,6 +3458,33 @@ class TestIncompleteSynthesis:
                 agent.Synthesis(takeaway=agent.UNREACHABLE_TAKEAWAY, narrative="x")
             )
             == "failed"
+        )
+
+    def test_an_unreachable_writer_is_partial_once_tables_already_landed(self):
+        """SQL succeeded; the writer then timed out. That is a partial answer.
+
+        Heading it unanswered and failing the stage made Monitoring say Failed
+        while Run Explorer said Complete over the same tables.
+        """
+
+        tables = (
+            "| Title | Players |\n"
+            "| --- | ---: |\n"
+            "| VLH Online | 9575 |\n"
+        )
+        salvaged = agent._incomplete_synthesis(
+            self.PACKAGE,
+            has_readings=True,
+            seconds=150,
+            reason="The model that writes the answer was not reachable: APITimeoutError.",
+        )
+        assert salvaged.takeaway == agent.DEADLINE_TAKEAWAY
+        assert agent._synthesis_stage_status(salvaged) == "partial"
+        assert (
+            agent._synthesis_stage_status(
+                agent.Synthesis(takeaway=agent.UNREACHABLE_TAKEAWAY, narrative=tables)
+            )
+            == "partial"
         )
 
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { answerHasLanded, answerRunVerdict, runVerdict } from './run-verdict';
+import {
+  answerHasLanded,
+  answerRunVerdict,
+  runVerdict,
+  takeawayWhenTablesLanded,
+  TIME_LIMIT_TAKEAWAY,
+} from './run-verdict';
 
 const INCOMPLETE =
   'The sources for this answer are incomplete: part of it came from a query whose tables could not be determined.';
@@ -28,21 +34,42 @@ describe('the verdict a caveat cannot steal', () => {
     expect(
       answerRunVerdict({
         stages: [{ id: 'synthesis', status: 'complete' }],
-        caveats: [INCOMPLETE, DEADLINE],
+        caveats: [INCOMPLETE],
         figures: FIGURES,
         narrative: TABLE,
       })
     ).toBe('complete');
   });
 
-  it('does not call a deadline note Partial once figures are on the card', () => {
+  it('does not call incomplete sources Partial once figures are on the card', () => {
     expect(
       answerRunVerdict({
         stages: [{ id: 'synthesis', status: 'complete' }],
-        caveats: [DEADLINE],
+        caveats: [INCOMPLETE],
         figures: FIGURES,
       })
     ).toBe('complete');
+  });
+
+  it('calls a writer timeout after tables landed Partial, not Failed or unanswered', () => {
+    expect(
+      answerRunVerdict({
+        stages: [
+          { id: 'sql', status: 'complete' },
+          { id: 'synthesis', status: 'failed' },
+        ],
+        caveats: [
+          'The model that writes the answer was not reachable: APITimeoutError: Request timed out.',
+        ],
+        narrative: TABLE,
+      })
+    ).toBe('partial');
+    expect(
+      takeawayWhenTablesLanded('This question was not answered.', TABLE)
+    ).toBe(TIME_LIMIT_TAKEAWAY);
+    expect(TIME_LIMIT_TAKEAWAY).toBe(
+      'The run reached its time limit before the answer could be composed.'
+    );
   });
 
   it('still fails a zero-step empty run', () => {

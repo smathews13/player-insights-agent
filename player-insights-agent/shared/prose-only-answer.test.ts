@@ -195,6 +195,18 @@ describe('the finder’s internal package', () => {
     expect(proseOnlyAnswer('msg-1', PACKAGE).takeaway).toBe('This question was not answered.');
   });
 
+  it('does not headline unanswered once the findings already hold a table', () => {
+    const packaged = PACKAGE.replace(
+      '156,447 session rows spanning 2026-02-05 to 2026-08-03.',
+      '156,447 session rows spanning 2026-02-05 to 2026-08-03.\n\n| Title | Players |\n| VLH Online | 9575 |'
+    );
+    const answer = proseOnlyAnswer('msg-1', packaged);
+    expect(answer.takeaway).toBe(
+      'The run reached its time limit before the answer could be composed.'
+    );
+    expect(answer.narrative).toContain('| VLH Online | 9575 |');
+  });
+
   it('does not headline a canned completion line as a finding', () => {
     const answer = proseOnlyAnswer('msg-1', 'The analysis completed from assessed sources.');
     expect(answer.takeaway).toBe(PROSE_ONLY_FALLBACK_TAKEAWAY);

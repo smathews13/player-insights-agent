@@ -192,6 +192,25 @@ describe('a table the agent wrote is drawn as a table', () => {
     expect(cells(markup, 'td')).toEqual(['2026-08-03', '482', '371', '8', '45.15', '$1,381.16']);
   });
 
+  it('draws the findings lines as the same bullets as the rest of the package', () => {
+    const markup = render(
+      [
+        '## DATA PACKAGE',
+        '',
+        '- **Interpretation:** Rolling 90-day daily player trend for VLH titles.',
+        '- **Findings / data:**',
+        '  90-day headline totals (2026-05-27 -> 2026-08-03; grain: title × day × country):',
+        '  Weekly trend (most recent 4 full weeks, VLHO):',
+        '- **Package note:** Optional detail was clipped at the DSF handoff bound.',
+      ].join('\n')
+    );
+    expect([...markup.matchAll(/<li>/g)]).toHaveLength(5);
+    expect(markup).toMatch(/<li>[\s\S]*?headline totals/);
+    expect(markup).toMatch(/<li>Weekly trend/);
+    expect(markup).not.toMatch(/<p>[\s\S]*?headline totals/);
+    expect(markup).not.toMatch(/<p>[\s\S]*?Weekly trend/);
+  });
+
   it('leaves the headings, the bullets and the code spans around it alone', () => {
     // The regression guard on the whole change. A table renderer that turns the
     // prose beside it into rows has replaced one unreadable answer with another.

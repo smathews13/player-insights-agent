@@ -636,6 +636,56 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const THEMATIC_BREAK = /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 
 /**
+ * A nested marker that sat past the three-space window `BULLET` / `NUMBERED`
+ * allow, so the line is still an item of the list above it.
+ */
+const NESTED_MARKER = /^(?:[-*+]|\d{1,9}[.)])[ \t]+/;
+
+/**
+ * Whether this line opens a different block than the list already being read.
+ *
+ * Tables, headings, fences and the other list kind stay their own blocks -- a
+ * Markdown table under "Findings / data" is still a table. The findings lines
+ * themselves are not any of these.
+ */
+function listStopsAt(lines: readonly SourceLine[], index: number, ordered: boolean): boolean {
+  const text = lines[index].text;
+  if (HEADING.test(text) || THEMATIC_BREAK.test(text) || FENCE.test(text)) return true;
+  if (ordered ? BULLET.test(text) : NUMBERED.test(text)) return true;
+  return Boolean(tableOpensAt(lines, index));
+}
+
+/**
+ * The content of a line that belongs to the open list without a marker in the
+ * first three columns.
+ *
+ * THE DATA PACKAGE WRITES THESE. "Findings / data" is a lead-in; the figures
+ * under it -- "90-day headline totals…", "Weekly trend…" -- are their own lines,
+ * indented or flush, often without a dash. The list branch used to stop at the
+ * first of those, and they came out as a paragraph: same left edge as the items
+ * above, no dot. Sources under the same heading already wear `- ` and kept
+ * theirs. The card is one list; a line that sits in it is an item of it.
+ *
+ * A nested `- ` past the three-space window (CommonMark's nested list) is the
+ * same case with its marker still on. The marker comes off so the card's dot
+ * is the only one.
+ */
+function looseListItem(line: SourceLine): { text: string; start: number } {
+  const indent = line.text.length - line.text.trimStart().length;
+  const trimmed = line.text.trim();
+  const nested = NESTED_MARKER.exec(trimmed);
+  if (nested) return contentAfter({ text: trimmed, start: line.start + indent }, nested[0]);
+  return { text: trimmed, start: line.start + indent };
+}
+
+/** The next line that has text, or past the end. */
+function nextNonBlank(lines: readonly SourceLine[], from: number): number {
+  let index = from;
+  while (index < lines.length && !lines[index].text.trim()) index += 1;
+  return index;
+}
+
+/**
  * The table inside a fenced block, when that is all the block holds.
  *
  * WHY THIS RUNS BEFORE THE CODE BRANCH. Fenced blocks are code unless this
@@ -766,14 +816,29 @@ export function parseAnswerMarkdown(source: string): Block[] {
     const ordered = !BULLET.test(line.text) && NUMBERED.test(line.text);
     if (ordered || BULLET.test(line.text)) {
       const items: ListItem[] = [];
-      // Stops at the first line that is not an item of this same kind, so a
-      // numbered list following a bulleted one is a second list rather than
-      // five more bullets.
-      for (let marker = ordered ? NUMBERED : BULLET; index < lines.length; index += 1) {
+      const marker = ordered ? NUMBERED : BULLET;
+      // Same-kind markers stay items of this list. A numbered list following a
+      // bulleted one is still a second list. Lines under a lead-in that do not
+      // wear a marker -- the findings body of a data package -- stay items too,
+      // so they keep the same dot as Interpretation and Package note.
+      while (index < lines.length) {
+        if (!lines[index].text.trim()) {
+          const next = nextNonBlank(lines, index);
+          // A blank between items is still this list. A blank before a table,
+          // heading, fence or the other list kind is the end of it.
+          if (next >= lines.length || listStopsAt(lines, next, ordered)) break;
+          index = next;
+          continue;
+        }
         const item = marker.exec(lines[index].text);
-        if (!item) break;
-        const content = contentAfter(lines[index], item[0]);
+        const content = item
+          ? contentAfter(lines[index], item[0])
+          : listStopsAt(lines, index, ordered)
+            ? undefined
+            : looseListItem(lines[index]);
+        if (!content) break;
         items.push({ start: lines[index].start, children: parseInline(content.text, content.start) });
+        index += 1;
       }
       blocks.push({ kind: 'list', start: line.start, ordered, items });
       continue;

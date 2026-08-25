@@ -64,8 +64,23 @@ export function classifyOutcome(input: {
   traceHasFailedStage?: boolean;
   /** Whether that reply's trace carries a non-cosmetic partial stage. */
   traceHasPartialStage?: boolean;
+  /**
+   * Whether the stored answer already has figures or a pipe table.
+   *
+   * A writer timeout after SQL produced tables is Partial, not Failed, and
+   * not Complete. Without this flag Monitoring said Failed while Run Explorer
+   * said Complete over the same run.
+   */
+  answerLanded?: boolean;
 }): QuestionOutcome {
   const state = (input.runState ?? '').trim().toUpperCase();
+  const writerMissed =
+    state === 'DEADLINE_EXCEEDED' ||
+    input.traceHasFailedStage === true ||
+    input.traceHasPartialStage === true;
+  if (input.answerLanded && writerMissed && state !== 'REFUSED') {
+    return 'partial';
+  }
   if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
   if (state && state !== 'SUCCEEDED') return 'partial';
   if (input.traceHasFailedStage) return 'failed';

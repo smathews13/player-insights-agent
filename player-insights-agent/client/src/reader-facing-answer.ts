@@ -10,7 +10,7 @@
  * is replaced only when a real sentence survives, and the status label is read
  * off the caveats the agent already wrote.
  */
-import { answerHasLanded } from '../../shared/run-verdict';
+import { answerHasLanded, TIME_LIMIT_TAKEAWAY, UNANSWERED_LINE, WRITER_STOPPED_CAVEAT } from '../../shared/run-verdict';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { CAVEAT_RISK, caveatRisk } from './caveat-priority';
 
@@ -35,7 +35,7 @@ const CANNED_TAKEAWAY = [
 ];
 
 /** Stored when the writer never finished. Not a finding, and not the title of a card that already has tables. */
-const UNANSWERED_TAKEAWAY = /^this question was not answered\.?$/i;
+const UNANSWERED_TAKEAWAY = UNANSWERED_LINE;
 
 /** How much of a surviving sentence is used when the stored takeaway was canned. */
 const TAKEAWAY_LIMIT = 220;
@@ -138,7 +138,7 @@ export function readerFacingTakeaway(
   const landed = answerHasLanded({ figures: extras?.figures, narrative, content: extras?.content });
   if (UNANSWERED_TAKEAWAY.test(takeaway.trim())) {
     if (!landed) return takeaway.trim();
-    return firstFinding(narrative) || firstFinding(extras?.content ?? '');
+    return firstFinding(narrative) || firstFinding(extras?.content ?? '') || TIME_LIMIT_TAKEAWAY;
   }
   if (!isCannedTakeaway(takeaway)) return takeaway.trim();
   return firstFinding(narrative);
@@ -255,6 +255,10 @@ export function answerHonesty(input: {
     return { eyebrow: 'Partial answer', tone: 'partial', warnings };
   }
   if (answerHasLanded(input)) {
+    const writerStopped = caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text));
+    if (writerStopped) {
+      return { eyebrow: 'Partial answer', tone: 'partial', warnings };
+    }
     return { eyebrow: 'Final answer', tone: 'complete', warnings };
   }
   const truncated =

@@ -590,10 +590,15 @@ export const RUNS_QUERY = `
          -- that draws this column; see shared/run-verdict.ts for why that is the
          -- one step whose outcome says nothing about the answer above it.
          -- Empty stages used to fall through to complete, which painted a green
-         -- badge on a 0.0s card that recorded nothing. Incomplete-sources and
-         -- deadline notes do not flip a card that already has figures or tables.
+         -- badge on a 0.0s card that recorded nothing. Incomplete-sources notes
+         -- do not flip a card that already has figures or tables. A writer
+         -- timeout or failed synthesis after those tables landed is partial,
+         -- so Monitoring, Ask, and Run Explorer say the same word.
          CASE
            WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join('a.trace')} THEN 'failed'
+           WHEN ${ANSWER_LANDED_SQL.split('payload').join('a.payload')}
+            AND (jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})')
+              OR jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})')) THEN 'partial'
            WHEN ${ANSWER_LANDED_SQL.split('payload').join('a.payload')} THEN 'complete'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
@@ -1813,6 +1818,9 @@ const CONVERSATION_VERDICT_JOIN = `
     SELECT
       CASE
         WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join("m.response_json->'trace'")} THEN 'failed'
+        WHEN ${ANSWER_LANDED_SQL.split('payload').join('m.response_json')}
+         AND (jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})')
+           OR jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})')) THEN 'partial'
         WHEN ${ANSWER_LANDED_SQL.split('payload').join('m.response_json')} THEN 'complete'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'

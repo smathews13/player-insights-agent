@@ -75,11 +75,10 @@ function text(html: string): string {
 }
 
 describe('the Overview Final Answer module', () => {
-  it('titles a deadline-noted card as a final answer when the table already landed', () => {
+  it('titles a deadline-noted card as a partial answer when the table already landed', () => {
     const html = markup();
-    expect(html).toContain('Final answer');
-    expect(html).toContain('data-tone="complete"');
-    expect(html).not.toContain('Partial answer');
+    expect(html).toContain('Partial answer');
+    expect(html).toContain('data-tone="partial"');
     expect(html).not.toContain('This question was not answered');
   });
 
@@ -87,9 +86,8 @@ describe('the Overview Final Answer module', () => {
     const html = markup();
     const head = html.slice(html.indexOf('final-answer-head'), html.indexOf('final-answer-warnings'));
     expect(head).toContain('Live agent response');
-    expect(head).toContain('Final answer');
+    expect(head).toContain('Partial answer');
     expect(head).toContain('data-tone="live"');
-    expect(head).not.toContain('Partial answer');
     expect(head).not.toContain('final-answer-mark');
     expect(head).not.toContain('<svg');
     expect(html.indexOf('Live agent response')).toBeLessThan(html.indexOf('final-answer-takeaway'));

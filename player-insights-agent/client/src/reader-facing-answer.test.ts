@@ -80,12 +80,23 @@ describe('whether the section may call itself a final answer', () => {
 
   it('keeps incomplete sources as a note when tables already answered the question', () => {
     const honesty = answerHonesty({
-      truncated: true,
-      caveats: [deadline, incomplete, identity],
+      truncated: false,
+      caveats: [incomplete, identity],
       narrative: table,
     });
     expect(honesty.eyebrow).toBe('Final answer');
     expect(honesty.tone).toBe('complete');
+    expect(honesty.warnings.map((warning) => warning.label)).toEqual(['Incomplete sources']);
+  });
+
+  it('calls a writer timeout after tables landed a partial answer, not unanswered', () => {
+    const honesty = answerHonesty({
+      truncated: true,
+      caveats: [deadline, incomplete, identity],
+      narrative: table,
+    });
+    expect(honesty.eyebrow).toBe('Partial answer');
+    expect(honesty.tone).toBe('partial');
     expect(honesty.warnings.map((warning) => warning.label)).toEqual([
       'Turn deadline reached',
       'Incomplete sources',
@@ -108,6 +119,9 @@ describe('whether the section may call itself a final answer', () => {
       readerFacingTakeaway('This question was not answered.', `${table}\n\nVLH Online led the window.`)
     ).toBe('VLH Online led the window.');
     expect(readerFacingTakeaway('This question was not answered.', '')).toBe('This question was not answered.');
+    expect(
+      readerFacingTakeaway('This question was not answered.', '| Title | Players |\n| VLH Online | 9575 |')
+    ).toBe('The run reached its time limit before the answer could be composed.');
   });
 
   /**

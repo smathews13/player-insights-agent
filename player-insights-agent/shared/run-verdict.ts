@@ -132,12 +132,46 @@ export function answerHasLanded(input: {
 }
 
 /**
+ * The takeaway when the writer stopped after tables already landed.
+ *
+ * Same sentence `agent.py` uses as `DEADLINE_TAKEAWAY`. A 31-character
+ * "This question was not answered." over those tables is the defect this
+ * exists to stop.
+ */
+export const TIME_LIMIT_TAKEAWAY =
+  'The run reached its time limit before the answer could be composed.';
+
+/** The canned line that must not headline a card that already has tables. */
+export const UNANSWERED_LINE = /^this question was not answered\.?$/i;
+
+/**
+ * Writer-timeout / unreachable notes. Incomplete sources are NOT in this
+ * set: those stay a Keep-in-mind line on a Complete card.
+ */
+export const WRITER_STOPPED_CAVEAT =
+  /this question was not answered|was not reachable|time limit|run limit was reached|turn deadline|APITimeoutError|Request timed out/i;
+
+/**
+ * The takeaway a reader should see when the stored headline is unanswered
+ * but tables or figures already landed.
+ */
+export function takeawayWhenTablesLanded(output: string, evidence: string): string {
+  const text = output.trim();
+  if (!UNANSWERED_LINE.test(text)) return output;
+  const held = [evidence, output].filter(Boolean).join('\n');
+  if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
+  return output;
+}
+
+/**
  * The run's verdict from stages, and only then from caveats that mean nothing
  * usable was written.
  *
  * A 0-step run is still Failed. A failed step with no figures is still Failed.
- * A card that already has tables or figures is Complete, even when Keep in
- * mind says the sources list may be short or the turn clock ran out.
+ * Incomplete sources on a card that already has tables stay Complete.
+ * A writer timeout or failed "Prepared the answer" after SQL already produced
+ * tables is Partial on every surface -- never unanswered + Failed while
+ * another view says Complete.
  */
 export function answerRunVerdict(input: {
   stages?: readonly VerdictStage[];
@@ -159,7 +193,13 @@ export function answerRunVerdict(input: {
   if (proseOnlyDegraded && !structured) {
     return runVerdict(stages) === 'failed' ? 'failed' : 'partial';
   }
-  if (answerHasLanded(input)) return 'complete';
+  if (answerHasLanded(input)) {
+    const fromStages = runVerdict(stages);
+    if (fromStages === 'failed' || fromStages === 'partial') return 'partial';
+    const caveats = input.caveats ?? [];
+    if (caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text))) return 'partial';
+    return 'complete';
+  }
   const fromStages = runVerdict(stages);
   if (fromStages === 'failed') return 'failed';
   const caveats = input.caveats ?? [];

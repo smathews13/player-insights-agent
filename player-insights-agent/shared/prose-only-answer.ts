@@ -26,6 +26,7 @@
  * make, which is the class of bug this workstream is removing rather than a new
  * instance of it.
  */
+import { takeawayWhenTablesLanded, UNANSWERED_LINE } from './run-verdict';
 import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
 
 /**
@@ -331,11 +332,14 @@ export function proseOnlyAnswer(id: string, prose: string, recordedStages: reado
   const reader = readerFacingFindings(prose);
   const usableFirst = firstLine && !isCannedFirstLine(firstLine) ? firstLine : '';
   const usableNarrative = reader.narrative.trim();
-  const takeaway = usableFirst
+  const rawTakeaway = usableFirst
     ? usableFirst.slice(0, TAKEAWAY_LIMIT)
     : usableNarrative && !isCannedFirstLine(usableNarrative.split('\n')[0] ?? '')
       ? usableNarrative.split('\n')[0].slice(0, TAKEAWAY_LIMIT)
       : PROSE_ONLY_FALLBACK_TAKEAWAY;
+  const takeaway = UNANSWERED_LINE.test(rawTakeaway)
+    ? takeawayWhenTablesLanded(rawTakeaway, usableNarrative)
+    : rawTakeaway;
   let narrative = usableNarrative;
   if (isCannedFirstLine(narrative)) {
     narrative = '';
@@ -375,6 +379,8 @@ export interface AnswerEvidenceSections {
   figures?: unknown[];
   sources?: unknown[];
   sql?: string;
+  narrative?: string;
+  content?: string;
   /**
    * Widened deliberately. Callers pass the whole answer, and every one of them
    * declares a slightly different trace type; naming a structural one here just

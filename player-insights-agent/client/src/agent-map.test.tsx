@@ -852,6 +852,32 @@ describe('a node opens what its stage recorded', () => {
     expect(markup).toContain('<th scope="col">label</th>');
   });
 
+  it('does not paint Result as unanswered when the step already holds tables', () => {
+    const tables = [
+      '90-day headline totals:',
+      '',
+      '| Title | Players |',
+      '| VLH Online | 9575 |',
+    ].join('\n');
+    const markup = renderToStaticMarkup(
+      <StageDetail
+        stage={stage({
+          id: 'synthesis',
+          name: 'Prepared the answer',
+          status: 'failed',
+          input: tables,
+          output: 'This question was not answered.',
+        })}
+        step={17}
+        origin={0}
+        id="detail"
+      />
+    );
+    expect(markup).not.toContain('This question was not answered.');
+    expect(markup).toContain('The run reached its time limit before the answer could be composed.');
+    expect(markup).toContain('characters');
+  });
+
   it('marks the rows with something to report, and folds the ones without', () => {
     // Derived from the numbers rather than from any knowledge of what the table is:
     // a table with nothing at zero has no findings to mark, because then every row

@@ -238,7 +238,8 @@ function hasStructuredResult(answer: AnswerEvidenceSections): boolean {
   return (
     (answer.figures?.length ?? 0) > 0 ||
     (answer.sources?.length ?? 0) > 0 ||
-    Boolean(answer.sql?.trim())
+    Boolean(answer.sql?.trim()) ||
+    /\|.+\|/.test([answer.narrative, answer.content].filter(Boolean).join('\n'))
   );
 }
 

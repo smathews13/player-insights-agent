@@ -2572,6 +2572,8 @@ describe('the run verdict a chart cannot degrade', () => {
     expect(sql).toContain("jsonb_array_length(a.trace->'stages') = 0");
     expect(sql).toContain('turn deadline');
     expect(sql).toContain("a.payload->'figures'");
+    expect(sql).toContain("THEN 'partial'");
+    expect(sql).toContain("THEN 'complete'");
     // No unfiltered stage-status predicate left anywhere in it, which is how the
     // old rule would come back: one branch updated and the other not.
     expect(sql).not.toContain('(@.status == "failed")');

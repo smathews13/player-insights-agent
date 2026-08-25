@@ -123,6 +123,41 @@ describe('the blocks the agent actually writes', () => {
     expect(blocks.map((block) => (block.kind === 'list' ? block.items.length : 0))).toEqual([2, 2]);
   });
 
+  it('keeps nested findings lines as items of the same list, so they keep the same dots', () => {
+    // THE REPORTED PACKAGE. Every other lead-in is a bullet. The two lines
+    // under Findings / data are the body of that section: no dash of their
+    // own, so the list used to stop and they rendered as a paragraph -- same
+    // left edge, no dot. Sources already wear `- ` and kept theirs.
+    const source = [
+      '## DATA PACKAGE',
+      '',
+      '- **Interpretation:** Rolling 90-day daily player trend for VLH titles.',
+      '- **Sources used:**',
+      '  - `gold_title_daily_summary` daily aggregate.',
+      '  - `search_semantics` used for initial table discovery.',
+      '- **Columns (answer-relevant):** title, event_date, country_code.',
+      '- **Findings / data:**',
+      '  90-day headline totals (2026-05-27 -> 2026-08-03; grain: title × day × country, summed across countries):',
+      '  Weekly trend (most recent 4 full weeks, VLHO):',
+      '- **Package note:** Optional detail was clipped at the DSF handoff bound.',
+    ].join('\n');
+    const blocks = parseAnswerMarkdown(source);
+    expect(blocks.map((block) => block.kind)).toEqual(['heading', 'list']);
+    expect(blocks[1].kind === 'list' && blocks[1].items).toHaveLength(9);
+    expect(blockText([blocks[1]])).toContain(
+      '90-day headline totals (2026-05-27 -> 2026-08-03; grain: title × day × country, summed across countries):'
+    );
+    expect(blockText([blocks[1]])).toContain('Weekly trend (most recent 4 full weeks, VLHO):');
+  });
+
+  it('still leaves a table under findings a table, not another bullet', () => {
+    const blocks = parseAnswerMarkdown(
+      '- **Findings / data:**\n\n| Date | Sessions |\n| --- | ---: |\n| 2026-08-03 | 482 |'
+    );
+    expect(blocks.map((block) => block.kind)).toEqual(['list', 'table']);
+    expect(blocks[0].kind === 'list' && blocks[0].items).toHaveLength(1);
+  });
+
   it('keeps the newlines the agent wrote, which is the collapse this fixes', () => {
     // `white-space` is not `pre-wrap` on the narrative, so a line break in the
     // source used to vanish. It is a break node now, and a blank line is a

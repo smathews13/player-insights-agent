@@ -150,6 +150,8 @@ describe('the query reads questions rather than answers', () => {
     expect(RUNS_QUERY).toContain(traceIsAnObject);
     expect(MONITORING_QUESTIONS_QUERY).toContain(traceIsAnObject);
     expect(MONITORING_DETAIL_QUERY).toContain(traceIsAnObject);
+    expect(MONITORING_QUESTIONS_QUERY).toContain('AS answer_landed');
+    expect(MONITORING_DETAIL_QUERY).toContain('AS answer_landed');
   });
 
   /**
@@ -238,6 +240,9 @@ describe('one row, from what the stores recorded', () => {
     expect(questionFromRow(row(), ledger()).outcome).toBe('completed');
     expect(questionFromRow(row({ trace_partial: true }), ledger()).outcome).toBe('partial');
     expect(questionFromRow(row({ trace_failed: true }), ledger()).outcome).toBe('failed');
+    expect(
+      questionFromRow(row({ trace_failed: true, answer_landed: true }), ledger()).outcome
+    ).toBe('partial');
   });
 
   it('records a question with no terminal answer as partial', () => {
