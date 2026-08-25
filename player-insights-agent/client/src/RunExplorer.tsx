@@ -621,7 +621,12 @@ export function RunExplorer() {
               {/* The prompt, for the envelope row, which is the run's own
                   question here just as it is on the card. */}
               {stages.length > 0 && runTrace?.trace ? (
-                <TraceTimeline trace={runTrace.trace} question={runTrace.prompt ?? ''} verdict={answerVerdict} />
+                <TraceTimeline
+                  variant="explorer"
+                  trace={runTrace.trace}
+                  question={runTrace.prompt ?? ''}
+                  verdict={answerVerdict}
+                />
               ) : (
                 <TraceUnavailable state={traceState} />
               )}

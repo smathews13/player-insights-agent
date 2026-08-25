@@ -222,6 +222,99 @@ export function formatMs(value: number): string {
   return `${(value / 1000).toFixed(2)}s`;
 }
 
+/** Soft cap so the event column stays one line, matching the notebook viz. */
+const EVENT_SNIPPET_MAX = 52;
+
+/**
+ * Clips a payload fragment the way the notebook event column does.
+ *
+ * Whole words are not required: the notebook truncates mid-token with an
+ * ellipsis, and the full value still lives in the expanded Arguments row.
+ */
+export function clipEventSnippet(text: string, max = EVENT_SNIPPET_MAX): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  if (!compact) return '';
+  if (compact.length <= max) return compact;
+  return `${compact.slice(0, Math.max(1, max - 1))}…`;
+}
+
+/**
+ * The short payload that rides next to a tool name on the explorer event line.
+ *
+ * Prefers the fields the notebook itself surfaces (`full_name`, SQL, question)
+ * over dumping the whole JSON blob when those keys are present.
+ */
+export function toolPayloadSnippet(input: string): string {
+  const raw = input.trim();
+  if (!raw || raw === '{}') return '';
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      for (const key of ['full_name', 'sql', 'query', 'question', 'catalog', 'schema'] as const) {
+        const value = record[key];
+        if (typeof value === 'string' && value.trim()) return clipEventSnippet(value);
+      }
+      return clipEventSnippet(JSON.stringify(parsed));
+    }
+  } catch {
+    // Not JSON: fall through and clip the recorded text.
+  }
+  return clipEventSnippet(raw);
+}
+
+/**
+ * 1-based turn index for every LLM row, in table order.
+ *
+ * The notebook numbers model calls as "turn N" across the run. Synthesis is a
+ * model call too, so it takes the next number after `step-N` rows rather than a
+ * separate label that would disagree with that viz.
+ */
+export function llmTurnByRowId(rows: readonly Pick<TimelineRow, 'id' | 'type' | 'container'>[]): Map<string, number> {
+  const turns = new Map<string, number>();
+  let next = 1;
+  for (const row of rows) {
+    if (row.container || row.type !== 'llm') continue;
+    turns.set(row.id, next);
+    next += 1;
+  }
+  return turns;
+}
+
+/**
+ * Event text for Run Explorer's Timeline, in the notebook's vocabulary.
+ *
+ * Ask keeps the stakeholder stage names (`Queried governed data`). Explorer
+ * shows the tool / model identity Acme's viz uses so a reader can match the
+ * two side by side. Timing and kinds are unchanged; only the label string moves.
+ */
+export function explorerEventLabel(
+  row: Pick<TimelineRow, 'id' | 'type' | 'name' | 'input' | 'container'>,
+  turns: ReadonlyMap<string, number>
+): string {
+  if (row.container || row.type === 'run') return 'run - [orchestrator]';
+  if (row.type === 'llm') {
+    const turn = turns.get(row.id) ?? 1;
+    return `model call - [orchestrator] turn ${turn}`;
+  }
+  if (row.type === 'clarify' || row.id.endsWith('-clarify')) {
+    const asked = toolPayloadSnippet(row.input);
+    return asked ? `clarify ${asked}` : 'clarify - [orchestrator]';
+  }
+  if (row.type === 'plot' || row.id === 'plot') {
+    const payload = toolPayloadSnippet(row.input);
+    return payload ? `new_plot ${payload}` : 'new_plot';
+  }
+  const tool = toolNameFromId(row.id);
+  if (tool) {
+    const payload = toolPayloadSnippet(row.input);
+    return payload ? `${tool} ${payload}` : tool;
+  }
+  // Unclassified agent rows (orchestrator, data_source_finder, …): keep the
+  // recorded name rather than inventing a rival vocabulary.
+  return row.name;
+}
+
 /**
  * Six ticks across the true wall clock, at the fifths the notebook uses.
  *

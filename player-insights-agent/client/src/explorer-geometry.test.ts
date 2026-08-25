@@ -199,7 +199,8 @@ describe('the two surfaces that read a recorded run', () => {
    */
   it('renders the answer card’s timeline rather than a second view of its own', () => {
     expect(EXPLORER).toContain("import { TraceTimeline } from './TraceTimeline'");
-    expect(EXPLORER).toMatch(/<TraceTimeline trace=\{runTrace\.trace}/);
+    expect(EXPLORER).toMatch(/variant="explorer"/);
+    expect(EXPLORER).toMatch(/<TraceTimeline[\s\S]*?trace=\{runTrace\.trace}/);
     expect(EXPLORER).not.toContain('function Waterfall');
   });
 

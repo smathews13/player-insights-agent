@@ -447,6 +447,133 @@
   height: 10px;
   border-radius: 2px;
 }
+
+/*
+ * Run Explorer only — notebook-style kind colour.
+ *
+ * Scoped under `.trace-timeline--explorer` so Ask keeps the neutral chip and
+ * the single action-blue bar the revamp settled on. Pills and bars share one
+ * hue per kind so the staircase reads the way Acme's notebook does.
+ */
+.trace-timeline--explorer .trace-event {
+  max-width: 280px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.trace-timeline--explorer .trace-event-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.trace-timeline--explorer .trace-event button {
+  font-weight: 500;
+  font-family: inherit;
+  font-size: inherit;
+}
+.trace-timeline--explorer .trace-chip {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border: 1px solid transparent;
+}
+.trace-timeline--explorer .trace-chip-llm {
+  background: #d9f2e3;
+  color: #1f6b45;
+  border-color: #b5e0c8;
+}
+.trace-timeline--explorer .trace-chip-sql {
+  background: #d7ebf8;
+  color: #1a5f8a;
+  border-color: #b4d6ee;
+}
+.trace-timeline--explorer .trace-chip-discovery {
+  background: #f3e6c8;
+  color: #7a5a18;
+  border-color: #e2cfa0;
+}
+.trace-timeline--explorer .trace-chip-plot {
+  background: #eadcf3;
+  color: #6b3d86;
+  border-color: #d4bce4;
+}
+.trace-timeline--explorer .trace-chip-clarify {
+  background: #f7e4d4;
+  color: #8a4b1a;
+  border-color: #e8c9a8;
+}
+.trace-timeline--explorer .trace-chip-agent {
+  background: #e8ecf0;
+  color: #445461;
+  border-color: #cfd6dc;
+}
+.trace-timeline--explorer .trace-chip-run {
+  background: #e8ecf0;
+  color: #445461;
+  border: 1px solid #c5ced6;
+  padding: 1px 7px;
+}
+.trace-timeline--explorer .trace-bar {
+  background: #7ec8a0;
+}
+.trace-timeline--explorer .trace-bar-llm {
+  background: #7ec8a0;
+}
+.trace-timeline--explorer .trace-bar-sql {
+  background: #7eb6d9;
+}
+.trace-timeline--explorer .trace-bar-discovery {
+  background: #d4b56a;
+}
+.trace-timeline--explorer .trace-bar-plot {
+  background: #c49ad4;
+}
+.trace-timeline--explorer .trace-bar-clarify {
+  background: #d9a06c;
+}
+.trace-timeline--explorer .trace-bar-agent {
+  background: #9aa7b2;
+}
+.trace-timeline--explorer .trace-bar-run {
+  background: transparent;
+  border: 1.5px solid #8a97a3;
+}
+.trace-kind-summary-wrap {
+  margin-bottom: 12px;
+}
+.trace-kind-summary {
+  width: auto;
+  max-width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+}
+.trace-kind-summary th,
+.trace-kind-summary td {
+  padding: 4px 14px 4px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--ast-border-input);
+  vertical-align: middle;
+}
+.trace-kind-summary th {
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.trace-kind-summary .trace-num {
+  text-align: right;
+  padding-left: 16px;
+  padding-right: 0;
+}
+.trace-geometry-note {
+  margin-top: 12px;
+  max-width: 72ch;
+}
 /*
  * A step that did not finish cleanly must not read as one that did. Hatched
  * rather than merely recoloured, so it is distinguishable without relying on

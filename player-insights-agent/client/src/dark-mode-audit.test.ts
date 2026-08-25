@@ -176,12 +176,13 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(source('AnswerCard.tsx'), 'Ask no longer draws the run process').toContain(
       'className="run-process"'
     );
-    expect(source('RunExplorer.tsx'), 'Run Explorer no longer draws the timeline').toContain(
-      '<TraceTimeline trace={runTrace.trace}'
+    expect(source('RunExplorer.tsx'), 'Run Explorer no longer draws the timeline').toMatch(
+      /<TraceTimeline[\s\S]*?trace=\{runTrace\.trace}/
     );
-    expect(source('TraceTimeline.tsx'), 'the de-stacked classes are not the ones drawn').toContain(
-      'trace-timeline ${className}'
+    expect(source('TraceTimeline.tsx'), 'the de-stacked classes are not the ones drawn').toMatch(
+      /trace-timeline/
     );
+    expect(source('TraceTimeline.tsx')).toContain("variant === 'explorer' ? 'trace-timeline--explorer'");
   });
 
   it('leaves the de-stacked containers unfilled under reduced transparency too', () => {

@@ -95,17 +95,9 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
     expect(badge).toMatch(/font-size: 9px/);
   });
 
-  it('names every type a tile can be, in a word rather than in a hue', () => {
-    // This used to assert the opposite: a `--kind-<type>` colour and a coloured dot
-    // per type, so that no kind fell through with nothing to distinguish it. The
-    // requirement was right and the axis was wrong. Seven kinds need seven hues, the
-    // palette has five and each of them means one specific thing, and the seven were
-    // drawn from whatever was spare -- which after the revamp left the evaluation
-    // colour marking every model turn and body grey marking every query. The label
-    // was what a reader used the whole time.
-    //
-    // So the claim is now the stronger one: every type has a WORD, no type has a
-    // hue, and the chip that carries the word is the one neutral chip.
+  it('names every type a tile can be, in a word rather than in a hue on Ask', () => {
+    // Ask keeps the neutral chip. Run Explorer paints kinds under
+    // `.trace-timeline--explorer` so the notebook viz can match side by side.
     const types: ToolType[] = ['llm', 'sql', 'discovery', 'plot', 'clarify', 'agent', 'run'];
     for (const type of types) {
       expect(TIMELINE, `${type} is labelled`).toMatch(new RegExp(`${type}: '\\w+'`));
@@ -130,9 +122,19 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
   it('heads the step listing instead of stacking above it', () => {
     const gantt = functionSource(TIMELINE, 'Gantt');
     expect(gantt).toContain('<RollUp rows={model.rollUp}');
+    expect(gantt).toContain('<KindSummary rows={model.rollUp}');
     // Ahead of the heading for the steps, which is what makes it the header of
     // the listing rather than a section before it.
     expect(gantt.indexOf('<RollUp')).toBeLessThan(gantt.indexOf('Step timeline'));
+  });
+
+  it('keeps notebook kind colour on Run Explorer only', () => {
+    expect(TIMELINE).toContain("variant === 'explorer'");
+    expect(TIMELINE).toContain('trace-timeline--explorer');
+    expect(RUN_EXPLORER).toMatch(/variant="explorer"/);
+    expect(CARD).not.toMatch(/variant="explorer"/);
+    expect(STYLESHEET).toMatch(/\.trace-timeline--explorer \.trace-chip-llm \{/);
+    expect(STYLESHEET).toMatch(/\.trace-kind-summary \{/);
   });
 
   it('does not stack a second frosted pane on either surface that draws it', () => {
@@ -244,16 +246,19 @@ describe('the Gantt is a table, with the semantics of one', () => {
 });
 
 describe('the bars carry the outcome, and nothing else', () => {
-  it('draws every step in the action colour, at the drawn weight', () => {
+  it('draws every step in the action colour on the default surface', () => {
     const bar = STYLESHEET.match(/\n\.trace-bar \{([^}]*)\}/)?.[1] ?? '';
     expect(bar).toMatch(/background: var\(--chart-1\)/);
     expect(bar).toMatch(/height: 10px/);
-    // No per-kind bar left behind. The chip says the kind.
-    expect(STYLESHEET).not.toMatch(/\.trace-bar-(llm|sql|discovery|plot|clarify) \{/);
+    expect(bar).toMatch(/min-width: 2px/);
+    // Ask keeps one colour. Per-kind hues are scoped under the explorer shell.
+    expect(STYLESHEET.match(/(?:^|\n)\.trace-bar-(llm|sql|discovery|plot|clarify) \{/)).toBeNull();
+    expect(STYLESHEET).toMatch(/\.trace-timeline--explorer \.trace-bar-llm \{/);
+    expect(STYLESHEET).toMatch(/\.trace-timeline--explorer \.trace-bar-sql \{/);
   });
 
   it('draws the run envelope as an outline, so it cannot read as another step', () => {
-    const run = STYLESHEET.match(/\.trace-bar-run \{([^}]*)\}/)?.[1] ?? '';
+    const run = STYLESHEET.match(/\n\.trace-bar-run \{([^}]*)\}/)?.[1] ?? '';
     expect(run).toMatch(/background: transparent/);
     expect(run).toMatch(/border: 1\.5px solid/);
   });
@@ -323,8 +328,12 @@ describe('the panel labels its parts rather than narrating them', () => {
     // could have run concurrently and what that would have saved, a plan turn
     // that records no trace. Asserted across the surfaces together, because the
     // point of one shared timeline is that Run Explorer cannot keep its own copy.
+    //
+    // Explorer may carry ONE short geometry caption (`trace-geometry-note`); the
+    // banned strings below are the old multi-paragraph wording, not that caption.
     const surfaces = `${CARD}${TIMELINE}${HOME}${RUN_EXPLORER}`;
-    for (const phrase of ['Bars thinner than',
+    for (const phrase of [
+      'Bars thinner than',
       'the duration column is the true value',
       'would have saved up',
       'ran one after another',
@@ -335,6 +344,7 @@ describe('the panel labels its parts rather than narrating them', () => {
     ]) {
       expect(surfaces, `${phrase} is gone`).not.toContain(phrase);
     }
+    expect(TIMELINE).toContain('trace-geometry-note');
     // And the machinery, not just the sentences. A flag or a saving still being
     // computed is a sentence waiting to be written again.
     for (const symbol of ['TimelineNotes', 'afterPlanApproval', 'fanout', 'concurrencySavingMs']) {
