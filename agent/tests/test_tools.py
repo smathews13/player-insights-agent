@@ -493,7 +493,7 @@ def test_the_tag_read_waits_the_apis_full_allowance_rather_than_thirty_seconds()
     assert warehouse.wait_timeouts == [
         (f"{tools_module.DISCOVERY_WAIT_SECONDS}s", ExecuteStatementRequestOnWaitTimeout.CANCEL)
     ]
-    assert tools_module.DISCOVERY_WAIT_SECONDS > tools_module.SQL_WAIT_SECONDS
+    assert tools_module.DISCOVERY_WAIT_SECONDS == tools_module.SQL_WAIT_CEILING_SECONDS
 
 
 def test_a_cancelled_tag_read_is_tried_once_more_and_the_second_attempt_can_succeed(monkeypatch):
@@ -2933,6 +2933,38 @@ def test_the_statement_is_cancelled_at_the_wait_timeout_rather_than_left_running
 
     assert warehouse.wait_timeouts == [
         (tools_module.SQL_WAIT_TIMEOUT, ExecuteStatementRequestOnWaitTimeout.CANCEL)
+    ]
+
+
+def test_answer_sql_waits_the_api_ceiling_not_thirty_seconds():
+    """The query that answers the question used to cancel at 30s.
+
+    50s is the Statement Execution API's max for a synchronous wait. Lookup
+    already used it; `query_named_table` now does too. 30s is only a docs
+    example for CANCEL mode, not a platform limit.
+    """
+
+    warehouse = FakeWarehouse(["n"], [["1"]])
+
+    build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
+
+    assert warehouse.wait_timeouts == [
+        (f"{tools_module.SQL_WAIT_CEILING_SECONDS}s", ExecuteStatementRequestOnWaitTimeout.CANCEL)
+    ]
+    assert warehouse.wait_timeouts[0][0] != "30s"
+    assert tools_module.SQL_WAIT_SECONDS == tools_module.SQL_WAIT_CEILING_SECONDS
+
+
+def test_answer_sql_still_stops_when_the_run_budget_is_gone(monkeypatch):
+    """The 50s wait cannot outlast what the run has left."""
+
+    budget(monkeypatch, 40)
+    warehouse = FakeWarehouse(["n"], [["1"]])
+
+    build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
+
+    assert warehouse.wait_timeouts == [
+        ("40s", ExecuteStatementRequestOnWaitTimeout.CANCEL)
     ]
 
 

@@ -412,29 +412,33 @@ def dictionary_scope_note(dropped: Sequence[str]) -> str:
     )
 
 
-#: How long the warehouse may hold one statement before it is cancelled. Paired
-#: with `on_wait_timeout=CANCEL` so that reaching it means "too slow", which the
-#: model can act on, rather than leaving a statement running whose response says
-#: RUNNING and used to be reported as a failure.
-SQL_WAIT_SECONDS = 30
-SQL_WAIT_TIMEOUT = f"{SQL_WAIT_SECONDS}s"
-
 #: The Statement Execution API's own bounds on a synchronous wait. Values outside
 #: them are rejected by the platform rather than clamped, so the clamp is ours: a
 #: turn with four seconds left used to send `wait_timeout=1s` and get an argument
 #: error back where it expected a cancelled statement.
+#:
+#: 5–50 seconds is the documented range (`Ns`, N in 5..50, or `0s` for async).
+#: 50s is the ceiling for this wait style. The platform default is hybrid
+#: (`10s` + CONTINUE, then poll); we stay on CANCEL at the ceiling so a still-
+#: running statement is stopped and reported as too slow, not left running.
 SQL_WAIT_CEILING_SECONDS = 50
 SQL_WAIT_FLOOR_SECONDS = 5
 
-#: What a DISCOVERY read waits, as against a read whose rows are the answer.
-#:
-#: WHY IT IS LONGER. The first statement of a turn pays for the warehouse to
-#: start, and in a customer workspace that is routinely more than thirty seconds
-#: where our own demo warehouse is already warm and answers in two. The read
-#: itself is a small `information_schema` scan; what the extra twenty seconds buy
-#: is the warmup, not the query. Sized at the API ceiling because that is the
-#: longest a single synchronous statement may wait, and a discovery result the
-#: turn can skip is exactly the read worth spending the whole of it on.
+#: How long the warehouse may hold one statement before it is cancelled. The
+#: answer query used to cancel at 30s, which is a Databricks docs example, not
+#: the max. Lookup already waited the ceiling; the query that answers the
+#: question now does too. Paired with `on_wait_timeout=CANCEL` so that reaching
+#: it means "too slow", which the model can act on, rather than leaving a
+#: statement running whose response says RUNNING and used to be reported as a
+#: failure.
+SQL_WAIT_SECONDS = SQL_WAIT_CEILING_SECONDS
+SQL_WAIT_TIMEOUT = f"{SQL_WAIT_SECONDS}s"
+
+#: What a DISCOVERY read waits. Same ceiling as the answer query: the first
+#: statement of a turn pays for the warehouse to start, and in a customer
+#: workspace that is routinely more than thirty seconds where our own demo
+#: warehouse is already warm and answers in two. Named separately so the
+#: discovery call site still says why it spends the whole allowance.
 DISCOVERY_WAIT_SECONDS = SQL_WAIT_CEILING_SECONDS
 
 #: A statement cancelled for slowness is retried ONCE, and only while the turn
@@ -452,11 +456,10 @@ _SQL_TOO_SLOW_STATES = frozenset({"CANCELED", "PENDING", "RUNNING"})
 
 #: What each non-success state means for the model's next move.
 #:
-#: The cancellation text names no number. The wait is no longer one constant --
-#: a discovery read waits longer than a data read, and both are clamped by what
-#: is left of the turn -- so a sentence claiming "after 30s" would be wrong on
-#: most of the paths that produce it, and wrong in the direction that matters:
-#: it reads as a statement about the query when the cause is often a warehouse
+#: The cancellation text names no number. The wait is clamped by what is left
+#: of the turn, so a sentence claiming "after 30s" would be wrong on most of
+#: the paths that produce it, and wrong in the direction that matters: it
+#: reads as a statement about the query when the cause is often a warehouse
 #: that had not finished starting.
 _SQL_STATE_MEANINGS = {
     "CANCELED": (
