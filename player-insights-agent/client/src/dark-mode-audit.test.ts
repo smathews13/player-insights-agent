@@ -318,20 +318,28 @@ describe('dark mode covers the shipped surfaces', () => {
   it('paints Run Explorer from the Ask pane, not a lifted gray', () => {
     /*
      * The working-tab mix (sky + 14% white) made Overview look like a gray
-     * sheet next to Ask. Tiles, Final Answer and the detail column reuse
+     * sheet next to Ask. The detail column and the Recent runs list reuse
      * `--ast-pane` -- the answer card's token -- so they stay in that family.
-     * Menus are a different rung and must stay opaque.
+     * Tiles and Final Answer sit on that column and destack; a second pane
+     * was the leftover wash. Menus stay opaque.
      */
     for (const selector of [
       "html[data-theme='dark'] .run-explorer .run-detail",
       "html[data-theme='dark'] .run-explorer [data-slot='card']",
-      "html[data-theme='dark'] .run-explorer .summary-grid [data-slot='card']",
-      "html[data-theme='dark'] .run-explorer .final-answer",
     ]) {
       const body = bodyFor(DARK, selector);
       expect(body, `${selector} is not the Ask pane`).toMatch(/background:\s*var\(--ast-pane\)/);
       expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
       expect(body, `${selector} is not the overlay slab`).not.toMatch(/--ast-surface-solid/);
+    }
+    for (const selector of [
+      "html[data-theme='dark'] .run-explorer .run-detail [data-slot='card']",
+      "html[data-theme='dark'] .run-explorer .run-detail .final-answer",
+    ]) {
+      const body = bodyFor(DARK, selector);
+      expect(body, `${selector} still stacks a second pane`).toMatch(/background:\s*transparent/);
+      expect(body, `${selector} still frosts the column`).toMatch(/backdrop-filter:\s*none/);
+      expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
     }
     expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(
       /background:\s*var\(--ast-surface-solid\)/

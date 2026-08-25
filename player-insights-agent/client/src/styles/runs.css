@@ -2,10 +2,11 @@
  * Run Explorer.
  *
  * Two columns: a 340px list of runs and the selected run read four ways. The
- * list is the navigation and the right column is the document, so the list is
- * the side that gets a card and the detail side does not -- a card around the
- * detail put a second border inside the page's own margins and made the tabs
- * look like a widget rather than the page.
+ * list is the navigation. The right column is the document -- tabs plus the
+ * view they switch -- and it is a real pane: the same hairline, radius and
+ * `--ast-pane` sheet the answer card uses. Leaving that column unbordered is
+ * what made Overview, Agent map, Timeline and Details read as a floating
+ * tint with only a line under the tab labels.
  *
  * The Gantt and the roll-up inside the Timeline tab belong to timeline.css.
  * Nothing here reaches into them.
@@ -399,12 +400,23 @@
   stroke-width: 1.5;
 }
 
-/* ---- the detail side ---- */
+/* ---- the detail side ----
+ *
+ * One surface for every tab. The fill is the Ask pane token; the hairline is
+ * what makes it a box rather than a wash on the sky. Inner tiles and the
+ * Final Answer destack in dark-mode.css so they do not lay a second frost
+ * on this sheet.
+ */
 .run-detail {
   min-width: 0;
   display: grid;
   gap: 16px;
   align-content: start;
+  box-sizing: border-box;
+  padding: 16px 20px 20px;
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--ast-radius-card);
+  background: var(--ast-pane);
 }
 .run-detail-head {
   display: flex;
@@ -689,12 +701,12 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 }
 
 /*
- * The final answer, as the one card on the detail side.
+ * The final answer, as a region on the detail pane.
  *
  * Same width as the KPI row above it: a max-width or a shrink-to-content card
  * left starfield gutters either side of the answer while the tiles spanned the
- * column. The pane token, not a milky sheet -- this sits on the night sky with
- * every other surface on the page.
+ * column. The hairline keeps it a box; dark-mode destacks the fill so this
+ * is not a second frost on the column's Ask pane.
  */
 .run-explorer .final-answer {
   width: 100%;

@@ -81,7 +81,7 @@ import type {
   OpsTrafficPayload,
   RouteLatency,
 } from '../../shared/ops-contract';
-import { opsDayRange, opsRangeDates } from '../../shared/ops-contract';
+import { opsDayRange } from '../../shared/ops-contract';
 
 /* ── Loading one block ───────────────────────────────────────────────────── */
 
@@ -1415,9 +1415,6 @@ export function OpsPage() {
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
       <TimeRangeControl page="Ops cost" />
-      <p className="ops-range-dates">
-        Cost billing window: {opsRangeDates(range)}. Today is excluded because billing arrives late.
-      </p>
 
       {/* Each block reads itself. Three read times on one page rather than one,
           because they were read at three different moments. */}

@@ -34,6 +34,16 @@ describe('the Run Explorer’s two columns', () => {
     expect(rule(RUNS, '.explorer-layout')).toContain('grid-template-columns: 340px');
   });
 
+  it('gives the detail column a real pane, not a floating tint', () => {
+    // Tabs plus the view they switch sit on one sheet. No hairline is what
+    // made Overview, Agent map, Timeline and Details read as a square of
+    // wash with only a line under the labels. Same family as the answer card.
+    const pane = rule(RUNS, '.run-detail');
+    expect(pane).toContain('border: 1px solid var(--ast-hairline)');
+    expect(pane).toContain('border-radius: var(--ast-radius-card)');
+    expect(pane).toContain('background: var(--ast-pane)');
+  });
+
   it('makes a run row a bordered block at the smaller radius, not a list line', () => {
     const row = rule(RUNS, '.run-item');
     expect(row).toContain('border-radius: var(--radius-md)');

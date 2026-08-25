@@ -1302,12 +1302,12 @@ describe('Ops cost uses complete billing days', () => {
       </MemoryRouter>
     );
 
-  it('renders the shared range control and the exact cost dates', () => {
+  it('renders the shared range control and no billing-window caption', () => {
     const markup = at('?range=24h&from=2026-03-02&to=2026-03-06');
-    expect(markup).toContain('ops-range-dates');
     expect(markup).toContain('time-range-segments');
-    expect(text(markup)).toContain('Cost billing window');
-    expect(text(markup)).toContain('Today is excluded because billing arrives late');
+    expect(markup).not.toContain('ops-range-dates');
+    expect(text(markup)).not.toContain('Cost billing window');
+    expect(text(markup)).not.toContain('Today is excluded because billing arrives late');
   });
 
   it('sends validated from and to dates to cost only', () => {
