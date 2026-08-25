@@ -27,6 +27,8 @@ describe('benchmark settings contract', () => {
     expect(parsed.alwaysOnTraces).toBe(true);
     expect(parsed.evalSetId).toBe('poc-benchmark');
     expect(parsed.compareSideA).toBe(CURRENT_AGENT_SIDE);
+    expect(parsed.guidelinesText.length).toBeGreaterThan(0);
+    expect(parsed.enabledJudges).toEqual(['groundedness', 'relevance', 'guidelines']);
   });
 
   it('refuses an invented eval set', () => {
@@ -42,5 +44,6 @@ describe('benchmark settings contract', () => {
   it('sends the saved eval set as the suite id', () => {
     expect(suiteIdFromSettings({ evalSetId: 'held-out-eval' })).toBe('held-out-eval');
     expect(suiteIdFromSettings({ evalSetId: 'poc-benchmark' })).toBe('poc-benchmark');
+    expect(suiteIdFromSettings({ evalSetId: 'operator-eval' })).toBe('operator-eval');
   });
 });

@@ -62,9 +62,9 @@ describe('Settings modal', () => {
     const off = render('experimental');
     expect(off).toContain('MLflow experiment');
     expect(off).toContain('Always-on traces');
-    expect(off).toContain('Eval set');
     expect(off).toContain('Judge model');
-    expect(off).toContain('Compare two versions');
+    expect(off).toContain('Baseline vs candidate');
+    expect(off).not.toContain('Eval set');
     expect(off).toContain('disabled=""');
     expect(off).not.toContain('>Save</button>');
 

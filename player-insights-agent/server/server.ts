@@ -35,6 +35,7 @@ createApp({
       { setupEgressRoutes },
       { setupRuntimeSettingsRoutes },
       { setupBenchmarkSettingsRoutes },
+      { setupEvalDatasetRoutes },
       { setupEnvironmentRoutes },
       { setupAccountRoutes },
       { setupRunLabelRoutes },
@@ -52,6 +53,7 @@ createApp({
       import('./routes/egress-routes'),
       import('./routes/runtime-settings-routes'),
       import('./routes/benchmark-settings-routes'),
+      import('./routes/eval-dataset-routes'),
       import('./routes/environment-routes'),
       import('./routes/account-routes'),
       import('./routes/run-label-routes'),
@@ -82,6 +84,7 @@ createApp({
     setupSettingsRoutes(appkit);
     setupRuntimeSettingsRoutes(appkit);
     setupBenchmarkSettingsRoutes(appkit);
+    setupEvalDatasetRoutes(appkit);
     setupEnvironmentRoutes(appkit);
     // The account menu is user-scoped. Register it after the identity gate so a
     // message sender always comes from x-forwarded-email rather than the body.

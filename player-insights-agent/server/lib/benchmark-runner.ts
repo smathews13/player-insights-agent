@@ -48,6 +48,16 @@ import {
   HELD_OUT_SUITE_NAME,
   heldOutCase,
 } from '../../shared/held-out-suite';
+import {
+  OPERATOR_EVAL_SUITE_ID,
+  OPERATOR_EVAL_SUITE_NAME,
+  parseEnabledJudges,
+  parseEvalDataset,
+  questionRows,
+} from '../../shared/eval-dataset';
+import { DEFAULT_BENCHMARK_SETTINGS, parseBenchmarkSettings } from '../../shared/benchmark-settings';
+import { EVAL_DATASET_TABLE } from './eval-dataset-store';
+import { BENCHMARK_SETTINGS_TABLE } from './benchmark-settings-store';
 import { SCORER_CATALOG, unimplementableScorers } from '../../shared/scorer-catalog';
 import type { ScorecardValue, ScoredCaseFields, ScoredRunFields } from '../../shared/scorecard-contract';
 
@@ -1260,6 +1270,59 @@ export function heldOutResolvedCases(): ResolvedCase[] {
   }));
 }
 
+const JUDGE_BY_SETTING: Record<string, JudgeName> = {
+  groundedness: GROUNDEDNESS_FEEDBACK_NAME,
+  relevance: RELEVANCE_TO_QUERY_ASSESSMENT_NAME,
+  guidelines: GUIDELINES_FEEDBACK_NAME,
+};
+
+/**
+ * The operator dataset as the runner's case list.
+ *
+ * Questions and expected answers come from the Benchmarking tab. Built-in
+ * judges come from Settings → Experimental. This is the same path the POC
+ * suite already uses — ask the live agent, then score with MLflow judges —
+ * not a fabricated score.
+ */
+export async function operatorResolvedCases(store: BenchmarkStore): Promise<ResolvedCase[]> {
+  let rows = parseEvalDataset(undefined).rows;
+  let settings = DEFAULT_BENCHMARK_SETTINGS;
+  try {
+    const dataset = await store.query(`SELECT rows FROM ${EVAL_DATASET_TABLE} WHERE id = $1`, ['effective']);
+    rows = parseEvalDataset({ rows: dataset.rows[0]?.rows }).rows;
+  } catch (error) {
+    console.warn('[benchmark] Evaluation dataset could not be read:', (error as Error).message);
+  }
+  try {
+    const saved = await store.query(`SELECT settings FROM ${BENCHMARK_SETTINGS_TABLE} WHERE id = $1`, ['effective']);
+    if (saved.rows[0]?.settings !== undefined) {
+      settings = parseBenchmarkSettings(saved.rows[0].settings);
+    }
+  } catch (error) {
+    console.warn('[benchmark] Benchmark settings could not be read for judges:', (error as Error).message);
+  }
+  const enabled = new Set(parseEnabledJudges(settings.enabledJudges).map((id) => JUDGE_BY_SETTING[id]));
+  const fallbackGuideline = settings.guidelinesText.trim();
+  return questionRows(rows).map((row) => {
+    const guidelines = row.expectedAnswer.trim()
+      ? [row.expectedAnswer.trim()]
+      : fallbackGuideline
+        ? [fallbackGuideline]
+        : [];
+    const judges = [...enabled].filter((name) => name !== GUIDELINES_FEEDBACK_NAME || guidelines.length > 0);
+    return {
+      caseId: row.id,
+      definition: null,
+      question: row.question,
+      questionSource: 'suite-row' as const,
+      guidelines,
+      judges: judges.length > 0 ? judges : [RELEVANCE_TO_QUERY_ASSESSMENT_NAME],
+      structuralChecks: [],
+      judgeNotes: {},
+    };
+  });
+}
+
 /**
  * The suite a requested id names, including the held-out set.
  *
@@ -1271,6 +1334,9 @@ export function heldOutResolvedCases(): ResolvedCase[] {
 export function resolveSuiteIdentity(requestedId: string): SuiteIdentity | null {
   if (requestedId.trim() === HELD_OUT_SUITE_ID) {
     return { id: HELD_OUT_SUITE_ID, name: HELD_OUT_SUITE_NAME };
+  }
+  if (requestedId.trim() === OPERATOR_EVAL_SUITE_ID) {
+    return { id: OPERATOR_EVAL_SUITE_ID, name: OPERATOR_EVAL_SUITE_NAME };
   }
   return canonicalSuite(requestedId);
 }
@@ -1288,6 +1354,9 @@ async function loadCases(store: BenchmarkStore,
 ): Promise<{ cases: ResolvedCase[]; source: 'suite-row' | 'catalog-fallback'; suiteName: string }> {
   if (suite.id === HELD_OUT_SUITE_ID) {
     return { cases: heldOutResolvedCases(), source: 'catalog-fallback', suiteName: suite.name };
+  }
+  if (suite.id === OPERATOR_EVAL_SUITE_ID) {
+    return { cases: await operatorResolvedCases(store), source: 'suite-row', suiteName: suite.name };
   }
   const aliasIds = [...new Set([suite.id, requestedSuiteId])];
   try {
@@ -1344,7 +1413,7 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
         error: 'unknown_suite',
         message:
           `No benchmark suite is known by the id "${deps.requestedSuiteId}". Known ids: ` +
-          `${[...Object.keys(SUITE_ALIASES), HELD_OUT_SUITE_ID].join(', ')}.`,
+          `${[...Object.keys(SUITE_ALIASES), HELD_OUT_SUITE_ID, OPERATOR_EVAL_SUITE_ID].join(', ')}.`,
       },
     };
   }

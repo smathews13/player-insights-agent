@@ -442,6 +442,32 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     ],
     down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.benchmark_settings`],
   },
+  {
+    version: 12,
+    name: 'evaluation dataset',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.eval_dataset (
+         id TEXT PRIMARY KEY,
+         rows JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_dataset`],
+  },
+  {
+    version: 13,
+    name: 'evaluation flywheel',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.eval_flywheel (
+         id TEXT PRIMARY KEY,
+         state JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_flywheel`],
+  },
 ];
 
 /**

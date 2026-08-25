@@ -67,7 +67,7 @@ export function setupBenchmarkSettingsRoutes(appkit: InsightsAppKit): void {
           actor,
           action: 'benchmark-settings-updated',
           subject: 'benchmark-settings',
-          detail: 'Updated MLflow experiment, traces, eval set, judge, and bake-off sides.',
+          detail: 'Updated MLflow experiment, traces, judges, and baseline/candidate sides.',
         });
         res.json({
           settings,

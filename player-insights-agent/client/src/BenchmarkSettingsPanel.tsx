@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  DEFAULT_BENCHMARK_SETTINGS,
-  EVAL_SET_OPTIONS,
-  type BenchmarkSettings,
-  type EvalSetId,
-} from '../../shared/benchmark-settings';
-import { AppSelect } from './AppSelect';
+import { AGENT_JUDGE_IDS, type AgentJudgeId } from '../../shared/eval-dataset';
+import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { SETTINGS_SAVE_IDLE, type SettingsSaveState } from './settings-save-state';
-import { Input, Switch } from './ui';
+import { Input, Switch, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
 
 export const BENCHMARK_SETTINGS_FORM_ID = 'settings-benchmark-form';
+
+function toggleJudge(current: AgentJudgeId[], judge: AgentJudgeId, enabled: boolean): AgentJudgeId[] {
+  const next = enabled ? [...new Set([...current, judge])] : current.filter((id) => id !== judge);
+  return next.length > 0 ? next : current;
+}
 
 export function BenchmarkSettingsPanel({
   enabled,
@@ -118,10 +118,10 @@ export function BenchmarkSettingsPanel({
       }}
     >
       <fieldset className="benchmark-settings-cluster" disabled={!enabled}>
-        <legend className="runtime-section-label">MLflow and benchmarking</legend>
+        <legend className="runtime-section-label">Evaluation path</legend>
         <p className="settings-row-note">
           {enabled
-            ? 'These defaults are what the Benchmarking tab runs. Save them here; do not edit them twice.'
+            ? 'On the Benchmarking tab: build a dataset, score a Genie space, then run agent judges into this experiment. Save the defaults here; do not edit them twice.'
             : 'Turn Benchmarking on above to edit these. The values stay, but nothing here can be changed while the tab is hidden.'}
         </p>
 
@@ -180,16 +180,9 @@ export function BenchmarkSettingsPanel({
           </p>
         ) : null}
 
-        <AppSelect
-          label="Eval set"
-          ariaLabel="Eval set"
-          value={settings.evalSetId}
-          options={EVAL_SET_OPTIONS.map((option) => ({ value: option.id, label: option.label }))}
-          disabled={!enabled}
-          onValueChange={(value) => setSettings((current) => ({ ...current, evalSetId: value as EvalSetId }))}
-        />
         <p className="runtime-control-note">
-          {EVAL_SET_OPTIONS.find((option) => option.id === settings.evalSetId)?.note}
+          The evaluation dataset lives on the Benchmarking tab. Each row is a question, optional
+          ground-truth SQL for Genie accuracy, and an optional expected answer for agent judges.
         </p>
 
         <label className="runtime-field runtime-field-wide">
@@ -203,14 +196,59 @@ export function BenchmarkSettingsPanel({
             onChange={(event) => setSettings((current) => ({ ...current, judgeEndpoint: event.target.value }))}
           />
           <span className="runtime-control-note">
-            The endpoint Connections already uses to score a suite. Changing it here updates that same setting.
+            The model that scores Phase B (groundedness, relevance, guidelines). Changing it here
+            updates the same setting Connections already uses.
+          </span>
+        </label>
+
+        {AGENT_JUDGE_IDS.map((judge) => (
+          <div className="settings-row" key={judge}>
+            <div>
+              <p className="settings-row-label">
+                {judge === 'groundedness' ? 'Groundedness' : judge === 'relevance' ? 'Relevance' : 'Guidelines'}
+                {' · '}
+                {settings.enabledJudges.includes(judge) ? 'On' : 'Off'}
+              </p>
+              <p className="settings-row-note">
+                {judge === 'groundedness'
+                  ? 'Built-in MLflow judge: is the answer supported by what was retrieved?'
+                  : judge === 'relevance'
+                    ? 'Built-in MLflow judge: does the answer address the question?'
+                    : 'Built-in MLflow Guidelines judge. Uses the text below, or a row’s expected answer.'}
+              </p>
+            </div>
+            <Switch
+              checked={settings.enabledJudges.includes(judge)}
+              disabled={!enabled}
+              onCheckedChange={(checked) =>
+                setSettings((current) => ({
+                  ...current,
+                  enabledJudges: toggleJudge(current.enabledJudges, judge, checked),
+                }))
+              }
+              aria-label={judge === 'groundedness' ? 'Groundedness judge' : judge === 'relevance' ? 'Relevance judge' : 'Guidelines judge'}
+            />
+          </div>
+        ))}
+
+        <label className="runtime-field runtime-field-wide">
+          <span className="runtime-field-label">Guidelines</span>
+          <Textarea
+            aria-label="Guidelines"
+            rows={3}
+            value={settings.guidelinesText}
+            onChange={(event) => setSettings((current) => ({ ...current, guidelinesText: event.target.value }))}
+          />
+          <span className="runtime-control-note">
+            Passed to <code>Guidelines(name=…, guidelines=…, model=databricks:/…)</code> on the agent
+            evaluate path. A row with its own expected answer uses that instead.
           </span>
         </label>
 
         <div className="benchmark-settings-compare">
-          <p className="runtime-section-label">Compare two versions</p>
+          <p className="runtime-section-label">Baseline vs candidate</p>
           <label className="runtime-field">
-            <span className="runtime-field-label">Side A</span>
+            <span className="runtime-field-label">Baseline</span>
             <Input
               type="text"
               autoComplete="off"
@@ -220,7 +258,7 @@ export function BenchmarkSettingsPanel({
             />
           </label>
           <label className="runtime-field">
-            <span className="runtime-field-label">Side B</span>
+            <span className="runtime-field-label">Candidate</span>
             <Input
               type="text"
               autoComplete="off"
@@ -231,9 +269,11 @@ export function BenchmarkSettingsPanel({
             />
           </label>
           <span className="runtime-control-note">
-            Use <code>current</code> for this deployment&apos;s agent
-            {currentAgentEndpoint ? ` (${currentAgentEndpoint})` : ''}. A second name starts a second suite
-            run against that endpoint. Leave side B blank for one run.
+            Phase B runs both on the same questions and shows the scores side by side. Promote the
+            winner on the Benchmarking tab so the next Ask uses it. Use <code>current</code> for this
+            deployment&apos;s agent
+            {currentAgentEndpoint ? ` (${currentAgentEndpoint})` : ''}. Leave candidate blank until you
+            have a second endpoint.
           </span>
         </div>
       </fieldset>

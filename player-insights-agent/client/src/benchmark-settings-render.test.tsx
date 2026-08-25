@@ -7,17 +7,20 @@ describe('Settings → Experimental benchmarking cluster', () => {
     const markup = renderToStaticMarkup(<BenchmarkSettingsPanel enabled={false} />);
     expect(markup).toContain('MLflow experiment');
     expect(markup).toContain('Always-on traces');
-    expect(markup).toContain('Eval set');
     expect(markup).toContain('Judge model');
-    expect(markup).toContain('Compare two versions');
+    expect(markup).toContain('Groundedness');
+    expect(markup).toContain('Guidelines');
+    expect(markup).toContain('Baseline vs candidate');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('Turn Benchmarking on above to edit these');
+    expect(markup).not.toContain('Eval set');
+    expect(markup).not.toContain('Compare two versions');
   });
 
   it('enables the same controls once Benchmarking is on', () => {
     const markup = renderToStaticMarkup(<BenchmarkSettingsPanel enabled={true} />);
     expect(markup).toContain('MLflow experiment');
     expect(markup).not.toContain('disabled=""');
-    expect(markup).toContain('These defaults are what the Benchmarking tab runs');
+    expect(markup).toContain('build a dataset, score a Genie space');
   });
 });

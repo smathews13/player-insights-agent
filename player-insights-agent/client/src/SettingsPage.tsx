@@ -221,14 +221,16 @@ export function SettingsPage({
                   <div className="settings-row">
                     <div>
                       <p className="settings-row-label">
-                        Benchmarking, scorers and judge · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
+                        Benchmarking · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
                       </p>
-                      <p className="settings-row-note">Shows the Benchmarking tab, scorers and judge details.</p>
+                      <p className="settings-row-note">
+                        Shows the Benchmarking tab: evaluation dataset, Genie accuracy, then agent judges.
+                      </p>
                     </div>
                     <Switch
                       checked={showsBenchmarkLab(features)}
                       onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
-                      aria-label="Show Benchmarking, scorers and judge details"
+                      aria-label="Show Benchmarking tab"
                     />
                   </div>
                   <BenchmarkSettingsPanel

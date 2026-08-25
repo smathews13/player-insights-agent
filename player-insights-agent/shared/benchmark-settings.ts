@@ -1,16 +1,18 @@
 import { z } from 'zod';
 import { DEFAULT_JUDGE_ENDPOINT } from './benchmark-contract';
+import { AGENT_JUDGE_IDS, DEFAULT_GUIDELINES_TEXT, OPERATOR_EVAL_SUITE_ID } from './eval-dataset';
 
 /**
- * Bake-off and MLflow defaults the Settings Experimental pane edits.
+ * MLflow defaults the Settings Experimental pane edits.
  *
  * ONE STORE, TWO READERS. Settings writes this; the top-nav Benchmarking page
- * reads the same row to start a run. A second form on the lab would drift.
+ * reads the same row to start a run. The evaluation dataset itself lives on
+ * that tab, not here.
  */
 
 export const CURRENT_AGENT_SIDE = 'current';
 
-export const EVAL_SET_IDS = ['poc-benchmark', 'held-out-eval'] as const;
+export const EVAL_SET_IDS = ['poc-benchmark', 'held-out-eval', OPERATOR_EVAL_SUITE_ID] as const;
 export type EvalSetId = (typeof EVAL_SET_IDS)[number];
 
 export const EVAL_SET_OPTIONS: readonly { id: EvalSetId; label: string; note: string }[] = [
@@ -24,6 +26,11 @@ export const EVAL_SET_OPTIONS: readonly { id: EvalSetId; label: string; note: st
     label: 'Held-out evaluation set',
     note: 'Twelve labelled cases none of which the demo is tuned against.',
   },
+  {
+    id: OPERATOR_EVAL_SUITE_ID,
+    label: 'Your evaluation dataset',
+    note: 'The questions on the Benchmarking tab, with optional expected answers.',
+  },
 ];
 
 export const BenchmarkSettingsSchema = z.strictObject({
@@ -33,6 +40,8 @@ export const BenchmarkSettingsSchema = z.strictObject({
   judgeEndpoint: z.string().trim().min(1).max(200).default(DEFAULT_JUDGE_ENDPOINT),
   compareSideA: z.string().trim().max(200).default(CURRENT_AGENT_SIDE),
   compareSideB: z.string().trim().max(200).default(''),
+  guidelinesText: z.string().trim().max(4000).default(DEFAULT_GUIDELINES_TEXT),
+  enabledJudges: z.array(z.enum(AGENT_JUDGE_IDS)).default([...AGENT_JUDGE_IDS]),
 });
 
 export type BenchmarkSettings = z.infer<typeof BenchmarkSettingsSchema>;
@@ -44,6 +53,8 @@ export const DEFAULT_BENCHMARK_SETTINGS: BenchmarkSettings = {
   judgeEndpoint: DEFAULT_JUDGE_ENDPOINT,
   compareSideA: CURRENT_AGENT_SIDE,
   compareSideB: '',
+  guidelinesText: DEFAULT_GUIDELINES_TEXT,
+  enabledJudges: [...AGENT_JUDGE_IDS],
 };
 
 export function parseBenchmarkSettings(value: unknown): BenchmarkSettings {

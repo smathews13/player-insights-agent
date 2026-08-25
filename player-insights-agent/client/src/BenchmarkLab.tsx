@@ -17,7 +17,6 @@ import {
   AlertDescription,
   AlertTitle,
   Badge,
-  Button,
   Card,
   CardDescription,
   CardContent,
@@ -38,12 +37,10 @@ import {
 } from './ui';
 import {
   Check,
-  CircleAlert,
   FileSearch,
   FlaskConical,
   Info,
   Loader2,
-  Play,
   Star,
   TriangleAlert,
   User,
@@ -77,12 +74,9 @@ import {
 import type { Scorecard, ScorecardState } from '../../shared/scorecard-contract';
 import { formatScore, labelSourceSummary, scoreCoverage } from './benchmark-state';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
-import {
-  compareSides,
-  DEFAULT_BENCHMARK_SETTINGS,
-  EVAL_SET_OPTIONS,
-  suiteIdFromSettings,
-} from '../../shared/benchmark-settings';
+import { compareSides, DEFAULT_BENCHMARK_SETTINGS } from '../../shared/benchmark-settings';
+import { OPERATOR_EVAL_SUITE_ID } from '../../shared/eval-dataset';
+import { EvalFlywheel } from './EvalFlywheel';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
 
 /**
@@ -555,12 +549,13 @@ export function BenchmarkLab() {
     );
   }, [selected, summary.inProgress]);
 
-  async function runSuite() {
+  async function runSuite(): Promise<string[]> {
     setRunning(true);
     setRunError(null);
+    const started: string[] = [];
     try {
       const sides = compareSides(bakeOff);
-      const suiteId = suiteIdFromSettings(bakeOff);
+      const suiteId = OPERATOR_EVAL_SUITE_ID;
       let firstId: string | null = null;
       for (const side of sides) {
         const response = await fetch('/api/benchmarks/run', {
@@ -578,13 +573,16 @@ export function BenchmarkLab() {
         }
         const created = (await response.json()) as { id?: unknown };
         const id = typeof created.id === 'string' ? created.id : null;
+        if (id) started.push(id);
         if (!firstId) firstId = id;
       }
       setLastRunId(firstId);
       if (firstId) setSelectedId(firstId);
       setReloadToken((token) => token + 1);
+      return started;
     } catch (error) {
       setRunError((error as Error).message || 'The suite could not be started.');
+      return started;
     } finally {
       setRunning(false);
     }
@@ -598,29 +596,13 @@ export function BenchmarkLab() {
   const qualifications = benchmarkQualifications(summary);
 
   return (<div className="page-shell benchmark-lab">
-      <PageHeading
-        title="Benchmark Lab"
-        actions={
-          <Button onClick={() => void runSuite()} disabled={running}>
-            {running ? <Loader2 className="animate-spin" /> : <Play />}
-            {running ? 'Starting…' : 'Run suite'}
-          </Button>
-        }
+      <PageHeading title="Benchmarking" />
+
+      <EvalFlywheel
+        onAgentRun={() => runSuite()}
+        agentRunning={running}
+        agentError={runError}
       />
-
-      <p className="settings-row-note bench-settings-used">
-        Runs the {EVAL_SET_OPTIONS.find((option) => option.id === bakeOff.evalSetId)?.label ?? bakeOff.evalSetId},
-        judged by {bakeOff.judgeEndpoint}
-        {compareSides(bakeOff).length > 1
-          ? `, comparing ${compareSides(bakeOff).join(' and ')}`
-          : ''}. Change that in Settings → Experimental.
-      </p>
-
-      {runError && (<Alert variant="destructive">
-          <CircleAlert />
-          <AlertDescription>{runError}</AlertDescription>
-        </Alert>
-      )}
 
       {/* One panel rather than this page's own sentence, so an outage reads the
           same here as it does in Run Explorer and the rail. The detail carries

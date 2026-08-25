@@ -25,6 +25,9 @@ import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
 import { credentialLifetime } from '../lib/benchmark-identity';
 import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
 import { HELD_OUT_CASES, HELD_OUT_SUITE_ID, HELD_OUT_SUITE_NAME } from '../../shared/held-out-suite';
+import { OPERATOR_EVAL_SUITE_ID, OPERATOR_EVAL_SUITE_NAME } from '../../shared/eval-dataset';
+import { readEvalDataset } from '../lib/eval-dataset-store';
+import { resolveAskEndpoint } from '../lib/eval-flywheel-store';
 import { DEPLOYMENT_SETTINGS_DDL, resolveExperimentId, resolveJudgeEndpoint } from '../lib/app-settings';
 import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
@@ -4255,9 +4258,13 @@ export function setupInsightsRoutes(
         // without a user is visibly the local one and cannot be reached by a
         // deployed request: `bindIdentity` has already refused an empty token
         // above whenever `isDeployed()`.
+        //
+        // The endpoint is the promoted winner when Benchmarking saved one,
+        // otherwise the deployed default. Connections does not change.
+        const askEndpoint = await resolveAskEndpoint(appkit);
         const endpointResult = identity.token
-          ? await invokeServingAsUser(appkit, payload, identity.token, onStage)
-          : await invokeServing(appkit, payload, onStage);
+          ? await invokeServingAsUser(appkit, payload, identity.token, onStage, SERVING_INVOKE_TIMEOUT_MS, askEndpoint)
+          : await invokeServing(appkit, payload, onStage, SERVING_INVOKE_TIMEOUT_MS, undefined, askEndpoint);
         ranAsSignedInUser = Boolean(identity.token);
         /**
          * Before all four shapes, because a refusal is none of them and looks
@@ -4812,6 +4819,28 @@ export function setupInsightsRoutes(
      */
     app.get('/api/benchmarks/suite', async (req, res) => {
       const requestedSuiteId = typeof req.query.suiteId === 'string' ? req.query.suiteId : CANONICAL_SUITE.id;
+      if (requestedSuiteId === OPERATOR_EVAL_SUITE_ID) {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        res.json({
+          suiteId: OPERATOR_EVAL_SUITE_ID,
+          suiteName: OPERATOR_EVAL_SUITE_NAME,
+          caseListSource: 'suite-row',
+          cases: dataset.rows
+            .filter((row) => row.question.trim())
+            .map((row) => ({
+              id: row.id,
+              name: row.id,
+              question: row.question,
+              intent: row.groundTruthSql.trim()
+                ? 'Genie accuracy: has ground-truth SQL'
+                : row.expectedAnswer.trim()
+                  ? 'Agent judges: has an expected answer'
+                  : 'Question only',
+              questionSource: 'suite-row' as const,
+            })),
+        });
+        return;
+      }
       if (requestedSuiteId === HELD_OUT_SUITE_ID) {
         res.json({
           suiteId: HELD_OUT_SUITE_ID,
