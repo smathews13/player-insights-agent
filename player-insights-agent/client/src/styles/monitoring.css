@@ -552,16 +552,22 @@
  */
 .monitoring-question-overlay {
   position: fixed;
-  inset: 0;
-  z-index: 70;
+  /* Below the 52px rail, not under it. Full-viewport centering put a tall
+     dialog behind the sticky header (`z-30`). The overlay starts at the header
+     token and keeps a real gap; it never occupies the rail's rectangle. */
+  top: var(--app-header-h);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 80;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 16px 24px 24px;
   background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
 }
 .monitoring-question-modal {
   width: min(var(--conversation-measure), calc(100vw - 48px));
-  max-height: min(calc(100vh - 48px), 920px);
+  max-height: min(calc(100vh - var(--app-header-h) - 40px), 920px);
   overflow-x: hidden;
   overflow-y: auto;
   background: var(--card);
@@ -667,12 +673,12 @@
   max-width: 150px;
 }
 /*
- * Same corner seating Ask restates on the transcript. The modal is not
+ * Same corner stamp Ask restates on the transcript. The modal is not
  * `.conversation-main`, so a later AppKit header utility would otherwise drop
  * "Live agent response" a gutter down from the card edge.
  */
 .monitoring-question-modal .answer-card > [data-slot='card-header'] {
-  padding: 0 8px;
+  padding: 0;
 }
 .monitoring-drawer-meta {
   margin: 0;

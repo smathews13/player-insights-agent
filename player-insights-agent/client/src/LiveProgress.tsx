@@ -52,16 +52,16 @@ function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: 
       className={`live-step ${step.status}${newest ? ' newest' : ''}`}
       style={step.depth ? ({ '--live-depth': step.depth } as CSSProperties) : undefined}
     >
-      {/* Number on top, the Agent path's kind mark under it: SQL / Genie /
-          Mosaic / the agent's own mark for an LLM turn. The type chip in the
+      {/* Kind mark, then the step number, on one row: SQL / Genie / Mosaic /
+          the agent's own mark for an LLM turn, then 03. The type chip in the
           header is still the word; this is the same glyph the constellation
           draws on that step. */}
       <span className="live-step-index">
-        <span className="live-step-icon step-rail-num ast-num" aria-hidden="true">
-          {stepNumber(number)}
-        </span>
         <span className="live-step-kind" aria-hidden="true">
           <StepKindMark step={step} />
+        </span>
+        <span className="live-step-icon step-rail-num ast-num" aria-hidden="true">
+          {stepNumber(number)}
         </span>
       </span>
       <div className="live-step-body">

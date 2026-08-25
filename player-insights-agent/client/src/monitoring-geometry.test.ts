@@ -109,7 +109,8 @@ describe('a question opens as a centered modal, not a side drawer', () => {
   it('places the dialog in the middle of a full-page overlay', () => {
     expect(rule('.monitoring-question-overlay')).toMatch(/position:\s*fixed/);
     expect(rule('.monitoring-question-overlay')).toMatch(/place-items:\s*center/);
-    expect(rule('.monitoring-question-overlay')).toMatch(/inset:\s*0/);
+    expect(rule('.monitoring-question-overlay')).toMatch(/top:\s*var\(--app-header-h\)/);
+    expect(rule('.monitoring-question-overlay')).not.toMatch(/inset:\s*0/);
     expect(rule('.monitoring-question-modal')).not.toMatch(/position:\s*fixed/);
     expect(rule('.monitoring-question-modal')).not.toMatch(/right:\s*0/);
     // The person panel is still the right-hand drawer. Question detail is not.
@@ -119,7 +120,7 @@ describe('a question opens as a centered modal, not a side drawer', () => {
   it('lets the dialog scroll and forbids its children from shrinking over each other', () => {
     const dialog = rule('.monitoring-question-modal');
     expect(dialog).toMatch(/overflow-y:\s*auto/);
-    expect(dialog).toMatch(/max-height:\s*min\(calc\(100vh - 48px\),\s*920px\)/);
+    expect(dialog).toMatch(/max-height:\s*min\(calc\(100vh - var\(--app-header-h\) - 40px\),\s*920px\)/);
     expect(dialog).toMatch(/flex-direction:\s*column/);
     expect(dialog).not.toMatch(/position:\s*absolute/);
     const child = rule('.monitoring-question-modal > *');

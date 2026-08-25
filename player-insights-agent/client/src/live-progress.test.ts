@@ -387,11 +387,12 @@ describe('where the run has got to, on the row and in the rail', () => {
     expect(toLiveStep(stage({ id: 'step-1', depth: 9 })).depth).toBe(3);
   });
 
-  it('pins the numbered badge and kind mark as a column on the first line', () => {
+  it('pins the kind mark and numbered badge as one row on the first line', () => {
     const index = LIVE_CSS.match(/\.live-step-index \{([^}]*)\}/)?.[1] ?? '';
     expect(index).toMatch(/align-self: start/);
     expect(index).toMatch(/margin-top: 1px/);
-    expect(index).toMatch(/flex-direction: column/);
+    expect(index).toMatch(/flex-direction: row/);
+    expect(index).not.toMatch(/flex-direction: column/);
     const icon = LIVE_CSS.match(/\.live-step-icon \{([^}]*)\}/)?.[1] ?? '';
     expect(icon).toMatch(/height: calc\(var\(--text-base\) \* 1\.4\)/);
   });

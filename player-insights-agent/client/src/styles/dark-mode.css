@@ -578,7 +578,9 @@ html[data-theme='dark'] [data-slot='sheet-content'] {
 }
 
 html[data-theme='dark'] .monitoring-question-modal {
-  background: var(--ast-surface-solid);
+  /* Ask's page, not the overlay slab and not the working-tab mix. Opaque so
+     the list cannot read through; the inner card then takes `--ast-pane`. */
+  background: var(--ast-sky-fill);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
@@ -593,8 +595,9 @@ html[data-theme='dark'] .monitoring-question-modal {
  * repainted against a backdrop the compositor has already scrolled, and the old
  * side card showed the answer and the timeline under it drawn at two offsets at
  * once -- text over text. These surfaces are already opaque
- * (`--ast-surface-solid` above), so there is nothing behind the card to see: the
- * blur costs the reader the frost they cannot perceive and buys the smear.
+ * (`--ast-sky-fill` on the modal, `--ast-surface-solid` on the drawer), so
+ * there is nothing behind the card to see: the blur costs the reader the frost
+ * they cannot perceive and buys the smear.
  */
 html[data-theme='dark'] .monitoring-drawer [data-slot='card'],
 html[data-theme='dark'] .monitoring-drawer .answer-card,
@@ -608,13 +611,13 @@ html[data-theme='dark'] .monitoring-question-modal [data-slot='alert'] {
 /*
  * THE MODAL ANSWER IS ASK'S PANE, NOT THE WORKING-TAB MIX.
  *
- * The working-tab card mix (sky + 14% white) is the washed gray slab Overview
- * was reported as. The question modal lives inside `.page-shell.monitoring-page`,
- * so that mix landed on Ask PIA's own card and read as a second, lighter sheet
- * over the solid modal. `--ast-pane` is the token the transcript already uses.
- * No new gray.
+ * The working-tab card mix (sky + 14% white) is the washed gray slab. The
+ * question modal lives inside `.page-shell.monitoring-page`, so that mix
+ * landed on Ask PIA's own card. Naming the page + modal + slot beats the mix
+ * on specificity. `--ast-pane` is the transcript token. No new gray.
  */
-html[data-theme='dark'] .monitoring-question-modal .answer-card {
+html[data-theme='dark'] .page-shell .monitoring-question-modal [data-slot='card'],
+html[data-theme='dark'] .page-shell .monitoring-question-modal .answer-card {
   background: var(--ast-pane);
 }
 

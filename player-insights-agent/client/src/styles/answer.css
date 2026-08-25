@@ -180,11 +180,10 @@
 }
 /* Shorthand, not padding-top alone: AppKit's CardHeader ships a block padding
    utility, and a single-side override leaves that gap under the top edge.
-   8px inline is the card radius, so the pill sits in the corner without
-   clipping it. The takeaway stays on the next grid row (14px gap), not under
-   the chip. */
+   Zero on every side: the mark and Live pill are a stamp in the corner, not a
+   padded header row. The takeaway on the next grid row carries its own inset. */
 .answer-card > [data-slot='card-header'] {
-  padding: 0 8px;
+  padding: 0;
 }
 .answer-card > [data-slot='card-content'] {
   padding-top: 0;
@@ -206,7 +205,7 @@
  */
 .answer-card-head {
   display: grid;
-  gap: 14px;
+  gap: 8px;
 }
 /* The mark and the state chip, at the top left corner of the card and nowhere
    else. `justify-self: start` is what states it: the head is a grid, and a grid
@@ -511,6 +510,7 @@
  * takeaway from leaving one word alone on the second line.
  */
 .answer-takeaway {
+  padding-inline: 20px;
   font-size: calc(var(--ast-fs-16) + 0.5px);
   font-weight: 700;
   line-height: 1.35;

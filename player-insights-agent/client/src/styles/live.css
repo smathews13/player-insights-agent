@@ -39,7 +39,7 @@
 
 .live-step {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: auto 1fr;
   gap: 10px;
   padding: 9px 12px;
   /*
@@ -111,17 +111,18 @@
   background: var(--db-red-wash);
 }
 
-/* Number over the same product/LLM mark the Agent path map draws on that step.
-   A column so the kind sits UNDER the index, not beside the title — the live
-   list used to show only the numbered badge and a text type chip. */
+/* Kind mark left of the numbered badge, one row: the same product/LLM glyph
+   the Agent path map draws on that step, then 03. The live list used to stack
+   the number above the icon, which cost a second line for a pair that belongs
+   beside the title. */
 .live-step-index {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 6px;
   align-self: start;
-  width: 24px;
-  min-width: 24px;
+  width: auto;
+  min-width: 46px;
   margin-top: 1px;
 }
 .live-step-icon {

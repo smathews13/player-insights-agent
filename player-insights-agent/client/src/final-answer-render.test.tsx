@@ -205,8 +205,9 @@ describe('the Overview warning family', () => {
   it('sits in the section corner with no padding gap under the KPI divider', () => {
     const css = partial('runs.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(css).toMatch(
-      /\.final-answer \[data-slot='card-content'\][^}]*padding:\s*0 20px 16px 8px/s
+      /\.final-answer \[data-slot='card-content'\][^}]*padding:\s*0 20px 16px/s
     );
+    expect(css).toMatch(/\.final-answer-head \{[^}]*margin-inline:\s*-20px 0/s);
     expect(css).toMatch(/\.run-explorer \.final-answer \{[^}]*padding:\s*0/s);
     expect(css).not.toMatch(
       /\.final-answer \[data-slot='card-content'\] \{[^}]*padding:\s*18px/s

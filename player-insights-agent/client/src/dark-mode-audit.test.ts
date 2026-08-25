@@ -352,10 +352,15 @@ describe('dark mode covers the shipped surfaces', () => {
   it('paints the Monitoring answer from the Ask pane, not a lifted gray', () => {
     /*
      * The selector also appears on the no-blur group above, so match the
-     * standalone pane rule rather than the first grouped block.
+     * standalone pane rule rather than the first grouped block. The modal
+     * chrome is Ask's sky so the list cannot read through; the card is the
+     * same `--ast-pane` the transcript uses. No working-tab mix, no new gray.
      */
+    expect(bodyFor(DARK, "html[data-theme='dark'] .monitoring-question-modal")).toMatch(
+      /background:\s*var\(--ast-sky-fill\)/
+    );
     expect(DARK).toMatch(
-      /html\[data-theme='dark'\] \.monitoring-question-modal \.answer-card\s*\{\s*background:\s*var\(--ast-pane\)/
+      /html\[data-theme='dark'\] \.page-shell \.monitoring-question-modal \.answer-card\s*\{\s*background:\s*var\(--ast-pane\)/
     );
   });
 
@@ -410,7 +415,6 @@ describe('dark mode covers the shipped surfaces', () => {
       "[data-slot='popover-content']",
       '.monitoring-chip-menu',
       '.monitoring-drawer',
-      '.monitoring-question-modal',
       "[data-slot='sheet-content']",
     ]) {
       const body = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);

@@ -309,18 +309,19 @@ describe('the answer card’s state chip sits in its top left corner', () => {
   it('sits in the header start with no large padding-top gap under the card edge', () => {
     const header = css.slice(css.lastIndexOf(".answer-card > [data-slot='card-header'] {"));
     const rule = header.slice(0, header.indexOf('}'));
-    expect(rule).toMatch(/padding:\s*0 8px/);
+    expect(rule).toMatch(/padding:\s*0;/);
+    expect(rule).not.toMatch(/padding:\s*0 8px/);
     expect(rule).not.toMatch(/padding-top:\s*(1[2-9]|2[0-9])px/);
     const ask = partial('ask.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(ask).toMatch(
-      /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0 8px/s
+      /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0;/s
     );
     expect(ask).not.toMatch(
       /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
     );
     const monitoring = partial('monitoring.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(monitoring).toMatch(
-      /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0 8px/s
+      /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0;/s
     );
     expect(monitoring).not.toMatch(
       /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
@@ -442,17 +443,20 @@ describe('a failed run’s process', () => {
   });
 
   it('does not paint a successful table listing as Request refused', () => {
+    const liveWording =
+      'Declaring a table does not guarantee read access; Unity Catalog grants are evaluated per query and a refusal will be named explicitly if it occurs.';
     const markup = card(
       answer({
-        takeaway: 'This deployment has access to 12 declared tables.',
+        takeaway: 'This deployment declares 12 tables in the player insights schema.',
         caveats: [
           'These 12 tables are declared by the deployment; Unity Catalog grant evaluation happens at query time, so the signed-in user may not have SELECT access to all of them. Any refused table will be named explicitly if a query against it fails.',
+          liveWording,
         ],
       })
     );
     expect(markup).not.toContain('Request refused');
+    expect(markup).not.toContain('does not guarantee read access');
     expect(markup).toContain('<table');
-    expect(markup).toContain('grant evaluation happens at query time');
   });
 
   it('still says no result was recorded when the run truly had no steps', () => {

@@ -100,15 +100,17 @@ describe('the two rails share one width and the card sits in the middle', () => 
   });
 });
 
-describe('live step rows carry the Agent path kind mark under the number', () => {
-  it('stacks the map’s product or agent mark under the numbered badge', () => {
+describe('live step rows carry the Agent path kind mark beside the number', () => {
+  it('places the map’s product or agent mark to the left of the numbered badge', () => {
     expect(PANEL).toContain('live-step-index');
     expect(PANEL).toContain('live-step-kind');
     expect(PANEL).toContain('live-step-icon step-rail-num ast-num');
     expect(PANEL).toContain("import { productForTool } from './brand-icons'");
     expect(PANEL).toContain('<BrandIcon product={product}');
     expect(PANEL).toContain('<AstrolabeMark size={13} />');
-    expect(LIVE).toMatch(/\.live-step-index\s*\{[^}]*flex-direction:\s*column/);
+    expect(PANEL).toMatch(/live-step-kind[\s\S]*live-step-icon step-rail-num ast-num/);
+    expect(LIVE).toMatch(/\.live-step-index\s*\{[^}]*flex-direction:\s*row/);
+    expect(LIVE).not.toMatch(/\.live-step-index\s*\{[^}]*flex-direction:\s*column/);
   });
 
   it('renders the SQL mark on a warehouse step and the agent mark on an LLM step', () => {
