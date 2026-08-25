@@ -59,10 +59,20 @@ describe('idle Ask keeps the Agent path pane', () => {
 
   it('keeps the constellation layer behind the Agent path chrome', () => {
     expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0[^}]*pointer-events:\s*none/);
+    expect(RAIL).toMatch(/\.trace-idle-sky\s*\{[^}]*contain:\s*paint[^}]*opacity:\s*0\.28/);
+    expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*overflow-x:\s*clip/);
     expect(RAIL).toMatch(
-      /\.trace-head,\s*\.trace-title,\s*\.trace-working,\s*\.trace-inspector \.ast-sky\s*\{[^}]*z-index:\s*1/
+      /\.trace-head,\s*\.trace-title,\s*\.trace-working,\s*\.trace-inspector \.ast-sky,\s*\.trace-inspector \.trace-divider,\s*\.trace-inspector \.metric-row,\s*\.trace-inspector \.trace-explore\s*\{[^}]*z-index:\s*1/
     );
     expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*isolation:\s*isolate/);
+  });
+
+  it('does not remount the numbered path when a step lands', () => {
+    // A key on the step count remounted the whole SVG each hop, so the old
+    // map and the new one were briefly both on screen.
+    expect(HOME).not.toMatch(/<AgentPathConstellation[\s\S]{0,200}key=\{[^}]*railStages/);
+    expect(HOME).not.toMatch(/<AgentPathConstellation[\s\S]{0,200}key=\{[^}]*stages\.length/);
+    expect(RAIL).toMatch(/\.trace-inspector \.ast-sky\s*\{[^}]*flex-shrink:\s*0/);
   });
 });
 

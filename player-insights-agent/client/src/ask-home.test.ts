@@ -721,8 +721,8 @@ describe('the inspector while a run is still going', () => {
   it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
     // The answer pane reports live steps in text; only the inspector draws their
     // expanding numbered path.
-    const answerPane = HOME_PAGE.slice(0, HOME_PAGE.indexOf('<aside className="trace-inspector">'));
-    const harness = HOME_PAGE.slice(HOME_PAGE.indexOf('<aside className="trace-inspector">'));
+    const answerPane = HOME_PAGE.slice(0, HOME_PAGE.indexOf('<aside className="trace-inspector"'));
+    const harness = HOME_PAGE.slice(HOME_PAGE.indexOf('<aside className="trace-inspector"'));
     expect(answerPane).not.toContain('<AgentPathConstellation');
     expect(answerPane).not.toContain('<WorkingConstellation');
     expect(harness.match(/<AgentPathConstellation/g)).toHaveLength(1);
@@ -862,6 +862,26 @@ describe('the inspector with nothing in it', () => {
     expect(HOME_PAGE).toContain('<ConstellationField shape={OPENING_CONSTELLATION} />');
     expect(HOME_PAGE).not.toMatch(/<EmptyMedia/);
     expect(withoutComments(RAIL)).toMatch(/\.trace-idle-sky\s*\{[^}]*z-index:\s*0/);
+  });
+
+  it('keeps that sky mounted while a question is running', () => {
+    // The silhouette used to live in the empty-state branch, so the first
+    // step swapped it for the numbered path and the pane changed sky.
+    const inspector = HOME_PAGE.slice(HOME_PAGE.indexOf('<aside className="trace-inspector"'));
+    const skyAt = inspector.indexOf('className="trace-idle-sky"');
+    const pathAt = inspector.indexOf('<AgentPathConstellation');
+    expect(skyAt).toBeGreaterThan(-1);
+    expect(skyAt).toBeLessThan(pathAt);
+  });
+
+  it('scrolls the harness to its foot when the run finishes', () => {
+    // Live follow aims at the newest star. On complete the totals and
+    // "Explore full run" mount under that star, so the same aim left them
+    // clipped and the pane reading as snapped to the top.
+    expect(HOME_PAGE).toContain('inspectorRef');
+    expect(HOME_PAGE).toContain('pane.scrollTop = pane.scrollHeight');
+    expect(HOME_PAGE).toMatch(/wasRunningRef\.current && !loading && Boolean\(answer\)/);
+    expect(HOME_PAGE).toContain('useLayoutEffect');
   });
 });
 

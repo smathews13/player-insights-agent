@@ -698,8 +698,15 @@ describe('the column follows the step the band is marking', () => {
     // A pin is the reader opening a settled step while the run goes on past it.
     // Scrolling them off it is the same defect the pin was written to end, so a
     // pinned band follows nothing until it is released.
-    expect(PATH_SOURCE).toContain('const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;');
+    expect(PATH_SOURCE).toContain('const followIndex = pinnedIndex !== -1 || activeIndex < 0 ? -1 : shownIndex;');
     expect(effectBody(PATH_SOURCE)).toContain('if (followIndex < 0 || canvas === null) return;');
+  });
+
+  it('stops following when the run settles, so the totals stay on screen', () => {
+    // activeIndex < 0 is the caller saying no step is in flight. Following the
+    // last star in that commit hid the metric grid and Explore control under
+    // the path. HomePage scrolls the pane to its foot instead.
+    expect(PATH_SOURCE).toContain('activeIndex < 0 ? -1 : shownIndex');
   });
 
   it('moves the nearest scroller only, and never the page under it', () => {

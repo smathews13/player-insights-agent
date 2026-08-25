@@ -148,6 +148,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 20px;
+  overflow-x: clip;
   overflow-y: auto;
   /*
    * THE BROWSER DOES NOT ALSO GET A VOTE ON THIS COLUMN'S SCROLL.
@@ -219,6 +220,11 @@
 .trace-inspector .ast-sky {
   background: transparent;
   border-radius: 0;
+  /* Keep the numbered path at its own height when a step lands. Overflow
+     clip on `.ast-sky` zeroes the flex minimum; without this the band
+     squash-rescales and a second, smaller map briefly sits on the first. */
+  flex-shrink: 0;
+  min-height: max-content;
 }
 
 .trace-inspector .ast-sky-status {
@@ -434,22 +440,34 @@
  * BACKGROUND OF THE PANE, not a sibling under the heading. The SVG is
  * `position: absolute; inset: 0` (astrolabe-loaders.css) and used to overflow
  * the leftover flex slot, so stars and hops painted over "Agent path", the
- * harness eyebrow, and the status pill. Absolute fill + z-index 0 puts the
- * drawing behind that chrome; pointer-events none keeps a live path's stars
- * clickable when this layer is not the one on screen. Frozen so idle Ask
- * cannot look like a run in flight.
+ * harness eyebrow, and the status pill — and, because this column is a
+ * sticky stacking context, out across the Ask composer. Absolute fill +
+ * z-index 0 puts the drawing behind that chrome; contain/clip keep it
+ * inside this pane; opacity keeps it faint idle and mid-run (one sky,
+ * not a second map on top of the numbered path). Pointer-events none
+ * keeps a live path's stars clickable. Frozen so idle Ask cannot look
+ * like a run in flight.
  */
 .trace-idle-sky {
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
+  contain: paint;
   pointer-events: none;
+  opacity: 0.28;
+}
+.trace-idle-sky .ast-constellation {
+  width: 100%;
+  height: 100%;
 }
 .trace-head,
 .trace-title,
 .trace-working,
-.trace-inspector .ast-sky {
+.trace-inspector .ast-sky,
+.trace-inspector .trace-divider,
+.trace-inspector .metric-row,
+.trace-inspector .trace-explore {
   position: relative;
   z-index: 1;
 }

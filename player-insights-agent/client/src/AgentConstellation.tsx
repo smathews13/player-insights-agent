@@ -501,10 +501,15 @@ export function AgentPathConstellation({
    * whose current step is below the fold and has to chase it by hand once a step.
    *
    * `followIndex` is the star to keep in view, and it is -1 when the reader has
-   * PINNED a step: a pin is them opening a settled step while the run goes on
-   * past it, and hauling the column away from what they just opened is the same
-   * defect the pin itself was written to end. Unpinning hands the band back to
-   * the run and this follows again with it.
+   * PINNED a step or the run has SETTLED. A pin is them opening a settled step
+   * while the run goes on past it, and hauling the column away from what they
+   * just opened is the same defect the pin itself was written to end. Unpinning
+   * hands the band back to the run and this follows again with it.
+   *
+   * A settled run (`activeIndex < 0`) is not followed here. The totals and
+   * "Explore full run" mount under the path in that commit; aiming at the last
+   * star again parks those controls below the fold, which is the snap the
+   * reader reported. HomePage scrolls the pane to its foot instead.
    *
    * KEYED ON THE INDEX rather than on the render. The caller ticks `elapsedMs`
    * once a second for as long as a step is in flight, so an effect that ran on
@@ -515,7 +520,7 @@ export function AgentPathConstellation({
    * rail before anything is asked and full during a run, and hooks cannot be
    * called on one of those renders and skipped on the other.
    */
-  const followIndex = pinnedIndex !== -1 ? -1 : shownIndex;
+  const followIndex = pinnedIndex !== -1 || activeIndex < 0 ? -1 : shownIndex;
   const canvasRef = useRef<SVGSVGElement | null>(null);
   const statusRef = useRef<HTMLParagraphElement | null>(null);
   useFollowEffect(() => {

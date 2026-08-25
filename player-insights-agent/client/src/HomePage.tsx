@@ -10,7 +10,7 @@
  * that asks for a clarification.
  */
 import { Link, useSearchParams } from 'react-router';
-import { memo, useCallback, useState, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { type ListAvailability } from './list-availability';
 import { readRunSummaries, startInitialRail } from './initial-rail';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -462,6 +462,8 @@ export function HomePage() {
   const [now, setNow] = useState(() => Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const inspectorRef = useRef<HTMLElement>(null);
+  const wasRunningRef = useRef(false);
   /**
    * The Ask question field. New conversation focuses it from the click itself
    * so the existing composer ring lights and the caret is ready to type. An
@@ -644,6 +646,22 @@ export function HomePage() {
       : undefined,
     readiness,
   });
+
+  /*
+   * When the run lands, the totals and "Explore full run" mount under the path.
+   * The live follow only keeps the newest star on screen, so a long path was
+   * left showing its top and those controls sat below the fold. Scroll the
+   * pane to its foot in the same commit the answer arrives, and only on that
+   * transition -- a settled conversation opened later is the reader's to scroll.
+   */
+  useLayoutEffect(() => {
+    const finishedNow = wasRunningRef.current && !loading && Boolean(answer);
+    wasRunningRef.current = loading;
+    if (!finishedNow) return;
+    const pane = inspectorRef.current;
+    if (pane === null) return;
+    pane.scrollTop = pane.scrollHeight;
+  }, [loading, answer]);
 
   const selectConversation = useCallback(async (id: string) => {
     // Before any await: leaving Ask immediately after clicking a row must still
@@ -2207,7 +2225,15 @@ export function HomePage() {
         </form>
       </section>
 
-      <aside className="trace-inspector">
+      <aside className="trace-inspector" ref={inspectorRef}>
+        {/* The same faint sky idle and mid-run. It used to unmount the moment
+            the first step landed, so the pane flipped to a different night, and
+            its drawing overflowed the sticky column onto Ask. Always on, clipped
+            to this pane, behind the chrome. Decorative — the heading names the
+            column. */}
+        <div className="trace-idle-sky" aria-hidden="true">
+          <ConstellationField shape={OPENING_CONSTELLATION} />
+        </div>
         {/* §4 names this column before it names what is in it: "LIVE AGENT
             HARNESS", then the run's pill, then the steps. The eyebrow is what
             the column IS and the heading is what the column HOLDS, which is why
@@ -2237,10 +2263,10 @@ export function HomePage() {
             thread={conversationId}
             turn={railTurn}
           />
-        ) : /* Nothing to draw, which is two different states: a run is going and
-                 has not reported a step yet, or nothing has been asked at all. They
-                 used to share one panel and a `loading ?` inside every line of it,
-                 so a reader waiting on their first step got an empty-state heading. */
+        ) : /* A run is going and has not reported a step yet. Idle Ask is the
+                 sky above, not a second empty-state heading. They used to share
+                 one panel and a `loading ?` inside every line of it, so a reader
+                 waiting on their first step got an empty-state heading. */
         loading ? (
           /* A run is in flight and no step has landed yet, which is `#17a`'s
                inline seating: 20px mark, "Working on your question", the real
@@ -2255,14 +2281,7 @@ export function HomePage() {
           <div className="trace-working">
             <WorkingInlineRow elapsed={elapsed} />
           </div>
-        ) : (
-          /* The opening silhouette, held still: same dots and hops a live path
-               sits on, filling the pane so idle Ask is still three columns.
-               Decorative — the heading above already names the column. */
-          <div className="trace-idle-sky" aria-hidden="true">
-            <ConstellationField shape={OPENING_CONSTELLATION} />
-          </div>
-        )}
+        ) : null}
         {answer && (
           <>
             <Separator className="trace-divider" />
