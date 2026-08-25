@@ -18,7 +18,9 @@ import type { TraceStage } from './answer-shape';
  *      unconditional default in the DARK theme's own stylesheet, which is a ban
  *      expressed as the absence of an opt-in.
  *   2. `.ask-layout` and `.trace-inspector` paint `--ast-sky-fill` and the
- *      starfield UNCONDITIONALLY, and `--ast-sky-fill` is navy in every theme.
+ *      starfield UNCONDITIONALLY. `--ast-sky-fill` is navy at `:root` (dark
+ *      reads it) and remaps to Ice outside dark, so a leftover use cannot
+ *      keep a charcoal page.
  *   3. `--ast-pane`, which is what the answer card, the question bubble and the
  *      composer are all drawn on, is 94% white -- so whatever was behind them
  *      showed through, and in light mode what was behind them was (2).
@@ -52,6 +54,8 @@ const ASK = partial('ask.css');
 const ANSWER = partial('answer.css');
 const CONSTELLATION = partial('constellation.css');
 const TOKENS = partial('astrolabe-tokens.css');
+const LOADERS = partial('astrolabe-loaders.css');
+const STAR = partial('star-motion.css');
 const source = (name: string) => readFileSync(new URL(name, import.meta.url), 'utf8');
 
 /** A stylesheet with its commentary removed, so a claim reads only declarations. */
@@ -159,6 +163,7 @@ describe('the night sky belongs to dark mode alone', () => {
      */
     expect(rule(BASE, `html${NOT_DARK} .app-sky`)).toMatch(/display:\s*none/);
     expect(rule(DARK, "html[data-theme='dark'] .app-sky")).toMatch(/display:\s*block/);
+    expect(rule(STAR, `html${NOT_DARK} .app-sky.gate-star-motion`)).toMatch(/display:\s*none/);
   });
 
   it('decides that in the stylesheet rather than at render time', () => {
@@ -276,6 +281,8 @@ describe('the light answer sits on an opaque card', () => {
      * solid in light mode without anybody remembering this file.
      */
     expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-pane:\s*var\(--ast-white\)/);
+    expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-fill:\s*var\(--ast-ice\)/);
+    expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-spackle:\s*none/);
     expect(rule(TOKENS, ':root')).toMatch(/--ast-pane:\s*rgba\(255,\s*255,\s*255,\s*0\.94\)/);
     /* The card keeps reading the token -- answer.css is not ours to edit, and the
        point of doing this in a token is that it does not need to be. */
@@ -302,6 +309,7 @@ describe('one account of the run per theme, chosen in CSS', () => {
      * a reader would report as "the steps are gone".
      */
     expect(rule(CONSTELLATION, `html${NOT_DARK} .ast-sky-path`)).toMatch(/display:\s*none/);
+    expect(rule(CONSTELLATION, `html${NOT_DARK} .ast-sky-map`)).toMatch(/display:\s*none/);
     expect(rule(CONSTELLATION, '.step-rail')).toMatch(/display:\s*none/);
     expect(rule(CONSTELLATION, `html${NOT_DARK} .step-rail`)).toMatch(/display:\s*flex/);
     expect(declarations(CONSTELLATION)).not.toContain("[data-theme='light']");
@@ -331,6 +339,14 @@ describe('one account of the run per theme, chosen in CSS', () => {
     expect(source('TraceDag.tsx')).toContain('className="agent-path"');
   });
 
+  it('drops the login sky and the working constellation in daylight', () => {
+    expect(rule(LOADERS, `html${NOT_DARK} .first-open.on-sky`)).toMatch(/background:\s*var\(--ast-ice\)/);
+    expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-wordmark`)).toMatch(/color:\s*var\(--ast-text\)/);
+    expect(rule(LOADERS, `html${NOT_DARK} .ast-working-say`)).toMatch(/color:\s*var\(--ast-text\)/);
+    expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-sky`)).toMatch(/display:\s*none/);
+    expect(rule(LOADERS, `html${NOT_DARK} .ast-working .ast-constellation`)).toMatch(/display:\s*none/);
+  });
+
   it('writes every light rule in tokens rather than in colour', () => {
     /*
      * §7's rule, applied to the rules this change adds: a saturated value is
@@ -338,7 +354,14 @@ describe('one account of the run per theme, chosen in CSS', () => {
      * light-conditional rule in all three files rather than over a list of the ones
      * that exist today, so a hex added to the next one fails here.
      */
-    const rules = [...lightRules(BASE), ...lightRules(RAIL), ...lightRules(CONSTELLATION), ...lightRules(TOKENS)];
+    const rules = [
+      ...lightRules(BASE),
+      ...lightRules(RAIL),
+      ...lightRules(CONSTELLATION),
+      ...lightRules(TOKENS),
+      ...lightRules(LOADERS),
+      ...lightRules(STAR),
+    ];
     expect(rules.length).toBeGreaterThan(10);
     for (const { selector, body } of rules) {
       expect(body, `${selector} writes a raw colour`).not.toMatch(/#[0-9a-f]{3,8}\b/i);

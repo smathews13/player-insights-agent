@@ -93,7 +93,7 @@ export function runVerdict(stages: readonly VerdictStage[]): RunVerdict {
  * status when figures or tables are already on the card.
  */
 export const INCOMPLETE_ANSWER_CAVEAT =
-  /turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable/i;
+  /turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result/i;
 
 /** Caveats that only matter when nothing usable actually landed. */
 export const UNFINISHED_WITHOUT_ANSWER_CAVEAT =
@@ -148,6 +148,17 @@ export function answerRunVerdict(input: {
 }): RunVerdict {
   const stages = input.stages ?? [];
   if (stages.length === 0) return 'failed';
+  // Words without figures or a table are not a finished analysis. The
+  // 40-character narrative test used to call those Complete, so Ask said
+  // Complete while the fallback banner said the run had failed.
+  const structured =
+    (input.figures?.length ?? 0) > 0 || /\|.+\|/.test([input.narrative, input.content].filter(Boolean).join('\n'));
+  const proseOnlyDegraded = (input.caveats ?? []).some(
+    (text) => /this answer is degraded/i.test(text) && /structured result/i.test(text)
+  );
+  if (proseOnlyDegraded && !structured) {
+    return runVerdict(stages) === 'failed' ? 'failed' : 'partial';
+  }
   if (answerHasLanded(input)) return 'complete';
   const fromStages = runVerdict(stages);
   if (fromStages === 'failed') return 'failed';
@@ -196,7 +207,7 @@ export const EMPTY_STAGES_FAILED_SQL =
  * and a deadline note must not flip a card that already has figures or tables.
  */
 export const INCOMPLETE_ANSWER_CAVEAT_SQL =
-  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable')`;
+  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(caveats, '[]'::jsonb)) c WHERE c ~* 'turn deadline|stopped early|sources for this answer are incomplete|structured presentation was incomplete|this question was not answered|was not reachable|this answer is degraded|no structured result|without a structured result')`;
 
 /**
  * Figures, a pipe table, or a real narrative — the same test as

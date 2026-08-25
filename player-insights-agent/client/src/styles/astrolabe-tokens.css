@@ -406,6 +406,19 @@ html[data-theme='dark'] {
  */
 html:not([data-theme='dark']) {
   --ast-pane: var(--ast-white);
+  /*
+   * THE SKY IS DARK MODE'S. At `:root` this token is navy and the spackle is
+   * stars, because dark mode reads those declarations. A leftover
+   * `background: var(--ast-sky-fill)` then paints a charcoal page the moment
+   * Dark is turned off -- the working strip, the opening canvas, the agent-map
+   * band, the login field. Remap both here, the same way `--ast-pane` is
+   * remapped: Ice is the designed daylight field (the login card already sits
+   * on it) and `none` is the only daylight weight at which a star is not a
+   * star. Surfaces that already name a light fill keep it; everything that
+   * forgot is no longer navy.
+   */
+  --ast-sky-fill: var(--ast-ice);
+  --ast-sky-spackle: none;
 }
 
 /*

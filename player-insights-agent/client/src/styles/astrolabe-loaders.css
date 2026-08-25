@@ -318,6 +318,35 @@
   background: transparent;
 }
 
+/*
+ * ALL OR NOTHING. `.on-sky` is transparent so the night field shows through.
+ * Light mode hides that field, so a transparent overlay would show the app
+ * assembling underneath the card. Ice is the designed daylight login surface.
+ */
+html:not([data-theme='dark']) .first-open.on-sky {
+  background: var(--ast-ice);
+}
+
+html:not([data-theme='dark']) .ast-opening-sky,
+html:not([data-theme='dark']) .ast-working .ast-constellation {
+  display: none;
+}
+
+html:not([data-theme='dark']) .ast-opening-wordmark,
+html:not([data-theme='dark']) .ast-working-say {
+  color: var(--ast-text);
+}
+
+html:not([data-theme='dark']) .ast-working-say .ast-sep::before {
+  color: var(--ast-text-secondary);
+}
+
+html:not([data-theme='dark']) .ast-opening .ast-mark--dark,
+html:not([data-theme='dark']) .ast-working .ast-mark--dark {
+  --ast-mark-ink: var(--ast-navy);
+  --ast-mark-accent: var(--ast-blue);
+}
+
 /* ---- The working panels (#5ar, #5br) ----------------------------------- */
 
 /*

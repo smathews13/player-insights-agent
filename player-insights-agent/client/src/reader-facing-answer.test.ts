@@ -144,4 +144,18 @@ describe('whether the section may call itself a final answer', () => {
 
     expect(honesty.warnings).toEqual([{ label: 'Request refused', text: refusal }]);
   });
+
+  it('does not call a words-only degraded reply a refused final answer', () => {
+    const degraded =
+      'This answer is degraded: no structured result arrived and no tool steps were recorded.';
+    const honesty = answerHonesty({
+      truncated: false,
+      caveats: [degraded],
+      narrative: 'VLH Online leads the last 30 days on distinct players in the window.',
+    });
+
+    expect(honesty.eyebrow).toBe('Partial answer');
+    expect(honesty.tone).toBe('partial');
+    expect(honesty.warnings).toEqual([{ label: 'No structured result', text: degraded }]);
+  });
 });

@@ -1125,18 +1125,17 @@
  * THE TWO NAVY SURFACES ABOVE ARE THE DARK THEME'S, AND THEY WERE NOT CONDITIONAL.
  *
  * `.ask-layout` and `.trace-inspector` both paint `--ast-sky-fill` with the
- * starfield over it, and `--ast-sky-fill` is #16202E at `:root` -- not remapped by
- * theme, because until now the sky was the page in both. So light mode drew the
- * night sky twice: navy with stars behind the transcript, and navy with stars down
- * the whole harness column. That is what was reported, and it is not a token that
- * was missed -- it is these two rules being unconditional.
+ * starfield over it. `--ast-sky-fill` is navy at `:root` (dark reads it) and
+ * remaps to Ice outside dark, so a leftover use cannot keep a charcoal page.
+ * These two rules stay unconditional because dark mode reads them: `.ask-layout`
+ * is overpainted to `transparent` in dark-mode.css so `.app-sky` shows through,
+ * and the harness column keeps the fill and the field. The light half below
+ * still names `--db-wash` and `--card` so Ask does not inherit Ice.
  *
- * They stay unconditional, because dark mode reads them: `.ask-layout` is overpainted
- * to `transparent` in dark-mode.css so `.app-sky` shows through, and the harness
- * column keeps the fill and the field. What follows is the light half of the same
- * page -- the same two surfaces, in daylight -- and it is CSS rather than a theme
- * read in JavaScript for the reason constellation.css gives at more length: a
- * component that mounts what it reads has a first frame to be wrong on.
+ * What follows is the light half of the same page -- the same two surfaces, in
+ * daylight -- and it is CSS rather than a theme read in JavaScript for the
+ * reason constellation.css gives at more length: a component that mounts what
+ * it reads has a first frame to be wrong on.
  *
  * The result is the rail's own arrangement, mirrored: a white column of cards, a
  * quiet field with the transcript's white cards on it, and a white column of cards.

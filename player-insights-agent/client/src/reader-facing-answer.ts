@@ -11,7 +11,11 @@
  * off the caveats the agent already wrote.
  */
 import { answerHasLanded } from '../../shared/run-verdict';
+import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { CAVEAT_RISK, caveatRisk } from './caveat-priority';
+
+/** Words arrived, but no figures or tables. Not a policy deny. */
+const NO_STRUCTURED_RESULT = /no structured result|without a structured result/i;
 
 /** Governed tools whose call-site JSON has been seen dumped into a stored narrative. */
 const TOOL_CALL = /\b(data_genie|dictionary_genie|query_named_table|run_sql|search_sources)\s*\(/;
@@ -191,8 +195,30 @@ function warningLabel(text: string): string {
   if (/turn deadline|budget for this turn was spent|stopped early/i.test(text)) return 'Turn deadline reached';
   if (/sources for this answer are incomplete/i.test(text)) return 'Incomplete sources';
   if (/could not be determined/i.test(text)) return 'Tables unresolved';
+  // The degraded marker ranks as refused so it leads the list. The prose-only
+  // path uses that marker for "no result contract arrived", which is not a
+  // grant deny -- calling it Request refused was the leftover false alarm.
+  if (text.startsWith(DEGRADED_ANSWER_MARKER) && NO_STRUCTURED_RESULT.test(text)) {
+    return 'No structured result';
+  }
   if (caveatRisk(text) === CAVEAT_RISK.refused) return 'Request refused';
   return 'Partial evidence';
+}
+
+function hasStructuredEvidence(input: {
+  figures?: readonly unknown[] | null;
+  narrative?: string | null;
+  content?: string | null;
+}): boolean {
+  if ((input.figures?.length ?? 0) > 0) return true;
+  return /\|.+\|/.test([input.narrative, input.content].filter(Boolean).join('\n'));
+}
+
+function isProseOnlyDegraded(input: { caveats: readonly string[] } & Parameters<typeof hasStructuredEvidence>[0]): boolean {
+  if (hasStructuredEvidence(input)) return false;
+  return input.caveats.some(
+    (text) => text.trimStart().startsWith(DEGRADED_ANSWER_MARKER) && NO_STRUCTURED_RESULT.test(text)
+  );
 }
 
 /**
@@ -222,6 +248,12 @@ export function answerHonesty(input: {
       return risk === CAVEAT_RISK.refused || risk === CAVEAT_RISK.evidence;
     })
     .map((text) => ({ label: warningLabel(text), text }));
+  // A words-only degraded reply has enough narrative to trip answerHasLanded,
+  // and used to be titled Final answer with a Request refused banner. The
+  // agent wrote sentences; it did not refuse a grant.
+  if (isProseOnlyDegraded({ ...input, caveats })) {
+    return { eyebrow: 'Partial answer', tone: 'partial', warnings };
+  }
   if (answerHasLanded(input)) {
     return { eyebrow: 'Final answer', tone: 'complete', warnings };
   }

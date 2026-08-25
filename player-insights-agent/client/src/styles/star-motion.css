@@ -25,16 +25,27 @@
 }
 
 /*
- * The gate is the one sky that is a page in its own right rather than a dark
- * theme decoration. It therefore paints navy in either theme and sits directly
- * under the dialog's z-index 60. The two-class selector intentionally ties the
- * light-theme ban in base.css and wins by later import order; changing that
- * shared rule would make every app page eligible for stars in daylight.
+ * The gate is the one sky that is a page in its own right in DARK: it sits
+ * directly under the dialog's z-index 60. The two-class selector intentionally
+ * ties the light-theme ban in base.css and wins by later import order. Light
+ * mode then hides it again below -- all or nothing, no leftover night sky
+ * under the Ice card.
  */
 html .app-sky.gate-star-motion {
   display: block;
   z-index: 59;
   background: var(--ast-sky-fill);
+}
+
+/*
+ * ALL OR NOTHING. The rule above is the one sky that used to paint navy in
+ * either theme, so turning Dark off left the login canvas a night sky under
+ * an Ice card. Light mode may not keep a leftover sky: hide this layer the
+ * same way every other `.app-sky` is hidden, at a specificity that beats the
+ * exception.
+ */
+html:not([data-theme='dark']) .app-sky.gate-star-motion {
+  display: none;
 }
 
 .app-sky[data-star-motion-field] circle,

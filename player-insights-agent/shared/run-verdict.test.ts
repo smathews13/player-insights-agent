@@ -75,4 +75,15 @@ describe('the verdict a caveat cannot steal', () => {
       })
     ).toBe('partial');
   });
+
+  it('does not call a words-only degraded reply Complete', () => {
+    expect(
+      answerRunVerdict({
+        stages: [{ id: 'synthesis', status: 'complete' }],
+        caveats: ['This answer is degraded: no structured result arrived and no tool steps were recorded.'],
+        figures: [],
+        narrative: 'VLH Online leads the last 30 days on distinct players in the window.',
+      })
+    ).toBe('partial');
+  });
 });

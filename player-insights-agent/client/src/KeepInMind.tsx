@@ -108,7 +108,7 @@ export function KeepInMind({
           size="sm"
           variant="ghost"
         >
-          {showAll ? 'Show fewer' : 'show more'}
+          {showAll ? 'show fewer' : 'show more'}
           <ChevronDown className={showAll ? 'rotate-180 transition-transform' : 'transition-transform'} />
         </Button>
       )}

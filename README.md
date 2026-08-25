@@ -9,6 +9,8 @@ The app ships as a Databricks Asset Bundle. `bundle/README.md` is the operator
 runbook and is more detailed than this page; what follows is the shortest path
 through it, plus what the thing actually is.
 
+**v1.0.0** (24 August 2026) is the first product release. See [RELEASES.md](RELEASES.md).
+
 - [What it does](#what-it-does)
 - [How an answer is produced](#how-an-answer-is-produced)
 - [The shape of an answer](#the-shape-of-an-answer)

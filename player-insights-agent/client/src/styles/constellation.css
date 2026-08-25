@@ -67,9 +67,9 @@
      `background-color` rather than the shorthand, so the field below survives.
      Inside the live harness this whole rule is overridden to `transparent` by
      `.trace-inspector .ast-sky`, which is more specific -- the column paints one
-     sky for the panel and the band sits in it. This pair is therefore what the
-     AGENT MAP's band gets, where the band is the only dark thing on a white
-     page. */
+     sky for the panel and the band sits in it. The agent-map band used to be
+     the one leftover navy on a light page; light mode now hides `.ast-sky-map`
+     so this fill is dark's only. */
   background-color: var(--ast-sky-fill);
   background-image: var(--ast-sky-spackle);
   background-size: var(--ast-sky-spackle-size);
@@ -424,10 +424,16 @@
  * `[data-theme='light']` pair would have had that third state, and it is the state
  * a reader would report as "the steps are gone".
  *
+ * THE FINISHED MAP IS THE SAME NIGHT SKY. It used to stay navy on a white Run
+ * Explorer page on the argument that a constellation has no daylight drawing.
+ * All-or-nothing forbids that leftover: hide the band in light the same way
+ * the live path is hidden. The card grid under it owns selection and stays.
+ *
  * `light-mode.test.tsx` reads these rules back rather than trusting the pair to
  * stay that way.
  */
-html:not([data-theme='dark']) .ast-sky-path {
+html:not([data-theme='dark']) .ast-sky-path,
+html:not([data-theme='dark']) .ast-sky-map {
   display: none;
 }
 
