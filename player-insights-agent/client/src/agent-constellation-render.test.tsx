@@ -800,6 +800,34 @@ describe('the stars are the products that ran (§4)', () => {
     expect(markup).not.toContain('assets/brand/');
     expect(markup).not.toContain('databricks-symbol-color');
   });
+
+  it('paints one product mark per tool star when synthesis becomes the fifteenth step', () => {
+    // The reported ghost: landing on "Preparing the answer" left a second,
+    // offset copy of every SQL / Genie / Agents node. The band must still
+    // hold exactly one <image> per classified tool, not a clone of the
+    // fourteen-step drawing sitting under the fifteen-step one.
+    const prior: TraceStage[] = [];
+    for (let n = 1; n <= 7; n += 1) {
+      prior.push(stage({ id: `step-${n}` }));
+      prior.push(
+        stage({
+          id: `step-${n}-1-run_sql`,
+          name: 'Queried governed data',
+          kind: 'tool',
+        })
+      );
+    }
+    const atSynthesis = [
+      ...prior,
+      stage({ id: 'synthesis', name: 'Preparing the answer', status: 'running', duration: 0 }),
+    ];
+    const before = band(path(prior, prior.length - 1, 7_000));
+    const after = band(path(atSynthesis, atSynthesis.length - 1, 7_000));
+    expect(atSynthesis).toHaveLength(15);
+    expect(before.match(/<image /g)).toHaveLength(7);
+    expect(after.match(/<image /g)).toHaveLength(7);
+    expect(after.match(/aria-label="Select step /g)).toHaveLength(15);
+  });
 });
 
 describe('no orange, and no oat (§2)', () => {

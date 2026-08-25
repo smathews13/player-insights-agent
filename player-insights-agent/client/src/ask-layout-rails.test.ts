@@ -67,6 +67,22 @@ describe('idle Ask keeps the Agent path pane', () => {
     expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*isolation:\s*isolate/);
   });
 
+  it('takes the idle silhouette off the paint once a run is on', () => {
+    // The opening drawing uses the same product marks as the live path. Left
+    // at 0.28 under a growing numbered path it read as a ghost copy of every
+    // SQL / Genie node -- the doubled icons at step 15.
+    expect(RAIL).toMatch(
+      /\.ask-layout\[data-inspector=['"]run['"]\]\s+\.trace-idle-sky\s*\{[^}]*display:\s*none/
+    );
+  });
+
+  it('reserves the inspector scrollbar so the first overflow cannot shove the path', () => {
+    // Around step 15 the path first exceeds the pane. A bar that appears then
+    // shrinks the SVG and leaves tool-mark ghosts at the old seats.
+    expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*scrollbar-gutter:\s*stable/);
+    expect(RAIL).toMatch(/\.trace-inspector \.ast-sky\s*\{[^}]*overflow:\s*visible/);
+  });
+
   it('does not remount the numbered path when a step lands', () => {
     // A key on the step count remounted the whole SVG each hop, so the old
     // map and the new one were briefly both on screen.

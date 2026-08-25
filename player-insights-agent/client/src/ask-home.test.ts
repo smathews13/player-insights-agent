@@ -866,12 +866,17 @@ describe('the inspector with nothing in it', () => {
 
   it('keeps that sky mounted while a question is running', () => {
     // The silhouette used to live in the empty-state branch, so the first
-    // step swapped it for the numbered path and the pane changed sky.
+    // step swapped it for the numbered path and the pane changed sky. It
+    // stays in the markup; rail.css hides it from paint once a run is on
+    // so the opening product marks cannot ghost under the live path.
     const inspector = HOME_PAGE.slice(HOME_PAGE.indexOf('<aside className="trace-inspector"'));
     const skyAt = inspector.indexOf('className="trace-idle-sky"');
     const pathAt = inspector.indexOf('<AgentPathConstellation');
     expect(skyAt).toBeGreaterThan(-1);
     expect(skyAt).toBeLessThan(pathAt);
+    expect(withoutComments(RAIL)).toMatch(
+      /\.ask-layout\[data-inspector=['"]run['"]\]\s+\.trace-idle-sky\s*\{[^}]*display:\s*none/
+    );
   });
 
   it('scrolls the harness to its foot when the run finishes', () => {

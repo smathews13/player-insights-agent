@@ -2226,11 +2226,12 @@ export function HomePage() {
       </section>
 
       <aside className="trace-inspector" ref={inspectorRef}>
-        {/* The same faint sky idle and mid-run. It used to unmount the moment
-            the first step landed, so the pane flipped to a different night, and
-            its drawing overflowed the sticky column onto Ask. Always on, clipped
-            to this pane, behind the chrome. Decorative — the heading names the
-            column. */}
+        {/* Idle silhouette only. It used to unmount the moment the first step
+            landed, so the pane flipped to a different night. It stays in the
+            markup so that swap cannot return, but rail.css hides it once a run
+            is on — the opening drawing uses the same product marks as the live
+            path, and leaving it at 0.28 looked like a ghost copy of every
+            tool node. Decorative; the heading names the column. */}
         <div className="trace-idle-sky" aria-hidden="true">
           <ConstellationField shape={OPENING_CONSTELLATION} />
         </div>

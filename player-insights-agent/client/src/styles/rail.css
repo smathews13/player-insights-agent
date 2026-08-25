@@ -147,9 +147,20 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 20px;
+  padding: 20px 12px 20px 20px;
   overflow-x: clip;
   overflow-y: auto;
+  /*
+   * RESERVE THE BAR FROM THE FIRST PAINT. The numbered path grows until it
+   * first overflows this pane -- on a typical laptop that is around step 15,
+   * "Preparing the answer". A gutter that appears then shrinks the SVG's
+   * 100% width, every star slides sideways, and the tool marks (SVG <image>)
+   * leave a copy at the old seat. Sparkles redraw cleanly, so only the
+   * product icons looked doubled. Same reserve the conversation rail already
+   * pays; the 8px taken here is the 8px that used to come out of the right
+   * padding the moment the bar arrived.
+   */
+  scrollbar-gutter: stable;
   /*
    * THE BROWSER DOES NOT ALSO GET A VOTE ON THIS COLUMN'S SCROLL.
    *
@@ -222,7 +233,10 @@
   border-radius: 0;
   /* Keep the numbered path at its own height when a step lands. Overflow
      clip on `.ast-sky` zeroes the flex minimum; without this the band
-     squash-rescales and a second, smaller map briefly sits on the first. */
+     squash-rescales and a second, smaller map briefly sits on the first.
+     Visible here so this seating does not re-zero that minimum; the
+     inspector is already the scroll-and-clip box. */
+  overflow: visible;
   flex-shrink: 0;
   min-height: max-content;
 }
@@ -443,10 +457,11 @@
  * harness eyebrow, and the status pill — and, because this column is a
  * sticky stacking context, out across the Ask composer. Absolute fill +
  * z-index 0 puts the drawing behind that chrome; contain/clip keep it
- * inside this pane; opacity keeps it faint idle and mid-run (one sky,
- * not a second map on top of the numbered path). Pointer-events none
- * keeps a live path's stars clickable. Frozen so idle Ask cannot look
- * like a run in flight.
+ * inside this pane; opacity keeps it faint on idle Ask. A run hides this
+ * layer (see the `data-inspector='run'` rule) so the opening product
+ * marks cannot sit under the live path as ghost icons. Pointer-events
+ * none keeps a live path's stars clickable. Frozen so idle Ask cannot
+ * look like a run in flight.
  */
 .trace-idle-sky {
   position: absolute;
@@ -470,6 +485,13 @@
 .trace-inspector .trace-explore {
   position: relative;
   z-index: 1;
+}
+.ask-layout[data-inspector='run'] .trace-idle-sky {
+  /* Still in the markup, so the first step does not remount a different
+     night. Off the paint while the numbered path is up: the opening
+     silhouette carries the same product marks the live path draws, and
+     at 0.28 it read as a ghost copy of every SQL / Genie / Agents node. */
+  display: none;
 }
 .trace-idle-sky [class*='ast-anim-'] {
   animation: none;
