@@ -675,10 +675,11 @@
 /*
  * Same corner stamp Ask restates on the transcript. The modal is not
  * `.conversation-main`, so a later AppKit header utility would otherwise drop
- * "Live agent response" a gutter down from the card edge.
+ * "Live agent response" a gutter down, or zero the 8px inset and hang the
+ * mark off the left hairline.
  */
 .monitoring-question-modal .answer-card > [data-slot='card-header'] {
-  padding: 0;
+  padding: 8px;
 }
 .monitoring-drawer-meta {
   margin: 0;

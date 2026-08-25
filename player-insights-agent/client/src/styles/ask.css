@@ -195,10 +195,11 @@ html:not([data-theme='dark']) .ask-hero h2 {
 }
 /*
  * Same corner stamp as answer.css. Restated here so Ask cannot pick up a
- * later AppKit header utility and drop the chip a gutter down again.
+ * later AppKit header utility and drop the chip a gutter down, or zero the
+ * 8px inset and hang the mark off the left hairline.
  */
 .conversation-main .answer-card > [data-slot='card-header'] {
-  padding: 0;
+  padding: 8px;
 }
 /*
  * Selection, per surface.

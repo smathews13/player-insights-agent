@@ -180,10 +180,12 @@
 }
 /* Shorthand, not padding-top alone: AppKit's CardHeader ships a block padding
    utility, and a single-side override leaves that gap under the top edge.
-   Zero on every side: the mark and Live pill are a stamp in the corner, not a
-   padded header row. The takeaway on the next grid row carries its own inset. */
+   8px on every side is the card radius: the mark and Live pill sit inside the
+   rounded corner, equally off the top and the left, without a header gutter
+   and without hanging past the hairline. The takeaway on the next grid row
+   carries its own inset. */
 .answer-card > [data-slot='card-header'] {
-  padding: 0;
+  padding: 8px;
 }
 .answer-card > [data-slot='card-content'] {
   padding-top: 0;

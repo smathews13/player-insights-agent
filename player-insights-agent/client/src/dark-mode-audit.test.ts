@@ -349,17 +349,24 @@ describe('dark mode covers the shipped surfaces', () => {
     );
   });
 
-  it('paints the Monitoring answer from the Ask pane, not a lifted gray', () => {
+  it('paints the Monitoring popup as the tab charcoal, not a lifted gray', () => {
     /*
-     * The selector also appears on the no-blur group above, so match the
-     * standalone pane rule rather than the first grouped block. The modal
-     * chrome is Ask's sky so the list cannot read through; the card is the
-     * same `--ast-pane` the transcript uses. No working-tab mix, no new gray.
+     * The modal and the inner card are one `--ast-surface-solid` family -- the
+     * same charcoal the Monitoring tab sits on. The working-tab mix (sky + 14%
+     * white) used to win because two `:not()`s out-specified a shorter
+     * override. The winning rule repeats that chain. No `--ast-pane` frost
+     * and no new gray.
      */
     expect(bodyFor(DARK, "html[data-theme='dark'] .monitoring-question-modal")).toMatch(
-      /background:\s*var\(--ast-sky-fill\)/
+      /background:\s*var\(--ast-surface-solid\)/
     );
-    expect(DARK).toMatch(
+    const modalCard = bodyFor(
+      DARK,
+      "html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal .answer-card"
+    );
+    expect(modalCard).toMatch(/background:\s*var\(--ast-surface-solid\)/);
+    expect(modalCard).not.toMatch(/color-mix/);
+    expect(DARK).not.toMatch(
       /html\[data-theme='dark'\] \.page-shell \.monitoring-question-modal \.answer-card\s*\{\s*background:\s*var\(--ast-pane\)/
     );
   });
@@ -415,6 +422,7 @@ describe('dark mode covers the shipped surfaces', () => {
       "[data-slot='popover-content']",
       '.monitoring-chip-menu',
       '.monitoring-drawer',
+      '.monitoring-question-modal',
       "[data-slot='sheet-content']",
     ]) {
       const body = bodyFor(DARK, `html[data-theme='dark'] ${selector}`);

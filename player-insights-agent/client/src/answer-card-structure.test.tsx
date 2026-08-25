@@ -309,19 +309,20 @@ describe('the answer card’s state chip sits in its top left corner', () => {
   it('sits in the header start with no large padding-top gap under the card edge', () => {
     const header = css.slice(css.lastIndexOf(".answer-card > [data-slot='card-header'] {"));
     const rule = header.slice(0, header.indexOf('}'));
-    expect(rule).toMatch(/padding:\s*0;/);
+    expect(rule).toMatch(/padding:\s*8px;/);
+    expect(rule).not.toMatch(/padding:\s*0;/);
     expect(rule).not.toMatch(/padding:\s*0 8px/);
     expect(rule).not.toMatch(/padding-top:\s*(1[2-9]|2[0-9])px/);
     const ask = partial('ask.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(ask).toMatch(
-      /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0;/s
+      /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*8px;/s
     );
     expect(ask).not.toMatch(
       /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
     );
     const monitoring = partial('monitoring.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(monitoring).toMatch(
-      /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*0;/s
+      /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*8px;/s
     );
     expect(monitoring).not.toMatch(
       /\.monitoring-question-modal \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s

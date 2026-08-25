@@ -722,10 +722,11 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   display: grid;
   gap: 14px;
   min-width: 0;
-  /* Body inset stays; the Live pill is pulled to the card edge by the head
-     rule below. Restated on the Run Explorer child so a later AppKit content
-     utility cannot drop the zero top. */
-  padding: 0 20px 16px;
+  /* 8px top and left match the answer-card stamp: Live sits inside the
+     rounded corner, not pulled onto the hairline. Right and bottom keep the
+     body inset. Restated on the Run Explorer child so a later AppKit
+     content utility cannot drop the top. */
+  padding: 8px 20px 16px 8px;
 }
 .final-answer-head {
   display: flex;
@@ -734,8 +735,6 @@ button.run-context-badge:not(.conversation-context-badge):hover {
   justify-content: flex-start;
   justify-self: start;
   gap: 8px;
-  /* Stamp: cancel the content's 20px inline so the pill sits on the card edge. */
-  margin-inline: -20px 0;
 }
 .final-answer-eyebrow {
   margin: 0;

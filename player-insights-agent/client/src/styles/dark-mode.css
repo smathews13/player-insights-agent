@@ -578,9 +578,9 @@ html[data-theme='dark'] [data-slot='sheet-content'] {
 }
 
 html[data-theme='dark'] .monitoring-question-modal {
-  /* Ask's page, not the overlay slab and not the working-tab mix. Opaque so
-     the list cannot read through; the inner card then takes `--ast-pane`. */
-  background: var(--ast-sky-fill);
+  /* Same charcoal the Monitoring tab sits on. Sky-fill here was a second,
+     darker sheet; the inner card then lost to the working-tab mix. */
+  background: var(--ast-surface-solid);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
@@ -595,7 +595,7 @@ html[data-theme='dark'] .monitoring-question-modal {
  * repainted against a backdrop the compositor has already scrolled, and the old
  * side card showed the answer and the timeline under it drawn at two offsets at
  * once -- text over text. These surfaces are already opaque
- * (`--ast-sky-fill` on the modal, `--ast-surface-solid` on the drawer), so
+ * (`--ast-surface-solid` on the modal and the drawer), so
  * there is nothing behind the card to see: the blur costs the reader the frost
  * they cannot perceive and buys the smear.
  */
@@ -609,16 +609,22 @@ html[data-theme='dark'] .monitoring-question-modal [data-slot='alert'] {
 }
 
 /*
- * THE MODAL ANSWER IS ASK'S PANE, NOT THE WORKING-TAB MIX.
+ * THE POPUP IS THE MONITORING TAB'S CHARCOAL, NOT THE WORKING-TAB MIX.
  *
- * The working-tab card mix (sky + 14% white) is the washed gray slab. The
- * question modal lives inside `.page-shell.monitoring-page`, so that mix
- * landed on Ask PIA's own card. Naming the page + modal + slot beats the mix
- * on specificity. `--ast-pane` is the transcript token. No new gray.
+ * `.page-shell:not(.run-explorer):not(.connections-page) [data-slot='card']`
+ * mixes sky + 14% white. The question modal lives inside `.monitoring-page`,
+ * so that mix painted the answer card, the KPI chips and the timeline as a
+ * lifted grey-blue sheet over the tab. The earlier `--ast-pane` override
+ * lost: two `:not()`s out-specified `.page-shell .modal .card`. Repeating
+ * the same `:not()` chain is what actually wins. `--ast-surface-solid` is
+ * the tab's own charcoal -- one family for the outer modal, the inner card,
+ * and every `[data-slot='card']` inside, including the step timeline.
  */
-html[data-theme='dark'] .page-shell .monitoring-question-modal [data-slot='card'],
-html[data-theme='dark'] .page-shell .monitoring-question-modal .answer-card {
-  background: var(--ast-pane);
+html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal,
+html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal [data-slot='card'],
+html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal .answer-card {
+  background: var(--ast-surface-solid);
+  backdrop-filter: none;
 }
 
 html[data-theme='dark'] .monitoring-page:has(.monitoring-drawer) > :not(.monitoring-drawer) {
