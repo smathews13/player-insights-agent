@@ -146,7 +146,7 @@ describe('the inline row is the narrow seating, and says a real number', () => {
     // the agent and is not claiming to be: it labels an empty list.
     // Comments stripped, because the note in place says what was removed and
     // names it: the strings below have to be absent from the MARKUP.
-    const inspector = withoutComments(HOME.slice(HOME.indexOf('<aside className="trace-inspector">')));
+    const inspector = withoutComments(HOME.slice(HOME.indexOf('className="trace-inspector"')));
     expect(inspector).not.toMatch(/Loader2/);
     expect(inspector).toMatch(/<WorkingInlineRow elapsed=\{elapsed\} \/>/);
     // And the empty-state heading does not follow the loader in: a run that is
@@ -177,13 +177,25 @@ describe('the splash flicker is the splash’s drawing, not a second loader', ()
   it('keeps the splash tight enough to read as part of the transcript', () => {
     // The 48/40/40 inset and the 24px gap were set around the panel, and with it
     // gone they are a third of a viewport of nothing above "Working on it". Top
-    // has to clear the 72px mark off the card hairline (28) without growing
-    // back into that band. The gap ceiling is what the block may not reopen.
+    // lives on the more specific rule below, because answer.css zeros it here.
+    // The gap ceiling is what the block may not reopen.
     const splash = body('.ast-splash', LOADERS);
-    const [top] = splash.match(/padding:\s*(\d+)px/)?.slice(1) ?? [];
-    expect(Number(top)).toBeGreaterThanOrEqual(24);
-    expect(Number(top)).toBeLessThanOrEqual(32);
+    expect(splash).toMatch(/padding:\s*0\s+24px\s+20px/);
     expect(Number(splash.match(/gap:\s*(\d+)px/)?.[1])).toBeLessThanOrEqual(16);
+  });
+
+  it('lifts the mark with a rule that beats the finished-card padding-top zero', () => {
+    // 86860554 put 28px on `.ast-splash` and it did not show: answer.css's
+    // `.answer-card > [data-slot='card-content'] { padding-top: 0 }` is more
+    // specific, which is how Live sits on the hairline of a finished card.
+    // This selector names both, so the 40px gutter is what paints. 40 is a
+    // visible band under a 72px mark; 48 was the empty-sky inset of the
+    // retired panel. The finished header stays 8px — this class is only on
+    // the working card, which has no CardHeader.
+    const splash = body(".answer-card > [data-slot='card-content'].ast-splash", LOADERS);
+    const top = Number(splash.match(/padding-top:\s*(\d+)px/)?.[1]);
+    expect(top).toBeGreaterThanOrEqual(40);
+    expect(top).toBeLessThan(48);
   });
 });
 

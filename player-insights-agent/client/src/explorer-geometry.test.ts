@@ -14,6 +14,7 @@ import { partial, partialNames } from './styles/stylesheet';
  */
 
 const RUNS = partial('runs.css');
+const SHELL = partial('page-shell.css');
 const BENCHMARK = partial('benchmark.css');
 const TIMELINE = partial('timeline.css');
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
@@ -27,11 +28,28 @@ function rule(css: string, selector: string): string {
 }
 
 describe('the Run Explorer’s two columns', () => {
+  it('gives the page title room under the nav', () => {
+    // 40px left "Run Explorer" and the sky tight against the header hairline.
+    // 56 is Ask's transcript inset, restated on this page so a later shell
+    // shorthand cannot take it back. Regex rather than `rule()`, because
+    // `.page-shell` opens the file and that helper needs a leading newline.
+    expect(SHELL).toMatch(/\.page-shell\s*\{[^}]*padding:\s*56px\s+clamp/s);
+    expect(rule(RUNS, '.run-explorer')).toMatch(/padding-top:\s*56px/);
+  });
+
   it('gives the run list the width the handoff fixes it at', () => {
     // 340px is a number, not a fraction: the list holds a date, a status pill and
     // two or three lines of prompt, and it has to hold them at the same width
     // whatever is beside it.
     expect(rule(RUNS, '.explorer-layout')).toContain('grid-template-columns: 340px');
+  });
+
+  it('puts the username filter beside All conversations, not under it', () => {
+    expect(rule(RUNS, '.run-list-filters')).toContain('display: flex');
+    expect(rule(RUNS, '.run-list-filters')).toContain('flex-direction: row');
+    expect(EXPLORER).toContain('run-list-filters');
+    expect(EXPLORER).toContain('Filter runs by username');
+    expect(EXPLORER).toContain('All users');
   });
 
   it('gives the detail column a real pane, not a floating tint', () => {

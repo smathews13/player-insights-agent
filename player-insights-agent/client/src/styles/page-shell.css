@@ -1,6 +1,13 @@
 .page-shell {
   max-width: 1440px;
-  padding: 40px clamp(20px, 4vw, 56px) 70px;
+  /*
+   * 56 under the nav, not 40. 40 left Run Explorer's title (and the other
+   * page titles that share this shell) tight against the header hairline,
+   * with the night sky running straight into the bar. 56 is Ask's own
+   * transcript inset, so the titled pages and the conversation open with
+   * the same air. Sides and bottom are unchanged.
+   */
+  padding: 56px clamp(20px, 4vw, 56px) 70px;
   margin: auto;
   display: grid;
   gap: 24px;

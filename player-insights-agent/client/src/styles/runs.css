@@ -30,6 +30,12 @@
      still contracts fluidly below this cap and the narrow breakpoint stacks the
      run list above the detail. */
   max-width: 1760px;
+  /*
+   * Restate the shell's top air so this page cannot lose it to a later
+   * shorthand. The title sat flush under the nav; 56px is the room that
+   * actually shows above "Run Explorer".
+   */
+  padding-top: 56px;
 }
 /* There was an eyebrow above the h2 here, reading PROGRESSIVE TRACE DISCLOSURE,
    with a grid wrapper to close the page gap under it. It named the mechanism the
