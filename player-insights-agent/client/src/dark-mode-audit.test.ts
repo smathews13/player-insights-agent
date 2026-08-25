@@ -303,7 +303,7 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).toMatch(
       /html\[data-theme='dark'\] \.app-frame > main,\s*html\[data-theme='dark'\] \.storage-banner,\s*html\[data-theme='dark'\] \.role-lost-notice\s*\{[^}]*z-index:\s*1/
     );
-    expect(bodyFor(DARK, "html[data-theme='dark'] .page-shell [data-slot='card']")).toMatch(
+    expect(bodyFor(DARK, "html[data-theme='dark'] .page-shell:not(.run-explorer) [data-slot='card']")).toMatch(
       /color-mix\(in srgb,\s*var\(--ast-sky-fill\)\s*86%/
     );
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='alert']")).toMatch(
@@ -311,6 +311,32 @@ describe('dark mode covers the shipped surfaces', () => {
     );
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='alert']")).not.toMatch(
       /background:\s*var\(--(?:card|ast-neg-fill|db-red-wash)\)/
+    );
+  });
+
+  it('paints Run Explorer from the Ask pane, not a lifted gray', () => {
+    /*
+     * The working-tab mix (sky + 14% white) made Overview look like a gray
+     * sheet next to Ask. Tiles, Final Answer and the detail column reuse
+     * `--ast-pane` -- the answer card's token -- so they stay in that family.
+     * Menus are a different rung and must stay opaque.
+     */
+    for (const selector of [
+      "html[data-theme='dark'] .run-explorer .run-detail",
+      "html[data-theme='dark'] .run-explorer [data-slot='card']",
+      "html[data-theme='dark'] .run-explorer .summary-grid [data-slot='card']",
+      "html[data-theme='dark'] .run-explorer .final-answer",
+    ]) {
+      const body = bodyFor(DARK, selector);
+      expect(body, `${selector} is not the Ask pane`).toMatch(/background:\s*var\(--ast-pane\)/);
+      expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
+      expect(body, `${selector} is not the overlay slab`).not.toMatch(/--ast-surface-solid/);
+    }
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(
+      /background:\s*var\(--ast-surface-solid\)/
+    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='select-content']")).toMatch(
+      /background:\s*var\(--ast-surface-solid\)/
     );
   });
 

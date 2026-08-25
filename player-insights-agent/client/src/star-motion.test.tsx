@@ -185,7 +185,9 @@ describe('ambient star motion', () => {
     );
     expect(markup).toContain('class="app-sky gate-star-motion"');
     expect(markup).toContain('preserveAspectRatio="xMidYMid slice"');
-    expect(CSS).toMatch(/\[data-star-motion-field\]\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%/s);
+    expect(CSS).toMatch(
+      /\[data-star-motion-field\]\s*\{[^}]*right:\s*auto;[^}]*bottom:\s*auto;[^}]*width:\s*100vw;[^}]*height:\s*100vh/s
+    );
     expect(sky.anchors.some((star) => star.x > (OPENING_CONSTELLATION.width * 2) / 3)).toBe(true);
     expect(sky.connectors).toHaveLength(12);
     expect(sky.connectors.some((connector) => Math.max(connector.from[0], connector.to[0]) > 900)).toBe(true);

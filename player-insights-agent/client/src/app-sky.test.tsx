@@ -7,6 +7,7 @@ import { OPENING_CONSTELLATION } from './constellation';
 
 const source = readFileSync(new URL('./AppSky.tsx', import.meta.url), 'utf8');
 const layout = readFileSync(new URL('./Layout.tsx', import.meta.url), 'utf8');
+const base = readFileSync(new URL('./styles/base.css', import.meta.url), 'utf8');
 
 describe('the dark-mode sky', () => {
   it('is decorative, static, and seated in the shell', () => {
@@ -42,5 +43,19 @@ describe('the dark-mode sky', () => {
     // Kept inside the outer tenth so `xMidYMid slice` does not immediately crop
     // the only right-side glyph at common narrow aspect ratios.
     expect(glyphCircles.some((x) => x > (width * 2) / 3 && x < width * 0.9)).toBe(true);
+  });
+
+  it('reserves the document scrollbar so a filter menu cannot shove the sky', () => {
+    /*
+     * Classic overflow used to toggle a page bar, shrink the viewport, and
+     * slide every centered page plus this fixed sky left. The gutter lives on
+     * `html` alone -- the same rule that already owns scroll-padding -- and
+     * must not leak onto `*`, which would inset every inner scroller.
+     */
+    const htmlRule = base.match(/(?:^|\})[\s\S]*?^html\s*\{([^{}]*)\}/m)?.[1] ?? '';
+    expect(htmlRule).toMatch(/scrollbar-gutter:\s*stable/);
+    const universalScroll = base.match(/\*\s*\{[^}]*scrollbar-width:\s*thin[^}]*\}/)?.[0] ?? '';
+    expect(universalScroll).toMatch(/scrollbar-width:\s*thin/);
+    expect(universalScroll).not.toMatch(/scrollbar-gutter/);
   });
 });

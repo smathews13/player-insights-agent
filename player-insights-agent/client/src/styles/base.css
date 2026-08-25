@@ -28,6 +28,19 @@
 html {
   scroll-padding-top: var(--app-header-h);
   scroll-padding-bottom: var(--composer-reserve);
+  /*
+   * THE DOCUMENT ROOT RESERVES THE BAR. Opening a filter menu that peeks past
+   * the fold -- or any other overflow that was not there a moment ago -- used
+   * to summon a classic scrollbar, shrink the viewport, and shove the centered
+   * page and the fixed starfield left. `stable` keeps that strip whether the
+   * page currently overflows or not, so the thumb appearing fills a hole that
+   * was already there.
+   *
+   * This is the ROOT only. The thirty inner scrollers stay without a gutter;
+   * see the note on `*` below. Scrollbars themselves stay visible: this does
+   * not hide them, it only stops them moving the layout.
+   */
+  scrollbar-gutter: stable;
 }
 body {
   margin: 0;
@@ -133,9 +146,11 @@ html:not([data-theme='dark']) .app-sky {
  * the lightest token that reads against white, and it is still a long way from
  * the platform's slab.
  *
- * NO `scrollbar-gutter` HERE. Reserving a strip on every scroller in the app
- * would move the contents of all thirty. The one place it is reserved is the Ask
- * rail, which pays for it out of its own padding; see the note there.
+ * NO `scrollbar-gutter` ON `*`. Reserving a strip on every scroller in the app
+ * would move the contents of all thirty. The document root already reserves
+ * its own strip, above, so a page-level bar cannot shove the layout. The one
+ * inner place a gutter is reserved is the Ask rail, which pays for it out of
+ * its own padding; see the note there.
  */
 * {
   scrollbar-width: thin;

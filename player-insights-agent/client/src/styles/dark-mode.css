@@ -383,6 +383,13 @@ html[data-theme='dark'] [data-slot='card'] {
  *
  * The mix is toward `--ast-sky-fill` so the field is behind the chrome rather
  * than drawn on it. 10px frost then washes any leftover point into the pane.
+ *
+ * Run Explorer is not on that mix. Fourteen percent white over the sky is the
+ * washed gray slab Overview was reported as -- tiles, Final Answer and the
+ * detail column reading as a sheet next to Ask's charcoal. Those surfaces take
+ * `--ast-pane` below, the same token the answer card uses. Connections and the
+ * other working tabs keep the mix so this change cannot retint their cards
+ * (OAuth scopes included). Menus stay on `--ast-surface-solid`.
  */
 html[data-theme='dark'] .app-frame > main,
 html[data-theme='dark'] .storage-banner,
@@ -391,10 +398,18 @@ html[data-theme='dark'] .role-lost-notice {
   z-index: 1;
 }
 
-html[data-theme='dark'] .page-shell [data-slot='card'],
-html[data-theme='dark'] .run-explorer .summary-grid [data-slot='card'] {
+html[data-theme='dark'] .page-shell:not(.run-explorer) [data-slot='card'] {
   background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
   backdrop-filter: blur(10px);
+}
+
+html[data-theme='dark'] .run-explorer .run-detail,
+html[data-theme='dark'] .run-explorer [data-slot='card'],
+html[data-theme='dark'] .run-explorer .summary-grid [data-slot='card'],
+html[data-theme='dark'] .run-explorer .final-answer {
+  background: var(--ast-pane);
+  backdrop-filter: blur(2px);
+  border-color: var(--ast-border-input);
 }
 
 html[data-theme='dark'] [data-slot='alert'],
@@ -1043,6 +1058,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
      de-stacked containers with no fill of their own in the normal path, and
      handing them one only under this query would grow a pane when an
      accessibility preference is switched on. */
+  html[data-theme='dark'] .run-explorer .run-detail,
   html[data-theme='dark'] .trace-kpi,
   html[data-theme='dark'] .trace-dag.map .dag-node,
   html[data-theme='dark'] .arch-flow,
