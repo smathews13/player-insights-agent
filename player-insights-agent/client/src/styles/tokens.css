@@ -262,32 +262,29 @@
    */
   --app-header-h: 52px;
 
-  /* The header's horizontal inset, as a token because the nav's alignment with
-     the rail is arithmetic on it: the rail is measured from the window's edge and
-     the header's contents from inside this padding, so .brand-lockup's column is
-     the rail's width less this. Typed as a bare 20px in both rules it would be
-     one number in two places, and the tabs would come unstuck from the rail the
-     first time the header alone was adjusted. */
+  /* The header's horizontal inset, as a token because the brand column's
+     ceiling is arithmetic on it: the rail is measured from the window's edge and
+     the header's contents from inside this padding, so .brand-lockup cannot grow
+     past the rail's width less this. Typed as a bare 20px in both rules it would
+     be one number in two places. */
   --app-header-pad-x: 20px;
 
   /*
-   * How far the first nav tab clears the conversation rail's hairline.
+   * How far a long wordmark may push the first nav tab past the conversation
+   * rail's hairline -- the last term of `.brand-lockup`'s ceiling, not of its
+   * used width.
    *
-   * It used to be zero, and zero was a deliberate choice that turned out to be
-   * the wrong one. The brand column was sized so the first tab's LABEL landed
-   * exactly on the rail's edge, on the reasoning that a label sitting on the
-   * line below it is what a reader checks. What that actually produced is a tab
-   * whose left edge touches the divider: "Ask PIA" reads as though it is leaning
-   * on the rail, and the active tab's 2px underline starts in the same pixel
-   * column as the rail's own vertical hairline, so the two lines meet in a
-   * corner nobody drew.
+   * The column used to reserve the rail's width plus this inset so every tab
+   * row began clear of the hairline. That reservation is what left a hole
+   * between the date and Ask, and what shoved Built on Databricks off the
+   * right once Benchmarking added a seventh tab. The used width now hugs the
+   * lockup and the date; this number only matters when a longer wordmark hits
+   * the ceiling, so the first tab still cannot land ON the rail's edge.
    *
-   * 16px, which is the rail's own padding, so the gap to the right of the
-   * hairline matches the gap to its left and the whole tab row is offset by a
-   * number somebody chose. It is added to `.brand-lockup`'s column rather than
-   * to the tab, because the tab is one item and this has to move the ROW: a
-   * padding-left on the first tab alone would push its label right and leave its
-   * box, and therefore the underline, where it was.
+   * 16px, which is the rail's own padding. It is added to the ceiling rather
+   * than to the first tab, because a padding-left on that tab alone would push
+   * its label right and leave its box, and therefore the underline, where it
+   * was.
    */
   --app-nav-inset: 16px;
 
@@ -298,13 +295,13 @@
      worth recording. It was `clamp(220px, 15vw, 264px)` here and restated as a
      flat 264px on .ask-layout, on the argument that this file is shared and the
      page should say what it uses. That held while the rail was the only thing
-     that cared. It is not: the header's brand column is now sized so the first
-     nav tab begins on the rail's edge, and the header is not inside .ask-layout,
-     so reading the token got it the clamp -- 220px at most ordinary window
-     widths -- while the rail was 264. Two surfaces reading one name and getting
-     two answers is worse than a token in a shared file, so the number lives here
-     once and the rail, the fixed composer and the header all read it. The 1180px
-     band in responsive.css still narrows it to 220px for the rail alone. */
+     that cared. It is not: the header's brand column reads the same token as
+     its ceiling, and the header is not inside .ask-layout, so reading a clamp
+     here used to give the header 220px at ordinary widths while the rail was
+     264. Two surfaces reading one name and getting two answers is worse than a
+     token in a shared file, so the number lives here once and the rail, the
+     fixed composer and the header all read it. The 1180px band in
+     responsive.css still narrows it to 220px for the rail alone. */
   --conversation-width: 340px;
   --trace-width: 340px;
 

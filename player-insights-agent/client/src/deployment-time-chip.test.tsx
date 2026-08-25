@@ -192,12 +192,12 @@ describe('where the header seats the release chip', () => {
     expect(at(markup, 'data-testid="deployment-time-chip"')).toBeLessThan(at(markup, 'app-chrome-rule'));
   });
 
-  it('is inside the lockup column, which is what the tab row is aligned to', () => {
+  it('is inside the lockup column, which is what the tab row sits after', () => {
     // If the chip were a sibling of the column rather than a child of it, it
-    // would sit between the divider and the first tab and push the row off the
-    // conversation rail's hairline below it. The column is the whole of what this
-    // component renders, so being inside it is: opens with the column, closes
-    // with it, chip somewhere between.
+    // would sit between the divider and the first tab and reopen the hole the
+    // column now closes. The column is the whole of what this component
+    // renders, so being inside it is: opens with the column, closes with it,
+    // chip somewhere between.
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <HeaderBrand deployedAt={DEPLOYED_AT} deployedBy={DEPLOYED_BY} buildSha={BUILD_SHA} />

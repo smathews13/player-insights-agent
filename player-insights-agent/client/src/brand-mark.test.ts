@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { partial, stylesheet } from './styles/stylesheet';
 
 /**
- * The brand mark is drawn, not shipped; and the nav is aligned by arithmetic, not
- * by eye.
+ * The brand mark is drawn, not shipped; and the brand column hugs its contents
+ * rather than reserving the rail.
  *
  * Two unrelated-looking things in one file because they are the same header and
  * the same change, and because each of them is the kind of claim that no other
@@ -32,17 +32,17 @@ import { partial, stylesheet } from './styles/stylesheet';
  * back.
  *
  * THE ALIGNMENT. The nav tabs are laid out after the brand lockup, so the first
- * tab landed at "wherever the wordmark happened to measure, plus 24px" -- about
- * 251px, while the conversation rail's edge below it is at 264px. The tab
- * straddled the rail's hairline, which reads as two vertical lines a few pixels
- * apart rather than as one.
+ * tab landed at "wherever the wordmark happened to measure, plus 24px". The
+ * column then reserved the rail's full width so Ask would sit on the hairline,
+ * which left a hole between the date and the first tab. With Benchmarking on,
+ * that hole stayed empty while Built on Databricks went off the right edge.
  *
- * The failure this half guards is not that misalignment. It is the repair: 264 and
- * 20 typed into the header by hand, correct on the day and silently wrong the
- * first time the rail or the header's inset moved without the other. So what is
- * pinned is that both rules are EXPRESSIONS over the same two tokens, and that
- * neither file contains the literal. A future reader who "simplifies" either back
- * to a number fails here rather than in somebody's screenshot a month later.
+ * The used width now hugs the lockup and the date; the rail formula is only a
+ * ceiling. What is pinned is that the ceiling is still an EXPRESSION over the
+ * same tokens, that the used width is max-content rather than a reservation,
+ * and that neither file contains the literal. A future reader who "simplifies"
+ * the ceiling back to a number, or who puts the hole back as `width:`, fails
+ * here rather than in somebody's screenshot a month later.
  */
 
 const SHELL = partial('shell.css');
@@ -97,8 +97,9 @@ describe('the header leads with the lockup, which is the app’s own mark and na
   it('draws the lockup, the release chip and the divider in the brand column', () => {
     // The column holds three things and they are all small. The release chip
     // joined it when it was moved out of the right-hand cluster, where it was in
-    // the half of the header that gives and had its label cut off; it lives in
-    // the slack this column already held between the wordmark and the divider.
+    // the half of the header that gives and had its label cut off. It sits
+    // between the wordmark and the divider; the column hugs those three rather
+    // than reserving a hole after the date.
     const column = LAYOUT.match(/<div className="brand-lockup">([\s\S]*?)<\/div>/)?.[1] ?? '';
     expect(column, 'the header still has a brand lockup column').not.toEqual('');
     expect(column).toContain('<AstrolabeLockup');
@@ -113,9 +114,8 @@ describe('the header leads with the lockup, which is the app’s own mark and na
 
   it('puts that column before the nav in the header, and the chip inside it', () => {
     // The chip must be a child of the column and not a sibling of it. Placed
-    // between the column and the nav it would push the tab row off the
-    // conversation rail's hairline, which is the alignment the second half of
-    // this file exists to protect.
+    // between the column and the nav it would sit in the gap the tabs now occupy
+    // next to the date, which is the leftover the seventh tab needs.
     const header = LAYOUT.match(/<header[\s\S]*?<\/header>/)?.[0] ?? '';
     expect(header, 'the header is still rendered here').not.toEqual('');
     expect(header.indexOf('<HeaderBrand')).toBeGreaterThan(-1);
@@ -238,25 +238,22 @@ describe('the removed trademark is gone from the tree, not merely unreferenced',
   });
 });
 
-describe('the nav and the rail are offset from one value, not from two numbers', () => {
-  it('measures the brand column as the rail’s width less the header’s own inset, plus the nav’s', () => {
-    // This single declaration is what makes the first tab's position arithmetic
-    // instead of a measurement of the wordmark. All three operands are tokens, and
-    // the first two are the tokens the rail and the header are themselves drawn
-    // from, so the alignment survives any of them moving.
-    //
-    // The third term is the reported fix. Landing the first tab ON the rail's edge
-    // is not the same as landing it clear of the rail: the tab's box, and so the
-    // active underline, began in the same pixel column as the rail's hairline.
-    expect(body('.brand-lockup', SHELL)).toMatch(
-      /width:\s*calc\(\s*var\(--conversation-width\)\s*-\s*var\(--app-header-pad-x\)\s*\+\s*var\(--app-nav-inset\)\s*\)/,
+describe('the brand column hugs the lockup and the date, and does not reserve the rail', () => {
+  it('uses the rail formula as a ceiling, not as the column’s used width', () => {
+    // The used width used to BE this calc, which left a hole between the date
+    // and Ask the size of the unused rail. Benchmarking's seventh tab then
+    // shoved Built on Databricks off the right while that hole stayed empty.
+    // Hugging the contents closes the hole; the same expression remains the
+    // max so a longer wordmark still cannot grow past the rail.
+    const lockup = body('.brand-lockup', SHELL);
+    expect(lockup).toMatch(/width:\s*max-content/);
+    expect(lockup).toMatch(
+      /max-width:\s*calc\(\s*var\(--conversation-width\)\s*-\s*var\(--app-header-pad-x\)\s*\+\s*var\(--app-nav-inset\)\s*\)/,
     );
+    expect(lockup).not.toMatch(/(?:^|[;{\s])width:\s*calc\(/);
   });
 
-  it('states that clearance once, as a token, rather than as a length in the header', () => {
-    // The failure this guards is the same one the other two operands are tokens
-    // for: a number typed into shell.css is correct on the day and unfindable the
-    // next time somebody asks why the tabs sit where they do.
+  it('states that ceiling once, as a token, rather than as a length in the header', () => {
     const declarations = [...withoutComments(TOKENS).matchAll(/--app-nav-inset:\s*([^;]+);/g)];
     expect(declarations).toHaveLength(1);
     expect(declarations[0][1].trim()).toEqual('16px');
@@ -267,11 +264,6 @@ describe('the nav and the rail are offset from one value, not from two numbers',
   });
 
   it('declares that width exactly once, in the file both of them read', () => {
-    // The failure mode this is written against is a well-meaning restatement: the
-    // rail carried its own flat `--conversation-width: 264px` for good reasons, and
-    // the moment the header needed the same number that override became two
-    // surfaces reading one name and getting two answers. One declaration, or the
-    // bug comes back silently.
     const declarations = [...withoutComments(TOKENS).matchAll(/--conversation-width:\s*([^;]+);/g)];
     expect(declarations).toHaveLength(1);
     expect(declarations[0][1].trim()).toEqual('340px');
@@ -279,10 +271,6 @@ describe('the nav and the rail are offset from one value, not from two numbers',
   });
 
   it('writes neither offset as a literal in the rules that use them', () => {
-    // The test that fails if somebody hardcodes it again, which is the only reason
-    // any of this is expressed as tokens rather than as two correct numbers. 264
-    // must not appear in the header's stylesheet at all, and the header's inset
-    // must not appear as a bare length in the padding that spends it.
     const shell = withoutComments(SHELL);
     expect(shell).not.toMatch(/\b264px\b/);
     expect(body('.app-header', SHELL)).toMatch(/padding:\s*0 var\(--app-header-pad-x\)/);
@@ -290,20 +278,29 @@ describe('the nav and the rail are offset from one value, not from two numbers',
   });
 
   it('lets the column alone decide where the tabs begin', () => {
-    // The nav carried `margin-left: 24px`, which was a second rule with an opinion
-    // about the same position. With the column stated, a margin on top of it is
-    // 24px of drift from the line the tabs are supposed to land on.
     expect(body('.app-nav', SHELL)).not.toMatch(/margin-left/);
   });
 
   it('gives every tab the same inset before its icon, the first one included', () => {
-    // The first tab used to drop its left padding so its label landed on the same
-    // line as its box. That alignment was bought with the 12px of room every other
-    // tab's label has, and it made Ask PIA read as cut off against its own edge --
-    // reported twice. Where the ROW starts is the lockup's width above, not this
-    // padding, so the box and its active underline are unmoved by evening it up.
     expect(body('.app-nav-tab', SHELL)).toMatch(/padding:\s*0 12px/);
     expect(withoutComments(SHELL)).not.toMatch(/\.app-nav-tab:first-child/);
+  });
+
+  it('keeps Built on Databricks from shrinking or wrapping when Benchmarking adds a seventh tab', () => {
+    // The hole the column used to reserve is what the seventh tab needed. The
+    // attribution itself must not be the thing that gives: flex-none and nowrap
+    // are what keep the bricks and the words on screen instead of clipping or
+    // folding once the tabs have moved left. The 1365 band may hide the WORDS
+    // (font-size: 0) and keep the symbol; it must not hide the mark at the
+    // widths where the desktop nav is still drawn.
+    const attribution = body('.built-on-databricks', partial('astrolabe-chrome.css'));
+    expect(attribution).toMatch(/flex:\s*none/);
+    expect(attribution).toMatch(/white-space:\s*nowrap/);
+    expect(body('.app-header', SHELL)).not.toMatch(/overflow:\s*hidden/);
+    expect(withoutComments(SHELL)).toMatch(/\.app-header > nav\s*\{\s*flex:\s*none/);
+    const tight = withoutComments(RESPONSIVE).match(/@media \(max-width: 1365px\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    expect(tight).toMatch(/\.app-header \.built-on-databricks\s*\{\s*font-size:\s*0/);
+    expect(tight).not.toMatch(/\.built-on-databricks[^{]*\{[^}]*display:\s*none/);
   });
 });
 

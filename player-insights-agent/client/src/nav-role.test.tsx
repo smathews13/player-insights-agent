@@ -222,11 +222,11 @@ describe('a wider row still starts on the conversation rail’s edge', () => {
   }
 
   it('singles out no tab at either width, so the first one is not cut off', () => {
-    // brand-mark.test.ts pins the alignment itself: the brand column is the rail's
-    // width less the header's inset, plus the nav's, and that column is the only
-    // thing deciding where the row begins. The first tab used to zero its left
-    // padding on top of that, which left Ask PIA's icon on its own edge. Neither
-    // stylesheet may name the first child again, at either width.
+    // brand-mark.test.ts pins the column itself: it hugs the lockup and the
+    // date, with the rail formula only as a ceiling. The first tab used to zero
+    // its left padding on top of a reserved rail-width, which left Ask PIA's
+    // icon on its own edge. Neither stylesheet may name the first child again,
+    // at either width.
     expect(withoutComments(SHELL)).not.toMatch(/\.app-nav-tab:first-child/);
     expect(withoutComments(RESPONSIVE)).not.toMatch(/\.app-nav-tab:first-child/);
   });

@@ -263,12 +263,12 @@ export function IdentityChip({ identity }: { identity: Identity }) {
  * app's own identity rather than the reader's badges, which is what it is: the
  * date names the build somebody is looking at.
  *
- * IT FITS INSIDE THE COLUMN THE TABS ARE ALIGNED TO, and that is a constraint
- * rather than a coincidence. `.brand-lockup`'s width is what lands the first tab
- * clear of the conversation rail's hairline, so the chip goes in the slack that
- * column already holds between the wordmark and the divider. It must stay small
- * enough to live there: widen it and the wordmark truncates, or the column grows
- * and the tab row comes unstuck from the rail below it.
+ * IT FITS BESIDE THE LOCKUP, not in a reserved hole after it. The column hugs
+ * the lockup, the date and the divider, which is what lets the tab row sit next
+ * to the date instead of after an empty stretch of rail-width. Widen the chip
+ * and the wordmark truncates against the column's ceiling; do not put the slack
+ * back as a fixed width -- that hole is what shoved Built on Databricks off the
+ * right edge once Benchmarking added a seventh tab.
  */
 export function HeaderBrand({
   deployedAt,
@@ -475,14 +475,15 @@ export function Layout() {
           time somebody adjusts a font size. */}
       <header className="app-header border-b bg-background flex items-center sticky top-0 z-30">
         {/* The lockup, the release date, and then the divider §1 puts between
-            the column and the tabs. The column's width is what aligns the first
-            tab with the conversation rail below it, so the divider sits inside
-            the column rather than after it -- placed after, it would land on the
-            rail's own hairline and read as one crooked line rather than as two.
-            The wordmark IS the app's name, so it is the page's h1. The partner
-            plate and the "Player Intelligence" kicker that used to be here are
-            gone: the app has its own identity now, and the plate reserved a
-            position for a trademark this repository must not carry. */}
+            the column and the tabs. The column hugs those three, so the first
+            tab starts after the date rather than after a rail-width hole -- the
+            hole is what shoved Built on Databricks off the right once
+            Benchmarking added a seventh tab. The divider sits inside the column
+            rather than after it. The wordmark IS the app's name, so it is the
+            page's h1. The partner plate and the "Player Intelligence" kicker
+            that used to be here are gone: the app has its own identity now, and
+            the plate reserved a position for a trademark this repository must
+            not carry. */}
         <HeaderBrand
           deployedAt={deployment.deployedAt}
           deployedBy={deployment.deployedBy}
