@@ -18,6 +18,7 @@
  */
 
 import { FAILURE_TAXONOMY, isFailureCode, type FailureCode, type FailureLayer } from './failure-taxonomy';
+import type { RunRuntimeUsed } from './run-runtime-used';
 
 /**
  * What came of one question, using the same run vocabulary as Run Explorer.
@@ -294,6 +295,12 @@ export interface MonitoringDetail {
   mlflowUrl: string | null;
   /** The run id Run Explorer opens, which is the answer message's id. */
   runId: string | null;
+  /**
+   * The runtime this Ask sent. Extracted on the server so a conditioned drawer
+   * still shows the budget even when the answer body is withheld. Null when the
+   * run stored none — never today's Settings.
+   */
+  runtimeUsed?: RunRuntimeUsed | null;
 }
 
 /** One table on the per-user panel, read live rather than recalled. */

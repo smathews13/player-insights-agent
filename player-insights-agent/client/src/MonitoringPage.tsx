@@ -102,6 +102,7 @@ import type {
   MonitoringQuestionsPayload,
   PersonPanelPayload,
 } from '../../shared/monitoring-contract';
+import { UsedThisRun } from './UsedThisRun';
 
 /* ── The summary strip ───────────────────────────────────────────────────── */
 
@@ -789,6 +790,7 @@ export function QuestionDrawer({
               .join(' · ')}
           </p>
         </div>
+        <UsedThisRun used={detail.runtimeUsed ?? null} />
 
         <div className="monitoring-drawer-links">
           {/* Keep the drilldown's onward actions near its heading, where they are

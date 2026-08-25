@@ -12,6 +12,7 @@ import type { Chart } from './AnswerCharts';
 import type { ExperimentalFeatures } from './experimental-features';
 import type { Derivation, NormalizedAnswer, StageStatus, TraceStage, TraceSummary } from './answer-shape';
 import type { SessionReport } from '../../shared/session-contract';
+import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
 
 /**
  * What the components are allowed to render: every field present, because it came
@@ -211,6 +212,11 @@ export interface RunTrace {
   } | null;
   note: string;
   undeclaredKeys: string[];
+  /**
+   * The runtime this Ask sent. Null when the run stored none — never today's
+   * Settings and never the bundle defaults.
+   */
+  runtimeUsed?: RunRuntimeUsed | null;
 }
 export interface Conversation {
   id: string;

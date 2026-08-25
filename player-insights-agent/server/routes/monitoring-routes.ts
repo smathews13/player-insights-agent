@@ -37,6 +37,7 @@ import {
   type PersonPanelPayload,
   type QuestionOutcome,
 } from '../../shared/monitoring-contract';
+import { runRuntimeUsedFromStored } from '../../shared/run-runtime-used';
 import { chooseRows, markResponse, readStored } from '../lib/lakebase-store';
 import { workspaceLinksAllowed } from '../lib/egress-store';
 import {
@@ -934,6 +935,9 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         // suppressed in the browser is a URL that was already delivered.
         mlflowUrl: (await workspaceLinksAllowed(appkit)) ? (mlflow?.url ?? null) : null,
         runId: answerId || null,
+        // Always sent, even when the answer body is withheld: the budget is a
+        // record of the agent, not of anybody's data.
+        runtimeUsed: runRuntimeUsedFromStored(row.response_json),
       };
       res.json(detail);
     });

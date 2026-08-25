@@ -23,6 +23,7 @@
  * answer's shape is `AnswerContract` in agent/contracts.py. What is written here
  * is what those two do, in the order they do it.
  */
+import { RUN_RUNTIME_LOOP_LABEL } from '../../shared/run-runtime-used';
 import type { ArchitectureAccent } from './architecture-layout';
 
 /** Which runtime setting bounds a stage, where one does. */
@@ -144,11 +145,7 @@ export const AGENT_CHAIN: readonly ChainStage[] = [
  * and a second phrasing for the same number is a second thing to search for. The
  * keys are `RuntimeSettings['loop']`'s own.
  */
-export const CHAIN_BOUND_LABEL: Readonly<Record<ChainBound, string>> = {
-  maxSteps: 'Max DSF steps',
-  maxToolCalls: 'Max tool calls',
-  maxRunSeconds: 'Run budget (s)',
-};
+export const CHAIN_BOUND_LABEL: Readonly<Record<ChainBound, string>> = RUN_RUNTIME_LOOP_LABEL;
 
 /** The order the bounds are read across in the strip. */
 export const CHAIN_BOUNDS: readonly ChainBound[] = ['maxSteps', 'maxToolCalls', 'maxRunSeconds'];

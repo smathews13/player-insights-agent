@@ -1433,10 +1433,8 @@ describe('what the route actually puts on the wire', () => {
         timezone: 'America/Los_Angeles',
       },
     };
-    const app = await startInsightsApp(
-      agentContractTransport(captured),
-      memoryLakebase([], [], stored)
-    );
+    const lakebase = memoryLakebase([], [], stored);
+    const app = await startInsightsApp(agentContractTransport(captured), lakebase);
 
     try {
       await app.ask({
@@ -1451,6 +1449,10 @@ describe('what the route actually puts on the wire', () => {
     expect(captured[0]?.payload.custom_inputs).toMatchObject({
       runtime_settings: stored,
     });
+
+    const assistant = lakebase.messages.find((message) => message.role === 'assistant');
+    const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
+    expect(persisted.runtime_settings).toEqual(stored);
   });
 
   it('sends stored attachment text, which no route test could previously observe', async () => {
@@ -2923,6 +2925,39 @@ describe('GET /api/runs/:id/trace', () => {
       expect(body.takeaway).toBe(answered.takeaway);
       expect(body.sql).toBe(answered.sql);
 
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('returns the runtime that ask sent, not today’s settings', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const stored: RuntimeSettings = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      loop: { maxSteps: 10, maxToolCalls: 15, maxRunSeconds: 200 },
+      answer: {
+        ...DEFAULT_RUNTIME_SETTINGS.answer,
+        takeaway: false,
+        narrativeMaxCharacters: 800,
+        figuresOrder: 'totals-first',
+      },
+    };
+    const app = await startInsightsApp(agentContractTransport([]), memoryLakebase([], [], stored));
+
+    try {
+      const answered = await answeredRun(app, 'conv-runtime-used');
+      const { body } = await app.runTrace(String(answered.id));
+      expect(body.runtimeUsed).toEqual({
+        loop: { maxSteps: 10, maxToolCalls: 15, maxRunSeconds: 200 },
+        answer: {
+          takeaway: false,
+          narrative: true,
+          figures: true,
+          charts: true,
+          narrativeMaxCharacters: 800,
+          figuresOrder: 'totals-first',
+        },
+      });
     } finally {
       await app.close();
     }

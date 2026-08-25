@@ -63,6 +63,7 @@ import { UserIdentityChip } from './UserIdentityChip';
 import { conversationFilterOptions, conversationRunNumber, KPI_HINTS, toolStageDurationMs } from './run-explorer-state';
 import { showsAdminSurfaces, useRole } from './role';
 import { answerRunVerdict } from '../../shared/run-verdict';
+import { UsedThisRun } from './UsedThisRun';
 import {
   applyRunLabelOverride,
   conversationRunChoices,
@@ -476,6 +477,9 @@ export function RunExplorer() {
               <TabsTrigger value="details">Details</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-4 pt-4">
+              {selected && traceState.status === 'ready' ? (
+                <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
+              ) : null}
               <div className="summary-grid">
                 <Card title={KPI_HINTS.wallTime}>
                   <CardContent>

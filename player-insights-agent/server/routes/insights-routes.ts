@@ -41,6 +41,7 @@ import {
   preserveEnvDecision,
 } from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
+import { runRuntimeUsedFromStored, type RunRuntimeUsed } from '../../shared/run-runtime-used';
 import { isAdminRoute, requireAdmin, requireSuperAdmin, rolePayload } from '../lib/admin-roles';
 import {
   admitRun,
@@ -459,6 +460,9 @@ const LiveAnswerSchema = z.looseObject({
   // drift, which is the log that is supposed to mean the agent moved ahead of
   // the app. See shared/answer-provenance.ts.
   provenance: z.string().optional(),
+  // The route's snapshot of the runtime this Ask sent. Declared so storing it
+  // is not reported as the agent shipping a field the app cannot read.
+  runtime_settings: z.looseObject({}).optional(),
 });
 type LiveAnswer = z.infer<typeof LiveAnswerSchema>;
 
@@ -775,6 +779,30 @@ export const RunTraceSchema = z.looseObject({
   /** Plain-language reason the panes can render when `state` is 'no-trace'. */
   note: z.string(),
   undeclaredKeys: z.array(z.string()),
+  /**
+   * The runtime this Ask sent, snapshotted onto the stored answer.
+   *
+   * Null when the row predates the snapshot. Never today's Settings and never
+   * the bundle defaults — those would describe an agent that did not run.
+   */
+  runtimeUsed: z
+    .strictObject({
+      loop: z.strictObject({
+        maxSteps: z.number().nullable(),
+        maxToolCalls: z.number().nullable(),
+        maxRunSeconds: z.number().nullable(),
+      }),
+      answer: z.strictObject({
+        takeaway: z.boolean().nullable(),
+        narrative: z.boolean().nullable(),
+        figures: z.boolean().nullable(),
+        charts: z.boolean().nullable(),
+        narrativeMaxCharacters: z.number().nullable(),
+        figuresOrder: z.enum(['as-ranked', 'totals-first', 'averages-first']).nullable(),
+      }),
+    })
+    .nullable()
+    .default(null),
 });
 export type RunTrace = z.infer<typeof RunTraceSchema>;
 
@@ -931,7 +959,12 @@ function toolStagesFromTrace(stages: z.infer<typeof TraceStageDetailSchema>[]) {
 
 type RunTraceIdentity = Pick<RunTrace, 'runId' | 'kind' | 'conversationId' | 'createdAt' | 'prompt' | 'stakeholder'>;
 
-function runWithoutTrace(identity: RunTraceIdentity, note: string, mode: RunTrace['mode'] = null): RunTrace {
+function runWithoutTrace(
+  identity: RunTraceIdentity,
+  note: string,
+  mode: RunTrace['mode'] = null,
+  runtimeUsed: RunRuntimeUsed | null = null
+): RunTrace {
   return {
     ...identity,
     state: 'no-trace',
@@ -947,7 +980,16 @@ function runWithoutTrace(identity: RunTraceIdentity, note: string, mode: RunTrac
     benchmark: null,
     note,
     undeclaredKeys: [],
+    runtimeUsed,
   };
+}
+
+/** Stamps the runtime this Ask sent onto whatever we persist for the run. */
+function withAskRuntime<T extends Record<string, unknown>>(
+  body: T,
+  runtimeSettings: RuntimeSettings | undefined
+): T {
+  return runtimeSettings ? { ...body, runtime_settings: runtimeSettings } : body;
 }
 
 /**
@@ -971,12 +1013,14 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     return runWithoutTrace(identity, 'This run stored no response, so there is no trace to show.');
   }
   const record = payload as Record<string, unknown>;
+  const runtimeUsed = runRuntimeUsedFromStored(record);
   const mode = record.mode === 'representative' ? 'representative' : record.mode === 'live' ? 'live' : null;
   if (record.type === 'plan') {
     return runWithoutTrace(
       identity,
       'This turn proposed an analysis plan and the plan was never approved, so no run was executed and there is no trace.',
-      mode
+      mode,
+      runtimeUsed
     );
   }
 
@@ -1006,12 +1050,14 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
         benchmark: null,
         note: 'This turn ended in a question back to the user rather than an answer, so the stages stop where it asked.',
         undeclaredKeys: [],
+        runtimeUsed,
       };
     }
     return runWithoutTrace(
       identity,
       'This turn asked the user for a missing detail, and stored no trace of the steps that led there.',
-      mode
+      mode,
+      runtimeUsed
     );
   }
 
@@ -1024,7 +1070,12 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     ? TraceDetailSchema.safeParse(answer.data.trace)
     : TraceDetailSchema.safeParse(record.trace);
   if (!trace.success) {
-    return runWithoutTrace(identity, 'This run stored a response with no trace, so there are no stages to show.', mode);
+    return runWithoutTrace(
+      identity,
+      'This run stored a response with no trace, so there are no stages to show.',
+      mode,
+      runtimeUsed
+    );
   }
 
   return {
@@ -1055,6 +1106,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
         ? 'This run was answered offline from the representative dataset, so these are reference stages rather than a live agent run.'
         : '',
     undeclaredKeys: answer.success ? undeclaredAnswerKeys(answer.data) : [],
+    runtimeUsed,
   };
 }
 
@@ -4112,11 +4164,15 @@ export function setupInsightsRoutes(
       let stagesSeen = 0;
       let lastStage: FailureStage | undefined;
       const collectedStages: Record<string, unknown>[] = [];
+      // The runtime this Ask sent. Snapshotted onto the stored row so Monitoring
+      // and Run Explorer can show what THIS run used after Settings has moved on.
+      let askRuntime: RuntimeSettings | undefined;
       try {
         const servingHistory = buildServingHistory(historyResult.rows);
         if (approvedPlanId && servingHistory.length > 0) {
           servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
         }
+        askRuntime = await readRuntimeSettings(appkit);
         const payload = buildAskServingBody({
           history: servingHistory,
           prompt,
@@ -4129,7 +4185,7 @@ export function setupInsightsRoutes(
           runId: identity.requestId,
           expectedUser: identity.token ? email : '',
           deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
-          runtimeSettings: await readRuntimeSettings(appkit),
+          runtimeSettings: askRuntime,
         });
         // Counted on the way past, so a failure can say where the run died
         // rather than only that it did. "It stopped in 'Query
@@ -4281,7 +4337,7 @@ export function setupInsightsRoutes(
               conversationId,
               'assistant',
               plan.summary,
-              JSON.stringify(planResponse),
+              JSON.stringify(withAskRuntime(planResponse, askRuntime)),
               ...executionIdentityColumns(email, executionIdentityClaim(identity)),
             ]
           );
@@ -4316,7 +4372,7 @@ export function setupInsightsRoutes(
               conversationId,
               'assistant',
               clarification.question,
-              JSON.stringify(clarificationResponse),
+              JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
               clarification.trace.id,
               ...executionIdentityColumns(email, executionIdentityClaim(identity)),
             ]
@@ -4529,7 +4585,7 @@ export function setupInsightsRoutes(
           conversationId,
           'assistant',
           disclosed.narrative,
-          JSON.stringify(disclosed),
+          JSON.stringify(withAskRuntime(disclosed, askRuntime)),
           disclosed.trace.id,
           // Recorded on the answer rather than on the question, because these
           // name the authority something RAN under and a question runs nothing.
