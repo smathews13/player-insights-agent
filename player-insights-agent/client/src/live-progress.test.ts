@@ -603,6 +603,13 @@ describe('a step announced before it finishes', () => {
     expect(PANEL).toMatch(/railTiming\(\{ duration: step\.durationMs, status: step\.status \}, elapsedMs\)/);
     expect(PANEL).toMatch(/elapsedMs\?: number \| null;/);
   });
+
+  it('paints a failed step with the shared failed pill, not a grey outline', () => {
+    // AppKit's outline Badge is the grey chip that made step 09 look like
+    // "running". The run-header mapping already sends failed to ast-pill--neg.
+    expect(PANEL).toMatch(/className=\{astPill\(step\.status\)\}/);
+    expect(PANEL).toMatch(/from '\.\/run-header'/);
+  });
 });
 
 /**

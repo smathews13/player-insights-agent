@@ -148,6 +148,13 @@ describe('the row is the run card, not a third style', () => {
     expect(body('.conversation-row.confirming')).not.toMatch(/border-left/);
   });
 
+  it('keeps every conversation title on the same white as a live step title', () => {
+    const title = body('.conversation-title');
+    expect(title).toMatch(/color:\s*var\(--ast-text\)/);
+    expect(title).toMatch(/font-weight:\s*500/);
+    expect(title).not.toMatch(/muted-foreground|ast-text-secondary/);
+  });
+
   it('pads the card once, so the title is not inset twice', () => {
     // The old row padded itself AND the button inside it, and the button also sat
     // beside a permanently reserved 26px column for a control that is invisible

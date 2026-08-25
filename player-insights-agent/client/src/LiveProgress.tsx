@@ -21,6 +21,7 @@ import { productForTool } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
 import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
+import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
 
 /**
@@ -82,7 +83,11 @@ function StepRow({ step, number, newest, elapsedMs }: { step: LiveStep; number: 
               </>
             )}
           </span>
-          {step.status !== 'complete' && <Badge variant="outline">{step.status}</Badge>}
+          {step.status !== 'complete' && (
+            <Badge variant="outline" className={astPill(step.status)}>
+              {step.status}
+            </Badge>
+          )}
         </p>
         {step.detail && <p className="live-step-detail">{step.detail}</p>}
         {step.result && (<p className="live-step-result">

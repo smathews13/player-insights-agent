@@ -348,7 +348,7 @@
 
 html[data-theme='dark'] {
   --ast-sky-fill: var(--ast-navy);
-  --ast-pane: rgba(255, 255, 255, 0.05);
+  --ast-pane: rgba(255, 255, 255, 0.065);
   --ast-ice: rgba(255, 255, 255, 0.03);
   --ast-text: var(--ast-ink-on-dark);
   --ast-text-long: var(--ast-ink-on-dark);

@@ -95,7 +95,7 @@ describe('dark mode covers the shipped surfaces', () => {
 
   it('keeps the spec paints centralized and exact', () => {
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--background:\s*var\(--ast-navy\)/);
-    expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--card:\s*rgba\(255,\s*255,\s*255,\s*0\.05\)/);
+    expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--card:\s*rgba\(255,\s*255,\s*255,\s*0\.065\)/);
     expect(ASTROLABE).toMatch(
       /html\[data-theme='dark'\][\s\S]*--ast-text-secondary:\s*rgba\(232,\s*237,\s*242,\s*0\.68\)/
     );

@@ -280,7 +280,7 @@ html[data-theme='dark'] .trace-inspector {
  *
  * It was grouped with the rail and the harness column above, which are panes
  * with the sky directly behind them. This list is not: Ask draws it inside a
- * `[data-slot='card']` that already carries the 5% pane, so the 3% frost here
+ * `[data-slot='card']` that already carries the pane, so the 3% frost here
  * was a second layer and each row's own card fill was a third. Three white
  * layers is the milky wash that was reported. The card is the pane, this is a
  * bordered region inside it, and the rows are rows.
@@ -333,8 +333,8 @@ html[data-theme='dark'] .first-open:not(.on-sky) {
  *
  * The constellation is behind the PAGE rather than behind each surface, so any
  * block holding figures or prose has to dull what is under it or the stars come
- * through the content. A pane painted `--card` alone is 5% white over the sky:
- * the fill is there and the stars are still legible through it.
+ * through the content. A pane painted `--card` alone is 6.5% white over the sky:
+ * the fill is there and a little sky still reads through it.
  *
  * Everything below the original set was found missing by an audit of the whole
  * stylesheet rather than by looking at a screen, which is the only way this list

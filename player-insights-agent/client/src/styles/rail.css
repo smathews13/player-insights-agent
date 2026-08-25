@@ -771,6 +771,10 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
+  /* Same ink as a live step title. Completed questions are previous
+     questions, not disabled ones — do not sit them on the secondary grey. */
+  color: var(--ast-text);
+  font-weight: 500;
 }
 /* Who asked, how long the turn took, and how they rated it: three small facts on
    one line, so none of them costs the rail a row of height. Wraps rather than

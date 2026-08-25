@@ -498,7 +498,9 @@ html[data-theme='dark'] {
   --db-amber-line: rgba(255, 171, 0, 0.35);
   --background: var(--ast-navy);
   --foreground: var(--ast-ink-on-dark);
-  --card: rgba(255, 255, 255, 0.05);
+  /* 6.5% white: about 30% more than the original 5% glass. Still a veil,
+     still some sky, enough that white type is not sitting on a star. */
+  --card: rgba(255, 255, 255, 0.065);
   --card-foreground: var(--ast-ink-on-dark);
   /*
    * Floating menus sit ON the page, not beside it. Seven percent white left the

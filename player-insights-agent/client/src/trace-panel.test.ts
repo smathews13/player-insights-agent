@@ -266,7 +266,12 @@ describe('the bars carry the outcome, and nothing else', () => {
   it('draws the run envelope as an outline, so it cannot read as another step', () => {
     const run = STYLESHEET.match(/\n\.trace-bar-run \{([^}]*)\}/)?.[1] ?? '';
     expect(run).toMatch(/background: transparent/);
-    expect(run).toMatch(/border: 1\.5px solid/);
+    expect(run).toMatch(/border: 1\.5px dashed var\(--primary\)/);
+    const explorer = STYLESHEET.match(
+      /\n\.trace-timeline--explorer \.trace-bar-run \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(explorer).toMatch(/border: 1\.5px dashed var\(--primary\)/);
+    expect(explorer).not.toMatch(/#8a97a3/);
   });
 
   it('keeps the hatch on every bar that did not finish cleanly', () => {

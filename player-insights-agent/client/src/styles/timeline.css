@@ -422,28 +422,19 @@
  * another measured step lying under the others. 1.5px, which is the design's
  * weight, and heavy enough to read as a frame rather than as a faint bar.
  *
- * The design draws it in #92A4B3 and this does not, and the reason has been
- * restated because the old one has expired. It used to say the palette carried no
- * token for the design's light grey-blue and that tokens.css was not that pass's
- * to extend. Both halves are now false: --db-grey-blue-400 is #8396A5 and it is
- * right there. What has not changed is the arithmetic, which is the real reason.
+ * Dashed action blue, the same stroke the Agent map draws around the whole run
+ * (`.trace-dag.map.has-run-envelope`) and the answer-card Orchestrator card uses
+ * as its identity. A solid grey hollow used to sit here and read as chrome, not
+ * as the container those other two surfaces already name in blue. `--primary` is
+ * `--db-blue-600` in light and `--ast-ice-accent` in dark, so the Gantt, the map
+ * and the card stay one envelope.
  *
- * The envelope is a graphical object a reader has to perceive in order to read
- * the chart, so WCAG 1.4.11 asks 3:1 of it against whatever is behind it.
- * Measured: the design's #92A4B3 is 2.566:1 on white and fails outright. The pale
- * token is 3.056:1 on white and 2.853:1 on the #F7F7F7 wash, so it passes on one
- * of the surfaces this panel can sit on and fails on the other, at a margin of
- * five hundredths. --db-slate is 5.025:1 and 4.690:1, and clears both with room.
- *
- * So the frame is a shade darker than drawn, in the same role. Do not "fix" it
- * back to the handoff's colour, and do not repoint it at --db-grey-blue-400 on
- * the grounds that the token now exists: that token exists for a FILL, which is
- * what the working animation's data store uses it as, and a fill is not carrying
- * a measurement the way this outline is.
+ * Dashed, not a 1px dotted rule: a 1px dotted border is 1px dots at a 1px pitch
+ * and resolves to haze, which is why the map's perimeter is dashed too.
  */
 .trace-bar-run {
   background: transparent;
-  border: 1.5px solid var(--db-slate);
+  border: 1.5px dashed var(--primary);
   height: 10px;
   border-radius: 2px;
 }
@@ -539,8 +530,10 @@
   background: #9aa7b2;
 }
 .trace-timeline--explorer .trace-bar-run {
+  /* Keep the envelope on the shared dashed-blue stroke. Notebook kind colour
+     paints the solid step bars; the run is not a kind of step. */
   background: transparent;
-  border: 1.5px solid #8a97a3;
+  border: 1.5px dashed var(--primary);
 }
 .trace-kind-summary-wrap {
   margin-bottom: 12px;

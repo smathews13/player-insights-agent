@@ -295,7 +295,7 @@ describe('the light answer sits on an opaque card', () => {
     /* The frost is the point in dark: the card is ON the sky and the sky is meant
        to be faintly present through it. Reduced transparency is answered in
        dark-mode.css, which is where that fallback belongs. */
-    expect(rule(TOKENS, "html[data-theme='dark']")).toMatch(/--ast-pane:\s*rgba\(255,\s*255,\s*255,\s*0\.05\)/);
+    expect(rule(TOKENS, "html[data-theme='dark']")).toMatch(/--ast-pane:\s*rgba\(255,\s*255,\s*255,\s*0\.065\)/);
     expect(DARK).toMatch(/--ast-pane:\s*var\(--ast-surface-solid\)/);
   });
 });
