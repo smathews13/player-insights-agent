@@ -89,18 +89,31 @@ describe('whether the section may call itself a final answer', () => {
     expect(honesty.warnings.map((warning) => warning.label)).toEqual(['Incomplete sources']);
   });
 
-  it('calls a writer timeout after tables landed a partial answer, not unanswered', () => {
+  it('keeps a finished answer with tables Complete when only a deadline note remains', () => {
     const honesty = answerHonesty({
       truncated: true,
       caveats: [deadline, incomplete, identity],
       narrative: table,
     });
-    expect(honesty.eyebrow).toBe('Partial answer');
-    expect(honesty.tone).toBe('partial');
+    expect(honesty.eyebrow).toBe('Final answer');
+    expect(honesty.tone).toBe('complete');
     expect(honesty.warnings.map((warning) => warning.label)).toEqual([
       'Turn deadline reached',
       'Incomplete sources',
     ]);
+  });
+
+  it('calls a writer timeout after tables landed a partial answer, not unanswered', () => {
+    const timeout =
+      'The model that writes the answer was not reachable: APITimeoutError: Request timed out.';
+    const honesty = answerHonesty({
+      truncated: true,
+      caveats: [timeout, incomplete, identity],
+      narrative: table,
+    });
+    expect(honesty.eyebrow).toBe('Partial answer');
+    expect(honesty.tone).toBe('partial');
+    expect(honesty.warnings.map((warning) => warning.label)).toEqual(['Incomplete sources']);
   });
 
   it('will not title an empty deadline stop as a final answer', () => {

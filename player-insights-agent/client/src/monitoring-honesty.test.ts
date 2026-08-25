@@ -391,7 +391,22 @@ describe('an outcome is what a store recorded, never the good case by default', 
         traceHasFailedStage: true,
         answerLanded: true,
       })
+    ).toBe('completed');
+    expect(
+      classifyOutcome({
+        hasStoredAnswer: true,
+        synthesisIncomplete: true,
+        answerLanded: true,
+      })
     ).toBe('partial');
+    expect(
+      classifyOutcome({
+        runState: 'SUCCEEDED',
+        hasStoredAnswer: true,
+        traceHasFailedStage: true,
+        answerLanded: true,
+      })
+    ).toBe('completed');
     expect(classifyOutcome({ runState: 'DEADLINE_EXCEEDED', answerLanded: true })).toBe('partial');
   });
 

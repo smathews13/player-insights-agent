@@ -2544,6 +2544,20 @@ describe('the run verdict a chart cannot degrade', () => {
     expect(answerRunVerdict({ stages: [], caveats: [] })).toBe('failed');
   });
 
+  it('does not call a finished tabled answer Partial because a tool step missed', () => {
+    expect(
+      answerRunVerdict({
+        stages: [
+          { id: 'sql', status: 'failed' },
+          { id: 'synthesis', status: 'complete' },
+        ],
+        caveats: ['The turn deadline was reached before the answer could be written.'],
+        figures: [{ label: 'VLH', value: 6655 }],
+        narrative: '| Franchise | Players |\n| VLH | 6655 |',
+      })
+    ).toBe('complete');
+  });
+
   it('does not fail a tabled answer because sources were incomplete', () => {
     expect(
       answerRunVerdict({
@@ -2569,15 +2583,16 @@ describe('the run verdict a chart cannot degrade', () => {
     }
     expect(sql).toContain(`'$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})'`);
     expect(sql).toContain(`'$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'`);
+    expect(sql).toContain('@.id == "synthesis"');
+    expect(sql).toContain('(@.status == "failed" || @.status == "partial")');
     expect(sql).toContain("jsonb_array_length(a.trace->'stages') = 0");
     expect(sql).toContain('turn deadline');
     expect(sql).toContain("a.payload->'figures'");
     expect(sql).toContain("THEN 'partial'");
     expect(sql).toContain("THEN 'complete'");
-    // No unfiltered stage-status predicate left anywhere in it, which is how the
-    // old rule would come back: one branch updated and the other not.
+    // No unfiltered any-stage failed predicate. A finished answer with one
+    // missed SQL call must not become Partial on read.
     expect(sql).not.toContain('(@.status == "failed")');
-    expect(sql).not.toContain('(@.status == "partial")');
   });
 });
 

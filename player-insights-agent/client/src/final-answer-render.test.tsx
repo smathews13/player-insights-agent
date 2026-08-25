@@ -75,10 +75,16 @@ function text(html: string): string {
 }
 
 describe('the Overview Final Answer module', () => {
-  it('titles a deadline-noted card as a partial answer when the table already landed', () => {
+  it('titles a writer-timeout card as a partial answer when the table already landed', () => {
     const html = markup();
     expect(html).toContain('Partial answer');
     expect(html).toContain('data-tone="partial"');
+    expect(html).not.toContain('This question was not answered');
+  });
+
+  it('titles a finished answer Final when only a deadline note remains', () => {
+    const html = markup({ caveats: [INCOMPLETE, DEADLINE, IDENTITY], truncated: true });
+    expect(html).toContain('Final answer');
     expect(html).not.toContain('This question was not answered');
   });
 

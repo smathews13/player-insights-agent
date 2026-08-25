@@ -437,7 +437,7 @@ describe('a failed run’s process', () => {
     );
     expect(markup).not.toContain('This question was not answered.');
     expect(markup).not.toContain('Incomplete answer');
-    expect(markup).toContain('Partial answer');
+    expect(markup).not.toContain('Partial answer');
     expect(markup).toContain('Incomplete sources');
     expect(markup).toContain('<table');
     expect(markup).toContain('Opening sentence survives.');

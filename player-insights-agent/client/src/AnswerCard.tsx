@@ -143,6 +143,7 @@ export function AnswerCard({
     figures: answer.figures,
     narrative: answer.narrative,
     content: answer.content,
+    stages: displayed.trace.stages,
   });
   const headline = readerFacingTakeaway(answer.takeaway, answer.narrative, {
     figures: answer.figures,

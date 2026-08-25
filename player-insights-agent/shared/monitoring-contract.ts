@@ -72,17 +72,25 @@ export function classifyOutcome(input: {
    * said Complete over the same run.
    */
   answerLanded?: boolean;
+  /**
+   * Whether "Prepared the answer" itself failed or stopped short.
+   *
+   * Any failed or partial step used to count as a writer miss, which painted
+   * a finished answer Partial whenever one SQL or Genie call had missed.
+   */
+  synthesisIncomplete?: boolean;
 }): QuestionOutcome {
   const state = (input.runState ?? '').trim().toUpperCase();
   const writerMissed =
-    state === 'DEADLINE_EXCEEDED' ||
-    input.traceHasFailedStage === true ||
-    input.traceHasPartialStage === true;
+    state === 'DEADLINE_EXCEEDED' || input.synthesisIncomplete === true;
   if (input.answerLanded && writerMissed && state !== 'REFUSED') {
     return 'partial';
   }
   if (state && OUTCOME_BY_STATE[state]) return OUTCOME_BY_STATE[state];
   if (state && state !== 'SUCCEEDED') return 'partial';
+  if (input.answerLanded && (state === 'SUCCEEDED' || input.hasStoredAnswer)) {
+    return 'completed';
+  }
   if (input.traceHasFailedStage) return 'failed';
   if (input.traceHasPartialStage) return 'partial';
   if (state === 'SUCCEEDED' || input.hasStoredAnswer) return 'completed';

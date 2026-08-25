@@ -51,6 +51,44 @@ describe('the verdict a caveat cannot steal', () => {
     ).toBe('complete');
   });
 
+  it('does not call a deadline note Partial once the writer finished and tables landed', () => {
+    expect(
+      answerRunVerdict({
+        stages: [{ id: 'synthesis', status: 'complete' }],
+        caveats: [DEADLINE],
+        figures: FIGURES,
+        narrative: TABLE,
+      })
+    ).toBe('complete');
+  });
+
+  it('does not call a finished answer Partial because a tool step missed', () => {
+    expect(
+      answerRunVerdict({
+        stages: [
+          { id: 'sql', status: 'failed' },
+          { id: 'synthesis', status: 'complete' },
+        ],
+        caveats: [INCOMPLETE, DEADLINE],
+        figures: FIGURES,
+        narrative: TABLE,
+      })
+    ).toBe('complete');
+  });
+
+  it('keeps a catalog listing Complete when the writer finished', () => {
+    expect(
+      answerRunVerdict({
+        stages: [{ id: 'synthesis', status: 'complete' }],
+        caveats: [
+          'Declaring a table does not guarantee read access; Unity Catalog grants are evaluated per query and a refusal will be named explicitly if it occurs.',
+        ],
+        narrative:
+          'This deployment has access to 12 declared tables.\n\n| LAYER | TABLE |\n| Raw | raw_gameplay_activity |',
+      })
+    ).toBe('complete');
+  });
+
   it('calls a writer timeout after tables landed Partial, not Failed or unanswered', () => {
     expect(
       answerRunVerdict({

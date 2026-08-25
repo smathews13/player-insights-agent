@@ -10,7 +10,14 @@
  * is replaced only when a real sentence survives, and the status label is read
  * off the caveats the agent already wrote.
  */
-import { answerHasLanded, TIME_LIMIT_TAKEAWAY, UNANSWERED_LINE, WRITER_STOPPED_CAVEAT } from '../../shared/run-verdict';
+import {
+  answerHasLanded,
+  synthesisIncomplete,
+  TIME_LIMIT_TAKEAWAY,
+  UNANSWERED_LINE,
+  WRITER_STOPPED_CAVEAT,
+  type VerdictStage,
+} from '../../shared/run-verdict';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { CAVEAT_RISK, caveatRisk } from './caveat-priority';
 
@@ -236,6 +243,7 @@ export function answerHonesty(input: {
   figures?: readonly unknown[] | null;
   narrative?: string | null;
   content?: string | null;
+  stages?: readonly VerdictStage[];
 }): AnswerHonesty {
   const caveats = input.caveats.map((caveat) => caveat.trim()).filter(Boolean);
   // Refused and incomplete-evidence only. A grant-timing sentence that happens
@@ -255,7 +263,11 @@ export function answerHonesty(input: {
     return { eyebrow: 'Partial answer', tone: 'partial', warnings };
   }
   if (answerHasLanded(input)) {
-    const writerStopped = caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text));
+    const stages = input.stages ?? [];
+    const writerStopped =
+      synthesisIncomplete(stages) ||
+      (!stages.some((stage) => stage.id === 'synthesis') &&
+        caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text)));
     if (writerStopped) {
       return { eyebrow: 'Partial answer', tone: 'partial', warnings };
     }

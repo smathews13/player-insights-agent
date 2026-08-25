@@ -1811,17 +1811,16 @@ def _synthesis_stage_status(synthesis: Synthesis) -> str:
     landed = _findings_have_tables(synthesis.narrative) or bool(synthesis.figures)
     if synthesis.takeaway == UNREACHABLE_TAKEAWAY and not landed:
         return "failed"
+    if synthesis.takeaway == UNREACHABLE_TAKEAWAY and landed:
+        return "partial"
+    if synthesis.takeaway in (DEADLINE_TAKEAWAY, DEADLINE_TAKEAWAY_NO_DATA):
+        return "partial"
     joined = " ".join(synthesis.caveats).casefold()
     if (
-        landed
-        and synthesis.takeaway == UNREACHABLE_TAKEAWAY
-    ) or (
-        "run limit was reached" in joined
-        or "time limit" in joined
-        or "turn deadline" in joined
-        or synthesis.caveats[:1] == [SALVAGED_CAVEAT]
+        synthesis.caveats[:1] == [SALVAGED_CAVEAT]
         or "structured presentation was incomplete" in joined
         or "not reachable" in joined
+        or "run limit was reached" in joined
     ):
         return "partial"
     return "complete"

@@ -24,7 +24,7 @@
  * costing the page.
  */
 import { APP_SCHEMA } from '../../shared/app-schema';
-import { ANSWER_LANDED_SQL, VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
+import { ANSWER_LANDED_SQL, SYNTHESIS_INCOMPLETE_SQL, VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
 import type { Application, Request, Response } from 'express';
 import {
   classifyOutcome,
@@ -257,6 +257,7 @@ export const MONITORING_QUESTIONS_QUERY = `
            '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
          ) AS trace_partial,
          ${ANSWER_LANDED_SQL.split('payload').join('a.response_json')} AS answer_landed,
+         ${SYNTHESIS_INCOMPLETE_SQL.split('__TRACE__').join("a.response_json->'trace'")} AS synthesis_incomplete,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(a.response_json->'sources') = 'array'
@@ -330,6 +331,7 @@ export const MONITORING_DETAIL_QUERY = `
            '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'
          ) AS trace_partial,
          ${ANSWER_LANDED_SQL.split('payload').join('a.response_json')} AS answer_landed,
+         ${SYNTHESIS_INCOMPLETE_SQL.split('__TRACE__').join("a.response_json->'trace'")} AS synthesis_incomplete,
          a.execution_mode, a.execution_identity_verified,
          (SELECT COALESCE(jsonb_agg(s->>'name'), '[]'::jsonb)
             FROM jsonb_array_elements(
@@ -556,6 +558,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
     traceHasFailedStage: row.trace_failed === true,
     traceHasPartialStage: row.trace_partial === true,
     answerLanded: row.answer_landed === true,
+    synthesisIncomplete: row.synthesis_incomplete === true,
   });
   return {
     id: text(row.question_id),
@@ -902,6 +905,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
           traceHasFailedStage: row.trace_failed === true,
           traceHasPartialStage: row.trace_partial === true,
           answerLanded: row.answer_landed === true,
+          synthesisIncomplete: row.synthesis_incomplete === true,
         }),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,

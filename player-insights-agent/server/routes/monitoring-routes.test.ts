@@ -152,6 +152,8 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_DETAIL_QUERY).toContain(traceIsAnObject);
     expect(MONITORING_QUESTIONS_QUERY).toContain('AS answer_landed');
     expect(MONITORING_DETAIL_QUERY).toContain('AS answer_landed');
+    expect(MONITORING_QUESTIONS_QUERY).toContain('AS synthesis_incomplete');
+    expect(MONITORING_DETAIL_QUERY).toContain('AS synthesis_incomplete');
   });
 
   /**
@@ -242,6 +244,9 @@ describe('one row, from what the stores recorded', () => {
     expect(questionFromRow(row({ trace_failed: true }), ledger()).outcome).toBe('failed');
     expect(
       questionFromRow(row({ trace_failed: true, answer_landed: true }), ledger()).outcome
+    ).toBe('completed');
+    expect(
+      questionFromRow(row({ synthesis_incomplete: true, answer_landed: true }), ledger()).outcome
     ).toBe('partial');
   });
 

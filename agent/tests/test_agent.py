@@ -3487,6 +3487,20 @@ class TestIncompleteSynthesis:
             == "partial"
         )
 
+    def test_a_finished_writer_stays_complete_even_with_a_deadline_note(self):
+        """A leftover turn-deadline caveat is a note, not a failed write."""
+
+        finished = agent.Synthesis(
+            takeaway="VLH Online led the window.",
+            narrative=(
+                "| Title | Players |\n"
+                "| --- | ---: |\n"
+                "| VLH Online | 9575 |\n"
+            ),
+            caveats=["The turn deadline was reached before the answer could be written."],
+        )
+        assert agent._synthesis_stage_status(finished) == "complete"
+
 
 def test_headline_figures_are_bounded_without_fabricating_them():
     # "at most {MAX_FIGURES}" and not the literal "3-4", because the cap is an

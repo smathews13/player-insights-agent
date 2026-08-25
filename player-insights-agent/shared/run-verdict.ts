@@ -145,11 +145,13 @@ export const TIME_LIMIT_TAKEAWAY =
 export const UNANSWERED_LINE = /^this question was not answered\.?$/i;
 
 /**
- * Writer-timeout / unreachable notes. Incomplete sources are NOT in this
- * set: those stay a Keep-in-mind line on a Complete card.
+ * Writer-timeout / unreachable notes. Incomplete sources and a turn-deadline
+ * keep-in-mind line are NOT in this set: those stay notes on a Complete card
+ * when the writer actually finished. `time limit` and `turn deadline` alone
+ * over-fired Partial on every finished answer that still carried that note.
  */
 export const WRITER_STOPPED_CAVEAT =
-  /this question was not answered|was not reachable|time limit|run limit was reached|turn deadline|APITimeoutError|Request timed out/i;
+  /was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured/i;
 
 /**
  * The takeaway a reader should see when the stored headline is unanswered
@@ -163,6 +165,13 @@ export function takeawayWhenTablesLanded(output: string, evidence: string): stri
   return output;
 }
 
+/** Whether "Prepared the answer" itself failed or stopped short. */
+export function synthesisIncomplete(stages: readonly VerdictStage[]): boolean {
+  return stages.some(
+    (stage) => stage.id === 'synthesis' && (stage.status === 'failed' || stage.status === 'partial')
+  );
+}
+
 /**
  * The run's verdict from stages, and only then from caveats that mean nothing
  * usable was written.
@@ -171,7 +180,8 @@ export function takeawayWhenTablesLanded(output: string, evidence: string): stri
  * Incomplete sources on a card that already has tables stay Complete.
  * A writer timeout or failed "Prepared the answer" after SQL already produced
  * tables is Partial on every surface -- never unanswered + Failed while
- * another view says Complete.
+ * another view says Complete. A finished writer with tables stays Complete
+ * even when a tool step failed or a deadline note is still on the card.
  */
 export function answerRunVerdict(input: {
   stages?: readonly VerdictStage[];
@@ -194,10 +204,12 @@ export function answerRunVerdict(input: {
     return runVerdict(stages) === 'failed' ? 'failed' : 'partial';
   }
   if (answerHasLanded(input)) {
-    const fromStages = runVerdict(stages);
-    if (fromStages === 'failed' || fromStages === 'partial') return 'partial';
+    if (synthesisIncomplete(stages)) return 'partial';
     const caveats = input.caveats ?? [];
-    if (caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text))) return 'partial';
+    const recordedSynthesis = stages.some((stage) => stage.id === 'synthesis');
+    if (!recordedSynthesis && caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text))) {
+      return 'partial';
+    }
     return 'complete';
   }
   const fromStages = runVerdict(stages);
@@ -259,6 +271,16 @@ export const ANSWER_LANDED_SQL = `(
   OR COALESCE(payload->>'narrative', '') ~ '\\|'
   OR COALESCE(payload->>'content', '') ~ '\\|'
 )`;
+
+/**
+ * "Prepared the answer" failed or stopped short. Split on `__TRACE__` the
+ * same way {@link ANSWER_LANDED_SQL} splits on `payload`.
+ *
+ * Any failed or partial step used to trip this, which painted a finished
+ * answer Partial whenever one SQL or Genie call had missed.
+ */
+export const SYNTHESIS_INCOMPLETE_SQL =
+  `jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && (@.status == "failed" || @.status == "partial"))')`;
 
 /** Deadline / early-stop only, for the stored `truncated` flag. */
 export const DEADLINE_TRUNCATED_SQL =
