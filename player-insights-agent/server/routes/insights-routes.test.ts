@@ -2584,7 +2584,10 @@ describe('the run verdict a chart cannot degrade', () => {
     expect(sql).toContain(`'$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})'`);
     expect(sql).toContain(`'$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})'`);
     expect(sql).toContain('@.id == "synthesis"');
-    expect(sql).toContain('(@.status == "failed" || @.status == "partial")');
+    expect(sql).toContain('@.status == "failed"');
+    expect(sql).toContain('@.status == "partial"');
+    expect(sql).toContain('run limit was reached');
+    expect(sql).not.toContain('(@.status == "failed" || @.status == "partial")');
     expect(sql).toContain("jsonb_array_length(a.trace->'stages') = 0");
     expect(sql).toContain('turn deadline');
     expect(sql).toContain("a.payload->'figures'");

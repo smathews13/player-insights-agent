@@ -21,10 +21,10 @@ import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import {
   ANSWER_LANDED_SQL,
+  bindSynthesisIncompleteSql,
   DEADLINE_TRUNCATED_SQL,
   EMPTY_STAGES_FAILED_SQL,
   INCOMPLETE_ANSWER_CAVEAT_SQL,
-  SYNTHESIS_INCOMPLETE_SQL,
   VERDICT_STAGE_EXEMPTION_SQL,
 } from '../../shared/run-verdict';
 import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -599,7 +599,7 @@ export const RUNS_QUERY = `
          CASE
            WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join('a.trace')} THEN 'failed'
            WHEN ${ANSWER_LANDED_SQL.split('payload').join('a.payload')}
-            AND ${SYNTHESIS_INCOMPLETE_SQL.split('__TRACE__').join('a.trace')} THEN 'partial'
+            AND ${bindSynthesisIncompleteSql('a.trace', 'a.caveats')} THEN 'partial'
            WHEN ${ANSWER_LANDED_SQL.split('payload').join('a.payload')} THEN 'complete'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
            WHEN jsonb_path_exists(a.trace, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'
@@ -1820,7 +1820,7 @@ const CONVERSATION_VERDICT_JOIN = `
       CASE
         WHEN ${EMPTY_STAGES_FAILED_SQL.split('trace').join("m.response_json->'trace'")} THEN 'failed'
         WHEN ${ANSWER_LANDED_SQL.split('payload').join('m.response_json')}
-         AND ${SYNTHESIS_INCOMPLETE_SQL.split('__TRACE__').join("m.response_json->'trace'")} THEN 'partial'
+         AND ${bindSynthesisIncompleteSql("m.response_json->'trace'", "m.response_json->'caveats'")} THEN 'partial'
         WHEN ${ANSWER_LANDED_SQL.split('payload').join('m.response_json')} THEN 'complete'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'failed'
         WHEN jsonb_path_exists(m.response_json->'trace', '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})') THEN 'partial'

@@ -82,6 +82,20 @@ describe('the Overview Final Answer module', () => {
     expect(html).not.toContain('This question was not answered');
   });
 
+  it('titles a finished catalog listing Complete when DSF clipped optional detail', () => {
+    const html = markup({
+      takeaway:
+        'All 12 declared tables live in **`<your_catalog>.<your_schema>`** and are available to query.',
+      narrative: '| Table | Purpose |\n| --- | --- |\n| gold_player_180d_summary | Aggregates |',
+      caveats: [],
+      truncated: false,
+    });
+    expect(html).toContain('Final answer');
+    expect(html).not.toContain('Partial answer');
+    expect(html).toMatch(/final-answer-takeaway[\s\S]*<strong[\s\S]*<code[\s\S]*<your_catalog>/);
+    expect(html).not.toContain('**');
+  });
+
   it('titles a finished answer Final when only a deadline note remains', () => {
     const html = markup({ caveats: [INCOMPLETE, DEADLINE, IDENTITY], truncated: true });
     expect(html).toContain('Final answer');

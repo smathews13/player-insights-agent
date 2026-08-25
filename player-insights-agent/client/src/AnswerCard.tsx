@@ -199,7 +199,11 @@ export function AnswerCard({
               )}
             </div>
           </div>
-          {headline ? <CardTitle className="answer-takeaway">{headline}</CardTitle> : null}
+          {headline ? (
+            <CardTitle className="answer-takeaway">
+              <EntityText text={headline} sources={answer.sources} />
+            </CardTitle>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="answer-card-content">

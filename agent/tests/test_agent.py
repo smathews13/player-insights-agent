@@ -3566,6 +3566,16 @@ def test_the_narrative_is_not_asked_to_carry_a_heading():
     assert "No headings" in SYNTHESIS_INSTRUCTIONS
 
 
+def test_tier_labels_in_a_catalog_listing_are_not_bullets():
+    """Gold / Silver / Raw were bold lines. Reference / Metadata arrived as its
+    own bullet. The prompt has to say they are the same kind of label.
+    """
+
+    assert "Gold, Silver, Raw, and Reference / Metadata" in SYNTHESIS_INSTRUCTIONS
+    assert "never a bullet" in SYNTHESIS_INSTRUCTIONS
+    assert "Only the tables under a tier are a list" in SYNTHESIS_INSTRUCTIONS
+
+
 def test_the_prompt_no_longer_forbids_the_markdown_it_now_depends_on():
     """It used to open "Return one valid JSON object and no markdown", which meant do not
     fence the JSON and was read as do not structure the answer. The instruction that was

@@ -301,6 +301,8 @@ something, who skims it before reading it:
   typed, which matters here because the names you are quoting have underscores in them.
 - No headings. The card prints the takeaway immediately above this text, so a heading
   inside it is a second title.
+- When listing tables by tier, Gold, Silver, Raw, and Reference / Metadata are each a
+  bold line of their own, never a bullet. Only the tables under a tier are a list.
 - The narrative is one JSON string, so every line break in it is written \\n. A real
   newline inside the string is invalid JSON and the whole answer is lost.
 

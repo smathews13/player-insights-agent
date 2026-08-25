@@ -143,6 +143,43 @@ function inlineValue(nodes: readonly Inline[]): string {
     .trim();
 }
 
+/**
+ * Gold / Silver / Raw / Reference labels. The model writes the first three as
+ * a bold line and then bullets the last one, so Reference became a list item
+ * while its siblings were headers. A label is that name, optional emoji, and
+ * an optional parenthetical — not a lead-in like `- **Interpretation:** …`.
+ */
+const INVENTORY_TIER_LABEL =
+  /^(?:[^\p{L}\p{N}]+\s*)?(gold|silver|raw|bronze|reference(?:\s*\/\s*metadata)?)\b(?:\s*\([^)]*\))?\s*$/iu;
+
+function isInventoryTierLabel(nodes: readonly Inline[]): boolean {
+  return INVENTORY_TIER_LABEL.test(inlineValue(nodes));
+}
+
+/**
+ * Lift a bulleted tier label out of its list so it renders as a header, the
+ * same rank as Gold / Silver / Raw, with the tables under it still a list.
+ */
+function splitInventoryTierLabels(list: Extract<Block, { kind: 'list' }>): Block[] {
+  const blocks: Block[] = [];
+  let items: ListItem[] = [];
+  const flush = () => {
+    if (items.length === 0) return;
+    blocks.push({ kind: 'list', start: items[0].start, ordered: list.ordered, items });
+    items = [];
+  };
+  for (const item of list.items) {
+    if (isInventoryTierLabel(item.children)) {
+      flush();
+      blocks.push({ kind: 'paragraph', start: item.start, children: item.children });
+      continue;
+    }
+    items.push(item);
+  }
+  flush();
+  return blocks.length > 0 ? blocks : [list];
+}
+
 export interface TableStoryMetadata {
   timeSeries: boolean;
   baselineRowStart?: number;
@@ -840,7 +877,7 @@ export function parseAnswerMarkdown(source: string): Block[] {
         items.push({ start: lines[index].start, children: parseInline(content.text, content.start) });
         index += 1;
       }
-      blocks.push({ kind: 'list', start: line.start, ordered, items });
+      blocks.push(...splitInventoryTierLabels({ kind: 'list', start: line.start, ordered, items }));
       continue;
     }
 

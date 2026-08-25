@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   answerHasLanded,
   answerRunVerdict,
+  DSF_CLIP_NOTE,
   runVerdict,
   takeawayWhenTablesLanded,
   TIME_LIMIT_TAKEAWAY,
+  WRITER_STOPPED_CAVEAT,
 } from './run-verdict';
 
 const INCOMPLETE =
@@ -89,6 +91,27 @@ describe('the verdict a caveat cannot steal', () => {
     ).toBe('complete');
   });
 
+  it('keeps a 12-table catalog listing Complete when DSF clipped optional detail', () => {
+    const listing = [
+      'All 12 declared tables live in <your_catalog>.<your_schema>.',
+      '',
+      '| Table | Purpose |',
+      '| --- | --- |',
+      '| gold_player_180d_summary | Per-player aggregates |',
+      '',
+      '- **Package note:** Optional detail was clipped at the DSF handoff bound.',
+    ].join('\n');
+    expect(DSF_CLIP_NOTE.test('Optional detail was clipped at the DSF handoff bound.')).toBe(true);
+    expect(WRITER_STOPPED_CAVEAT.test('Optional detail was clipped at the DSF handoff bound.')).toBe(false);
+    expect(
+      answerRunVerdict({
+        stages: [{ id: 'synthesis', status: 'partial' }],
+        caveats: [],
+        narrative: listing,
+      })
+    ).toBe('complete');
+  });
+
   it('calls a writer timeout after tables landed Partial, not Failed or unanswered', () => {
     expect(
       answerRunVerdict({
@@ -108,6 +131,21 @@ describe('the verdict a caveat cannot steal', () => {
     expect(TIME_LIMIT_TAKEAWAY).toBe(
       'The run reached its time limit before the answer could be composed.'
     );
+  });
+
+  it('still calls a synthesis timeout Partial when the step is marked partial', () => {
+    expect(
+      answerRunVerdict({
+        stages: [
+          { id: 'sql', status: 'complete' },
+          { id: 'synthesis', status: 'partial' },
+        ],
+        caveats: [
+          'The model that writes the answer was not reachable: APITimeoutError: Request timed out.',
+        ],
+        narrative: TABLE,
+      })
+    ).toBe('partial');
   });
 
   it('still fails a zero-step empty run', () => {

@@ -158,6 +158,30 @@ describe('the blocks the agent actually writes', () => {
     expect(blocks[0].kind === 'list' && blocks[0].items).toHaveLength(1);
   });
 
+  it('lifts a bulleted Reference / Metadata label to the same rank as Gold', () => {
+    const source = [
+      '**Gold (aggregates — preferred starting point)**',
+      '- `gold_player_180d_summary`: Per-player aggregates.',
+      '',
+      '- **Reference / Metadata**',
+      '- `data_dictionary`: Field definitions.',
+      '- `semantic_layer_index`: Index of semantic entries.',
+    ].join('\n');
+    const blocks = parseAnswerMarkdown(source);
+    expect(blocks.map((block) => block.kind)).toEqual(['paragraph', 'list', 'paragraph', 'list']);
+    expect(blockText([blocks[0]])).toBe('Gold (aggregates — preferred starting point)');
+    expect(blockText([blocks[2]])).toBe('Reference / Metadata');
+    expect(blocks[1].kind === 'list' && blocks[1].items).toHaveLength(1);
+    expect(blocks[3].kind === 'list' && blocks[3].items).toHaveLength(2);
+    expect(blockText([blocks[3]])).toContain('data_dictionary');
+  });
+
+  it('does not lift an Interpretation lead-in out of its list', () => {
+    const blocks = parseAnswerMarkdown('- **Interpretation:** bookings rose.\n- Refunds are netted.');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].kind === 'list' && blocks[0].items).toHaveLength(2);
+  });
+
   it('keeps the newlines the agent wrote, which is the collapse this fixes', () => {
     // `white-space` is not `pre-wrap` on the narrative, so a line break in the
     // source used to vanish. It is a break node now, and a blank line is a
@@ -167,10 +191,21 @@ describe('the blocks the agent actually writes', () => {
     expect(kinds(blocks)).toEqual(['paragraph', 'text', 'break', 'text', 'paragraph', 'text']);
   });
 
-  it('reads bold and a code span inside a sentence', () => {
-    const blocks = parseAnswerMarkdown('Net bookings rose **18%** against `net_bookings_usd`.');
-    expect(kinds(blocks)).toEqual(['paragraph', 'text', 'strong', 'text', 'text', 'code', 'text']);
-    expect(blockText(blocks)).toBe('Net bookings rose 18% against net_bookings_usd.');
+  it('reads bold wrapping a code span, so a schema name is not starred backticks', () => {
+    const source =
+      'All 12 declared tables live in **`<your_catalog>.<your_schema>`** and are available to query.';
+    const nodes = answerInline(source, [], []);
+    expect(visible(nodes)).toBe(
+      'All 12 declared tables live in <your_catalog>.<your_schema> and are available to query.'
+    );
+    expect(visible(nodes)).not.toContain('**');
+    expect(kinds([{ kind: 'paragraph', start: 0, children: nodes }])).toEqual([
+      'paragraph',
+      'text',
+      'strong',
+      'code',
+      'text',
+    ]);
   });
 
   it('leaves an unmatched delimiter as the character it is', () => {

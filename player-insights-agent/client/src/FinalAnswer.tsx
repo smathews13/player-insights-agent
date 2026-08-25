@@ -85,7 +85,11 @@ export function FinalAnswer({
             ))}
           </ul>
         ) : null}
-        {headline ? <h4 className="final-answer-takeaway">{headline}</h4> : null}
+        {headline ? (
+          <h4 className="final-answer-takeaway">
+            <EntityText text={headline} sources={sources} />
+          </h4>
+        ) : null}
         {/* Prose only: the tables that came with it are evidence and are drawn
             below under the same charts-or-rows rule the live card uses. */}
         <AnswerProse text={story} sources={sources} columns={columns} blocks="prose" />

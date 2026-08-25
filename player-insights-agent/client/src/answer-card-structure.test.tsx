@@ -460,6 +460,36 @@ describe('a failed run’s process', () => {
     expect(markup).toContain('<table');
   });
 
+  it('renders nested bold+code in the takeaway so the schema name has no asterisks', () => {
+    const markup = card(
+      answer({
+        takeaway:
+          'All 12 declared tables live in **`<your_catalog>.<your_schema>`** and are available to query.',
+      })
+    );
+    expect(markup).toMatch(/answer-takeaway[\s\S]*<strong[\s\S]*<code[\s\S]*<your_catalog>\.<your_schema>/);
+    expect(markup).not.toContain('**');
+  });
+
+  it('does not put Reference / Metadata in a list item', () => {
+    const markup = renderToStaticMarkup(
+      <AnswerProse
+        text={[
+          '**Gold (aggregates — preferred starting point)**',
+          '- `gold_player_180d_summary`: Per-player aggregates.',
+          '',
+          '- **Reference / Metadata**',
+          '- `data_dictionary`: Field definitions.',
+        ].join('\n')}
+        sources={[]}
+      />
+    );
+    expect(markup).toContain('<p><strong>Reference / Metadata</strong></p>');
+    expect(markup).not.toContain('<li><strong>Reference / Metadata</strong>');
+    expect(markup).toMatch(/<li\b[^>]*>[\s\S]*data_dictionary/);
+    expect(markup).toContain('<p><strong>Gold (aggregates — preferred starting point)</strong></p>');
+  });
+
   it('still says no result was recorded when the run truly had no steps', () => {
     const markup = processCard(
       answer({

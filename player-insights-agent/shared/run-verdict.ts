@@ -154,6 +154,16 @@ export const WRITER_STOPPED_CAVEAT =
   /was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured/i;
 
 /**
+ * Optional DSF package clip. A finished catalog listing that still carries this
+ * line has answered the question; the clip is a note, not a failed write.
+ */
+export const DSF_CLIP_NOTE = /optional detail was clipped at the DSF handoff bound/i;
+
+/** Postgres form of {@link WRITER_STOPPED_CAVEAT}, bound via `__CAVEATS__`. */
+const WRITER_STOPPED_CAVEAT_SQL =
+  `EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(__CAVEATS__, '[]'::jsonb)) c WHERE c ~* 'was not reachable|run limit was reached|APITimeoutError|Request timed out|time limit before the answer could be composed|time limit before any data was measured')`;
+
+/**
  * The takeaway a reader should see when the stored headline is unanswered
  * but tables or figures already landed.
  */
@@ -165,11 +175,23 @@ export function takeawayWhenTablesLanded(output: string, evidence: string): stri
   return output;
 }
 
-/** Whether "Prepared the answer" itself failed or stopped short. */
-export function synthesisIncomplete(stages: readonly VerdictStage[]): boolean {
-  return stages.some(
-    (stage) => stage.id === 'synthesis' && (stage.status === 'failed' || stage.status === 'partial')
-  );
+/**
+ * Whether "Prepared the answer" itself failed or stopped short.
+ *
+ * A failed writer after tables landed is Partial. A synthesis step marked
+ * `partial` because optional DSF detail was clipped is not: the listing
+ * finished, and that clip is a note. Only a real writer-stop caveat turns a
+ * `partial` synthesis into an incomplete answer.
+ */
+export function synthesisIncomplete(
+  stages: readonly VerdictStage[],
+  caveats: readonly string[] = []
+): boolean {
+  const synthesis = stages.find((stage) => stage.id === 'synthesis');
+  if (!synthesis) return false;
+  if (synthesis.status === 'failed') return true;
+  if (synthesis.status !== 'partial') return false;
+  return caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text));
 }
 
 /**
@@ -181,7 +203,8 @@ export function synthesisIncomplete(stages: readonly VerdictStage[]): boolean {
  * A writer timeout or failed "Prepared the answer" after SQL already produced
  * tables is Partial on every surface -- never unanswered + Failed while
  * another view says Complete. A finished writer with tables stays Complete
- * even when a tool step failed or a deadline note is still on the card.
+ * even when a tool step failed, a deadline note is still on the card, or
+ * optional DSF detail was clipped on a catalog listing.
  */
 export function answerRunVerdict(input: {
   stages?: readonly VerdictStage[];
@@ -204,8 +227,8 @@ export function answerRunVerdict(input: {
     return runVerdict(stages) === 'failed' ? 'failed' : 'partial';
   }
   if (answerHasLanded(input)) {
-    if (synthesisIncomplete(stages)) return 'partial';
     const caveats = input.caveats ?? [];
+    if (synthesisIncomplete(stages, caveats)) return 'partial';
     const recordedSynthesis = stages.some((stage) => stage.id === 'synthesis');
     if (!recordedSynthesis && caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text))) {
       return 'partial';
@@ -273,14 +296,24 @@ export const ANSWER_LANDED_SQL = `(
 )`;
 
 /**
- * "Prepared the answer" failed or stopped short. Split on `__TRACE__` the
- * same way {@link ANSWER_LANDED_SQL} splits on `payload`.
+ * "Prepared the answer" failed, or stopped short with a real writer-stop
+ * caveat. Split on `__TRACE__` and `__CAVEATS__`.
  *
- * Any failed or partial step used to trip this, which painted a finished
- * answer Partial whenever one SQL or Genie call had missed.
+ * Synthesis `partial` alone used to trip this, which painted a finished
+ * 12-table catalog listing Partial whenever DSF clipped optional detail.
  */
-export const SYNTHESIS_INCOMPLETE_SQL =
-  `jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && (@.status == "failed" || @.status == "partial"))')`;
+export const SYNTHESIS_INCOMPLETE_SQL = `(
+  jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "failed")')
+  OR (
+    jsonb_path_exists(__TRACE__, '$.stages[*] ? (@.id == "synthesis" && @.status == "partial")')
+    AND ${WRITER_STOPPED_CAVEAT_SQL}
+  )
+)`;
+
+/** Bind {@link SYNTHESIS_INCOMPLETE_SQL} to one query's trace and caveats columns. */
+export function bindSynthesisIncompleteSql(trace: string, caveats: string): string {
+  return SYNTHESIS_INCOMPLETE_SQL.split('__TRACE__').join(trace).split('__CAVEATS__').join(caveats);
+}
 
 /** Deadline / early-stop only, for the stored `truncated` flag. */
 export const DEADLINE_TRUNCATED_SQL =

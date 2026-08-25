@@ -265,7 +265,7 @@ export function answerHonesty(input: {
   if (answerHasLanded(input)) {
     const stages = input.stages ?? [];
     const writerStopped =
-      synthesisIncomplete(stages) ||
+      synthesisIncomplete(stages, caveats) ||
       (!stages.some((stage) => stage.id === 'synthesis') &&
         caveats.some((text) => WRITER_STOPPED_CAVEAT.test(text)));
     if (writerStopped) {

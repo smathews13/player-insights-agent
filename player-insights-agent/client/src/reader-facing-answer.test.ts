@@ -164,6 +164,26 @@ describe('whether the section may call itself a final answer', () => {
     expect(honesty.warnings).toEqual([]);
   });
 
+  it('keeps a 12-table catalog listing Complete when DSF clipped optional detail', () => {
+    const listing = [
+      'The catalog exposes 12 tables, all within the schema.',
+      '',
+      '| Table | Purpose |',
+      '| --- | --- |',
+      '| gold_player_180d_summary | Per-player aggregates |',
+      '',
+      '- **Package note:** Optional detail was clipped at the DSF handoff bound.',
+    ].join('\n');
+    const honesty = answerHonesty({
+      truncated: false,
+      caveats: [],
+      narrative: listing,
+      stages: [{ id: 'synthesis', status: 'partial' }],
+    });
+    expect(honesty.eyebrow).toBe('Final answer');
+    expect(honesty.tone).toBe('complete');
+  });
+
   it('still labels an actual policy deny as Request refused', () => {
     const refusal =
       'A governance control refused part of this request, so that part is not answered here and was not answered another way.';
