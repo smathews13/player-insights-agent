@@ -326,12 +326,19 @@ describe('ambient star motion', () => {
     expect(keyframes('ast-tw')).toMatch(/transform:\s*scale\(1\.2\)/);
     expect(keyframes('ast-tw2')).toMatch(/opacity:\s*0;/);
 
+    expect(SKY_ANCHOR_RADIUS_MIN).toBe(1.4);
+    expect(SKY_FAINT_RADIUS_MIN).toBe(0.8);
+    expect(SKY_ANCHOR_RADIUS_MAX).toBeCloseTo(3.4 * 0.75);
+    expect(SKY_FAINT_RADIUS_MAX).toBeCloseTo(2.2 * 0.75);
+
     const sky = buildStarField(SKY_PAGE_ID, 'sizes');
     const anchors = sky.anchors.map((star) => star.r);
     const faint = sky.faint.map((star) => star.r);
     expect(new Set(anchors).size).toBeGreaterThan(5);
     expect(new Set(faint).size).toBeGreaterThan(3);
     expect(Math.min(...anchors)).toBeLessThan(Math.max(...anchors));
+    expect(Math.max(...anchors)).toBeLessThanOrEqual(SKY_ANCHOR_RADIUS_MAX);
+    expect(Math.max(...faint)).toBeLessThanOrEqual(SKY_FAINT_RADIUS_MAX);
 
     const markup = renderToStaticMarkup(<StarField pageId={SKY_PAGE_ID} surface="ask" seed="sizes" />);
     const drawn = [...markup.matchAll(/class="app-sky-glyph"[^>]*r="([^"]+)"/g)].map((match) => match[1]);

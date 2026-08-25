@@ -85,9 +85,11 @@ const EXTRA_HOPS = 6;
 const DROP_HOPS_MIN = 2;
 const DROP_HOPS_SPREAD = 3;
 export const SKY_ANCHOR_RADIUS_MIN = 1.4;
-export const SKY_ANCHOR_RADIUS_MAX = 3.4;
+/** Previous cap 3.4; largest stars were reading as blobs on the login sky. */
+export const SKY_ANCHOR_RADIUS_MAX = 2.55;
 export const SKY_FAINT_RADIUS_MIN = 0.8;
-export const SKY_FAINT_RADIUS_MAX = 2.2;
+/** Previous cap 2.2; keep faint stars mixed, just 25% smaller at the top. */
+export const SKY_FAINT_RADIUS_MAX = 1.65;
 const MIN_EXTRA_DIST = 90;
 const MAX_EXTRA_DIST = 260;
 
