@@ -390,7 +390,7 @@ export function RunExplorer() {
                         standing as "All conversations" over a store nobody could
                         reach. The runs below are unaffected and still listed: what
                         is missing is the list of threads to narrow them by. */}
-                    <span>
+                    <span className="run-filter-label">
                       {conversationsUnreadable
                         ? 'Conversations could not be read'
                         : (conversationOptions.find((option) => option.id === conversationFilter)?.label ??
@@ -418,7 +418,7 @@ export function RunExplorer() {
                   onValueChange={(value) => setUsernameFilter(value === 'all' ? '' : value)}
                 >
                   <SelectTrigger className="run-username-filter" aria-label="Filter runs by username">
-                    <span>
+                    <span className="run-filter-label">
                       {usernameOptions.find((option) => option.value === usernameFilter)?.label ?? 'All users'}
                     </span>
                   </SelectTrigger>

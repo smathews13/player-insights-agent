@@ -54,6 +54,7 @@ import {
   Lock,
   Pencil,
   Save,
+  Search,
   Undo2,
   Wrench,
 } from 'lucide-react';
@@ -104,7 +105,7 @@ import { CHECK_VERDICT_LABEL } from '../../shared/check-verdict';
 import { NotebookCard } from './NotebookCard';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ApplyDeclarationCard } from './ApplyDeclarationCard';
-import { configurationValue, RESOURCE_PRODUCT, tableReachabilityCopy } from './connections-view';
+import { configurationValue, RESOURCE_PRODUCT, tableReachabilityCopy, declaredTableFilterOptions, filterDeclaredTables } from './connections-view';
 import { useSessionChecks } from './session-checks';
 import { DRIFT_MARKER_LABEL, truncateHead, visibleCounts, type ConnectionCounts } from './connection-status';
 // One cause said once over every check that shares it, and one remedy said once
@@ -147,6 +148,7 @@ import {
 // catalog browse rides an optional scope and a sign-in without it must still be
 // able to edit the row.
 import { AssetPickerField } from './AssetPicker';
+import { AppSelect } from './AppSelect';
 // The derivation itself -- which check belongs to which resource, which
 // findings are about it, and what that makes its badge -- is shared with the
 // Architecture page, which draws these same connections as a graph. See
@@ -563,7 +565,59 @@ export function DeclaredTablesTable({
   requestedEntity: string;
   checkedAt?: string;
 }) {
+  const [query, setQuery] = useState('');
+  const [catalog, setCatalog] = useState('');
+  const [schema, setSchema] = useState('');
+  const { catalogs, schemas } = useMemo(
+    () => declaredTableFilterOptions(tableChecks, catalog),
+    [tableChecks, catalog]
+  );
+  const visible = useMemo(
+    () => filterDeclaredTables(tableChecks, { query, catalog, schema }),
+    [tableChecks, query, catalog, schema]
+  );
+
   return (
+    <div className="connections-table-wrap">
+      <div className="connections-table-toolbar">
+        <div className="run-search connections-table-search">
+          <Search aria-hidden="true" />
+          <Input
+            type="search"
+            placeholder="Search tables"
+            aria-label="Search Unity Catalog tables"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        {catalogs.length > 0 ? (
+          <AppSelect
+            label="Catalog"
+            ariaLabel="Filter tables by catalog"
+            value={catalog || 'all'}
+            options={[
+              { value: 'all', label: 'All catalogs' },
+              ...catalogs.map((name) => ({ value: name, label: name })),
+            ]}
+            onValueChange={(next) => {
+              setCatalog(next === 'all' ? '' : next);
+              setSchema('');
+            }}
+          />
+        ) : null}
+        {schemas.length > 0 ? (
+          <AppSelect
+            label="Schema"
+            ariaLabel="Filter tables by schema"
+            value={schema || 'all'}
+            options={[
+              { value: 'all', label: 'All schemas' },
+              ...schemas.map((name) => ({ value: name, label: name })),
+            ]}
+            onValueChange={(next) => setSchema(next === 'all' ? '' : next)}
+          />
+        ) : null}
+      </div>
     <Table className="connections-table">
       <TableHeader>
         <TableRow>
@@ -573,10 +627,13 @@ export function DeclaredTablesTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {tableChecks.map(
-          (
-            check // Addressable and, when an answer linked here, highlighted. The row is
-          ) => (
+        {visible.map((check) => {
+          // One reading, used for the cell and its hover. Two calls were two
+          // chances for a decoy count in the probe text to land on one surface
+          // and the workspace's count on the other.
+          const reachability = tableReachabilityCopy(check, checkedAt);
+          return (
+            // Addressable and, when an answer linked here, highlighted. The row is
             // the entry an entity link lands on, so it carries the id rather than
             // the block around it.
             <TableRow key={check.id} {...entityRowProps(check.name, requestedEntity)}>
@@ -607,17 +664,19 @@ export function DeclaredTablesTable({
                 workspace said about it or the code it answered with. The
                 reasoning is stated once, on the group in What to fix, and the
                 whole sentence is still here in a title. */}
-              <TableCell title={tableReachabilityCopy(check, checkedAt).title}>
+              <TableCell className="connections-table-detail" title={reachability.title}>
                 {isRequestedEntity(check.name, requestedEntity) ? (
                   <span className="connections-table-arrival">Linked from the answer you followed here. </span>
                 ) : null}
-                {tableReachabilityCopy(check, checkedAt).row}
+                {reachability.row}
               </TableCell>
             </TableRow>
-          )
-        )}
+          );
+        })}
       </TableBody>
     </Table>
+      {visible.length === 0 ? <p className="connections-table-empty">No tables match these filters.</p> : null}
+    </div>
   );
 }
 

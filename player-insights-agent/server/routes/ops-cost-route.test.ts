@@ -101,6 +101,7 @@ describe('the ranged cost route', () => {
         isAdminRoute: () => true,
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
+        readAppBillingTag: async () => 'matched',
       }
     );
 
@@ -213,6 +214,7 @@ describe('the ranged cost route', () => {
         isAdminRoute: () => true,
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
+        readAppBillingTag: async () => 'matched',
       }
     );
 
@@ -236,6 +238,10 @@ describe('the ranged cost route', () => {
       resourceId: 'cat.schema.index',
       resourceKind: 'vector-index',
       unavailable: 'No billing rows',
+    });
+    expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
+      unavailable: 'Billing tag matched',
+      remedy: 'system_billing=astrolabe is on this app.',
     });
     expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });

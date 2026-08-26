@@ -50,12 +50,13 @@ describe('Settings modal', () => {
     expect(render('egress')).toContain('What can leave this deployment: downloads, copies, and outbound links.');
   });
 
-  it('puts the legacy-deployment tag repair under Experimental', () => {
-    const markup = render('experimental');
+  it('puts the legacy-deployment tag repair under Environment', () => {
+    const markup = render('environment');
     expect(markup).toContain('Astrolabe resource tags');
     expect(markup).toContain('system_billing=astrolabe');
     expect(markup).toContain('>Apply Astrolabe tags</button>');
     expect(markup).not.toContain('Admin only');
+    expect(render('experimental')).not.toContain('>Apply Astrolabe tags</button>');
   });
 
   it('puts MLflow and bake-off controls on Experimental, disabled while Benchmarking is off', () => {

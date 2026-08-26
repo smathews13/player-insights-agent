@@ -4,6 +4,7 @@ import type { EnvironmentInfo, EnvironmentPackage, EnvironmentVariable } from '.
 import { AgentCodeRow } from './AgentCodeRow';
 import { filterEnvironmentItems } from './environment-filter';
 import { environmentInfoFromResponse } from './environment-response';
+import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { Badge, Button, Input } from './ui';
 
 type EnvironmentTab = 'variables' | 'packages';
@@ -66,6 +67,8 @@ export function EnvironmentPanel({
       <div className="settings-pane-heading">
         <h3>Environment</h3>
       </div>
+
+      <ResourceTagsPanel />
 
       {/* Above the variables rather than inside them. What version of the agent
           is answering, and where its source is, is not an environment variable

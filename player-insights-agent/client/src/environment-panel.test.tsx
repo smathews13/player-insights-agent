@@ -62,6 +62,13 @@ describe('Environment panel', () => {
     }
   });
 
+  it('offers the Astrolabe tag repair on this pane', () => {
+    const markup = renderToStaticMarkup(<EnvironmentPanel initialData={INFO} />);
+    expect(markup).toContain('Astrolabe resource tags');
+    expect(markup).toContain('system_billing=astrolabe');
+    expect(markup).toContain('Apply Astrolabe tags');
+  });
+
   it('keeps only complete string rows from hostile payloads', () => {
     expect(
       environmentInfoFromResponse({

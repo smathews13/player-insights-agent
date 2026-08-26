@@ -30,6 +30,7 @@
  */
 
 import { APP_SCHEMA } from '../../shared/app-schema';
+import type { AppBillingTagState } from '../../shared/billing-tag';
 import type { Application, Request, Response } from 'express';
 import {
   buildCostStatement,
@@ -64,6 +65,7 @@ import {
 import { appEnvironment, readStoredSettings, resourceStates, type ResourceState } from '../lib/app-settings';
 import { readDeclaredConnections } from '../lib/declared-connections';
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
+import { readAppBillingTag } from '../lib/resource-tagging';
 import { readOrchestratorReport } from './settings-routes';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
@@ -251,12 +253,19 @@ function shownConnectionValue(state: ResourceState): string {
 async function costIdentifiersFor(
   appkit: InsightsAppKit,
   req: Request,
-  extras: { workspaceId: string; warehouse: string; fetchImpl?: typeof fetch }
+  extras: {
+    workspaceId: string;
+    warehouse: string;
+    fetchImpl?: typeof fetch;
+    readAppBillingTag?: (appName: string) => Promise<AppBillingTagState>;
+  }
 ): Promise<CostIdentifiers> {
-  const [{ report }, stored, declared] = await Promise.all([
+  const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
+  const [{ report }, stored, declared, appBillingTag] = await Promise.all([
     readOrchestratorReport(appkit),
     readStoredSettings(appkit).catch(() => new Map()),
     readDeclaredConnections(appkit),
+    (extras.readAppBillingTag ?? readAppBillingTag)(appName),
   ]);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   const configured = Object.fromEntries(states.map((state) => [state.resource.id, shownConnectionValue(state)]));
@@ -295,7 +304,7 @@ async function costIdentifiersFor(
     });
   }
   return {
-    appName: (process.env.DATABRICKS_APP_NAME ?? '').trim(),
+    appName,
     endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
     warehouseId: extras.warehouse,
     vectorEndpoint,
@@ -303,6 +312,7 @@ async function costIdentifiersFor(
     genieSpaces: spaces.filter((space) => space.id),
     workspaceId: extras.workspaceId,
     telemetryEnabled: Boolean(telemetrySchema()),
+    appBillingTag,
   };
 }
 
@@ -832,6 +842,11 @@ export interface OpsDeps {
   now?: () => number;
   /** Injected by tests, so a case can drive the range without moving the clock. */
   fetchImpl?: typeof fetch;
+  /**
+   * Injected by tests so Cost does not call the Apps tag API. Production reads
+   * the live assignment.
+   */
+  readAppBillingTag?: (appName: string) => Promise<AppBillingTagState>;
 }
 
 /**
@@ -926,6 +941,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         workspaceId,
         warehouse,
         fetchImpl: deps.fetchImpl,
+        readAppBillingTag: deps.readAppBillingTag,
       });
       const empty = {
         grant: null,
@@ -1017,9 +1033,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             currency: meta?.currency ?? '',
             throughDay: meta?.lastDay || '',
             billingLagDays: lagDays(range.to, meta?.lastDay || ''),
-            reason:
-              'No billing rows matched the Astrolabe tag in this range. Whether Databricks Apps propagates ' +
-              'that tag onto app-compute billing must be verified in the live workspace.',
+            reason: 'No billing rows matched the Astrolabe tag in this range.',
           } satisfies OpsCostPayload);
           return;
         }

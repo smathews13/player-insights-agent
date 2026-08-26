@@ -248,20 +248,50 @@
   font-size: var(--text-h-sub);
   font-weight: 700;
 }
+/*
+ * "All conversations" is the longer closed label. Equal `flex: 1 1 0` plus
+ * `min-width: 0` let that control shrink under its chevron; AppKit then clips
+ * the glyph and the focus ring with `overflow: hidden`. Username is the short
+ * control and can give way. The label ellipsizes; the chevron does not.
+ */
 .run-list-filters {
   display: flex;
   flex-direction: row;
   gap: 8px;
   align-items: stretch;
+  overflow: visible;
 }
-.run-list-filters > * {
-  flex: 1 1 0;
-  min-width: 0;
+.run-list-filters > *:first-child {
+  flex: 1 1 auto;
+  min-width: 11rem;
+  overflow: visible;
+}
+.run-list-filters > *:last-child {
+  flex: 0 1 auto;
+  min-width: 6rem;
+  overflow: visible;
 }
 .run-conversation-filter,
 .run-username-filter {
   width: 100%;
   justify-content: space-between;
+  gap: 6px;
+  padding-right: 8px;
+}
+.run-conversation-filter {
+  overflow: visible;
+}
+.run-username-filter {
+  overflow: visible;
+}
+.run-list-filters [data-slot='select-trigger'] > svg {
+  flex: none;
+}
+.run-filter-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* The search field's leading icon sits in the field rather than beside it, so
    the 340px column spends none of its width on a second box. */

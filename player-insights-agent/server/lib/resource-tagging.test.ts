@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { PreflightReport } from '../routes/insights-routes';
-import { applyAstrolabeTags, resourceTagInventory, type ResourceTagPlatform } from './resource-tagging';
+import {
+  applyAstrolabeTags,
+  readAppBillingTag,
+  resourceTagInventory,
+  type ResourceTagPlatform,
+} from './resource-tagging';
 
 function report(configuration: Array<{ key: string; value: string }>): PreflightReport {
   return { configuration } as unknown as PreflightReport;
@@ -79,6 +84,28 @@ describe('Astrolabe resource tag inventory', () => {
       name: 'databricks-claude-sonnet-4-6',
     });
     expect(targets.filter((target) => target.kind === 'genie-space')).toHaveLength(2);
+  });
+});
+
+describe('reading the app billing tag', () => {
+  it('treats the live assignment as matched when the value is astrolabe', async () => {
+    expect(
+      await readAppBillingTag('player-insights', { getAppTag: vi.fn(() => Promise.resolve('astrolabe')) })
+    ).toBe('matched');
+  });
+
+  it('treats a missing or other value as missing, and a failure as unverified', async () => {
+    expect(await readAppBillingTag('player-insights', { getAppTag: vi.fn(() => Promise.resolve(null)) })).toBe(
+      'missing'
+    );
+    expect(await readAppBillingTag('', { getAppTag: vi.fn(() => Promise.resolve('astrolabe')) })).toBe(
+      'unverified'
+    );
+    expect(
+      await readAppBillingTag('player-insights', {
+        getAppTag: vi.fn(() => Promise.reject(new Error('no credentials'))),
+      })
+    ).toBe('unverified');
   });
 });
 

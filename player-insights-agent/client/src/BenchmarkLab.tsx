@@ -15,7 +15,6 @@ import { unavailableNotice } from './unavailable-copy';
 import {
   Alert,
   AlertDescription,
-  AlertTitle,
   Badge,
   Card,
   CardDescription,
@@ -67,12 +66,9 @@ import { runLabel } from './run-label';
 import { UserIdentityChip } from './UserIdentityChip';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
-import {
-  SCORECARD_NON_GATING_NOTICE,
-  SCORER_CATALOG,
-} from '../../shared/scorer-catalog';
+import { SCORER_CATALOG } from '../../shared/scorer-catalog';
 import type { Scorecard, ScorecardState } from '../../shared/scorecard-contract';
-import { formatScore, labelSourceSummary, scoreCoverage } from './benchmark-state';
+import { formatScore, scoreCoverage } from './benchmark-state';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { compareSides, DEFAULT_BENCHMARK_SETTINGS } from '../../shared/benchmark-settings';
 import { OPERATOR_EVAL_SUITE_ID } from '../../shared/eval-dataset';
@@ -292,41 +288,6 @@ export function HeldOutEvaluation({ state }: { state: ScorecardState }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* FIRST, ABOVE EVERY FIGURE AND ABOVE THE NON-GATING NOTICE.
-            
-            The labels this scorecard grades against were written by the coding
-            agent that built the evaluation, and no domain expert has reviewed
-            them. That was true when the scorecard was a footnote and it was
-            technically disclosed, in `labelProvenance`, four rows down a ledger
-            below the numbers -- which is the shape of a disclosure written to be
-            defensible rather than to be read.
-            
-            It is here, in the destructive tone the page otherwise reserves for
-            failures, because the failure mode is specific: the judged rates
-            currently look respectable, and a respectable number graded against
-            an unreviewed standard is more misleading than a poor one. The reader
-            most likely to notice is the customer's proof-of-concept lead, who
-            will be the super admin of their deployment, and they should hear it
-            from this pane rather than work it out. */}
-        {scorecard && !scorecard.provenance.labelsReviewed && (<Alert variant="destructive" className="bench-labels-unreviewed">
-            <TriangleAlert />
-            <AlertTitle>{scorecard.provenance.labelReviewHeadline}</AlertTitle>
-            <AlertDescription>
-              <p>{scorecard.provenance.labelReviewConsequence}</p>
-              <p className="bench-label-sources">{labelSourceSummary(scorecard)}</p>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Then, still before any figure. A scorecard that looks like a release
-            gate and is not one will be treated as a release gate by the first
-            person who reads it, and then a low number will quietly start
-            blocking things nobody decided it should block. */}
-        <Alert>
-          <Info />
-          <AlertDescription>{SCORECARD_NON_GATING_NOTICE}</AlertDescription>
-        </Alert>
-
         {!scorecard && (/* Not an error state and not an empty one. The evaluation is
                unpublished for a specific, stateable reason, and the reason is
                a governance property behaving correctly rather than a gap. */
@@ -334,61 +295,6 @@ export function HeldOutEvaluation({ state }: { state: ScorecardState }) {
             <TriangleAlert />
             <AlertDescription>{state.published ? '' : state.reason}</AlertDescription>
           </Alert>
-        )}
-
-        {scorecard && (<section className="bench-ledger" aria-labelledby="heldout-provenance-head">
-            <h3 className="bench-ledger-head" id="heldout-provenance-head">
-              Read before comparing these scores
-            </h3>
-            <ul className="bench-ledger-rows">
-              <li className="bench-ledger-row tone-info">
-                <Info />
-                <p>
-                  <strong>Published, not live.</strong> Produced {conversationAge(scorecard.provenance.evaluatedAt)} against
-                  agent {scorecard.provenance.agentCommit}. This page does not re-run it; the figures move when a new
-                  evaluation is published.
-                </p>
-              </li>
-              <li className="bench-ledger-row tone-identity">
-                <User />
-                <p>
-                  <strong>
-                    Run as{' '}
-                    {scorecard.provenance.executedAs.includes('@') ? (
-                      <UserIdentityChip identity={scorecard.provenance.executedAs} compact />
-                    ) : (
-                      scorecard.provenance.executedAs
-                    )}.
-                  </strong>{' '}
-                  {scorecard.provenance.executedAsNote}
-                </p>
-              </li>
-              {/* Danger tone, matching the banner above rather than sitting in
-                  the neutral run of provenance rows. The full sentence lives
-                  here; the banner carries the part a reader must not scroll
-                  past, and the two say the same thing on purpose. */}
-              <li className="bench-ledger-row tone-danger">
-                <TriangleAlert />
-                <p>
-                  <strong>How the labels were made, in full.</strong> {scorecard.provenance.labelProvenance}
-                </p>
-              </li>
-              <li className="bench-ledger-row tone-info">
-                <Info />
-                <p>
-                  <strong>Which model answered.</strong> {scorecard.provenance.servedModel} Produced through
-                  the {scorecard.provenance.producedBy === 'benchmark-runner' ? 'signed-in Benchmark Lab run path' : scorecard.provenance.producedBy},
-                  so the figures describe the agent as a person with grants sees it.
-                </p>
-              </li>
-              <li className="bench-ledger-row tone-info">
-                <Info />
-                <p>
-                  <strong>What it is held out from.</strong> {scorecard.provenance.heldOutFrom}
-                </p>
-              </li>
-            </ul>
-          </section>
         )}
 
         <div className="table-scroll bench-scorers">
@@ -434,11 +340,9 @@ export function HeldOutEvaluation({ state }: { state: ScorecardState }) {
                     <TableCell>
                       <span className="bench-scorer-meaning">{definition.meaning}</span>
                       <span className="bench-case-note">{scoreCoverage(definition, score)}</span>
-                      {/* On the row itself, not only in the banner above. The
-                          two judged scorers are the ones graded against the
-                          unreviewed labels, and a reader who scrolls straight
-                          to a percentage they care about must meet the
-                          qualifier at the number rather than above it. */}
+                      {/* On the judged rows themselves. A reader who goes
+                          straight to a percentage still meets the qualifier
+                          at the number rather than in a stack of essays above. */}
                       {judged && (<span className="bench-case-note bench-unreviewed-note">
                           Graded by a language model against labels no domain expert has reviewed. Provisional.
                         </span>

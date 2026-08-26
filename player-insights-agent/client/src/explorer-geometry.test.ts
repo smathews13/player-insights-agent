@@ -52,6 +52,17 @@ describe('the Run Explorer’s two columns', () => {
     expect(EXPLORER).toContain('All users');
   });
 
+  it('does not let All conversations shrink under its chevron or focus ring', () => {
+    // Equal `flex: 1 1 0` plus `min-width: 0` was what sliced the longer closed
+    // label: the chevron and the focus ring both ended at a flat right edge.
+    const conversation = rule(RUNS, '.run-list-filters > *:first-child');
+    expect(conversation).toContain('min-width: 11rem');
+    expect(conversation).not.toContain('min-width: 0');
+    expect(rule(RUNS, '.run-conversation-filter')).toContain('overflow: visible');
+    expect(rule(RUNS, '.run-filter-label')).toContain('text-overflow: ellipsis');
+    expect(EXPLORER).toContain('run-filter-label');
+  });
+
   it('gives the detail column a real pane, not a floating tint', () => {
     // Tabs plus the view they switch sit on one sheet. No hairline is what
     // made Overview, Agent map, Timeline and Details read as a square of

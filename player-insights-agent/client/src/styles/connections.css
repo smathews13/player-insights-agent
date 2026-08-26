@@ -620,6 +620,27 @@
  * these on the shared surface tokens makes the matrix gain exactly the same
  * dark treatment as its pane rather than becoming a second, nested card.
  */
+.connections-table-wrap {
+  display: grid;
+  gap: 10px;
+}
+.connections-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.connections-table-search {
+  /* `.run-search` paints the icon and the field padding. This only sizes the
+     box in the toolbar, the same split Monitoring uses. */
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+.connections-table-empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
 .connections-table {
   font-size: var(--text-sm);
 }
@@ -641,6 +662,12 @@
 .connections-table-name {
   font-family: var(--font-mono);
   font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.connections-table-detail {
+  /* Wrap rather than clip. A nowrap detail cell is how "17 columns" lost its
+     leading digit and the hover still said seventeen. */
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 /*

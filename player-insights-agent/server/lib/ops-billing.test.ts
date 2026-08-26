@@ -18,6 +18,7 @@ const IDS: CostIdentifiers = {
   genieSpaces: [],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
+  appBillingTag: 'unverified',
 };
 const RANGE = { from: '2026-08-10', to: '2026-08-16' };
 
@@ -69,7 +70,22 @@ describe('billing attribution', () => {
     const app = buildTiles(IDS, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
     expect(app?.unavailable).toContain('unverified');
-    expect(app?.remedy).toContain('Verify');
+    expect(app?.remedy).toContain('could not be read');
+  });
+
+  it('reports a verified app tag as matched instead of asking someone to look', () => {
+    const app = buildTiles({ ...IDS, appBillingTag: 'matched' }, []).find((tile) => tile.id === 'app-compute');
+    expect(app?.amount).toBeNull();
+    expect(app?.unavailable).toBe('Billing tag matched');
+    expect(app?.remedy).toContain('system_billing=astrolabe is on this app');
+    expect(app?.unavailable).not.toContain('unverified');
+  });
+
+  it('points a missing app tag at Settings → Environment', () => {
+    const app = buildTiles({ ...IDS, appBillingTag: 'missing' }, []).find((tile) => tile.id === 'app-compute');
+    expect(app?.amount).toBeNull();
+    expect(app?.unavailable).toBe('Billing tag missing');
+    expect(app?.remedy).toContain('Settings → Environment');
   });
 
   it('reports Genie SQL through the warehouse instead of claiming space-level spend', () => {

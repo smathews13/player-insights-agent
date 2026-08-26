@@ -38,7 +38,7 @@
  * endpoint and warehouse ids out of the repository.
  */
 
-import { BILLING_TAG } from '../../shared/billing-tag';
+import { BILLING_TAG, billingTagPair, type AppBillingTagState } from '../../shared/billing-tag';
 import type {
   CostQuality,
   CostResourceKind,
@@ -102,6 +102,13 @@ export interface CostIdentifiers {
    * elsewhere.
    */
   telemetryEnabled: boolean;
+  /**
+   * Whether this app's own tag assignment is `system_billing=astrolabe`.
+   *
+   * Read from the Apps tag API, not from billed usage. Missing spend is not
+   * evidence the tag is absent.
+   */
+  appBillingTag: AppBillingTagState;
 }
 
 /** Inclusive ISO dates. `to` is the last complete day, never today. */
@@ -536,6 +543,31 @@ function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
   }));
 }
 
+/**
+ * App compute with no billed rows is a tag-state card, not "$0.00".
+ *
+ * The spend query filters `system.billing.usage` by the Astrolabe tag. Apps
+ * tags often never appear on those rows, so missing spend used to be labelled
+ * "unverified" and asked a person to go and look. The Cost route now reads the
+ * app's own tag assignment; this copy reports that reading.
+ */
+function appComputeTagAbsence(state: AppBillingTagState): { unavailable: string; remedy: string } {
+  const pair = billingTagPair();
+  if (state === 'matched') {
+    return { unavailable: 'Billing tag matched', remedy: `${pair} is on this app.` };
+  }
+  if (state === 'missing') {
+    return {
+      unavailable: 'Billing tag missing',
+      remedy: `Apply ${pair} in Settings → Environment.`,
+    };
+  }
+  return {
+    unavailable: 'Billing tag match unverified',
+    remedy: `The app tag ${pair} could not be read.`,
+  };
+}
+
 function componentTile(
   component: Exclude<CostComponent, 'genie'>,
   ids: CostIdentifiers,
@@ -586,12 +618,13 @@ function componentTile(
   const row = byComponent.get(component);
   if (!row || row.spend === null || !Number.isFinite(row.spend)) {
     if (component === 'app-compute') {
+      const absence = appComputeTagAbsence(ids.appBillingTag);
       return {
         ...base,
         amount: null,
         note: '',
-        unavailable: 'Billing tag match unverified',
-        remedy: `Verify whether app compute propagates ${BILLING_TAG.key}=${BILLING_TAG.value}.`,
+        unavailable: absence.unavailable,
+        remedy: absence.remedy,
       };
     }
     return { ...base, amount: null, note: '', unavailable: 'No billing rows', remedy: '' };
@@ -645,7 +678,7 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
     {
       id: 'app-compute',
       label: 'App compute',
-      unavailable: 'Compute time cannot be joined to one run; billing-tag propagation also needs live verification.',
+      unavailable: 'Compute time cannot be joined to one run.',
     },
     {
       id: 'foundation-model',

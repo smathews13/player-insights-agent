@@ -122,16 +122,25 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
   it('heads the step listing instead of stacking above it', () => {
     const gantt = functionSource(TIMELINE, 'Gantt');
     expect(gantt).toContain('<RollUp rows={model.rollUp}');
-    expect(gantt).toContain('<KindSummary rows={model.rollUp}');
+    expect(gantt).toContain('<KindKpis rows={model.rollUp}');
     // Ahead of the heading for the steps, which is what makes it the header of
     // the listing rather than a section before it.
     expect(gantt.indexOf('<RollUp')).toBeLessThan(gantt.indexOf('Step timeline'));
   });
 
-  it('keeps failed time visible on the explorer kind table, not only on Ask tiles', () => {
-    const summary = functionSource(TIMELINE, 'KindSummary');
-    expect(summary).toContain('row.failedCalls > 0');
-    expect(summary).toContain('trace-failed');
+  it('puts Explorer kind totals in a compact badge row, not a full-width table', () => {
+    const badges = functionSource(TIMELINE, 'KindKpis');
+    expect(badges).toContain('trace-kind-kpis');
+    expect(badges).toContain('formatMs(row.totalMs)');
+    expect(badges).not.toMatch(/<t(able|head|body|r|d|h)[\s>]/);
+    expect(STYLESHEET).toMatch(/\.trace-kind-kpis \{[^}]*display:\s*flex/s);
+    expect(STYLESHEET).not.toMatch(/\.trace-kind-summary \{/);
+  });
+
+  it('keeps failed time on the explorer kind badges, not only on Ask tiles', () => {
+    const badges = functionSource(TIMELINE, 'KindKpis');
+    expect(badges).toContain('row.failedCalls > 0');
+    expect(badges).toContain('counted in recorded activity, left out of the time above');
   });
 
   it('keeps notebook kind colour on Run Explorer only', () => {
@@ -140,7 +149,7 @@ describe('the roll-up reads as tiles at the head of the steps', () => {
     expect(RUN_EXPLORER).toMatch(/variant="explorer"/);
     expect(CARD).not.toMatch(/variant="explorer"/);
     expect(STYLESHEET).toMatch(/\.trace-timeline--explorer \.trace-chip-llm \{/);
-    expect(STYLESHEET).toMatch(/\.trace-kind-summary \{/);
+    expect(STYLESHEET).toMatch(/\.trace-kind-kpis \{/);
   });
 
   it('does not stack a second frosted pane on either surface that draws it', () => {
@@ -340,12 +349,11 @@ describe('the panel labels its parts rather than narrating them', () => {
     // that records no trace. Asserted across the surfaces together, because the
     // point of one shared timeline is that Run Explorer cannot keep its own copy.
     //
-    // Explorer may carry ONE short geometry caption (`trace-geometry-note`); the
-    // banned strings below are the old multi-paragraph wording, not that caption.
     const surfaces = `${CARD}${TIMELINE}${HOME}${RUN_EXPLORER}`;
     for (const phrase of [
       'Bars thinner than',
       'the duration column is the true value',
+      'Bar positions come from recorded timestamps',
       'would have saved up',
       'ran one after another',
       'plan you approved',
@@ -355,7 +363,8 @@ describe('the panel labels its parts rather than narrating them', () => {
     ]) {
       expect(surfaces, `${phrase} is gone`).not.toContain(phrase);
     }
-    expect(TIMELINE).toContain('trace-geometry-note');
+    expect(TIMELINE).not.toContain('trace-geometry-note');
+    expect(STYLESHEET).not.toContain('trace-geometry-note');
     // And the machinery, not just the sentences. A flag or a saving still being
     // computed is a sentence waiting to be written again.
     for (const symbol of ['TimelineNotes', 'afterPlanApproval', 'fanout', 'concurrencySavingMs']) {

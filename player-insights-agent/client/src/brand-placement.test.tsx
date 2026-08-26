@@ -415,13 +415,14 @@ describe('Run Explorer Timeline uses the notebook vocabulary', () => {
     ],
   };
 
-  it('draws kind pills, matching bars, notebook event names, and the kind table', () => {
+  it('draws kind pills, matching bars, notebook event names, and kind badges', () => {
     const drawn = renderToStaticMarkup(
       <TraceTimeline variant="explorer" trace={notebookViz} question="How many Hoops games do we have?" />
     );
 
     expect(drawn).toContain('trace-timeline--explorer');
-    expect(drawn).toContain('trace-kind-summary');
+    expect(drawn).toContain('trace-kind-kpis');
+    expect(drawn).not.toContain('trace-kind-summary');
     expect(drawn).not.toContain('Time by tool type');
     expect(drawn).not.toContain('Step timeline');
     expect(drawn).not.toContain('brand-icon');
@@ -445,7 +446,6 @@ describe('Run Explorer Timeline uses the notebook vocabulary', () => {
     expect(drawn).toContain('trace-bar-plot');
 
     expect(drawn).toContain('19.12s');
-    expect(drawn).toContain('80%');
     expect(drawn).toContain('3.62s');
     expect(drawn).toContain('78ms');
     expect(drawn).toContain('24.01s');
@@ -465,5 +465,6 @@ describe('Run Explorer Timeline uses the notebook vocabulary', () => {
     expect(drawn).not.toContain('run - [orchestrator]');
     expect(drawn).not.toContain('model call - [orchestrator] turn 1');
     expect(drawn).not.toContain('trace-kind-summary');
+    expect(drawn).not.toContain('trace-kind-kpis');
   });
 });

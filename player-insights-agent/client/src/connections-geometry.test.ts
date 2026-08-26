@@ -183,6 +183,13 @@ describe('the parts a reader has to be able to use', () => {
     // anchor and is the only segment that should carry the full weight.
     expect(rule('.connections-table-name')).toMatch(/font-weight:\s*400/);
     expect(rule(".connections-entity-name [data-entity-part='table']")).toMatch(/font-weight:\s*700/);
+    // The search sits in a wrapping toolbar above the matrix, sized here; the
+    // magnifying glass and field padding are `.run-search` so this cannot drift
+    // from Monitoring and Run Explorer.
+    expect(rule('.connections-table-toolbar')).toMatch(/display:\s*flex/);
+    expect(rule('.connections-table-search')).toMatch(/flex:\s*1 1 200px/);
+    expect(rule('.connections-table-detail')).toMatch(/white-space:\s*normal/);
+    expect(rule('.connections-table-detail')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
   it('uses the destructive control token only for permanent removal', () => {

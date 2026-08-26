@@ -1344,6 +1344,56 @@ describe('the Unity Catalog tables section', () => {
   });
 
   /**
+   * Search and the two dropdowns sit in the table header, in the same chrome
+   * Monitoring and Run Explorer already use: `.run-search` for the field, and
+   * `AppSelect` labelled Catalog / Schema. Typed fragments and the dropdowns
+   * themselves are asserted next to the helpers; this is that the controls are
+   * on the screen.
+   */
+  it('puts a table search and catalog/schema filters above the rows', () => {
+    const markup = render(<DeclaredTablesTable tableChecks={tables} requestedEntity="" />);
+    expect(markup).toContain('run-search');
+    expect(markup).toContain('connections-table-toolbar');
+    expect(markup).toContain('aria-label="Search Unity Catalog tables"');
+    expect(markup).toContain('placeholder="Search tables"');
+    expect(markup).toContain('Filter tables by catalog');
+    expect(markup).toContain('Filter tables by schema');
+    expect(text(markup)).toContain('Catalog');
+    expect(text(markup)).toContain('Schema');
+    expect(text(markup)).toContain('All catalogs');
+    expect(text(markup)).toContain('All schemas');
+    expect(markup).toContain('a_catalog');
+    expect(markup).toContain('a_schema');
+  });
+
+  /**
+   * THE 17-vs-7 FAULT. A probe sentence that mentions 7 columns before it
+   * reports the workspace's 17 used to put 7 in the cell and 17 on the hover.
+   * Both now come from one count.
+   */
+  it('gives the row and its hover the same column count when the detail names two', () => {
+    const markup = render(
+      <DeclaredTablesTable
+        tableChecks={[
+          check('t1', 'ok', {
+            kind: 'table',
+            name: '<your_catalog>.<your_schema>.data_dictionary',
+            detail:
+              'Cached 7 columns from an earlier extract. The workspace answered as reader@example.com: 17 columns. ' +
+              'That is a metadata read.',
+          }),
+        ]}
+        requestedEntity=""
+        checkedAt="2026-08-26T16:28:00.000Z"
+      />
+    );
+    expect(text(markup)).toMatch(/\b17 columns\b/);
+    expect(text(markup)).not.toMatch(/\b7 columns\b/);
+    expect(markup).toMatch(/title="Reachability confirmed\. Schema has 17 columns\./);
+    expect(markup).not.toMatch(/title="[^"]*\b7 columns\b/);
+  });
+
+  /**
    * The qualifier disambiguates the object; the last segment is what changes
    * down the list and therefore what a reader scans. All three segments use the
    * shared entity classes whose values are written by Settings > Appearance.

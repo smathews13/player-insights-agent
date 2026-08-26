@@ -10,9 +10,9 @@
  * this app that most looks like evidence, so the failures worth pinning are the
  * ones where it says something true-looking and wrong: a scorer that cannot
  * report rendering as a pass, a rate rendering without the population it is
- * over, a latency rendering as though it were a quality score, or the
- * non-gating notice quietly disappearing so that a low number starts being
- * treated as a release gate.
+ * over, or a latency rendering as though it were a quality score. The walls of
+ * copy that used to sit above the table are gone on purpose; the tests below
+ * pin that they stay gone.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -76,17 +76,32 @@ function markup(state: ScorecardState) {
   return renderToStaticMarkup(<HeldOutEvaluation state={state} />);
 }
 
-describe('the non-gating notice', () => {
-  it('is on the pane whether or not an evaluation has been published', () => {
-    // The single most important sentence here. A scorecard that looks like a
-    // release gate will be treated as one by the first person who reads it,
-    // and then a low number starts blocking things nobody decided it should
-    // block. It cannot be conditional on there being figures to qualify.
+describe('the copy above the scorers', () => {
+  it('is only the title and a short subtitle, published or not', () => {
     for (const state of [evalScorecard(), { published: true, scorecard: PUBLISHED } as ScorecardState]) {
-      expect(markup(state)).toContain('None of these scorers gates a release');
+      const html = markup(state);
+      expect(html).toContain('Held-out evaluation');
+      expect(html).not.toContain('None of these scorers gates a release');
+      expect(html).not.toContain('Read before comparing these scores');
+      expect(html).not.toContain('These labels have not been reviewed by anyone who knows this data.');
+      expect(html).not.toContain('Published, not live');
+      expect(html).not.toContain('bench-labels-unreviewed');
     }
   });
 
+  it('puts the scorer table immediately under that heading', () => {
+    const html = markup({ published: true, scorecard: PUBLISHED });
+    const title = html.indexOf('Held-out evaluation');
+    const subtitle = html.indexOf('none of which the demo is tuned against');
+    const table = html.indexOf('bench-scorers');
+    expect(title).toBeGreaterThanOrEqual(0);
+    expect(subtitle).toBeGreaterThan(title);
+    expect(table).toBeGreaterThan(subtitle);
+    expect(html.slice(subtitle, table)).not.toContain('data-slot="alert"');
+  });
+});
+
+describe('gating stays a catalog fact, not a screen claim', () => {
   it('says the non-gating decision was deliberate rather than unfinished', () => {
     // Without this, the honest reading of a non-gating scorecard is "they
     // haven't got round to wiring it up yet", and someone helpfully wires it up.
@@ -218,66 +233,33 @@ describe('published figures carry their population', () => {
   });
 });
 
-describe('what a published scorecard has to disclose', () => {
-  it('says when it was produced and against which commit, because it is not live', () => {
+describe('a published scorecard does not open with provenance essays', () => {
+  it('does not put production time, account, or held-out-from on the pane', () => {
     const html = markup({ published: true, scorecard: PUBLISHED });
-    expect(html).toContain('Published, not live');
-    expect(html).toContain('abc1234');
-  });
-
-  it('names the account it ran as, which qualifies every governed-access number', () => {
-    const html = markup({ published: true, scorecard: PUBLISHED });
-    expect(html).toContain('someone@example.com');
-    expect(html).toContain('the row filter did not apply to them');
-  });
-
-  it('carries the label provenance, so a judged rate is not read as ground truth', () => {
-    const html = markup({ published: true, scorecard: PUBLISHED });
-    expect(html).toContain('No domain expert reviewed them');
-  });
-
-  it('says what the set is held out from', () => {
-    expect(markup({ published: true, scorecard: PUBLISHED })).toContain('POC benchmark suite');
+    expect(html).not.toContain('abc1234');
+    expect(html).not.toContain('someone@example.com');
+    expect(html).not.toContain('the row filter did not apply to them');
+    expect(html).not.toContain('No domain expert reviewed them');
+    expect(html).not.toContain('POC benchmark suite');
   });
 });
 
 describe('the unreviewed labels', () => {
-  // The failure this guards against is not an absent disclosure. It is an
-  // accurate one, placed where the reader who most needs it will not meet it:
-  // four rows down a provenance ledger, below the numbers it qualifies. The
-  // judged rates currently look respectable, and a respectable number graded
-  // against a standard nobody has checked is more misleading than a poor one.
   const html = () => markup({ published: true, scorecard: PUBLISHED });
 
-  it('is announced before any figure on the pane, not after them', () => {
+  it('do not get a banner above the scorers', () => {
     const rendered = html();
-    const warning = rendered.indexOf('have not been reviewed');
-    const firstFigure = rendered.indexOf('bench-scorer-name');
-    expect(warning).toBeGreaterThanOrEqual(0);
-    expect(warning).toBeLessThan(firstFigure);
+    expect(rendered).not.toContain('bench-labels-unreviewed');
+    expect(rendered).not.toContain('have not been reviewed by anyone who knows this data');
+    expect(rendered).not.toContain('agree with the repository');
+    expect(rendered).not.toContain('settled by a query anyone can re-run');
+    expect(rendered).not.toContain('rest on a reading of policy alone');
   });
 
-  it('says what the unreviewed labels do to a good-looking number', () => {
-    // Without this sentence the banner reports a process fact. With it, the
-    // reader knows a high correctness rate means agreement with the repository
-    // rather than agreement with the truth.
-    expect(html()).toContain('agree with the repository');
-  });
-
-  it('separates the labels a reader could check from the ones they could not', () => {
-    // The distinction is the actionable part: a label settled by a query is
-    // falsifiable by anyone with the warehouse, and a label read off a policy
-    // document can only be agreed or disagreed with. It tells a reviewer which
-    // third of the set to spend their scepticism on.
-    const rendered = html();
-    expect(rendered).toContain('settled by a query anyone can re-run');
-    expect(rendered).toContain('rest on a reading of policy alone');
-  });
-
-  it('qualifies the judged scorers at the number as well as in the banner', () => {
-    // A reader who scrolls to the percentage they care about must meet the
-    // qualifier there. Both judged scorers carry it; the deterministic and
-    // operational ones do not, because they are not graded against a label.
+  it('still qualify the judged scorers at the number', () => {
+    // A reader who goes straight to the percentage still meets the qualifier
+    // on that row. Deterministic and operational scorers do not, because they
+    // are not graded against a label.
     const rendered = html();
     const notes = rendered.split('bench-unreviewed-note').length - 1;
     const judgedCount = SCORER_CATALOG.filter(
@@ -286,15 +268,11 @@ describe('the unreviewed labels', () => {
     expect(notes).toBe(judgedCount);
   });
 
-  it('disappears only when a scorecard actually records a review', () => {
-    // The banner must be driven by the recorded fact rather than hardcoded, so
-    // that a reviewed set stops shouting -- and so that the only way to silence
-    // it is to have done the review.
+  it('drop the per-row qualifier only when a scorecard records a review', () => {
     const reviewed: Scorecard = {
       ...PUBLISHED,
       provenance: { ...PUBLISHED.provenance, labelsReviewed: true },
     };
-    expect(markup({ published: true, scorecard: reviewed })).not.toContain('bench-labels-unreviewed');
     expect(markup({ published: true, scorecard: reviewed })).not.toContain('bench-unreviewed-note');
   });
 });

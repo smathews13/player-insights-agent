@@ -126,56 +126,29 @@ function RollUp({ rows }: { rows: RollUpRow[] }) {
 }
 
 /**
- * The same roll-up numbers as the KPI tiles, as the notebook's kind table.
+ * Explorer's kind totals as compact KPI badges above the table.
  *
- * Not a second summary: same `model.rollUp` rows, same denominators, just the
- * column layout Acme's viz uses so Explorer can be compared side by side.
+ * Same `model.rollUp` rows and denominators as Ask's tiles. The run envelope is
+ * already omitted from that list, so wall clock is not counted twice.
  */
-function KindSummary({ rows }: { rows: RollUpRow[] }) {
+function KindKpis({ rows }: { rows: RollUpRow[] }) {
   if (rows.length === 0) return null;
   return (
-    <div className="trace-rollup trace-kind-summary-wrap">
-      <table className="trace-kind-summary">
-        <thead>
-          <tr>
-            <th scope="col">kind</th>
-            <th scope="col" className="trace-num">
-              duration
-            </th>
-            <th scope="col" className="trace-num">
-              % of wall
-            </th>
-            <th scope="col" className="trace-num">
-              calls
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.type}>
-              <td>
-                <KindChip type={row.type} />
-              </td>
-              <td className="trace-num ast-num">{formatMs(row.totalMs)}</td>
-              <td className="trace-num ast-num">
-                {row.sharePct === null ? '—' : `${Math.round(row.sharePct)}%`}
-              </td>
-              <td className="trace-num ast-num">
-                {row.calls}
-                {row.failedCalls > 0 && (
-                  <em
-                    className="trace-failed"
-                    title="failed: counted in recorded activity, left out of the duration above"
-                  >
-                    {' '}
-                    · {row.failedCalls} failed
-                  </em>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="trace-kind-kpis" aria-label="Time by kind">
+      {rows.map((row) => (
+        <div
+          key={row.type}
+          className="trace-kpi"
+          title={
+            row.failedCalls > 0
+              ? `${row.failedCalls} failed: counted in recorded activity, left out of the time above`
+              : undefined
+          }
+        >
+          <KindChip type={row.type} />
+          <strong className="ast-num">{formatMs(row.totalMs)}</strong>
+        </div>
+      ))}
     </div>
   );
 }
@@ -373,7 +346,7 @@ function Gantt({
   const explorer = variant === 'explorer';
   return (
     <div className="trace-gantt">
-      {explorer ? <KindSummary rows={model.rollUp} /> : <RollUp rows={model.rollUp} />}
+      {explorer ? <KindKpis rows={model.rollUp} /> : <RollUp rows={model.rollUp} />}
       {!explorer && (
         <div className="trace-panel-heading">
           <h4>Step timeline</h4>
@@ -422,12 +395,6 @@ function Gantt({
           </tbody>
         </table>
       </div>
-      {explorer && (
-        <p className="trace-note trace-geometry-note">
-          Bar positions come from recorded timestamps. Short events stay visible on the track; the Duration column
-          keeps the measured value. The run row is left out of the kind summary so its wall clock is not counted twice.
-        </p>
-      )}
     </div>
   );
 }

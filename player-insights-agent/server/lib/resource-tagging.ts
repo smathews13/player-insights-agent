@@ -10,7 +10,12 @@
  * custom tags on their endpoint.
  */
 import type { PreflightReport } from '../routes/insights-routes';
-import { BILLING_TAG, RETIRED_BILLING_TAG_KEY, billingTagPair } from '../../shared/billing-tag';
+import {
+  BILLING_TAG,
+  RETIRED_BILLING_TAG_KEY,
+  billingTagPair,
+  type AppBillingTagState,
+} from '../../shared/billing-tag';
 
 export const ASTROLABE_TAG = BILLING_TAG;
 
@@ -429,6 +434,27 @@ async function tagTargetOnce(target: ResourceTagTarget, platform: ResourceTagPla
  * the production adapter below creates WorkspaceClient with Apps-injected
  * credentials.
  */
+/**
+ * Whether this app currently carries `system_billing=astrolabe`.
+ *
+ * A read of the app's own tag assignment, not of billed usage. Missing spend is
+ * not evidence the tag is absent.
+ */
+export async function readAppBillingTag(
+  appName: string,
+  platform?: Pick<ResourceTagPlatform, 'getAppTag'>
+): Promise<AppBillingTagState> {
+  const name = appName.trim();
+  if (!name) return 'unverified';
+  try {
+    const adapter = platform ?? (await workspaceTagPlatform());
+    const current = await adapter.getAppTag(name);
+    return current === ASTROLABE_TAG.value ? 'matched' : 'missing';
+  } catch {
+    return 'unverified';
+  }
+}
+
 export async function applyAstrolabeTags(input: {
   report: PreflightReport | null;
   environment?: NodeJS.ProcessEnv;

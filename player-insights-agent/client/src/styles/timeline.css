@@ -535,37 +535,26 @@
   background: transparent;
   border: 1.5px dashed var(--primary);
 }
-.trace-kind-summary-wrap {
-  margin-bottom: 12px;
+/* Explorer: kind totals as a compact badge row above the table, not a
+   full-width kind/duration listing. Ask keeps the larger `.trace-kpis` tiles. */
+.trace-kind-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
 }
-.trace-kind-summary {
+.trace-kind-kpis .trace-kpi {
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   width: auto;
-  max-width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-xs);
-  font-family: var(--font-mono);
+  padding: 6px 10px;
+  white-space: nowrap;
 }
-.trace-kind-summary th,
-.trace-kind-summary td {
-  padding: 4px 14px 4px 0;
-  text-align: left;
-  border-bottom: 1px solid var(--ast-border-input);
-  vertical-align: middle;
-}
-.trace-kind-summary th {
-  font-weight: 600;
-  color: var(--muted-foreground);
-  text-transform: none;
-  letter-spacing: 0;
-}
-.trace-kind-summary .trace-num {
-  text-align: right;
-  padding-left: 16px;
-  padding-right: 0;
-}
-.trace-geometry-note {
-  margin-top: 12px;
-  max-width: 72ch;
+.trace-kind-kpis .trace-kpi strong {
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 /*
  * A step that did not finish cleanly must not read as one that did. Hatched

@@ -6,7 +6,6 @@ import { EnvironmentPanel } from './EnvironmentPanel';
 import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
-import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsUserRoster, type RoleResolution } from './role';
 import {
   SAVE_PRESS_MS,
@@ -254,7 +253,6 @@ export function SettingsPage({
                       aria-label="Show the egress controls on this page"
                     />
                   </div>
-                  <ResourceTagsPanel />
                 </div>
               ) : null}
             </SettingsPaneBoundary>
