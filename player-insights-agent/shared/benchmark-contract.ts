@@ -105,7 +105,7 @@ export type BenchmarkCaseOutcome = 'passed' | 'failed' | 'errored' | 'clarified'
  * and when, and is the expected outcome of a benchmark started by somebody
  * without the grants the questions need.
  */
-export type BenchmarkErrorStage = 'agent' | 'judge' | 'budget' | 'identity' | null;
+export type BenchmarkErrorStage = 'agent' | 'judge' | 'budget' | 'identity' | 'cancel' | null;
 
 /**
  * The state of one judgement.
@@ -268,6 +268,12 @@ export interface BenchmarkExecutionIdentity {
 export const BUDGET_TRUNCATION_CODE = 'SUITE_BUDGET_EXHAUSTED';
 
 /**
+ * Why a run stopped because the reader asked it to, rather than because the
+ * suite ran out of time or the credential died.
+ */
+export const SUITE_CANCELLED_CODE = 'SUITE_CANCELLED';
+
+/**
  * Why a run stopped before attempting every case it named.
  *
  * One shape rather than a reason enum, and `code` carries which reason it was.
@@ -367,6 +373,18 @@ export interface BenchmarkRunMetrics {
   /** Writes to Lakebase that failed during the run, so a gap is visible. */
   persistenceFailures: number;
   runnerVersion: string;
+  /** Which bake-off side this run was started as, when the caller named one. */
+  bakeOffSide?: 'baseline' | 'candidate';
+  /** Dataset, judges, and endpoint as they stood when the run started. */
+  configurationSnapshot?: {
+    suiteId: string;
+    caseCount: number;
+    judgeEndpoint: string;
+    agentEndpoint: string;
+    enabledJudges: string[];
+  };
+  /** Set when the reader asked the suite to stop. Survives until the next persist merge. */
+  cancelRequested?: true;
 }
 
 /**

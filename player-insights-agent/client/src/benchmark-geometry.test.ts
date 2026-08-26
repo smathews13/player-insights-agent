@@ -129,3 +129,33 @@ describe('the how-to pane', () => {
     expect(rule('.eval-steps')).toMatch(/list-style-position:\s*outside/);
   });
 });
+
+describe('the v3 Lab chrome', () => {
+  it('sets the tab to the 1080px reference column and 16px rhythm', () => {
+    expect(rule('.benchmark-lab')).toMatch(/max-width:\s*1080px/);
+    expect(rule('.benchmark-lab')).toMatch(/gap:\s*16px/);
+  });
+
+  it('gives every Lab button the same 30px box', () => {
+    expect(rule('.bench-btn')).toMatch(/height:\s*30px/);
+    expect(rule('.bench-btn-primary')).toMatch(/background:\s*var\(--db-blue-tint\)/);
+    expect(rule('.bench-btn-secondary')).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+  });
+
+  it('draws 28px mono nodes on the ice-blue spine', () => {
+    expect(rule('.bench-stage-node')).toMatch(/width:\s*28px/);
+    expect(rule('.bench-stage-node')).toMatch(/height:\s*28px/);
+    expect(rule('.bench-stage-node')).toMatch(/border-radius:\s*50%/);
+    expect(rule('.bench-pipeline::before')).toMatch(/rgba\(143,\s*193,\s*232,\s*0\.35\)/);
+  });
+
+  it('keeps the contract strip at six hairline cells', () => {
+    expect(rule('.bench-contract')).toMatch(/grid-template-columns:\s*repeat\(6/);
+    expect(rule('.bench-contract')).toMatch(/min-height:\s*52px/);
+  });
+
+  it('paints comparison deltas in the north-star teal and rose', () => {
+    expect(rule('.bench-delta-pos')).toMatch(/#9ad6ce/i);
+    expect(rule('.bench-delta-neg')).toMatch(/#e8a9b8/i);
+  });
+});

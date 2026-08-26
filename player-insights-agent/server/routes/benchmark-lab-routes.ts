@@ -21,7 +21,7 @@ import { EvalRowSchema, extraJudgesFromSettings, labeledRowCount, newEvalRowId, 
 import { recordAdminAction } from '../lib/admin-roles';
 import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
 import { patchLabState, readLabState } from '../lib/benchmark-lab-store';
-import { readEvalDataset, writeEvalDataset } from '../lib/eval-dataset-store';
+import { readEvalDataset, readEvalDatasetEnvelope, writeEvalDataset } from '../lib/eval-dataset-store';
 import { patchFlywheelState, readFlywheelState } from '../lib/eval-flywheel-store';
 import { alignGuidelinesToHumans, loadCasesForAlignment } from '../lib/judge-alignment';
 import { promotePromptAlias, promptTemplateFromPromote } from '../lib/prompt-registry';
@@ -59,7 +59,25 @@ const ImportBody = z.object({
 const ApplyBody = z.object({
   approver: z.string().trim().max(200).optional(),
   candidateRunId: z.string().trim().max(80).optional(),
+  agentEndpoint: z.string().trim().max(200).optional(),
   target: ApplyTargetSchema.optional(),
+  gates: z
+    .object({
+      passed: z.number().int().nonnegative().default(0),
+      total: z.number().int().nonnegative().default(0),
+      checks: z
+        .array(
+          z.object({
+            id: z.string().trim().max(80),
+            label: z.string().trim().max(80),
+            passed: z.boolean(),
+            detail: z.string().trim().max(400).default(''),
+          })
+        )
+        .max(20)
+        .default([]),
+    })
+    .optional(),
 });
 
 const ContractBody = LabContractSchema.partial();
@@ -160,7 +178,8 @@ async function writeCases(
 export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
   appkit.server.extend((app) => {
     app.get('/api/benchmarks/lab', async (_req, res) => {
-      res.json({ lab: await workspace(appkit) });
+      const [lab, envelope] = await Promise.all([workspace(appkit), readEvalDatasetEnvelope(appkit, { maxAgeMs: 0 })]);
+      res.json({ lab, lastGenieRun: envelope.lastGenieRun });
     });
 
     app.get('/api/benchmarks/lab/permalink', async (_req, res) => {
@@ -510,12 +529,13 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
         const resolvedTarget = { ...target, identifier };
         const approver = (parsed.data.approver ?? state.contract.approver).trim();
         const candidateRunId = parsed.data.candidateRunId || state.contract.candidateRunId;
+        const gates = parsed.data.gates ?? { passed: 0, total: 0, checks: [] };
         const decision = applyCandidateDecision({
           target: resolvedTarget,
           approver,
           candidateRunId,
           datasetVersionId: state.currentVersionId,
-          gates: { passed: 0, total: 0, checks: [] },
+          gates,
         });
         if (decision.status === 'blocked' || decision.status === 'handoff' || decision.status === 'not_configured') {
           const record = {
@@ -543,9 +563,10 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
           return;
         }
 
+        const askEndpoint = parsed.data.agentEndpoint?.trim() || flywheel.promoted?.endpoint || '';
         const template = promptTemplateFromPromote({
           side: 'candidate',
-          endpoint: candidateRunId || 'candidate',
+          endpoint: askEndpoint || candidateRunId || 'candidate',
           guidelines: settings.guidelinesText,
         });
         let promotedPrompt = flywheel.promotedPrompt;
@@ -577,8 +598,9 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
           {
             promptRegistryName: identifier,
             promotedPrompt,
+            rollback: flywheel.promoted,
             promoted: {
-              endpoint: candidateRunId || flywheel.promoted?.endpoint || '',
+              endpoint: askEndpoint,
               side: 'candidate',
               at: new Date().toISOString(),
               note: decision.note,

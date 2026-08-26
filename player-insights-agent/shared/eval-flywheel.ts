@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BakeOffHistorySchema } from './benchmark-bakeoff';
 import { accuracyScore, type AccuracyScore } from './eval-dataset';
 import { LabelingSessionSchema } from './eval-review-app';
 
@@ -204,6 +205,9 @@ export const PromotedAgentSchema = z.strictObject({
   side: z.string().trim().max(80).default(''),
   at: z.string().trim().max(40).default(''),
   note: z.string().trim().max(400).default(''),
+  approver: z.string().trim().max(200).default(''),
+  targetKind: z.enum(['prompt-registry', 'genie-space', 'rag-config']).default('prompt-registry'),
+  targetId: z.string().trim().max(300).default(''),
 });
 
 export type PromotedAgent = z.infer<typeof PromotedAgentSchema>;
@@ -244,12 +248,15 @@ export const AccuracySnapshotSchema = z.strictObject({
 export const FlywheelStateSchema = z.strictObject({
   lastSuite: LastSuiteSchema.nullable().default(null),
   promoted: PromotedAgentSchema.nullable().default(null),
+  rollback: PromotedAgentSchema.nullable().default(null),
   promptRegistryName: z.string().trim().max(300).default(''),
   promotedPrompt: PromotedPromptSchema.nullable().default(null),
   labelingSession: LabelingSessionSchema.nullable().default(null),
   lastAgentRunIds: z.array(z.string().trim().min(1).max(80)).max(4).default([]),
   lastAgentSides: z.array(z.string().trim().max(200)).max(4).default([]),
   history: z.array(AccuracySnapshotSchema).max(50).default([]),
+  compareHistory: z.array(BakeOffHistorySchema).max(50).default([]),
+  knownFailures: z.array(z.string().trim().min(1).max(80)).max(200).default([]),
 });
 
 export type FlywheelState = z.infer<typeof FlywheelStateSchema>;
@@ -257,12 +264,15 @@ export type FlywheelState = z.infer<typeof FlywheelStateSchema>;
 export const EMPTY_FLYWHEEL_STATE: FlywheelState = {
   lastSuite: null,
   promoted: null,
+  rollback: null,
   promptRegistryName: '',
   promotedPrompt: null,
   labelingSession: null,
   lastAgentRunIds: [],
   lastAgentSides: [],
   history: [],
+  compareHistory: [],
+  knownFailures: [],
 };
 
 export function parseFlywheelState(value: unknown): FlywheelState {

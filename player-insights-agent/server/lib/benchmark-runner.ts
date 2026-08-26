@@ -6,6 +6,7 @@ import {
   judgeBadgeLabel,
   judgeDisclosure,
   MLFLOW_JUDGE_PROMPT_VERSION,
+  SUITE_CANCELLED_CODE,
   type BenchmarkCaseResult,
   type BenchmarkCounts,
   type BenchmarkExecutionIdentity,
@@ -193,6 +194,10 @@ export interface BenchmarkRunnerDeps {
   turnTimeoutMs?: number;
   suiteBudgetMs?: number;
   newId?: () => string;
+  /** Retry only these case ids. Empty or omitted runs the whole suite. */
+  caseIds?: string[];
+  bakeOffSide?: 'baseline' | 'candidate';
+  agentEndpointName?: string;
 }
 
 export const DEFAULT_TURN_TIMEOUT_MS = 120_000;
@@ -227,6 +232,12 @@ export const BENCHMARK_RUN_INSERT = `
 
 export const BENCHMARK_RUN_UPDATE = `
   UPDATE ${APP_SCHEMA}.benchmark_runs SET status = $2, metrics_json = $3 WHERE id = $1`;
+
+/** One run's stored metrics, for cancel checks between cases. */
+export const BENCHMARK_RUN_METRICS_QUERY = `
+  SELECT metrics_json, status
+  FROM ${APP_SCHEMA}.benchmark_runs
+  WHERE id = $1`;
 
 /** The caller's own unfinished runs, for the stale sweep and the in-flight check. */
 export const BENCHMARK_RUNNING_QUERY = `
@@ -1095,6 +1106,8 @@ export function buildMetrics(input: {
   persistenceFailures: number;
   interrupted?: true;
   truncation?: BenchmarkTruncation;
+  bakeOffSide?: 'baseline' | 'candidate';
+  configurationSnapshot?: BenchmarkRunMetrics['configurationSnapshot'];
 }): BenchmarkRunMetrics & ScoredRunFields {
   const judgements = input.cases.flatMap((result) => result.judgements);
   const scoredCases = input.cases.filter((result) => Array.isArray(result.scores));
@@ -1180,6 +1193,8 @@ export function buildMetrics(input: {
     ...(input.truncation ? { truncation: input.truncation } : {}),
     persistenceFailures: input.persistenceFailures,
     runnerVersion: BENCHMARK_RUNNER_VERSION,
+    ...(input.bakeOffSide ? { bakeOffSide: input.bakeOffSide } : {}),
+    ...(input.configurationSnapshot ? { configurationSnapshot: input.configurationSnapshot } : {}),
   };
 }
 
@@ -1249,6 +1264,52 @@ export async function sweepStaleRuns(deps: {
     }
   }
   return { swept, stillRunning };
+}
+
+/**
+ * Ask a running suite to stop after the case it is on.
+ *
+ * The runner checks this between cases. The current case still finishes, so a
+ * cancel is not a mid-judge abort the transport cannot actually do.
+ */
+export async function requestBenchmarkCancel(deps: {
+  store: BenchmarkStore;
+  runId: string;
+  userEmail: string;
+}): Promise<{ ok: true; runId: string } | { ok: false; status: 404 | 409; message: string }> {
+  let row: Record<string, unknown> | undefined;
+  try {
+    const result = await deps.store.query(BENCHMARK_RUN_METRICS_QUERY, [deps.runId]);
+    row = result.rows[0];
+  } catch (error) {
+    return { ok: false, status: 409, message: `The run could not be cancelled: ${(error as Error).message}` };
+  }
+  if (!row) return { ok: false, status: 404, message: 'No benchmark run is known by that id.' };
+  const status = textOf(row.status);
+  if (status !== 'running') {
+    return { ok: false, status: 409, message: 'That run is not in progress, so there is nothing to cancel.' };
+  }
+  const metrics = parseJson(row.metrics_json);
+  const patched = {
+    ...(metrics && typeof metrics === 'object' ? (metrics as Record<string, unknown>) : {}),
+    cancelRequested: true as const,
+  };
+  try {
+    await deps.store.query(BENCHMARK_RUN_UPDATE, [deps.runId, 'running', JSON.stringify(patched)]);
+  } catch (error) {
+    return { ok: false, status: 409, message: `The run could not be cancelled: ${(error as Error).message}` };
+  }
+  return { ok: true, runId: deps.runId };
+}
+
+async function isCancelRequested(store: BenchmarkStore, runId: string): Promise<boolean> {
+  try {
+    const result = await store.query(BENCHMARK_RUN_METRICS_QUERY, [runId]);
+    const metrics = parseJson(result.rows[0]?.metrics_json);
+    return Boolean(metrics && typeof metrics === 'object' && (metrics as { cancelRequested?: unknown }).cancelRequested === true);
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1488,16 +1549,35 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
   }
 
   const loaded = await loadCases(deps.store, suite, deps.requestedSuiteId);
+  const wanted = (deps.caseIds ?? []).map((id) => id.trim()).filter(Boolean);
+  const cases = wanted.length > 0 ? loaded.cases.filter((entry) => wanted.includes(entry.caseId)) : loaded.cases;
+  if (wanted.length > 0 && cases.length === 0) {
+    return {
+      status: 400,
+      body: {
+        error: 'no_matching_cases',
+        message: 'None of those case ids are in this suite, so no retry was started.',
+      },
+    };
+  }
   const runId = newId();
   const startedAtMs = now();
   const startedAt = new Date(startedAtMs).toISOString();
   const servedModel = await resolveServedModel(deps);
 
+  const configurationSnapshot = {
+    suiteId: suite.id,
+    caseCount: cases.length,
+    judgeEndpoint: deps.judge.judgeEndpoint,
+    agentEndpoint: deps.agentEndpointName?.trim() || '',
+    enabledJudges: [],
+  };
+
   const initial = buildMetrics({
     suite,
     requestedSuiteId: deps.requestedSuiteId,
     cases: [],
-    total: loaded.cases.length,
+    total: cases.length,
     status: 'running',
     judgeEndpoint: deps.judge.judgeEndpoint,
     servedModel,
@@ -1506,8 +1586,10 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
     heartbeatAt: startedAt,
     finishedAt: null,
     durationMs: null,
-    progress: { currentCaseId: loaded.cases[0]?.caseId ?? null, currentCaseIndex: loaded.cases.length > 0 ? 0 : null },
+    progress: { currentCaseId: cases[0]?.caseId ?? null, currentCaseIndex: cases.length > 0 ? 0 : null },
     persistenceFailures: 0,
+    bakeOffSide: deps.bakeOffSide,
+    configurationSnapshot,
   });
   if (loaded.source === 'catalog-fallback') {
     (initial as BenchmarkRunMetrics & { caseListSource: string }).caseListSource = 'catalog-fallback';
@@ -1537,7 +1619,7 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
     };
   }
 
-  console.log(`[benchmark] Run ${runId} started: ${loaded.cases.length} case(s) of ${suite.name}, judged by ` +
+  console.log(`[benchmark] Run ${runId} started: ${cases.length} case(s) of ${suite.name}, judged by ` +
       `${deps.judge.judgeEndpoint} with MLflow ${MLFLOW_JUDGE_PROMPT_VERSION} prompts, against ` +
       `${servedModel.determinate ? `model version ${servedModel.version}` : 'an endpoint whose version is not determinate'}, ` +
       `executing as ${deps.identity.email} (${deps.identity.mode}). ${covered.note}`
@@ -1546,11 +1628,13 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
   const completed = executeRun(deps, {
     runId,
     suite,
-    cases: loaded.cases,
+    cases,
     caseListSource: loaded.source,
     servedModel,
     startedAt,
     startedAtMs,
+    bakeOffSide: deps.bakeOffSide,
+    configurationSnapshot,
   });
 
   return {
@@ -1560,7 +1644,7 @@ export async function startBenchmarkRun(deps: BenchmarkRunnerDeps): Promise<Star
       suiteId: suite.id,
       suiteName: suite.name,
       runStatus: 'running',
-      total: loaded.cases.length,
+      total: cases.length,
       poll: `/api/runs/${encodeURIComponent(runId)}/trace`,
     },
     completed,
@@ -1593,6 +1677,8 @@ async function executeRun(deps: BenchmarkRunnerDeps,
     servedModel: ServedModelReference;
     startedAt: string;
     startedAtMs: number;
+    bakeOffSide?: 'baseline' | 'candidate';
+    configurationSnapshot?: BenchmarkRunMetrics['configurationSnapshot'];
   }
 ): Promise<void> {
   const now = deps.now ?? Date.now;
@@ -1621,6 +1707,8 @@ async function executeRun(deps: BenchmarkRunnerDeps,
       },
       persistenceFailures,
       ...(truncation ? { truncation } : {}),
+      bakeOffSide: context.bakeOffSide,
+      configurationSnapshot: context.configurationSnapshot,
     });
     if (context.caseListSource === 'catalog-fallback') {
       (metrics as BenchmarkRunMetrics & { caseListSource: string }).caseListSource = 'catalog-fallback';
@@ -1646,7 +1734,7 @@ async function executeRun(deps: BenchmarkRunnerDeps,
    * this project has had to remove: the numbers are all true and the
    * denominator is a lie.
    */
-  const abandonFrom = (from: number, stage: 'budget' | 'identity', error: string, note: string) => {
+  const abandonFrom = (from: number, stage: 'budget' | 'identity' | 'cancel', error: string, note: string) => {
     for (let remaining = from; remaining < context.cases.length; remaining += 1) {
       results.push({
         ...unresolvedCase(context.cases[remaining]),
@@ -1685,6 +1773,25 @@ async function executeRun(deps: BenchmarkRunnerDeps,
       console.warn(`[benchmark] Run ${context.runId} stopped after case ${index}/${context.cases.length}: ` +
           `${minutes} minute budget exhausted. The remaining ${context.cases.length - index} case(s) were ` +
           'recorded as never attempted.'
+      );
+      break;
+    }
+
+    if (await isCancelRequested(deps.store, context.runId)) {
+      truncation = {
+        code: SUITE_CANCELLED_CODE,
+        fromCaseIndex: index,
+        unattempted: context.cases.length - index,
+        detail: `the reader cancelled the suite before case ${index + 1}`,
+      };
+      abandonFrom(
+        index,
+        'cancel',
+        'The suite was cancelled before this case ran.',
+        'Cancelled. This case was not attempted. Partial results from earlier cases stay on the run.'
+      );
+      console.warn(`[benchmark] Run ${context.runId} cancelled after case ${index}/${context.cases.length}. ` +
+          `${context.cases.length - index} case(s) were recorded as never attempted.`
       );
       break;
     }

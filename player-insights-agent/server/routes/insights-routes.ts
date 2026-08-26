@@ -294,6 +294,8 @@ const FeedbackBody = z.object({
 const BenchmarkRunBody = z.object({
   suiteId: z.string().min(1).optional(),
   agentEndpoint: z.string().min(1).optional(),
+  caseIds: z.array(z.string().trim().min(1).max(80)).max(80).optional(),
+  bakeOffSide: z.enum(['baseline', 'candidate']).optional(),
 });
 // Every object in the answer contract is loose. Zod's default would strip a
 // field the agent starts returning, silently, between the endpoint and the
@@ -4956,6 +4958,8 @@ export function setupInsightsRoutes(
         ? (parsed.data.suiteId ?? savedBench.evalSetId)
         : savedBench.evalSetId;
       const namedAgent = parsed.success ? parsed.data.agentEndpoint?.trim() ?? '' : '';
+      const caseIds = parsed.success ? parsed.data.caseIds : undefined;
+      const bakeOffSide = parsed.success ? parsed.data.bakeOffSide : undefined;
       const email = userEmail(req);
 
       /**
@@ -5166,6 +5170,9 @@ export function setupInsightsRoutes(
           const endpoint = await new WorkspaceClient({}).servingEndpoints.get({ name: agentEndpoint });
           return parseServedModel(agentEndpoint, endpoint);
         },
+        caseIds,
+        bakeOffSide,
+        agentEndpointName: agentEndpoint,
       });
 
       if (started.status === 401 && started.refusal) {

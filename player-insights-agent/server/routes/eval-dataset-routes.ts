@@ -3,7 +3,9 @@ import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { EvalDatasetSchema, labeledRowCount, uniqueQuestionsToAdd } from '../../shared/eval-dataset';
 import { alignGuidelinesToHumans, loadCasesForAlignment } from '../lib/judge-alignment';
 import { LastSuiteSchema, PromotedAgentSchema, rememberAccuracy } from '../../shared/eval-flywheel';
+import { BakeOffHistorySchema, rememberBakeOff, promoteTargetCaption } from '../../shared/benchmark-bakeoff';
 import { promotePromptAlias, promptTemplateFromPromote } from '../lib/prompt-registry';
+import { requestBenchmarkCancel } from '../lib/benchmark-runner';
 import { startLabelingSession } from '../lib/review-app';
 import { findLatestAnsweredConversation, loadConversationTurns } from '../lib/eval-conversation';
 import { scoreSampledAskTurn } from '../lib/live-ask-scoring';
@@ -11,17 +13,22 @@ import { formatConversationTurns } from '../../shared/eval-conversation';
 import { DEFAULT_LIVE_SAMPLE_RATE } from '../../shared/eval-live-scoring';
 import { recordAdminAction } from '../lib/admin-roles';
 import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
-import { readEvalDataset, writeEvalDataset } from '../lib/eval-dataset-store';
+import { readEvalDataset, readEvalDatasetEnvelope, writeEvalDataset, writeLastGenieRun } from '../lib/eval-dataset-store';
 import { patchFlywheelState, readFlywheelState } from '../lib/eval-flywheel-store';
 import { listLiveScores } from '../lib/eval-live-score-store';
-import { createGenieAsker, runGenieAccuracy } from '../lib/genie-accuracy';
+import { createGenieAsker, MissingSqlGateError, runGenieAccuracy } from '../lib/genie-accuracy';
+import { createSqlExecutor } from '../lib/genie-result-execute';
 import { probeWorkspaceMonitoring } from '../lib/live-monitoring';
 import { forwardedUserToken } from './access-verification';
 import { servingInvocationPath, userEmail, type InsightsAppKit } from './insights-routes';
+import { SUITE_KINDS } from '../../shared/benchmark-lab-v3';
+import { readLabState } from '../lib/benchmark-lab-store';
 
 const GenieAccuracyBody = z.object({
   spaceId: z.string().trim().min(1).max(200),
   spaceLabel: z.string().trim().max(200).optional(),
+  suiteKind: z.enum(SUITE_KINDS).default('complete'),
+  caseIds: z.array(z.string().trim().min(1).max(80)).max(200).optional(),
 });
 
 const CurateBody = z.object({
@@ -67,8 +74,8 @@ function workspaceHost(): string {
 export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
   appkit.server.extend((app) => {
     app.get('/api/benchmarks/dataset', async (_req, res) => {
-      const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
-      res.json({ dataset });
+      const envelope = await readEvalDatasetEnvelope(appkit, { maxAgeMs: 0 });
+      res.json({ dataset: envelope.dataset, lastGenieRun: envelope.lastGenieRun });
     });
 
     app.get('/api/benchmarks/flywheel', async (_req, res) => {
@@ -219,6 +226,17 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           alignClient,
           invokeJudge,
         });
+        if (req.body?.preview === true) {
+          res.json({
+            preview: aligned.guidelinesText,
+            labeled,
+            agreement: aligned.agreement,
+            method: aligned.method,
+            note: `${aligned.note} Preview only. Nothing is saved until review.`,
+            saved: false,
+          });
+          return;
+        }
         const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: aligned.guidelinesText }, actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
@@ -250,10 +268,18 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
         });
         return;
       }
+      if (!parsed.data.approver.trim()) {
+        res.status(400).json({
+          error: 'approver_required',
+          message: 'Name the approver before applying the candidate.',
+        });
+        return;
+      }
       const actor = userEmail(req);
       try {
         const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
         const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const targetKind = parsed.data.targetKind;
         const promptName = current.promptRegistryName.trim();
         const template = promptTemplateFromPromote({
           side: parsed.data.side,
@@ -261,32 +287,45 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           guidelines: settings.guidelinesText,
         });
         let promotedPrompt = current.promotedPrompt;
-        try {
-          const { WorkspaceClient } = await import('@databricks/sdk-experimental');
-          const client = new WorkspaceClient({});
-          promotedPrompt = await promotePromptAlias(
-            {
-              request: ({ method, path, payload }) =>
-                workspaceApiRequest(client, { method, path, payload }),
-            },
-            { name: promptName, template }
-          );
-        } catch (error) {
+        if (targetKind === 'prompt-registry') {
+          try {
+            const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+            const client = new WorkspaceClient({});
+            promotedPrompt = await promotePromptAlias(
+              {
+                request: ({ method, path, payload }) =>
+                  workspaceApiRequest(client, { method, path, payload }),
+              },
+              { name: promptName, template }
+            );
+          } catch (error) {
+            promotedPrompt = {
+              name: promptName,
+              alias: 'production',
+              version: '',
+              uri: promptName ? `prompts:/${promptName}@production` : '',
+              template,
+              status: promptName ? 'blocked' : 'skipped',
+              note: promptName
+                ? `The production alias was not moved: ${(error as Error).message} The next Ask still uses the guidance saved from this promote.`
+                : 'No Prompt Registry name is set. Next Ask still uses the saved guidance from this promote.',
+            };
+          }
+        } else {
           promotedPrompt = {
             name: promptName,
             alias: 'production',
             version: '',
-            uri: promptName ? `prompts:/${promptName}@production` : '',
+            uri: '',
             template,
-            status: promptName ? 'blocked' : 'skipped',
-            note: promptName
-              ? `The production alias was not moved: ${(error as Error).message} The next Ask still uses the guidance saved from this promote.`
-              : 'No Prompt Registry name is set. Next Ask still uses the saved guidance from this promote.',
+            status: 'skipped',
+            note: promoteTargetCaption(targetKind),
           };
         }
         const flywheel = await patchFlywheelState(
           appkit,
           {
+            rollback: current.promoted,
             promoted: { ...parsed.data, at: parsed.data.at || new Date().toISOString() },
             promotedPrompt,
           },
@@ -296,7 +335,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           actor,
           action: 'eval-agent-promoted',
           subject: 'eval-flywheel',
-          detail: `Next Ask will use ${parsed.data.endpoint}. ${promotedPrompt?.note ?? ''}`.trim(),
+          detail: `Next Ask will use ${parsed.data.endpoint}. Approver ${parsed.data.approver}. ${promotedPrompt?.note ?? ''}`.trim(),
         });
         res.json({ flywheel, promotedPrompt });
       } catch (error) {
@@ -476,6 +515,104 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
       }
     });
 
+    app.post('/api/admin/benchmarks/cancel', async (req, res) => {
+      const runId = typeof req.body?.runId === 'string' ? req.body.runId.trim() : '';
+      if (!runId) {
+        res.status(400).json({ error: 'invalid_cancel', message: 'Name the run to cancel.' });
+        return;
+      }
+      const actor = userEmail(req);
+      const result = await requestBenchmarkCancel({ store: appkit.lakebase, runId, userEmail: actor });
+      if (!result.ok) {
+        res.status(result.status).json({ error: 'cancel_refused', message: result.message });
+        return;
+      }
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: 'eval-suite-cancelled',
+        subject: runId,
+        detail: 'Cancelled the in-progress judge suite after the current case.',
+      });
+      res.json({ runId, cancelled: true });
+    });
+
+    app.post('/api/admin/benchmarks/rollback', async (req, res) => {
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        if (!current.rollback?.endpoint) {
+          res.status(400).json({
+            error: 'no_rollback',
+            message: 'No earlier promote to roll back to.',
+          });
+          return;
+        }
+        const flywheel = await patchFlywheelState(
+          appkit,
+          {
+            promoted: current.rollback,
+            rollback: current.promoted,
+          },
+          actor
+        );
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'eval-agent-rolled-back',
+          subject: 'eval-flywheel',
+          detail: `Rolled back the next Ask to ${current.rollback.endpoint}.`,
+        });
+        res.json({ flywheel });
+      } catch (error) {
+        res.status(503).json({
+          error: 'rollback_unavailable',
+          message: `The rollback was not saved: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.post('/api/admin/benchmarks/compare-history', async (req, res) => {
+      const parsed = BakeOffHistorySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_compare_history', message: 'That bake-off could not be saved to history.' });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const flywheel = await patchFlywheelState(
+          appkit,
+          { compareHistory: rememberBakeOff(current.compareHistory, parsed.data) },
+          actor
+        );
+        res.json({ flywheel });
+      } catch (error) {
+        res.status(503).json({
+          error: 'compare_history_unavailable',
+          message: `Bake-off history was not saved: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.post('/api/admin/benchmarks/known-failure', async (req, res) => {
+      const caseId = typeof req.body?.caseId === 'string' ? req.body.caseId.trim() : '';
+      if (!caseId) {
+        res.status(400).json({ error: 'invalid_known_failure', message: 'Name the case to mark as a known failure.' });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const knownFailures = [...new Set([caseId, ...current.knownFailures])].slice(0, 200);
+        const flywheel = await patchFlywheelState(appkit, { knownFailures }, actor);
+        res.json({ flywheel });
+      } catch (error) {
+        res.status(503).json({
+          error: 'known_failure_unavailable',
+          message: `That case was not marked: ${(error as Error).message}`,
+        });
+      }
+    });
+
     app.post('/api/benchmarks/genie-accuracy', async (req, res) => {
       const parsed = GenieAccuracyBody.safeParse(req.body);
       if (!parsed.success) {
@@ -503,13 +640,33 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
         });
         return;
       }
-      const run = await runGenieAccuracy({
-        spaceId: parsed.data.spaceId,
-        spaceLabel: parsed.data.spaceLabel,
-        rows: dataset.rows,
-        asker: createGenieAsker({ host, token }),
-      });
+      const warehouseId = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
+      const labState = await readLabState(appkit, { maxAgeMs: 0 }).catch(() => null);
       const actor = userEmail(req);
+      let run;
+      try {
+        run = await runGenieAccuracy({
+          spaceId: parsed.data.spaceId,
+          spaceLabel: parsed.data.spaceLabel,
+          rows: dataset.rows,
+          suiteKind: parsed.data.suiteKind,
+          caseIds: parsed.data.caseIds,
+          datasetVersion: labState?.currentVersionId || 'unversioned',
+          asker: createGenieAsker({ host, token }),
+          executor: createSqlExecutor({ host, token, warehouseId }),
+        });
+      } catch (error) {
+        if (error instanceof MissingSqlGateError) {
+          res.status(400).json({ error: 'missing_sql_gate', message: error.message });
+          return;
+        }
+        throw error;
+      }
+      try {
+        await writeLastGenieRun(appkit, run, actor);
+      } catch (error) {
+        console.warn('[eval-dataset] Last Genie run was not saved:', (error as Error).message);
+      }
       try {
         const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
         await patchFlywheelState(

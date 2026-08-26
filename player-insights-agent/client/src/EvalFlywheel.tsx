@@ -23,6 +23,7 @@ import {
   type SideScore,
 } from '../../shared/eval-flywheel';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
+import { connectedGenieSpaces, type ConnectedGenieSpace } from './eval-spaces';
 import type { ResourceRow } from './connection-model';
 import type { Run, RunTrace } from './app-types';
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
@@ -45,20 +46,8 @@ import {
 } from './ui';
 import { CircleAlert, Loader2, Play, Plus, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 
-export interface ConnectedGenieSpace {
-  id: string;
-  label: string;
-}
-
-export function connectedGenieSpaces(resources: readonly ResourceRow[]): ConnectedGenieSpace[] {
-  return resources
-    .filter((row) => row.resource.kind === 'genie-space')
-    .map((row) => ({
-      id: (row.actual || row.configured || row.intended || '').trim(),
-      label: row.resource.label,
-    }))
-    .filter((space) => space.id);
-}
+export type { ConnectedGenieSpace };
+export { connectedGenieSpaces };
 
 export interface GenieAccuracyCaseView {
   id: string;

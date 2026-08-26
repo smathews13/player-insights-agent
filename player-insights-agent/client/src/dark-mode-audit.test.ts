@@ -706,6 +706,19 @@ describe('dark mode covers the shipped surfaces', () => {
     );
   });
 
+  it('frosts Benchmark Lab v3 surfaces at 4% white', () => {
+    const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
+    const normal = DARK.slice(0, reducedAt);
+    const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(normal).toMatch(
+      /html\[data-theme='dark'\] \.bench-surface\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.04\)[^}]*backdrop-filter:\s*blur\(2px\)/
+    );
+    expect(reduced).toContain("html[data-theme='dark'] .bench-surface");
+    expect(bodyFor(reduced, "html[data-theme='dark'] .bench-surface")).toMatch(
+      /backdrop-filter:\s*none[\s\S]*background:\s*var\(--ast-surface-solid\)/
+    );
+  });
+
   it('frosts the Architecture KPI tiles with the same pane recipe as LIVE DATA FLOW', () => {
     const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
     const normal = DARK.slice(0, reducedAt);

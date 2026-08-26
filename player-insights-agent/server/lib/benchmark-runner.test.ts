@@ -14,12 +14,13 @@ import {
   parseServedModel,
   startBenchmarkRun,
   sweepStaleRuns,
+  requestBenchmarkCancel,
   summariseJudge,
   type AgentTurn,
   type BenchmarkAnswer,
   type BenchmarkRunnerDeps,
 } from './benchmark-runner';
-import { BUDGET_TRUNCATION_CODE, type BenchmarkRunMetrics } from '../../shared/benchmark-contract';
+import { BUDGET_TRUNCATION_CODE, SUITE_CANCELLED_CODE, type BenchmarkRunMetrics } from '../../shared/benchmark-contract';
 import { GROUNDEDNESS_FEEDBACK_NAME } from './mlflow-judges';
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,12 @@ class FakeStore {
       return Promise.resolve({ rows: this.suiteRows.filter((row) => ids.includes(String(row.id))) });
     }
     if (text.includes('FROM player_insights.benchmark_runs')) {
+      if (text.includes('WHERE id =')) {
+        const run = this.runs.get(String(params[0]));
+        return Promise.resolve({
+          rows: run ? [{ metrics_json: run.metrics_json, status: run.status }] : [],
+        });
+      }
       const email = params[0];
       const rows = [...this.runs.entries()]
         .filter(([, run]) => run.user_email === email && run.status === 'running')
@@ -896,6 +903,39 @@ describe('runs that overlap or were cut off', () => {
     const swept = await sweepStaleRuns({ store, userEmail: 'sam@example.com', now: makeClock() });
     expect(swept.swept).toEqual([]);
     expect(store.runs.get('theirs')?.status).toBe('running');
+  });
+});
+
+describe('cancel and retry', () => {
+  it('stops after the current case when cancel is requested, and keeps partial results', async () => {
+    const store = new FakeStore();
+    let startedId = '';
+    const started = await startBenchmarkRun(
+      makeDeps(store, {
+        askAgent: async () => {
+          if (!startedId) {
+            startedId = [...store.runs.keys()][0] ?? '';
+            await requestBenchmarkCancel({ store, runId: startedId, userEmail: 'sam@example.com' });
+          }
+          return { type: 'answer', answer: makeAnswer() };
+        },
+      })
+    );
+    expect(started.status).toBe(202);
+    if (started.status !== 202) return;
+    await started.completed;
+    const metrics = store.metrics(started.body.id);
+    expect(metrics.truncation?.code).toBe(SUITE_CANCELLED_CODE);
+    expect(metrics.cases.some((entry) => entry.outcome === 'passed')).toBe(true);
+    expect(metrics.cases.some((entry) => entry.errorStage === 'cancel')).toBe(true);
+  });
+
+  it('retries only the named case ids', async () => {
+    const store = new FakeStore();
+    const started = await run(makeDeps(store, { caseIds: ['player-count'] }));
+    const metrics = store.metrics(started.body.id);
+    expect(metrics.counts.total).toBe(1);
+    expect(metrics.cases.map((entry) => entry.caseId)).toEqual(['player-count']);
   });
 });
 

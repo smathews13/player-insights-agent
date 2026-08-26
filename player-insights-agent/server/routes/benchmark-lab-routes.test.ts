@@ -11,6 +11,8 @@ describe('benchmark lab v3 routes', () => {
     expect(isAdminRoute('/api/admin/benchmarks/lab/align-preview')).toBe(true);
     const source = fs.readFileSync(path.join(__dirname, 'benchmark-lab-routes.ts'), 'utf8');
     expect(source).toContain("app.get('/api/benchmarks/lab'");
+    expect(source).toContain('lastGenieRun');
+    expect(source).toContain('readEvalDatasetEnvelope');
     expect(source).toContain("app.post('/api/admin/benchmarks/lab/version'");
     expect(source).toContain("app.post('/api/admin/benchmarks/lab/apply-candidate'");
     expect(source).toContain("app.post('/api/admin/benchmarks/lab/align-preview'");

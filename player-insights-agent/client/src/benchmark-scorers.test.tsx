@@ -72,8 +72,10 @@ const PUBLISHED: Scorecard = {
   cases: [],
 };
 
-function markup(state: ScorecardState) {
-  return renderToStaticMarkup(<HeldOutEvaluation state={state} />);
+function markup(state: ScorecardState, revealNonApplicable = false) {
+  return renderToStaticMarkup(
+    <HeldOutEvaluation state={state} revealNonApplicable={revealNonApplicable} />,
+  );
 }
 
 describe('the copy above the scorers', () => {
@@ -81,6 +83,7 @@ describe('the copy above the scorers', () => {
     for (const state of [evalScorecard(), { published: true, scorecard: PUBLISHED } as ScorecardState]) {
       const html = markup(state);
       expect(html).toContain('Held-out evaluation');
+      expect(html).toContain('held-out cases are frozen, edits create an audit entry');
       expect(html).not.toContain('None of these scorers gates a release');
       expect(html).not.toContain('Read before comparing these scores');
       expect(html).not.toContain('These labels have not been reviewed by anyone who knows this data.');
@@ -92,7 +95,7 @@ describe('the copy above the scorers', () => {
   it('puts the scorer table immediately under that heading', () => {
     const html = markup({ published: true, scorecard: PUBLISHED });
     const title = html.indexOf('Held-out evaluation');
-    const subtitle = html.indexOf('none of which the demo is tuned against');
+    const subtitle = html.indexOf('held-out cases are frozen, edits create an audit entry');
     const table = html.indexOf('bench-scorers');
     expect(title).toBeGreaterThanOrEqual(0);
     expect(subtitle).toBeGreaterThan(title);
@@ -115,35 +118,31 @@ describe('gating stays a catalog fact, not a screen claim', () => {
 
 describe('scorers that cannot report', () => {
   it('never render as a value', () => {
-    // The guardrail this lane turns on. A per-persona masking check run as an
-    // administrator passes by construction, so any number at all against these
-    // rows would be evidence of a property nobody established.
-    const html = markup({ published: true, scorecard: PUBLISHED });
+    const html = markup({ published: true, scorecard: PUBLISHED }, true);
     for (const definition of unimplementableScorers()) {
       expect(html).toContain(definition.label);
-      expect(html).toContain('Not reported');
+      const rowAt = html.indexOf(definition.label);
+      const nextRow = html.indexOf('bench-scorer-name', rowAt + 1);
+      const slice = nextRow > 0 ? html.slice(rowAt, nextRow) : html.slice(rowAt);
+      expect(slice).not.toMatch(/\d+%/);
+      expect(slice).toContain('Skipped');
     }
   });
 
   it('cannot be made to render a value by a scorecard that supplies one', () => {
-    // Belt and braces against the failure that actually ships: a later change
-    // starts writing a value for one of these, and the pane renders it because
-    // it renders whatever it is given. Availability wins over the data.
-    // Asserted as "the injected value changes nothing on screen" rather than as
-    // "the string 100% is absent anywhere". The absence check was a proxy that
-    // held only while no legitimate scorer reported a perfect rate; refusal
-    // quality now does, on the real run, and a guardrail that a good result
-    // breaks is a guardrail that gets deleted rather than read.
     const blocked = unimplementableScorers()[0];
-    const withInjectedValue = markup({
-      published: true,
-      scorecard: { ...PUBLISHED, aggregates: [...PUBLISHED.aggregates, score(blocked.id, { value: 1 })] },
-    });
-    expect(withInjectedValue).toBe(markup({ published: true, scorecard: PUBLISHED }));
+    const withInjectedValue = markup(
+      {
+        published: true,
+        scorecard: { ...PUBLISHED, aggregates: [...PUBLISHED.aggregates, score(blocked.id, { value: 1 })] },
+      },
+      true,
+    );
+    expect(withInjectedValue).toBe(markup({ published: true, scorecard: PUBLISHED }, true));
   });
 
   it('say in a sentence why, naming the missing restricted identity', () => {
-    const html = markup({ published: true, scorecard: PUBLISHED });
+    const html = markup({ published: true, scorecard: PUBLISHED }, true);
     expect(html).toContain('no second, deliberately-restricted identity');
     expect(html).toContain('administrator passes a row-filter or masking');
   });
@@ -190,8 +189,14 @@ describe('the unpublished state', () => {
   });
 
   it('still lists every scorer, so the set is visible before any number is', () => {
-    const html = markup(UNPUBLISHED);
+    const html = markup(UNPUBLISHED, true);
     for (const definition of SCORER_CATALOG) expect(html).toContain(definition.label);
+  });
+
+  it('hides non-applicable scorers until Show them', () => {
+    const html = markup(UNPUBLISHED);
+    expect(html).toContain('Show them');
+    expect(html).toContain('not applicable');
   });
 });
 
@@ -257,15 +262,13 @@ describe('the unreviewed labels', () => {
   });
 
   it('still qualify the judged scorers at the number', () => {
-    // A reader who goes straight to the percentage still meets the qualifier
-    // on that row. Deterministic and operational scorers do not, because they
-    // are not graded against a label.
     const rendered = html();
     const notes = rendered.split('bench-unreviewed-note').length - 1;
     const judgedCount = SCORER_CATALOG.filter(
       (definition) => definition.kind === 'judged' && definition.availability !== 'unimplementable'
     ).length;
     expect(notes).toBe(judgedCount);
+    expect(rendered).toContain('Provisional');
   });
 
   it('drop the per-row qualifier only when a scorecard records a review', () => {
@@ -277,34 +280,13 @@ describe('the unreviewed labels', () => {
   });
 });
 
-describe('the kind of each scorer is legible on its own row', () => {
+describe('the kind of each scorer is still a catalog fact', () => {
   it('labels every scorer deterministic, judged or operational', () => {
-    const html = markup({ published: true, scorecard: PUBLISHED });
-    for (const kind of ['deterministic', 'judged', 'operational']) expect(html).toContain(kind);
-  });
-
-  it('carries the kind as a word and not only as a colour', () => {
-    // Status is never colour alone anywhere else on this page, and a reader who
-    // cannot tell an amber pill from a green one still has to be able to tell a
-    // model's opinion from a checked property.
-    const html = markup({ published: true, scorecard: PUBLISHED });
-    for (const definition of SCORER_CATALOG) {
-      // The chip is on the row and names the kind. It is deliberately the
-      // OUTLINED family for every kind: how a number was arrived at is not a
-      // verdict on it, and a tinted chip there would be read as a score.
-      expect(html).toContain(`ast-pill--neutral-outline bench-pill bench-kind-${definition.kind}`);
-    }
-    expect(html).toContain('>judged<');
-    // Never tinted, which is the half of this that the line above would let
-    // slip: a kind chip in a status family would be colour saying something
-    // about a number that the number has not said.
-    expect(html).not.toMatch(/ast-pill--(pos|neg|warn|info) bench-pill bench-kind-/);
+    const kinds = new Set(SCORER_CATALOG.map((definition) => definition.kind));
+    expect([...kinds].sort()).toEqual(['deterministic', 'judged', 'operational']);
   });
 
   it('says of the operational scorers that they are not quality', () => {
-    // A fast wrong answer scores well on latency. If the pane does not say so,
-    // a green latency row sits beside a red correctness row and reads as mixed
-    // quality rather than as two unrelated facts.
     expect(scorerDefinition('latency_ms')!.meaning).toContain('not a statement');
     expect(scorerDefinition('error_rate')!.meaning).toContain('refusal');
   });

@@ -174,6 +174,22 @@
   .monitoring-refusal-tiles {
     grid-template-columns: repeat(2, 1fr);
   }
+  /* Lab contract is six cells at 1080px. At this band three-across keeps the
+     eyebrow + value + caption readable without inventing a fifth breakpoint. */
+  .bench-contract {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .bench-stat-strip,
+  .bench-lane-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bench-failure {
+    grid-template-columns: 1fr;
+  }
+  .bench-failure-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--ast-hairline);
+  }
   /* The three-part runtime entity editor becomes one labelled field per row.
      This used to invent a 640px page-specific breakpoint in settings.css; 800px
      is the app's shared narrow-content band and leaves each value usable. */
@@ -419,6 +435,9 @@
      than in trace.css because this document has one set of widths and they all
      live in this file; see breakpoints.test.ts. */
   .trace-dag.map {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bench-contract {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .account-composer-overlay {

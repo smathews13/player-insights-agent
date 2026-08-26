@@ -629,3 +629,483 @@
   font-weight: 600;
   font-size: var(--text-sm);
 }
+
+/*
+ * Benchmark Lab v3 chrome. One 1080px column, six 4% surfaces, a 52px contract
+ * strip on the numbered spine. Buttons are one 30px box. Tables grow with the
+ * surface; they do not scroll inside it.
+ */
+.benchmark-lab {
+  max-width: 1080px;
+  gap: 16px;
+}
+.bench-heading-fact {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.bench-jump {
+  flex: none;
+}
+.bench-jump a {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.bench-jump a:hover {
+  color: var(--primary);
+}
+.bench-surface {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  overflow: hidden;
+}
+.bench-region-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ast-hairline);
+}
+.bench-region-titles {
+  min-width: 0;
+}
+.bench-region-title {
+  margin: 0;
+  font-size: var(--text-h-card);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.bench-region-fact,
+.bench-caption,
+.bench-footnote,
+.bench-gate {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.bench-region-actions {
+  flex: none;
+}
+.bench-contract {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  min-height: 52px;
+  border-bottom: 1px solid var(--ast-hairline);
+}
+.bench-contract-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-left: 1px solid var(--ast-hairline);
+  min-width: 0;
+}
+.bench-contract-cell:first-child {
+  border-left: 0;
+}
+.bench-contract-value {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bench-contract-cell small {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+.bench-pipeline {
+  position: relative;
+  padding: 4px 16px 16px;
+}
+.bench-pipeline::before {
+  content: '';
+  position: absolute;
+  left: 30px;
+  top: 22px;
+  bottom: 28px;
+  width: 1px;
+  background: rgba(143, 193, 232, 0.35);
+}
+.bench-stage {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 18px;
+  padding: 16px 0 4px;
+}
+.bench-stage + .bench-stage .bench-stage-body {
+  border-top: 1px solid var(--ast-hairline);
+  padding-top: 16px;
+}
+.bench-stage-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(143, 193, 232, 0.55);
+  border-radius: 50%;
+  color: var(--ast-ice-accent);
+  font-size: var(--text-xs);
+  background: var(--card);
+  position: relative;
+  z-index: 1;
+}
+.bench-stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+.bench-stage-title {
+  margin: 0;
+  font-size: var(--text-h-section);
+  font-weight: 700;
+}
+.bench-stage-fact {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+.bench-stage-counts {
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+}
+.bench-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.bench-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font: 500 var(--ast-fs-13) var(--font-sans);
+  cursor: pointer;
+}
+.bench-btn-primary {
+  background: var(--db-blue-tint);
+  border: 1px solid rgba(143, 193, 232, 0.55);
+  color: var(--foreground);
+}
+.bench-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--ast-border-input);
+  color: var(--foreground);
+}
+.bench-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--db-blue-tint) 70%, transparent);
+}
+.bench-btn-secondary:hover:not(:disabled) {
+  background: var(--ast-fill-band);
+}
+.bench-btn:focus-visible {
+  outline: 1px solid var(--ast-ice-accent);
+  outline-offset: 1px;
+}
+.bench-chip {
+  padding: 2px 8px;
+}
+.bench-inline-label {
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}
+.bench-space-select {
+  max-width: 240px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 10px;
+}
+.bench-approver {
+  height: 30px;
+  max-width: 280px;
+  padding: 0 10px;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: 500 var(--ast-fs-13) var(--font-mono);
+}
+.bench-judge-line,
+.bench-needs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+.bench-type-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--ast-neutral-fill);
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.bench-target-seg {
+  display: inline-flex;
+  border: 1px solid var(--ast-border-input);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.bench-target-seg button {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid var(--ast-hairline);
+  background: transparent;
+  color: var(--foreground);
+  font: 500 var(--ast-fs-13) var(--font-sans);
+  cursor: pointer;
+}
+.bench-target-seg button:first-child {
+  border-left: 0;
+}
+.bench-target-seg button.is-pressed {
+  background: var(--ast-fill-band);
+}
+.bench-run-progress {
+  margin: 10px 0 0;
+  color: var(--primary);
+  font-size: var(--text-sm);
+}
+.bench-text-link {
+  color: var(--primary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.bench-text-link:hover {
+  text-decoration: underline;
+}
+.bench-count-line {
+  margin: 0;
+  padding: 10px 16px 0;
+  font-size: var(--text-sm);
+}
+.bench-region-head + .bench-caption,
+.bench-count-line + .bench-caption,
+.bench-caption + .bench-caption {
+  padding: 0 16px;
+}
+.bench-sheet {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+}
+.bench-sheet th,
+.bench-sheet td {
+  padding: 8px 16px;
+  border-top: 1px solid var(--ast-hairline);
+  text-align: left;
+  font-size: var(--text-sm);
+}
+.bench-sheet th {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  border-top: 0;
+}
+.bench-empty-row {
+  color: var(--muted-foreground);
+}
+.bench-footnote {
+  padding: 8px 16px 14px;
+}
+.bench-stat-strip,
+.bench-lane-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.bench-stat-strip {
+  border-top: 1px solid var(--ast-hairline);
+  border-bottom: 1px solid var(--ast-hairline);
+}
+.bench-stat-strip > div,
+.bench-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  border-left: 1px solid var(--ast-hairline);
+  min-width: 0;
+}
+.bench-stat-strip > div:first-child,
+.bench-metric:first-child {
+  border-left: 0;
+}
+.bench-stat-strip strong,
+.bench-metric strong {
+  font-size: var(--text-kpi);
+  font-weight: 700;
+}
+.bench-delta-pos {
+  color: #9ad6ce;
+}
+.bench-delta-neg {
+  color: #e8a9b8;
+}
+.bench-metric span,
+.bench-stat-strip small,
+.bench-metric small {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+.bench-lanes {
+  display: flex;
+  flex-direction: column;
+}
+.bench-lane {
+  padding: 12px 16px 8px;
+  border-top: 1px solid var(--ast-hairline);
+}
+.bench-lane .ast-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+}
+.bench-failure {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  min-height: 240px;
+}
+.bench-failure-list {
+  padding: 12px 0;
+  border-right: 1px solid var(--ast-hairline);
+}
+.bench-failure-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bench-failure-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px;
+  border-left: 3px solid transparent;
+}
+.bench-failure-list li.is-active {
+  border-left-color: var(--ast-ice-accent);
+  background: var(--ast-fill-band);
+}
+.bench-failure-pane {
+  padding: 12px 16px 16px;
+}
+.bench-failure-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bench-governance {
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+}
+.bench-span-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.bench-lock {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  vertical-align: -1px;
+}
+.bench-heldout-body {
+  padding: 0 16px 16px;
+}
+
+/*
+ * Evaluation set (35b) and Genie accuracy diagnostics (35c). Tables grow with
+ * the cases. Numerals and ids stay on DM Mono via .ast-num in the markup.
+ */
+#lab-evaluation-set {
+  min-height: 600px;
+}
+#lab-genie-accuracy {
+  min-height: 560px;
+}
+.bench-count-line {
+  margin: 0;
+  padding: 10px 16px 0;
+  font-size: var(--text-sm);
+}
+.bench-case-id-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bench-case-editor,
+.bench-import-pane,
+.bench-align-preview,
+.bench-empty-samples,
+.bench-sql-compare {
+  padding: 10px 16px 14px;
+}
+.bench-sample-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+}
+.bench-sql-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.bench-sql-pair pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  font-size: var(--ast-fs-11);
+  background: var(--ast-fill-band);
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-sm);
+}
+.bench-filter-set {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-sm);
+}
+.bench-align-text {
+  width: 100%;
+  margin-top: 8px;
+  font-size: var(--text-sm);
+}
+.bench-failure-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.bench-compare-history {
+  padding: 8px 16px 16px;
+  border-top: 1px solid var(--ast-hairline);
+}
+.bench-compare-history ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}

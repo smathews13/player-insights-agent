@@ -422,6 +422,59 @@ html[data-theme='dark'] .eval-steps {
   backdrop-filter: blur(10px);
 }
 
+/*
+ * Lab v3 regions are 4% white glass, not the working-tab 86% mix. That mix is
+ * a slab; the north star is a veil the sky still shows through.
+ */
+html[data-theme='dark'] .bench-surface {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(2px);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+html[data-theme='dark'] .bench-stage-node {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ast-ice-accent);
+}
+html[data-theme='dark'] .bench-btn-primary {
+  background: rgba(34, 114, 180, 0.28);
+  border-color: rgba(143, 193, 232, 0.55);
+  color: var(--ast-ghost-text);
+}
+html[data-theme='dark'] .bench-btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--ast-ink-on-dark);
+}
+html[data-theme='dark'] .bench-type-tag {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ast-text-secondary);
+}
+html[data-theme='dark'] .bench-approver,
+html[data-theme='dark'] .bench-space-select {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--ast-ink-on-dark);
+}
+html[data-theme='dark'] .bench-target-seg {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+html[data-theme='dark'] .bench-target-seg button.is-pressed {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme='dark'] .bench-delta-pos {
+  color: #9ad6ce;
+}
+html[data-theme='dark'] .bench-delta-neg {
+  color: #e8a9b8;
+}
+html[data-theme='dark'] .bench-failure-list li.is-active {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme='dark'] .bench-failure-list li:hover,
+html[data-theme='dark'] .bench-sheet tbody tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 html[data-theme='dark'] .run-explorer .run-detail,
 html[data-theme='dark'] .run-explorer [data-slot='card'],
 html[data-theme='dark'] .connections-page [data-slot='card'],
@@ -1165,6 +1218,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .plane-card,
   html[data-theme='dark'] .bench-ledger,
   html[data-theme='dark'] .eval-steps,
+  html[data-theme='dark'] .bench-surface,
   html[data-theme='dark'] .first-open-card,
   html[data-theme='dark'] .access-gate-panel,
   html[data-theme='dark'] [data-slot='alert'],

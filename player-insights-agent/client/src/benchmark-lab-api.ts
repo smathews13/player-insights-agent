@@ -1,4 +1,5 @@
-import type { LabWorkspace } from '../../shared/benchmark-lab-v3';
+import { parseGenieAccuracyRun, type GenieAccuracyRunView } from '../../shared/eval-genie-run';
+import type { EvalRowLike, ImportFilter, LabWorkspace, SuiteKind } from '../../shared/benchmark-lab-v3';
 
 /**
  * Fetch helpers for Benchmark Lab v3. UI surfaces import these rather than
@@ -94,8 +95,16 @@ export async function commitLabGuidelines(preview: string): Promise<LabWorkspace
 export async function applyLabCandidate(input: {
   approver: string;
   candidateRunId?: string;
+  agentEndpoint?: string;
   target?: LabWorkspace['contract']['target'];
-}): Promise<{ lab: LabWorkspace; wroteGenieInstructions: false; connectionsChanged: false }> {
+  gates?: { passed: number; total: number; checks: { id: string; label: string; passed: boolean; detail: string }[] };
+}): Promise<{
+  lab: LabWorkspace;
+  wroteGenieInstructions: false;
+  connectionsChanged: false;
+  status?: string;
+  note?: string;
+}> {
   const response = await fetch('/api/admin/benchmarks/lab/apply-candidate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -103,13 +112,15 @@ export async function applyLabCandidate(input: {
   });
   const body = (await readJson(response, 'apply')) as {
     lab?: unknown;
-    decision?: { wroteGenieInstructions?: boolean; connectionsChanged?: boolean };
-    apply?: { wroteGenieInstructions?: boolean; connectionsChanged?: boolean };
+    decision?: { wroteGenieInstructions?: boolean; connectionsChanged?: boolean; status?: string; note?: string };
+    apply?: { wroteGenieInstructions?: boolean; connectionsChanged?: boolean; note?: string };
   };
   return {
     lab: labFromPayload(body),
     wroteGenieInstructions: false,
     connectionsChanged: false,
+    status: body.decision?.status,
+    note: body.decision?.note || body.apply?.note,
   };
 }
 
@@ -121,3 +132,107 @@ export async function requestLabRunCancel(runId?: string): Promise<LabWorkspace>
   });
   return labFromPayload(await readJson(response, 'cancel'));
 }
+
+export async function fetchLabBundle(): Promise<{ lab: LabWorkspace; lastGenieRun: GenieAccuracyRunView | null }> {
+  const response = await fetch('/api/benchmarks/lab');
+  const body = (await readJson(response, 'workspace')) as { lastGenieRun?: unknown };
+  return { lab: labFromPayload(body), lastGenieRun: parseGenieAccuracyRun(body.lastGenieRun) };
+}
+
+export async function saveLabDataset(rows: readonly EvalRowLike[]): Promise<LabWorkspace> {
+  const response = await fetch('/api/admin/benchmarks/dataset', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows }),
+  });
+  await readJson(response, 'dataset save');
+  return (await fetchLabBundle()).lab;
+}
+
+export async function importLabTraces(questions: readonly string[], filters: readonly ImportFilter[]): Promise<LabWorkspace> {
+  const response = await fetch('/api/admin/benchmarks/lab/import-traces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ questions, filters }),
+  });
+  return labFromPayload(await readJson(response, 'import'));
+}
+
+export async function reviewLabCase(caseId: string, review: LabWorkspace['cases'][number]['review']): Promise<LabWorkspace> {
+  const response = await fetch('/api/admin/benchmarks/lab/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ caseId, review }),
+  });
+  return labFromPayload(await readJson(response, 'review'));
+}
+
+export async function runGenieAccuracySuite(input: {
+  spaceId: string;
+  spaceLabel?: string;
+  suiteKind: SuiteKind;
+  caseIds?: readonly string[];
+}): Promise<GenieAccuracyRunView> {
+  const response = await fetch('/api/benchmarks/genie-accuracy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = (await readJson(response, 'Genie accuracy')) as { run?: unknown };
+  const run = parseGenieAccuracyRun(body.run);
+  if (!run) throw new Error('Genie accuracy returned no result. No score was invented.');
+  return run;
+}
+
+export async function markLabKnownFailure(caseId: string, note = ''): Promise<LabWorkspace> {
+  const response = await fetch('/api/admin/benchmarks/lab/known-failure', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ caseId, note }),
+  });
+  return labFromPayload(await readJson(response, 'known failure'));
+}
+
+export async function cancelJudgeRun(runId: string): Promise<void> {
+  const response = await fetch('/api/admin/benchmarks/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ runId }),
+  });
+  await readJson(response, 'cancel');
+  try {
+    await requestLabRunCancel(runId);
+  } catch {
+    // Lab contract flag is secondary. The runner cancel is what stops the suite.
+  }
+}
+
+export async function scoreAskSession(): Promise<{ conversationId: string; turnCount: number }> {
+  const response = await fetch('/api/admin/benchmarks/score-thread', { method: 'POST' });
+  const body = (await readJson(response, 'Ask session score')) as {
+    conversationId?: unknown;
+    turnCount?: unknown;
+  };
+  return {
+    conversationId: typeof body.conversationId === 'string' ? body.conversationId : '',
+    turnCount: typeof body.turnCount === 'number' ? body.turnCount : 0,
+  };
+}
+
+export async function rollbackPromotedAsk(): Promise<{ endpoint: string }> {
+  const response = await fetch('/api/admin/benchmarks/rollback', { method: 'POST' });
+  const body = (await readJson(response, 'rollback')) as {
+    flywheel?: { promoted?: { endpoint?: string } };
+  };
+  return { endpoint: body.flywheel?.promoted?.endpoint?.trim() || '' };
+}
+
+export async function rememberBakeOffHistory(entry: Record<string, unknown>): Promise<void> {
+  const response = await fetch('/api/admin/benchmarks/compare-history', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entry),
+  });
+  await readJson(response, 'bake-off history');
+}
+

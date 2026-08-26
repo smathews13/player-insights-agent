@@ -7,7 +7,7 @@
  * because a suite run takes minutes.
  */
 import { Link } from 'react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { astPill, type AstPillFamily } from './astrolabe-pill';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
 import { UnavailablePanel } from './UnavailablePanel';
@@ -40,6 +40,7 @@ import {
   FlaskConical,
   Info,
   Loader2,
+  Lock,
   Star,
   TriangleAlert,
   User,
@@ -61,18 +62,35 @@ import {
 } from './benchmark-summary';
 import { useRunTrace } from './app-state';
 import { conversationAge } from './conversation-age';
-import { PageHeading } from './page-chrome';
 import { runLabel } from './run-label';
 import { UserIdentityChip } from './UserIdentityChip';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
 import { SCORER_CATALOG } from '../../shared/scorer-catalog';
 import type { Scorecard, ScorecardState } from '../../shared/scorecard-contract';
-import { formatScore, scoreCoverage } from './benchmark-state';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { compareSides, DEFAULT_BENCHMARK_SETTINGS } from '../../shared/benchmark-settings';
 import { OPERATOR_EVAL_SUITE_ID } from '../../shared/eval-dataset';
-import { EvalFlywheel } from './EvalFlywheel';
+import {
+  HELD_OUT_LOCK_FACT,
+  heldOutScorerRows,
+  liveRunProgressLine,
+  type HeldOutStatus,
+  type LabWorkspace,
+} from '../../shared/benchmark-lab-v3';
+import { BenchmarkLabChrome, LabSurface, cellsFromPocContract, labContractCells } from './BenchmarkLabChrome';
+import { EvaluationSet, CurateStageControls } from './EvaluationSet';
+import { GenieAccuracyDiagnostics, GenieStageControls } from './GenieAccuracyDiagnostics';
+import { fetchLabWorkspace } from './benchmark-lab-api';
+import {
+  BenchmarkApplyStage,
+  BenchmarkBakeOffSurface,
+  BenchmarkFailurePane,
+  BenchmarkJudgesStage,
+  useBenchmarkOps,
+  type SuiteSide,
+} from './BenchmarkLabOps';
+import { useEvaluationLab } from './use-evaluation-lab';
 import { browserPollHost, pollWhileVisible } from './visibility-polling';
 
 /**
@@ -247,115 +265,124 @@ export function BenchmarkTiles({ summary, hasRun }: { summary: BenchmarkSummary;
   );
 }
 
-/**
- * One scorer's value, rendered in the unit it is actually in.
- *
- * The unit is not decoration. A rate of 0.5 and a count of 0.5 are the same
- * glyph and different facts, and a latency of 1200 rendered as "1200" beside a
- * rate of "50%" invites the reader to compare them. Absent values render as a
- * dash for the same reason `metricOrDash` exists above: a missing measurement
- * must never be drawn as a zero.
- */
-/**
- * The held-out evaluation: the full scorer set, and what each one currently says.
- *
- * WHY THE WHOLE SET IS LISTED WHETHER OR NOT THERE ARE NUMBERS. The scorers
- * that cannot report are the most informative rows on this table, and they are
- * exactly the rows that vanish if the pane only draws what it has a figure for.
- * A reader who sees ten green rows and does not notice that per-persona masking
- * is absent has been given a worse impression than a reader who sees ten green
- * rows and three that say, in a sentence, that this deployment has no
- * restricted identity to check them with.
- *
- * Separate from the run-based tiles above deliberately, and never merged with
- * them. Those are one live suite execution under the reader's own grants; this
- * is an offline evaluation over a labelled set, published at a moment in time.
- * Folding them into one grid would produce a screen where two numbers side by
- * side are over different populations, measured on different days, by different
- * means -- which is the exact class of defect the rest of this page is built to
- * prevent.
- */
-export function HeldOutEvaluation({ state }: { state: ScorecardState }) {
-  const scorecard: Scorecard | null = state.published ? state.scorecard : null;
-  const byId = new Map((scorecard?.aggregates ?? []).map((entry) => [entry.scorerId, entry]));
-  return (<Card className="bench-heldout">
-      <CardHeader>
-        <CardTitle className="text-base">Held-out evaluation</CardTitle>
-        <CardDescription>
-          {scorecard
-            ? `The full scorer set over ${scorecard.provenance.caseCount} labelled case${scorecard.provenance.caseCount === 1 ? '' : 's'}, none of which the demo is tuned against.`
-            : 'The full scorer set, and what each one can currently establish.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!scorecard && (/* Not an error state and not an empty one. The evaluation is
-               unpublished for a specific, stateable reason, and the reason is
-               a governance property behaving correctly rather than a gap. */
-          <Alert>
-            <TriangleAlert />
-            <AlertDescription>{state.published ? '' : state.reason}</AlertDescription>
-          </Alert>
-        )}
+const HELD_OUT_STATUS_LABEL: Record<HeldOutStatus, string> = {
+  evaluated: 'Evaluated',
+  provisional: 'Provisional',
+  not_evaluated: 'Not evaluated',
+  skipped: 'Skipped',
+  errored: 'Errored',
+};
 
-        <div className="table-scroll bench-scorers">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Scorer</TableHead>
-                <TableHead>Kind</TableHead>
-                <TableHead className="bench-num">Value</TableHead>
-                <TableHead>What it means, and what it is over</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {SCORER_CATALOG.map((definition) => {
-                const score = byId.get(definition.id) ?? null;
-                const blocked = definition.availability === 'unimplementable';
-                const judged =
-                  definition.kind === 'judged' &&
-                  score?.state === 'scored' &&
-                  scorecard !== null &&
-                  !scorecard.provenance.labelsReviewed;
-                return (<TableRow key={definition.id} className={blocked ? 'bench-scorer-blocked' : ''}>
-                    <TableCell>
-                      <span className="bench-scorer-name">{definition.label}</span>
-                      <span className="bench-case-id">{definition.id}</span>
-                    </TableCell>
-                    <TableCell>
-                      {/* The kind is on every row rather than grouped, because
-                          a reader scanning for one scorer must not have to
-                          find a heading above it to know whether the number is
-                          a checked property or a language model's opinion. */}
-                      {/* Outlined and untinted, always. A scorer's KIND is not a
-                          verdict on anything: "deterministic" and "judge" say how
-                          a number was arrived at, and a green or amber chip there
-                          would read as a score. */}
-                      <Badge variant="outline" className={astPill('neutral-outline', `bench-pill bench-kind-${definition.kind}`)}>
-                        {definition.kind}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="bench-num">
-                      {blocked ? 'Not reported' : formatScore(definition, score?.value ?? null)}
-                    </TableCell>
-                    <TableCell>
-                      <span className="bench-scorer-meaning">{definition.meaning}</span>
-                      <span className="bench-case-note">{scoreCoverage(definition, score)}</span>
-                      {/* On the judged rows themselves. A reader who goes
-                          straight to a percentage still meets the qualifier
-                          at the number rather than in a stack of essays above. */}
-                      {judged && (<span className="bench-case-note bench-unreviewed-note">
-                          Graded by a language model against labels no domain expert has reviewed. Provisional.
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
+/**
+ * Held-out evaluation: a control table over the frozen split, not a live suite.
+ *
+ * Non-applicable scorers stay hidden until Show them. Unimplementable rows
+ * never take a numeric value even if a scorecard supplies one.
+ */
+export function HeldOutEvaluation({
+  state,
+  versionLabel,
+  tuningCount,
+  heldOutCount,
+  revealNonApplicable = false,
+}: {
+  state: ScorecardState;
+  versionLabel?: string;
+  tuningCount?: number | null;
+  heldOutCount?: number | null;
+  revealNonApplicable?: boolean;
+}) {
+  const [showNonApplicable, setShowNonApplicable] = useState(revealNonApplicable);
+  const scorecard: Scorecard | null = state.published ? state.scorecard : null;
+  const view = heldOutScorerRows({
+    scorecard,
+    labelsReviewed: Boolean(scorecard?.provenance.labelsReviewed),
+    hideNonApplicable: !showNonApplicable,
+  });
+  const byId = new Map(SCORER_CATALOG.map((definition) => [definition.id, definition]));
+  const splitLine = [
+    versionLabel?.trim() || 'No dataset version yet',
+    typeof tuningCount === 'number' ? `${tuningCount} tuning` : null,
+    typeof heldOutCount === 'number' ? `${heldOutCount} held out` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <LabSurface
+      id="lab-held-out"
+      title="Held-out evaluation"
+      fact={
+        <>
+          {HELD_OUT_LOCK_FACT} <Lock className="bench-lock" aria-hidden="true" />
+        </>
+      }
+      actions={<span className="bench-caption">Values open the cases behind them.</span>}
+    >
+      <p className="bench-caption ast-num">{splitLine}</p>
+      {!scorecard ? (
+        <Alert>
+          <TriangleAlert />
+          <AlertDescription>{state.published ? '' : state.reason}</AlertDescription>
+        </Alert>
+      ) : null}
+      {view.hiddenNonApplicable > 0 ? (
+        <p className="bench-caption">
+          {view.hiddenNonApplicable} not applicable.{' '}
+          <button type="button" className="bench-text-link" onClick={() => setShowNonApplicable(true)}>
+            Show them
+          </button>
+        </p>
+      ) : null}
+      <div className="bench-scorers">
+        <table className="bench-sheet">
+          <thead>
+            <tr>
+              <th>Scorer</th>
+              <th>{typeof tuningCount === 'number' ? `Tuning · ${tuningCount}` : 'Tuning'}</th>
+              <th>{typeof heldOutCount === 'number' ? `Held-out · ${heldOutCount}` : 'Held-out'}</th>
+              <th>Status</th>
+              <th> </th>
+            </tr>
+          </thead>
+          <tbody>
+            {view.rows.length === 0 ? (
+              <tr>
+                <td className="bench-empty-row" colSpan={5}>
+                  Scorer rows land with a published evaluation. Non-applicable scorers stay hidden until Show them.
+                </td>
+              </tr>
+            ) : (
+              view.rows.map((row) => {
+                const definition = byId.get(row.id);
+                return (
+                  <tr key={row.id} className={row.applicable ? undefined : 'bench-scorer-blocked'}>
+                    <td>
+                      <span className="bench-scorer-name">{row.label}</span>
+                      <span className="bench-case-id ast-num">{row.id}</span>
+                      {!row.applicable && definition?.blockedReason ? (
+                        <span className="bench-case-note">{definition.blockedReason}</span>
+                      ) : null}
+                    </td>
+                    <td className="ast-num">{row.tuning}</td>
+                    <td className="ast-num">{row.heldOut}</td>
+                    <td>
+                      <span className={row.status === 'provisional' ? 'bench-unreviewed-note' : undefined}>
+                        {HELD_OUT_STATUS_LABEL[row.status]}
+                      </span>
+                    </td>
+                    <td>
+                      <a className="bench-text-link" href={row.casesAndTracesHref}>
+                        cases and traces
+                      </a>
+                    </td>
+                  </tr>
                 );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </LabSurface>
   );
 }
 
@@ -369,6 +396,7 @@ export function HeldOutEvaluation({ state }: { state: ScorecardState }) {
  * run's metrics: both existing endpoints, so the runner needs no new contract.
  */
 export function BenchmarkLab() {
+  const evalLab = useEvaluationLab();
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [availability, setAvailability] = useState<ListAvailability | null>(null);
   const [selectedId, setSelectedId] = useState('');
@@ -377,13 +405,18 @@ export function BenchmarkLab() {
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [bakeOff, setBakeOff] = useState(DEFAULT_BENCHMARK_SETTINGS);
+  const [currentAgentEndpoint, setCurrentAgentEndpoint] = useState('');
+  const [lab, setLab] = useState<LabWorkspace | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch('/api/benchmark-settings')
       .then((response) => benchmarkSettingsFromResponse(response, 'loaded'))
       .then((payload) => {
-        if (!cancelled) setBakeOff(payload.settings);
+        if (!cancelled) {
+          setBakeOff(payload.settings);
+          setCurrentAgentEndpoint(payload.currentAgentEndpoint);
+        }
       })
       .catch(() => {
         if (!cancelled) setBakeOff(DEFAULT_BENCHMARK_SETTINGS);
@@ -392,6 +425,20 @@ export function BenchmarkLab() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchLabWorkspace()
+      .then((workspace) => {
+        if (!cancelled) setLab(workspace);
+      })
+      .catch(() => {
+        if (!cancelled) setLab(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
 
   useEffect(() => {
     let active = true;
@@ -453,35 +500,55 @@ export function BenchmarkLab() {
     );
   }, [selected, summary.inProgress]);
 
-  async function runSuite(): Promise<string[]> {
+  const runSuite = useCallback(async (which: SuiteSide = 'baseline', caseIds?: string[]): Promise<string[]> => {
     setRunning(true);
     setRunError(null);
     const started: string[] = [];
     try {
       const sides = compareSides(bakeOff);
-      const suiteId = OPERATOR_EVAL_SUITE_ID;
-      let firstId: string | null = null;
-      for (const side of sides) {
-        const response = await fetch('/api/benchmarks/run', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            suiteId,
-            agentEndpoint: side === 'current' ? undefined : side,
-          }),
-        });
-        if (!response.ok) {
-          const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
-          const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
-          throw new Error(message || `The suite could not be started (HTTP ${response.status}).`);
-        }
-        const created = (await response.json()) as { id?: unknown };
-        const id = typeof created.id === 'string' ? created.id : null;
-        if (id) started.push(id);
-        if (!firstId) firstId = id;
+      const side = which === 'candidate' ? sides[1] : sides[0];
+      if (which === 'candidate' && !side) {
+        throw new Error('Add a candidate endpoint in Settings → Experimental.');
       }
-      setLastRunId(firstId);
-      if (firstId) setSelectedId(firstId);
+      const suiteId = OPERATOR_EVAL_SUITE_ID;
+      const response = await fetch('/api/benchmarks/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          suiteId,
+          agentEndpoint: !side || side === 'current' ? undefined : side,
+          bakeOffSide: which,
+          ...(caseIds?.length ? { caseIds } : {}),
+        }),
+      });
+      if (!response.ok) {
+        const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
+        const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
+        throw new Error(message || `The suite could not be started (HTTP ${response.status}).`);
+      }
+      const created = (await response.json()) as { id?: unknown };
+      const id = typeof created.id === 'string' ? created.id : null;
+      if (id) started.push(id);
+      setLastRunId(id);
+      if (id) setSelectedId(id);
+      const flywheelResponse = await fetch('/api/benchmarks/flywheel');
+      const flywheelBody = flywheelResponse.ok
+        ? ((await flywheelResponse.json()) as { flywheel?: { lastAgentRunIds?: string[]; lastAgentSides?: string[] } })
+        : null;
+      const prevIds = flywheelBody?.flywheel?.lastAgentRunIds ?? [];
+      const prevSides = flywheelBody?.flywheel?.lastAgentSides ?? [];
+      const runIds = which === 'baseline' ? [id, prevIds[1]].filter(Boolean) : [prevIds[0] || id, id].filter(Boolean);
+      const named = which === 'baseline' ? [side || 'current', prevSides[1]].filter(Boolean) : [prevSides[0] || side || 'current', side || 'candidate'];
+      await fetch('/api/admin/benchmarks/last-suite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'agent',
+          at: new Date().toISOString(),
+          runIds,
+          sides: named,
+        }),
+      });
       setReloadToken((token) => token + 1);
       return started;
     } catch (error) {
@@ -490,7 +557,26 @@ export function BenchmarkLab() {
     } finally {
       setRunning(false);
     }
-  }
+  }, [bakeOff]);
+
+  // A missing status is treated as in-progress by the summary helper. With no
+  // selected run that would lock Run baseline on an empty lab.
+  const suiteInProgress = Boolean(selected && summary.inProgress) || Boolean(lab?.contract.liveRun);
+
+  const ops = useBenchmarkOps({
+    settings: bakeOff,
+    currentAgentEndpoint,
+    running: running || suiteInProgress,
+    lastRunId,
+    reloadToken,
+    inProgress: suiteInProgress,
+    attempted: lab?.contract.liveRun?.caseIndex ?? null,
+    total: lab?.contract.liveRun?.caseTotal ?? null,
+    selectedId: selected?.id || selectedId || null,
+    runSuite,
+    lab,
+    setLab,
+  });
 
   // Every qualification this run carries, as the rows of one ledger. The page
   // used to stack them as up to six separate alerts, which put a wall of them
@@ -498,16 +584,15 @@ export function BenchmarkLab() {
   // exactly what its alert said: the derivation is the single place they come
   // from, and none of them is conditional on anything but the run.
   const qualifications = benchmarkQualifications(summary);
+  const runProgress = lab?.contract.liveRun
+    ? liveRunProgressLine(lab.contract.liveRun)
+    : selected && summary.inProgress
+      ? `${selected.id} in progress`
+      : null;
 
   return (<div className="page-shell benchmark-lab">
-      <PageHeading title="Benchmarking" />
-
-      <EvalFlywheel
-        onAgentRun={() => runSuite()}
-        agentRunning={running}
-        agentError={runError}
-      />
-
+      <BenchmarkLabChrome
+        notices={<>
       {/* One panel rather than this page's own sentence, so an outage reads the
           same here as it does in Run Explorer and the rail. The detail carries
           the line about the blank space not being a zero, which is the claim
@@ -516,6 +601,12 @@ export function BenchmarkLab() {
           notice={unavailableNotice({ surface: 'benchmarks', code: 'DEPENDENCY_UNAVAILABLE' })}
           onRetry={() => setReloadToken((token) => token + 1)}
         />
+      )}
+
+      {runError && (<Alert>
+          <TriangleAlert />
+          <AlertDescription>{runError}</AlertDescription>
+        </Alert>
       )}
 
       {lastRunId && !runError && (<Alert>
@@ -531,40 +622,126 @@ export function BenchmarkLab() {
           </AlertDescription>
         </Alert>
       )}
-
-      {/*
-        One ledger, above the tiles, holding every qualification this run carries.
-
-        What is in here and why each row exists: what scored the run and against
-        which prompt version, because scores from two versions are not comparable;
-        stored metrics that cannot all be true, shown rather than corrected; a
-        suite that stopped partway, because a run cut short after two of ten can
-        show a perfect rate over two; cases that never produced an answer, which a
-        pass count cannot tell you, since five passed and one failed and five
-        passed and one errored give the same fraction and are different facts;
-        whose permissions produced the numbers, because the same suite genuinely
-        scores differently for two readers with different access; and that this is
-        one execution against one model version rather than a grade.
-
-        The head is the reason to read them. It is not a summary of them: a reader
-        who stops at the head has to still be right about what is below it.
-      */}
-      <BenchmarkLedger qualifications={qualifications} />
-
-      <BenchmarkTiles summary={summary} hasRun={Boolean(selected)} />
-
-      <RecordedRuns runs={runs} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
-
-      <PerCaseResults rows={caseRows} inProgress={Boolean(selected) && summary.inProgress} />
-
-      {/* Below the run, and never interleaved with it. Everything above is one
-          live suite execution under this reader's own grants; this is an
-          offline evaluation over a labelled set the demo is not tuned against.
-          They answer different questions and are measured on different days,
-          so putting them in one grid would produce two adjacent numbers over
-          different populations -- which is the disagreement this whole page
-          was rewritten to make impossible. */}
-      <HeldOutEvaluation state={evalScorecard()} />
+        </>}
+        contract={
+          lab
+            ? cellsFromPocContract(lab.contractView)
+            : labContractCells({
+                scorerActive: bakeOff.enabledJudges.length,
+                scorerDetail: bakeOff.experimentId.trim()
+                  ? `experiment ${bakeOff.experimentId.trim()}`
+                  : 'experiment id picked in Settings → Experimental',
+              })
+        }
+        judges={bakeOff.enabledJudges}
+        runProgress={runProgress}
+        running={running || suiteInProgress}
+        workspace={evalLab.lab}
+        onRunBaseline={() => {
+          void ops.runBaseline();
+        }}
+        onRunCandidate={() => {
+          void ops.runCandidate();
+        }}
+        onCancel={() => {
+          void ops.cancelRun();
+        }}
+        comparisonExtras={<BenchmarkLedger qualifications={qualifications} />}
+        slots={{
+          evaluationSet: <EvaluationSet lab={evalLab} />,
+          genieDiagnostics: <GenieAccuracyDiagnostics lab={evalLab} />,
+          stageCurate: <CurateStageControls lab={evalLab} />,
+          stageGenie: <GenieStageControls lab={evalLab} />,
+          stageJudges: (
+            <BenchmarkJudgesStage
+              judges={ops.judges}
+              needTags={ops.needTags}
+              running={running || suiteInProgress}
+              progress={ops.progress}
+              hasCandidate={ops.hasCandidate}
+              threadNote={ops.threadNote}
+              onRunBaseline={() => {
+                void ops.runBaseline();
+              }}
+              onRunCandidate={() => {
+                void ops.runCandidate();
+              }}
+              onScoreSession={() => {
+                void ops.scoreSession();
+              }}
+              onCancel={() => {
+                void ops.cancelRun();
+              }}
+              onRetryFailed={() => {
+                void ops.retryFailed();
+              }}
+            />
+          ),
+          stageApply: (
+            <BenchmarkApplyStage
+              target={ops.target}
+              onTarget={ops.setTarget}
+              approver={ops.approver}
+              onApprover={ops.setApprover}
+              promptName={ops.promptName}
+              onPromptName={ops.setPromptName}
+              gateLabel={ops.gateLabel}
+              caption={ops.caption}
+              rollback={ops.rollback}
+              applying={ops.applying}
+              applyNote={ops.applyNote}
+              canApply={ops.canApply}
+              onApply={() => {
+                void ops.applyCandidate();
+              }}
+              onRollback={() => {
+                void ops.viewRollback();
+              }}
+            />
+          ),
+          runComparison: (
+            <BenchmarkBakeOffSurface
+              comparison={ops.comparison}
+              extras={<BenchmarkLedger qualifications={qualifications} />}
+              history={ops.history}
+              genieNote={ops.genieNote}
+              coverageNote={ops.coverageNote}
+              onExport={ops.exportPack}
+              onCopyPermalink={() => {
+                void ops.copyPermalink();
+              }}
+              onInspect={(caseId) => ops.setSelectedFailure(caseId)}
+            />
+          ),
+          failureInvestigation: (
+            <BenchmarkFailurePane
+              cases={ops.inspectCases}
+              selectedId={ops.selectedFailure}
+              onSelect={ops.setSelectedFailure}
+              note={ops.failureNote}
+              onAddEdge={() => {
+                void ops.addEdge();
+              }}
+              onMarkKnown={() => {
+                void ops.markKnown();
+              }}
+            />
+          ),
+          heldOut: (
+            <HeldOutEvaluation
+              state={evalScorecard()}
+              versionLabel={evalLab.lab.currentVersionId}
+              tuningCount={Math.max(0, evalLab.lab.counts.active - evalLab.lab.counts.heldOut)}
+              heldOutCount={evalLab.lab.counts.heldOut}
+            />
+          ),
+        }}
+        failureCases={caseRows.map((row) => ({
+          id: row.caseId || row.key,
+          question: row.question ?? 'The question was not recorded',
+          outcome: row.outcomeLabel,
+        }))}
+      />
     </div>
   );
 }

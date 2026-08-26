@@ -948,8 +948,8 @@ export function heldOutScorerRows(input: {
       id: definition.id,
       label: definition.label,
       tuning: '-',
-      heldOut: formatHeldOutCell(score),
-      status: heldOutStatusFor(score, judgedUnreviewed),
+      heldOut: applicable ? formatHeldOutCell(score) : '-',
+      status: applicable ? heldOutStatusFor(score, judgedUnreviewed) : 'skipped',
       applicable,
       casesAndTracesHref: `/benchmarking?scorer=${encodeURIComponent(definition.id)}`,
     });
