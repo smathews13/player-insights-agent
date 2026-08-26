@@ -179536,7 +179536,7 @@ async function runGenieAccuracy(input) {
     } catch (error48) {
       const durationMs = Math.max(0, now() - caseStarted);
       const note = messageOf4(error48);
-      const missKind = durationMs >= WAREHOUSE_BUDGET_MS && classifyGenieMiss(note) === "error" ? "timeout" : classifyGenieMiss(note);
+      const missKind = classifyGenieMiss(note);
       const excluded2 = isExcludedGenieMiss(missKind);
       cases.push({
         id: row2.id,
