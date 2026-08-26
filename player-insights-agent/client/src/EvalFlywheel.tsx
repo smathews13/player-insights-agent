@@ -131,6 +131,7 @@ export function EvalFlywheel({
   const [flywheel, setFlywheel] = useState<FlywheelState>(EMPTY_FLYWHEEL_STATE);
   const [compare, setCompare] = useState<{ baseline: SideScore; candidate: SideScore } | null>(null);
   const [promoteNote, setPromoteNote] = useState<string | null>(null);
+  const [promptNameDraft, setPromptNameDraft] = useState('');
   const [alignNote, setAlignNote] = useState<string | null>(null);
   const [curateCandidates, setCurateCandidates] = useState<string[]>([]);
   const [curatePicked, setCuratePicked] = useState<string[]>([]);
@@ -140,6 +141,7 @@ export function EvalFlywheel({
   const [liveSampleRate, setLiveSampleRate] = useState(0.2);
   const [workspaceMonitor, setWorkspaceMonitor] = useState<WorkspaceMonitor | null>(null);
   const [liveMonitorNote, setLiveMonitorNote] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState<string | null>(null);
 
   const loadFlywheel = useCallback(async () => {
     const response = await fetch('/api/benchmarks/flywheel');
@@ -184,6 +186,7 @@ export function EvalFlywheel({
       const rows = Array.isArray(body.dataset?.rows) ? body.dataset.rows : [];
       setDataset({ rows: rows.length > 0 ? rows : [emptyEvalRow('q-new')] });
       setFlywheel(flywheelState);
+      setPromptNameDraft(flywheelState.promptRegistryName ?? '');
       if (settingsResponse.ok) {
         const loaded = await benchmarkSettingsFromResponse(settingsResponse, 'loaded');
         const named = compareSides(loaded.settings);
@@ -365,7 +368,31 @@ export function EvalFlywheel({
       return;
     }
     if (body?.flywheel) setFlywheel(body.flywheel);
-    setPromoteNote(`Next Ask will use ${endpoint}. Genie space instructions cannot be written from this app.`);
+    const registry = body?.flywheel?.promotedPrompt;
+    setPromoteNote(
+      registry?.note
+        ? `Next Ask will use ${endpoint}. ${registry.note}`
+        : `Next Ask will use ${endpoint}. Genie space instructions cannot be written from this app.`
+    );
+  };
+
+  const savePromptName = async () => {
+    const response = await fetch('/api/admin/benchmarks/prompt-registry', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: promptNameDraft }),
+    });
+    const body = (await response.json().catch(() => null)) as { flywheel?: FlywheelState; message?: unknown } | null;
+    if (!response.ok) {
+      setPromoteNote(typeof body?.message === 'string' ? body.message : 'The Prompt Registry name was not saved.');
+      return;
+    }
+    if (body?.flywheel) setFlywheel(body.flywheel);
+    setPromoteNote(
+      promptNameDraft.trim()
+        ? `Promote will try to move the production alias on ${promptNameDraft.trim()}.`
+        : 'Promote will save the endpoint and cached guidance. Add a catalog.schema.prompt name to move an alias.'
+    );
   };
 
   const alignGuidelines = async () => {
@@ -416,6 +443,23 @@ export function EvalFlywheel({
     } finally {
       setCurateLoading(false);
     }
+  };
+
+  const startReviewApp = async () => {
+    setReviewNote(null);
+    const response = await fetch('/api/admin/benchmarks/review-app', { method: 'POST' });
+    const body = (await response.json().catch(() => null)) as {
+      session?: FlywheelState['labelingSession'];
+      flywheel?: FlywheelState;
+      message?: unknown;
+    } | null;
+    if (body?.flywheel) setFlywheel(body.flywheel);
+    const session = body?.session ?? body?.flywheel?.labelingSession;
+    if (!session) {
+      setReviewNote(typeof body?.message === 'string' ? body.message : 'Review App was not started.');
+      return;
+    }
+    setReviewNote(session.note);
   };
 
   const checkWorkspaceMonitoring = async () => {
@@ -491,7 +535,8 @@ export function EvalFlywheel({
           <strong>7. Run agent judges</strong> Same dataset, baseline and candidate if you set one.
         </li>
         <li>
-          <strong>8. Promote the winner</strong> Next Ask uses that agent. This does not change Connections, and it cannot
+          <strong>8. Promote the winner</strong> Next Ask uses that agent and the Prompt Registry{' '}
+          <code>production</code> alias when this app can move it. This does not change Connections, and it cannot
           write Genie space instructions.
         </li>
       </ol>
@@ -660,9 +705,23 @@ export function EvalFlywheel({
             <Button type="button" variant="outline" onClick={() => void alignGuidelines()} disabled={labeled === 0}>
               Align guidelines from labels
             </Button>
+            <Button type="button" variant="outline" onClick={() => void startReviewApp()}>
+              Start Review App for SMEs
+            </Button>
             {datasetState === 'saving' ? <span className="settings-row-note">Saving…</span> : null}
           </div>
           {alignNote ? <p className="settings-row-note">{alignNote}</p> : null}
+          {reviewNote ? <p className="settings-row-note">{reviewNote}</p> : null}
+          {flywheel.labelingSession?.url ? (
+            <p className="settings-row-note">
+              <a className="benchmark-settings-link" href={flywheel.labelingSession.url} target="_blank" rel="noreferrer">
+                Open the Review App
+              </a>
+              {flywheel.labelingSession.name ? ` · ${flywheel.labelingSession.name}` : ''}
+            </p>
+          ) : flywheel.labelingSession?.note ? (
+            <p className="settings-row-note">{flywheel.labelingSession.note}</p>
+          ) : null}
           {curateNote ? <p className="settings-row-note">{curateNote}</p> : null}
           {curateCandidates.length > 0 ? (
             <div className="eval-curate">
@@ -866,11 +925,31 @@ export function EvalFlywheel({
               ) : null}
             </div>
           ) : null}
+          <label className="runtime-field runtime-field-wide">
+            <span className="runtime-field-label">Prompt Registry name</span>
+            <Input
+              aria-label="Prompt Registry name"
+              placeholder="catalog.schema.prompt"
+              value={promptNameDraft}
+              onChange={(event) => setPromptNameDraft(event.target.value)}
+              onBlur={() => void savePromptName()}
+            />
+            <span className="settings-row-note">
+              Promote moves the <code>production</code> alias here so the next Ask picks it up without a code change.
+              Leave blank if this workspace has no Prompt Registry — the saved guidance still goes out on Ask.
+            </span>
+          </label>
           {flywheel.promoted?.endpoint ? (
             <p className="settings-row-note">
               Next Ask uses <strong>{flywheel.promoted.endpoint}</strong>
               {flywheel.promoted.side ? ` (${flywheel.promoted.side})` : ''}. This does not change Connections, and it
               cannot write Genie space instructions.
+            </p>
+          ) : null}
+          {flywheel.promotedPrompt?.uri ? (
+            <p className="settings-row-note">
+              Prompt alias {flywheel.promotedPrompt.status}: <code>{flywheel.promotedPrompt.uri}</code>
+              {flywheel.promotedPrompt.note ? ` — ${flywheel.promotedPrompt.note}` : ''}
             </p>
           ) : null}
           {promoteNote ? <p className="settings-row-note">{promoteNote}</p> : null}

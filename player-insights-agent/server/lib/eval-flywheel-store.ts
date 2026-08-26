@@ -80,3 +80,15 @@ export async function resolveAskEndpoint(client: LakebaseReader): Promise<string
   if (!name || name === 'current') return undefined;
   return name;
 }
+
+/**
+ * Operating guidance the next Ask should send.
+ *
+ * Prefer the cached template from the last promote so Ask does not depend on
+ * a Prompt Registry read succeeding on every question.
+ */
+export async function resolveAskGuidance(client: LakebaseReader): Promise<string | undefined> {
+  const state = await readFlywheelState(client);
+  const template = state.promotedPrompt?.template?.trim();
+  return template || undefined;
+}

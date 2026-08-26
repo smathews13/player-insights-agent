@@ -52,6 +52,9 @@ class RuntimeSettings:
     loop: LoopSettings = LoopSettings()
     answer: AnswerSettings = AnswerSettings()
     behavior: BehaviorSettings = BehaviorSettings()
+    # Promoted Prompt Registry guidance. Not a Settings control — Ask sends it
+    # after Benchmarking moves the production alias (or caches the template).
+    eval_guidance: str = ""
 
 
 _current: ContextVar[RuntimeSettings | None] = ContextVar("runtime_settings", default=None)
@@ -83,7 +86,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
     started = time.perf_counter()
     raw = custom_inputs.get("runtime_settings")
     if not isinstance(raw, dict):
-        value = RuntimeSettings()
+        value = RuntimeSettings(eval_guidance=_string(custom_inputs.get("eval_guidance"), "", 8_000))
         _current.set(value)
         _turn_started.set(started)
         _turn_deadline.set(started + value.loop.max_run_seconds)
@@ -142,6 +145,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             timezone=timezone,
             inject_current_date=_boolean(behavior.get("injectCurrentDate"), False),
         ),
+        eval_guidance=_string(custom_inputs.get("eval_guidance"), "", 8_000),
     )
     _current.set(value)
     _turn_started.set(started)
@@ -197,7 +201,9 @@ def prompt_fragment(*, now: datetime | None = None) -> str:
     # knobs differ from compiled defaults. Relative windows otherwise invent a day.
     always = today_line(settings.behavior.timezone, now=now)
     if settings.answer == AnswerSettings() and settings.behavior == BehaviorSettings():
-        return always
+        if not settings.eval_guidance:
+            return always
+        return f"{always}\n\n# Promoted operating guidance\n{settings.eval_guidance}"
     lines = [
         always,
         "Runtime answer contract:",
@@ -228,8 +234,11 @@ def prompt_fragment(*, now: datetime | None = None) -> str:
         lines.append(f"- chart types={settings.answer.charts_types}; produce {chart_rule}")
     if settings.behavior.inject_current_date:
         # Explicit UI/request opt-in keeps a second labeled reminder for operators
-        # who turned the switch on; the always-on line above already supplies the day.
+        # who turned the switch on; the already-on line above already supplies the day.
         lines.append(
             f"- Current date (explicit): {today_line(settings.behavior.timezone, now=now)}"
         )
+    if settings.eval_guidance:
+        lines.append("# Promoted operating guidance")
+        lines.append(settings.eval_guidance)
     return "\n".join(lines)

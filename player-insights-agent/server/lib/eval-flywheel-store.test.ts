@@ -8,6 +8,7 @@ import {
   forgetFlywheelState,
   readFlywheelState,
   resolveAskEndpoint,
+  resolveAskGuidance,
   writeFlywheelState,
 } from './eval-flywheel-store';
 
@@ -66,5 +67,26 @@ describe('flywheel state persistence', () => {
   it('leaves Ask on the deployed agent when nothing has been promoted', async () => {
     forgetFlywheelState();
     expect(await resolveAskEndpoint(client() as never)).toBeUndefined();
+  });
+
+  it('resolves promoted Prompt Registry guidance for the next Ask', async () => {
+    forgetFlywheelState();
+    const reader = client([
+      {
+        state: {
+          ...EMPTY_FLYWHEEL_STATE,
+          promotedPrompt: {
+            name: 'main.default.pia_guidance',
+            alias: 'production',
+            version: '3',
+            uri: 'prompts:/main.default.pia_guidance@production',
+            template: 'Be brief.',
+            status: 'moved',
+            note: 'Moved.',
+          },
+        },
+      },
+    ]);
+    expect(await resolveAskGuidance(reader as never)).toBe('Be brief.');
   });
 });

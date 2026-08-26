@@ -7,6 +7,8 @@ import {
   deterministicChecks,
   historyLine,
   pickWinner,
+  PRODUCTION_PROMPT_ALIAS,
+  promptRegistryUri,
   scoredAccuracy,
   sqlHasFqn,
 } from './eval-flywheel';
@@ -80,6 +82,14 @@ describe('deterministic checks beside the judges', () => {
     });
     expect(checks.find((entry) => entry.id === 'fqn-present')?.passed).toBe(true);
     expect(checks.find((entry) => entry.id === 'latency-under-budget')?.passed).toBe(false);
+  });
+});
+
+describe('Prompt Registry alias', () => {
+  it('names the production URI Ask will load after promote', () => {
+    expect(PRODUCTION_PROMPT_ALIAS).toBe('production');
+    expect(promptRegistryUri('main.default.pia_guidance')).toBe('prompts:/main.default.pia_guidance@production');
+    expect(promptRegistryUri('')).toBe('');
   });
 });
 

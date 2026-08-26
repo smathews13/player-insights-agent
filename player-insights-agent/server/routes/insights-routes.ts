@@ -27,7 +27,7 @@ import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCa
 import { HELD_OUT_CASES, HELD_OUT_SUITE_ID, HELD_OUT_SUITE_NAME } from '../../shared/held-out-suite';
 import { OPERATOR_EVAL_SUITE_ID, OPERATOR_EVAL_SUITE_NAME } from '../../shared/eval-dataset';
 import { readEvalDataset } from '../lib/eval-dataset-store';
-import { resolveAskEndpoint } from '../lib/eval-flywheel-store';
+import { resolveAskEndpoint, resolveAskGuidance } from '../lib/eval-flywheel-store';
 import { DEPLOYMENT_SETTINGS_DDL, resolveExperimentId, resolveJudgeEndpoint } from '../lib/app-settings';
 import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
@@ -2567,6 +2567,8 @@ interface AskServingInputs {
   deadlineAt?: string;
   /** Lakebase-backed behavior knobs, resolved for this request. */
   runtimeSettings?: RuntimeSettings;
+  /** Promoted Prompt Registry guidance. Omitted when nothing has been promoted. */
+  evalGuidance?: string;
 }
 
 /**
@@ -2588,6 +2590,7 @@ export function buildAskServingBody({
   expectedUser,
   deadlineAt,
   runtimeSettings,
+  evalGuidance,
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -2597,6 +2600,7 @@ export function buildAskServingBody({
   if (runId) custom_inputs.run_id = runId;
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
   if (runtimeSettings) custom_inputs.runtime_settings = runtimeSettings;
+  if (evalGuidance?.trim()) custom_inputs.eval_guidance = evalGuidance.trim();
   // The mode travels with the user it names, and neither travels alone. A mode
   // with nobody named is a request the endpoint's gate refuses for having
   // nothing to hold its invoker against, so sending one without the other
@@ -4195,6 +4199,7 @@ export function setupInsightsRoutes(
           servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
         }
         askRuntime = await readRuntimeSettings(appkit);
+        const evalGuidance = await resolveAskGuidance(appkit);
         const payload = buildAskServingBody({
           history: servingHistory,
           prompt,
@@ -4208,6 +4213,7 @@ export function setupInsightsRoutes(
           expectedUser: identity.token ? email : '',
           deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
           runtimeSettings: askRuntime,
+          evalGuidance,
         });
         // Counted on the way past, so a failure can say where the run died
         // rather than only that it did. "It stopped in 'Query
@@ -5042,6 +5048,7 @@ export function setupInsightsRoutes(
             // on a laptop, where there is no proxy and so no user to assert.
             expectedUser: identity.token ? email : '',
             runtimeSettings: await readRuntimeSettings(appkit),
+            evalGuidance: await resolveAskGuidance(appkit),
           });
           let raw: unknown;
           try {

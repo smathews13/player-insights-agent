@@ -652,7 +652,9 @@ export type AdminAction =
   /** An admin promoted a bake-off winner for the next Ask. */
   | 'eval-agent-promoted'
   /** An admin asked this app to list or start workspace production scorers. */
-  | 'eval-live-monitoring-probed';
+  | 'eval-live-monitoring-probed'
+  /** An admin started an MLflow Review App labeling session for SMEs. */
+  | 'eval-review-app-started';
 
 /**
  * Record what an admin did: who, when, what.

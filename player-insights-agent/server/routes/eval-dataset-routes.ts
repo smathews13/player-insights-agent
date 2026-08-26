@@ -7,6 +7,8 @@ import {
   uniqueQuestionsToAdd,
 } from '../../shared/eval-dataset';
 import { LastSuiteSchema, PromotedAgentSchema, rememberAccuracy } from '../../shared/eval-flywheel';
+import { promotePromptAlias, promptTemplateFromPromote } from '../lib/prompt-registry';
+import { startLabelingSession } from '../lib/review-app';
 import { DEFAULT_LIVE_SAMPLE_RATE } from '../../shared/eval-live-scoring';
 import { recordAdminAction } from '../lib/admin-roles';
 import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
@@ -185,22 +187,121 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
       }
       const actor = userEmail(req);
       try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const promptName = current.promptRegistryName.trim();
+        const template = promptTemplateFromPromote({
+          side: parsed.data.side,
+          endpoint: parsed.data.endpoint,
+          guidelines: settings.guidelinesText,
+        });
+        let promotedPrompt = current.promotedPrompt;
+        try {
+          const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+          const client = new WorkspaceClient({});
+          promotedPrompt = await promotePromptAlias(
+            {
+              request: ({ method, path, payload }) =>
+                client.apiClient.request({ method, path, payload, raw: false }),
+            },
+            { name: promptName, template }
+          );
+        } catch (error) {
+          promotedPrompt = {
+            name: promptName,
+            alias: 'production',
+            version: '',
+            uri: promptName ? `prompts:/${promptName}@production` : '',
+            template,
+            status: promptName ? 'blocked' : 'skipped',
+            note: promptName
+              ? `The production alias was not moved: ${(error as Error).message} The next Ask still uses the guidance saved from this promote.`
+              : 'No Prompt Registry name is set. Next Ask still uses the saved guidance from this promote.',
+          };
+        }
         const flywheel = await patchFlywheelState(
           appkit,
-          { promoted: { ...parsed.data, at: parsed.data.at || new Date().toISOString() } },
+          {
+            promoted: { ...parsed.data, at: parsed.data.at || new Date().toISOString() },
+            promotedPrompt,
+          },
           actor
         );
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-agent-promoted',
           subject: 'eval-flywheel',
-          detail: `Next Ask will use ${parsed.data.endpoint}.`,
+          detail: `Next Ask will use ${parsed.data.endpoint}. ${promotedPrompt?.note ?? ''}`.trim(),
         });
-        res.json({ flywheel });
+        res.json({ flywheel, promotedPrompt });
       } catch (error) {
         res.status(503).json({
           error: 'promote_unavailable',
           message: `The winner was not saved: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.post('/api/admin/benchmarks/review-app', async (req, res) => {
+      const actor = userEmail(req);
+      const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      let session;
+      try {
+        const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+        const client = new WorkspaceClient({});
+        session = await startLabelingSession(
+          {
+            request: ({ method, path, payload }) =>
+              client.apiClient.request({ method, path, payload, raw: false }),
+          },
+          { name, experimentId: settings.experimentId }
+        );
+      } catch (error) {
+        session = {
+          name: name || 'PIA SME review',
+          sessionId: '',
+          runId: '',
+          url: '',
+          status: 'blocked' as const,
+          note: `Review App could not be started: ${(error as Error).message} SMEs can still label thumbs and SQL correct on this tab.`,
+          at: new Date().toISOString(),
+        };
+      }
+      try {
+        const flywheel = await patchFlywheelState(appkit, { labelingSession: session }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'eval-review-app-started',
+          subject: 'eval-flywheel',
+          detail: session.note,
+        });
+        res.status(session.status === 'open' ? 200 : 503).json({ session, flywheel });
+      } catch (error) {
+        res.status(session.status === 'open' ? 200 : 503).json({
+          session,
+          message: session.note || (error as Error).message,
+        });
+      }
+    });
+
+    app.put('/api/admin/benchmarks/prompt-registry', async (req, res) => {
+      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      if (name && !/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+){2}$/.test(name)) {
+        res.status(400).json({
+          error: 'invalid_prompt_name',
+          message: 'Use a Unity Catalog name: catalog.schema.prompt',
+        });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const flywheel = await patchFlywheelState(appkit, { promptRegistryName: name }, actor);
+        res.json({ flywheel });
+      } catch (error) {
+        res.status(503).json({
+          error: 'prompt_registry_unavailable',
+          message: `The Prompt Registry name was not saved: ${(error as Error).message}`,
         });
       }
     });

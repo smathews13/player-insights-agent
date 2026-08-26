@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { accuracyScore, type AccuracyScore } from './eval-dataset';
+import { LabelingSessionSchema } from './eval-review-app';
 
 /**
  * The rest of Acme's flywheel: compare, promote, re-run, history, and
@@ -207,6 +208,27 @@ export const PromotedAgentSchema = z.strictObject({
 
 export type PromotedAgent = z.infer<typeof PromotedAgentSchema>;
 
+/** The alias Ask loads. Moving it is how promote reaches the next question without a code change. */
+export const PRODUCTION_PROMPT_ALIAS = 'production';
+
+export const PromotedPromptSchema = z.strictObject({
+  name: z.string().trim().max(300).default(''),
+  alias: z.string().trim().max(80).default(PRODUCTION_PROMPT_ALIAS),
+  version: z.string().trim().max(40).default(''),
+  uri: z.string().trim().max(400).default(''),
+  template: z.string().trim().max(8_000).default(''),
+  status: z.enum(['moved', 'blocked', 'skipped']).default('skipped'),
+  note: z.string().trim().max(800).default(''),
+});
+
+export type PromotedPrompt = z.infer<typeof PromotedPromptSchema>;
+
+export function promptRegistryUri(name: string, alias: string = PRODUCTION_PROMPT_ALIAS): string {
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  return `prompts:/${trimmed}@${alias.trim() || PRODUCTION_PROMPT_ALIAS}`;
+}
+
 export const AccuracySnapshotSchema = z.strictObject({
   at: z.string().trim().min(1).max(40),
   spaceId: z.string().trim().max(200).default(''),
@@ -222,6 +244,9 @@ export const AccuracySnapshotSchema = z.strictObject({
 export const FlywheelStateSchema = z.strictObject({
   lastSuite: LastSuiteSchema.nullable().default(null),
   promoted: PromotedAgentSchema.nullable().default(null),
+  promptRegistryName: z.string().trim().max(300).default(''),
+  promotedPrompt: PromotedPromptSchema.nullable().default(null),
+  labelingSession: LabelingSessionSchema.nullable().default(null),
   lastAgentRunIds: z.array(z.string().trim().min(1).max(80)).max(4).default([]),
   lastAgentSides: z.array(z.string().trim().max(200)).max(4).default([]),
   history: z.array(AccuracySnapshotSchema).max(50).default([]),
@@ -232,6 +257,9 @@ export type FlywheelState = z.infer<typeof FlywheelStateSchema>;
 export const EMPTY_FLYWHEEL_STATE: FlywheelState = {
   lastSuite: null,
   promoted: null,
+  promptRegistryName: '',
+  promotedPrompt: null,
+  labelingSession: null,
   lastAgentRunIds: [],
   lastAgentSides: [],
   history: [],

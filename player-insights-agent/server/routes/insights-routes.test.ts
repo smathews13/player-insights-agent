@@ -1167,6 +1167,19 @@ describe('serving request body', () => {
     expect(body.custom_inputs).toEqual({ conversation_id: 'conv-1' });
   });
 
+  it('sends promoted Prompt Registry guidance only when one was saved', () => {
+    const body = buildAskServingBody({
+      history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
+      prompt: NONTRIVIAL_QUESTION,
+      conversationId: 'conv-1',
+      evalGuidance: 'Stay inside governed tables.',
+    });
+    expect(body.custom_inputs).toMatchObject({
+      conversation_id: 'conv-1',
+      eval_guidance: 'Stay inside governed tables.',
+    });
+  });
+
   it('keeps the question when conversation history is unavailable', () => {
     const body = buildAskServingBody({
       history: [],

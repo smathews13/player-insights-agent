@@ -70,6 +70,13 @@ def test_request_settings_control_loop_and_answer_contract():
     assert "chart types=bar; produce bar charts only" in fragment
 
 
+def test_eval_guidance_reaches_the_prompt_without_runtime_settings():
+    activate({"eval_guidance": "Stay inside governed tables."})
+    fragment = prompt_fragment()
+    assert "Promoted operating guidance" in fragment
+    assert "Stay inside governed tables." in fragment
+
+
 def test_invalid_direct_caller_values_fall_back_safely():
     settings = activate(
         {
