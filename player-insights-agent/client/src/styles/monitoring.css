@@ -322,6 +322,16 @@
 .monitoring-search input[type='search'] {
   padding-right: 26px;
 }
+/*
+ * THE FILL, AND ONLY THE FILL. AppKit's field is transparent, so the sky
+ * showed through this box while the Person / Outcome / Rating / Table chips
+ * beside it paint `--card`. Same token, same row, no size or placement change:
+ * those live on `.monitoring-search` above. Scoped to the filter row so the
+ * Ops latency field, which shares the class, is not restyled from here.
+ */
+.monitoring-filters .monitoring-search input {
+  background: var(--card);
+}
 
 /* One line above the list, in body text. No warning colour, and no icon. */
 .monitoring-note {

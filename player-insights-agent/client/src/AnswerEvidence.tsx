@@ -18,8 +18,10 @@ import { ChevronDown } from 'lucide-react';
 import { AnswerCharts } from './AnswerCharts';
 import { AnswerProse } from './DataEntityLinks';
 import { carriesTable } from './answer-markdown';
+import { tableOriginMaps } from './answer-table-origins';
 import { mentionedIdentifiers } from './data-entities';
 import type { Answer } from './app-types';
+import type { SourceRef } from './answer-shape';
 
 export function AnswerEvidence({
   narrative,
@@ -30,7 +32,7 @@ export function AnswerEvidence({
   narrative: string;
   content?: string | null;
   charts?: Answer['charts'];
-  sources: { name: string; freshness: string }[];
+  sources: readonly SourceRef[];
 }) {
   /*
    * The rows start folded, and stay open once opened. A reader who asked to see
@@ -42,17 +44,30 @@ export function AnswerEvidence({
   const hasCharts = Array.isArray(charts) && charts.length > 0;
   const hasTables = carriesTable(narrative, content);
   if (!hasCharts && !hasTables) return null;
+  const [narrativeOrigins, contentOrigins] = tableOriginMaps([narrative, content], sources);
   const tables = (
     <>
-      <AnswerProse text={narrative} sources={sources} columns={mentionedIdentifiers([narrative])} blocks="tables" />
+      <AnswerProse
+        text={narrative}
+        sources={sources}
+        columns={mentionedIdentifiers([narrative])}
+        blocks="tables"
+        originMap={narrativeOrigins}
+      />
       {content ? (
-        <AnswerProse text={content} sources={sources} columns={mentionedIdentifiers([content])} blocks="tables" />
+        <AnswerProse
+          text={content}
+          sources={sources}
+          columns={mentionedIdentifiers([content])}
+          blocks="tables"
+          originMap={contentOrigins}
+        />
       ) : null}
     </>
   );
   return (
     <section className="answer-evidence" aria-label={hasCharts ? 'Chart evidence' : 'Table evidence'}>
-      {hasCharts ? <AnswerCharts charts={charts} onFailure={() => setShowRows(true)} /> : null}
+      {hasCharts ? <AnswerCharts charts={charts} sources={sources} onFailure={() => setShowRows(true)} /> : null}
       {hasCharts && hasTables ? (
         <Collapsible open={showRows} onOpenChange={setShowRows}>
           <CollapsibleTrigger asChild>

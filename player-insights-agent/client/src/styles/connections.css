@@ -16,6 +16,16 @@
 .connections-page {
   gap: 16px;
 }
+/*
+ * Catalog / Schema overlay. A dropdown scroll-lock pads the body for a bar this
+ * page already reserved on `html`; that extra padding shoves the whole shell
+ * left. Scoped to this page so a lock opened from Catalog / Schema cannot
+ * move the chrome.
+ */
+html:has(.connections-page) body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+}
 /* The page h2 is 22px here rather than the shell's clamp up to 38px. This page
    opens with an eyebrow above the heading, and a 38px word under an 11px label
    reads as two unrelated things stacked. Scoped rather than changed in
@@ -592,7 +602,16 @@
 .connection-block {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  /* Visible, so Catalog / Schema menus overlay the table instead of growing
+     this card and shoving the page. The summary still clips its own wash. */
+  overflow: visible;
+}
+.connection-block-summary {
+  border-radius: var(--radius-md);
+}
+.connection-block:has(.connection-block-body) .connection-block-summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .connection-block-label {
   font-weight: 700;
@@ -623,18 +642,48 @@
 .connections-table-wrap {
   display: grid;
   gap: 10px;
+  overflow: visible;
 }
 .connections-table-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   align-items: center;
+  /* Catalog / Schema menus overlay this row. Wrapping and a growing search
+     were how opening a filter shoved the rest of the page sideways. */
+  overflow: visible;
 }
 .connections-table-search {
-  /* `.run-search` paints the icon and the field padding. This only sizes the
-     box in the toolbar, the same split Monitoring uses. */
-  flex: 1 1 200px;
-  min-width: 160px;
+  /* Compact field, same 32px height as the Catalog / Schema pills, sitting
+     immediately to their left rather than eating the row. `.run-search` still
+     paints the magnifying glass. */
+  flex: none;
+  width: 12rem;
+  min-width: 12rem;
+  max-width: 12rem;
+  height: 32px;
+}
+.connections-table-search [data-slot='input'] {
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  width: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
+  box-sizing: border-box;
+}
+.connections-table-filter {
+  position: relative;
+  flex: none;
+  overflow: visible;
+}
+.connections-table-filter-menu {
+  /* Overlay: width follows the trigger, never the toolbar. */
+  position: absolute;
+  z-index: 40;
+  min-width: var(--radix-select-trigger-width);
+  width: max-content;
+  max-width: min(20rem, 80vw);
 }
 .connections-table-empty {
   margin: 0;
@@ -1727,6 +1776,34 @@
 }
 .plane-button-quiet:disabled {
   opacity: 0.5;
+}
+/* The add-connection control. Same ink and weight as a configuration row
+   label ("Benchmark judge model"), not the quiet 12px blue chip used for
+   Remove / Put back. The row already has the hairline; the button does not
+   add a second, fainter one. */
+.plane-add-row {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+}
+.plane-add-connection {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ast-text);
+  font-size: var(--text-base);
+  font-weight: 500;
+  cursor: pointer;
+}
+.plane-add-connection:hover {
+  color: var(--ast-text);
+}
+.plane-add-connection:focus-visible {
+  outline: 2px solid var(--ast-blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 /* ── The asset browsers ─────────────────────────────────────────────────────

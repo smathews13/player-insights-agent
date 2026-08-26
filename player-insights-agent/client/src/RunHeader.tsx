@@ -145,49 +145,46 @@ export function RunHeader({
                   control whose destination cannot contain what it names. */
               <UserIdentityChip identity={run.stakeholder} compact className="run-detail-user" />
             )}
-            <Badge variant="outline" className={`run-status-pill ${astPill(displayedStatus)}`}>
-              {/* The tick only on the family that earns it. A run that failed does
-                  not get a check beside the word "failed", and a status this app
-                  does not recognise gets no glyph asserting how it went. */}
-              {family === 'pos' && <Check aria-hidden="true" />}
-              {displayedStatus ?? 'unknown'}
-            </Badge>
             {typeof toolCalls === 'number' && Number.isFinite(toolCalls) && (
               <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
                 Tools · <span className="ast-num">{toolCalls.toLocaleString()}</span>
               </Badge>
             )}
-            <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
-              {rating.rated ? 'Rated' : 'Not rated'}
-            </Badge>
-            {canEdit && (
-              <button
-                type="button"
-                className="run-header-edit"
-                aria-label="Edit run labels"
-                aria-expanded={editing}
-                onClick={() => setEditing((open) => !open)}
-              >
-                <Pencil aria-hidden="true" />
-              </button>
+            {canEdit ? (
+              <>
+                <button
+                  type="button"
+                  className="run-header-edit"
+                  aria-label="Edit run labels"
+                  aria-expanded={editing}
+                  onClick={() => setEditing((open) => !open)}
+                >
+                  <Pencil aria-hidden="true" />
+                </button>
+                {/* After the pencil, on this row: app dropdowns while editing,
+                    chips in that same slot when not, so the rail never grows a
+                    second form row. */}
+                {editing ? (
+                  <RunHeaderLabelEditor
+                    outcome={railOutcomeValue(displayedStatus)}
+                    rating={railRatingValue(run.rating)}
+                    onOutcome={(value: RailOutcome) => saveOverlay({ status: value })}
+                    onRating={(value: RailRating) => saveOverlay({ rating: value })}
+                  />
+                ) : (
+                  <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rated={rating.rated} />
+                )}
+              </>
+            ) : (
+              <OutcomeRatingChips displayedStatus={displayedStatus} family={family} rated={rating.rated} />
             )}
           </div>
         )}
-        {run && canEdit && editing && (
-          <>
-            <RunHeaderLabelEditor
-              outcome={railOutcomeValue(displayedStatus)}
-              rating={railRatingValue(run.rating)}
-              onOutcome={(value: RailOutcome) => saveOverlay({ status: value })}
-              onRating={(value: RailRating) => saveOverlay({ rating: value })}
-            />
-            {labelError ? (
-              <p className="run-header-label-error" role="alert">
-                {labelError}
-              </p>
-            ) : null}
-          </>
-        )}
+        {run && canEdit && editing && labelError ? (
+          <p className="run-header-label-error" role="alert">
+            {labelError}
+          </p>
+        ) : null}
       </div>
       <div className="run-detail-figures">
         {/* `ast-num` because these are figures in a right-aligned meta slot, which
@@ -217,5 +214,30 @@ export function RunHeader({
         )}
       </div>
     </div>
+  );
+}
+
+function OutcomeRatingChips({
+  displayedStatus,
+  family,
+  rated,
+}: {
+  displayedStatus: string | null | undefined;
+  family: ReturnType<typeof statusFamily>;
+  rated: boolean;
+}) {
+  return (
+    <>
+      <Badge variant="outline" className={`run-status-pill ${astPill(displayedStatus)}`}>
+        {/* The tick only on the family that earns it. A run that failed does
+            not get a check beside the word "failed", and a status this app
+            does not recognise gets no glyph asserting how it went. */}
+        {family === 'pos' && <Check aria-hidden="true" />}
+        {displayedStatus ?? 'unknown'}
+      </Badge>
+      <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+        {rated ? 'Rated' : 'Not rated'}
+      </Badge>
+    </>
   );
 }

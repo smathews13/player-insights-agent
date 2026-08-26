@@ -112,6 +112,26 @@ describe('the figures line up', () => {
     expect(search).toMatch(/flex:\s*1\s+0\s+280px/);
   });
 
+  /**
+   * AppKit's field is 36px. Refresh is 32px and the TREND pills sit on that
+   * rail, so the search was the one control that stuck up. 32px is the app's
+   * control height; this pins it without touching Monitoring's field.
+   */
+  it('keeps the latency search at the 32px control height', () => {
+    const field = rule('.ops-latency-head-controls .ops-latency-search input');
+    expect(field).toMatch(/height:\s*32px/);
+    expect(field).toMatch(/min-height:\s*32px/);
+    expect(field).toMatch(/max-height:\s*32px/);
+    expect(field).toMatch(/padding-top:\s*0/);
+    expect(field).toMatch(/padding-bottom:\s*0/);
+  });
+
+  it('keeps the TREND pills the same 32px height as search and Refresh', () => {
+    const pill = rule('.ops-latency-trend-filter');
+    expect(pill).toMatch(/height:\s*32px/);
+    expect(pill).toMatch(/align-items:\s*center/);
+  });
+
   it('keeps the TREND pills on the same header rail as search, not a second row', () => {
     expect(rule('.ops-latency-block .ops-block-head')).toMatch(/flex-wrap:\s*nowrap/);
     expect(rule('.ops-latency-head-controls')).toMatch(/flex-wrap:\s*nowrap/);

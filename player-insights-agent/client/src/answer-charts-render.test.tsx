@@ -65,6 +65,18 @@ describe('a chart panel heads itself with an eyebrow and nothing else', () => {
     expect(markup).toMatch(/<figcaption class="answer-chart-eyebrow">Sessions per day<\/figcaption>/);
   });
 
+  it('puts figure sources on the chart group so a plotted answer is not origin-less', () => {
+    const markup = renderToStaticMarkup(
+      <AnswerCharts
+        charts={[chart()]}
+        sources={[{ name: 'main.game.daily', freshness: '', role: 'reading' }]}
+      />
+    );
+    expect(markup).toContain('answer-charts-origin');
+    expect(markup).toContain('aria-label="Source table"');
+    expect(markup).toContain('daily');
+  });
+
   it('carries no chart-kind badge, on any panel', () => {
     // It named the shape a reader can see, and it was the widest thing in a head
     // that now has to fit in a half-width panel.

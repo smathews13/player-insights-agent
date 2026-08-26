@@ -4,13 +4,13 @@
  * Only Outcome and Rating. Those are the two closed sets this screen can
  * honestly change. Conversation, run, message, user and tool-count stay as
  * chips on the rail above; they are not reassigned from here.
+ *
+ * Shared AppSelect, not a native <select>: the native control was a second
+ * form-field recipe on a rail of chips, and its menu was in-flow. These hang
+ * as overlays the same way Monitoring and Settings do.
  */
-import {
-  RAIL_OUTCOME_OPTIONS,
-  RAIL_RATING_OPTIONS,
-  type RailOutcome,
-  type RailRating,
-} from './run-header-labels';
+import { AppSelect } from './AppSelect';
+import { RAIL_OUTCOME_OPTIONS, RAIL_RATING_OPTIONS, type RailOutcome, type RailRating } from './run-header-labels';
 
 export function RunHeaderLabelEditor({
   outcome,
@@ -25,36 +25,20 @@ export function RunHeaderLabelEditor({
 }) {
   return (
     <div className="run-header-label-editor" data-testid="run-header-label-editor">
-      <label className="run-header-label-field">
-        <span>Outcome</span>
-        <select
-          className="run-header-label-select"
-          aria-label="Outcome"
-          value={outcome}
-          onChange={(event) => onOutcome(event.target.value as RailOutcome)}
-        >
-          {RAIL_OUTCOME_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="run-header-label-field">
-        <span>Rating</span>
-        <select
-          className="run-header-label-select"
-          aria-label="Rating"
-          value={rating}
-          onChange={(event) => onRating(event.target.value as RailRating)}
-        >
-          {RAIL_RATING_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        label="Outcome"
+        ariaLabel="Outcome"
+        value={outcome}
+        options={RAIL_OUTCOME_OPTIONS}
+        onValueChange={onOutcome}
+      />
+      <AppSelect
+        label="Rating"
+        ariaLabel="Rating"
+        value={rating}
+        options={RAIL_RATING_OPTIONS}
+        onValueChange={onRating}
+      />
     </div>
   );
 }

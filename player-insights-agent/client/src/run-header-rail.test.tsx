@@ -99,14 +99,31 @@ describe('only an administrator can edit the rail labels', () => {
       editing: true,
     });
     expect(markup).toContain('data-testid="run-header-label-editor"');
-    expect(markup.match(/<select/g)?.length).toBe(2);
-    expect(markup).toMatch(/<select[^>]*aria-label="Outcome"[^>]*>[\s\S]*Complete[\s\S]*Partial[\s\S]*Failed/);
-    expect(markup).toMatch(/<select[^>]*aria-label="Rating"[^>]*>[\s\S]*Not rated[\s\S]*Helpful[\s\S]*Not helpful/);
+    expect(markup).toContain('aria-label="Outcome: Partial"');
+    expect(markup).toContain('aria-label="Rating: Not rated"');
+    expect(markup).toContain('app-select-trigger');
+    expect(markup).toContain('role="combobox"');
+    expect(markup).not.toContain('run-header-label-select');
     expect(markup).not.toMatch(/aria-label="Conversation"/);
     expect(markup).not.toMatch(/aria-label="Run"/);
     expect(markup).not.toMatch(/aria-label="Message"/);
     expect(markup).not.toMatch(/aria-label="User"/);
     expect(markup).not.toMatch(/aria-label="Tools"/);
+    const editor = readFileSync(new URL('./RunHeaderLabelEditor.tsx', import.meta.url), 'utf8');
+    expect(editor).toContain('<AppSelect');
+    expect(editor).toContain('RAIL_OUTCOME_OPTIONS');
+    expect(editor).toContain('RAIL_RATING_OPTIONS');
+  });
+
+  it('puts Outcome and Rating on the chip row, after the pencil', () => {
+    const markup = header({ canEdit: true, editing: true });
+    const pencil = markup.indexOf('aria-label="Edit run labels"');
+    const editor = markup.indexOf('data-testid="run-header-label-editor"');
+    expect(pencil).toBeGreaterThan(-1);
+    expect(editor).toBeGreaterThan(pencil);
+    expect(markup).not.toContain('run-header-label-field');
+    expect(rule('.run-detail-ident .run-header-label-editor')).toContain('display: inline-flex');
+    expect(rule('.run-detail-ident .run-header-label-editor')).toContain('margin-top: 0');
   });
 });
 
@@ -144,9 +161,7 @@ describe('an administrator’s rail choice is what a later open draws', () => {
     const listed = applyRunLabelOverrideToList([stored], FULL_ID, { status: 'complete', rating: 'up' });
     expect(listed[0].status).toBe('complete');
     expect(listed[0].rating).toBe(UP_RATING);
-    const markup = renderToStaticMarkup(
-      <RunListItem run={listed[0]} active={true} onSelect={() => undefined} />
-    );
+    const markup = renderToStaticMarkup(<RunListItem run={listed[0]} active={true} onSelect={() => undefined} />);
     expect(markup).toMatch(/>complete</i);
     expect(markup).not.toMatch(/>partial</i);
     expect(railRunSummaries(listed).get('conv-9abcdef')?.status).toBe('complete');
@@ -169,11 +184,13 @@ describe('an administrator’s rail choice is what a later open draws', () => {
     );
 
     rememberRunLabelOverride('conv-9abcdef', { status: 'complete', rating: 'up' });
-    vi.stubGlobal('fetch', async () =>
-      ({
-        ok: true,
-        json: async () => [run({ status: 'partial', rating: null })],
-      }) as Response
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        ({
+          ok: true,
+          json: async () => [run({ status: 'partial', rating: null })],
+        }) as Response
     );
     const reread = await readRunSummaries();
     expect(reread.get('conv-9abcdef')?.status).toBe('complete');
@@ -192,9 +209,9 @@ describe('a failed label save is visible', () => {
 
   it('refuses to swallow a persist failure, and names it on the rail', async () => {
     const send = vi.fn(async () => ({ ok: false, status: 503 }) as Response);
-    await expect(
-      persistRunLabels(FULL_ID, { status: 'complete' }, send as unknown as typeof fetch)
-    ).rejects.toThrow(RUN_LABELS_NOT_SAVED);
+    await expect(persistRunLabels(FULL_ID, { status: 'complete' }, send as unknown as typeof fetch)).rejects.toThrow(
+      RUN_LABELS_NOT_SAVED
+    );
     expect(SOURCE).not.toMatch(/\.catch\(\(\) => undefined\)/);
     expect(SOURCE).toContain('setLabelError(RUN_LABELS_NOT_SAVED)');
     const markup = header({

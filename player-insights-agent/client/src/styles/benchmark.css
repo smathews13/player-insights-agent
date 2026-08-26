@@ -485,13 +485,22 @@
   flex-direction: column;
   gap: 16px;
 }
+/*
+ * THE HOW-TO PANE. An ordered list, and only the list numbers: the step titles
+ * do not restate "1." because that is how a reader saw "1. 1. Turn
+ * Benchmarking on". Light fill is the opaque band. Dark frost lives in
+ * dark-mode.css -- this class is not a card, so the working-tab mix never
+ * reached it and `--ast-fill-band` is 3% white over the sky.
+ */
 .eval-steps {
   margin: 0;
   padding: 12px 16px 12px 36px;
   list-style: decimal;
+  list-style-position: outside;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--ast-fill-band);
+  isolation: isolate;
 }
 .eval-steps li + li {
   margin-top: 8px;

@@ -23,6 +23,7 @@ import {
   readerFacingNarrative,
   readerFacingTakeaway,
 } from './reader-facing-answer';
+import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Derivation } from './answer-shape';
 import type { Chart } from './AnswerCharts';
 
@@ -99,6 +100,7 @@ export function FinalAnswer({
           sources={sources}
           caveats={restCaveats}
           derivation={derivation}
+          hideWorkspaceLinks={evidenceLinkedSourceNames(story, null, charts, sources)}
         />
         {conversationId ? (
           <Link className="final-answer-open" to={conversationHref(conversationId, runId)}>

@@ -183,13 +183,35 @@ describe('the parts a reader has to be able to use', () => {
     // anchor and is the only segment that should carry the full weight.
     expect(rule('.connections-table-name')).toMatch(/font-weight:\s*400/);
     expect(rule(".connections-entity-name [data-entity-part='table']")).toMatch(/font-weight:\s*700/);
-    // The search sits in a wrapping toolbar above the matrix, sized here; the
+    // The search sits in a compact toolbar above the matrix, sized here; the
     // magnifying glass and field padding are `.run-search` so this cannot drift
     // from Monitoring and Run Explorer.
     expect(rule('.connections-table-toolbar')).toMatch(/display:\s*flex/);
-    expect(rule('.connections-table-search')).toMatch(/flex:\s*1 1 200px/);
+    expect(rule('.connections-table-toolbar')).toMatch(/flex-wrap:\s*nowrap/);
+    expect(rule('.connections-table-toolbar')).toMatch(/overflow:\s*visible/);
+    expect(rule('.connections-table-filter-menu')).toMatch(/width:\s*max-content/);
+    expect(rule('.connections-table-filter-menu')).toMatch(/position:\s*absolute/);
+    expect(rule('.connections-table-search')).toMatch(/flex:\s*none/);
+    expect(rule('.connections-table-search')).toMatch(/width:\s*12rem/);
+    expect(rule('.connections-table-search')).toMatch(/height:\s*32px/);
+    expect(rule(".connections-table-search [data-slot='input']")).toMatch(/height:\s*32px/);
+    expect(rule('.connections-table-filter')).toMatch(/flex:\s*none/);
+    expect(rule('.connections-table-filter')).toMatch(/position:\s*relative/);
+    expect(rule('.connections-table-filter')).toMatch(/overflow:\s*visible/);
+    expect(rule('.connection-block')).toMatch(/overflow:\s*visible/);
+    expect(rule('html:has(.connections-page) body[data-scroll-locked]')).toMatch(
+      /padding-right:\s*0\s*!important/
+    );
     expect(rule('.connections-table-detail')).toMatch(/white-space:\s*normal/);
     expect(rule('.connections-table-detail')).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+
+  it('paints the add-connection row in the same ink as a configuration label', () => {
+    expect(rule('.plane-add-connection')).toMatch(/color:\s*var\(--ast-text\)/);
+    expect(rule('.plane-add-connection')).toMatch(/font-weight:\s*500/);
+    expect(rule('.plane-add-connection')).toMatch(/font-size:\s*var\(--text-base\)/);
+    expect(rule('.plane-add-connection')).not.toMatch(/opacity:/);
+    expect(rule('.plane-add-row')).toMatch(/border:\s*1px solid var\(--border\)/);
   });
 
   it('uses the destructive control token only for permanent removal', () => {

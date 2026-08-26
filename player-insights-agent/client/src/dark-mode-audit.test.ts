@@ -65,6 +65,7 @@ describe('dark mode covers the shipped surfaces', () => {
       '.ast-sky',
       '.answer-card',
       '.monitoring-tile',
+      '.monitoring-filters .monitoring-search input',
       '.monitoring-list-pane',
       '.ops-block',
       '.monitoring-drawer',
@@ -79,6 +80,7 @@ describe('dark mode covers the shipped surfaces', () => {
       '.access-gate-panel',
       '.live-steps',
       '.live-step',
+      '.eval-steps',
       "[data-slot='card']",
       "[data-slot='sheet-content']",
     ]) {
@@ -669,7 +671,7 @@ describe('dark mode covers the shipped surfaces', () => {
     const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
     const normal = DARK.slice(0, reducedAt);
     const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
-    for (const selector of ['.monitoring-list-pane', '.ops-block']) {
+    for (const selector of ['.monitoring-list-pane', '.monitoring-filters .monitoring-search input', '.ops-block']) {
       expect(normal, `${selector} is not frosted in dark`).toContain(`html[data-theme='dark'] ${selector}`);
       expect(reduced, `${selector} has no reduced-transparency fallback`).toContain(
         `html[data-theme='dark'] ${selector}`
@@ -681,6 +683,27 @@ describe('dark mode covers the shipped surfaces', () => {
         /backdrop-filter:\s*none[\s\S]*background:\s*var\(--ast-surface-solid\)/
       );
     }
+  });
+
+  it('frosts the Benchmarking how-to so a star cannot sit on the steps', () => {
+    /*
+     * The how-to is eight sentences on the sky and is not a card, so the
+     * working-tab mix never reached it. Mixing solid with transparent still
+     * left constellation lines on the type. The opaque sky-to-white mix is
+     * the same recipe the Monitoring tiles use: glass, not a window.
+     */
+    const reducedAt = DARK.indexOf('@media (prefers-reduced-transparency: reduce)');
+    const normal = DARK.slice(0, reducedAt);
+    const reduced = DARK.slice(reducedAt, DARK.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(normal).toMatch(
+      /html\[data-theme='dark'\] \.eval-steps\s*\{[^}]*color-mix\(in srgb, var\(--ast-sky-fill\) 86%, white\)[^}]*backdrop-filter:\s*blur\(10px\)/
+    );
+    expect(reduced, 'the how-to has no reduced-transparency fallback').toContain(
+      "html[data-theme='dark'] .eval-steps"
+    );
+    expect(bodyFor(reduced, "html[data-theme='dark'] .eval-steps")).toMatch(
+      /backdrop-filter:\s*none[\s\S]*background:\s*var\(--ast-surface-solid\)/
+    );
   });
 
   it('frosts the Architecture KPI tiles with the same pane recipe as LIVE DATA FLOW', () => {

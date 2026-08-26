@@ -543,31 +543,31 @@ export function EvalFlywheel({
     <div className="eval-flywheel">
       <ol className="eval-steps">
         <li>
-          <strong>1. Turn Benchmarking on</strong> Settings → Experimental. Those controls stay gray until this is on.
+          <strong>Turn Benchmarking on</strong> Settings → Experimental. Those controls stay gray until this is on.
         </li>
         <li>
-          <strong>2. Pick judges and a candidate</strong> Built-in, multi-turn, and custom judges live there. Add a second
+          <strong>Pick judges and a candidate</strong> Built-in, multi-turn, and custom judges live there. Add a second
           endpoint only if you want a bake-off.
         </li>
         <li>
-          <strong>3. Open this tab</strong> The dataset and both phases stay here.
+          <strong>Open this tab</strong> The dataset and both phases stay here.
         </li>
         <li>
-          <strong>4. Add questions</strong> Type them, load the six demo ones, or pull real Ask / Monitoring turns.
+          <strong>Add questions</strong> Type them, load the six demo ones, or pull real Ask / Monitoring turns.
           Optional: thumbs and SQL correct, then Align guidelines from labels.
         </li>
         <li>
-          <strong>5. Run Genie accuracy</strong> One connected space, SQL-backed rows only. A warehouse still starting is
+          <strong>Run Genie accuracy</strong> One connected space, SQL-backed rows only. A warehouse still starting is
           not scored as Genie wrong.
         </li>
         <li>
-          <strong>6. Re-run last suite</strong> After you change that space&apos;s instructions or tables. Same questions.
+          <strong>Re-run last suite</strong> After you change that space&apos;s instructions or tables. Same questions.
         </li>
         <li>
-          <strong>7. Run agent judges</strong> Same dataset, baseline and candidate if you set one.
+          <strong>Run agent judges</strong> Same dataset, baseline and candidate if you set one.
         </li>
         <li>
-          <strong>8. Promote the winner</strong> Next Ask uses that agent and the Prompt Registry{' '}
+          <strong>Promote the winner</strong> Next Ask uses that agent and the Prompt Registry{' '}
           <code>production</code> alias when this app can move it. This does not change Connections, and it cannot
           write Genie space instructions.
         </li>

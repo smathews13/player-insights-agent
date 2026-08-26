@@ -261,6 +261,7 @@ html:not([data-theme='dark']) .ask-hero h2 {
 .answer-prose th,
 .answer-prose td,
 .answer-heading,
+.answer-finding-label,
 .answer-takeaway {
   cursor: text;
 }

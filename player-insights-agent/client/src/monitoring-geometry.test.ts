@@ -220,6 +220,22 @@ describe('the panel head and the scope badges cannot be clipped either', () => {
  * they read downwards. Both were asking DM Sans for tabular figures, which its
  * files cannot give, so neither lined up.
  */
+describe('the filter-row search is a field, not a hole in the sky', () => {
+  /**
+   * AppKit paints the input transparent. The chips beside it paint `--card`.
+   * The fill is the whole of this rule: size and placement stay on
+   * `.monitoring-search`, which is what the wrap arithmetic reads.
+   */
+  it('paints the field with the chip token and does not resize it', () => {
+    expect(rule('.monitoring-filters .monitoring-search input')).toMatch(/background:\s*var\(--card\)/);
+    expect(rule('.monitoring-filters .monitoring-search input')).not.toMatch(/height:|min-width:|flex:|margin-left:/);
+    expect(rule('.monitoring-search')).toMatch(/flex:\s*0\s+1\s+240px/);
+    expect(rule('.monitoring-search')).toMatch(/min-width:\s*160px/);
+    expect(rule('.monitoring-search')).toMatch(/margin-left:\s*auto/);
+    expect(rule('.monitoring-search')).not.toMatch(/height:/);
+  });
+});
+
 describe('the figures line up and the palette is the palette', () => {
   const RULES = CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
 

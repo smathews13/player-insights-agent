@@ -1,5 +1,8 @@
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from 'react';
 import { Skeleton } from './ui';
+import { AnswerOriginLinks } from './DataEntityLinks';
+import { figureSources } from './answer-table-origins';
+import type { SourceRef } from './answer-shape';
 
 /**
  * One Plotly panel from the agent's `new_plot` tool.
@@ -139,10 +142,25 @@ function ChartPanel({ chart, onFailure }: { chart: Chart; onFailure?: () => void
  * `onFailure` is called once per panel that will not draw. See ChartBoundary: the
  * card treats it as "the evidence did not arrive" and unfolds the rows.
  */
-export function AnswerCharts({ charts, onFailure }: { charts?: Chart[]; onFailure?: () => void }) {
+export function AnswerCharts({
+  charts,
+  sources = [],
+  onFailure,
+}: {
+  charts?: Chart[];
+  /** Figure sources drawn on the chart group so a plotted answer is not origin-less. */
+  sources?: readonly SourceRef[];
+  onFailure?: () => void;
+}) {
   if (!charts?.length) return null;
+  const origin = figureSources(sources);
   return (
     <div className="answer-charts">
+      {origin.length > 0 ? (
+        <div className="answer-charts-origin" aria-label="Source table">
+          <AnswerOriginLinks sources={origin} />
+        </div>
+      ) : null}
       {charts.map((chart) => (
         <ChartPanel chart={chart} onFailure={onFailure} key={chart.id} />
       ))}

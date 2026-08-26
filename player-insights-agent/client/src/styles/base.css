@@ -259,9 +259,20 @@ html:not([data-theme='dark']) .app-sky {
  */
 [data-radix-popper-content-wrapper] {
   z-index: 90;
+  /*
+   * Overlay, not layout. Radix sizes this wrapper to the longest option via
+   * an inline `min-width: max-content`. A long conversation title then
+   * widens the document, shoves a centred page, and leaves a gap after
+   * Built on Databricks. Cap it to the viewport; the menu still hangs as a
+   * popover. `min-width` has to be overridden because when it exceeds
+   * `max-width`, min wins.
+   */
+  min-width: 0 !important;
+  max-width: calc(100vw - 24px) !important;
 }
 .app-select-content {
   min-width: var(--radix-select-trigger-width);
+  max-width: min(32rem, calc(100vw - 24px));
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
   background: var(--card);
@@ -269,6 +280,8 @@ html:not([data-theme='dark']) .app-sky {
   font-size: var(--text-sm);
 }
 .app-select-content [data-slot='select-item'] {
+  white-space: normal;
+  overflow-wrap: anywhere;
   border-radius: 2px;
   cursor: pointer;
 }

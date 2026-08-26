@@ -1354,6 +1354,8 @@ describe('the Unity Catalog tables section', () => {
     const markup = render(<DeclaredTablesTable tableChecks={tables} requestedEntity="" />);
     expect(markup).toContain('run-search');
     expect(markup).toContain('connections-table-toolbar');
+    expect(markup).toContain('connections-table-search');
+    expect(markup).toContain('connections-table-filter');
     expect(markup).toContain('aria-label="Search Unity Catalog tables"');
     expect(markup).toContain('placeholder="Search tables"');
     expect(markup).toContain('Filter tables by catalog');
@@ -1364,6 +1366,20 @@ describe('the Unity Catalog tables section', () => {
     expect(text(markup)).toContain('All schemas');
     expect(markup).toContain('a_catalog');
     expect(markup).toContain('a_schema');
+    // Search, then Catalog, then Schema — not filters first, not a full-width field.
+    expect(markup.indexOf('connections-table-search')).toBeLessThan(markup.indexOf('Filter tables by catalog'));
+    expect(markup.indexOf('Filter tables by catalog')).toBeLessThan(markup.indexOf('Filter tables by schema'));
+  });
+
+  /**
+   * Opening Catalog / Schema used to grow the toolbar (and, with a flex-growing
+   * search, shove the page left). The menus sit in a positioned wrapper and
+   * open as popper overlays, so they cannot take a flex slot.
+   */
+  it('opens catalog and schema as overlays, without taking a toolbar slot', () => {
+    expect(PAGE_SOURCE).toMatch(/className="connections-table-filter"/);
+    expect(PAGE_SOURCE).toMatch(/contentClassName="connections-table-filter-menu"/);
+    expect(PAGE_SOURCE).toMatch(/contentProps=\{\{\s*position:\s*'popper'\s*\}\}/);
   });
 
   /**

@@ -234,7 +234,8 @@ SYNTHESIS_PROVENANCE_RULE = (
 # headings, bullets, bold, code spans and links, see client/src/answer-markdown.ts and the
 # list styling in client/src/styles/answer.css -- so the structure costs nothing to ask
 # for and was only ever missing because the prompt said "no markdown", meaning do not
-# fence the JSON, and got taken at its word.
+# fence the JSON, and got taken at its word. Labeled `###` blocks are section labels
+# under the takeaway, not a second title; `#` and `##` stay forbidden.
 #
 # WHY THE BULLET RANGE IS BOUNDED. The compact card has a claim column rather than an
 # open-ended document body: three to five distinct findings can be scanned beside its
@@ -292,15 +293,19 @@ something, who skims it before reading it:
 - The takeaway already answers the question. Do not repeat it as an opening paragraph.
 - Write only the claims the evidence supports. Never split or pad one finding to reach
   a count.
+- Split the narrative into short labeled finding blocks, not an essay. Each block is a
+  `###` label and 2–4 bullets. Omit a block the evidence does not support. Never pad.
+- A label names the topic, not a second takeaway. Use `###` only — never `#` or `##`.
+  Typical labels when the evidence has them: Who, Identity, Sessions, Geography,
+  Publishers, Gaps. Pick the label that fits; do not invent a block for a topic with
+  no finding.
 - Anything you enumerate is a list: columns, tables, titles, periods, regions, ranked
   results.
 - Bold what a reader is looking for, with **double asterisks**: the figure the finding
-  turns on, and the table and column names. Bold the words, not the whole line. A line in
-  all bold has no emphasis in it.
+  turns on. Put the table and column names in backticks so they render as chips.
+  Bold the words, not the whole line. A line in all bold has no emphasis in it.
 - Nothing else is emphasis. A single asterisk and an underscore are the characters you
   typed, which matters here because the names you are quoting have underscores in them.
-- No headings. The card prints the takeaway immediately above this text, so a heading
-  inside it is a second title.
 - When listing tables by tier, Gold, Silver, Raw, and Reference / Metadata are each a
   bold line of their own, never a bullet. Only the tables under a tier are a list.
 - The narrative is one JSON string, so every line break in it is written \\n. A real

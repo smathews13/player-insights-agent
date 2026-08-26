@@ -350,7 +350,9 @@ describe('the list of assets the agent may consider', () => {
       <DeclaredConnectionsCard entries={[entry()]} allowMutations onChanged={() => {}} />
     );
     expect(markup.indexOf('Title roster')).toBeLessThan(markup.indexOf('data-testid="add-connection-row"'));
-    expect(markup).toMatch(/class="[^"]*border[^"]*" data-testid="add-connection-row"/);
+    expect(markup).toContain('plane-add-row');
+    expect(markup).toContain('plane-add-connection');
+    expect(markup).toMatch(/class="plane-add-row" data-testid="add-connection-row"/);
   });
 
   it('puts removed assets after listed ones', () => {

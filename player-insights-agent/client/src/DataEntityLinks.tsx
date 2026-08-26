@@ -17,8 +17,11 @@ import {
   type Block,
   type Inline,
 } from './answer-markdown';
+import { layoutFindingBlocks } from './answer-findings';
+import { tableOriginSources } from './answer-table-origins';
 import { dateBadgeRuns, isLabelLeadIn, labelBadgeRuns } from './answer-badges';
-import { splitSourceName } from './source-rows';
+import { sourceRows, splitSourceName } from './source-rows';
+import type { SourceRef } from './answer-shape';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
 import {
   useRequestedEntity,
@@ -350,10 +353,30 @@ function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badg
  * prose and a section inside the card sits under it, not beside it. The sizes
  * in `.answer-heading` follow from the same thing -- these read as the label on
  * a paragraph, not as a title.
+ *
+ * `findingLabel` is the scannable exception: a `### Who` (or a bold lead-in
+ * promoted to one) is an eyebrow on a handful of bullets, not a section title
+ * competing with the takeaway. Catalog headings stay `.answer-heading`.
  */
-function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean }) {
+function ProseBlock({
+  block,
+  badges = false,
+  findingLabel = false,
+  origins,
+}: {
+  block: Block;
+  badges?: boolean;
+  findingLabel?: boolean;
+  origins?: ReadonlyMap<number, SourceRef[]>;
+}) {
   switch (block.kind) {
     case 'heading': {
+      if (findingLabel) {
+        return (<h4 className="answer-finding-label">
+            <InlineNodes nodes={block.children} />
+          </h4>
+        );
+      }
       const Tag = block.level === 2 ? 'h3' : 'h4';
       return (<Tag className={block.level === 2 ? 'answer-heading' : 'answer-heading answer-subheading'}>
           <InlineNodes nodes={block.children} />
@@ -400,7 +423,14 @@ function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean 
        */
       {
         const story = tableStoryMetadata(block);
-        return (<div className="answer-table-wrap">
+        const origin = origins?.get(block.start) ?? [];
+        return (<div className="answer-table-frame">
+          {origin.length > 0 ? (
+            <div className="answer-table-origin" aria-label="Source table">
+              <AnswerOriginLinks sources={origin} />
+            </div>
+          ) : null}
+          <div className="answer-table-wrap">
           <table className="answer-table">
             {block.header ? (<thead>
                 <tr>
@@ -441,6 +471,7 @@ function ProseBlock({ block, badges = false }: { block: Block; badges?: boolean 
               })}
             </tbody>
           </table>
+        </div>
         </div>);
       }
     case 'rule':
@@ -517,9 +548,10 @@ export function AnswerProse({
   columns = [],
   badges = false,
   blocks: selection = 'all',
+  originMap,
 }: {
   text: string;
-  sources: readonly { name: string }[];
+  sources: readonly { name: string; freshness?: string; role?: SourceRef['role'] }[];
   className?: string;
   /** The columns this surface declared. Bolded, never linked. */
   columns?: readonly string[];
@@ -534,19 +566,54 @@ export function AnswerProse({
   badges?: boolean;
   /** Which parsed blocks this seating owns; source text is never regex-edited. */
   blocks?: AnswerBlockSelection;
+  /**
+   * Source tables for this body's Markdown tables, already zipped across
+   * narrative + content so a table in `content` can name a source the prose
+   * mentioned above it. When omitted, origins are inferred from this body only.
+   */
+  originMap?: ReadonlyMap<number, SourceRef[]>;
 }) {
   const tracked = useTrackedTables();
-  const blocks = selectAnswerBlocks(answerBlocks(text,
-    sources.map((source) => source.name),
-    tracked,
-    columns
-  ), selection);
+  const declared = sources.map((source) => source.name);
+  const parsed = answerBlocks(text, declared, tracked, columns);
+  const origins = originMap ?? tableOriginSources(parsed, sources as SourceRef[]);
+  const selected = selectAnswerBlocks(parsed, selection);
+  const blocks = selection === 'tables' ? selected : layoutFindingBlocks(selected);
   if (blocks.length === 0) return null;
   return (<div className={className ? `answer-prose ${className}` : 'answer-prose'}>
-      {blocks.map((block) => (<ProseBlock block={block} badges={badges} key={block.start} />
-      ))}
+      <ProseBlocks blocks={blocks} badges={badges} origins={origins} />
     </div>
   );
+}
+
+function ProseBlocks({
+  blocks,
+  badges,
+  origins,
+}: {
+  blocks: readonly Block[];
+  badges: boolean;
+  origins: ReadonlyMap<number, SourceRef[]>;
+}) {
+  const elements: ReactNode[] = [];
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const next = blocks[index + 1];
+    if (block.kind === 'heading' && block.level === 3 && next?.kind === 'list') {
+      elements.push(
+        <section className="answer-finding" key={block.start}>
+          <div className="answer-finding-head">
+            <ProseBlock block={block} findingLabel origins={origins} />
+          </div>
+          <ProseBlock block={next} badges={badges} origins={origins} />
+        </section>
+      );
+      index += 1;
+      continue;
+    }
+    elements.push(<ProseBlock block={block} badges={badges} origins={origins} key={block.start} />);
+  }
+  return <>{elements}</>;
 }
 
 /**
@@ -579,6 +646,34 @@ export function SourceEntityName({ name }: { name: string }) {
     </>
   );
   return entry ? <EntityLink entity={entry}>{spelled}</EntityLink> : spelled;
+}
+
+/**
+ * The source table(s) an evidence block came from, as the same chip + Open
+ * control the Sources stack used to carry under the block.
+ *
+ * Renders nothing when the run named no table for this block, so a table
+ * without a recorded origin does not grow an empty header band.
+ */
+export function AnswerOriginLinks({ sources }: { sources: readonly SourceRef[] }) {
+  const rows = sourceRows(sources);
+  if (rows.length === 0) return null;
+  return (
+    <div className="answer-origin-links">
+      {rows.map((row) => (
+        <span className="answer-origin-link" key={row.name}>
+          <span
+            className="source-name-pill"
+            data-tone={row.tone}
+            title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}
+          >
+            <SourceEntityName name={row.name} />
+          </span>
+          <OpenInDatabricks name={row.name} />
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /**

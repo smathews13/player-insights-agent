@@ -44,6 +44,7 @@ import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
 import { TraceTimeline } from './TraceTimeline';
 import { DOWN_RATING, UP_RATING, ratedThumb } from './stored-feedback';
+import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Answer, FeedbackEntry } from './app-types';
 
 export function AnswerCard({
@@ -309,7 +310,17 @@ export function AnswerCard({
           sources={answer.sources}
         />
         {afterEvidence}
-        <SourcesModule sources={answer.sources} caveats={keepCaveats} derivation={answer.derivation} />
+        <SourcesModule
+          sources={answer.sources}
+          caveats={keepCaveats}
+          derivation={answer.derivation}
+          hideWorkspaceLinks={evidenceLinkedSourceNames(
+            narrative,
+            answer.content,
+            answer.charts,
+            answer.sources
+          )}
+        />
         {answer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
             <h3 className="answer-heading">Document footnotes</h3>

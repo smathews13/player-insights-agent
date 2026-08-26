@@ -14,7 +14,12 @@
 
 import { createElement } from 'react';
 import type { ComponentProps } from 'react';
-import { Input as AppKitInput, Textarea as AppKitTextarea } from '@databricks/appkit-ui/react';
+import {
+  Input as AppKitInput,
+  Select as AppKitSelect,
+  SelectContent as AppKitSelectContent,
+  Textarea as AppKitTextarea,
+} from '@databricks/appkit-ui/react';
 import { withPasswordManagerOptOut } from './password-manager-optout';
 import type { PasswordManagerOptOutProps } from './password-manager-optout';
 
@@ -38,8 +43,6 @@ export {
   EmptyMedia,
   EmptyTitle,
   Progress,
-  Select,
-  SelectContent,
   SelectItem,
   SelectTrigger,
   Separator,
@@ -75,4 +78,27 @@ export function Input(props: ComponentProps<'input'> & PasswordManagerOptOutProp
 /** Multi-line text input field. Ignored by password managers. */
 export function Textarea(props: ComponentProps<'textarea'> & PasswordManagerOptOutProps) {
   return createElement(AppKitTextarea, withPasswordManagerOptOut(props));
+}
+
+/**
+ * Dropdown root.
+ *
+ * Radix Select 2.2 always RemoveScrolls while the menu is open and no longer
+ * exposes `modal`, so this wrapper cannot turn the lock off. Overlay behaviour
+ * is the popper default on `SelectContent` plus `scrollbar-gutter: stable` on
+ * `html`, which already reserves the bar the lock would otherwise invent.
+ */
+export function Select(props: ComponentProps<typeof AppKitSelect>) {
+  return createElement(AppKitSelect, props);
+}
+
+/**
+ * Dropdown menu. Popper overlay, so opening it cannot widen the trigger's column.
+ *
+ * `item-aligned` (Radix's other mode) sizes the trigger to the longest option
+ * and is what made Recent runs shove the detail pane when All conversations
+ * opened.
+ */
+export function SelectContent(props: ComponentProps<typeof AppKitSelectContent>) {
+  return createElement(AppKitSelectContent, { position: 'popper', ...props });
 }

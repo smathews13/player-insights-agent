@@ -566,6 +566,38 @@
 .answer-prose > .answer-heading + * {
   margin-top: 6px;
 }
+.answer-prose > * + .answer-finding {
+  margin-top: 16px;
+}
+.answer-finding {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.answer-finding-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.answer-finding-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ast-text-secondary);
+  line-height: 1.3;
+}
+.answer-finding-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
 /*
  * Sized as the label on a section, not as a title.
  *
@@ -715,6 +747,46 @@ ol.answer-list {
      the scrollbar was on an element that never overflowed. */
   min-width: 0;
   max-width: 100%;
+}
+/*
+ * Frame around a table that carries its source in a band above the scroller.
+ * The wrap keeps the border when it is used alone (plan step results); nested
+ * here the frame owns the edge so the origin links stay in the visible header
+ * while the columns scroll.
+ */
+.answer-table-frame {
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--ast-radius-card);
+  overflow: hidden;
+  background: var(--ast-fill-band);
+  min-width: 0;
+  max-width: 100%;
+}
+.answer-table-frame .answer-table-wrap {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.answer-table-origin {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--ast-hairline);
+}
+.answer-origin-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.answer-origin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .answer-table {
   /* `collapse` is Tailwind preflight's default and is restated because the row
@@ -866,5 +938,5 @@ ol.answer-list {
   text-transform: lowercase;
 }
 .answer-inline-number {
-  font-weight: 500;
+  font-weight: 700;
 }

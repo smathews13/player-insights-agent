@@ -105,7 +105,13 @@ import { CHECK_VERDICT_LABEL } from '../../shared/check-verdict';
 import { NotebookCard } from './NotebookCard';
 import { DeclaredConnectionsCard } from './DeclaredConnectionsCard';
 import { ApplyDeclarationCard } from './ApplyDeclarationCard';
-import { configurationValue, RESOURCE_PRODUCT, tableReachabilityCopy, declaredTableFilterOptions, filterDeclaredTables } from './connections-view';
+import {
+  configurationValue,
+  RESOURCE_PRODUCT,
+  tableReachabilityCopy,
+  declaredTableFilterOptions,
+  filterDeclaredTables,
+} from './connections-view';
 import { useSessionChecks } from './session-checks';
 import { DRIFT_MARKER_LABEL, truncateHead, visibleCounts, type ConnectionCounts } from './connection-status';
 // One cause said once over every check that shares it, and one remedy said once
@@ -568,10 +574,7 @@ export function DeclaredTablesTable({
   const [query, setQuery] = useState('');
   const [catalog, setCatalog] = useState('');
   const [schema, setSchema] = useState('');
-  const { catalogs, schemas } = useMemo(
-    () => declaredTableFilterOptions(tableChecks, catalog),
-    [tableChecks, catalog]
-  );
+  const { catalogs, schemas } = useMemo(() => declaredTableFilterOptions(tableChecks, catalog), [tableChecks, catalog]);
   const visible = useMemo(
     () => filterDeclaredTables(tableChecks, { query, catalog, schema }),
     [tableChecks, query, catalog, schema]
@@ -591,72 +594,80 @@ export function DeclaredTablesTable({
           />
         </div>
         {catalogs.length > 0 ? (
-          <AppSelect
-            label="Catalog"
-            ariaLabel="Filter tables by catalog"
-            value={catalog || 'all'}
-            options={[
-              { value: 'all', label: 'All catalogs' },
-              ...catalogs.map((name) => ({ value: name, label: name })),
-            ]}
-            onValueChange={(next) => {
-              setCatalog(next === 'all' ? '' : next);
-              setSchema('');
-            }}
-          />
+          <div className="connections-table-filter">
+            <AppSelect
+              label="Catalog"
+              ariaLabel="Filter tables by catalog"
+              value={catalog || 'all'}
+              options={[
+                { value: 'all', label: 'All catalogs' },
+                ...catalogs.map((name) => ({ value: name, label: name })),
+              ]}
+              onValueChange={(next) => {
+                setCatalog(next === 'all' ? '' : next);
+                setSchema('');
+              }}
+              contentClassName="connections-table-filter-menu"
+              contentProps={{ position: 'popper' }}
+            />
+          </div>
         ) : null}
         {schemas.length > 0 ? (
-          <AppSelect
-            label="Schema"
-            ariaLabel="Filter tables by schema"
-            value={schema || 'all'}
-            options={[
-              { value: 'all', label: 'All schemas' },
-              ...schemas.map((name) => ({ value: name, label: name })),
-            ]}
-            onValueChange={(next) => setSchema(next === 'all' ? '' : next)}
-          />
+          <div className="connections-table-filter">
+            <AppSelect
+              label="Schema"
+              ariaLabel="Filter tables by schema"
+              value={schema || 'all'}
+              options={[
+                { value: 'all', label: 'All schemas' },
+                ...schemas.map((name) => ({ value: name, label: name })),
+              ]}
+              onValueChange={(next) => setSchema(next === 'all' ? '' : next)}
+              contentClassName="connections-table-filter-menu"
+              contentProps={{ position: 'popper' }}
+            />
+          </div>
         ) : null}
       </div>
-    <Table className="connections-table">
-      <TableHeader>
-        <TableRow>
-          <TableHead>Table</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Detail</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {visible.map((check) => {
-          // One reading, used for the cell and its hover. Two calls were two
-          // chances for a decoy count in the probe text to land on one surface
-          // and the workspace's count on the other.
-          const reachability = tableReachabilityCopy(check, checkedAt);
-          return (
-            // Addressable and, when an answer linked here, highlighted. The row is
-            // the entry an entity link lands on, so it carries the id rather than
-            // the block around it.
-            <TableRow key={check.id} {...entityRowProps(check.name, requestedEntity)}>
-              {/* THE MARK LEADS THE NAME, per the ask, and it is the icon-only link
+      <Table className="connections-table">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Table</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Detail</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {visible.map((check) => {
+            // One reading, used for the cell and its hover. Two calls were two
+            // chances for a decoy count in the probe text to land on one surface
+            // and the workspace's count on the other.
+            const reachability = tableReachabilityCopy(check, checkedAt);
+            return (
+              // Addressable and, when an answer linked here, highlighted. The row is
+              // the entry an entity link lands on, so it carries the id rather than
+              // the block around it.
+              <TableRow key={check.id} {...entityRowProps(check.name, requestedEntity)}>
+                {/* THE MARK LEADS THE NAME, per the ask, and it is the icon-only link
                   rather than the phrase: twelve rows would otherwise carry twelve
                   copies of "Open in Databricks" against 40-character table names in
                   a column that has to hold both. It renders nothing at all when the
                   app was given no workspace host, which is a supported deployment
                   and the reason this is not a disabled-looking control. */}
-              <TableCell className="connections-table-name">
-                <VisitInDatabricks name={check.name} />
-                <ConnectionEntityName name={check.name} />
-              </TableCell>
-              {/* THE WORD, NOT THE STATUS. Every row here read `Not checked`
+                <TableCell className="connections-table-name">
+                  <VisitInDatabricks name={check.name} />
+                  <ConnectionEntityName name={check.name} />
+                </TableCell>
+                {/* THE WORD, NOT THE STATUS. Every row here read `Not checked`
                 beside a Detail of `HTTP 403`, which contradicts itself on one
                 line: a call the workspace refused was made. `checkVerdict`
                 separates a refusal from a broken call and from a probe nobody
                 ran, and the strip above this table counts through the same
                 function so the two cannot disagree. */}
-              <TableCell>
-                <Badge variant={checkBadgeVariant(check)}>{checkVerdictLabel(check)}</Badge>
-              </TableCell>
-              {/* A STATUS, NOT AN ESSAY. This cell used to print the check's whole
+                <TableCell>
+                  <Badge variant={checkBadgeVariant(check)}>{checkVerdictLabel(check)}</Badge>
+                </TableCell>
+                {/* A STATUS, NOT AN ESSAY. This cell used to print the check's whole
                 detail, and on this deployment one missing OAuth scope gives all
                 twelve of these rows the same three-sentence diagnosis: opening
                 the section meant reading it twelve more times. The first
@@ -664,17 +675,17 @@ export function DeclaredTablesTable({
                 workspace said about it or the code it answered with. The
                 reasoning is stated once, on the group in What to fix, and the
                 whole sentence is still here in a title. */}
-              <TableCell className="connections-table-detail" title={reachability.title}>
-                {isRequestedEntity(check.name, requestedEntity) ? (
-                  <span className="connections-table-arrival">Linked from the answer you followed here. </span>
-                ) : null}
-                {reachability.row}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+                <TableCell className="connections-table-detail" title={reachability.title}>
+                  {isRequestedEntity(check.name, requestedEntity) ? (
+                    <span className="connections-table-arrival">Linked from the answer you followed here. </span>
+                  ) : null}
+                  {reachability.row}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
       {visible.length === 0 ? <p className="connections-table-empty">No tables match these filters.</p> : null}
     </div>
   );

@@ -417,11 +417,8 @@ export function DeclaredConnectionsCard({
       })}
 
       {allowMutations ? (
-        <div
-          className="flex items-center rounded-[var(--radius-md)] border border-[var(--border)] p-3"
-          data-testid="add-connection-row"
-        >
-          <button type="button" className="plane-button-quiet" onClick={() => setAdding((open) => !open)}>
+        <div className="plane-add-row" data-testid="add-connection-row">
+          <button type="button" className="plane-add-connection" onClick={() => setAdding((open) => !open)}>
             {adding ? 'Cancel' : '+ Add a new connection'}
           </button>
         </div>

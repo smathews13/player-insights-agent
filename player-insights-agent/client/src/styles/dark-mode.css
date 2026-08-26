@@ -348,6 +348,7 @@ html[data-theme='dark'] .answer-card,
 html[data-theme='dark'] .plan-card,
 html[data-theme='dark'] .user-bubble,
 html[data-theme='dark'] .monitoring-tile,
+html[data-theme='dark'] .monitoring-filters .monitoring-search input,
 html[data-theme='dark'] .monitoring-list-pane,
 html[data-theme='dark'] .ops-block,
 html[data-theme='dark'] .ops-block-failed,
@@ -360,6 +361,7 @@ html[data-theme='dark'] .connection-rows,
 html[data-theme='dark'] .connection-block,
 html[data-theme='dark'] .plane-card,
 html[data-theme='dark'] .bench-ledger,
+html[data-theme='dark'] .eval-steps,
 html[data-theme='dark'] .first-open-card,
 html[data-theme='dark'] .access-gate-panel,
 html[data-theme='dark'] [data-slot='card'] {
@@ -402,6 +404,20 @@ html[data-theme='dark'] .role-lost-notice {
 }
 
 html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) [data-slot='card'] {
+  background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
+  backdrop-filter: blur(10px);
+}
+
+/*
+ * THE BENCHMARKING HOW-TO. Eight steps of body text on the sky, and not a
+ * `[data-slot='card']`, so the mix above never reached it.
+ *
+ * The settings-prose recipe (92% solid mixed with transparent, 18px blur) still
+ * left constellation lines sitting on the sentences: eight percent of a star
+ * is a glyph. The working-tab card mix is opaque — both stops are solid — so
+ * the pane can stay a slightly lifted glass without a sky showing through it.
+ */
+html[data-theme='dark'] .eval-steps {
   background: color-mix(in srgb, var(--ast-sky-fill) 86%, white);
   backdrop-filter: blur(10px);
 }
@@ -1125,6 +1141,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .plan-card,
   html[data-theme='dark'] .user-bubble,
   html[data-theme='dark'] .monitoring-tile,
+  html[data-theme='dark'] .monitoring-filters .monitoring-search input,
   html[data-theme='dark'] .monitoring-list-pane,
   html[data-theme='dark'] .ops-block,
   html[data-theme='dark'] .ops-block-failed,
@@ -1147,6 +1164,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .connection-block,
   html[data-theme='dark'] .plane-card,
   html[data-theme='dark'] .bench-ledger,
+  html[data-theme='dark'] .eval-steps,
   html[data-theme='dark'] .first-open-card,
   html[data-theme='dark'] .access-gate-panel,
   html[data-theme='dark'] [data-slot='alert'],

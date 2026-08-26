@@ -122,3 +122,10 @@ describe('the type scale', () => {
     expect(stray).toEqual([]);
   });
 });
+
+describe('the how-to pane', () => {
+  it('numbers the steps from the list, not from the copy', () => {
+    expect(rule('.eval-steps')).toMatch(/list-style:\s*decimal/);
+    expect(rule('.eval-steps')).toMatch(/list-style-position:\s*outside/);
+  });
+});

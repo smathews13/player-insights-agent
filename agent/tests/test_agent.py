@@ -3547,6 +3547,7 @@ def test_the_figures_and_the_names_are_asked_to_be_bolded():
 
     assert "**double asterisks**" in SYNTHESIS_INSTRUCTIONS
     assert "the table and column names" in SYNTHESIS_INSTRUCTIONS
+    assert "backticks" in SYNTHESIS_INSTRUCTIONS
     assert "Bold the words, not the whole line" in SYNTHESIS_INSTRUCTIONS
 
 
@@ -3559,11 +3560,18 @@ def test_underscore_emphasis_is_ruled_out_because_the_names_carry_underscores():
     assert "underscore" in SYNTHESIS_INSTRUCTIONS
 
 
-def test_the_narrative_is_not_asked_to_carry_a_heading():
-    """The card prints the takeaway directly above it, so a heading inside the narrative is
-    a second title for the same answer."""
+def test_the_narrative_uses_section_labels_not_a_second_title():
+    """The card already prints the takeaway. `#` / `##` would compete with it.
+    `###` is a finding-block label under that takeaway, which is the layout the
+    card now draws.
+    """
 
-    assert "No headings" in SYNTHESIS_INSTRUCTIONS
+    assert "No headings" not in SYNTHESIS_INSTRUCTIONS
+    assert "labeled finding blocks" in SYNTHESIS_INSTRUCTIONS
+    assert "`###` label" in SYNTHESIS_INSTRUCTIONS
+    assert "never `#` or `##`" in SYNTHESIS_INSTRUCTIONS
+    for label in ("Who", "Identity", "Sessions", "Geography", "Publishers", "Gaps"):
+        assert label in SYNTHESIS_INSTRUCTIONS
 
 
 def test_tier_labels_in_a_catalog_listing_are_not_bullets():

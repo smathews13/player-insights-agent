@@ -232,17 +232,39 @@
   box-shadow: none;
   border-radius: var(--radius-md);
 }
+/*
+ * Overlay menus must not move chrome. Radix RemoveScroll pads `body` by the
+ * bar width even though `html` already reserved the gutter, so opening All
+ * conversations / All users shoved the right pane and left a gap after Built
+ * on Databricks. `Select` in ui.ts already defaults `modal={false}`; this
+ * rule is the failsafe if a lock still lands. Higher specificity than the
+ * injected `body[data-scroll-locked]` rule, so it still wins after the
+ * library inserts its stylesheet.
+ */
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  position: static !important;
+  --removed-body-scroll-bar-size: 0px;
+}
 .explorer-layout {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
+  min-width: 0;
+  /* Clip rather than scroll: a menu that failed to portal must not grow the
+     grid or summon a page-level horizontal bar. Portaled menus still overlay
+     from `document.body`. */
+  overflow-x: clip;
 }
 .run-list {
   position: sticky;
   top: calc(var(--app-header-h) + 24px);
   max-height: calc(100vh - var(--app-header-h) - 46px);
-  overflow: auto;
+  min-width: 0;
+  overflow-x: clip;
+  overflow-y: auto;
 }
 .run-list [data-slot='card-title'] {
   font-size: var(--text-h-sub);
@@ -525,31 +547,15 @@
 .run-header-edit:hover {
   background: var(--db-hover-tint);
 }
-.run-header-label-editor {
-  display: flex;
+.run-detail-ident .run-header-label-editor {
+  display: inline-flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 0;
+  align-items: center;
 }
-.run-header-label-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 7.5rem;
-}
-.run-header-label-field > span {
-  font-size: 11px;
-  color: var(--muted-foreground);
-}
-.run-header-label-select {
-  min-height: 24px;
-  padding: 3px 8px;
-  border: 1px solid var(--db-line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: inherit;
-  font: inherit;
-  font-size: var(--text-sm);
+.run-header-label-editor .app-select-trigger {
+  flex: none;
 }
 .run-header-label-error {
   margin: 6px 0 0;
@@ -1037,4 +1043,3 @@ html[data-theme='dark'] .final-answer .entity-catalog {
   font-size: var(--text-xs);
   color: var(--ast-text-secondary);
 }
-

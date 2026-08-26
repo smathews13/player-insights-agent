@@ -40,6 +40,11 @@ describe('Benchmarking flywheel copy', () => {
     expect(markup).toContain('Turn Benchmarking on');
     expect(markup).toContain('Pick judges and a candidate');
     expect(markup).toContain('Promote the winner');
+    expect(markup).toMatch(/<ol class="eval-steps">/);
+    expect(markup.match(/<ol class="eval-steps">[\s\S]*?<\/ol>/)?.[0].match(/<li>/g)).toHaveLength(8);
+    expect(markup).not.toMatch(/<strong>\d+\.\s/);
+    expect(markup).not.toContain('1. Turn Benchmarking on');
+    expect(markup).not.toContain('8. Promote the winner');
     expect(markup).toContain('Accuracy history');
     expect(markup).toContain('Always-on scoring');
     expect(markup).toContain('Check workspace monitoring');

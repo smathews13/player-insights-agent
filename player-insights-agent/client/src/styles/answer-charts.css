@@ -35,6 +35,13 @@
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 12px;
 }
+.answer-charts-origin {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 0;
+}
 
 /*
  * The panel. 5% of the foreground over whatever is behind it, which is a faint ink

@@ -262,6 +262,24 @@ describe('the row that names a source', () => {
 
     expect(rendered).toContain(sentence);
   });
+
+  it('omits a table already named on a chart or table header from the leftover Sources line', () => {
+    const markup = renderToStaticMarkup(
+      <SourcesModule
+        sources={[
+          { name: QUERIED[0], freshness: FRESHNESS, role: 'reading' },
+          { name: NAME, freshness: FRESHNESS, role: 'reference' },
+        ]}
+        caveats={[`Nulls in ${QUERIED[0]} are dropped.`]}
+        hideWorkspaceLinks={[QUERIED[0]]}
+      />
+    );
+    const line = /<p class="source-line">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? '';
+    expect(line).not.toContain(QUERIED[0]);
+    expect(line).toContain(NAME);
+    expect(text(markup)).toContain('Keep in mind');
+    expect(text(markup)).toContain(QUERIED[0]);
+  });
 });
 
 describe('what the module refuses to draw', () => {

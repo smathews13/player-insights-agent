@@ -131,16 +131,27 @@ export function selectAnswerBlocks(blocks: readonly Block[], selection: AnswerBl
   return blocks.filter((block) => (selection === 'tables' ? block.kind === 'table' : block.kind !== 'table'));
 }
 
-/** Plain text represented by an inline subtree, used only for metadata tests. */
-function inlineValue(nodes: readonly Inline[]): string {
+/**
+ * The characters an inline subtree would print, including interior spaces.
+ *
+ * Used by the display sectioner to split a paragraph without rewriting it:
+ * sentence cuts are offsets in this string, and the original nodes are sliced
+ * back out. Trimmed only in `inlineValue`, which is for metadata tests that
+ * compare a heading or a cell to a literal.
+ */
+export function inlinePlainText(nodes: readonly Inline[]): string {
   return nodes
     .map((node) => {
       if (node.kind === 'text' || node.kind === 'code') return node.runs.map((run) => run.text).join('');
-      if (node.kind === 'strong' || node.kind === 'link') return inlineValue(node.children);
+      if (node.kind === 'strong' || node.kind === 'link') return inlinePlainText(node.children);
       return '\n';
     })
-    .join('')
-    .trim();
+    .join('');
+}
+
+/** Plain text represented by an inline subtree, used only for metadata tests. */
+function inlineValue(nodes: readonly Inline[]): string {
+  return inlinePlainText(nodes).trim();
 }
 
 /**

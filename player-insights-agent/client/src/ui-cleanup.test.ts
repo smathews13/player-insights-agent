@@ -40,6 +40,20 @@ describe('app-wide dropdown recipe', () => {
     expect(explorer).toContain('placeholder="Search across runs"');
     expect(explorer).not.toContain('Search conversations, prompts, or people');
   });
+
+  it('opens every owned dropdown as an overlay popover, not a page-shifting modal', () => {
+    // Radix Select 2.2 dropped `modal`; passing it is a type error and a no-op.
+    // Overlay is popper plus the reserved gutter, not a lock switch.
+    const ui = source('ui.ts');
+    expect(ui).not.toMatch(/\bmodal\s*:/);
+    expect(ui).toMatch(/position:\s*['"]popper['"]/);
+    expect(source('AppSelect.tsx')).not.toMatch(/\bmodal\b/);
+    const css = style('base.css');
+    expect(css).toMatch(/html \{[^}]*scrollbar-gutter:\s*stable/s);
+    expect(css).toMatch(/\[data-radix-popper-content-wrapper\] \{[^}]*min-width: 0 !important/s);
+    expect(css).toMatch(/\[data-radix-popper-content-wrapper\] \{[^}]*max-width: calc\(100vw - 24px\) !important/s);
+    expect(css).toMatch(/\.app-select-content \{[^}]*max-width: min\(32rem, calc\(100vw - 24px\)\)/s);
+  });
 });
 
 describe('Connections and Settings cleanup', () => {

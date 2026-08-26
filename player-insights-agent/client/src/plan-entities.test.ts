@@ -175,7 +175,7 @@ describe('every surface that names a source names it the same way', () => {
       expect(source).not.toContain('className="sources-row"');
     }
     expect(MODULE).toContain('<SourceEntityName name={row.name} />');
-    expect(MODULE).toContain('<OpenInDatabricks name={row.name} />');
+    expect(MODULE).toContain('<OpenInDatabricks name={name} />');
   });
 
   it('keeps one implementation of what a named entity looks like', () => {

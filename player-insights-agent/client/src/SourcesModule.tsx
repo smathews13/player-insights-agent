@@ -25,6 +25,7 @@ export function SourcesModule({
   caveats,
   derivation = [],
   layout = 'line',
+  hideWorkspaceLinks = [],
 }: {
   sources: readonly SourceRef[];
   /**
@@ -52,8 +53,18 @@ export function SourcesModule({
    * wrapping paragraph.
    */
   layout?: 'line' | 'list';
+  /**
+   * Source names that already carry an Open-in-workspace control on a table or
+   * chart header. Those drop out of this leftover line so the same table is not
+   * named twice; Keep in mind still sees the full list, so a caveat can tag it.
+   */
+  hideWorkspaceLinks?: readonly string[];
 }) {
+  const hidden = new Set(hideWorkspaceLinks.map((name) => name.trim().toLowerCase()));
+  const workspaceLink = (name: string) =>
+    hidden.has(name.trim().toLowerCase()) ? null : <OpenInDatabricks name={name} />;
   const rows = sourceRows(sources);
+  const leftover = rows.filter((row) => !hidden.has(row.name.trim().toLowerCase()));
   const derived = derivation
     .map((entry) => ({
       key: `${entry.source}-${entry.metric}-${entry.window}-${entry.filter}`,
@@ -79,12 +90,12 @@ export function SourcesModule({
   if (rows.length === 0 && derived.length === 0 && !caveats.some((caveat) => caveat.trim()))
     return null;
   const provenance =
-    rows.length > 0 || derived.length > 0 ? (
+    leftover.length > 0 || derived.length > 0 ? (
       layout === 'list' ? (
         <section className="sources-module sources-module--list" aria-label="Sources and provenance">
           <p className="source-list-heading">Sources</p>
           <ul className="source-list">
-            {rows.map((row) => (
+            {leftover.map((row) => (
               <li className="source-list-row" key={row.name}>
                 <span
                   className="source-list-path"
@@ -95,7 +106,7 @@ export function SourcesModule({
                 <span className="source-list-role" title={row.note}>
                   {row.chip}
                 </span>
-                <OpenInDatabricks name={row.name} />
+                {workspaceLink(row.name)}
               </li>
             ))}
           </ul>
@@ -121,7 +132,7 @@ export function SourcesModule({
         <section className="sources-module" aria-label="Sources and provenance">
           <p className="source-line">
             <strong className="source-line-label">Sources</strong>{' '}
-            {rows.map((row, index) => (<span className="source-line-entry" key={row.name}>
+            {leftover.map((row, index) => (<span className="source-line-entry" key={row.name}>
                 {index > 0 ? <span aria-hidden="true"> · </span> : null}
                 <span
                   className="source-line-name source-name-pill"
@@ -137,7 +148,7 @@ export function SourcesModule({
                     old Sources card and lost its seating when the card became one
                     compact line; source-rows.ts never stopped stating it. */}
                 <span className="source-line-role" title={row.note}>({row.chip})</span>{' '}
-                <OpenInDatabricks name={row.name} />
+                {workspaceLink(row.name)}
               </span>
             ))}
             {derived.map((entry) => (<span className="source-line-derivation" key={entry.key}>

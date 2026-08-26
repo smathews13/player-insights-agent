@@ -63,6 +63,17 @@ describe('the Run Explorer’s two columns', () => {
     expect(EXPLORER).toContain('run-filter-label');
   });
 
+  it('opens All conversations and All users as overlay popovers', () => {
+    // A long conversation title used to widen the 340px column and shove the
+    // detail pane. The menu is a popper overlay; opening it cannot change the
+    // field of view, chrome width, or scrollbar.
+    expect(EXPLORER).toMatch(/position="popper"/);
+    expect(EXPLORER).toMatch(/className="app-select-content"/);
+    expect(rule(RUNS, '.explorer-layout')).toContain('overflow-x: clip');
+    expect(rule(RUNS, 'html body[data-scroll-locked]')).toContain('margin-right: 0 !important');
+    expect(rule(RUNS, 'html body[data-scroll-locked]')).toContain('padding-right: 0 !important');
+  });
+
   it('gives the detail column a real pane, not a floating tint', () => {
     // Tabs plus the view they switch sit on one sheet. No hairline is what
     // made Overview, Agent map, Timeline and Details read as a square of
@@ -151,9 +162,7 @@ describe('the Run Explorer’s two columns', () => {
   it('sets the token split as a mono caption on the tile, not as a second value', () => {
     // Two metred numbers to be compared, so they are mono and small; the tile's
     // value stays the one figure a reader takes away.
-    expect(rule(RUNS, '.run-explorer .summary-grid small.tile-mono')).toContain(
-      'font-family: var(--font-mono)'
-    );
+    expect(rule(RUNS, '.run-explorer .summary-grid small.tile-mono')).toContain('font-family: var(--font-mono)');
     expect(EXPLORER).toContain('tile-mono');
   });
 
@@ -334,7 +343,8 @@ describe('what amber is allowed to be on the evaluation screen', () => {
   it('underlines the Rating column rather than tinting its header', () => {
     // Scoped away from the per-case table, whose last column is a duration: amber
     // there would say a timing had been evaluated.
-    expect(rule(BENCHMARK, ".table-scroll:not(.bench-cases) [data-slot='table'] thead th:last-child")).toContain('border-bottom: 3px solid var(--ast-warn-text)'
+    expect(rule(BENCHMARK, ".table-scroll:not(.bench-cases) [data-slot='table'] thead th:last-child")).toContain(
+      'border-bottom: 3px solid var(--ast-warn-text)'
     );
   });
 
