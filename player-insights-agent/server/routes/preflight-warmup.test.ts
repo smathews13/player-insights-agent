@@ -175,7 +175,7 @@ describe('the page never waits for the warm-up', () => {
 
   it('warms declared adopted Genie spaces on the same arrival path', () => {
     const source = readFileSync(new URL('./insights-routes.ts', import.meta.url), 'utf8');
-    expect(source).toContain('warmGenieWarehousesForArrival(req, {})');
+    expect(source).toContain('warmGenieWarehousesForArrival(req)');
     expect(source).toContain('createGenieWarehouseWarmup');
     expect(source).toContain('forwardedUserToken(req)');
   });

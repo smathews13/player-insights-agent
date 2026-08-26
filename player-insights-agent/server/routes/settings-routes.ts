@@ -14,16 +14,13 @@ import type { Request } from 'express';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
-  agentEndpointCheck,
-  extractConfigurationReport,
-  extractPreflightReport,
-  invokePreflight,
   userEmail,
   type InsightsAppKit,
   type PreflightCheck,
   type PreflightConfiguration,
   type PreflightReport,
 } from './insights-routes';
+import { configurationFromRelease } from '../lib/release-configuration';
 import type { StoredSetting } from '../lib/app-settings';
 import { lakebaseStorageCheck } from '../lib/lakebase-store';
 import {
@@ -41,7 +38,8 @@ import { resolveExperimentId, resolveNotebookDeclaration } from '../lib/app-sett
 import { recordAdminAction, requireAdmin } from '../lib/admin-roles';
 import { readAgentModel } from '../lib/agent-model';
 import { readAppFacts } from '../lib/app-metadata';
-import { declaredTables, probeConnections } from '../lib/dependency-probes';
+import { probeConnections } from '../lib/dependency-probes';
+import { accessDependenciesFrom } from './access-verification';
 import { validateNotebookPath } from '../lib/browse-assets';
 import { checkExperimentAsApp } from '../lib/experiment-probe';
 import { forwardedUserToken } from './access-verification';
@@ -151,40 +149,27 @@ const CompletionBody = z.strictObject({
 });
 
 /**
- * What asking the orchestrator produced: a report, or the reason there is none.
+ * What this release was wired to: a configuration list, never a live serving ping.
  *
- * Two fields rather than a nullable report, because "no report" has two causes
- * that a reader has to be able to tell apart. `answered` is about the endpoint,
- * `report` is about what it said.
+ * `answered` stays false. The app used to treat a serving reply as proof the
+ * agent was reachable; that ping is gone, so this must not claim one ran.
  */
 interface OrchestratorRead {
   report: PreflightReport | null;
-  /** Whether the endpoint replied at all, however unhelpfully. */
+  /** Always false: this path no longer invokes the serving endpoint. */
   answered: boolean;
 }
 
 /**
- * What the endpoint said it is configured with, and nothing about health.
+ * What this release was wired to, and nothing about live agent health.
  *
- * The two checks the app can make for itself are real and are included. Every
- * other field is empty ON PURPOSE, and each empty one is read somewhere as "not
- * known" rather than as a value:
+ * Lakebase is included because the app can ask its own store. Every other field
+ * is empty ON PURPOSE: this path no longer invokes serving, so it must not
+ * stamp a check time, a serving principal, or an "ok" on the agent endpoint.
  *
- *   status 'unverified'  nothing behind the endpoint was probed on this path, so
- *                        the page must not imply a clean bill of health.
- *   checked_at ''        no dependency check ran, so there is no time to stamp.
- *   principal ''         the serving identity is only in the retired report. The
- *                        pane says it is unknown, which is true, instead of
- *                        printing the app's own principal as if it were the
- *                        endpoint's.
- *
- * `build_sha` is the exception and is lifted out of the configuration, because
- * the version does report it -- as one of its settings rather than as a field of
- * a report. Leaving it empty would have the app state that the served model
- * "predates the build stamp" while holding its stamp in the list beside it, and
- * that sentence tells an operator to re-log a model that needs nothing.
+ * `build_sha` is lifted out of the configuration when the release wrote one.
  */
-function configurationOnlyReport(configuration: PreflightConfiguration[], endpointName: string): PreflightReport {
+function configurationOnlyReport(configuration: PreflightConfiguration[]): PreflightReport {
   const stamped = configuration.find((entry) => entry.key === 'build_sha');
   return {
     checked_at: '',
@@ -194,78 +179,26 @@ function configurationOnlyReport(configuration: PreflightConfiguration[], endpoi
     table_source: '',
     build_sha: typeof stamped?.value === 'string' ? stamped.value : '',
     configuration,
-    checks: [
-      agentEndpointCheck(endpointName, {
-        status: 'ok',
-        detail: 'The app invoked the orchestrator and it reported its configuration.',
-      }),
-      lakebaseStorageCheck(),
-    ],
+    checks: [lakebaseStorageCheck()],
     assumptions: [],
     counts: { ok: 0, failed: 0, unverified: 0 },
-    // NOT 'agent', which is what this said for one release and is the whole
-    // defect: downstream reads 'agent' as "something measured these values" and
-    // suppresses the notice explaining that nothing did, so a page describing
-    // nineteen unmeasured connections lost its only caveat and reported them as
-    // agreeing. The endpoint answering is not the endpoint checking.
     source: 'configuration',
   };
 }
 
 /**
- * The orchestrator's report, with the two checks only the app can make.
+ * The release's configuration, never a serving invoke.
  *
- * The same two `/api/preflight` adds, from the same exported helpers rather than
- * from a second copy of them: the endpoint cannot report on whether the app can
- * reach it, and it has no view of the app's own store. `source` is what tells a
- * reader whether anything behind the endpoint was measured at all, so it is set
- * from whether a report came back and never assumed.
+ * Connections still needs catalog, schema, Genie ids and the declared table
+ * list. Those come from the app container (filled at app-release from the same
+ * bundle variables a log uses) and, when catalog+schema are present, from the
+ * committed data contract. Unity Catalog then answers whether the signed-in
+ * user can reach those objects.
  */
-export async function readOrchestratorReport(appkit: InsightsAppKit): Promise<OrchestratorRead> {
-  const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '';
-  let raw: unknown;
-  try {
-    raw = await invokePreflight(appkit);
-  } catch (error) {
-    console.warn(
-      '[settings] The orchestrator could not be asked what it is configured with:',
-      (error as Error).message
-    );
-    return { report: null, answered: false };
-  }
-  const report = extractPreflightReport(raw);
-  // Answered, with no report in it. `/api/preflight` has always drawn this
-  // distinction and called it `preflight_retired`; this route collapsed it into
-  // the unreachable case, so the page said the endpoint had not answered while
-  // the endpoint was answering.
-  //
-  // A full report is the OLD shape, from when the endpoint ran dependency
-  // checks. Every current version answers `preflight_retired` and carries its
-  // configuration beside that word instead of inside a report -- so this branch
-  // is now the normal path rather than the exception, and returning null here
-  // threw away the only thing this route asked for. That is why every connection
-  // read "configured, unmeasured" against a perfectly healthy endpoint: the pane
-  // was comparing the app's environment with an empty list.
-  if (!report) {
-    const configuration = extractConfigurationReport(raw);
-    if (configuration.length === 0) return { report: null, answered: true };
-    return { report: configurationOnlyReport(configuration, endpointName), answered: true };
-  }
+export async function readOrchestratorReport(): Promise<OrchestratorRead> {
   return {
-    report: {
-      ...report,
-      checks: [
-        agentEndpointCheck(endpointName, {
-          status: 'ok',
-          detail: 'The app invoked the orchestrator and it reported its configuration.',
-        }),
-        lakebaseStorageCheck(),
-        ...report.checks,
-      ],
-      counts: { ok: 0, failed: 0, unverified: 0 },
-      source: 'agent',
-    },
-    answered: true,
+    report: configurationOnlyReport(configurationFromRelease(process.env)),
+    answered: false,
   };
 }
 
@@ -310,7 +243,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
      */
     app.post('/api/settings/resource-tags', async (req, res) => {
       try {
-        const { report } = await readOrchestratorReport(appkit);
+        const { report } = await readOrchestratorReport();
         const experimentId = await resolveExperimentId(appkit);
         const summary = await applyAstrolabeTags({
           report,
@@ -345,7 +278,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
      * and a 503 would leave them with the app-side half they can already see.
      */
     app.get('/api/settings', async (req, res) => {
-      const { report, answered } = await readOrchestratorReport(appkit);
+      const { report, answered } = await readOrchestratorReport();
       const stored = await readStoredSettings(appkit);
       const environment = appEnvironment();
       const payload = settingsPayload({
@@ -756,12 +689,12 @@ async function buildApplyResponse(
   modelName: string;
   preflight: ReleasePreflight | null;
 }> {
-  const { report } = await readOrchestratorReport(appkit);
+  const { report, answered } = await readOrchestratorReport();
   const stored = await readStoredSettings(appkit);
   const environment = appEnvironment();
   const payload = settingsPayload({
     report,
-    endpointAnswered: true,
+    endpointAnswered: answered,
     environment,
     stored,
     appBuildSha: appBuildSha(),
@@ -938,7 +871,7 @@ function configuredValues(states: ReturnType<typeof resourceStates>): string[] {
 }
 
 async function impactFor(appkit: InsightsAppKit, connection: StoredDeclaredConnection): Promise<RemovalImpact> {
-  const { report } = await readOrchestratorReport(appkit);
+  const { report } = await readOrchestratorReport();
   const stored = await readStoredSettings(appkit);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   return removalImpact(connection, configuredValues(states));
@@ -996,7 +929,10 @@ async function readReachability(
     const configured = Object.fromEntries(resourceStates(input).map((state) => [state.resource.id, state.configured]));
     const checks = await probeConnections({
       configured,
-      tables: declaredTables(input.report?.configuration ?? []),
+      tables: accessDependenciesFrom({
+        configuration: input.report?.configuration ?? [],
+        env: process.env,
+      }).tables,
       host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
       token: forwardedUserToken(req),
       principal: req.header('x-forwarded-email')?.trim() ?? '',

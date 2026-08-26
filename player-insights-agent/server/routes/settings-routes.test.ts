@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   configuredNotebookPath,
@@ -8,6 +8,7 @@ import {
 } from './settings-routes';
 import { extractConfigurationReport, type InsightsAppKit, type ServingTransport } from './insights-routes';
 import { resourceStates, settingsPayload } from '../lib/app-settings';
+import { qualifyDataContractTables } from '../../shared/data-contract';
 
 /**
  * What the endpoint says it is configured with has to survive the trip.
@@ -15,16 +16,10 @@ import { resourceStates, settingsPayload } from '../lib/app-settings';
  * These tests exist because it did not. `extractPreflightReport` looks for
  * `custom_outputs.preflight`, the shape from when the endpoint still ran
  * dependency checks; every current version answers `preflight_retired` and puts
- * its configuration at the top level of `custom_outputs`. This route read the
- * configuration through that same function, so the parse failed and the route
- * returned no report at all -- and the Connections pane, given nothing to compare
- * the app's environment against, showed every single connection as "configured,
- * unmeasured" against an endpoint that was answering perfectly well.
- *
- * The lesson worth pinning is narrow: a route that wants the CONFIGURATION must
- * not read it through a parser whose subject is the CHECKS. The fixture below is
- * therefore the literal payload `agent.py::_preflight_retired` returns, so a
- * change on either side that separates them fails here.
+ * its configuration at the top level of `custom_outputs`. `/api/settings` no
+ * longer invokes serving, but the parser remains so an old payload can still
+ * be read. The fixture below is the literal payload
+ * `agent.py::_preflight_retired` returns.
  */
 
 /** The payload the served orchestrator actually returns, key for key. */
@@ -60,10 +55,35 @@ function appkitAnswering(raw: unknown): InsightsAppKit {
   return appkit(() => Promise.resolve(raw));
 }
 
-// `invokeServing` throws without it, which would make every case below look like
-// an unreachable endpoint rather than exercising what came back.
+const RELEASE_ENV_KEYS = [
+  'DATABRICKS_SERVING_ENDPOINT_NAME',
+  'DATABRICKS_SQL_WAREHOUSE_ID',
+  'PLAYER_INSIGHTS_CATALOG',
+  'PLAYER_INSIGHTS_SCHEMA',
+  'PLAYER_INSIGHTS_BUILD_SHA',
+  'PLAYER_INSIGHTS_DECLARED_MANIFEST',
+  'PLAYER_INSIGHTS_TABLES',
+  'PLAYER_INSIGHTS_DATA_GENIE_ID',
+  'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
+  'PLAYER_INSIGHTS_WAREHOUSE_ID',
+] as const;
+
+const savedReleaseEnv: Record<string, string | undefined> = {};
+
 beforeEach(() => {
+  for (const key of RELEASE_ENV_KEYS) {
+    savedReleaseEnv[key] = process.env[key];
+    delete process.env[key];
+  }
   process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'an-endpoint';
+});
+
+afterEach(() => {
+  for (const key of RELEASE_ENV_KEYS) {
+    const value = savedReleaseEnv[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 });
 
 describe('the configuration survives the retired-preflight shape', () => {
@@ -93,75 +113,73 @@ describe('the configuration survives the retired-preflight shape', () => {
   });
 });
 
-describe('what /api/settings makes of an endpoint that answered', () => {
-  it('reports the configuration instead of discarding it', async () => {
-    const read = await readOrchestratorReport(
-      appkitAnswering(retiredPreflight([entry('catalog', 'a_catalog'), entry('sql_warehouse_id', 'abc123')]))
+describe('what /api/settings makes of this release, without asking the agent', () => {
+  it('reports the configuration from the app container', async () => {
+    process.env.PLAYER_INSIGHTS_CATALOG = 'a_catalog';
+    process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
+    const read = await readOrchestratorReport();
+    expect(read.answered).toBe(false);
+    expect(read.report?.configuration.map((item) => item.key)).toEqual(
+      expect.arrayContaining(['catalog', 'schema', 'declared_manifest'])
     );
-    expect(read.answered).toBe(true);
-    expect(read.report?.configuration.map((item) => item.key)).toEqual(['catalog', 'sql_warehouse_id']);
+    const catalog = read.report?.configuration.find((item) => item.key === 'catalog');
+    expect(catalog).toMatchObject({ value: 'a_catalog', source: 'app-environment' });
   });
 
-  it('carries the build stamp the version reported, rather than calling it unstamped', async () => {
-    // Left empty, the app tells an operator the served model "predates the build
-    // stamp" and should be re-logged, while holding its stamp in the list beside
-    // that sentence. The stamp is reported as a setting rather than as a field of
-    // a report, which is exactly why it was being lost.
-    const read = await readOrchestratorReport(
-      appkitAnswering(retiredPreflight([entry('build_sha', 'deadbeef'), entry('catalog', 'a_catalog')]))
-    );
+  it('carries the build stamp this release wrote, rather than calling it unstamped', async () => {
+    process.env.PLAYER_INSIGHTS_BUILD_SHA = 'deadbeef';
+    process.env.PLAYER_INSIGHTS_CATALOG = 'a_catalog';
+    process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
+    const read = await readOrchestratorReport();
     expect(read.report?.build_sha).toBe('deadbeef');
   });
 
-  it('claims nothing about health, because nothing behind the endpoint was probed', async () => {
-    const read = await readOrchestratorReport(appkitAnswering(retiredPreflight([entry('catalog', 'a_catalog')])));
+  it('claims nothing about agent health, because serving was not invoked', async () => {
+    process.env.PLAYER_INSIGHTS_CATALOG = 'a_catalog';
+    process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
+    const read = await readOrchestratorReport();
     expect(read.report?.status).toBe('unverified');
     expect(read.report?.checked_at).toBe('');
-    // The serving identity is only in the retired report. Unknown is the honest
-    // answer; printing the app's own principal here would be a fabrication.
     expect(read.report?.principal).toBe('');
     expect(read.report?.principal_resolved).toBe(false);
     expect(read.report?.assumptions).toEqual([]);
+    expect(read.report?.source).toBe('configuration');
   });
 
-  it('keeps the two checks the app can make for itself', async () => {
-    const read = await readOrchestratorReport(appkitAnswering(retiredPreflight([entry('catalog', 'a_catalog')])));
+  it('keeps the Lakebase check the app can make for itself, and not a fake agent ping', async () => {
+    process.env.PLAYER_INSIGHTS_CATALOG = 'a_catalog';
+    process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
+    const read = await readOrchestratorReport();
     const ids = read.report?.checks.map((check) => check.id) ?? [];
-    expect(ids).toContain('agent-endpoint');
+    expect(ids).not.toContain('agent-endpoint');
     expect(ids.some((id) => id.includes('lakebase'))).toBe(true);
   });
 
-  it('separates an endpoint that said nothing from one that could not be reached', async () => {
-    const silent = await readOrchestratorReport(appkitAnswering({ custom_outputs: { type: 'preflight_retired' } }));
-    expect(silent).toEqual({ report: null, answered: true });
-
-    const unreachable = await readOrchestratorReport(appkit(() => Promise.reject(new Error('endpoint is not ready'))));
-    expect(unreachable).toEqual({ report: null, answered: false });
+  it('still answers when serving would have been unreachable', async () => {
+    const read = await readOrchestratorReport();
+    expect(read.answered).toBe(false);
+    expect(read.report).not.toBeNull();
+    expect(read.report?.source).toBe('configuration');
   });
 
-  it('gives the pane a configured value to show, which is the bug the user saw', async () => {
-    const read = await readOrchestratorReport(appkitAnswering(retiredPreflight([entry('catalog', 'a_catalog')])));
+  it('gives the pane a configured value to show, from this release', async () => {
+    process.env.PLAYER_INSIGHTS_CATALOG = 'a_catalog';
+    process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
+    const read = await readOrchestratorReport();
     const states = resourceStates({ report: read.report, environment: {}, stored: new Map() });
     const catalog = states.find((state) => state.resource.id === 'catalog');
     expect(catalog?.configured).toBe('a_catalog');
-    expect(catalog?.configuredFrom).toBe('artifact');
+    expect(catalog?.configuredFrom).toBe('app-environment');
+    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.value).toEqual(
+      qualifyDataContractTables('a_catalog', 'a_schema')
+    );
   });
 
-  /**
-   * COMPOSED THROUGH TO THE VERDICT A READER ACTUALLY SEES, which is the step this
-   * file was missing when it let a regression out.
-   *
-   * The test above it asserts `status: 'unverified'` on the report, and passed
-   * throughout: the report said unverified while the payload built from it said
-   * `ok`, because the synthesised report claimed `source: 'agent'` and the drift
-   * check reads that as "an agent measured these". Nothing asserted the two
-   * agreed, so the page reported nineteen unmeasured connections as agreeing and
-   * the suite stayed green.
-   */
   it('does not let the page claim agreement it never measured', async () => {
-    const read = await readOrchestratorReport(
-      appkitAnswering(retiredPreflight([entry('build_sha', 'deadbeef'), entry('catalog', 'a_catalog')]))
-    );
+    process.env.PLAYER_INSIGHTS_BUILD_SHA = 'deadbeef';
+    process.env.PLAYER_INSIGHTS_CATALOG = 'a_catalog';
+    process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
+    const read = await readOrchestratorReport();
     const payload = settingsPayload({
       report: read.report,
       environment: {},
@@ -171,20 +189,13 @@ describe('what /api/settings makes of an endpoint that answered', () => {
       endpointAnswered: read.answered,
     });
 
-    // Unknown, not ok, on a deployment whose stamps MATCH: agreement between two
-    // configured values is not evidence, and this is the case that read as clean.
     expect(payload.status).toBe('unknown');
     expect(payload.drift.map((finding) => finding.id)).toContain('orchestrator-report-retired');
-    // The report's own verdict and the page's verdict have to be the same claim.
     expect(read.report?.status).toBe('unverified');
-    // The only rows carrying an observed value are the two the APP measured for
-    // itself: whether it can reach the endpoint, and whether it can reach its own
-    // store. Neither needs the orchestrator's cooperation, so both are real. Every
-    // row that would need the endpoint to have checked something stays unmeasured.
     const observed = payload.resources
       .filter((resource) => resource.actualObserved)
       .map((resource) => resource.resource.id);
-    expect(observed.sort()).toEqual(['agent-endpoint', 'lakebase']);
+    expect(observed.sort()).toEqual(['lakebase']);
   });
 });
 

@@ -188,6 +188,37 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated).toContain("name: PLAYER_INSIGHTS_JUDGE_ENDPOINT\n    value: 'databricks-claude-opus-4'");
   });
 
+  it('declares catalog, schema and Genie ids empty in source', () => {
+    for (const name of [
+      'PLAYER_INSIGHTS_CATALOG',
+      'PLAYER_INSIGHTS_SCHEMA',
+      'PLAYER_INSIGHTS_DATA_GENIE_ID',
+      'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
+    ]) {
+      expect(envNames(authored)).toContain(name);
+      const authoredValue = new RegExp(`- name: ${name}\\n\\s+value: '?([^'\\n]*)'?`).exec(authored)?.[1] ?? 'MISSING';
+      expect(authoredValue, `${name} must stay empty in source so a Git deploy ships no customer names`).toBe('');
+    }
+  });
+
+  it('takes catalog, schema and Genie ids from the release', () => {
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [
+        ...DEPLOY_OVERRIDES.env,
+        { name: 'PLAYER_INSIGHTS_CATALOG', value: "'example_catalog'" },
+        { name: 'PLAYER_INSIGHTS_SCHEMA', value: "'example_schema'" },
+        { name: 'PLAYER_INSIGHTS_DATA_GENIE_ID', value: "'space-data'" },
+        { name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: "'space-dict'" },
+      ],
+    });
+    expect(generated).toContain("name: PLAYER_INSIGHTS_CATALOG\n    value: 'example_catalog'");
+    expect(generated).toContain("name: PLAYER_INSIGHTS_SCHEMA\n    value: 'example_schema'");
+    expect(generated).toContain("name: PLAYER_INSIGHTS_DATA_GENIE_ID\n    value: 'space-data'");
+    expect(generated).toContain("name: PLAYER_INSIGHTS_DICTIONARY_GENIE_ID\n    value: 'space-dict'");
+    expect(generated.match(/name: PLAYER_INSIGHTS_CATALOG/g)).toHaveLength(1);
+  });
+
   it('carries no administrator address in the authored file', () => {
     // Every other variable here is a resource. This one is people, and both
     // halves of an address -- the personal name and the employer -- are on the

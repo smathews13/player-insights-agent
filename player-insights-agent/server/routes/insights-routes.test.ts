@@ -17,13 +17,11 @@ import {
   invokeServing,
   mlflowReference,
   PLAN_APPROVAL_MESSAGE,
-  PREFLIGHT_TIMEOUT_MS,
   rejectionStatus,
   REPRESENTATIVE_ANSWER_CAVEAT,
   RUN_TRACE_BENCHMARK_QUERY,
   RUN_TRACE_MESSAGE_QUERY,
   RUNS_QUERY,
-  SERVING_INVOKE_TIMEOUT_MS,
   SERVICE_PRINCIPAL_FALLBACK_CAVEAT,
   servingInvocationPath,
   setupInsightsRoutes,
@@ -3295,7 +3293,7 @@ describe('an agent endpoint that never answers', () => {
     else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
   });
 
-  it('is given up on, and says how long it was waited for', async () => {
+  it('abandons a silent endpoint rather than waiting forever', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const appkit = {
       lakebase: { query: () => Promise.resolve({ rows: [] }) },
@@ -3305,14 +3303,6 @@ describe('an agent endpoint that never answers', () => {
 
     await expect(invokeServing(appkit, { input: [] }, undefined, 30)).rejects.toThrow(/did not answer within 30 ms/
     );
-  });
-
-  it('waits longer for a question than for a report about the deployment', () => {
-    // A question is a minute of real work at its longest and is allowed to be
-    // slow; a preflight is a fixed round trip the wizard blocks on, so the two
-    // cannot share one bound.
-    expect(PREFLIGHT_TIMEOUT_MS).toBeLessThan(SERVING_INVOKE_TIMEOUT_MS);
-    expect(PREFLIGHT_TIMEOUT_MS).toBeGreaterThan(15_900);
   });
 });
 

@@ -62,6 +62,21 @@ env:
   # needs a grant + data migration; the env alone does not move existing tables.
   - name: PLAYER_INSIGHTS_APP_SCHEMA
     value: 'player_insights'
+  # Catalog and schema this release's data contract lives in. Empty in source so
+  # a Git deploy ships no customer Unity Catalog names. bundle/app-release.sh
+  # fills them from var.app_catalog / var.app_schema. Connections qualifies the
+  # committed table list with these and asks Unity Catalog whether the signed-in
+  # user can reach them. Empty means warehouse-only verification, said plainly.
+  - name: PLAYER_INSIGHTS_CATALOG
+    value: ''
+  - name: PLAYER_INSIGHTS_SCHEMA
+    value: ''
+  # Genie space ids this release adopted. Same rule as catalog: empty in source,
+  # filled at app-release from the bundle variables the agent log already uses.
+  - name: PLAYER_INSIGHTS_DATA_GENIE_ID
+    value: ''
+  - name: PLAYER_INSIGHTS_DICTIONARY_GENIE_ID
+    value: ''
   # The model that scores benchmark answers. Never on the answer path.
   # bundle/app-release.sh resolves it from var.judge_endpoint. Safe to leave
   # empty, because a value saved on the settings page overrides it per request.

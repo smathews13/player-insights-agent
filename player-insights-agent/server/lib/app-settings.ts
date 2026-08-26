@@ -540,14 +540,12 @@ const ORCHESTRATOR_REPORT_RETIRED: DriftFinding = {
   id: 'orchestrator-report-retired',
   severity: 'unknown',
   resourceId: 'agent-endpoint',
-  headline: 'Everything is running. The settings below are unconfirmed, not wrong',
+  headline: 'These values come from this release, not a live check of the agent',
   detail:
-    'The agent is answering normally. It does not send back a list of what it used, and that ' +
-    'is deliberate: whether a particular person can read a particular table is answered by ' +
-    'Unity Catalog, which enforces it, rather than by the agent describing itself. So the ' +
-    'values below are what this deployment was set up with, and this page does not claim to ' +
-    'have watched them being used. Nothing here means anything is broken.',
-  // Nothing to fix. Re-logging the model does not bring the report back, and a
+    'Connections lists the tables and spaces this build was set up to use. Unity Catalog ' +
+    'answers whether you can reach them. The agent was not asked a fake question to describe ' +
+    'itself. Nothing here means anything is broken.',
+  // Nothing to fix. Re-logging the model does not bring a live ping back, and a
   // remedy offered for a healthy deployment is how remedies stop being read on the
   // day one is real.
   remedy: '',
@@ -626,7 +624,7 @@ export function computeDrift(input: {
   // 2. The served version predates provenance reporting. Distinguished from
   //    "everything came from the artifact", which looks identical if the absence
   //    of the field is read as an empty answer.
-  if (!report.configuration || report.configuration.length === 0) {
+  if (report.source === 'agent' && (!report.configuration || report.configuration.length === 0)) {
     findings.push({
       id: 'configuration-unreported',
       severity: 'unknown',

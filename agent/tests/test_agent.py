@@ -4730,12 +4730,10 @@ def preflight(runtime, value=True):
 def test_a_preflight_request_is_answered_without_spending_a_model_call():
     """The reason the flag is still recognised at all.
 
-    `buildPreflightServingBody` in the app sends a valid ordinary request: the
-    flag plus a user turn reading "preflight". Stop recognising the flag and that
-    request does not fail, it becomes a QUESTION: a planning call, a loop, a
-    synthesis, a junk trace and a junk conversation row, on every
-    access-verification click and every wizard poll, against a 60-second app-side
-    timeout. This asserts the short-circuit is still ahead of all of it.
+    `buildPreflightServingBody` in older app builds sent a valid ordinary
+    request: the flag plus a user turn reading "preflight". Stop recognising
+    the flag and that request does not fail, it becomes a QUESTION. The current
+    app no longer sends this. Keep the short-circuit for those older builds.
     """
 
     llm = ScriptedLlm("Should never be reached.")

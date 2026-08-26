@@ -365,6 +365,10 @@ async function main() {
   // with the bundle. Absent here leaves the authored default standing.
   const appSchema = (process.env.PLAYER_INSIGHTS_APP_SCHEMA ?? '').trim();
   const indexRebuildJobId = (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? '').trim();
+  const catalog = (process.env.PLAYER_INSIGHTS_CATALOG ?? '').trim();
+  const schema = (process.env.PLAYER_INSIGHTS_SCHEMA ?? '').trim();
+  const dataGenieId = (process.env.PLAYER_INSIGHTS_DATA_GENIE_ID ?? '').trim();
+  const dictionaryGenieId = (process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID ?? '').trim();
 
   const experimentId = (process.env.PLAYER_INSIGHTS_EXPERIMENT_ID ?? '').trim();
   if (!experimentId) {
@@ -404,6 +408,12 @@ async function main() {
       ...(buildSha ? [{ name: 'PLAYER_INSIGHTS_BUILD_SHA', value: `'${buildSha}'` }] : []),
       ...(buildAncestors ? [{ name: 'PLAYER_INSIGHTS_BUILD_ANCESTORS', value: `'${buildAncestors}'` }] : []),
       ...(appSchema ? [{ name: 'PLAYER_INSIGHTS_APP_SCHEMA', value: `'${appSchema}'` }] : []),
+      ...(catalog ? [{ name: 'PLAYER_INSIGHTS_CATALOG', value: `'${catalog}'` }] : []),
+      ...(schema ? [{ name: 'PLAYER_INSIGHTS_SCHEMA', value: `'${schema}'` }] : []),
+      ...(dataGenieId ? [{ name: 'PLAYER_INSIGHTS_DATA_GENIE_ID', value: `'${dataGenieId}'` }] : []),
+      ...(dictionaryGenieId
+        ? [{ name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: `'${dictionaryGenieId}'` }]
+        : []),
       ...(judgeEndpoint ? [{ name: 'PLAYER_INSIGHTS_JUDGE_ENDPOINT', value: `'${judgeEndpoint}'` }] : []),
       // Whether the rail is shared is per-deployment, so app.yaml authors the
       // safe default and the release states the target's answer. Absent here

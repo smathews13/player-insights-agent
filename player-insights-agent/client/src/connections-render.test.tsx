@@ -1256,10 +1256,10 @@ describe('a connection row', () => {
 
   /**
    * A finding whose own severity is `unknown` is not a disagreement, and badging it
-   * as one was a live defect: `orchestrator-report-retired` says the agent is
-   * answering normally and deliberately does not report what it used, and the page
-   * rendered a red "Drift ×1" over it. Claiming a disagreement that was never
-   * measured is precisely the dishonesty this page exists to refuse.
+   * as one was a live defect: `orchestrator-report-retired` says the values came
+   * from this release rather than a live ping, and the page rendered a red
+   * "Drift ×1" over it. Claiming a disagreement that was never measured is
+   * precisely the dishonesty this page exists to refuse.
    */
   it('does not report an unmeasured value as a disagreement', () => {
     const rendered = render(
@@ -1272,7 +1272,7 @@ describe('a connection row', () => {
               id: 'orchestrator-report-retired',
               resourceId: 'agent-endpoint',
               severity: 'unknown',
-              detail: 'The agent is answering normally. It does not send back a list of what it used.',
+              detail: 'These values come from this release, not a live check of the agent.',
             },
           ] as never,
         })}

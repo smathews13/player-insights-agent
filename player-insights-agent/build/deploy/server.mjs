@@ -3459,7 +3459,7 @@ var require_sort = __commonJS({
   "node_modules/@databricks/appkit/node_modules/semver/functions/sort.js"(exports2, module2) {
     "use strict";
     var compareBuild = require_compare_build();
-    var sort = (list3, loose) => list3.sort((a, b) => compareBuild(a, b, loose));
+    var sort = (list2, loose) => list2.sort((a, b) => compareBuild(a, b, loose));
     module2.exports = sort;
   }
 });
@@ -3469,7 +3469,7 @@ var require_rsort = __commonJS({
   "node_modules/@databricks/appkit/node_modules/semver/functions/rsort.js"(exports2, module2) {
     "use strict";
     var compareBuild = require_compare_build();
-    var rsort = (list3, loose) => list3.sort((a, b) => compareBuild(b, a, loose));
+    var rsort = (list2, loose) => list2.sort((a, b) => compareBuild(b, a, loose));
     module2.exports = rsort;
   }
 });
@@ -5898,12 +5898,12 @@ var require_utils_legacy = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text18) {
-      return nodeCrypto.createHash("sha256").update(text18).digest();
+    function sha2562(text19) {
+      return nodeCrypto.createHash("sha256").update(text19).digest();
     }
-    function hashByName(hashName, text18) {
+    function hashByName(hashName, text19) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text18).digest();
+      return nodeCrypto.createHash(hashName).update(text19).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -5956,11 +5956,11 @@ var require_utils_webcrypto = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text18) {
-      return await subtleCrypto.digest("SHA-256", text18);
+    async function sha2562(text19) {
+      return await subtleCrypto.digest("SHA-256", text19);
     }
-    async function hashByName(hashName, text18) {
-      return await subtleCrypto.digest(hashName, text18);
+    async function hashByName(hashName, text19) {
+      return await subtleCrypto.digest(hashName, text19);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -6181,21 +6181,21 @@ var require_sasl = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text18) {
-      if (typeof text18 !== "string") {
+    function isPrintableChars(text19) {
+      if (typeof text19 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text18.split("").map((_, i) => text18.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text19.split("").map((_, i) => text19.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text18) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text18);
+    function isBase64(text19) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text19);
     }
-    function parseAttributePairs(text18) {
-      if (typeof text18 !== "string") {
+    function parseAttributePairs(text19) {
+      if (typeof text19 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text18.split(",").map((attrValue) => {
+        text19.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -7054,9 +7054,9 @@ var require_messages = __commonJS({
     };
     exports2.ReadyForQueryMessage = ReadyForQueryMessage;
     var CommandCompleteMessage = class {
-      constructor(length, text18) {
+      constructor(length, text19) {
         this.length = length;
-        this.text = text18;
+        this.text = text19;
         this.name = "commandComplete";
       }
     };
@@ -7205,8 +7205,8 @@ var require_serializer = __commonJS({
         /* code.startup */
       );
     };
-    var query = (text18) => {
-      return writer.addCString(text18).flush(
+    var query = (text19) => {
+      return writer.addCString(text19).flush(
         81
         /* code.query */
       );
@@ -7326,8 +7326,8 @@ var require_serializer = __commonJS({
       return msg.name ? cstringMessage(68, `${msg.type}${msg.name || ""}`) : msg.type === "P" ? emptyDescribePortal : emptyDescribeStatement;
     };
     var close = (msg) => {
-      const text18 = `${msg.type}${msg.name || ""}`;
-      return cstringMessage(67, text18);
+      const text19 = `${msg.type}${msg.name || ""}`;
+      return cstringMessage(67, text19);
     };
     var copyData = (chunk) => {
       return writer.add(chunk).flush(
@@ -7599,8 +7599,8 @@ var require_parser = __commonJS({
       return new messages_1.ReadyForQueryMessage(LATEINIT_LENGTH, status);
     };
     var parseCommandCompleteMessage = (reader) => {
-      const text18 = reader.cstring();
-      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text18);
+      const text19 = reader.cstring();
+      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text19);
     };
     var parseCopyData = (reader, length) => {
       const chunk = reader.bytes(length - 4);
@@ -7967,8 +7967,8 @@ var require_connection = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text18) {
-        this._send(serialize.query(text18));
+      query(text19) {
+        this._send(serialize.query(text19));
       }
       // send parse message
       parse(query) {
@@ -8036,21 +8036,21 @@ var require_split2 = __commonJS({
     var kLast = Symbol("last");
     var kDecoder = Symbol("decoder");
     function transform2(chunk, enc, cb) {
-      let list3;
+      let list2;
       if (this.overflow) {
         const buf = this[kDecoder].write(chunk);
-        list3 = buf.split(this.matcher);
-        if (list3.length === 1) return cb();
-        list3.shift();
+        list2 = buf.split(this.matcher);
+        if (list2.length === 1) return cb();
+        list2.shift();
         this.overflow = false;
       } else {
         this[kLast] += this[kDecoder].write(chunk);
-        list3 = this[kLast].split(this.matcher);
+        list2 = this[kLast].split(this.matcher);
       }
-      this[kLast] = list3.pop();
-      for (let i = 0; i < list3.length; i++) {
+      this[kLast] = list2.pop();
+      for (let i = 0; i < list2.length; i++) {
         try {
-          push(this, this.mapper(list3[i]));
+          push(this, this.mapper(list2[i]));
         } catch (error48) {
           return cb(error48);
         }
@@ -9164,12 +9164,12 @@ var require_utils_legacy2 = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text18) {
-      return nodeCrypto.createHash("sha256").update(text18).digest();
+    function sha2562(text19) {
+      return nodeCrypto.createHash("sha256").update(text19).digest();
     }
-    function hashByName(hashName, text18) {
+    function hashByName(hashName, text19) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text18).digest();
+      return nodeCrypto.createHash(hashName).update(text19).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -9222,11 +9222,11 @@ var require_utils_webcrypto2 = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text18) {
-      return await subtleCrypto.digest("SHA-256", text18);
+    async function sha2562(text19) {
+      return await subtleCrypto.digest("SHA-256", text19);
     }
-    async function hashByName(hashName, text18) {
-      return await subtleCrypto.digest(hashName, text18);
+    async function hashByName(hashName, text19) {
+      return await subtleCrypto.digest(hashName, text19);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -9447,21 +9447,21 @@ var require_sasl2 = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text18) {
-      if (typeof text18 !== "string") {
+    function isPrintableChars(text19) {
+      if (typeof text19 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text18.split("").map((_, i) => text18.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text19.split("").map((_, i) => text19.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text18) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text18);
+    function isBase64(text19) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text19);
     }
-    function parseAttributePairs(text18) {
-      if (typeof text18 !== "string") {
+    function parseAttributePairs(text19) {
+      if (typeof text19 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text18.split(",").map((attrValue) => {
+        text19.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -10186,8 +10186,8 @@ var require_connection2 = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text18) {
-        this._send(serialize.query(text18));
+      query(text19) {
+        this._send(serialize.query(text19));
       }
       // send parse message
       parse(query) {
@@ -11339,9 +11339,9 @@ var require_pg_pool = __commonJS({
     var EventEmitter = __require("events").EventEmitter;
     var NOOP = function() {
     };
-    var removeWhere = (list3, predicate) => {
-      const i = list3.findIndex(predicate);
-      return i === -1 ? void 0 : list3.splice(i, 1)[0];
+    var removeWhere = (list2, predicate) => {
+      const i = list2.findIndex(predicate);
+      return i === -1 ? void 0 : list2.splice(i, 1)[0];
     };
     var IdleItem = class {
       constructor(client, idleListener, timeoutId) {
@@ -11652,9 +11652,9 @@ var require_pg_pool = __commonJS({
         this._idle.push(new IdleItem(client, idleListener, tid));
         this._pulseQueue();
       }
-      query(text18, values, cb) {
-        if (typeof text18 === "function") {
-          const response2 = promisify2(this.Promise, text18);
+      query(text19, values, cb) {
+        if (typeof text19 === "function") {
+          const response2 = promisify2(this.Promise, text19);
           setImmediate(function() {
             return response2.callback(new Error("Passing a function as the first parameter to pool.query is not supported"));
           });
@@ -11682,7 +11682,7 @@ var require_pg_pool = __commonJS({
           client.once("error", onError);
           this.log("dispatching query");
           try {
-            client.query(text18, values, (err2, res) => {
+            client.query(text19, values, (err2, res) => {
               this.log("query dispatched");
               client.removeListener("error", onError);
               if (clientReleased) {
@@ -31431,15 +31431,15 @@ var require_utils16 = __commonJS({
       }
     };
     exports2.satisfiesPattern = satisfiesPattern;
-    var isIgnored = (constant, list3, onException) => {
-      if (!list3) {
+    var isIgnored = (constant, list2, onException) => {
+      if (!list2) {
         return false;
       }
-      if (!Array.isArray(list3)) {
-        list3 = [list3];
+      if (!Array.isArray(list2)) {
+        list2 = [list2];
       }
       try {
-        for (const pattern of list3) {
+        for (const pattern of list2) {
           if ((0, exports2.satisfiesPattern)(constant, pattern)) {
             return true;
           }
@@ -32752,11 +32752,11 @@ var require_utils19 = __commonJS({
       return repeatChar(" ", i);
     }
     function repeatChar(char, to) {
-      let text18 = "";
+      let text19 = "";
       for (let i = 0; i < to; i++) {
-        text18 += char;
+        text19 += char;
       }
-      return text18;
+      return text19;
     }
     var KindsToBeRemoved = [
       enum_1.TokenKind.FLOAT,
@@ -41724,10 +41724,10 @@ var require_gcCollector = __commonJS({
       _observer;
       constructor(config2 = {}) {
         super(config2);
-        this._observer = new perf_hooks.PerformanceObserver((list3) => {
+        this._observer = new perf_hooks.PerformanceObserver((list2) => {
           if (!this._config.enabled)
             return;
-          const entry = list3.getEntries()[0];
+          const entry = list2.getEntries()[0];
           const kind = entry.detail ? kinds[entry.detail.kind] : kinds[entry.kind];
           this._gcDurationByKindHistogram?.record(entry.duration / 1e3, {
             [semconv_1.ATTR_V8JS_GC_TYPE]: kind
@@ -49920,8 +49920,8 @@ var require_common2 = __commonJS({
       }
       function redactString(obj, key2) {
         if (typeof obj === "object" && obj !== null && typeof obj[key2] === "string") {
-          const text18 = obj[key2];
-          if (/grant_type=/i.test(text18) || /assertion=/i.test(text18) || /secret/i.test(text18)) {
+          const text19 = obj[key2];
+          if (/grant_type=/i.test(text19) || /assertion=/i.test(text19) || /secret/i.test(text19)) {
             obj[key2] = REDACT;
           }
         }
@@ -52895,18 +52895,18 @@ var require_parse2 = __commonJS({
         n: "\n",
         r: "\r",
         t: "	"
-      }, text18, error48 = function(m) {
+      }, text19, error48 = function(m) {
         throw {
           name: "SyntaxError",
           message: m,
           at,
-          text: text18
+          text: text19
         };
       }, next = function(c) {
         if (c && c !== ch) {
           error48("Expected '" + c + "' instead of '" + ch + "'");
         }
-        ch = text18.charAt(at);
+        ch = text19.charAt(at);
         at += 1;
         return ch;
       }, number4 = function() {
@@ -52953,12 +52953,12 @@ var require_parse2 = __commonJS({
           var startAt = at;
           while (next()) {
             if (ch === '"') {
-              if (at - 1 > startAt) string5 += text18.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text19.substring(startAt, at - 1);
               next();
               return string5;
             }
             if (ch === "\\") {
-              if (at - 1 > startAt) string5 += text18.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text19.substring(startAt, at - 1);
               next();
               if (ch === "u") {
                 uffff = 0;
@@ -53091,7 +53091,7 @@ var require_parse2 = __commonJS({
       };
       return function(source, reviver) {
         var result;
-        text18 = source + "";
+        text19 = source + "";
         at = 0;
         ch = " ";
         result = value();
@@ -84020,9 +84020,9 @@ var require_logging = __commonJS({
       }
     }
     var allEnabled = enabledTracers.has("all");
-    function trace2(severity, tracer, text18) {
+    function trace2(severity, tracer, text19) {
       if (isTracerEnabled(tracer)) {
-        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text18);
+        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text19);
       }
     }
     function isTracerEnabled(tracer) {
@@ -85560,8 +85560,8 @@ var require_backoff_timeout = __commonJS({
       static getNextId() {
         return this.nextId++;
       }
-      trace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text18);
+      trace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text19);
       }
       runTimer(delay) {
         var _a2, _b;
@@ -85804,8 +85804,8 @@ var require_resolving_load_balancer = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var load_balancer_child_handler_1 = require_load_balancer_child_handler();
     var TRACER_NAME = "resolving_load_balancer";
-    function trace2(text18) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var NAME_MATCH_LEVEL_ORDER = [
       "SERVICE_AND_METHOD",
@@ -97458,11 +97458,11 @@ var require_subchannel = __commonJS({
           target: this.subchannelAddressString
         };
       }
-      trace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
+      trace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
       }
-      refTrace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
+      refTrace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
       }
       handleBackoffTimer() {
         if (this.continueConnecting) {
@@ -97740,8 +97740,8 @@ var require_resolver_dns = __commonJS({
     var backoff_timeout_1 = require_backoff_timeout();
     var environment_1 = require_environment13();
     var TRACER_NAME = "dns_resolver";
-    function trace2(text18) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     exports2.DEFAULT_PORT = 443;
     var DEFAULT_MIN_TIME_BETWEEN_RESOLUTIONS_MS = 3e4;
@@ -98026,8 +98026,8 @@ var require_http_proxy = __commonJS({
     var url_1 = __require("url");
     var resolver_dns_1 = require_resolver_dns();
     var TRACER_NAME = "proxy";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     function getProxyInfo() {
       let proxyEnv = "";
@@ -98542,8 +98542,8 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.resume();
         }
       }
-      trace(text18) {
-        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text18);
+      trace(text19) {
+        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text19);
       }
       /**
        * On first call, emits a 'status' event with the given StatusObject.
@@ -98866,17 +98866,17 @@ var require_transport = __commonJS({
         };
         return socketInfo;
       }
-      trace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
+      trace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
       }
-      keepaliveTrace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
+      keepaliveTrace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
       }
-      flowControlTrace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
+      flowControlTrace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
       }
-      internalsTrace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
+      internalsTrace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
       }
       /**
        * Indicate to the owner of this object that this transport should no longer
@@ -99100,8 +99100,8 @@ var require_transport = __commonJS({
         this.session = null;
         this.isShutdown = false;
       }
-      trace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text18);
+      trace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text19);
       }
       createSession(secureConnectResult, address, options) {
         if (this.isShutdown) {
@@ -99407,8 +99407,8 @@ var require_load_balancing_call = __commonJS({
         }
         return deadlineInfo;
       }
-      trace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text18);
+      trace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text19);
       }
       outputStatus(status, progress) {
         var _a2, _b;
@@ -99639,8 +99639,8 @@ var require_resolving_call = __commonJS({
         this.trace("Created");
         this.runDeadlineTimer();
       }
-      trace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text18);
+      trace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text19);
       }
       runDeadlineTimer() {
         clearTimeout(this.deadlineTimer);
@@ -100005,8 +100005,8 @@ var require_retrying_call = __commonJS({
       getCallNumber() {
         return this.callNumber;
       }
-      trace(text18) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text18);
+      trace(text19) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text19);
       }
       reportStatus(statusObject) {
         this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + this.startTime.toISOString());
@@ -100104,8 +100104,8 @@ var require_retrying_call = __commonJS({
           this.commitCall(callWithMostMessages);
         }
       }
-      isStatusCodeInList(list3, code) {
-        return list3.some((value) => {
+      isStatusCodeInList(list2, code) {
+        return list2.some((value) => {
           var _a2;
           return value === code || value.toString().toLowerCase() === ((_a2 = constants_1.Status[code]) === null || _a2 === void 0 ? void 0 : _a2.toLowerCase());
         });
@@ -100842,8 +100842,8 @@ var require_internal_channel = __commonJS({
         }
         this.lastActivityTimestamp = /* @__PURE__ */ new Date();
       }
-      trace(text18, verbosityOverride) {
-        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text18);
+      trace(text19, verbosityOverride) {
+        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text19);
       }
       callRefTimerRef() {
         var _a2, _b, _c, _d;
@@ -102040,8 +102040,8 @@ var require_server_interceptors = __commonJS({
     var tls_1 = __require("tls");
     var orca_1 = require_orca();
     var TRACER_NAME = "server_call";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var ServerListenerBuilder = class {
       constructor() {
@@ -102833,8 +102833,8 @@ var require_server = __commonJS({
     var { HTTP2_HEADER_PATH } = http2.constants;
     var TRACER_NAME = "server";
     var kMaxAge = Buffer.from("max_age");
-    function serverCallTrace(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text18);
+    function serverCallTrace(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text19);
     }
     function noop() {
     }
@@ -102973,11 +102973,11 @@ var require_server = __commonJS({
           };
           return socketInfo;
         }
-        trace(text18) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text18);
+        trace(text19) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text19);
         }
-        keepaliveTrace(text18) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text18);
+        keepaliveTrace(text19) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text19);
         }
         addProtoService() {
           throw new Error("Not implemented. Use addService() instead");
@@ -104288,8 +104288,8 @@ var require_load_balancer_pick_first = __commonJS({
     var net_1 = __require("net");
     var call_interface_1 = require_call_interface();
     var TRACER_NAME = "pick_first";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var TYPE_NAME = "pick_first";
     var CONNECTION_DELAY_INTERVAL_MS = 250;
@@ -104333,8 +104333,8 @@ var require_load_balancer_pick_first = __commonJS({
         };
       }
     };
-    function shuffled(list3) {
-      const result = list3.slice();
+    function shuffled(list2) {
+      const result = list2.slice();
       for (let i = result.length - 1; i > 1; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         const temp = result[i];
@@ -104700,8 +104700,8 @@ var require_certificate_provider = __commonJS({
     var constants_1 = require_constants20();
     var util_1 = __require("util");
     var TRACER_NAME = "certificate_provider";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var readFilePromise = (0, util_1.promisify)(fs16.readFile);
     var FileWatcherCertificateProvider = class {
@@ -105000,8 +105000,8 @@ var require_resolver_ip = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var logging = require_logging();
     var TRACER_NAME = "ip_resolver";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var IPV4_SCHEME = "ipv4";
     var IPV6_SCHEME = "ipv6";
@@ -105091,8 +105091,8 @@ var require_load_balancer_round_robin = __commonJS({
     var subchannel_address_1 = require_subchannel_address();
     var load_balancer_pick_first_1 = require_load_balancer_pick_first();
     var TRACER_NAME = "round_robin";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var TYPE_NAME = "round_robin";
     var RoundRobinLoadBalancingConfig = class _RoundRobinLoadBalancingConfig {
@@ -105130,8 +105130,8 @@ var require_load_balancer_round_robin = __commonJS({
         return this.children[this.nextIndex].endpoint;
       }
     };
-    function rotateArray(list3, startIndex) {
-      return [...list3.slice(startIndex), ...list3.slice(0, startIndex)];
+    function rotateArray(list2, startIndex) {
+      return [...list2.slice(startIndex), ...list2.slice(0, startIndex)];
     }
     var RoundRobinLoadBalancer = class {
       constructor(channelControlHelper) {
@@ -105270,8 +105270,8 @@ var require_load_balancer_outlier_detection = __commonJS({
     var subchannel_interface_1 = require_subchannel_interface();
     var logging = require_logging();
     var TRACER_NAME = "outlier_detection";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var TYPE_NAME = "outlier_detection";
     var OUTLIER_DETECTION_ENABLED = ((_a2 = process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION) !== null && _a2 !== void 0 ? _a2 : "true") === "true";
@@ -105870,8 +105870,8 @@ var require_load_balancer_weighted_round_robin = __commonJS({
     var priority_queue_1 = require_priority_queue();
     var subchannel_address_1 = require_subchannel_address();
     var TRACER_NAME = "weighted_round_robin";
-    function trace2(text18) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
+    function trace2(text19) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
     }
     var TYPE_NAME = "weighted_round_robin";
     var DEFAULT_OOB_REPORTING_PERIOD_MS = 1e4;
@@ -115196,8 +115196,8 @@ var require_utils61 = __commonJS({
       });
     }
     exports2.getResourceDetectorsFromEnv = getResourceDetectorsFromEnv;
-    function filterBlanksAndNulls(list3) {
-      return list3.map((item) => item.trim()).filter((s) => s !== "null" && s !== "");
+    function filterBlanksAndNulls(list2) {
+      return list2.map((item) => item.trim()).filter((s) => s !== "null" && s !== "");
     }
     exports2.filterBlanksAndNulls = filterBlanksAndNulls;
     function getOtlpProtocolFromEnv() {
@@ -115286,11 +115286,11 @@ var require_utils61 = __commonJS({
         }
         return propagator;
       });
-      const validPropagators = propagators.reduce((list3, item) => {
+      const validPropagators = propagators.reduce((list2, item) => {
         if (item) {
-          list3.push(item);
+          list2.push(item);
         }
-        return list3;
+        return list2;
       }, []);
       if (validPropagators.length === 0) {
         return null;
@@ -122584,8 +122584,8 @@ var capitalizeFirstCharacter, error26;
 var init_lt = __esm({
   "node_modules/zod/v4/locales/lt.js"() {
     init_util2();
-    capitalizeFirstCharacter = (text18) => {
-      return text18.charAt(0).toUpperCase() + text18.slice(1);
+    capitalizeFirstCharacter = (text19) => {
+      return text19.charAt(0).toUpperCase() + text19.slice(1);
     };
     error26 = () => {
       const Sizable = {
@@ -130477,13 +130477,13 @@ var require_buffer_util = __commonJS({
     "use strict";
     var { EMPTY_BUFFER } = require_constants27();
     var FastBuffer = Buffer[Symbol.species];
-    function concat(list3, totalLength) {
-      if (list3.length === 0) return EMPTY_BUFFER;
-      if (list3.length === 1) return list3[0];
+    function concat(list2, totalLength) {
+      if (list2.length === 0) return EMPTY_BUFFER;
+      if (list2.length === 1) return list2[0];
       const target = Buffer.allocUnsafe(totalLength);
       let offset = 0;
-      for (let i = 0; i < list3.length; i++) {
-        const buf = list3[i];
+      for (let i = 0; i < list2.length; i++) {
+        const buf = list2[i];
         target.set(buf, offset);
         offset += buf.length;
       }
@@ -132233,14 +132233,14 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @private
        */
-      sendFrame(list3, cb) {
-        if (list3.length === 2) {
+      sendFrame(list2, cb) {
+        if (list2.length === 2) {
           this._socket.cork();
-          this._socket.write(list3[0]);
-          this._socket.write(list3[1], cb);
+          this._socket.write(list2[0]);
+          this._socket.write(list2[1], cb);
           this._socket.uncork();
         } else {
-          this._socket.write(list3[0], cb);
+          this._socket.write(list2[0], cb);
         }
       }
     };
@@ -148794,8 +148794,8 @@ var require_text = __commonJS({
     var debug = require_src100()("body-parser:text");
     var read2 = require_read();
     var typeis = require_type_is();
-    module2.exports = text18;
-    function text18(options) {
+    module2.exports = text19;
+    function text19(options) {
       var opts = options || {};
       var defaultCharset = opts.defaultCharset || "utf-8";
       var inflate = opts.inflate !== false;
@@ -149403,16 +149403,16 @@ var require_side_channel_list = __commonJS({
     "use strict";
     var inspect2 = require_object_inspect();
     var $TypeError = require_type3();
-    var listGetNode = function(list3, key2, isDelete) {
-      var prev = list3;
+    var listGetNode = function(list2, key2, isDelete) {
+      var prev = list2;
       var curr;
       for (; (curr = prev.next) != null; prev = curr) {
         if (curr.key === key2) {
           prev.next = curr.next;
           if (!isDelete) {
             curr.next = /** @type {NonNullable<typeof list.next>} */
-            list3.next;
-            list3.next = curr;
+            list2.next;
+            list2.next = curr;
           }
           return curr;
         }
@@ -153476,11 +153476,11 @@ var require_router = __commonJS({
         return this;
       };
     });
-    function appendMethods(list3, addition) {
+    function appendMethods(list2, addition) {
       for (var i = 0; i < addition.length; i++) {
         var method = addition[i];
-        if (list3.indexOf(method) === -1) {
-          list3.push(method);
+        if (list2.indexOf(method) === -1) {
+          list2.push(method);
         }
       }
     }
@@ -154438,7 +154438,7 @@ var require_fresh = __commonJS({
     }
     function parseTokenList(str) {
       var end = 0;
-      var list3 = [];
+      var list2 = [];
       var start = 0;
       for (var i = 0, len = str.length; i < len; i++) {
         switch (str.charCodeAt(i)) {
@@ -154448,7 +154448,7 @@ var require_fresh = __commonJS({
             }
             break;
           case 44:
-            list3.push(str.substring(start, end));
+            list2.push(str.substring(start, end));
             start = end = i + 1;
             break;
           default:
@@ -154456,8 +154456,8 @@ var require_fresh = __commonJS({
             break;
         }
       }
-      list3.push(str.substring(start, end));
-      return list3;
+      list2.push(str.substring(start, end));
+      return list2;
     }
   }
 });
@@ -155100,13 +155100,13 @@ var require_send = __commonJS({
       return typeof res.headersSent !== "boolean" ? Boolean(res._header) : res.headersSent;
     }
     function normalizeList(val, name2) {
-      var list3 = [].concat(val || []);
-      for (var i = 0; i < list3.length; i++) {
-        if (typeof list3[i] !== "string") {
+      var list2 = [].concat(val || []);
+      for (var i = 0; i < list2.length; i++) {
+        if (typeof list2[i] !== "string") {
           throw new TypeError(name2 + " must be array of strings or false");
         }
       }
-      return list3;
+      return list2;
     }
     function parseHttpDate(date5) {
       var timestamp3 = date5 && Date.parse(date5);
@@ -155114,7 +155114,7 @@ var require_send = __commonJS({
     }
     function parseTokenList(str) {
       var end = 0;
-      var list3 = [];
+      var list2 = [];
       var start = 0;
       for (var i = 0, len = str.length; i < len; i++) {
         switch (str.charCodeAt(i)) {
@@ -155125,7 +155125,7 @@ var require_send = __commonJS({
             break;
           case 44:
             if (start !== end) {
-              list3.push(str.substring(start, end));
+              list2.push(str.substring(start, end));
             }
             start = end = i + 1;
             break;
@@ -155135,9 +155135,9 @@ var require_send = __commonJS({
         }
       }
       if (start !== end) {
-        list3.push(str.substring(start, end));
+        list2.push(str.substring(start, end));
       }
-      return list3;
+      return list2;
     }
     function setHeaders(res, headers) {
       var keys = Object.keys(headers);
@@ -155168,7 +155168,7 @@ var require_forwarded = __commonJS({
     }
     function parse5(header) {
       var end = header.length;
-      var list3 = [];
+      var list2 = [];
       var start = header.length;
       for (var i = header.length - 1; i >= 0; i--) {
         switch (header.charCodeAt(i)) {
@@ -155179,7 +155179,7 @@ var require_forwarded = __commonJS({
             break;
           case 44:
             if (start !== end) {
-              list3.push(header.substring(start, end));
+              list2.push(header.substring(start, end));
             }
             start = end = i;
             break;
@@ -155189,9 +155189,9 @@ var require_forwarded = __commonJS({
         }
       }
       if (start !== end) {
-        list3.push(header.substring(start, end));
+        list2.push(header.substring(start, end));
       }
-      return list3;
+      return list2;
     }
   }
 });
@@ -156266,20 +156266,20 @@ var require_application = __commonJS({
       this._router.param(name2, fn);
       return this;
     };
-    app.set = function set2(setting2, val) {
+    app.set = function set2(setting, val) {
       if (arguments.length === 1) {
         var settings = this.settings;
         while (settings && settings !== Object.prototype) {
-          if (hasOwnProperty.call(settings, setting2)) {
-            return settings[setting2];
+          if (hasOwnProperty.call(settings, setting)) {
+            return settings[setting];
           }
           settings = Object.getPrototypeOf(settings);
         }
         return void 0;
       }
-      debug('set "%s" to %o', setting2, val);
-      this.settings[setting2] = val;
-      switch (setting2) {
+      debug('set "%s" to %o', setting, val);
+      this.settings[setting] = val;
+      switch (setting) {
         case "etag":
           this.set("etag fn", compileETag(val));
           break;
@@ -156299,17 +156299,17 @@ var require_application = __commonJS({
     app.path = function path19() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
-    app.enabled = function enabled2(setting2) {
-      return Boolean(this.set(setting2));
+    app.enabled = function enabled2(setting) {
+      return Boolean(this.set(setting));
     };
-    app.disabled = function disabled(setting2) {
-      return !this.set(setting2);
+    app.disabled = function disabled(setting) {
+      return !this.set(setting);
     };
-    app.enable = function enable2(setting2) {
-      return this.set(setting2, true);
+    app.enable = function enable2(setting) {
+      return this.set(setting, true);
     };
-    app.disable = function disable2(setting2) {
-      return this.set(setting2, false);
+    app.disable = function disable2(setting) {
+      return this.set(setting, false);
     };
     methods.forEach(function(method) {
       app[method] = function(path19) {
@@ -157358,7 +157358,7 @@ var require_vary = __commonJS({
     }
     function parse5(header) {
       var end = 0;
-      var list3 = [];
+      var list2 = [];
       var start = 0;
       for (var i = 0, len = header.length; i < len; i++) {
         switch (header.charCodeAt(i)) {
@@ -157368,7 +157368,7 @@ var require_vary = __commonJS({
             }
             break;
           case 44:
-            list3.push(header.substring(start, end));
+            list2.push(header.substring(start, end));
             start = end = i + 1;
             break;
           default:
@@ -157376,8 +157376,8 @@ var require_vary = __commonJS({
             break;
         }
       }
-      list3.push(header.substring(start, end));
-      return list3;
+      list2.push(header.substring(start, end));
+      return list2;
     }
     function vary(res, field3) {
       if (!res || !res.getHeader || !res.setHeader) {
@@ -158242,8 +158242,8 @@ async function extractPdfText(input, options = {}) {
       enableXfa: false
     });
     try {
-      const { text: text19 } = await extractText(pdf, { mergePages: false });
-      return text19;
+      const { text: text20 } = await extractText(pdf, { mergePages: false });
+      return text20;
     } finally {
       await pdf.loadingTask?.destroy();
     }
@@ -158266,14 +158266,14 @@ async function extractPdfText(input, options = {}) {
   } finally {
     clearTimeout(timer);
   }
-  const text18 = normalizeText(pages);
-  if (!text18) {
+  const text19 = normalizeText(pages);
+  if (!text19) {
     throw new PdfTextError(
       "no-text",
       "No readable text was found in this report. Scanned or image-only PDFs are not supported."
     );
   }
-  return text18.slice(0, maxChars);
+  return text19.slice(0, maxChars);
 }
 var MAX_PDF_TEXT_CHARS, PDF_EXTRACTION_TIMEOUT_MS, PDF_EXTENSIONS, PdfTextError;
 var init_pdf_text = __esm({
@@ -159968,8 +159968,8 @@ var init_repair_conversation_titles = __esm({
 
 // shared/run-verdict.ts
 function takeawayWhenTablesLanded(output, evidence) {
-  const text18 = output.trim();
-  if (!UNANSWERED_LINE.test(text18)) return output;
+  const text19 = output.trim();
+  if (!UNANSWERED_LINE.test(text19)) return output;
   const held = [evidence, output].filter(Boolean).join("\n");
   if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
   return output;
@@ -160075,8 +160075,8 @@ function foldRecordedStages(stages) {
     if (at !== -1) folded[at] = stage;
     else folded.push(stage);
   }
-  const settled = folded.map((stage, index, list3) => {
-    if (index === list3.length - 1 && stage.status === "running") {
+  const settled = folded.map((stage, index, list2) => {
+    if (index === list2.length - 1 && stage.status === "running") {
       return { ...stage, status: "failed" };
     }
     return stage;
@@ -160100,8 +160100,8 @@ function attachRecordedStages(answer, recorded2) {
     }
   };
 }
-function isCannedFirstLine(text18) {
-  const value = text18.trim();
+function isCannedFirstLine(text19) {
+  const value = text19.trim();
   return !value || CANNED_FIRST_LINE.some((pattern) => pattern.test(value));
 }
 function readerFacingFindings(findings) {
@@ -162498,12 +162498,12 @@ function humanVerdictFromRow(row2) {
   if (row2.sqlCorrect === "no") return "no";
   return null;
 }
-function stripAppendedHumanLabels(text18) {
-  const cut = text18.search(/\nHuman labels:\s*\n/);
-  return (cut >= 0 ? text18.slice(0, cut) : text18).trim();
+function stripAppendedHumanLabels(text19) {
+  const cut = text19.search(/\nHuman labels:\s*\n/);
+  return (cut >= 0 ? text19.slice(0, cut) : text19).trim();
 }
-function firstGuidelineSentence(text18) {
-  const stem = stripAppendedHumanLabels(text18);
+function firstGuidelineSentence(text19) {
+  const stem = stripAppendedHumanLabels(text19);
   const line = stem.split(/\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0);
   return line || "";
 }
@@ -162647,10 +162647,10 @@ function extraJudgesFromSettings(settings) {
   for (const id of settings.enabledMultiTurnJudges) {
     const definition = MULTI_TURN_JUDGES.find((entry) => entry.id === id);
     if (!definition) continue;
-    const text18 = id === "conversational_guidelines" ? fallback : definition.guidelines.trim();
+    const text19 = id === "conversational_guidelines" ? fallback : definition.guidelines.trim();
     extras.push({
       name: id,
-      guidelines: text18 ? [text18] : [],
+      guidelines: text19 ? [text19] : [],
       kind: "multi-turn"
     });
   }
@@ -162911,11 +162911,11 @@ function labelingIdsFromBody(body) {
   if (!body || typeof body !== "object") return { sessionId: "", runId: "", name: "" };
   const record2 = body;
   const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
-  const text18 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
+  const text19 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
   return {
-    sessionId: text18(nested.labeling_session_id ?? nested.session_id ?? nested.id),
-    runId: text18(nested.mlflow_run_id ?? nested.run_id),
-    name: text18(nested.name)
+    sessionId: text19(nested.labeling_session_id ?? nested.session_id ?? nested.id),
+    runId: text19(nested.mlflow_run_id ?? nested.run_id),
+    name: text19(nested.name)
   };
 }
 var REVIEW_LABEL_SCHEMA, LabelingSessionSchema;
@@ -162940,14 +162940,14 @@ var init_eval_review_app = __esm({
 
 // shared/eval-flywheel.ts
 function classifyGenieMiss(note) {
-  const text18 = note.toLowerCase();
-  if (/warehouse/.test(text18) && /start|starting|pending|warming|not running|stopped|resuming/.test(text18)) {
+  const text19 = note.toLowerCase();
+  if (/warehouse/.test(text19) && /start|starting|pending|warming|not running|stopped|resuming/.test(text19)) {
     return "warehouse";
   }
-  if (/warehouse still starting|compute is starting|cluster is starting/.test(text18)) {
+  if (/warehouse still starting|compute is starting|cluster is starting/.test(text19)) {
     return "warehouse";
   }
-  if (/cancel|cancelled|canceled|timed out|timeout|wait ran out|50\s*s|deadline/.test(text18)) {
+  if (/cancel|cancelled|canceled|timed out|timeout|wait ran out|50\s*s|deadline/.test(text19)) {
     return "timeout";
   }
   return "error";
@@ -162975,8 +162975,8 @@ function sqlHasFqn(sql3) {
   return /\b[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\b/.test(sql3);
 }
 function sqlLooksRefused(sql3, note) {
-  const text18 = `${sql3} ${note}`.toLowerCase();
-  return /refused|sql refused|identity_required|restricted column|not read-only/.test(text18);
+  const text19 = `${sql3} ${note}`.toLowerCase();
+  return /refused|sql refused|identity_required|restricted column|not read-only/.test(text19);
 }
 function latencyWithinBudget(durationMs, budgetMs = WAREHOUSE_BUDGET_MS) {
   if (typeof durationMs !== "number" || !Number.isFinite(durationMs)) return null;
@@ -163320,9 +163320,9 @@ ${answer.sql}`);
   for (const source of answer.sources) {
     parts.push(`[source] ${source.name} (${source.freshness})`);
   }
-  const text18 = parts.join("\n\n");
-  if (text18.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text18, truncated: false };
-  return { text: text18.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
+  const text19 = parts.join("\n\n");
+  if (text19.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text19, truncated: false };
+  return { text: text19.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
 }
 function answerText(answer) {
   return `${answer.takeaway}
@@ -165073,8 +165073,8 @@ async function readStoredSettings(client, options = {}) {
     const rows = result?.rows ?? [];
     const settings = new Map(
       rows.map((row2) => {
-        const setting2 = storedFromRow(row2);
-        return [setting2.resourceId, setting2];
+        const setting = storedFromRow(row2);
+        return [setting.resourceId, setting];
       })
     );
     settingsCache.set(client, { at: now, settings });
@@ -165084,13 +165084,13 @@ async function readStoredSettings(client, options = {}) {
     return /* @__PURE__ */ new Map();
   }
 }
-async function writeStoredSetting(client, setting2) {
+async function writeStoredSetting(client, setting) {
   const result = await client.lakebase.query(UPSERT_SETTING_QUERY, [
-    setting2.resourceId,
-    setting2.value,
-    setting2.intent,
-    setting2.note,
-    setting2.updatedBy
+    setting.resourceId,
+    setting.value,
+    setting.intent,
+    setting.note,
+    setting.updatedBy
   ]);
   const row2 = (result?.rows ?? [])[0];
   if (!row2) throw new Error("the settings row was not written back");
@@ -165248,7 +165248,7 @@ function computeDrift(input) {
   if (report.source !== "agent") {
     findings.push({ ...ORCHESTRATOR_REPORT_RETIRED });
   }
-  if (!report.configuration || report.configuration.length === 0) {
+  if (report.source === "agent" && (!report.configuration || report.configuration.length === 0)) {
     findings.push({
       id: "configuration-unreported",
       severity: "unknown",
@@ -165389,9 +165389,9 @@ var init_app_settings = __esm({
       id: "orchestrator-report-retired",
       severity: "unknown",
       resourceId: "agent-endpoint",
-      headline: "Everything is running. The settings below are unconfirmed, not wrong",
-      detail: "The agent is answering normally. It does not send back a list of what it used, and that is deliberate: whether a particular person can read a particular table is answered by Unity Catalog, which enforces it, rather than by the agent describing itself. So the values below are what this deployment was set up with, and this page does not claim to have watched them being used. Nothing here means anything is broken.",
-      // Nothing to fix. Re-logging the model does not bring the report back, and a
+      headline: "These values come from this release, not a live check of the agent",
+      detail: "Connections lists the tables and spaces this build was set up to use. Unity Catalog answers whether you can reach them. The agent was not asked a fake question to describe itself. Nothing here means anything is broken.",
+      // Nothing to fix. Re-logging the model does not bring a live ping back, and a
       // remedy offered for a healthy deployment is how remedies stop being read on the
       // day one is real.
       remedy: ""
@@ -165951,12 +165951,12 @@ async function workspaceLinksAllowed(client) {
   return egressAllowed(controls, "workspace-link");
 }
 function clamp(raw2, max) {
-  const text18 = typeof raw2 === "string" ? raw2.trim() : "";
-  return text18.length > max ? text18.slice(0, max) : text18;
+  const text19 = typeof raw2 === "string" ? raw2.trim() : "";
+  return text19.length > max ? text19.slice(0, max) : text19;
 }
 function pointer(raw2) {
-  const text18 = clamp(raw2, IDENTIFIER_MAX);
-  return text18 === "" ? null : text18;
+  const text19 = clamp(raw2, IDENTIFIER_MAX);
+  return text19 === "" ? null : text19;
 }
 function count2(raw2) {
   if (typeof raw2 !== "number" || !Number.isFinite(raw2)) return null;
@@ -168241,6 +168241,32 @@ var init_declared_scopes = __esm({
   }
 });
 
+// shared/data-contract.ts
+function qualifyDataContractTables(catalog, schema, tables = DATA_CONTRACT_TABLES) {
+  const nsCatalog = catalog.trim();
+  const nsSchema = schema.trim();
+  if (!nsCatalog || !nsSchema) return [];
+  return [
+    ...new Set(
+      tables.map((table) => table.split(".").length === 3 ? table : `${nsCatalog}.${nsSchema}.${table}`)
+    )
+  ].sort();
+}
+var DATA_GENIE_TABLES, DICTIONARY_GENIE_TABLES, DATA_CONTRACT_TABLES;
+var init_data_contract = __esm({
+  "shared/data-contract.ts"() {
+    DATA_GENIE_TABLES = [
+      "gold_player_180d_summary",
+      "gold_title_daily_summary",
+      "silver_gameplay_activity",
+      "silver_player_profiles",
+      "silver_purchases"
+    ];
+    DICTIONARY_GENIE_TABLES = ["data_dictionary"];
+    DATA_CONTRACT_TABLES = [...DATA_GENIE_TABLES, ...DICTIONARY_GENIE_TABLES];
+  }
+});
+
 // server/lib/token-rejection.ts
 function claims(token) {
   const segments = token.split(".");
@@ -168361,8 +168387,8 @@ function diagnoseUserToken(req, isDevelopmentIdentity) {
   };
 }
 function looksLikeMissingScope(message) {
-  const text18 = message.toLowerCase();
-  return text18.includes("does not have required scopes") || text18.includes("insufficient_scope") || text18.includes("scope") && (text18.includes("oauth") || text18.includes("token"));
+  const text19 = message.toLowerCase();
+  return text19.includes("does not have required scopes") || text19.includes("insufficient_scope") || text19.includes("scope") && (text19.includes("oauth") || text19.includes("token"));
 }
 function scopesFromToken(token) {
   const segments = token.split(".");
@@ -168461,12 +168487,12 @@ function statusForOutcome(outcome) {
 function probeStatement(table) {
   return `SELECT 1 FROM ${table} WHERE 1=0`;
 }
-function matches(text18, markers) {
-  return markers.some((marker) => text18.includes(marker));
+function matches(text19, markers) {
+  return markers.some((marker) => text19.includes(marker));
 }
 function classifyDenial(message, table) {
-  const text18 = message.toLowerCase();
-  if (matches(text18, PERMISSION_MARKERS)) {
+  const text19 = message.toLowerCase();
+  if (matches(text19, PERMISSION_MARKERS)) {
     const catalog = CATALOG_REFUSED.exec(message);
     if (catalog) {
       return { kind: "no-grant", object: catalog[1], objectKind: "catalog", permission: "USE CATALOG" };
@@ -168477,7 +168503,7 @@ function classifyDenial(message, table) {
     }
     return { kind: "no-grant", object: table, objectKind: "table", permission: "SELECT" };
   }
-  if (matches(text18, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
+  if (matches(text19, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
   return { kind: "unrecognised" };
 }
 function classify(message, table, principal) {
@@ -168753,7 +168779,11 @@ function accessDependenciesFrom(sources) {
     return env[envVar];
   };
   const manifest = asStringList(fromConfig("declared_manifest", "PLAYER_INSIGHTS_DECLARED_MANIFEST"));
-  const tables = manifest.length > 0 ? manifest : asStringList(fromConfig("tables", "PLAYER_INSIGHTS_TABLES"));
+  const listed = asStringList(fromConfig("tables", "PLAYER_INSIGHTS_TABLES"));
+  const tables = manifest.length > 0 ? manifest : listed.length > 0 ? listed : qualifyDataContractTables(
+    asString(fromConfig("catalog", "PLAYER_INSIGHTS_CATALOG")),
+    asString(fromConfig("schema", "PLAYER_INSIGHTS_SCHEMA"))
+  );
   const dataId = asString(fromConfig("data_genie_space_id", "PLAYER_INSIGHTS_DATA_GENIE_ID"));
   const dictionaryId = asString(
     fromConfig("dictionary_genie_space_id", "PLAYER_INSIGHTS_DICTIONARY_GENIE_ID")
@@ -168788,27 +168818,6 @@ function accessDependenciesFrom(sources) {
     });
   }
   return { tables, genieSpaces };
-}
-function extractServedConfiguration(value) {
-  if (!value || typeof value !== "object") return [];
-  const record2 = value;
-  const custom2 = record2.custom_outputs && typeof record2.custom_outputs === "object" ? record2.custom_outputs : null;
-  const candidates = [
-    custom2?.configuration,
-    custom2 && typeof custom2.preflight === "object" ? custom2.preflight.configuration : void 0,
-    record2.configuration
-  ];
-  for (const candidate of candidates) {
-    if (!Array.isArray(candidate)) continue;
-    return candidate.filter((entry) => Boolean(entry) && typeof entry === "object").map((entry) => ({ key: asString(entry.key), value: entry.value })).filter((entry) => entry.key);
-  }
-  for (const key2 of ["data", "response", "result", "body"]) {
-    if (record2[key2]) {
-      const nested = extractServedConfiguration(record2[key2]);
-      if (nested.length) return nested;
-    }
-  }
-  return [];
 }
 function missingGenieScopeLimit(evidence) {
   return {
@@ -168934,7 +168943,7 @@ function limitsOfThisCheck(servingChecked, genie2, tablesChecked = 0) {
     ...tablesChecked === 0 ? [
       {
         what: "Whether you can read the tables behind an answer.",
-        why: "The app could not learn which tables the agent reads (no served configuration and no PLAYER_INSIGHTS_DECLARED_MANIFEST / PLAYER_INSIGHTS_TABLES in the environment), so no SELECT was run on your behalf. A pass above means you can run a statement, not that you could read the data."
+        why: "The app could not learn which tables this release may read (no PLAYER_INSIGHTS_DECLARED_MANIFEST / PLAYER_INSIGHTS_TABLES, and no catalog+schema to qualify the committed data contract), so no SELECT was run on your behalf. A pass above means you can run a statement, not that you could read the data."
       }
     ] : [],
     {
@@ -169096,6 +169105,7 @@ function statementExecutorFor(options) {
 var AGE_NOT_SUPPLIED, USER_TOKEN_HEADER, GENIE_SCOPE, ALL_APIS_SCOPE, SQL_ACCESS_ENTITLEMENT, WORKSPACE_ACCESS_ENTITLEMENT, UNKNOWN_USER_ID, BLOCKED_STATUS, PERMISSION_MARKERS, ABSENCE_MARKERS, CATALOG_REFUSED, SCHEMA_REFUSED, UNKNOWN_PRINCIPAL, VERIFICATION_BUDGET_MS, SCIM_USERS_PATH, STATEMENT_TIMEOUT_MS, GENIE_PROBE_TIMEOUT_MS;
 var init_access_verification = __esm({
   "server/routes/access-verification.ts"() {
+    init_data_contract();
     init_token_rejection();
     AGE_NOT_SUPPLIED = {
       kind: "unreadable",
@@ -169759,7 +169769,6 @@ __export(insights_routes_exports, {
   MIGRATE_ON_BOOT_ENV: () => MIGRATE_ON_BOOT_ENV,
   MIGRATIONS: () => MIGRATIONS,
   PLAN_APPROVAL_MESSAGE: () => PLAN_APPROVAL_MESSAGE,
-  PREFLIGHT_TIMEOUT_MS: () => PREFLIGHT_TIMEOUT_MS,
   PreflightReportSchema: () => PreflightReportSchema,
   REPRESENTATIVE_ANSWER_CAVEAT: () => REPRESENTATIVE_ANSWER_CAVEAT,
   RUNS_QUERY: () => RUNS_QUERY,
@@ -169777,7 +169786,6 @@ __export(insights_routes_exports, {
   benchmarkRunTrace: () => benchmarkRunTrace,
   bootMigrationMode: () => bootMigrationMode,
   buildAskServingBody: () => buildAskServingBody,
-  buildPreflightServingBody: () => buildPreflightServingBody,
   buildServingHistory: () => buildServingHistory,
   candidateAcknowledgement: () => candidateAcknowledgement,
   conversationRunTrace: () => conversationRunTrace,
@@ -169793,7 +169801,6 @@ __export(insights_routes_exports, {
   extractPreflightReport: () => extractPreflightReport,
   extractStructuredAnswer: () => extractStructuredAnswer,
   identityPayload: () => identityPayload,
-  invokePreflight: () => invokePreflight,
   invokeServing: () => invokeServing,
   invokeServingAsUser: () => invokeServingAsUser,
   mlflowReference: () => mlflowReference,
@@ -170071,13 +170078,6 @@ function withGuidance(value) {
   const { note, ...rest } = remedy;
   return { ...rest, guidance: note };
 }
-function buildPreflightServingBody(candidate) {
-  const preflight = candidate && Object.keys(candidate).length > 0 ? { candidate } : true;
-  return {
-    input: [{ role: "user", content: "preflight" }],
-    custom_inputs: { preflight }
-  };
-}
 function candidateAcknowledgement(value) {
   const custom2 = value && typeof value === "object" ? value.custom_outputs : void 0;
   const echoed = custom2?.candidate;
@@ -170332,15 +170332,15 @@ function extractLiveText(value) {
     const items = record2[key2];
     if (Array.isArray(items)) {
       for (const item of items) {
-        const text18 = extractLiveText(item);
-        if (text18) return text18;
+        const text19 = extractLiveText(item);
+        if (text19) return text19;
       }
     }
   }
   for (const key2 of ["message", "data", "response", "result", "body"]) {
     if (record2[key2]) {
-      const text18 = extractLiveText(record2[key2]);
-      if (text18) return text18;
+      const text19 = extractLiveText(record2[key2]);
+      if (text19) return text19;
     }
   }
   return null;
@@ -170573,14 +170573,11 @@ function warmWarehouseForArrival(warmup) {
     console.warn(`[warmup] The warm-up threw, which it should not: ${error48.message}`);
   });
 }
-function warmGenieWarehousesForArrival(req, served) {
+function warmGenieWarehousesForArrival(req) {
   const token = forwardedUserToken(req);
   const host2 = workspaceHost();
   if (!token || !host2) return;
-  const { genieSpaces } = accessDependenciesFrom({
-    configuration: extractServedConfiguration(served),
-    env: process.env
-  });
+  const { genieSpaces } = accessDependenciesFrom({ env: process.env });
   const spaceIds = genieSpaces.map(({ id }) => id);
   if (spaceIds.length === 0) return;
   genieWarehouseWarmup.warm({
@@ -170724,9 +170721,6 @@ async function invokeServingAsUser(appkit, payload, userToken, onStage, timeoutM
     throw new AuthorizationRefused(code, detail, carriedStatus(error48));
   }
 }
-async function invokePreflight(appkit, candidate) {
-  return invokeServing(appkit, buildPreflightServingBody(candidate), void 0, PREFLIGHT_TIMEOUT_MS);
-}
 async function readServingEndpointMetadata(appkit, endpointName) {
   const existing = endpointMetadataFlights.get(appkit);
   if (existing) return existing;
@@ -170821,7 +170815,7 @@ function setupInsightsRoutes(appkit, options = {}) {
     app.use(requestLatencyRecorder(appkit.lakebase));
     app.post("/api/warehouse-warmup", (req, res) => {
       warmWarehouseForArrival(appkit.warehouseWarmup ?? appWarehouseWarmup);
-      warmGenieWarehousesForArrival(req, {});
+      warmGenieWarehousesForArrival(req);
       res.status(202).json({ accepted: true });
     });
     app.get("/api/identity", async (req, res) => {
@@ -170930,16 +170924,7 @@ function setupInsightsRoutes(appkit, options = {}) {
         return;
       }
       const warehouseId2 = appWarehouseId();
-      let configuration = [];
-      try {
-        configuration = extractServedConfiguration(await invokePreflight(appkit));
-      } catch (error48) {
-        console.warn(`[access] Served configuration could not be read for verification: ${error48.message}`);
-      }
-      const { tables, genieSpaces } = accessDependenciesFrom({
-        configuration,
-        env: process.env
-      });
+      const { tables, genieSpaces } = accessDependenciesFrom({ env: process.env });
       const servingChecked = [];
       const host2 = workspaceHost();
       const missing = !warehouseId2 ? {
@@ -172201,7 +172186,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, PREFLIGHT_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -172903,7 +172888,6 @@ var init_insights_routes = __esm({
       return workspaceClient.apiClient;
     });
     SERVING_INVOKE_TIMEOUT_MS = 24e4;
-    PREFLIGHT_TIMEOUT_MS = 6e4;
     SERVICE_PRINCIPAL_FALLBACK_CAVEAT = "This answer ran as the application, not as you. Your own permissions were not what the warehouse enforced, so it may include data your account cannot read directly.";
     AuthorizationRefused = class extends Error {
       code;
@@ -172948,6 +172932,330 @@ var init_insights_routes = __esm({
     endpointMetadataFlights = /* @__PURE__ */ new WeakMap();
     MIGRATIONS = buildMigrations(schemaStatements);
     MIGRATE_ON_BOOT_ENV = "PLAYER_INSIGHTS_MIGRATE_ON_BOOT";
+  }
+});
+
+// shared/notebook-declaration.ts
+function declarationFlow(key2) {
+  return DECLARABLE_KEYS[key2]?.flow ?? "needs-model-version";
+}
+function isDeclarableKind(value) {
+  return typeof value === "string" && DECLARABLE_KINDS.includes(value);
+}
+function field2(value, limit = 500) {
+  return typeof value === "string" ? value.trim().slice(0, limit) : "";
+}
+function parseDeclaration(raw2) {
+  if (typeof raw2 !== "object" || raw2 === null || Array.isArray(raw2)) return null;
+  const document2 = raw2;
+  const settings = [];
+  const seenKeys = /* @__PURE__ */ new Set();
+  let emptyScopes = false;
+  const rawSettings = document2.settings;
+  if (typeof rawSettings === "object" && rawSettings !== null && !Array.isArray(rawSettings)) {
+    for (const [key2, value] of Object.entries(rawSettings)) {
+      const name2 = field2(key2, 120);
+      const stated = field2(value);
+      if (name2 === SCOPES_KEY && !stated) emptyScopes = true;
+      if (!name2 || !stated || seenKeys.has(name2)) continue;
+      seenKeys.add(name2);
+      settings.push({ key: name2, value: stated });
+    }
+  }
+  const connections = [];
+  const seenIds = /* @__PURE__ */ new Set();
+  const rawConnections = document2.connections;
+  if (Array.isArray(rawConnections)) {
+    for (const entry of rawConnections.slice(0, MAX_DECLARED_CONNECTIONS)) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const record2 = entry;
+      const id = field2(record2.id, 120);
+      const value = field2(record2.value);
+      if (!id || !value || seenIds.has(id) || !isDeclarableKind(record2.kind)) continue;
+      seenIds.add(id);
+      connections.push({
+        id,
+        label: field2(record2.label, 200) || id,
+        kind: record2.kind,
+        value,
+        note: field2(record2.note)
+      });
+    }
+  }
+  if (settings.length === 0 && connections.length === 0) return null;
+  return {
+    source: field2(document2.source),
+    revision: field2(document2.revision, 120),
+    publishedAt: field2(document2.published_at ?? document2.publishedAt, 60),
+    publishedBy: field2(document2.published_by ?? document2.publishedBy, 200),
+    settings,
+    connections,
+    emptyScopes
+  };
+}
+function compareDeclaration(declaration, live) {
+  return declaration.settings.map((setting) => {
+    const flow = declarationFlow(setting.key);
+    const running = live[setting.key] ?? "";
+    let verdict;
+    if (!running) {
+      verdict = "unknown";
+    } else if (running === setting.value) {
+      verdict = "agrees";
+    } else {
+      verdict = flow === "refused" ? "refused" : "pending";
+    }
+    return {
+      key: setting.key,
+      label: DECLARABLE_KEYS[setting.key]?.label ?? setting.key,
+      declared: setting.value,
+      live: running,
+      flow,
+      verdict
+    };
+  });
+}
+var DECLARABLE_KEYS, SCOPES_KEY, MAX_DECLARATION_BYTES, MAX_DECLARED_CONNECTIONS, DECLARABLE_KINDS;
+var init_notebook_declaration = __esm({
+  "shared/notebook-declaration.ts"() {
+    DECLARABLE_KEYS = {
+      catalog_allowlist: {
+        label: "Readable scopes",
+        flow: "refused",
+        reason: "The scopes this names are enumerated when the model is logged, and the table list it produces is what the serving principal is granted. Widening it from a published document would move a boundary Unity Catalog holds."
+      },
+      catalog_denylist: {
+        label: "Excluded tables",
+        flow: "needs-model-version",
+        reason: "Applied when the table list is generated, before the model is logged. Narrowing takes a new model version, the same as widening."
+      },
+      warehouse_id: {
+        label: "SQL warehouse",
+        flow: "needs-model-version",
+        reason: "Named as a resource on the model version, which is what grants the endpoint access to it."
+      },
+      data_genie_space_id: {
+        label: "Data Genie space",
+        flow: "needs-model-version",
+        reason: "Named as a resource on the model version, which is what grants the endpoint access to it."
+      },
+      dictionary_genie_space_id: {
+        label: "Dictionary Genie space",
+        flow: "needs-model-version",
+        reason: "Named as a resource on the model version, which is what grants the endpoint access to it."
+      },
+      llm_endpoint: {
+        label: "Foundation model",
+        flow: "needs-model-version",
+        reason: "Read from the model artifact when the container starts."
+      },
+      max_output_tokens: {
+        label: "Answer length limit",
+        flow: "needs-model-version",
+        reason: "Read from the model artifact when the container starts."
+      },
+      catalog: {
+        label: "Unity Catalog catalog",
+        flow: "needs-model-version",
+        reason: "Read from the model artifact when the container starts."
+      },
+      schema: {
+        label: "Unity Catalog schema",
+        flow: "needs-model-version",
+        reason: "Read from the model artifact when the container starts."
+      },
+      max_turns: {
+        label: "Reasoning turn cap",
+        flow: "needs-model-version",
+        reason: "A loop bound inside the orchestrator. Nothing outside the model artifact is read for it."
+      },
+      knowledge_dir: {
+        label: "Knowledge files",
+        flow: "needs-model-version",
+        reason: "Compiled into the model artifact when it is logged. The running endpoint opens no volume for it."
+      },
+      upload_volume: {
+        label: "Attachment staging volume",
+        flow: "needs-model-version",
+        reason: "Compiled into the model artifact when it is logged."
+      }
+    };
+    SCOPES_KEY = "catalog_allowlist";
+    MAX_DECLARATION_BYTES = 64 * 1024;
+    MAX_DECLARED_CONNECTIONS = 200;
+    DECLARABLE_KINDS = [
+      "genie-space",
+      "sql-warehouse",
+      "unity-catalog",
+      "volume",
+      "vector-search",
+      "model"
+    ];
+  }
+});
+
+// shared/apply-declaration.ts
+function text8(value) {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
+  return "";
+}
+function intendedFromResources(resources) {
+  const out = {};
+  for (const entry of resources ?? []) {
+    const key2 = entry.resource?.agentKey;
+    const intended = text8(entry.intended);
+    if (!key2 || !intended || !APPLYABLE_KEYS.has(key2)) continue;
+    out[key2] = intended;
+  }
+  return out;
+}
+function settingsFromDeclaration(declaration) {
+  const out = {};
+  if (!declaration) return out;
+  for (const setting of declaration.settings) {
+    const key2 = text8(setting.key);
+    const value = text8(setting.value);
+    if (!key2 || !value) continue;
+    if (NOTEBOOK_REFUSED_KEYS.has(key2)) continue;
+    if (!APPLYABLE_KEYS.has(key2)) continue;
+    if (declarationFlow(key2) === "refused") continue;
+    out[key2] = value;
+  }
+  return out;
+}
+function resolveApplyPlan(input) {
+  const intended = input.intended ?? {};
+  const notebook = input.notebook ?? {};
+  const knobs = [];
+  const notes = [];
+  for (const key2 of [...APPLYABLE_KEYS].sort()) {
+    const envVar = APPLY_ENV_VARS[key2];
+    if (!envVar) continue;
+    if (intended[key2]) {
+      knobs.push({
+        key: key2,
+        label: LABELS[key2] ?? key2,
+        value: intended[key2],
+        source: "intended",
+        envVar
+      });
+      continue;
+    }
+    if (notebook[key2]) {
+      knobs.push({
+        key: key2,
+        label: LABELS[key2] ?? key2,
+        value: notebook[key2],
+        source: "notebook",
+        envVar
+      });
+    }
+  }
+  if (knobs.some((knob) => knob.key === "catalog_allowlist" && knob.source === "intended")) {
+    notes.push(
+      "Readable scopes were staged by an administrator. If the new list is wider than the live model, the release needs an explicit widen approval."
+    );
+  }
+  if (knobs.some((knob) => knob.source === "notebook") && !knobs.some((knob) => knob.source === "intended")) {
+    notes.push(
+      "Values come from the notebook declaration. Intended settings on Connections override the notebook when both name the same key."
+    );
+  }
+  const target = text8(input.target) || "<your-target>";
+  return {
+    knobs,
+    notes,
+    hasOverrides: knobs.length > 0,
+    command: `TARGET=${target} bundle/apply-declaration.sh --apply --i-am-deploying`
+  };
+}
+var APPLY_ENV_VARS, APPLYABLE_KEYS, NOTEBOOK_REFUSED_KEYS, LABELS;
+var init_apply_declaration = __esm({
+  "shared/apply-declaration.ts"() {
+    init_deployment_config();
+    init_notebook_declaration();
+    APPLY_ENV_VARS = {
+      catalog: "PLAYER_INSIGHTS_CATALOG",
+      schema: "PLAYER_INSIGHTS_SCHEMA",
+      warehouse_id: "PLAYER_INSIGHTS_WAREHOUSE_ID",
+      data_genie_space_id: "PLAYER_INSIGHTS_DATA_GENIE_ID",
+      dictionary_genie_space_id: "PLAYER_INSIGHTS_DICTIONARY_GENIE_ID",
+      llm_endpoint: "PLAYER_INSIGHTS_LLM_ENDPOINT",
+      llm_gateway: "PLAYER_INSIGHTS_LLM_GATEWAY",
+      catalog_allowlist: "PLAYER_INSIGHTS_CATALOG_ALLOWLIST",
+      catalog_denylist: "PLAYER_INSIGHTS_CATALOG_DENYLIST",
+      max_output_tokens: "PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS"
+    };
+    APPLYABLE_KEYS = new Set(Object.keys(APPLY_ENV_VARS));
+    NOTEBOOK_REFUSED_KEYS = /* @__PURE__ */ new Set(["catalog_allowlist"]);
+    LABELS = Object.fromEntries(
+      CONNECTED_RESOURCES.filter((resource) => resource.agentKey).map((resource) => [
+        resource.agentKey,
+        resource.label
+      ])
+    );
+  }
+});
+
+// server/lib/release-configuration.ts
+function splitList(raw2) {
+  return raw2.split(",").map((item) => item.trim()).filter(Boolean);
+}
+function text9(env, name2) {
+  return (env[name2] ?? "").trim();
+}
+function configurationFromRelease(env = process.env) {
+  const mapping = { ...APPLY_ENV_VARS, ...EXTRA_ENV };
+  const entries = [];
+  for (const [key2, envVar] of Object.entries(mapping)) {
+    let raw2 = text9(env, envVar);
+    if (!raw2 && key2 === "warehouse_id") raw2 = text9(env, "DATABRICKS_SQL_WAREHOUSE_ID");
+    if (!raw2) continue;
+    entries.push({
+      key: key2,
+      env_var: envVar,
+      value: LIST_KEYS.has(key2) ? splitList(raw2) : raw2,
+      source: "app-environment",
+      mutability: "model-version",
+      baked: false,
+      required: false
+    });
+  }
+  const hasManifest = entries.some(
+    (entry) => entry.key === "declared_manifest" && Array.isArray(entry.value) && entry.value.length > 0
+  );
+  if (!hasManifest) {
+    const qualified = qualifyDataContractTables(text9(env, "PLAYER_INSIGHTS_CATALOG"), text9(env, "PLAYER_INSIGHTS_SCHEMA"));
+    if (qualified.length > 0) {
+      entries.push({
+        key: "declared_manifest",
+        env_var: "PLAYER_INSIGHTS_DECLARED_MANIFEST",
+        value: qualified,
+        source: "app-environment",
+        mutability: "model-version",
+        baked: false,
+        required: false
+      });
+    }
+  }
+  return entries;
+}
+var EXTRA_ENV, LIST_KEYS;
+var init_release_configuration = __esm({
+  "server/lib/release-configuration.ts"() {
+    init_apply_declaration();
+    init_data_contract();
+    EXTRA_ENV = {
+      declared_manifest: "PLAYER_INSIGHTS_DECLARED_MANIFEST",
+      tables: "PLAYER_INSIGHTS_TABLES",
+      data_genie_space_title: "PLAYER_INSIGHTS_DATA_GENIE_TITLE",
+      dictionary_genie_space_title: "PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE",
+      semantic_index: "PLAYER_INSIGHTS_SEMANTIC_INDEX",
+      build_sha: "PLAYER_INSIGHTS_BUILD_SHA",
+      manifest_source: "PLAYER_INSIGHTS_MANIFEST_SOURCE"
+    };
+    LIST_KEYS = /* @__PURE__ */ new Set(["catalog_allowlist", "catalog_denylist", "declared_manifest", "tables"]);
   }
 });
 
@@ -173603,14 +173911,8 @@ function scopeForPath(path19) {
   }
   return best;
 }
-function text8(value) {
+function text10(value) {
   return typeof value === "string" ? value.trim() : "";
-}
-function list2(value) {
-  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
-}
-function setting(configuration, key2) {
-  return configuration.find((entry) => entry.key === key2)?.value;
 }
 function sql2(statement, guidance = "") {
   return { kind: "sql", statement, guidance };
@@ -173620,9 +173922,6 @@ function cli(statement, guidance = "") {
 }
 function granteeFor(principal) {
   return principal ? `\`${principal}\`` : "`<the signed-in user>`";
-}
-function declaredTables(configuration) {
-  return list2(setting(configuration, "declared_manifest"));
 }
 function connectionSubjects(input) {
   const value = (id) => (input.configured[id] ?? "").trim();
@@ -173637,11 +173936,11 @@ function connectionSubjects(input) {
       path: `/api/2.0/sql/warehouses/${encodeURIComponent(warehouse)}`,
       proves: "It does not prove a statement would run: CAN_USE on the warehouse and SELECT on the tables are separate grants, and a stopped warehouse still answers this call.",
       observe: (body) => {
-        const state = text8(body.state);
-        const name2 = text8(body.name);
+        const state = text10(body.state);
+        const name2 = text10(body.name);
         return [name2 && `named \u201C${name2}\u201D`, state && `state ${state}`].filter(Boolean).join(", ");
       },
-      displayName: (body) => text8(body.name),
+      displayName: (body) => text10(body.name),
       grant: (principal) => (
         // No guidance. What stood here said a warehouse is a workspace object
         // rather than a Unity Catalog one, which is why the fix is an API call
@@ -173668,10 +173967,10 @@ function connectionSubjects(input) {
       path: `/api/2.0/genie/spaces/${encodeURIComponent(space)}`,
       proves: "It does not prove a question would be answered: a space someone can open can still be backed by tables they cannot read, and CAN RUN is a separate grant from CAN VIEW.",
       observe: (body) => {
-        const title = text8(body.title);
+        const title = text10(body.title);
         return title ? `titled \u201C${title}\u201D` : "";
       },
-      displayName: (body) => text8(body.title),
+      displayName: (body) => text10(body.title),
       grant: (principal) => (
         // No guidance. The dropped sentence said the tables behind a space are
         // granted separately in Unity Catalog, which is a real fact and one this
@@ -173694,7 +173993,7 @@ function connectionSubjects(input) {
       path: `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(catalog)}`,
       proves: "Every schema and table inside it is granted separately, so this covers the container only.",
       observe: (body) => {
-        const owner = text8(body.owner);
+        const owner = text10(body.owner);
         return owner ? `owned by ${owner}` : "";
       },
       grant: (principal) => (
@@ -173715,7 +174014,7 @@ function connectionSubjects(input) {
       path: `/api/2.1/unity-catalog/schemas/${encodeURIComponent(full)}`,
       proves: "Each table inside it is granted separately, so this covers the container only.",
       observe: (body) => {
-        const owner = text8(body.owner);
+        const owner = text10(body.owner);
         return owner ? `owned by ${owner}` : "";
       },
       grant: (principal) => (
@@ -173765,11 +174064,11 @@ function connectionSubjects(input) {
       path: `/api/2.0/vector-search/indexes/${encodeURIComponent(index)}`,
       proves: "It does not prove a search would return anything: an index that exists can still be empty or behind on its sync.",
       observe: (body) => {
-        const endpoint = text8(body.endpoint_name);
-        const state = text8(body.status?.detailed_state);
+        const endpoint = text10(body.endpoint_name);
+        const state = text10(body.status?.detailed_state);
         return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(", ");
       },
-      displayName: (body) => text8(body.name),
+      displayName: (body) => text10(body.name),
       contentAt: (body) => indexContentAt(body),
       // NOW A GRANT, which is what this row always claimed to be offering. What
       // stood here was a `databricks api get` against the index -- the same call
@@ -173798,7 +174097,7 @@ function connectionSubjects(input) {
 function indexContentAt(body) {
   const status = body.status ?? {};
   for (const key2 of ["triggered_update_status", "continuous_update_status"]) {
-    const stamp2 = text8(status[key2]?.last_processed_commit_timestamp);
+    const stamp2 = text10(status[key2]?.last_processed_commit_timestamp);
     if (stamp2 && !Number.isNaN(new Date(stamp2).getTime())) return stamp2;
   }
   return "";
@@ -173813,7 +174112,7 @@ function servingEndpointSubject(id, label, name2, note) {
     proves: `${note} Seeing an endpoint is not being allowed to call it: CAN_VIEW and CAN_QUERY are separate grants, and this call needs only the first.`,
     observe: (body) => {
       const state = body.state ?? {};
-      const ready = text8(state.ready);
+      const ready = text10(state.ready);
       return ready ? `state ${ready}` : "";
     },
     // No guidance. The dropped sentence classified the object to explain why the
@@ -173824,9 +174123,9 @@ function servingEndpointSubject(id, label, name2, note) {
   };
 }
 function vectorEndpointSubject(indexBody) {
-  const endpoint = text8(indexBody.endpoint_name);
+  const endpoint = text10(indexBody.endpoint_name);
   if (!endpoint) return null;
-  const endpointId = text8(indexBody.endpoint_id);
+  const endpointId = text10(indexBody.endpoint_id);
   return {
     id: "semantic-index-endpoint",
     kind: "vector-endpoint",
@@ -173836,7 +174135,7 @@ function vectorEndpointSubject(indexBody) {
     proves: "It does not prove a search would return anything; it says the endpoint serving the index exists.",
     observe: (body) => {
       const status = body.endpoint_status ?? {};
-      const state = text8(status.state);
+      const state = text10(status.state);
       return state ? `state ${state}` : "";
     },
     grant: endpointId ? (principal) => cli(
@@ -173934,8 +174233,8 @@ function probeVerdict(input) {
     });
   }
   const { status, body } = outcome;
-  const code = text8(body.error_code);
-  const message = text8(body.message);
+  const code = text10(body.error_code);
+  const message = text10(body.message);
   if (status >= 200 && status < 300) {
     const observed = subject.observe?.(body) ?? "";
     const contentAt = subject.contentAt ? subject.contentAt(body) : "";
@@ -174326,7 +174625,7 @@ function scopeForBrowsePath(path19) {
   if (path19.startsWith("/api/2.0/postgres/")) return "postgres";
   return scopeForPath(path19.endsWith("/") ? path19 : `${path19}/`);
 }
-function text9(value) {
+function text11(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function unavailable3(kind, scope) {
@@ -174410,8 +174709,8 @@ function interpretBrowseAnswer(input) {
     const parsed = input.itemsFromBody(body);
     return ok(kind, parsed.items, parsed.next_page_token, input.path ?? "");
   }
-  const code = text9(body.error_code);
-  const message = text9(body.message);
+  const code = text11(body.error_code);
+  const message = text11(body.message);
   const scope = scopeForBrowsePath(apiPath);
   const named = scopesFromRefusal(message);
   const looksScope = named.length > 0 || looksLikeMissingScope(message);
@@ -174483,11 +174782,11 @@ function catalogItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const name2 = text9(row2.name);
+    const name2 = text11(row2.name);
     if (!name2) continue;
     items.push({ id: name2, label: name2, secondary: "", expandable: false });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function schemaItems(body) {
   const rows = Array.isArray(body.schemas) ? body.schemas : [];
@@ -174495,8 +174794,8 @@ function schemaItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text9(record2.full_name);
-    const name2 = text9(record2.name);
+    const fullName = text11(record2.full_name);
+    const name2 = text11(record2.name);
     const schemaName = name2.includes(".") ? name2.slice(name2.indexOf(".") + 1) : name2 || (fullName.includes(".") ? fullName.slice(fullName.indexOf(".") + 1) : fullName);
     if (!schemaName) continue;
     items.push({
@@ -174510,7 +174809,7 @@ function schemaItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function tableItems(body) {
   const rows = Array.isArray(body.tables) ? body.tables : [];
@@ -174518,17 +174817,17 @@ function tableItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text9(record2.full_name) || text9(record2.name);
+    const fullName = text11(record2.full_name) || text11(record2.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: fullName,
       label: short,
-      secondary: text9(record2.table_type),
+      secondary: text11(record2.table_type),
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function warehouseItems(body) {
   const rows = Array.isArray(body.warehouses) ? body.warehouses : [];
@@ -174536,16 +174835,16 @@ function warehouseItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const id = text9(record2.id);
+    const id = text11(record2.id);
     if (!id) continue;
     items.push({
       id,
-      label: text9(record2.name) || id,
-      secondary: text9(record2.state),
+      label: text11(record2.name) || id,
+      secondary: text11(record2.state),
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function genieItems(body) {
   const rows = Array.isArray(body.spaces) ? body.spaces : [];
@@ -174553,16 +174852,16 @@ function genieItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const id = text9(record2.space_id) || text9(record2.id);
+    const id = text11(record2.space_id) || text11(record2.id);
     if (!id) continue;
     items.push({
       id,
-      label: text9(record2.title) || id,
+      label: text11(record2.title) || id,
       secondary: "",
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function servingEndpointItems(body) {
   const rows = Array.isArray(body.endpoints) ? body.endpoints : [];
@@ -174570,18 +174869,18 @@ function servingEndpointItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text9(record2.name);
+    const name2 = text11(record2.name);
     if (!name2) continue;
     const state = record2.state;
-    const ready = state && typeof state === "object" ? text9(state.ready) : "";
+    const ready = state && typeof state === "object" ? text11(state.ready) : "";
     items.push({
       id: name2,
       label: name2,
-      secondary: text9(record2.task) || ready,
+      secondary: text11(record2.task) || ready,
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function notebookItems(body) {
   const rows = Array.isArray(body.objects) ? body.objects : [];
@@ -174589,15 +174888,15 @@ function notebookItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const path19 = text9(record2.path);
+    const path19 = text11(record2.path);
     if (!path19) continue;
-    const objectType = text9(record2.object_type).toUpperCase();
+    const objectType = text11(record2.object_type).toUpperCase();
     if (objectType !== "DIRECTORY" && objectType !== "NOTEBOOK") continue;
     const label = path19.includes("/") ? path19.slice(path19.lastIndexOf("/") + 1) : path19;
     items.push({
       id: path19,
       label: label || path19,
-      secondary: objectType === "NOTEBOOK" ? text9(record2.language) : "Directory",
+      secondary: objectType === "NOTEBOOK" ? text11(record2.language) : "Directory",
       expandable: objectType === "DIRECTORY"
     });
   }
@@ -174702,7 +175001,7 @@ async function validateNotebookPath(pathInput, options) {
         detail: answer.kind === "timeout" ? "The workspace did not answer before notebook validation timed out." : "The workspace could not be reached to validate this notebook."
       };
     }
-    if (answer.status === 404 || text9(answer.body.error_code) === "RESOURCE_DOES_NOT_EXIST") {
+    if (answer.status === 404 || text11(answer.body.error_code) === "RESOURCE_DOES_NOT_EXIST") {
       return { ok: false, status: 404, detail: "No workspace notebook exists at that path." };
     }
     if (answer.status === 401 || answer.status === 403) {
@@ -174719,7 +175018,7 @@ async function validateNotebookPath(pathInput, options) {
         detail: `The workspace refused notebook validation with HTTP ${answer.status}.`
       };
     }
-    if (apiPath.endsWith("/get-status") && text9(answer.body.object_type).toUpperCase() !== "NOTEBOOK") {
+    if (apiPath.endsWith("/get-status") && text11(answer.body.object_type).toUpperCase() !== "NOTEBOOK") {
       return { ok: false, status: 400, detail: "Choose a notebook, not a workspace folder." };
     }
   }
@@ -174731,17 +175030,17 @@ function volumeItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text9(record2.full_name) || text9(record2.name);
+    const fullName = text11(record2.full_name) || text11(record2.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: short,
       label: short,
-      secondary: text9(record2.volume_type) || fullName,
+      secondary: text11(record2.volume_type) || fullName,
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 async function listVolumes(options) {
   const catalog = options.catalog.trim();
@@ -174784,10 +175083,10 @@ function vectorSearchEndpointItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text9(record2.name);
+    const name2 = text11(record2.name);
     if (!name2) continue;
     const status = record2.endpoint_status;
-    const state = status && typeof status === "object" ? text9(status.state) : "";
+    const state = status && typeof status === "object" ? text11(status.state) : "";
     const count4 = typeof record2.num_indexes === "number" ? `${record2.num_indexes} indexes` : "";
     items.push({
       id: name2,
@@ -174796,7 +175095,7 @@ function vectorSearchEndpointItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function vectorSearchIndexItems(body) {
   const rows = Array.isArray(body.vector_indexes) ? body.vector_indexes : Array.isArray(body.indexes) ? body.indexes : [];
@@ -174804,17 +175103,17 @@ function vectorSearchIndexItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text9(record2.name);
+    const name2 = text11(record2.name);
     if (!name2) continue;
     const short = name2.includes(".") ? name2.split(".").pop() : name2;
     items.push({
       id: name2,
       label: short,
-      secondary: text9(record2.index_type) || text9(record2.endpoint_name),
+      secondary: text11(record2.index_type) || text11(record2.endpoint_name),
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 async function listVectorSearchEndpoints(options) {
   const apiPath = "/api/2.0/vector-search/endpoints";
@@ -174854,10 +175153,10 @@ function lakebaseProjectItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text9(record2.name);
+    const name2 = text11(record2.name);
     if (!name2) continue;
     const status = record2.status;
-    const display = status && typeof status === "object" ? text9(status.display_name) : "";
+    const display = status && typeof status === "object" ? text11(status.display_name) : "";
     const short = name2.startsWith("projects/") ? name2.slice("projects/".length) : name2;
     items.push({
       id: name2,
@@ -174866,7 +175165,7 @@ function lakebaseProjectItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function lakebaseBranchItems(body) {
   const rows = Array.isArray(body.branches) ? body.branches : [];
@@ -174874,11 +175173,11 @@ function lakebaseBranchItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text9(record2.name);
+    const name2 = text11(record2.name);
     if (!name2) continue;
     const short = name2.includes("/branches/") ? name2.slice(name2.lastIndexOf("/branches/") + "/branches/".length) : name2;
     const status = record2.status;
-    const state = status && typeof status === "object" ? text9(status.state) : "";
+    const state = status && typeof status === "object" ? text11(status.state) : "";
     items.push({
       id: name2,
       label: short,
@@ -174886,7 +175185,7 @@ function lakebaseBranchItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function lakebaseDatabaseItems(body) {
   const rows = Array.isArray(body.databases) ? body.databases : [];
@@ -174894,7 +175193,7 @@ function lakebaseDatabaseItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text9(record2.name);
+    const name2 = text11(record2.name);
     if (!name2) continue;
     const short = name2.includes("/databases/") ? name2.slice(name2.lastIndexOf("/databases/") + "/databases/".length) : name2;
     items.push({
@@ -174904,7 +175203,7 @@ function lakebaseDatabaseItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text9(body.next_page_token) };
+  return { items, next_page_token: text11(body.next_page_token) };
 }
 function lakebaseProjectParent(project) {
   const trimmed = project.trim();
@@ -175007,165 +175306,6 @@ var init_browse_assets = __esm({
   }
 });
 
-// shared/notebook-declaration.ts
-function declarationFlow(key2) {
-  return DECLARABLE_KEYS[key2]?.flow ?? "needs-model-version";
-}
-function isDeclarableKind(value) {
-  return typeof value === "string" && DECLARABLE_KINDS.includes(value);
-}
-function field2(value, limit = 500) {
-  return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-function parseDeclaration(raw2) {
-  if (typeof raw2 !== "object" || raw2 === null || Array.isArray(raw2)) return null;
-  const document2 = raw2;
-  const settings = [];
-  const seenKeys = /* @__PURE__ */ new Set();
-  let emptyScopes = false;
-  const rawSettings = document2.settings;
-  if (typeof rawSettings === "object" && rawSettings !== null && !Array.isArray(rawSettings)) {
-    for (const [key2, value] of Object.entries(rawSettings)) {
-      const name2 = field2(key2, 120);
-      const stated = field2(value);
-      if (name2 === SCOPES_KEY && !stated) emptyScopes = true;
-      if (!name2 || !stated || seenKeys.has(name2)) continue;
-      seenKeys.add(name2);
-      settings.push({ key: name2, value: stated });
-    }
-  }
-  const connections = [];
-  const seenIds = /* @__PURE__ */ new Set();
-  const rawConnections = document2.connections;
-  if (Array.isArray(rawConnections)) {
-    for (const entry of rawConnections.slice(0, MAX_DECLARED_CONNECTIONS)) {
-      if (typeof entry !== "object" || entry === null) continue;
-      const record2 = entry;
-      const id = field2(record2.id, 120);
-      const value = field2(record2.value);
-      if (!id || !value || seenIds.has(id) || !isDeclarableKind(record2.kind)) continue;
-      seenIds.add(id);
-      connections.push({
-        id,
-        label: field2(record2.label, 200) || id,
-        kind: record2.kind,
-        value,
-        note: field2(record2.note)
-      });
-    }
-  }
-  if (settings.length === 0 && connections.length === 0) return null;
-  return {
-    source: field2(document2.source),
-    revision: field2(document2.revision, 120),
-    publishedAt: field2(document2.published_at ?? document2.publishedAt, 60),
-    publishedBy: field2(document2.published_by ?? document2.publishedBy, 200),
-    settings,
-    connections,
-    emptyScopes
-  };
-}
-function compareDeclaration(declaration, live) {
-  return declaration.settings.map((setting2) => {
-    const flow = declarationFlow(setting2.key);
-    const running = live[setting2.key] ?? "";
-    let verdict;
-    if (!running) {
-      verdict = "unknown";
-    } else if (running === setting2.value) {
-      verdict = "agrees";
-    } else {
-      verdict = flow === "refused" ? "refused" : "pending";
-    }
-    return {
-      key: setting2.key,
-      label: DECLARABLE_KEYS[setting2.key]?.label ?? setting2.key,
-      declared: setting2.value,
-      live: running,
-      flow,
-      verdict
-    };
-  });
-}
-var DECLARABLE_KEYS, SCOPES_KEY, MAX_DECLARATION_BYTES, MAX_DECLARED_CONNECTIONS, DECLARABLE_KINDS;
-var init_notebook_declaration = __esm({
-  "shared/notebook-declaration.ts"() {
-    DECLARABLE_KEYS = {
-      catalog_allowlist: {
-        label: "Readable scopes",
-        flow: "refused",
-        reason: "The scopes this names are enumerated when the model is logged, and the table list it produces is what the serving principal is granted. Widening it from a published document would move a boundary Unity Catalog holds."
-      },
-      catalog_denylist: {
-        label: "Excluded tables",
-        flow: "needs-model-version",
-        reason: "Applied when the table list is generated, before the model is logged. Narrowing takes a new model version, the same as widening."
-      },
-      warehouse_id: {
-        label: "SQL warehouse",
-        flow: "needs-model-version",
-        reason: "Named as a resource on the model version, which is what grants the endpoint access to it."
-      },
-      data_genie_space_id: {
-        label: "Data Genie space",
-        flow: "needs-model-version",
-        reason: "Named as a resource on the model version, which is what grants the endpoint access to it."
-      },
-      dictionary_genie_space_id: {
-        label: "Dictionary Genie space",
-        flow: "needs-model-version",
-        reason: "Named as a resource on the model version, which is what grants the endpoint access to it."
-      },
-      llm_endpoint: {
-        label: "Foundation model",
-        flow: "needs-model-version",
-        reason: "Read from the model artifact when the container starts."
-      },
-      max_output_tokens: {
-        label: "Answer length limit",
-        flow: "needs-model-version",
-        reason: "Read from the model artifact when the container starts."
-      },
-      catalog: {
-        label: "Unity Catalog catalog",
-        flow: "needs-model-version",
-        reason: "Read from the model artifact when the container starts."
-      },
-      schema: {
-        label: "Unity Catalog schema",
-        flow: "needs-model-version",
-        reason: "Read from the model artifact when the container starts."
-      },
-      max_turns: {
-        label: "Reasoning turn cap",
-        flow: "needs-model-version",
-        reason: "A loop bound inside the orchestrator. Nothing outside the model artifact is read for it."
-      },
-      knowledge_dir: {
-        label: "Knowledge files",
-        flow: "needs-model-version",
-        reason: "Compiled into the model artifact when it is logged. The running endpoint opens no volume for it."
-      },
-      upload_volume: {
-        label: "Attachment staging volume",
-        flow: "needs-model-version",
-        reason: "Compiled into the model artifact when it is logged."
-      }
-    };
-    SCOPES_KEY = "catalog_allowlist";
-    MAX_DECLARATION_BYTES = 64 * 1024;
-    MAX_DECLARED_CONNECTIONS = 200;
-    DECLARABLE_KINDS = [
-      "genie-space",
-      "sql-warehouse",
-      "unity-catalog",
-      "volume",
-      "vector-search",
-      "model"
-    ];
-  }
-});
-
 // server/lib/notebook-declaration-read.ts
 function isDeclarationLocation(value) {
   return TABLE_NAME.test(value.trim());
@@ -175265,32 +175405,32 @@ var init_notebook_declaration_read = __esm({
 });
 
 // server/lib/declared-connections.ts
-function text10(value) {
+function text12(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return "";
 }
 function timestamp2(value) {
   if (value instanceof Date) return value.toISOString();
-  return text10(value);
+  return text12(value);
 }
 function storedFromRow2(row2) {
-  const kind = text10(row2.kind);
+  const kind = text12(row2.kind);
   return {
-    id: text10(row2.id),
-    label: text10(row2.label),
+    id: text12(row2.id),
+    label: text12(row2.label),
     // Read through the allowlist rather than cast. A kind that is no longer one
     // this build declares would otherwise reach the client as an icon lookup that
     // silently renders nothing.
     kind: DECLARABLE_KINDS.includes(kind) ? kind : "unity-catalog",
-    value: text10(row2.value),
-    note: text10(row2.note),
+    value: text12(row2.value),
+    note: text12(row2.note),
     state: row2.state === "withdrawn" ? "withdrawn" : "declared",
     origin: row2.origin === "notebook" ? "notebook" : "app",
     createdAt: timestamp2(row2.created_at),
-    createdBy: text10(row2.created_by),
+    createdBy: text12(row2.created_by),
     changedAt: timestamp2(row2.changed_at),
-    changedBy: text10(row2.changed_by)
+    changedBy: text12(row2.changed_by)
   };
 }
 async function readDeclaredConnections(client) {
@@ -175412,119 +175552,15 @@ var init_declared_connections = __esm({
   }
 });
 
-// shared/apply-declaration.ts
-function text11(value) {
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
-  return "";
-}
-function intendedFromResources(resources) {
-  const out = {};
-  for (const entry of resources ?? []) {
-    const key2 = entry.resource?.agentKey;
-    const intended = text11(entry.intended);
-    if (!key2 || !intended || !APPLYABLE_KEYS.has(key2)) continue;
-    out[key2] = intended;
-  }
-  return out;
-}
-function settingsFromDeclaration(declaration) {
-  const out = {};
-  if (!declaration) return out;
-  for (const setting2 of declaration.settings) {
-    const key2 = text11(setting2.key);
-    const value = text11(setting2.value);
-    if (!key2 || !value) continue;
-    if (NOTEBOOK_REFUSED_KEYS.has(key2)) continue;
-    if (!APPLYABLE_KEYS.has(key2)) continue;
-    if (declarationFlow(key2) === "refused") continue;
-    out[key2] = value;
-  }
-  return out;
-}
-function resolveApplyPlan(input) {
-  const intended = input.intended ?? {};
-  const notebook = input.notebook ?? {};
-  const knobs = [];
-  const notes = [];
-  for (const key2 of [...APPLYABLE_KEYS].sort()) {
-    const envVar = APPLY_ENV_VARS[key2];
-    if (!envVar) continue;
-    if (intended[key2]) {
-      knobs.push({
-        key: key2,
-        label: LABELS[key2] ?? key2,
-        value: intended[key2],
-        source: "intended",
-        envVar
-      });
-      continue;
-    }
-    if (notebook[key2]) {
-      knobs.push({
-        key: key2,
-        label: LABELS[key2] ?? key2,
-        value: notebook[key2],
-        source: "notebook",
-        envVar
-      });
-    }
-  }
-  if (knobs.some((knob) => knob.key === "catalog_allowlist" && knob.source === "intended")) {
-    notes.push(
-      "Readable scopes were staged by an administrator. If the new list is wider than the live model, the release needs an explicit widen approval."
-    );
-  }
-  if (knobs.some((knob) => knob.source === "notebook") && !knobs.some((knob) => knob.source === "intended")) {
-    notes.push(
-      "Values come from the notebook declaration. Intended settings on Connections override the notebook when both name the same key."
-    );
-  }
-  const target = text11(input.target) || "<your-target>";
-  return {
-    knobs,
-    notes,
-    hasOverrides: knobs.length > 0,
-    command: `TARGET=${target} bundle/apply-declaration.sh --apply --i-am-deploying`
-  };
-}
-var APPLY_ENV_VARS, APPLYABLE_KEYS, NOTEBOOK_REFUSED_KEYS, LABELS;
-var init_apply_declaration = __esm({
-  "shared/apply-declaration.ts"() {
-    init_deployment_config();
-    init_notebook_declaration();
-    APPLY_ENV_VARS = {
-      catalog: "PLAYER_INSIGHTS_CATALOG",
-      schema: "PLAYER_INSIGHTS_SCHEMA",
-      warehouse_id: "PLAYER_INSIGHTS_WAREHOUSE_ID",
-      data_genie_space_id: "PLAYER_INSIGHTS_DATA_GENIE_ID",
-      dictionary_genie_space_id: "PLAYER_INSIGHTS_DICTIONARY_GENIE_ID",
-      llm_endpoint: "PLAYER_INSIGHTS_LLM_ENDPOINT",
-      llm_gateway: "PLAYER_INSIGHTS_LLM_GATEWAY",
-      catalog_allowlist: "PLAYER_INSIGHTS_CATALOG_ALLOWLIST",
-      catalog_denylist: "PLAYER_INSIGHTS_CATALOG_DENYLIST",
-      max_output_tokens: "PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS"
-    };
-    APPLYABLE_KEYS = new Set(Object.keys(APPLY_ENV_VARS));
-    NOTEBOOK_REFUSED_KEYS = /* @__PURE__ */ new Set(["catalog_allowlist"]);
-    LABELS = Object.fromEntries(
-      CONNECTED_RESOURCES.filter((resource) => resource.agentKey).map((resource) => [
-        resource.agentKey,
-        resource.label
-      ])
-    );
-  }
-});
-
 // server/lib/model-release-store.ts
-function text12(value) {
+function text13(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
   return "";
 }
 function instant(value) {
   if (value == null) return null;
-  return value instanceof Date ? value.toISOString() : text12(value) || null;
+  return value instanceof Date ? value.toISOString() : text13(value) || null;
 }
 function jsonValue(value) {
   if (value == null) return null;
@@ -175539,24 +175575,24 @@ function jsonValue(value) {
 }
 function modelReleaseFromRow(row2) {
   return {
-    id: text12(row2.id),
-    status: text12(row2.status),
-    requestedBy: text12(row2.requested_by),
+    id: text13(row2.id),
+    status: text13(row2.status),
+    requestedBy: text13(row2.requested_by),
     requestedAt: instant(row2.requested_at) ?? "",
     declaration: jsonValue(row2.declaration),
-    declarationRevision: text12(row2.declaration_revision),
-    target: text12(row2.target),
-    endpointName: text12(row2.endpoint_name),
-    modelName: text12(row2.model_name),
-    vFrom: text12(row2.v_from) || null,
-    vTo: text12(row2.v_to) || null,
+    declarationRevision: text13(row2.declaration_revision),
+    target: text13(row2.target),
+    endpointName: text13(row2.endpoint_name),
+    modelName: text13(row2.model_name),
+    vFrom: text13(row2.v_from) || null,
+    vTo: text13(row2.v_to) || null,
     preflightAtRequest: jsonValue(row2.preflight_at_request),
     preflightResult: jsonValue(row2.preflight_result),
     startedAt: instant(row2.started_at),
     completedAt: instant(row2.completed_at),
-    claimedBy: text12(row2.claimed_by) || null,
-    completedBy: text12(row2.completed_by) || null,
-    errorSummary: text12(row2.error_summary) || null
+    claimedBy: text13(row2.claimed_by) || null,
+    completedBy: text13(row2.completed_by) || null,
+    errorSummary: text13(row2.error_summary) || null
   };
 }
 async function createModelRelease(store, input) {
@@ -175681,18 +175717,18 @@ function configurationValue(report, key2) {
   const value = report?.configuration.find((entry) => entry.key === key2)?.value;
   return typeof value === "string" ? value.trim() : "";
 }
-function text13(value) {
+function text14(value) {
   return (value ?? "").trim();
 }
 function resourceTagInventory(input = {}) {
   const environment = input.environment ?? process.env;
   const report = input.report ?? null;
   const targets = [];
-  const appName = text13(environment.DATABRICKS_APP_NAME);
+  const appName = text14(environment.DATABRICKS_APP_NAME);
   if (appName) {
     targets.push({ kind: "app", name: appName, label: `App \xB7 ${appName}`, action: "tag" });
   }
-  const modelName = configurationValue(report, "model_name") || text13(environment.PLAYER_INSIGHTS_MODEL_NAME);
+  const modelName = configurationValue(report, "model_name") || text14(environment.PLAYER_INSIGHTS_MODEL_NAME);
   const modelVersion = configurationValue(report, "model_version");
   if (modelName) {
     targets.push({
@@ -175711,7 +175747,7 @@ function resourceTagInventory(input = {}) {
       });
     }
   }
-  const serving2 = text13(environment.DATABRICKS_SERVING_ENDPOINT_NAME);
+  const serving2 = text14(environment.DATABRICKS_SERVING_ENDPOINT_NAME);
   if (serving2) {
     targets.push({
       kind: "serving-endpoint",
@@ -175743,7 +175779,7 @@ function resourceTagInventory(input = {}) {
       reason: "Genie space tags are organizational only and do not propagate to billing by space id. SQL issued by this space is billed through its associated SQL warehouse."
     });
   }
-  const experimentId = text13(environment.PLAYER_INSIGHTS_EXPERIMENT_ID);
+  const experimentId = text14(environment.PLAYER_INSIGHTS_EXPERIMENT_ID);
   if (experimentId) {
     targets.push({
       kind: "mlflow-experiment",
@@ -175762,7 +175798,7 @@ function resourceTagInventory(input = {}) {
       reason: "Databricks does not expose custom tags for Vector Search indexes. Nothing needs to be fixed on this index; Astrolabe tags its endpoint instead."
     });
   }
-  const warehouse = text13(environment.DATABRICKS_SQL_WAREHOUSE_ID);
+  const warehouse = text14(environment.DATABRICKS_SQL_WAREHOUSE_ID);
   if (warehouse) {
     targets.push({
       kind: "sql-warehouse",
@@ -175771,7 +175807,7 @@ function resourceTagInventory(input = {}) {
       action: "tag"
     });
   }
-  const lakebaseBinding = text13(environment.LAKEBASE_ENDPOINT);
+  const lakebaseBinding = text14(environment.LAKEBASE_ENDPOINT);
   const projectId = /^projects\/([^/]+)/.exec(lakebaseBinding)?.[1] ?? "";
   if (projectId) {
     targets.push({
@@ -175823,7 +175859,7 @@ function technicalDetail(error48) {
 }
 function principalId(error48, fallback) {
   const fromError = errorText(error48).match(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i)?.[0];
-  return fromError ?? (text13(fallback) || "the Astrolabe app service principal");
+  return fromError ?? (text14(fallback) || "the Astrolabe app service principal");
 }
 function permissionRequired(target, error48, servicePrincipalId) {
   const principal = principalId(error48, servicePrincipalId);
@@ -176197,7 +176233,7 @@ async function validateAndStoreNotebookPath(input) {
   });
   return { ok: true, saved };
 }
-function configurationOnlyReport(configuration, endpointName) {
+function configurationOnlyReport(configuration) {
   const stamped = configuration.find((entry) => entry.key === "build_sha");
   return {
     checked_at: "",
@@ -176207,56 +176243,16 @@ function configurationOnlyReport(configuration, endpointName) {
     table_source: "",
     build_sha: typeof stamped?.value === "string" ? stamped.value : "",
     configuration,
-    checks: [
-      agentEndpointCheck(endpointName, {
-        status: "ok",
-        detail: "The app invoked the orchestrator and it reported its configuration."
-      }),
-      lakebaseStorageCheck()
-    ],
+    checks: [lakebaseStorageCheck()],
     assumptions: [],
     counts: { ok: 0, failed: 0, unverified: 0 },
-    // NOT 'agent', which is what this said for one release and is the whole
-    // defect: downstream reads 'agent' as "something measured these values" and
-    // suppresses the notice explaining that nothing did, so a page describing
-    // nineteen unmeasured connections lost its only caveat and reported them as
-    // agreeing. The endpoint answering is not the endpoint checking.
     source: "configuration"
   };
 }
-async function readOrchestratorReport(appkit) {
-  const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "";
-  let raw2;
-  try {
-    raw2 = await invokePreflight(appkit);
-  } catch (error48) {
-    console.warn(
-      "[settings] The orchestrator could not be asked what it is configured with:",
-      error48.message
-    );
-    return { report: null, answered: false };
-  }
-  const report = extractPreflightReport(raw2);
-  if (!report) {
-    const configuration = extractConfigurationReport(raw2);
-    if (configuration.length === 0) return { report: null, answered: true };
-    return { report: configurationOnlyReport(configuration, endpointName), answered: true };
-  }
+async function readOrchestratorReport() {
   return {
-    report: {
-      ...report,
-      checks: [
-        agentEndpointCheck(endpointName, {
-          status: "ok",
-          detail: "The app invoked the orchestrator and it reported its configuration."
-        }),
-        lakebaseStorageCheck(),
-        ...report.checks
-      ],
-      counts: { ok: 0, failed: 0, unverified: 0 },
-      source: "agent"
-    },
-    answered: true
+    report: configurationOnlyReport(configurationFromRelease(process.env)),
+    answered: false
   };
 }
 function setupSettingsRoutes(appkit) {
@@ -176270,7 +176266,7 @@ function setupSettingsRoutes(appkit) {
     });
     app.post("/api/settings/resource-tags", async (req, res) => {
       try {
-        const { report } = await readOrchestratorReport(appkit);
+        const { report } = await readOrchestratorReport();
         const experimentId = await resolveExperimentId(appkit);
         const summary = await applyAstrolabeTags({
           report,
@@ -176295,7 +176291,7 @@ function setupSettingsRoutes(appkit) {
       }
     });
     app.get("/api/settings", async (req, res) => {
-      const { report, answered } = await readOrchestratorReport(appkit);
+      const { report, answered } = await readOrchestratorReport();
       const stored = await readStoredSettings(appkit);
       const environment = appEnvironment();
       const payload = settingsPayload({
@@ -176626,12 +176622,12 @@ function setupSettingsRoutes(appkit) {
   });
 }
 async function buildApplyResponse(req, appkit) {
-  const { report } = await readOrchestratorReport(appkit);
+  const { report, answered } = await readOrchestratorReport();
   const stored = await readStoredSettings(appkit);
   const environment = appEnvironment();
   const payload = settingsPayload({
     report,
-    endpointAnswered: true,
+    endpointAnswered: answered,
     environment,
     stored,
     appBuildSha: appBuildSha(),
@@ -176748,7 +176744,7 @@ function configuredValues(states) {
   return values;
 }
 async function impactFor(appkit, connection) {
-  const { report } = await readOrchestratorReport(appkit);
+  const { report } = await readOrchestratorReport();
   const stored = await readStoredSettings(appkit);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   return removalImpact(connection, configuredValues(states));
@@ -176766,7 +176762,10 @@ async function readReachability(req, input) {
     const configured = Object.fromEntries(resourceStates(input).map((state) => [state.resource.id, state.configured]));
     const checks = await probeConnections({
       configured,
-      tables: declaredTables(input.report?.configuration ?? []),
+      tables: accessDependenciesFrom({
+        configuration: input.report?.configuration ?? [],
+        env: process.env
+      }).tables,
       host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
       token: forwardedUserToken(req),
       principal: req.header("x-forwarded-email")?.trim() ?? ""
@@ -176792,6 +176791,7 @@ var init_settings_routes = __esm({
     init_app_schema();
     init_zod();
     init_insights_routes();
+    init_release_configuration();
     init_lakebase_store();
     init_app_settings();
     init_app_settings();
@@ -176799,6 +176799,7 @@ var init_settings_routes = __esm({
     init_agent_model2();
     init_app_metadata();
     init_dependency_probes();
+    init_access_verification();
     init_browse_assets();
     init_experiment_probe();
     init_access_verification();
@@ -177806,7 +177807,7 @@ function manifestTables() {
 function queryString2(value) {
   return typeof value === "string" ? value : "";
 }
-function text14(value) {
+function text15(value) {
   return typeof value === "string" ? value : "";
 }
 function integer2(value) {
@@ -177817,7 +177818,7 @@ function integer2(value) {
 }
 function stamp(value) {
   if (value instanceof Date) return value.toISOString();
-  const raw2 = text14(value);
+  const raw2 = text15(value);
   const parsed = Date.parse(raw2);
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : "";
 }
@@ -177825,13 +177826,13 @@ function tableList(value) {
   if (!Array.isArray(value)) return [];
   const seen = /* @__PURE__ */ new Set();
   for (const entry of value) {
-    const name2 = text14(entry).trim();
+    const name2 = text15(entry).trim();
     if (name2.split(".").filter((part) => part.length > 0).length === 3) seen.add(name2);
   }
   return [...seen];
 }
 function sentiment(value, usefulness) {
-  const word = text14(value).trim().toLowerCase();
+  const word = text15(value).trim().toLowerCase();
   if (word === "up" || word === "down") return word;
   if (usefulness === null) return null;
   if (usefulness >= 4) return "up";
@@ -177852,12 +177853,12 @@ function tokensOf(response) {
   return { prompt, completion, total };
 }
 function questionRows2(rows) {
-  return rows.filter((row2) => text14(row2.question_id) !== "");
+  return rows.filter((row2) => text15(row2.question_id) !== "");
 }
 function rangeTotalsFrom(row2, page) {
   const asked = integer2(row2?.asked_total);
   const people = integer2(row2?.people_total);
-  const listed = Array.isArray(row2?.people_list) ? row2.people_list.map((entry) => text14(entry)).filter((email3) => email3 !== "") : null;
+  const listed = Array.isArray(row2?.people_list) ? row2.people_list.map((entry) => text15(entry)).filter((email3) => email3 !== "") : null;
   const fromPage = [...new Set(page.map((question) => question.askedBy).filter((email3) => email3 !== ""))].sort();
   return {
     asked: asked !== null && asked >= page.length ? asked : page.length,
@@ -177866,7 +177867,7 @@ function rangeTotalsFrom(row2, page) {
   };
 }
 function questionFromRow(row2, ledger) {
-  const answerId = text14(row2.answer_id);
+  const answerId = text15(row2.answer_id);
   const verdict = answerId ? ledger.get(answerId) : void 0;
   const outcome = applyAdminOutcome(
     classifyOutcome({
@@ -177878,13 +177879,13 @@ function questionFromRow(row2, ledger) {
       synthesisIncomplete: row2.synthesis_incomplete === true,
       proseOnlyDegraded: row2.prose_only_degraded === true
     }),
-    text14(row2.overlay_status)
+    text15(row2.overlay_status)
   );
   return {
-    id: text14(row2.question_id),
-    conversationId: text14(row2.conversation_id),
-    question: text14(row2.question),
-    askedBy: text14(row2.user_email),
+    id: text15(row2.question_id),
+    conversationId: text15(row2.conversation_id),
+    question: text15(row2.question),
+    askedBy: text15(row2.user_email),
     askedAt: stamp(row2.asked_at),
     outcome,
     // The taxonomy's own sentence, and only where a code was recorded. A run
@@ -177893,7 +177894,7 @@ function questionFromRow(row2, ledger) {
     outcomeDetail: refusalSentence(verdict?.code),
     durationMs: integer2(row2.total_ms),
     toolCalls: integer2(row2.tool_calls),
-    rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text14(row2.overlay_rating)),
+    rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text15(row2.overlay_rating)),
     tables: tableList(row2.sources)
   };
 }
@@ -177940,9 +177941,9 @@ async function readLedger(appkit, answerIds) {
   try {
     const result = await appkit.lakebase.query(MONITORING_LEDGER_QUERY, [answerIds]);
     for (const row2 of result.rows) {
-      const id = text14(row2.answer_id);
+      const id = text15(row2.answer_id);
       if (!id) continue;
-      verdicts.set(id, { state: text14(row2.state), code: text14(row2.terminal_code) || null });
+      verdicts.set(id, { state: text15(row2.state), code: text15(row2.terminal_code) || null });
     }
   } catch (error48) {
     console.warn(
@@ -178022,7 +178023,7 @@ function setupMonitoringRoutes(appkit, deps) {
         });
         return;
       }
-      const answerIds = rows.map((row2) => text14(row2.answer_id)).filter((id) => id !== "");
+      const answerIds = rows.map((row2) => text15(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
       const all = rows.map((row2) => questionFromRow(row2, ledger));
       const totals = rangeTotalsFrom(stored.rows[0], all);
@@ -178071,7 +178072,7 @@ function setupMonitoringRoutes(appkit, deps) {
         res.status(404).json({ error: "question_not_found" });
         return;
       }
-      const answerId = text14(row2.answer_id);
+      const answerId = text15(row2.answer_id);
       const ledger = await readLedger(appkit, answerId ? [answerId] : []);
       const verdict = answerId ? ledger.get(answerId) : void 0;
       const tables = tableList(row2.sources);
@@ -178084,14 +178085,14 @@ function setupMonitoringRoutes(appkit, deps) {
         now: clock()
       });
       const conditioning = conditioningFor(tables, grants);
-      const traceId = text14(row2.trace_id);
+      const traceId = text15(row2.trace_id);
       const mlflow = traceId ? mlflowReference(traceId, await resolveExperimentId(appkit)) : null;
-      const executionMode = text14(row2.execution_mode);
+      const executionMode = text15(row2.execution_mode);
       const detail = {
-        id: text14(row2.question_id),
-        conversationId: text14(row2.conversation_id),
-        question: text14(row2.question),
-        askedBy: text14(row2.user_email),
+        id: text15(row2.question_id),
+        conversationId: text15(row2.conversation_id),
+        question: text15(row2.question),
+        askedBy: text15(row2.user_email),
         askedAt: stamp(row2.asked_at),
         outcome: applyAdminOutcome(
           classifyOutcome({
@@ -178103,7 +178104,7 @@ function setupMonitoringRoutes(appkit, deps) {
             synthesisIncomplete: row2.synthesis_incomplete === true,
             proseOnlyDegraded: row2.prose_only_degraded === true
           }),
-          text14(row2.overlay_status)
+          text15(row2.overlay_status)
         ),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,
@@ -178119,9 +178120,9 @@ function setupMonitoringRoutes(appkit, deps) {
         // a half-written claim, and the footer's absent sentence is the truthful
         // reading of one. See normalizeExecutionIdentity in answer-shape.ts.
         execution: executionMode && typeof row2.execution_identity_verified === "boolean" ? { mode: executionMode, verified: row2.execution_identity_verified } : null,
-        rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text14(row2.overlay_rating)),
+        rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text15(row2.overlay_rating)),
         usefulness: integer2(row2.usefulness),
-        comment: text14(row2.comment) || null,
+        comment: text15(row2.comment) || null,
         // Absent rather than dead. `mlflowReference` answers null for a trace id
         // that is not MLflow's and for a deployment with no host or experiment,
         // and now also for a deployment whose administrator has turned the
@@ -178157,9 +178158,9 @@ function setupMonitoringRoutes(appkit, deps) {
         return;
       }
       const mine = questionRows2(stored.rows).filter(
-        (row2) => text14(row2.user_email).toLowerCase() === person.toLowerCase()
+        (row2) => text15(row2.user_email).toLowerCase() === person.toLowerCase()
       );
-      const answerIds = mine.map((row2) => text14(row2.answer_id)).filter((id) => id !== "");
+      const answerIds = mine.map((row2) => text15(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
       const questions = mine.map((row2) => questionFromRow(row2, ledger));
       let tokenTotal = 0;
@@ -178174,7 +178175,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const executionSplit = { asThemselves: 0, asApplication: 0, unrecorded: 0 };
       const subjectSplit = { verified: 0, confirmedByEndpoint: 0, unrecorded: 0 };
       for (const row2 of mine) {
-        const mode = text14(row2.execution_mode);
+        const mode = text15(row2.execution_mode);
         if (mode === "signed_in_user") executionSplit.asThemselves += 1;
         else if (mode === "app_service_principal") executionSplit.asApplication += 1;
         else executionSplit.unrecorded += 1;
@@ -178873,14 +178874,14 @@ function queryText(req, name2) {
   const value = req.query[name2];
   return typeof value === "string" ? value.trim() : "";
 }
-function text15(value) {
+function text16(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (value instanceof Date) return value.toISOString();
   return "";
 }
 function count3(value) {
-  const parsed = typeof value === "number" ? value : Number(text15(value));
+  const parsed = typeof value === "number" ? value : Number(text16(value));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 function noteWorkspaceId(response) {
@@ -178932,7 +178933,7 @@ function shownConnectionValue(state) {
 async function costIdentifiersFor(appkit, req, extras) {
   const appName = (process.env.DATABRICKS_APP_NAME ?? "").trim();
   const [{ report }, stored, declared, appBillingTag] = await Promise.all([
-    readOrchestratorReport(appkit),
+    readOrchestratorReport(),
     readStoredSettings(appkit).catch(() => /* @__PURE__ */ new Map()),
     readDeclaredConnections(appkit),
     (extras.readAppBillingTag ?? readAppBillingTag)(appName)
@@ -179014,15 +179015,15 @@ async function runStatement2(input) {
       ok: false,
       rows: null,
       status: response.status,
-      message: text15(body.message) || `Databricks answered HTTP ${response.status} with no message body.`
+      message: text16(body.message) || `Databricks answered HTTP ${response.status} with no message body.`
     };
   }
-  const state = text15(body.status?.state);
+  const state = text16(body.status?.state);
   if (state !== "SUCCEEDED") {
     return {
       ok: false,
       rows: null,
-      message: text15(body.status?.error?.message) || `The statement ended in ${state || "an unknown state"}.`
+      message: text16(body.status?.error?.message) || `The statement ended in ${state || "an unknown state"}.`
     };
   }
   return { ok: true, rows: body.result?.data_array ?? [], message: "" };
@@ -179136,12 +179137,18 @@ async function readAppMeasurement(req, insightsHref) {
 }
 async function readDependencies(appkit, req) {
   try {
-    const stored = await readStoredSettings(appkit).catch(() => /* @__PURE__ */ new Map());
-    const states = resourceStates({ report: null, environment: appEnvironment(), stored });
+    const [{ report }, stored] = await Promise.all([
+      readOrchestratorReport(),
+      readStoredSettings(appkit).catch(() => /* @__PURE__ */ new Map())
+    ]);
+    const states = resourceStates({ report, environment: appEnvironment(), stored });
     const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured]));
     const checks = await probeConnections({
       configured,
-      tables: declaredTables([]),
+      tables: accessDependenciesFrom({
+        configuration: report?.configuration,
+        env: process.env
+      }).tables,
       host: host(),
       token: forwardedUserToken(req),
       principal: userEmail(req) || ""
@@ -179193,14 +179200,14 @@ function toBars(counts) {
 }
 function questionRun(row2) {
   const nullableNumber = (value) => {
-    const parsed = Number(text15(value));
-    return text15(value) !== "" && Number.isFinite(parsed) ? parsed : null;
+    const parsed = Number(text16(value));
+    return text16(value) !== "" && Number.isFinite(parsed) ? parsed : null;
   };
   return {
-    runId: text15(row2.run_id),
-    correlationId: text15(row2.correlation_id),
-    traceId: text15(row2.trace_id),
-    completedAt: text15(row2.completed_at),
+    runId: text16(row2.run_id),
+    correlationId: text16(row2.correlation_id),
+    traceId: text16(row2.trace_id),
+    completedAt: text16(row2.completed_at),
     totalTokens: nullableNumber(row2.total_tokens),
     runsInRange: count3(row2.runs_in_range),
     tokenCoveredRuns: count3(row2.token_covered_runs),
@@ -179397,14 +179404,14 @@ function setupOpsRoutes(appkit, deps) {
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY)
         ]);
-        const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text15(row2.day), count: count3(row2.count) })) : [];
+        const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text16(row2.day), count: count3(row2.count) })) : [];
         const failures = /* @__PURE__ */ new Map();
         const refusals = /* @__PURE__ */ new Map();
         let runsInRange = 0;
         if (outcomes.status === "fulfilled") {
           for (const row2 of outcomes.value.rows) {
-            const state = text15(row2.state);
-            const code = text15(row2.terminal_code);
+            const state = text16(row2.state);
+            const code = text16(row2.terminal_code);
             const runs = count3(row2.count);
             runsInRange += runs;
             if (state === "REFUSED") {
@@ -179415,8 +179422,8 @@ function setupOpsRoutes(appkit, deps) {
           }
         }
         const toolCalls = tools.status === "fulfilled" ? tools.value.rows.map((row2) => ({
-          key: text15(row2.tool),
-          label: text15(row2.tool),
+          key: text16(row2.tool),
+          label: text16(row2.tool),
           count: count3(row2.count)
         })) : [];
         const outstanding = [
@@ -179427,10 +179434,10 @@ function setupOpsRoutes(appkit, deps) {
         const rejected = outstanding.map((read2) => read2.done);
         const payload = {
           readAt,
-          reason: rejected.length === 3 ? `Nothing about traffic could be read: ${text15(rejected[0].reason?.message) || "the store did not answer"}` : "",
+          reason: rejected.length === 3 ? `Nothing about traffic could be read: ${text16(rejected[0].reason?.message) || "the store did not answer"}` : "",
           unread: rejected.length > 0 && rejected.length < 3 ? unreadNote(
             outstanding.map((read2) => read2.charts),
-            text15(rejected[0].reason?.message)
+            text16(rejected[0].reason?.message)
           ) : "",
           questionsPerDay,
           failuresByCause: toBars(failures),
@@ -180325,7 +180332,7 @@ var init_review_app = __esm({
 });
 
 // server/lib/genie-result-execute.ts
-function text16(value) {
+function text17(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function asRecord2(value) {
@@ -180338,7 +180345,7 @@ function columnNames(payload) {
   if (Array.isArray(columns)) {
     return columns.map((entry, index) => {
       const column = asRecord2(entry);
-      return text16(column?.name) || text16(column?.display_name) || `col_${index}`;
+      return text17(column?.name) || text17(column?.display_name) || `col_${index}`;
     });
   }
   return [];
@@ -180392,14 +180399,14 @@ function createSqlExecutor(options) {
       });
       const payload = await response.json().catch(() => ({})) ?? {};
       if (!response.ok) {
-        const note = text16(payload.message) || text16(payload.error) || `warehouse returned HTTP ${response.status}`;
+        const note = text17(payload.message) || text17(payload.error) || `warehouse returned HTTP ${response.status}`;
         return { ok: false, note };
       }
       const status = asRecord2(payload.status);
-      const state = text16(status?.state).toUpperCase();
+      const state = text17(status?.state).toUpperCase();
       if (state && state !== "SUCCEEDED") {
         const error48 = asRecord2(status?.error);
-        const note = text16(error48?.message) || `statement ended in ${state}`;
+        const note = text17(error48?.message) || `statement ended in ${state}`;
         return { ok: false, note };
       }
       const table = tableFromStatementPayload(payload);
@@ -180433,7 +180440,7 @@ function messageOf4(error48) {
 function asRecord3(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
-function text17(value) {
+function text18(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function numberish(value) {
@@ -180451,11 +180458,11 @@ function extractGenieSql(payload) {
       const attachment = asRecord3(entry);
       if (!attachment) continue;
       const query = asRecord3(attachment.query) ?? attachment;
-      const sql3 = text17(query.query) || text17(query.sql) || text17(attachment.query) || text17(attachment.sql);
+      const sql3 = text18(query.query) || text18(query.sql) || text18(attachment.query) || text18(attachment.sql);
       if (sql3) return sql3;
     }
   }
-  return text17(message.query) || text17(root.query) || text17(root.sql);
+  return text18(message.query) || text18(root.query) || text18(root.sql);
 }
 function extractGenieResultTable(payload) {
   const root = asRecord3(payload);
@@ -180472,7 +180479,7 @@ function extractGenieResultTable(payload) {
     const names2 = columnsRaw.map((columnEntry, index) => {
       if (typeof columnEntry === "string") return columnEntry;
       const column = asRecord3(columnEntry);
-      return text17(column?.name) || text17(column?.display_name) || `col_${index}`;
+      return text18(column?.name) || text18(column?.display_name) || `col_${index}`;
     });
     const values = names2.map(() => []);
     for (const row2 of rowsRaw) {
@@ -180490,15 +180497,15 @@ function extractGenieResultTable(payload) {
 function messageStatus(payload) {
   const root = asRecord3(payload);
   const message = asRecord3(root?.message) ?? root;
-  return text17(message?.status).toUpperCase();
+  return text18(message?.status).toUpperCase();
 }
 function conversationIds(payload) {
   const root = asRecord3(payload) ?? {};
   const conversation = asRecord3(root.conversation);
   const message = asRecord3(root.message);
   return {
-    conversationId: text17(conversation?.id) || text17(root.conversation_id),
-    messageId: text17(message?.id) || text17(root.message_id)
+    conversationId: text18(conversation?.id) || text18(root.conversation_id),
+    messageId: text18(message?.id) || text18(root.message_id)
   };
 }
 async function jsonRequest2(call, url2, token, method, body) {
@@ -180514,7 +180521,7 @@ async function jsonRequest2(call, url2, token, method, body) {
   });
   const payload = await response.json().catch(() => ({})) ?? {};
   if (!response.ok) {
-    const detail = text17(payload.message) || text17(payload.error) || `workspace returned HTTP ${response.status}`;
+    const detail = text18(payload.message) || text18(payload.error) || `workspace returned HTTP ${response.status}`;
     throw new Error(detail);
   }
   return payload;
@@ -180774,9 +180781,9 @@ function parseScorerNames(body) {
   if (!body || typeof body !== "object") return [];
   const record2 = body;
   const lists = [record2.scorers, record2.registered_scorers, record2.entities];
-  for (const list3 of lists) {
-    if (!Array.isArray(list3)) continue;
-    const names2 = list3.map((entry) => {
+  for (const list2 of lists) {
+    if (!Array.isArray(list2)) continue;
+    const names2 = list2.map((entry) => {
       if (typeof entry === "string") return entry.trim();
       if (entry && typeof entry === "object" && typeof entry.name === "string") {
         return entry.name.trim();
@@ -183126,8 +183133,8 @@ var RoutingPool = class {
     const userCtx = getUserContext();
     return userCtx ? this.resolveUserPool(userCtx) : this.spPool;
   }
-  query(text18, values) {
-    return this.activePool().query(text18, values);
+  query(text19, values) {
+    return this.activePool().query(text19, values);
   }
   connect() {
     return this.activePool().connect();
@@ -187421,9 +187428,9 @@ var FilesConnector = class {
       await client.config.authenticate(headers);
       const res = await fetch(url2.toString(), fetchOptions);
       if (!res.ok) {
-        const text18 = await res.text();
-        logger16.error(`Upload failed (${res.status}): ${text18}`);
-        throw new ApiError2(`Upload failed: ${text18.length > 200 ? `${text18.slice(0, 200)}\u2026` : text18}`, "UPLOAD_FAILED", res.status, void 0, []);
+        const text19 = await res.text();
+        logger16.error(`Upload failed (${res.status}): ${text19}`);
+        throw new ApiError2(`Upload failed: ${text19.length > 200 ? `${text19.slice(0, 200)}\u2026` : text19}`, "UPLOAD_FAILED", res.status, void 0, []);
       }
     });
   }
@@ -190916,8 +190923,8 @@ var LakebasePlugin = class extends Plugin {
   * );
   * ```
   */
-  async query(text18, values) {
-    return this.pool.query(text18, values);
+  async query(text19, values) {
+    return this.pool.query(text19, values);
   }
   /**
   * Execute a single statement inside a `BEGIN READ ONLY … ROLLBACK`
@@ -190933,11 +190940,11 @@ var LakebasePlugin = class extends Plugin {
   * statement may attempt (writes, writable-function side effects) are
   * rejected by PostgreSQL under the read-only transaction posture.
   */
-  async runReadOnlyStatement(text18, values) {
+  async runReadOnlyStatement(text19, values) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN READ ONLY");
-      return (await client.query(text18, values)).rows;
+      return (await client.query(text19, values)).rows;
     } finally {
       try {
         await client.query("ROLLBACK");
@@ -191204,8 +191211,8 @@ async function isAutoMigrateDisabled(projectRoot) {
     return false;
   }
 }
-function stripJsonComments(text18) {
-  return text18.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
+function stripJsonComments(text19) {
+  return text19.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
 }
 async function migrateTsconfigClient(projectRoot) {
   const results = [];
@@ -191343,8 +191350,8 @@ var Spinner = class {
   current = 0;
   interval = null;
   text = "";
-  start(text18) {
-    this.text = text18;
+  start(text19) {
+    this.text = text19;
     this.current = 0;
     process.stdout.write(`  ${this.text}${this.frames[0]}`);
     this.interval = setInterval(() => {
@@ -191352,8 +191359,8 @@ var Spinner = class {
       process.stdout.write(`\r  ${this.text}${this.frames[this.current]}`);
     }, 300);
   }
-  update(text18) {
-    this.text = text18;
+  update(text19) {
+    this.text = text19;
   }
   stop(finalText) {
     if (this.interval) {
@@ -191363,8 +191370,8 @@ var Spinner = class {
     process.stdout.write(`\x1B[Contoso\r  ${finalText || this.text}
 `);
   }
-  printDetail(text18) {
-    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text18}\x1B[0m
+  printDetail(text19) {
+    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text19}\x1B[0m
 `);
     if (this.interval) process.stdout.write(`  ${this.text}${this.frames[this.current]}`);
   }
@@ -191895,8 +191902,8 @@ async function fetchOpenApiSchema(client, endpointName, servedModel) {
       logger31.warn("Empty OpenAPI response for '%s', skipping type generation", endpointName);
       return null;
     }
-    const text18 = await new Response(response.contents).text();
-    const rawSpec = JSON.parse(text18);
+    const text19 = await new Response(response.contents).text();
+    const rawSpec = JSON.parse(text19);
     if (typeof rawSpec !== "object" || rawSpec === null || !("paths" in rawSpec) || typeof rawSpec.paths !== "object") {
       logger31.warn("Invalid OpenAPI schema structure for '%s', skipping", endpointName);
       return null;

@@ -1,14 +1,12 @@
 /**
  * What the app can say about its own shape without asking anything expensive.
  *
- * THIS ROUTE DELIBERATELY PROBES NOTHING. The Architecture page needs the two
- * payloads the Connections page reads -- `/api/settings` and `/api/preflight` --
- * to say whether a dependency is reachable or drifted, and each of those
- * invokes the serving endpoint. Two endpoint invocations on the first paint of
- * a page somebody opened to look at a diagram is a cold start they did not ask
- * for, so they are behind an explicit control and this route answers the cheap
- * half immediately: what the app itself was given, and where it would send a
- * reader who clicked something.
+ * THIS ROUTE DELIBERATELY PROBES NOTHING. The Architecture page needs
+ * `/api/settings` for the wiring list and `/api/preflight` for endpoint
+ * metadata. Neither of those asks the live agent a question: settings reads
+ * this release's configuration, and preflight is a metadata GET. The
+ * reachability probes (Unity Catalog, as the signed-in user) are behind an
+ * explicit Refresh on Connections, so opening a diagram does not fire them.
  *
  * The consequence is stated rather than hidden. Every connection starts as
  * `not checked`, which is a real status in `connection-status.ts` and not a

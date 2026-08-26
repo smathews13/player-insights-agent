@@ -405,6 +405,18 @@ describe('what the page refuses to call healthy', () => {
     expect(driftStatus(findings)).toBe('unknown');
   });
 
+  it('does not tell a Git deploy to re-log a model when this release simply named no tables', () => {
+    const findings = computeDrift({
+      report: {
+        ...report({ configuration: [] }),
+        source: 'configuration',
+      },
+      states: [],
+    });
+    expect(findings.map((finding) => finding.id)).not.toContain('configuration-unreported');
+    expect(findings.map((finding) => finding.id)).toContain('orchestrator-report-retired');
+  });
+
   it('flags an orchestrator value that did not come from the model artifact', () => {
     // config.py exists to make this impossible, and this is that guarantee seen
     // from outside: a serving container resolving a Genie space id from a shell

@@ -10,6 +10,23 @@ const saved = {
   warehouse: process.env.DATABRICKS_SQL_WAREHOUSE_ID,
   endpoint: process.env.DATABRICKS_SERVING_ENDPOINT_NAME,
   app: process.env.DATABRICKS_APP_NAME,
+  dataGenie: process.env.PLAYER_INSIGHTS_DATA_GENIE_ID,
+  dataTitle: process.env.PLAYER_INSIGHTS_DATA_GENIE_TITLE,
+  dictGenie: process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID,
+  dictTitle: process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE,
+  index: process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX,
+};
+
+const ENV_NAMES: Record<keyof typeof saved, string> = {
+  host: 'DATABRICKS_HOST',
+  warehouse: 'DATABRICKS_SQL_WAREHOUSE_ID',
+  endpoint: 'DATABRICKS_SERVING_ENDPOINT_NAME',
+  app: 'DATABRICKS_APP_NAME',
+  dataGenie: 'PLAYER_INSIGHTS_DATA_GENIE_ID',
+  dataTitle: 'PLAYER_INSIGHTS_DATA_GENIE_TITLE',
+  dictGenie: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
+  dictTitle: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE',
+  index: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
 };
 
 beforeEach(() => {
@@ -18,19 +35,17 @@ beforeEach(() => {
   process.env.DATABRICKS_SQL_WAREHOUSE_ID = 'warehouse-1';
   process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'agent-endpoint';
   process.env.DATABRICKS_APP_NAME = 'player-insights';
+  delete process.env.PLAYER_INSIGHTS_DATA_GENIE_ID;
+  delete process.env.PLAYER_INSIGHTS_DATA_GENIE_TITLE;
+  delete process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID;
+  delete process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE;
+  delete process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX;
 });
 
 afterEach(() => {
   forgetWorkspaceId();
-  for (const [key, value] of Object.entries(saved)) {
-    const name =
-      key === 'host'
-        ? 'DATABRICKS_HOST'
-        : key === 'warehouse'
-          ? 'DATABRICKS_SQL_WAREHOUSE_ID'
-          : key === 'endpoint'
-            ? 'DATABRICKS_SERVING_ENDPOINT_NAME'
-            : 'DATABRICKS_APP_NAME';
+  for (const [key, value] of Object.entries(saved) as Array<[keyof typeof saved, string | undefined]>) {
+    const name = ENV_NAMES[key];
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
@@ -90,11 +105,7 @@ describe('the ranged cost route', () => {
     setupOpsRoutes(
       {
         lakebase: { query: lakebase },
-        servingTransport: () =>
-          Promise.resolve({
-            output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '' }] }],
-            custom_outputs: { type: 'preflight_retired', configuration: [] },
-          }),
+        servingTransport: () => Promise.reject(new Error('serving must not be asked')),
         server: { extend: (register: (target: Application) => void) => register(app) },
       } as unknown as InsightsAppKit,
       {
@@ -162,6 +173,11 @@ describe('the ranged cost route', () => {
       }
       return Promise.resolve({ rows: [] });
     });
+    process.env.PLAYER_INSIGHTS_DATA_GENIE_ID = 'space-data';
+    process.env.PLAYER_INSIGHTS_DATA_GENIE_TITLE = 'Player data';
+    process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID = 'space-dictionary';
+    process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE = 'Dictionary';
+    process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX = 'cat.schema.index';
     const fetchImpl = vi.fn((input: string | URL | globalThis.Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       if (url.endsWith('/preview/scim/v2/Me')) {
@@ -194,20 +210,7 @@ describe('the ranged cost route', () => {
     setupOpsRoutes(
       {
         lakebase: { query: lakebase },
-        servingTransport: () =>
-          Promise.resolve({
-            output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '' }] }],
-            custom_outputs: {
-              type: 'preflight_retired',
-              configuration: [
-                { key: 'data_genie_space_id', value: 'space-data', source: 'artifact' },
-                { key: 'data_genie_space_title', value: 'Player data', source: 'artifact' },
-                { key: 'dictionary_genie_space_id', value: 'space-dictionary', source: 'artifact' },
-                { key: 'dictionary_genie_space_title', value: 'Dictionary', source: 'artifact' },
-                { key: 'semantic_index', value: 'cat.schema.index', source: 'artifact' },
-              ],
-            },
-          }),
+        servingTransport: () => Promise.reject(new Error('serving must not be asked')),
         server: { extend: (register: (target: Application) => void) => register(app) },
       } as unknown as InsightsAppKit,
       {

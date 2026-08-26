@@ -243,6 +243,26 @@ LAKEBASE_APP_SCHEMA="$(bundle_var lakebase_app_schema)"
 JUDGE_ENDPOINT="$(bundle_var_or_empty judge_endpoint)"
 note "benchmark judge      ${JUDGE_ENDPOINT:-(app default)}"
 
+# Catalog, schema and Genie ids this release may read. Connections and the
+# access gate used to ping the live agent for this list, which created ~1ms
+# MLflow traces named `preflight`. They now read these env vars instead, and
+# qualify the committed data contract when catalog+schema are present.
+CATALOG="$(bundle_var app_catalog)"
+SCHEMA="$(bundle_var app_schema)"
+if [[ -n "${PLAYER_INSIGHTS_DATA_GENIE_ID:-}" ]]; then
+  DATA_GENIE_ID="$PLAYER_INSIGHTS_DATA_GENIE_ID"
+else
+  DATA_GENIE_ID="$(bundle_var genie_data_space_id)"
+fi
+if [[ -n "${PLAYER_INSIGHTS_DICTIONARY_GENIE_ID:-}" ]]; then
+  DICT_GENIE_ID="$PLAYER_INSIGHTS_DICTIONARY_GENIE_ID"
+else
+  DICT_GENIE_ID="$(bundle_var genie_dictionary_space_id)"
+fi
+note "data contract        $CATALOG.$SCHEMA"
+note "data genie space     $DATA_GENIE_ID"
+note "dictionary genie     $DICT_GENIE_ID"
+
 # The semantic rebuild job is bundle-owned when the target declares it. Its id
 # is the billing join key; a name match would be guesswork and can collide with
 # another deployment. Targets without the job keep the authored empty value.
@@ -403,6 +423,10 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID="$INDEX_REBUILD_JOB_ID" \
      PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL="$SHARED_RAIL" \
      PLAYER_INSIGHTS_JUDGE_ENDPOINT="$JUDGE_ENDPOINT" \
+     PLAYER_INSIGHTS_CATALOG="$CATALOG" \
+     PLAYER_INSIGHTS_SCHEMA="$SCHEMA" \
+     PLAYER_INSIGHTS_DATA_GENIE_ID="$DATA_GENIE_ID" \
+     PLAYER_INSIGHTS_DICTIONARY_GENIE_ID="$DICT_GENIE_ID" \
      PLAYER_INSIGHTS_TELEMETRY_SCHEMA="$TELEMETRY_SCHEMA" \
      PLAYER_INSIGHTS_USER_API_SCOPES="$DECLARED_SCOPES" \
      PLAYER_INSIGHTS_ADMIN_EMAILS="$ADMIN_EMAILS" \

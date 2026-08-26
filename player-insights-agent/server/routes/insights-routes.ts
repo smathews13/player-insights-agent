@@ -107,7 +107,6 @@ import {
   accessDependenciesFrom,
   diagnoseUserToken,
   entitlementLookupVia,
-  extractServedConfiguration,
   forwardedUserToken,
   genieSpaceProbeFor,
   isVerified,
@@ -1385,22 +1384,6 @@ export type PreflightReport = z.infer<typeof PreflightReportSchema> & {
 };
 
 /**
- * The body that asks the endpoint to check its dependencies.
- *
- * The flag stays a bare `true` when there is no candidate, so a version logged
- * before any of this existed receives the same bytes it always did.
- */
-export function buildPreflightServingBody(candidate?: Record<string, unknown>): Record<string, unknown> {
-  // The agent short-circuits on this flag before it looks for a question, but
-  // a user turn is sent anyway so the payload stays a valid agent request.
-  const preflight = candidate && Object.keys(candidate).length > 0 ? { candidate } : true;
-  return {
-    input: [{ role: 'user', content: 'preflight' }],
-    custom_inputs: { preflight },
-  };
-}
-
-/**
  * Whether the endpoint understood that it was asked about a proposed
  * configuration, rather than answering about its own.
  *
@@ -2371,21 +2354,18 @@ function warmWarehouseForArrival(warmup: WarehouseWarmup): void {
 }
 
 /**
- * Discover the adopted spaces' warehouses from the served model configuration,
- * then wake any warehouse that differs from the app binding.
+ * Wake adopted Genie warehouses that differ from the app binding.
  *
+ * Space ids come from this release's environment, never from a serving ping.
  * This intentionally uses the arriving reader's forwarded token. Customer
  * spaces may point at warehouses the app principal is not and should not be
  * granted, while that reader already needs CAN RUN and CAN USE to ask Genie.
  */
-function warmGenieWarehousesForArrival(req: Request, served: unknown): void {
+function warmGenieWarehousesForArrival(req: Request): void {
   const token = forwardedUserToken(req);
   const host = workspaceHost();
   if (!token || !host) return;
-  const { genieSpaces } = accessDependenciesFrom({
-    configuration: extractServedConfiguration(served),
-    env: process.env,
-  });
+  const { genieSpaces } = accessDependenciesFrom({ env: process.env });
   const spaceIds = genieSpaces.map(({ id }) => id);
   if (spaceIds.length === 0) return;
 
@@ -2633,17 +2613,9 @@ export function buildAskServingBody({
  */
 export const SERVING_INVOKE_TIMEOUT_MS = 240_000;
 
-/**
- * The same bound for a preflight round trip, which is not a question and must
- * not be waited on like one. `GET /api/setup` runs one at startup (measured at
- * 15.9 s against production), and the client has nothing to show until it
- * answers, so four minutes of silence there is four minutes of a blank wizard.
- */
-export const PREFLIGHT_TIMEOUT_MS = 60_000;
-
-// Exported for the settings route, which asks the orchestrator the same question
-// this one does. A second implementation of the invoke path is how `custom_inputs`
-// got dropped once already, see the ServingTransport comment above.
+// Exported for Ask and the other real serving callers. A second implementation
+// of the invoke path is how `custom_inputs` got dropped once already, see the
+// ServingTransport comment above.
 export async function invokeServing(
   appkit: InsightsAppKit,
   payload: Record<string, unknown>,
@@ -2867,18 +2839,6 @@ export async function invokeServingAsUser(
     // to be printed.
     throw new AuthorizationRefused(code, detail, carriedStatus(error));
   }
-}
-
-/**
- * Ask the endpoint for its dependency report.
- *
- * A named call rather than `invokeServing(appkit, buildPreflightServingBody())`
- * repeated at five call sites, so the tighter bound belongs to the operation
- * instead of to whoever remembered to pass it. Every caller of this reports on a
- * page somebody is waiting in front of.
- */
-export async function invokePreflight(appkit: InsightsAppKit, candidate?: Record<string, unknown>) {
-  return invokeServing(appkit, buildPreflightServingBody(candidate), undefined, PREFLIGHT_TIMEOUT_MS);
 }
 
 /** Concurrent Ask and Connections reads share one endpoint metadata request. */
@@ -3163,7 +3123,7 @@ export function setupInsightsRoutes(
       // Adopted Genie warehouses are warmed from declared/environment
       // configuration on this same fire-and-forget arrival path. No serving
       // invocation is needed to discover them.
-      warmGenieWarehousesForArrival(req, {});
+      warmGenieWarehousesForArrival(req);
       res.status(202).json({ accepted: true });
     });
 
@@ -3332,21 +3292,12 @@ export function setupInsightsRoutes(
       }
 
       // The app's own warehouse, from its app resource. Tables and Genie spaces
-      // come from the served model's configuration report (returned beside a
-      // retired preflight) or from PLAYER_INSIGHTS_* env fallbacks. When neither
-      // is available the gate still checks the warehouse and names what it
-      // could not establish in notChecked.
+      // come from this release's environment (filled at app-release) and, when
+      // catalog+schema are present, from the committed data contract. Nothing
+      // here asks the live agent a question. When the list is empty the gate
+      // still checks the warehouse and names what it could not establish.
       const warehouseId = appWarehouseId();
-      let configuration: ReturnType<typeof extractServedConfiguration> = [];
-      try {
-        configuration = extractServedConfiguration(await invokePreflight(appkit));
-      } catch (error) {
-        console.warn(`[access] Served configuration could not be read for verification: ${(error as Error).message}`);
-      }
-      const { tables, genieSpaces } = accessDependenciesFrom({
-        configuration,
-        env: process.env,
-      });
+      const { tables, genieSpaces } = accessDependenciesFrom({ env: process.env });
       const servingChecked: readonly { object: string; label: string; status: string }[] = [];
       const host = workspaceHost();
       // Two different missing things, and two different people to go and see.

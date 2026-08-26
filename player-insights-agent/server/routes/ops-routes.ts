@@ -58,7 +58,6 @@ import {
 import { classifyDenial, forwardedUserToken, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './access-verification';
 import {
   ANSWER_PATH_ENDPOINT_IDS,
-  declaredTables,
   probeConnections,
   SERVING_ENDPOINT_KIND,
 } from '../lib/dependency-probes';
@@ -245,10 +244,8 @@ function shownConnectionValue(state: ResourceState): string {
 /**
  * The Genie spaces and Vector Search names Connections already lists.
  *
- * Cost used to ask `resourceStates` with no orchestrator report, so the two
- * Genie rows and the index — which live on the model artifact, not in the app
- * container — came back empty and the tiles said the identifier was unavailable
- * while Connections was showing those same ids. Same list, same values.
+ * Cost used to ask the live agent for those ids. It now reads the same release
+ * configuration Connections uses, so a missing ping cannot empty the tiles.
  */
 async function costIdentifiersFor(
   appkit: InsightsAppKit,
@@ -262,7 +259,7 @@ async function costIdentifiersFor(
 ): Promise<CostIdentifiers> {
   const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
   const [{ report }, stored, declared, appBillingTag] = await Promise.all([
-    readOrchestratorReport(appkit),
+    readOrchestratorReport(),
     readStoredSettings(appkit).catch(() => new Map()),
     readDeclaredConnections(appkit),
     (extras.readAppBillingTag ?? readAppBillingTag)(appName),
@@ -609,12 +606,18 @@ async function readDependencies(
   req: Request
 ): Promise<{ rows: HealthDependency[]; reason: string; checkedAt: string }> {
   try {
-    const stored = await readStoredSettings(appkit).catch(() => new Map());
-    const states = resourceStates({ report: null, environment: appEnvironment(), stored });
+    const [{ report }, stored] = await Promise.all([
+      readOrchestratorReport(),
+      readStoredSettings(appkit).catch(() => new Map()),
+    ]);
+    const states = resourceStates({ report, environment: appEnvironment(), stored });
     const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured]));
     const checks = await probeConnections({
       configured,
-      tables: declaredTables([]),
+      tables: accessDependenciesFrom({
+        configuration: report?.configuration,
+        env: process.env,
+      }).tables,
       host: host(),
       token: forwardedUserToken(req),
       principal: userEmail(req) || '',

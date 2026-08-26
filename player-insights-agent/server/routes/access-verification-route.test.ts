@@ -124,24 +124,6 @@ function agentReport(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** What a current endpoint returns: no checks, but the configuration the gate needs. */
-function retiredWithConfiguration(overrides: Record<string, unknown> = {}): ServingTransport {
-  return () =>
-    Promise.resolve({
-      custom_outputs: {
-        type: 'preflight_retired',
-        configuration: [
-          { key: 'declared_manifest', value: [...TABLES] },
-          { key: 'data_genie_space_id', value: SPACES[0] },
-          { key: 'dictionary_genie_space_id', value: SPACES[1] },
-          { key: 'data_genie_space_title', value: 'Player Insights Data' },
-          { key: 'dictionary_genie_space_title', value: 'Player Insights Dictionary' },
-        ],
-        ...overrides,
-      },
-    });
-}
-
 /** Retired and silent about configuration: warehouse-only verification. */
 function retiredWithoutConfiguration(): ServingTransport {
   return () => Promise.resolve({ custom_outputs: { type: 'preflight_retired' } });
@@ -365,6 +347,17 @@ let host: string | undefined;
 let endpoint: string | undefined;
 let warehouse: string | undefined;
 let appName: string | undefined;
+const releaseEnv: Record<string, string | undefined> = {};
+const RELEASE_ENV_KEYS = [
+  'PLAYER_INSIGHTS_DECLARED_MANIFEST',
+  'PLAYER_INSIGHTS_TABLES',
+  'PLAYER_INSIGHTS_CATALOG',
+  'PLAYER_INSIGHTS_SCHEMA',
+  'PLAYER_INSIGHTS_DATA_GENIE_ID',
+  'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
+  'PLAYER_INSIGHTS_DATA_GENIE_TITLE',
+  'PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE',
+] as const;
 
 beforeEach(() => {
   genieCalls = [];
@@ -385,6 +378,10 @@ beforeEach(() => {
   // reason.
   process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
   process.env.DATABRICKS_APP_NAME = 'astrolabe';
+  for (const key of RELEASE_ENV_KEYS) {
+    releaseEnv[key] = process.env[key];
+    delete process.env[key];
+  }
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -398,6 +395,11 @@ afterEach(() => {
   else process.env.DATABRICKS_SQL_WAREHOUSE_ID = warehouse;
   if (appName === undefined) delete process.env.DATABRICKS_APP_NAME;
   else process.env.DATABRICKS_APP_NAME = appName;
+  for (const key of RELEASE_ENV_KEYS) {
+    const value = releaseEnv[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   vi.restoreAllMocks();
 });
 
@@ -603,7 +605,7 @@ describe('POST /api/access-verification with a token', () => {
     expect(decisionOn(body).detail).not.toMatch(/SELECT on \d+ tables?/);
     const limits = JSON.stringify(body.notChecked);
     expect(limits).toMatch(/row filter or a column mask/);
-    expect(limits).toMatch(/could not learn which tables the agent reads/);
+    expect(limits).toMatch(/could not learn which tables this release may read/);
     expect(limits).toMatch(/Genie/);
   });
 
@@ -628,13 +630,18 @@ describe('POST /api/access-verification with a token', () => {
     expect(body.ok).toBe(0);
     expect(body.genie ?? []).toHaveLength(0);
     const limits = JSON.stringify(body.notChecked);
-    expect(limits).toMatch(/could not learn which tables the agent reads/);
+    expect(limits).toMatch(/could not learn which tables this release may read/);
     expect(limits).toMatch(/Genie/);
   });
 
-  it('probes the declared tables and Genie spaces from served configuration', async () => {
+  it('probes the declared tables and Genie spaces from this release, not from a serving ping', async () => {
+    process.env.PLAYER_INSIGHTS_DECLARED_MANIFEST = TABLES.join(',');
+    process.env.PLAYER_INSIGHTS_DATA_GENIE_ID = SPACES[0];
+    process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID = SPACES[1];
+    process.env.PLAYER_INSIGHTS_DATA_GENIE_TITLE = 'Player Insights Data';
+    process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE = 'Player Insights Dictionary';
     const calls = stubStatements(() => ({ ok: true }));
-    const app = await startApp(retiredWithConfiguration());
+    const app = await startApp(() => Promise.reject(new Error('serving must not be asked')));
     let body: VerificationBody;
     try {
       const response = await fetch(app.url('/api/access-verification'), asUser(FULL_SCOPES));

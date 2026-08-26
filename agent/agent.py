@@ -807,26 +807,24 @@ def _attachment_context(custom_inputs: dict[str, Any]) -> str:
 
 
 def _is_preflight(custom_inputs: dict[str, Any]) -> bool:
-    """Whether this request is asking for the dependency checks, which are gone.
+    """Whether this request is the retired fake question, which is gone from the app.
 
     THE CHECKS WERE REMOVED; THIS RECOGNITION WAS KEPT DELIBERATELY, and it is a
     compatibility shim rather than the surviving half of a feature. It holds no
     probe, no verdict and no remedy. See `_preflight_retired` for all it does.
 
     Kept because the app deploys separately from the model, so there is always a
-    window where a new model version is serving an app build that still asks. The
-    app sends `{"input": [{"role": "user", "content": "preflight"}],
-    "custom_inputs": {"preflight": true}}`, which is a VALID ORDINARY REQUEST:
-    deleting this function does not make it fail, it makes it a question. Every
-    access-verification click and every setup-wizard poll would run a full
-    orchestrator turn on the word "preflight": real reasoning calls, real tool
-    calls, a junk trace, a junk conversation row, and a 60-second app-side
-    timeout waiting for it. Answering "that is retired" in a few microseconds is
-    strictly better, and it routes the app to the `dependency-down` branch it
-    already has, which says to look at the agent endpoint.
+    window where a new model version is serving an OLDER app build that still
+    POSTs `{"input": [{"role": "user", "content": "preflight"}],
+    "custom_inputs": {"preflight": true}}`. That payload is a VALID ORDINARY
+    REQUEST: deleting this function does not make it fail, it makes it a
+    question. Every Connections refresh and every access-verification click from
+    that old app would run a full orchestrator turn on the word "preflight".
+    Answering "that is retired" in a few microseconds is strictly better.
 
-    Delete this when `player-insights-agent/**` no longer asks. Nothing else
-    depends on it.
+    The current app no longer sends this request. Delete this when no remaining
+    app build asks. Nothing else depends on it. Do not restore live dependency
+    checks here.
     """
 
     value = custom_inputs.get("preflight")

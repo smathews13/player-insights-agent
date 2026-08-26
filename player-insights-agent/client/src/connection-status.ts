@@ -215,13 +215,13 @@ export const DRIFT_MARKER_LABEL: Record<Exclude<DriftMarker, 'none'>, string> = 
  *
  * This was found on the live deployment rather than reasoned about. The finding
  * `orchestrator-report-retired` is raised against `agent-endpoint` at severity
- * `unknown`, and its own headline reads "Everything is running. The settings
- * below are unconfirmed, not wrong" -- and the row it lands on was wearing a
- * "Drift" badge while its configured and in-use values were the same string. A
- * page that spends its whole length refusing to read absence of evidence as
- * agreement must not read it as disagreement either; the note belongs in the
- * row's own alert, which is where it already was, and not on the collapsed line
- * as a fault.
+ * `unknown`, and it is a notice that the values came from this release rather
+ * than a live agent ping -- and the row it lands on was wearing a "Drift" badge
+ * while its configured and in-use values were the same string. A page that
+ * spends its whole length refusing to read absence of evidence as agreement
+ * must not read it as disagreement either; the note belongs in the row's own
+ * alert, which is where it already was, and not on the collapsed line as a
+ * fault.
  */
 const ASSERTS_DISAGREEMENT: ReadonlySet<string> = new Set(['blocking', 'warning']);
 
