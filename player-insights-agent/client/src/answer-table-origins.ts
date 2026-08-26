@@ -84,23 +84,38 @@ function originsFromBlocks(blocks: readonly Block[], pin: readonly SourceRow[]):
     return row;
   };
 
+  const pinOn = (row: SourceRow): SourceRow => {
+    assigned.add(row.name.toLowerCase());
+    return row;
+  };
+
   if (tables.length === 1) {
     const names = mentions.length > 0 ? mentions : pin.map((row) => row.name);
     origins[0] = names.map((name) => take(name)).filter((row): row is SourceRow => !!row);
     return origins;
   }
 
+  // Two grids from the same queried table both need the header Open link.
+  // Mentions still zip onto tables in order, and a spare pinable still fills
+  // a table that has no mention of its own — but a source is not consumed so
+  // later tables are origin-less. Sources can drop the duplicate Open once
+  // every table that used that object already has it on the header.
   tables.forEach((_, index) => {
-    const named = mentions[index] ? take(mentions[index]) : undefined;
+    const named = mentions[index] ? byName(pin, mentions[index]) : undefined;
     if (named) {
-      origins[index] = [named];
+      origins[index] = [pinOn(named)];
       return;
     }
     const next = pin.find((row) => !assigned.has(row.name.toLowerCase()));
     if (next) {
-      assigned.add(next.name.toLowerCase());
-      origins[index] = [next];
+      origins[index] = [pinOn(next)];
+      return;
     }
+    const shared =
+      (mentions.length > 0 ? byName(pin, mentions[mentions.length - 1]) : undefined) ??
+      origins.find((group) => group.length > 0)?.[0] ??
+      pin[0];
+    origins[index] = [shared];
   });
   return origins;
 }

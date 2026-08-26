@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AnswerProse } from './DataEntityLinks';
@@ -171,6 +172,9 @@ describe('table origin on the table header', () => {
     const tableAt = markup.indexOf('<table');
     expect(originAt).toBeGreaterThan(-1);
     expect(originAt).toBeLessThan(tableAt);
+    const source = readFileSync(new URL('./DataEntityLinks.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/className="answer-table-origin"[\s\S]*<AnswerOriginLinks sources=\{origin\} \/>/);
+    expect(source).toMatch(/function AnswerOriginLinks[\s\S]*<OpenInDatabricks name=\{row\.name\} \/>/);
   });
 
   it('matches the short name in the heading above the table', () => {
@@ -219,6 +223,27 @@ describe('table origin on the table header', () => {
     );
     const tables = parseAnswerMarkdown(TABLE).filter((block) => block.kind === 'table');
     expect(maps[1].get(tables[0].start)?.map((source) => source.name)).toEqual([PROFILES]);
+  });
+
+  it('puts the same queried source on every table that came from it', () => {
+    const markdown = `Profile base (source: \`${PROFILES}\`).\n\n${TABLE}\n\nBy title.\n\n${TABLE}`;
+    const sources: SourceRef[] = [{ name: PROFILES, freshness: '', role: 'reading' }];
+    const blocks = parseAnswerMarkdown(markdown);
+    const tables = blocks.filter((block) => block.kind === 'table');
+    expect(tables).toHaveLength(2);
+    const origins = tableOriginSources(blocks, sources);
+    expect(origins.get(tables[0].start)?.map((source) => source.name)).toEqual([PROFILES]);
+    expect(origins.get(tables[1].start)?.map((source) => source.name)).toEqual([PROFILES]);
+
+    const markup = render(markdown, sources);
+    const originAt = [...markup.matchAll(/answer-table-origin/g)].map((match) => match.index ?? -1);
+    const tableAt = [...markup.matchAll(/<table/g)].map((match) => match.index ?? -1);
+    expect(originAt).toHaveLength(2);
+    expect(tableAt).toHaveLength(2);
+    expect(originAt[0]).toBeLessThan(tableAt[0]);
+    expect(originAt[1]).toBeGreaterThan(tableAt[0]);
+    expect(originAt[1]).toBeLessThan(tableAt[1]);
+    expect(evidenceLinkedSourceNames(markdown, null, null, sources)).toEqual([PROFILES]);
   });
 });
 

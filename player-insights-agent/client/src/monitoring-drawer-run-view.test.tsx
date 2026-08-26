@@ -203,12 +203,21 @@ describe('the modal draws one run view, the card\'s own', () => {
      * answer card, so "49,923 tokens recorded" sat on the last table row,
      * Sources flooded the table pane, and Keep in mind tucked under Run
      * process. It is now a grid sibling of those sections, in this order.
+     *
+     * The reading table now carries Open in Databricks on its header, so
+     * leftover Sources only names what the table did not. A reference
+     * dictionary is that leftover; without it the Sources heading is gone
+     * and this order assertion has nothing to look at.
      */
     const markup = drawer({
       answer: {
         ...answerWith(trace),
         caveats: ['Coverage ends last Tuesday.'],
         content: ['| Franchise | Players |', '| --- | ---: |', '| VLH | 10 |'].join('\n'),
+        sources: [
+          { name: 'a_catalog.a_schema.a_table', freshness: 'today', role: 'reading' },
+          { name: 'a_catalog.a_schema.data_dictionary', freshness: 'today', role: 'reference' },
+        ],
       },
     });
     const rendered = text(markup);
@@ -219,12 +228,15 @@ describe('the modal draws one run view, the card\'s own', () => {
     expect(rendered.indexOf('Keep in mind')).toBeLessThan(rendered.indexOf('Run process'));
 
     const evidence = markup.indexOf('answer-evidence');
+    const origin = markup.indexOf('answer-table-origin');
     const tokens = markup.indexOf('monitoring-drawer-tokens');
     const sources = markup.indexOf('sources-module');
     const keep = markup.indexOf('keep-in-mind');
     const process = markup.indexOf('run-process');
     expect(evidence).toBeGreaterThan(-1);
-    expect(tokens).toBeGreaterThan(evidence);
+    expect(origin).toBeGreaterThan(evidence);
+    expect(origin).toBeLessThan(markup.indexOf('<table'));
+    expect(tokens).toBeGreaterThan(origin);
     expect(sources).toBeGreaterThan(tokens);
     expect(keep).toBeGreaterThan(sources);
     expect(process).toBeGreaterThan(keep);
