@@ -41,6 +41,8 @@ describe('Benchmarking flywheel copy', () => {
     expect(markup).toContain('Pick judges and a candidate');
     expect(markup).toContain('Promote the winner');
     expect(markup).toContain('Accuracy history');
+    expect(markup).toContain('Always-on scoring');
+    expect(markup).toContain('Check workspace monitoring');
     expect(markup).toContain('Guidelines(name=');
     expect(markup).not.toContain('Multi-turn and custom judges are not wired yet');
     expect(markup).not.toContain('Eval set');

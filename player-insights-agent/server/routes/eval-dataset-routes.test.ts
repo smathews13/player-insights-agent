@@ -12,6 +12,8 @@ describe('evaluation dataset route permissions', () => {
     expect(isAdminRoute('/api/admin/benchmarks/promote')).toBe(true);
     expect(isAdminRoute('/api/admin/benchmarks/align-guidelines')).toBe(true);
     expect(isAdminRoute('/api/admin/benchmarks/dataset/curate')).toBe(true);
+    expect(isAdminRoute('/api/benchmarks/live-scores')).toBe(true);
+    expect(isAdminRoute('/api/admin/benchmarks/live-monitoring')).toBe(true);
     const source = fs.readFileSync(path.join(__dirname, 'eval-dataset-routes.ts'), 'utf8');
     expect(source).toContain("app.get('/api/benchmarks/dataset'");
     expect(source).toContain("app.put('/api/admin/benchmarks/dataset'");
@@ -20,11 +22,20 @@ describe('evaluation dataset route permissions', () => {
     expect(source).toContain("app.post('/api/admin/benchmarks/last-suite'");
     expect(source).toContain("app.post('/api/admin/benchmarks/align-guidelines'");
     expect(source).toContain("app.post('/api/admin/benchmarks/dataset/curate'");
+    expect(source).toContain("app.get('/api/benchmarks/live-scores'");
+    expect(source).toContain("app.post('/api/admin/benchmarks/live-monitoring'");
   });
 
   it('Ask uses the promoted endpoint without changing Connections', () => {
     const source = fs.readFileSync(path.join(__dirname, 'insights-routes.ts'), 'utf8');
     expect(source).toContain('resolveAskEndpoint');
     expect(source).toContain('The endpoint is the promoted winner when Benchmarking saved one');
+  });
+
+  it('scores sampled Ask turns after the answer is stored, without awaiting them', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'insights-routes.ts'), 'utf8');
+    expect(source).toContain('scheduleLiveAskScore');
+    expect(source).toContain('never awaited');
+    expect(source).toContain('void readBenchmarkSettings');
   });
 });

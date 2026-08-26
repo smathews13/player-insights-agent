@@ -7,11 +7,14 @@ import {
   uniqueQuestionsToAdd,
 } from '../../shared/eval-dataset';
 import { LastSuiteSchema, PromotedAgentSchema, rememberAccuracy } from '../../shared/eval-flywheel';
+import { DEFAULT_LIVE_SAMPLE_RATE } from '../../shared/eval-live-scoring';
 import { recordAdminAction } from '../lib/admin-roles';
 import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
 import { readEvalDataset, writeEvalDataset } from '../lib/eval-dataset-store';
 import { patchFlywheelState, readFlywheelState } from '../lib/eval-flywheel-store';
+import { listLiveScores } from '../lib/eval-live-score-store';
 import { createGenieAsker, runGenieAccuracy } from '../lib/genie-accuracy';
+import { probeWorkspaceMonitoring } from '../lib/live-monitoring';
 import { forwardedUserToken } from './access-verification';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
@@ -43,6 +46,52 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
     app.get('/api/benchmarks/flywheel', async (_req, res) => {
       const flywheel = await readFlywheelState(appkit, { maxAgeMs: 0 });
       res.json({ flywheel });
+    });
+
+    app.get('/api/benchmarks/live-scores', async (_req, res) => {
+      const [scores, settings] = await Promise.all([
+        listLiveScores(appkit),
+        readBenchmarkSettings(appkit, { maxAgeMs: 0 }),
+      ]);
+      res.json({
+        scores,
+        sampleRate: DEFAULT_LIVE_SAMPLE_RATE,
+        alwaysOnTraces: settings.alwaysOnTraces,
+        workspace: {
+          status: 'unknown',
+          note: 'Open “Check workspace monitoring” to list scorers already registered on the experiment. This list is the in-app hook, not a fabricated MLflow monitor.',
+          scorers: [],
+        },
+      });
+    });
+
+    app.post('/api/admin/benchmarks/live-monitoring', async (req, res) => {
+      const actor = userEmail(req);
+      const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+      const experimentId = settings.experimentId.trim();
+      let workspace;
+      try {
+        const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+        const client = new WorkspaceClient({});
+        workspace = await probeWorkspaceMonitoring(client, experimentId);
+      } catch (error) {
+        workspace = {
+          status: 'blocked' as const,
+          note: `Workspace monitoring could not be reached: ${(error as Error).message} Sampled Ask turns are still scored in this app.`,
+          scorers: [],
+        };
+      }
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: 'eval-live-monitoring-probed',
+        subject: 'eval-live-scores',
+        detail: workspace.note,
+      });
+      res.json({
+        workspace,
+        sampleRate: DEFAULT_LIVE_SAMPLE_RATE,
+        alwaysOnTraces: settings.alwaysOnTraces,
+      });
     });
 
     app.put('/api/admin/benchmarks/dataset', async (req, res) => {

@@ -650,7 +650,9 @@ export type AdminAction =
   /** An admin aligned judge guidelines from labelled evaluation rows. */
   | 'eval-guidelines-aligned'
   /** An admin promoted a bake-off winner for the next Ask. */
-  | 'eval-agent-promoted';
+  | 'eval-agent-promoted'
+  /** An admin asked this app to list or start workspace production scorers. */
+  | 'eval-live-monitoring-probed';
 
 /**
  * Record what an admin did: who, when, what.

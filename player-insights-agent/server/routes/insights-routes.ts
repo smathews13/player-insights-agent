@@ -34,6 +34,7 @@ import { workspaceLinksAllowed } from '../lib/egress-store';
 import { ADMIN_ROLES_DDL } from '../lib/admin-roles-schema';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
 import { readBenchmarkSettings } from '../lib/benchmark-settings-store';
+import { scheduleLiveAskScore } from '../lib/live-ask-scoring';
 import { CURRENT_AGENT_SIDE } from '../../shared/benchmark-settings';
 import {
   DEPLOYMENT_DECISIONS_TABLE_NAME,
@@ -4640,6 +4641,44 @@ export function setupInsightsRoutes(
           ? { to: 'SUCCEEDED', traceId: disclosed.trace.id, messageId: disclosed.id }
           : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: disclosed.trace.id }
       );
+      // AFTER the answer is stored, never awaited. A sampled turn is scored
+      // without a Benchmarking click. A failure here must not change the reply.
+      void readBenchmarkSettings(appkit)
+        .then(async (settings) => {
+          const judgeEndpoint = settings.judgeEndpoint.trim();
+          let invokeJudge;
+          if (judgeEndpoint) {
+            const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+            if (!workspaceClient) workspaceClient = new WorkspaceClient({});
+            const client = workspaceClient;
+            invokeJudge = (payload: Record<string, unknown>) =>
+              client.apiClient.request({
+                path: servingInvocationPath(judgeEndpoint),
+                method: 'POST',
+                payload,
+                raw: false,
+              });
+          }
+          scheduleLiveAskScore({
+            client: appkit,
+            settings,
+            invokeJudge,
+            turn: {
+              conversationId,
+              messageId: disclosed.id,
+              traceId: disclosed.trace.id,
+              question: prompt,
+              response: [disclosed.takeaway, disclosed.narrative].filter(Boolean).join('\n'),
+              sql: disclosed.sql ?? '',
+              note: '',
+              durationMs: disclosed.trace.totalMs,
+              context: disclosed.sql ?? '',
+            },
+          });
+        })
+        .catch((error) => {
+          console.warn('[eval-live-scores] Sampled Ask scoring was not started:', (error as Error).message);
+        });
       // Reported in the body rather than in a header, because the streaming
       // caller's headers were flushed before the agent was even invoked, by the
       // time this is known there is no status line or header left to say it with.

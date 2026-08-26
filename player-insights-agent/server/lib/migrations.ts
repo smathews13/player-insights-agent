@@ -468,6 +468,20 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     ],
     down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_flywheel`],
   },
+  {
+    version: 14,
+    name: 'live eval scores',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.eval_live_scores (
+         id TEXT PRIMARY KEY,
+         scored_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         conversation_id TEXT NOT NULL,
+         message_id TEXT NOT NULL,
+         score JSONB NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_live_scores`],
+  },
 ];
 
 /**

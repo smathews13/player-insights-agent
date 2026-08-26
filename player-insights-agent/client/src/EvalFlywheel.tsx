@@ -27,6 +27,11 @@ import type { ResourceRow } from './connection-model';
 import type { Run, RunTrace } from './app-types';
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
 import {
+  liveScoreSummary,
+  type LiveTraceScore,
+  type WorkspaceMonitor,
+} from '../../shared/eval-live-scoring';
+import {
   Alert,
   AlertDescription,
   Button,
@@ -131,6 +136,10 @@ export function EvalFlywheel({
   const [curatePicked, setCuratePicked] = useState<string[]>([]);
   const [curateNote, setCurateNote] = useState<string | null>(null);
   const [curateLoading, setCurateLoading] = useState(false);
+  const [liveScores, setLiveScores] = useState<LiveTraceScore[]>([]);
+  const [liveSampleRate, setLiveSampleRate] = useState(0.2);
+  const [workspaceMonitor, setWorkspaceMonitor] = useState<WorkspaceMonitor | null>(null);
+  const [liveMonitorNote, setLiveMonitorNote] = useState<string | null>(null);
 
   const loadFlywheel = useCallback(async () => {
     const response = await fetch('/api/benchmarks/flywheel');
@@ -163,11 +172,12 @@ export function EvalFlywheel({
     setDatasetState('loading');
     setDatasetError(null);
     try {
-      const [datasetResponse, settingsResponse, connections, flywheelState] = await Promise.all([
+      const [datasetResponse, settingsResponse, connections, flywheelState, liveResponse] = await Promise.all([
         fetch('/api/benchmarks/dataset'),
         fetch('/api/benchmark-settings'),
         fetch('/api/settings'),
         loadFlywheel(),
+        fetch('/api/benchmarks/live-scores'),
       ]);
       if (!datasetResponse.ok) throw new Error('The evaluation dataset could not be read.');
       const body = (await datasetResponse.json()) as { dataset?: EvalDataset };
@@ -196,6 +206,16 @@ export function EvalFlywheel({
         setJudgeNote(
           `Phase B uses ${DEFAULT_BENCHMARK_SETTINGS.judgeEndpoint}. Change that in Settings → Experimental.`
         );
+      }
+      if (liveResponse.ok) {
+        const live = (await liveResponse.json()) as {
+          scores?: LiveTraceScore[];
+          sampleRate?: number;
+          workspace?: WorkspaceMonitor;
+        };
+        setLiveScores(Array.isArray(live.scores) ? live.scores : []);
+        if (typeof live.sampleRate === 'number') setLiveSampleRate(live.sampleRate);
+        if (live.workspace) setWorkspaceMonitor(live.workspace);
       }
       if (connections.ok) {
         const payload = (await connections.json()) as { resources?: ResourceRow[] };
@@ -398,6 +418,22 @@ export function EvalFlywheel({
     }
   };
 
+  const checkWorkspaceMonitoring = async () => {
+    setLiveMonitorNote(null);
+    const response = await fetch('/api/admin/benchmarks/live-monitoring', { method: 'POST' });
+    const body = (await response.json().catch(() => null)) as { workspace?: WorkspaceMonitor; message?: unknown } | null;
+    if (!response.ok || !body?.workspace) {
+      setLiveMonitorNote(
+        typeof body?.message === 'string'
+          ? body.message
+          : 'Workspace monitoring could not be checked. Sampled Ask turns are still scored here.'
+      );
+      return;
+    }
+    setWorkspaceMonitor(body.workspace);
+    setLiveMonitorNote(body.workspace.note);
+  };
+
   const addCurated = async () => {
     if (curatePicked.length === 0) return;
     const response = await fetch('/api/admin/benchmarks/dataset/curate', {
@@ -459,6 +495,50 @@ export function EvalFlywheel({
           write Genie space instructions.
         </li>
       </ol>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Always-on scoring</CardTitle>
+          <CardDescription>
+            About {Math.round(liveSampleRate * 100)}% of Ask turns get the same deterministic checks and
+            judges without a Benchmarking run. Workspace production scorers are listed when this app can
+            see them — never invented.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {workspaceMonitor ? (
+            <p className="settings-row-note">
+              Workspace monitoring: {workspaceMonitor.status}
+              {workspaceMonitor.scorers.length > 0 ? ` · ${workspaceMonitor.scorers.join(', ')}` : ''}.{' '}
+              {workspaceMonitor.note}
+            </p>
+          ) : (
+            <p className="settings-row-note">
+              Sampled Ask turns are scored in this app. Check workspace monitoring to see whether MLflow
+              already has production scorers on the experiment.
+            </p>
+          )}
+          <div className="eval-dataset-actions">
+            <Button type="button" variant="outline" onClick={() => void checkWorkspaceMonitoring()}>
+              Check workspace monitoring
+            </Button>
+          </div>
+          {liveMonitorNote ? <p className="settings-row-note">{liveMonitorNote}</p> : null}
+          {liveScores.length > 0 ? (
+            <ul className="eval-accuracy-cases">
+              {liveScores.map((score) => (
+                <li key={score.id}>
+                  <strong>{liveScoreSummary(score)}</strong>
+                  {' · '}
+                  {score.question || 'Ask turn'}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="settings-row-note">No sampled Ask scores yet. Ask something, then come back.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
