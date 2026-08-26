@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import mlflow
 
 from llm_usage import TOKEN_USAGE_ATTR, record_llm_usage, usage_from_response
-from tests.test_agent import Call, ScriptedLlm, ask, build
+from tests.test_agent import CHART_QUESTION, Call, ScriptedLlm, ask, build
 
 
 def test_usage_from_response_reads_openai_shaped_usage():
@@ -70,10 +70,11 @@ def test_answer_trace_aggregates_usage_from_fake_client():
         usage={"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14},
     )
 
-    answer = ask(build(llm)).custom_outputs["answer"]
+    answer = ask(build(llm), question=CHART_QUESTION).custom_outputs["answer"]
     trace = answer["trace"]
 
     # Two loop turns (tool call, then closing prose) + synthesis + plot.
+    # Plot only runs when the question asks for a chart; the default ask does not.
     assert len(llm.loop_calls) == 2
     assert trace["prompt_tokens"] == 40
     assert trace["completion_tokens"] == 16

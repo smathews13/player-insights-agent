@@ -150,7 +150,7 @@ describe('the deployment source links', () => {
     expect([...markup.matchAll(/target="_blank"/g)]).toHaveLength(2);
     expect([...markup.matchAll(/rel="noreferrer noopener"/g)]).toHaveLength(2);
     expect(text(markup)).toContain('App source player-insights-agent/build/deploy');
-    expect(text(markup)).toContain('GitHub <your-username>/player-insights-agent · main');
+    expect(text(markup)).toContain('GitHub <your-username>/astrolabe_public · main');
   });
 
   /**

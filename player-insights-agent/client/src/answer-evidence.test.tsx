@@ -76,7 +76,7 @@ describe('both surfaces that show an answer', () => {
   it('prints only the prose of the narrative, leaving its tables to the evidence', () => {
     // Unqualified, this printed every block including the tables, which is how
     // the Explorer came to show rows a chart was already showing.
-    expect(finalAnswer).toMatch(/text=\{narrative\}[\s\S]{0,80}blocks="prose"/);
+    expect(finalAnswer).toMatch(/text=\{story\}[\s\S]{0,80}blocks="prose"/);
   });
 
   it('keeps the charts-or-rows rule out of the card, so it cannot drift', () => {

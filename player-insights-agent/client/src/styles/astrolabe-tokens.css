@@ -296,6 +296,22 @@
   --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-white));
   --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-navy));
 
+  /*
+   * Explorer timeline kind colours. These match the notebook span viz the
+   * Timeline was rebuilt to read like: one hue per kind, used only on that
+   * drawing. They are not a sixth meaning for the rest of the app.
+   */
+  --ast-trace-llm-ink: #1f6b45;
+  --ast-trace-llm-bar: #7ec8a0;
+  --ast-trace-sql-ink: #1a5f8a;
+  --ast-trace-sql-bar: #7eb6d9;
+  --ast-trace-discovery-ink: #7a5a18;
+  --ast-trace-discovery-bar: #d4b56a;
+  --ast-trace-plot-ink: #6b3d86;
+  --ast-trace-plot-bar: #c49ad4;
+  --ast-trace-clarify-ink: #8a4b1a;
+  --ast-trace-clarify-bar: #d9a06c;
+
   /* ---- Type scale (§3) ---- */
   --ast-fs-11: 11px;
   --ast-fs-12: 12px;
@@ -373,6 +389,7 @@ html[data-theme='dark'] {
   --ast-blue: var(--ast-ice-accent);
   --ast-seg-pressed: var(--db-blue-700);
   --ast-seg-pressed-ink: var(--ast-ink-on-dark);
+  --ast-entity-tag-on-navy: #243746;
 }
 
 /*

@@ -112,7 +112,7 @@ export interface AppCompute {
  * gate has always named this one. Stated once here so the gate and the
  * Connections tab cannot come to name two different repositories.
  */
-export const PUBLIC_SOURCE_REPO_URL = 'https://github.com/smathews13/player-insights-agent';
+export const PUBLIC_SOURCE_REPO_URL = 'https://github.com/smathews13/astrolabe_public';
 
 /** Where the source of the running deployment can be opened, per live metadata. */
 export interface AppSource {

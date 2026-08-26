@@ -134,7 +134,7 @@ describe('no screen narrates under its own title', () => {
     // over a table that states all three itself.
     const source = code('OpsPage.tsx');
     expect(source).toContain('<PageHeading title="Ops" />');
-    expect(source).toContain("<span className=\"ops-block-meta\">By route</span>");
+    expect(source).toContain('meta="By route"');
     expect(source).not.toContain('vs each route');
   });
 

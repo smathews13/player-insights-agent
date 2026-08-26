@@ -486,9 +486,10 @@ describe('dark mode covers the shipped surfaces', () => {
       new RegExp(`--ast-entity-column-bg:\\s*var\\(--entity-column-bg,\\s*${DEFAULT_ENTITY_STYLES.column.background}\\)`)
     );
     expect(DARK).toMatch(/--ast-entity-quote-bg:\s*var\(--entity-quote-bg,\s*var\(--ast-surface-solid\)\)/);
-    expect(DARK).toMatch(
-      new RegExp(`--ast-entity-tag-bg:\\s*var\\(--entity-tag-bg,\\s*${DEFAULT_ENTITY_STYLES.tag.background}\\)`)
+    expect(ASTROLABE).toMatch(
+      new RegExp(`--ast-entity-tag-on-navy:\\s*${DEFAULT_ENTITY_STYLES.tag.background}`, 'i')
     );
+    expect(DARK).toMatch(/--ast-entity-tag-bg:\s*var\(--entity-tag-bg,\s*var\(--ast-entity-tag-on-navy\)\)/);
     for (const paper of ['#ddeaf4', '#e8e8e8', '#f4f4f4', '#f7f7f7']) {
       expect(DARK, `${paper} is still an entity fallback`).not.toMatch(
         new RegExp(`--ast-entity-[a-z]+-bg:\\s*var\\(--entity-[a-z]+-bg,\\s*${paper}\\)`, 'i')

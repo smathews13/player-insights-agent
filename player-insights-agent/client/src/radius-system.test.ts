@@ -89,6 +89,12 @@ const EXCEPTIONS: Record<string, { value: string; because: string }[]> = {
     { value: '2px', because: 'the same bar in the trace timeline' },
     { value: '2px', because: 'the run envelope drawn around it, which has to match' },
   ],
+  'runs.css': [
+    {
+      value: '3px',
+      because: 'inline identifier chips on a stored answer; 4px would round a one-line mark into a lozenge',
+    },
+  ],
 };
 
 describe('two radii, and the exceptions say why they are exceptions', () => {

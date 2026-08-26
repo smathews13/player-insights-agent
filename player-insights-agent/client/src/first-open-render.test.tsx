@@ -23,6 +23,7 @@ import {
   DISCLAIMER_BODY,
   FIRST_OPEN_KEY,
   FIRST_OPEN_OUTCOME_KEY,
+  SOURCE_URL,
   acknowledgeFirstOpen,
   firstOpenAcknowledged,
   firstOpenOutcome,
@@ -326,7 +327,7 @@ describe('the disclaimer', () => {
       expect(text(markup)).toContain(DISCLAIMER_BODY);
       expect(markup).toContain('Not official Databricks software');
       expect(markup).toContain('Source on GitHub');
-      expect(markup).toContain('https://github.com/smathews13/player-insights-agent');
+      expect(markup).toContain(SOURCE_URL);
     }
   });
 

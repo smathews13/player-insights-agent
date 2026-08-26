@@ -350,7 +350,7 @@ live app.
 
    | Setting | Value |
    | --- | --- |
-   | Repository | `https://github.com/smathews13/player-insights-agent` |
+   | Repository | `https://github.com/smathews13/astrolabe_public` |
    | Provider | **GitHub** |
    | Branch / reference | **`main`** (reference type **Branch**) |
    | Source code path | **`player-insights-agent/build/deploy`** |

@@ -491,29 +491,29 @@ html[data-theme='dark'] .trace-dag.map .dag-detail {
  * still read without blasting contrast on the dark shell.
  */
 html[data-theme='dark'] .trace-timeline--explorer .trace-chip-llm {
-  background: rgba(126, 200, 160, 0.22);
+  background: color-mix(in srgb, var(--ast-trace-llm-bar) 22%, transparent);
   color: #b8ebcf;
-  border-color: rgba(126, 200, 160, 0.45);
+  border-color: color-mix(in srgb, var(--ast-trace-llm-bar) 45%, transparent);
 }
 html[data-theme='dark'] .trace-timeline--explorer .trace-chip-sql {
-  background: rgba(126, 182, 217, 0.22);
+  background: color-mix(in srgb, var(--ast-trace-sql-bar) 22%, transparent);
   color: #b5daf0;
-  border-color: rgba(126, 182, 217, 0.45);
+  border-color: color-mix(in srgb, var(--ast-trace-sql-bar) 45%, transparent);
 }
 html[data-theme='dark'] .trace-timeline--explorer .trace-chip-discovery {
-  background: rgba(212, 181, 106, 0.22);
+  background: color-mix(in srgb, var(--ast-trace-discovery-bar) 22%, transparent);
   color: #ebd9a8;
-  border-color: rgba(212, 181, 106, 0.45);
+  border-color: color-mix(in srgb, var(--ast-trace-discovery-bar) 45%, transparent);
 }
 html[data-theme='dark'] .trace-timeline--explorer .trace-chip-plot {
-  background: rgba(196, 154, 212, 0.22);
+  background: color-mix(in srgb, var(--ast-trace-plot-bar) 22%, transparent);
   color: #e0c4ef;
-  border-color: rgba(196, 154, 212, 0.45);
+  border-color: color-mix(in srgb, var(--ast-trace-plot-bar) 45%, transparent);
 }
 html[data-theme='dark'] .trace-timeline--explorer .trace-chip-clarify {
-  background: rgba(217, 160, 108, 0.22);
+  background: color-mix(in srgb, var(--ast-trace-clarify-bar) 22%, transparent);
   color: #f0d0b0;
-  border-color: rgba(217, 160, 108, 0.45);
+  border-color: color-mix(in srgb, var(--ast-trace-clarify-bar) 45%, transparent);
 }
 html[data-theme='dark'] .trace-timeline--explorer .trace-chip-agent,
 html[data-theme='dark'] .trace-timeline--explorer .trace-chip-run {
@@ -993,7 +993,7 @@ html[data-theme='dark'] {
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-icon-tint));
   --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-surface-solid));
   --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-ink-on-dark));
-  --ast-entity-tag-bg: var(--entity-tag-bg, #243746);
+  --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-entity-tag-on-navy));
 }
 
 /*
