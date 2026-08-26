@@ -175062,6 +175062,17 @@ async function tagTargetOnce(target, platform) {
     detail: target.reason ?? "Databricks does not expose a custom tag API for this connected resource."
   };
 }
+async function readAppBillingTag(appName, platform) {
+  const name2 = appName.trim();
+  if (!name2) return "unverified";
+  try {
+    const adapter = platform ?? await workspaceTagPlatform();
+    const current = await adapter.getAppTag(name2);
+    return current === ASTROLABE_TAG.value ? "matched" : "missing";
+  } catch {
+    return "unverified";
+  }
+}
 async function applyAstrolabeTags(input) {
   const platform = input.platform ?? await workspaceTagPlatform();
   const environment = input.environment ?? process.env;
@@ -177694,6 +177705,22 @@ function genieSpaceTiles(ids) {
     note: ""
   }));
 }
+function appComputeTagAbsence(state) {
+  const pair = billingTagPair();
+  if (state === "matched") {
+    return { unavailable: "Billing tag matched", remedy: `${pair} is on this app.` };
+  }
+  if (state === "missing") {
+    return {
+      unavailable: "Billing tag missing",
+      remedy: `Apply ${pair} in Settings \u2192 Environment.`
+    };
+  }
+  return {
+    unavailable: "Billing tag match unverified",
+    remedy: `The app tag ${pair} could not be read.`
+  };
+}
 function componentTile(component, ids, byComponent) {
   const description = DESCRIPTIONS[component];
   const base = {
@@ -177738,12 +177765,13 @@ function componentTile(component, ids, byComponent) {
   const row2 = byComponent.get(component);
   if (!row2 || row2.spend === null || !Number.isFinite(row2.spend)) {
     if (component === "app-compute") {
+      const absence = appComputeTagAbsence(ids.appBillingTag);
       return {
         ...base,
         amount: null,
         note: "",
-        unavailable: "Billing tag match unverified",
-        remedy: `Verify whether app compute propagates ${BILLING_TAG.key}=${BILLING_TAG.value}.`
+        unavailable: absence.unavailable,
+        remedy: absence.remedy
       };
     }
     return { ...base, amount: null, note: "", unavailable: "No billing rows", remedy: "" };
@@ -177921,7 +177949,7 @@ var init_ops_billing = __esm({
       {
         id: "app-compute",
         label: "App compute",
-        unavailable: "Compute time cannot be joined to one run; billing-tag propagation also needs live verification."
+        unavailable: "Compute time cannot be joined to one run."
       },
       {
         id: "foundation-model",
@@ -178015,10 +178043,12 @@ function shownConnectionValue(state) {
   return (state.intended ?? (state.configured || state.actual)).trim();
 }
 async function costIdentifiersFor(appkit, req, extras) {
-  const [{ report }, stored, declared] = await Promise.all([
+  const appName = (process.env.DATABRICKS_APP_NAME ?? "").trim();
+  const [{ report }, stored, declared, appBillingTag] = await Promise.all([
     readOrchestratorReport(appkit),
     readStoredSettings(appkit).catch(() => /* @__PURE__ */ new Map()),
-    readDeclaredConnections(appkit)
+    readDeclaredConnections(appkit),
+    (extras.readAppBillingTag ?? readAppBillingTag)(appName)
   ]);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   const configured = Object.fromEntries(states.map((state) => [state.resource.id, shownConnectionValue(state)]));
@@ -178053,14 +178083,15 @@ async function costIdentifiersFor(appkit, req, extras) {
     });
   }
   return {
-    appName: (process.env.DATABRICKS_APP_NAME ?? "").trim(),
+    appName,
     endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
     warehouseId: extras.warehouse,
     vectorEndpoint,
     vectorIndex,
     genieSpaces: spaces.filter((space) => space.id),
     workspaceId: extras.workspaceId,
-    telemetryEnabled: Boolean(telemetrySchema())
+    telemetryEnabled: Boolean(telemetrySchema()),
+    appBillingTag
   };
 }
 async function runStatement2(input) {
@@ -178356,7 +178387,8 @@ function setupOpsRoutes(appkit, deps) {
       const ids = await costIdentifiersFor(appkit, req, {
         workspaceId,
         warehouse,
-        fetchImpl: deps.fetchImpl
+        fetchImpl: deps.fetchImpl,
+        readAppBillingTag: deps.readAppBillingTag
       });
       const empty = {
         grant: null,
@@ -178433,7 +178465,7 @@ function setupOpsRoutes(appkit, deps) {
             currency: meta3?.currency ?? "",
             throughDay: meta3?.lastDay || "",
             billingLagDays: lagDays(range.to, meta3?.lastDay || ""),
-            reason: "No billing rows matched the Astrolabe tag in this range. Whether Databricks Apps propagates that tag onto app-compute billing must be verified in the live workspace."
+            reason: "No billing rows matched the Astrolabe tag in this range."
           });
           return;
         }
@@ -178588,6 +178620,7 @@ var init_ops_routes = __esm({
     init_app_settings();
     init_declared_connections();
     init_databricks_links();
+    init_resource_tagging();
     init_settings_routes();
     init_run_failure_codes();
     init_insights_routes();
