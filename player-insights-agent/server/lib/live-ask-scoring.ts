@@ -35,12 +35,6 @@ export interface LiveAskTurn {
   turns?: { role: string; content: string }[];
 }
 
-const JUDGE_BY_SETTING = {
-  groundedness: GROUNDEDNESS_FEEDBACK_NAME,
-  relevance: RELEVANCE_TO_QUERY_ASSESSMENT_NAME,
-  guidelines: GUIDELINES_FEEDBACK_NAME,
-} as const;
-
 export function liveScoreId(conversationId: string, messageId: string): string {
   return `live-${conversationId}-${messageId}`.slice(0, 80);
 }

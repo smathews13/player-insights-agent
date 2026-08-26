@@ -28,6 +28,33 @@ const CurateBody = z.object({
   questions: z.array(z.string().trim().max(2000)).max(100),
 });
 
+type WorkspaceMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+function workspaceApiRequest(
+  client: {
+    apiClient: {
+      request: (options: {
+        path: string;
+        method: WorkspaceMethod;
+        query?: Record<string, string>;
+        payload?: unknown;
+        headers: Headers;
+        raw: boolean;
+      }) => Promise<unknown>;
+    };
+  },
+  input: { method: string; path: string; query?: Record<string, string>; payload?: Record<string, unknown> }
+) {
+  return client.apiClient.request({
+    path: input.path,
+    method: input.method as WorkspaceMethod,
+    query: input.query,
+    payload: input.payload,
+    headers: new Headers({ Accept: 'application/json' }),
+    raw: false,
+  });
+}
+
 const LastSuiteBody = LastSuiteSchema.extend({
   runIds: z.array(z.string().trim().min(1).max(80)).max(4).default([]),
   sides: z.array(z.string().trim().max(200)).max(4).default([]),
@@ -74,7 +101,10 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
       try {
         const { WorkspaceClient } = await import('@databricks/sdk-experimental');
         const client = new WorkspaceClient({});
-        workspace = await probeWorkspaceMonitoring(client, experimentId);
+        workspace = await probeWorkspaceMonitoring(
+          { apiClient: { request: (input) => workspaceApiRequest(client, input) } },
+          experimentId
+        );
       } catch (error) {
         workspace = {
           status: 'blocked' as const,
@@ -167,16 +197,15 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           const client = new WorkspaceClient({});
           alignClient = {
             request: ({ method, path, payload }: { method: string; path: string; payload?: Record<string, unknown> }) =>
-              client.apiClient.request({ method, path, payload, raw: false }),
+              workspaceApiRequest(client, { method, path, payload }),
           };
           const judgeEndpoint = settings.judgeEndpoint.trim();
           if (judgeEndpoint) {
             invokeJudge = (payload: Record<string, unknown>) =>
-              client.apiClient.request({
+              workspaceApiRequest(client, {
                 path: servingInvocationPath(judgeEndpoint),
                 method: 'POST',
                 payload,
-                raw: false,
               });
           }
         } catch {
@@ -238,7 +267,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           promotedPrompt = await promotePromptAlias(
             {
               request: ({ method, path, payload }) =>
-                client.apiClient.request({ method, path, payload, raw: false }),
+                workspaceApiRequest(client, { method, path, payload }),
             },
             { name: promptName, template }
           );
@@ -289,7 +318,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
         session = await startLabelingSession(
           {
             request: ({ method, path, payload }) =>
-              client.apiClient.request({ method, path, payload, raw: false }),
+              workspaceApiRequest(client, { method, path, payload }),
           },
           { name, experimentId: settings.experimentId }
         );
@@ -351,11 +380,10 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
             const { WorkspaceClient } = await import('@databricks/sdk-experimental');
             const client = new WorkspaceClient({});
             invokeJudge = (payload: Record<string, unknown>) =>
-              client.apiClient.request({
+              workspaceApiRequest(client, {
                 path: servingInvocationPath(judgeEndpoint),
                 method: 'POST',
                 payload,
-                raw: false,
               });
           } catch {
             invokeJudge = undefined;

@@ -1172,6 +1172,7 @@ describe('serving request body', () => {
       history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
       prompt: NONTRIVIAL_QUESTION,
       conversationId: 'conv-1',
+      attachmentText: '',
       evalGuidance: 'Stay inside governed tables.',
     });
     expect(body.custom_inputs).toMatchObject({

@@ -1,0 +1,1 @@
+import{r as e}from"./rolldown-runtime-DGruFWvd.js";import{U as t}from"./appkit-ui-DRtL6YRD.js";var n=e(t());const r=`Experimental: this pane may be unstable or may not work as expected.`;function i(){return(0,n.jsx)(`span`,{className:`ast-pill ast-pill--warn experimental-pane-badge`,title:r,"aria-label":r,children:`Experimental`})}export{i as t};

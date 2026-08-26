@@ -11,6 +11,7 @@ function score(id: string): LiveTraceScore {
     messageId: 'msg-1',
     traceId: 'tr-abc',
     question: 'How many players?',
+    turnCount: 1,
     sampled: true,
     sampleRate: 0.2,
     checks: [],

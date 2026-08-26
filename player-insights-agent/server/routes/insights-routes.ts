@@ -4663,6 +4663,7 @@ export function setupInsightsRoutes(
                 path: servingInvocationPath(judgeEndpoint),
                 method: 'POST',
                 payload,
+                headers: new Headers({ Accept: 'application/json' }),
                 raw: false,
               });
           }

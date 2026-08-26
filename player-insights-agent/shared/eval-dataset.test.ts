@@ -131,7 +131,7 @@ describe('judge selection', () => {
   it('builds extra judges from settings without inventing a score', () => {
     const extras = extraJudgesFromSettings({
       enabledMultiTurnJudges: ['conversation_completeness', 'conversational_guidelines'],
-      customJudges: [{ name: 'english', guidelines: 'The response must be in English.' }],
+      customJudges: [{ name: 'english', guidelines: 'The response must be in English.', prompt: '' }],
       guidelinesText: 'Be professional.',
     });
     expect(extras).toEqual([

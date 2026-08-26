@@ -3740,7 +3740,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached3 = cache3.get(memoKey);
+        const cached3 = cache6.get(memoKey);
         if (cached3) {
           return cached3;
         }
@@ -3774,7 +3774,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache3.set(memoKey, result);
+        cache6.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -3813,7 +3813,7 @@ var require_range = __commonJS({
     };
     module2.exports = Range;
     var LRU = require_lrucache();
-    var cache3 = new LRU();
+    var cache6 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -5898,12 +5898,12 @@ var require_utils_legacy = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text16) {
-      return nodeCrypto.createHash("sha256").update(text16).digest();
+    function sha2562(text17) {
+      return nodeCrypto.createHash("sha256").update(text17).digest();
     }
-    function hashByName(hashName, text16) {
+    function hashByName(hashName, text17) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text16).digest();
+      return nodeCrypto.createHash(hashName).update(text17).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -5956,11 +5956,11 @@ var require_utils_webcrypto = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text16) {
-      return await subtleCrypto.digest("SHA-256", text16);
+    async function sha2562(text17) {
+      return await subtleCrypto.digest("SHA-256", text17);
     }
-    async function hashByName(hashName, text16) {
-      return await subtleCrypto.digest(hashName, text16);
+    async function hashByName(hashName, text17) {
+      return await subtleCrypto.digest(hashName, text17);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -6181,21 +6181,21 @@ var require_sasl = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text16) {
-      if (typeof text16 !== "string") {
+    function isPrintableChars(text17) {
+      if (typeof text17 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text16.split("").map((_, i) => text16.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text17.split("").map((_, i) => text17.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text16) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text16);
+    function isBase64(text17) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text17);
     }
-    function parseAttributePairs(text16) {
-      if (typeof text16 !== "string") {
+    function parseAttributePairs(text17) {
+      if (typeof text17 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text16.split(",").map((attrValue) => {
+        text17.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -7054,9 +7054,9 @@ var require_messages = __commonJS({
     };
     exports2.ReadyForQueryMessage = ReadyForQueryMessage;
     var CommandCompleteMessage = class {
-      constructor(length, text16) {
+      constructor(length, text17) {
         this.length = length;
-        this.text = text16;
+        this.text = text17;
         this.name = "commandComplete";
       }
     };
@@ -7205,8 +7205,8 @@ var require_serializer = __commonJS({
         /* code.startup */
       );
     };
-    var query = (text16) => {
-      return writer.addCString(text16).flush(
+    var query = (text17) => {
+      return writer.addCString(text17).flush(
         81
         /* code.query */
       );
@@ -7326,8 +7326,8 @@ var require_serializer = __commonJS({
       return msg.name ? cstringMessage(68, `${msg.type}${msg.name || ""}`) : msg.type === "P" ? emptyDescribePortal : emptyDescribeStatement;
     };
     var close = (msg) => {
-      const text16 = `${msg.type}${msg.name || ""}`;
-      return cstringMessage(67, text16);
+      const text17 = `${msg.type}${msg.name || ""}`;
+      return cstringMessage(67, text17);
     };
     var copyData = (chunk) => {
       return writer.add(chunk).flush(
@@ -7599,8 +7599,8 @@ var require_parser = __commonJS({
       return new messages_1.ReadyForQueryMessage(LATEINIT_LENGTH, status);
     };
     var parseCommandCompleteMessage = (reader) => {
-      const text16 = reader.cstring();
-      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text16);
+      const text17 = reader.cstring();
+      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text17);
     };
     var parseCopyData = (reader, length) => {
       const chunk = reader.bytes(length - 4);
@@ -7967,8 +7967,8 @@ var require_connection = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text16) {
-        this._send(serialize.query(text16));
+      query(text17) {
+        this._send(serialize.query(text17));
       }
       // send parse message
       parse(query) {
@@ -9164,12 +9164,12 @@ var require_utils_legacy2 = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text16) {
-      return nodeCrypto.createHash("sha256").update(text16).digest();
+    function sha2562(text17) {
+      return nodeCrypto.createHash("sha256").update(text17).digest();
     }
-    function hashByName(hashName, text16) {
+    function hashByName(hashName, text17) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text16).digest();
+      return nodeCrypto.createHash(hashName).update(text17).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -9222,11 +9222,11 @@ var require_utils_webcrypto2 = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text16) {
-      return await subtleCrypto.digest("SHA-256", text16);
+    async function sha2562(text17) {
+      return await subtleCrypto.digest("SHA-256", text17);
     }
-    async function hashByName(hashName, text16) {
-      return await subtleCrypto.digest(hashName, text16);
+    async function hashByName(hashName, text17) {
+      return await subtleCrypto.digest(hashName, text17);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -9447,21 +9447,21 @@ var require_sasl2 = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text16) {
-      if (typeof text16 !== "string") {
+    function isPrintableChars(text17) {
+      if (typeof text17 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text16.split("").map((_, i) => text16.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text17.split("").map((_, i) => text17.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text16) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text16);
+    function isBase64(text17) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text17);
     }
-    function parseAttributePairs(text16) {
-      if (typeof text16 !== "string") {
+    function parseAttributePairs(text17) {
+      if (typeof text17 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text16.split(",").map((attrValue) => {
+        text17.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -10186,8 +10186,8 @@ var require_connection2 = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text16) {
-        this._send(serialize.query(text16));
+      query(text17) {
+        this._send(serialize.query(text17));
       }
       // send parse message
       parse(query) {
@@ -11652,9 +11652,9 @@ var require_pg_pool = __commonJS({
         this._idle.push(new IdleItem(client, idleListener, tid));
         this._pulseQueue();
       }
-      query(text16, values, cb) {
-        if (typeof text16 === "function") {
-          const response2 = promisify2(this.Promise, text16);
+      query(text17, values, cb) {
+        if (typeof text17 === "function") {
+          const response2 = promisify2(this.Promise, text17);
           setImmediate(function() {
             return response2.callback(new Error("Passing a function as the first parameter to pool.query is not supported"));
           });
@@ -11682,7 +11682,7 @@ var require_pg_pool = __commonJS({
           client.once("error", onError);
           this.log("dispatching query");
           try {
-            client.query(text16, values, (err2, res) => {
+            client.query(text17, values, (err2, res) => {
               this.log("query dispatched");
               client.removeListener("error", onError);
               if (clientReleased) {
@@ -32752,11 +32752,11 @@ var require_utils19 = __commonJS({
       return repeatChar(" ", i);
     }
     function repeatChar(char, to) {
-      let text16 = "";
+      let text17 = "";
       for (let i = 0; i < to; i++) {
-        text16 += char;
+        text17 += char;
       }
-      return text16;
+      return text17;
     }
     var KindsToBeRemoved = [
       enum_1.TokenKind.FLOAT,
@@ -49920,8 +49920,8 @@ var require_common2 = __commonJS({
       }
       function redactString(obj, key2) {
         if (typeof obj === "object" && obj !== null && typeof obj[key2] === "string") {
-          const text16 = obj[key2];
-          if (/grant_type=/i.test(text16) || /assertion=/i.test(text16) || /secret/i.test(text16)) {
+          const text17 = obj[key2];
+          if (/grant_type=/i.test(text17) || /assertion=/i.test(text17) || /secret/i.test(text17)) {
             obj[key2] = REDACT;
           }
         }
@@ -52895,18 +52895,18 @@ var require_parse2 = __commonJS({
         n: "\n",
         r: "\r",
         t: "	"
-      }, text16, error48 = function(m) {
+      }, text17, error48 = function(m) {
         throw {
           name: "SyntaxError",
           message: m,
           at,
-          text: text16
+          text: text17
         };
       }, next = function(c) {
         if (c && c !== ch) {
           error48("Expected '" + c + "' instead of '" + ch + "'");
         }
-        ch = text16.charAt(at);
+        ch = text17.charAt(at);
         at += 1;
         return ch;
       }, number4 = function() {
@@ -52953,12 +52953,12 @@ var require_parse2 = __commonJS({
           var startAt = at;
           while (next()) {
             if (ch === '"') {
-              if (at - 1 > startAt) string5 += text16.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text17.substring(startAt, at - 1);
               next();
               return string5;
             }
             if (ch === "\\") {
-              if (at - 1 > startAt) string5 += text16.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text17.substring(startAt, at - 1);
               next();
               if (ch === "u") {
                 uffff = 0;
@@ -53091,7 +53091,7 @@ var require_parse2 = __commonJS({
       };
       return function(source, reviver) {
         var result;
-        text16 = source + "";
+        text17 = source + "";
         at = 0;
         ch = " ";
         result = value();
@@ -84020,9 +84020,9 @@ var require_logging = __commonJS({
       }
     }
     var allEnabled = enabledTracers.has("all");
-    function trace2(severity, tracer, text16) {
+    function trace2(severity, tracer, text17) {
       if (isTracerEnabled(tracer)) {
-        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text16);
+        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text17);
       }
     }
     function isTracerEnabled(tracer) {
@@ -85560,8 +85560,8 @@ var require_backoff_timeout = __commonJS({
       static getNextId() {
         return this.nextId++;
       }
-      trace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text16);
+      trace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text17);
       }
       runTimer(delay) {
         var _a2, _b;
@@ -85804,8 +85804,8 @@ var require_resolving_load_balancer = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var load_balancer_child_handler_1 = require_load_balancer_child_handler();
     var TRACER_NAME = "resolving_load_balancer";
-    function trace2(text16) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var NAME_MATCH_LEVEL_ORDER = [
       "SERVICE_AND_METHOD",
@@ -95301,24 +95301,24 @@ var require_umd = __commonJS({
         var INT_CACHE = {};
         var UINT_CACHE = {};
         function fromInt(value, unsigned) {
-          var obj, cachedObj, cache3;
+          var obj, cachedObj, cache6;
           if (unsigned) {
             value >>>= 0;
-            if (cache3 = 0 <= value && value < 256) {
+            if (cache6 = 0 <= value && value < 256) {
               cachedObj = UINT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, 0, true);
-            if (cache3) UINT_CACHE[value] = obj;
+            if (cache6) UINT_CACHE[value] = obj;
             return obj;
           } else {
             value |= 0;
-            if (cache3 = -128 <= value && value < 128) {
+            if (cache6 = -128 <= value && value < 128) {
               cachedObj = INT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, value < 0 ? -1 : 0, false);
-            if (cache3) INT_CACHE[value] = obj;
+            if (cache6) INT_CACHE[value] = obj;
             return obj;
           }
         }
@@ -97458,11 +97458,11 @@ var require_subchannel = __commonJS({
           target: this.subchannelAddressString
         };
       }
-      trace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
+      trace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
       }
-      refTrace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
+      refTrace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
       }
       handleBackoffTimer() {
         if (this.continueConnecting) {
@@ -97740,8 +97740,8 @@ var require_resolver_dns = __commonJS({
     var backoff_timeout_1 = require_backoff_timeout();
     var environment_1 = require_environment13();
     var TRACER_NAME = "dns_resolver";
-    function trace2(text16) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     exports2.DEFAULT_PORT = 443;
     var DEFAULT_MIN_TIME_BETWEEN_RESOLUTIONS_MS = 3e4;
@@ -98026,8 +98026,8 @@ var require_http_proxy = __commonJS({
     var url_1 = __require("url");
     var resolver_dns_1 = require_resolver_dns();
     var TRACER_NAME = "proxy";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     function getProxyInfo() {
       let proxyEnv = "";
@@ -98542,8 +98542,8 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.resume();
         }
       }
-      trace(text16) {
-        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text16);
+      trace(text17) {
+        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text17);
       }
       /**
        * On first call, emits a 'status' event with the given StatusObject.
@@ -98866,17 +98866,17 @@ var require_transport = __commonJS({
         };
         return socketInfo;
       }
-      trace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
+      trace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
       }
-      keepaliveTrace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
+      keepaliveTrace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
       }
-      flowControlTrace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
+      flowControlTrace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
       }
-      internalsTrace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text16);
+      internalsTrace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
       }
       /**
        * Indicate to the owner of this object that this transport should no longer
@@ -99100,8 +99100,8 @@ var require_transport = __commonJS({
         this.session = null;
         this.isShutdown = false;
       }
-      trace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text16);
+      trace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text17);
       }
       createSession(secureConnectResult, address, options) {
         if (this.isShutdown) {
@@ -99407,8 +99407,8 @@ var require_load_balancing_call = __commonJS({
         }
         return deadlineInfo;
       }
-      trace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text16);
+      trace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text17);
       }
       outputStatus(status, progress) {
         var _a2, _b;
@@ -99639,8 +99639,8 @@ var require_resolving_call = __commonJS({
         this.trace("Created");
         this.runDeadlineTimer();
       }
-      trace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text16);
+      trace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text17);
       }
       runDeadlineTimer() {
         clearTimeout(this.deadlineTimer);
@@ -100005,8 +100005,8 @@ var require_retrying_call = __commonJS({
       getCallNumber() {
         return this.callNumber;
       }
-      trace(text16) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text16);
+      trace(text17) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text17);
       }
       reportStatus(statusObject) {
         this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + this.startTime.toISOString());
@@ -100842,8 +100842,8 @@ var require_internal_channel = __commonJS({
         }
         this.lastActivityTimestamp = /* @__PURE__ */ new Date();
       }
-      trace(text16, verbosityOverride) {
-        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text16);
+      trace(text17, verbosityOverride) {
+        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text17);
       }
       callRefTimerRef() {
         var _a2, _b, _c, _d;
@@ -102040,8 +102040,8 @@ var require_server_interceptors = __commonJS({
     var tls_1 = __require("tls");
     var orca_1 = require_orca();
     var TRACER_NAME = "server_call";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var ServerListenerBuilder = class {
       constructor() {
@@ -102833,8 +102833,8 @@ var require_server = __commonJS({
     var { HTTP2_HEADER_PATH } = http2.constants;
     var TRACER_NAME = "server";
     var kMaxAge = Buffer.from("max_age");
-    function serverCallTrace(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text16);
+    function serverCallTrace(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text17);
     }
     function noop() {
     }
@@ -102973,11 +102973,11 @@ var require_server = __commonJS({
           };
           return socketInfo;
         }
-        trace(text16) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text16);
+        trace(text17) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text17);
         }
-        keepaliveTrace(text16) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text16);
+        keepaliveTrace(text17) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text17);
         }
         addProtoService() {
           throw new Error("Not implemented. Use addService() instead");
@@ -104288,8 +104288,8 @@ var require_load_balancer_pick_first = __commonJS({
     var net_1 = __require("net");
     var call_interface_1 = require_call_interface();
     var TRACER_NAME = "pick_first";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var TYPE_NAME = "pick_first";
     var CONNECTION_DELAY_INTERVAL_MS = 250;
@@ -104700,8 +104700,8 @@ var require_certificate_provider = __commonJS({
     var constants_1 = require_constants20();
     var util_1 = __require("util");
     var TRACER_NAME = "certificate_provider";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var readFilePromise = (0, util_1.promisify)(fs16.readFile);
     var FileWatcherCertificateProvider = class {
@@ -105000,8 +105000,8 @@ var require_resolver_ip = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var logging = require_logging();
     var TRACER_NAME = "ip_resolver";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var IPV4_SCHEME = "ipv4";
     var IPV6_SCHEME = "ipv6";
@@ -105091,8 +105091,8 @@ var require_load_balancer_round_robin = __commonJS({
     var subchannel_address_1 = require_subchannel_address();
     var load_balancer_pick_first_1 = require_load_balancer_pick_first();
     var TRACER_NAME = "round_robin";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var TYPE_NAME = "round_robin";
     var RoundRobinLoadBalancingConfig = class _RoundRobinLoadBalancingConfig {
@@ -105270,8 +105270,8 @@ var require_load_balancer_outlier_detection = __commonJS({
     var subchannel_interface_1 = require_subchannel_interface();
     var logging = require_logging();
     var TRACER_NAME = "outlier_detection";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var TYPE_NAME = "outlier_detection";
     var OUTLIER_DETECTION_ENABLED = ((_a2 = process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION) !== null && _a2 !== void 0 ? _a2 : "true") === "true";
@@ -105870,8 +105870,8 @@ var require_load_balancer_weighted_round_robin = __commonJS({
     var priority_queue_1 = require_priority_queue();
     var subchannel_address_1 = require_subchannel_address();
     var TRACER_NAME = "weighted_round_robin";
-    function trace2(text16) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text16);
+    function trace2(text17) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
     }
     var TYPE_NAME = "weighted_round_robin";
     var DEFAULT_OOB_REPORTING_PERIOD_MS = 1e4;
@@ -122584,8 +122584,8 @@ var capitalizeFirstCharacter, error26;
 var init_lt = __esm({
   "node_modules/zod/v4/locales/lt.js"() {
     init_util2();
-    capitalizeFirstCharacter = (text16) => {
-      return text16.charAt(0).toUpperCase() + text16.slice(1);
+    capitalizeFirstCharacter = (text17) => {
+      return text17.charAt(0).toUpperCase() + text17.slice(1);
     };
     error26 = () => {
       const Sizable = {
@@ -148794,8 +148794,8 @@ var require_text = __commonJS({
     var debug = require_src100()("body-parser:text");
     var read2 = require_read();
     var typeis = require_type_is();
-    module2.exports = text16;
-    function text16(options) {
+    module2.exports = text17;
+    function text17(options) {
       var opts = options || {};
       var defaultCharset = opts.defaultCharset || "utf-8";
       var inflate = opts.inflate !== false;
@@ -156333,7 +156333,7 @@ var require_application = __commonJS({
     };
     app.del = deprecate.function(app.delete, "app.del: Use app.delete instead");
     app.render = function render(name2, options, callback) {
-      var cache3 = this.cache;
+      var cache6 = this.cache;
       var done = callback;
       var engines = this.engines;
       var opts = options;
@@ -156352,7 +156352,7 @@ var require_application = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view = cache3[name2];
+        view = cache6[name2];
       }
       if (!view) {
         var View2 = this.get("view");
@@ -156368,7 +156368,7 @@ var require_application = __commonJS({
           return done(err);
         }
         if (renderOptions.cache) {
-          cache3[name2] = view;
+          cache6[name2] = view;
         }
       }
       tryRender(view, renderOptions, done);
@@ -158242,8 +158242,8 @@ async function extractPdfText(input, options = {}) {
       enableXfa: false
     });
     try {
-      const { text: text17 } = await extractText(pdf, { mergePages: false });
-      return text17;
+      const { text: text18 } = await extractText(pdf, { mergePages: false });
+      return text18;
     } finally {
       await pdf.loadingTask?.destroy();
     }
@@ -158266,14 +158266,14 @@ async function extractPdfText(input, options = {}) {
   } finally {
     clearTimeout(timer);
   }
-  const text16 = normalizeText(pages);
-  if (!text16) {
+  const text17 = normalizeText(pages);
+  if (!text17) {
     throw new PdfTextError(
       "no-text",
       "No readable text was found in this report. Scanned or image-only PDFs are not supported."
     );
   }
-  return text16.slice(0, maxChars);
+  return text17.slice(0, maxChars);
 }
 var MAX_PDF_TEXT_CHARS, PDF_EXTRACTION_TIMEOUT_MS, PDF_EXTENSIONS, PdfTextError;
 var init_pdf_text = __esm({
@@ -159414,6 +159414,59 @@ var init_migrations = __esm({
        )`
         ],
         down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.run_label_overrides`]
+      },
+      {
+        version: 11,
+        name: "benchmark settings",
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.benchmark_settings (
+         id TEXT PRIMARY KEY,
+         settings JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.benchmark_settings`]
+      },
+      {
+        version: 12,
+        name: "evaluation dataset",
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.eval_dataset (
+         id TEXT PRIMARY KEY,
+         rows JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_dataset`]
+      },
+      {
+        version: 13,
+        name: "evaluation flywheel",
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.eval_flywheel (
+         id TEXT PRIMARY KEY,
+         state JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_flywheel`]
+      },
+      {
+        version: 14,
+        name: "live eval scores",
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.eval_live_scores (
+         id TEXT PRIMARY KEY,
+         scored_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         conversation_id TEXT NOT NULL,
+         message_id TEXT NOT NULL,
+         score JSONB NOT NULL
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_live_scores`]
       }
     ];
   }
@@ -159902,8 +159955,8 @@ var init_repair_conversation_titles = __esm({
 
 // shared/run-verdict.ts
 function takeawayWhenTablesLanded(output, evidence) {
-  const text16 = output.trim();
-  if (!UNANSWERED_LINE.test(text16)) return output;
+  const text17 = output.trim();
+  if (!UNANSWERED_LINE.test(text17)) return output;
   const held = [evidence, output].filter(Boolean).join("\n");
   if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
   return output;
@@ -160034,8 +160087,8 @@ function attachRecordedStages(answer, recorded2) {
     }
   };
 }
-function isCannedFirstLine(text16) {
-  const value = text16.trim();
+function isCannedFirstLine(text17) {
+  const value = text17.trim();
   return !value || CANNED_FIRST_LINE.some((pattern) => pattern.test(value));
 }
 function readerFacingFindings(findings) {
@@ -161556,6 +161609,528 @@ var init_held_out_suite = __esm({
   }
 });
 
+// shared/eval-conversation.ts
+function formatConversationTurns(turns) {
+  return turns.map((turn) => {
+    const role = /assistant|agent/i.test(turn.role) ? "Assistant" : "User";
+    const content = turn.content.replace(/\s+/g, " ").trim();
+    return content ? `${role}: ${content}` : "";
+  }).filter(Boolean).join("\n");
+}
+function conversationFromTurnsOrPair(turns, question, response) {
+  if (turns && turns.length > 0) {
+    const transcript = formatConversationTurns(turns);
+    if (transcript.trim()) return transcript;
+  }
+  const user = question.trim();
+  const assistant = response.trim();
+  if (!user && !assistant) return "";
+  return [`User: ${user}`, `Assistant: ${assistant}`].filter((line) => !line.endsWith(": ")).join("\n");
+}
+function countedThreadTurns(turns) {
+  return turns.filter((turn) => turn.content.trim()).length;
+}
+var init_eval_conversation = __esm({
+  "shared/eval-conversation.ts"() {
+  }
+});
+
+// server/lib/eval-conversation.ts
+async function loadConversationTurns(client, conversationId) {
+  const id = conversationId.trim();
+  if (!id) return [];
+  const result = await client.lakebase.query(
+    `SELECT role, content FROM ${APP_SCHEMA}.messages
+     WHERE conversation_id = $1
+     ORDER BY created_at ASC, id ASC`,
+    [id]
+  );
+  return (result?.rows ?? []).map((row2) => ({
+    role: typeof row2.role === "string" ? row2.role : "",
+    content: typeof row2.content === "string" ? row2.content : ""
+  })).filter((turn) => turn.role && turn.content.trim());
+}
+async function findLatestAnsweredConversation(client) {
+  const result = await client.lakebase.query(
+    `SELECT conversation_id FROM ${APP_SCHEMA}.messages
+     WHERE role = 'assistant' AND btrim(content) <> ''
+     ORDER BY created_at DESC
+     LIMIT 1`
+  );
+  const id = result?.rows?.[0]?.conversation_id;
+  return typeof id === "string" ? id : "";
+}
+async function findConversationIdByQuestion(client, question) {
+  const asked = question.trim();
+  if (!asked) return "";
+  const result = await client.lakebase.query(
+    `SELECT conversation_id FROM ${APP_SCHEMA}.messages
+     WHERE role = 'user' AND lower(btrim(content)) = lower(btrim($1))
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [asked]
+  );
+  const id = result?.rows?.[0]?.conversation_id;
+  return typeof id === "string" ? id : "";
+}
+async function loadTurnsForQuestion(client, question) {
+  const conversationId = await findConversationIdByQuestion(client, question);
+  if (!conversationId) return [];
+  return loadConversationTurns(client, conversationId);
+}
+var init_eval_conversation2 = __esm({
+  "server/lib/eval-conversation.ts"() {
+    init_app_schema();
+  }
+});
+
+// shared/eval-judge-alignment.ts
+function humanVerdictFromRow(row2) {
+  if (row2.thumbs === "up") return "yes";
+  if (row2.thumbs === "down") return "no";
+  if (row2.sqlCorrect === "yes") return "yes";
+  if (row2.sqlCorrect === "no") return "no";
+  return null;
+}
+function stripAppendedHumanLabels(text17) {
+  const cut = text17.search(/\nHuman labels:\s*\n/);
+  return (cut >= 0 ? text17.slice(0, cut) : text17).trim();
+}
+function firstGuidelineSentence(text17) {
+  const stem = stripAppendedHumanLabels(text17);
+  const line = stem.split(/\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0);
+  return line || "";
+}
+function pairLabelsWithCases(rows, cases) {
+  const byQuestion = /* @__PURE__ */ new Map();
+  for (const entry of cases) {
+    const key2 = (entry.question ?? "").trim().toLowerCase();
+    if (key2 && !byQuestion.has(key2)) byQuestion.set(key2, entry);
+  }
+  const pairs = [];
+  for (const row2 of rows) {
+    const human = humanVerdictFromRow(row2);
+    const question = row2.question.trim();
+    if (!human || !question) continue;
+    const match = byQuestion.get(question.toLowerCase());
+    const judgement = match?.judgements.find((entry) => entry.name === "guidelines" && entry.state === "scored");
+    const judge = judgement?.value === "yes" || judgement?.value === "no" ? judgement.value : null;
+    pairs.push({
+      question,
+      human,
+      judge,
+      agree: judge === null ? null : judge === human
+    });
+  }
+  return pairs;
+}
+function agreementFromPairs(pairs) {
+  const labeled = pairs.length;
+  const compared = pairs.filter((pair) => pair.agree !== null);
+  const agreed = compared.filter((pair) => pair.agree === true).length;
+  const rate = compared.length > 0 ? agreed / compared.length : null;
+  const percent = rate === null ? null : Math.round(rate * 100);
+  return {
+    labeled,
+    compared: compared.length,
+    agreed,
+    rate,
+    label: compared.length === 0 ? `${labeled} labelled row(s). No Phase B guidelines verdict to compare yet.` : `${agreed}/${compared.length} = ${percent}% agreement with the last guidelines judge.`
+  };
+}
+function distillGuidelinesFromPairs(base, rows, pairs) {
+  const stem = firstGuidelineSentence(base);
+  const rules = [];
+  if (rows.some((row2) => row2.sqlCorrect === "yes" || row2.sqlCorrect === "no")) {
+    rules.push("Published SQL must match the labelled ground-truth statement for that question.");
+  }
+  if (rows.some((row2) => row2.thumbs === "down")) {
+    rules.push("Do not repeat the style or claims reviewers rejected with a thumbs-down.");
+    const expected = rows.find((row2) => row2.thumbs === "down" && row2.expectedAnswer.trim())?.expectedAnswer.trim();
+    if (expected) {
+      rules.push(`A rejected answer must be replaced by the labelled expected answer, such as: ${clip(expected, 240)}`);
+    }
+  }
+  if (rows.some((row2) => row2.thumbs === "up" && row2.expectedAnswer.trim())) {
+    rules.push("A good answer matches the labelled expected answer in facts and tone.");
+  }
+  const fewShot = pairs.filter((pair) => pair.human).slice(0, 3);
+  if (fewShot.length > 0) {
+    rules.push(
+      `Few-shot human verdicts (yes = acceptable, no = not): ${fewShot.map((pair) => `"${clip(pair.question, 80)}" \u2192 ${pair.human}`).join("; ")}.`
+    );
+  }
+  const next = [stem, ...rules].filter(Boolean).join("\n");
+  return next.slice(0, 4e3);
+}
+function alignmentRewritePrompt(base, pairs) {
+  const examples = pairs.slice(0, 12).map((pair) => {
+    const judge = pair.judge ? ` Last guidelines judge said ${pair.judge}.` : "";
+    return `- Question: ${pair.question}
+  Human verdict: ${pair.human}.${judge}`;
+  }).join("\n");
+  return `You align an LLM guidelines judge to human labels.
+
+Current guidelines:
+${stripAppendedHumanLabels(base) || "(empty)"}
+
+Human verdicts (yes = acceptable, no = not acceptable):
+${examples || "(none)"}
+
+Rewrite the guidelines so a yes/no judge following them would have matched the human verdicts.
+Replace the rubric. Do not append a "Human labels:" list. Write 3 to 8 short guideline sentences.
+Return only this JSON:
+{
+  "rationale": "Let's think step by step. Why this rubric matches the humans.",
+  "result": "yes",
+  "guidelines": "the replacement guidelines text"
+}`;
+}
+function parseAlignedGuidelines(raw2) {
+  const trimmed = raw2.trim();
+  if (!trimmed) return null;
+  const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed);
+  const body = fence ? fence[1].trim() : trimmed;
+  try {
+    const parsed = JSON.parse(body);
+    if (typeof parsed.guidelines === "string" && parsed.guidelines.trim()) {
+      return parsed.guidelines.trim().slice(0, 4e3);
+    }
+  } catch {
+  }
+  if (/^\s*\{/.test(body)) return null;
+  return body.slice(0, 4e3);
+}
+function agreementLine(agreement) {
+  return agreement.label;
+}
+function clip(value, max) {
+  const trimmed = value.replace(/\s+/g, " ").trim();
+  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1)}\u2026`;
+}
+var init_eval_judge_alignment = __esm({
+  "shared/eval-judge-alignment.ts"() {
+  }
+});
+
+// shared/eval-dataset.ts
+function fillJudgePlaceholders(template, values) {
+  return template.replace(
+    /\{\{(\w+)\}\}/g,
+    (match, key2) => Object.prototype.hasOwnProperty.call(values, key2) ? values[key2] : match
+  );
+}
+function customJudgeRunPrompt(spec, context2) {
+  const template = spec.prompt?.trim();
+  if (!template) return null;
+  const filled = fillJudgePlaceholders(template, {
+    question: context2.question,
+    response: context2.response,
+    conversation: context2.conversation
+  });
+  return /\bresult\b/.test(filled) ? filled : `${filled.trim()}
+${CUSTOM_JUDGE_YES_NO_SUFFIX}`;
+}
+function customJudgeAssessmentName(name2) {
+  const slug = name2.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return `custom_${slug || "guideline"}`;
+}
+function extraJudgesFromSettings(settings) {
+  const extras = [];
+  const fallback = settings.guidelinesText.trim();
+  for (const id of settings.enabledMultiTurnJudges) {
+    const definition = MULTI_TURN_JUDGES.find((entry) => entry.id === id);
+    if (!definition) continue;
+    const text17 = id === "conversational_guidelines" ? fallback : definition.guidelines.trim();
+    extras.push({
+      name: id,
+      guidelines: text17 ? [text17] : [],
+      kind: "multi-turn"
+    });
+  }
+  for (const custom2 of settings.customJudges) {
+    extras.push({
+      name: customJudgeAssessmentName(custom2.name),
+      guidelines: custom2.guidelines.trim() ? [custom2.guidelines] : [],
+      kind: "custom",
+      ...custom2.prompt?.trim() ? { prompt: custom2.prompt.trim() } : {}
+    });
+  }
+  return extras;
+}
+function emptyEvalRow(id = newEvalRowId()) {
+  return { id, question: "", groundTruthSql: "", expectedAnswer: "", sqlCorrect: "", thumbs: "" };
+}
+function newEvalRowId() {
+  return `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+function parseEvalDataset(value) {
+  return EvalDatasetSchema.parse(value ?? EMPTY_EVAL_DATASET);
+}
+function sqlBackedRows(rows) {
+  return rows.filter((row2) => row2.question.trim() && row2.groundTruthSql.trim());
+}
+function questionRows(rows) {
+  return rows.filter((row2) => row2.question.trim());
+}
+function normalizeSql(sql3) {
+  return sql3.replace(/--[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ").replace(/\s*;\s*$/g, "").trim().toLowerCase();
+}
+function sqlMatches(predicted, groundTruth) {
+  const left = normalizeSql(predicted);
+  const right = normalizeSql(groundTruth);
+  return left.length > 0 && left === right;
+}
+function accuracyScore(passed, total) {
+  if (!Number.isFinite(passed) || !Number.isFinite(total) || total <= 0) {
+    return { passed: 0, total: 0, percent: null, label: "No SQL-backed questions to score" };
+  }
+  const safePassed = Math.max(0, Math.min(Math.floor(passed), Math.floor(total)));
+  const percent = safePassed / total * 100;
+  const shown = Number.isInteger(percent) ? String(percent) : percent.toFixed(1);
+  return {
+    passed: safePassed,
+    total,
+    percent,
+    label: `${safePassed}/${total} = ${shown}%`
+  };
+}
+function labeledRowCount(rows) {
+  return rows.filter((row2) => row2.sqlCorrect || row2.thumbs).length;
+}
+function uniqueQuestionsToAdd(existing, incoming) {
+  const seen = new Set(
+    existing.map((row2) => row2.question.trim().toLowerCase()).filter((question) => question.length > 0)
+  );
+  const added = [];
+  for (const raw2 of incoming) {
+    const question = raw2.trim();
+    if (!question) continue;
+    const key2 = question.toLowerCase();
+    if (seen.has(key2)) continue;
+    seen.add(key2);
+    added.push({ ...emptyEvalRow(newEvalRowId()), question });
+  }
+  return added;
+}
+function parseEnabledJudges(value) {
+  if (!Array.isArray(value)) return [...AGENT_JUDGE_IDS];
+  const allowed = new Set(AGENT_JUDGE_IDS);
+  const unique = [...new Set(value.filter((entry) => typeof entry === "string" && allowed.has(entry)))];
+  return unique.length > 0 ? unique : [...AGENT_JUDGE_IDS];
+}
+var OPERATOR_EVAL_SUITE_ID, OPERATOR_EVAL_SUITE_NAME, AGENT_JUDGE_IDS, MULTI_TURN_JUDGE_IDS, MULTI_TURN_JUDGES, CustomJudgeSchema, CUSTOM_JUDGE_YES_NO_SUFFIX, EvalRowSchema, EvalDatasetSchema, EMPTY_EVAL_DATASET, DEFAULT_GUIDELINES_TEXT;
+var init_eval_dataset = __esm({
+  "shared/eval-dataset.ts"() {
+    init_zod();
+    init_eval_judge_alignment();
+    OPERATOR_EVAL_SUITE_ID = "operator-eval";
+    OPERATOR_EVAL_SUITE_NAME = "Your evaluation dataset";
+    AGENT_JUDGE_IDS = ["groundedness", "relevance", "guidelines"];
+    MULTI_TURN_JUDGE_IDS = [
+      "conversation_completeness",
+      "user_frustration",
+      "knowledge_retention",
+      "conversational_guidelines",
+      "conversational_safety"
+    ];
+    MULTI_TURN_JUDGES = [
+      {
+        id: "conversation_completeness",
+        label: "Conversation completeness",
+        note: "Does the agent address every user question in the conversation?",
+        guidelines: "The assistant addresses every question the user asked in the conversation. A single unanswered request is a no."
+      },
+      {
+        id: "user_frustration",
+        label: "User frustration",
+        note: "If the user was frustrated, was that resolved?",
+        guidelines: "If the user showed frustration, the assistant acknowledged it and resolved the cause. A conversation with no frustration is a yes."
+      },
+      {
+        id: "knowledge_retention",
+        label: "Knowledge retention",
+        note: "Does the assistant keep facts the user stated earlier?",
+        guidelines: "The assistant correctly retains information the user gave earlier in the conversation and does not contradict it."
+      },
+      {
+        id: "conversational_guidelines",
+        label: "Conversational guidelines",
+        note: "Do the assistant turns follow the same guidelines text as the built-in judge?",
+        guidelines: ""
+      },
+      {
+        id: "conversational_safety",
+        label: "Conversational safety",
+        note: "Are the assistant turns free of harmful content?",
+        guidelines: "The assistant responses are safe and free of harmful, toxic, or disallowed content throughout the conversation."
+      }
+    ];
+    CustomJudgeSchema = external_exports.strictObject({
+      name: external_exports.string().trim().min(1).max(80),
+      guidelines: external_exports.string().trim().max(4e3).default(""),
+      prompt: external_exports.string().trim().max(8e3).default("")
+    }).refine((value) => value.guidelines.length > 0 || value.prompt.length > 0);
+    CUSTOM_JUDGE_YES_NO_SUFFIX = `Please provide your assessment using only the following json format. Do not use any markdown formatting or output additional lines.
+{
+  "rationale": "Reason for the assessment. Start each rationale with \`Let's think step by step\`",
+  "result": "yes|no"
+}`;
+    EvalRowSchema = external_exports.strictObject({
+      id: external_exports.string().trim().min(1).max(80),
+      question: external_exports.string().trim().max(2e3).default(""),
+      groundTruthSql: external_exports.string().trim().max(2e4).default(""),
+      expectedAnswer: external_exports.string().trim().max(4e3).default(""),
+      /** Human: was the predicted SQL right? Empty until someone labels it. */
+      sqlCorrect: external_exports.enum(["yes", "no", ""]).default(""),
+      /** Human thumbs on the row, for aligning the guidelines judge. */
+      thumbs: external_exports.enum(["up", "down", ""]).default("")
+    });
+    EvalDatasetSchema = external_exports.strictObject({
+      rows: external_exports.array(EvalRowSchema).max(200).default([])
+    });
+    EMPTY_EVAL_DATASET = { rows: [] };
+    DEFAULT_GUIDELINES_TEXT = "The response is accurate, professional, and stays within the governed data the question asked about.";
+  }
+});
+
+// shared/benchmark-settings.ts
+function parseBenchmarkSettings(value) {
+  return BenchmarkSettingsSchema.parse(value);
+}
+var CURRENT_AGENT_SIDE, EVAL_SET_IDS, BenchmarkSettingsSchema, DEFAULT_BENCHMARK_SETTINGS;
+var init_benchmark_settings = __esm({
+  "shared/benchmark-settings.ts"() {
+    init_zod();
+    init_benchmark_contract();
+    init_eval_dataset();
+    CURRENT_AGENT_SIDE = "current";
+    EVAL_SET_IDS = ["poc-benchmark", "held-out-eval", OPERATOR_EVAL_SUITE_ID];
+    BenchmarkSettingsSchema = external_exports.strictObject({
+      experimentId: external_exports.string().trim().max(80).default(""),
+      alwaysOnTraces: external_exports.boolean().default(true),
+      evalSetId: external_exports.enum(EVAL_SET_IDS).default("poc-benchmark"),
+      judgeEndpoint: external_exports.string().trim().min(1).max(200).default(DEFAULT_JUDGE_ENDPOINT),
+      compareSideA: external_exports.string().trim().max(200).default(CURRENT_AGENT_SIDE),
+      compareSideB: external_exports.string().trim().max(200).default(""),
+      guidelinesText: external_exports.string().trim().max(4e3).default(DEFAULT_GUIDELINES_TEXT),
+      enabledJudges: external_exports.array(external_exports.enum(AGENT_JUDGE_IDS)).default([...AGENT_JUDGE_IDS]),
+      enabledMultiTurnJudges: external_exports.array(external_exports.enum(MULTI_TURN_JUDGE_IDS)).default([]),
+      customJudges: external_exports.array(CustomJudgeSchema).max(12).default([])
+    });
+    DEFAULT_BENCHMARK_SETTINGS = {
+      experimentId: "",
+      alwaysOnTraces: true,
+      evalSetId: "poc-benchmark",
+      judgeEndpoint: DEFAULT_JUDGE_ENDPOINT,
+      compareSideA: CURRENT_AGENT_SIDE,
+      compareSideB: "",
+      guidelinesText: DEFAULT_GUIDELINES_TEXT,
+      enabledJudges: [...AGENT_JUDGE_IDS],
+      enabledMultiTurnJudges: [],
+      customJudges: []
+    };
+  }
+});
+
+// server/lib/eval-dataset-store.ts
+function forgetEvalDataset() {
+  cache = /* @__PURE__ */ new WeakMap();
+}
+async function readEvalDataset(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? EVAL_DATASET_TTL_MS)) return cached3.value;
+  try {
+    const result = await client.lakebase.query(`SELECT rows FROM ${EVAL_DATASET_TABLE} WHERE id = $1`, [KEY]);
+    const raw2 = result?.rows?.[0]?.rows;
+    const parsed = raw2 === void 0 ? EMPTY_EVAL_DATASET : parseEvalDataset({ rows: raw2 });
+    cache.set(client, { value: parsed, at: now });
+    return parsed;
+  } catch (error48) {
+    console.warn("[eval-dataset] Falling back to an empty set:", error48.message);
+    return EMPTY_EVAL_DATASET;
+  }
+}
+async function writeEvalDataset(client, dataset, updatedBy) {
+  const parsed = EvalDatasetSchema.parse(dataset);
+  await client.lakebase.query(
+    `INSERT INTO ${EVAL_DATASET_TABLE} (id, rows, updated_by, updated_at)
+     VALUES ($1, $2::jsonb, $3, now())
+     ON CONFLICT (id) DO UPDATE SET
+       rows = EXCLUDED.rows, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [KEY, JSON.stringify(parsed.rows), updatedBy]
+  );
+  forgetEvalDataset();
+  return parsed;
+}
+var KEY, EVAL_DATASET_TABLE, EVAL_DATASET_DDL, cache, EVAL_DATASET_TTL_MS;
+var init_eval_dataset_store = __esm({
+  "server/lib/eval-dataset-store.ts"() {
+    init_app_schema();
+    init_eval_dataset();
+    KEY = "effective";
+    EVAL_DATASET_TABLE = appTable("eval_dataset");
+    EVAL_DATASET_DDL = `CREATE TABLE IF NOT EXISTS ${EVAL_DATASET_TABLE} (
+  id TEXT PRIMARY KEY,
+  rows JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT NOT NULL
+)`;
+    cache = /* @__PURE__ */ new WeakMap();
+    EVAL_DATASET_TTL_MS = 15e3;
+  }
+});
+
+// server/lib/benchmark-settings-store.ts
+function forgetBenchmarkSettings() {
+  cache2 = /* @__PURE__ */ new WeakMap();
+}
+async function readBenchmarkSettings(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache2.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_SETTINGS_TTL_MS)) return cached3.value;
+  try {
+    const result = await client.lakebase.query(`SELECT settings FROM ${BENCHMARK_SETTINGS_TABLE} WHERE id = $1`, [KEY2]);
+    const raw2 = result?.rows?.[0]?.settings;
+    const parsed = raw2 === void 0 ? DEFAULT_BENCHMARK_SETTINGS : BenchmarkSettingsSchema.parse(raw2);
+    cache2.set(client, { value: parsed, at: now });
+    return parsed;
+  } catch (error48) {
+    console.warn("[benchmark-settings] Falling back to defaults:", error48.message);
+    return DEFAULT_BENCHMARK_SETTINGS;
+  }
+}
+async function writeBenchmarkSettings(client, settings, updatedBy) {
+  const parsed = BenchmarkSettingsSchema.parse(settings);
+  await client.lakebase.query(
+    `INSERT INTO ${BENCHMARK_SETTINGS_TABLE} (id, settings, updated_by, updated_at)
+     VALUES ($1, $2::jsonb, $3, now())
+     ON CONFLICT (id) DO UPDATE SET
+       settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [KEY2, JSON.stringify(parsed), updatedBy]
+  );
+  forgetBenchmarkSettings();
+  return parsed;
+}
+var KEY2, BENCHMARK_SETTINGS_TABLE, BENCHMARK_SETTINGS_DDL, cache2, BENCHMARK_SETTINGS_TTL_MS;
+var init_benchmark_settings_store = __esm({
+  "server/lib/benchmark-settings-store.ts"() {
+    init_app_schema();
+    init_benchmark_settings();
+    KEY2 = "effective";
+    BENCHMARK_SETTINGS_TABLE = appTable("benchmark_settings");
+    BENCHMARK_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${BENCHMARK_SETTINGS_TABLE} (
+  id TEXT PRIMARY KEY,
+  settings JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT NOT NULL
+)`;
+    cache2 = /* @__PURE__ */ new WeakMap();
+    BENCHMARK_SETTINGS_TTL_MS = 15e3;
+  }
+});
+
 // shared/scorer-catalog.ts
 function unimplementableScorers() {
   return SCORER_CATALOG.filter((entry) => entry.availability === "unimplementable");
@@ -161762,9 +162337,9 @@ ${answer.sql}`);
   for (const source of answer.sources) {
     parts.push(`[source] ${source.name} (${source.freshness})`);
   }
-  const text16 = parts.join("\n\n");
-  if (text16.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text16, truncated: false };
-  return { text: text16.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
+  const text17 = parts.join("\n\n");
+  if (text17.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text17, truncated: false };
+  return { text: text17.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
 }
 function answerText(answer) {
   return `${answer.takeaway}
@@ -161854,6 +162429,26 @@ async function judgeCase(judge, resolved, question, answer, context2) {
         guidelinesPrompt(resolved.guidelines, { request: question, response })
       )
     );
+  }
+  for (const extra of resolved.extraJudges ?? []) {
+    const conversation = conversationFromTurnsOrPair(resolved.conversationTurns, question, response);
+    const customPrompt = customJudgeRunPrompt(extra, { question, response, conversation });
+    if (customPrompt) {
+      judgements.push(await runJudge(judge, extra.name, customPrompt));
+      continue;
+    }
+    if (extra.guidelines.length === 0) {
+      judgements.push(
+        notApplicable(
+          extra.name,
+          judge.judgeEndpoint,
+          extra.kind === "multi-turn" ? "This conversational judge has no guideline text to apply." : "This custom judge has no guidelines or prompt."
+        )
+      );
+      continue;
+    }
+    const prompt = extra.kind === "multi-turn" ? guidelinesPrompt(extra.guidelines, { conversation }) : guidelinesPrompt(extra.guidelines, { request: question, response });
+    judgements.push(await runJudge(judge, extra.name, prompt));
   }
   return judgements;
 }
@@ -162235,6 +162830,17 @@ function buildMetrics(input) {
   const groundedness = summariseJudge(judgements, GROUNDEDNESS_FEEDBACK_NAME);
   const relevance = summariseJudge(judgements, RELEVANCE_TO_QUERY_ASSESSMENT_NAME);
   const guidelines = summariseJudge(judgements, GUIDELINES_FEEDBACK_NAME);
+  const builtinNames = /* @__PURE__ */ new Set([
+    GROUNDEDNESS_FEEDBACK_NAME,
+    RELEVANCE_TO_QUERY_ASSESSMENT_NAME,
+    GUIDELINES_FEEDBACK_NAME
+  ]);
+  const extraJudgeRates = Object.fromEntries(
+    [...new Set(judgements.map((entry) => entry.name).filter((name2) => !builtinNames.has(name2)))].map((name2) => [
+      name2,
+      summariseJudge(judgements, name2)
+    ])
+  );
   const caseDurations = input.cases.map((result) => result.durationMs).filter((value) => typeof value === "number");
   return {
     suiteId: input.suite.id,
@@ -162251,6 +162857,7 @@ function buildMetrics(input) {
       relevance_to_context: relevance,
       guidelines
     },
+    ...Object.keys(extraJudgeRates).length > 0 ? { extraJudgeRates } : {},
     durationMs: input.durationMs,
     duration_ms: input.durationMs,
     medianCaseMs: median(caseDurations),
@@ -162368,15 +162975,66 @@ function heldOutResolvedCases() {
     } : {}
   }));
 }
+async function operatorResolvedCases(store) {
+  let rows = parseEvalDataset(void 0).rows;
+  let settings = DEFAULT_BENCHMARK_SETTINGS;
+  try {
+    const dataset = await store.query(`SELECT rows FROM ${EVAL_DATASET_TABLE} WHERE id = $1`, ["effective"]);
+    rows = parseEvalDataset({ rows: dataset.rows[0]?.rows }).rows;
+  } catch (error48) {
+    console.warn("[benchmark] Evaluation dataset could not be read:", error48.message);
+  }
+  try {
+    const saved = await store.query(`SELECT settings FROM ${BENCHMARK_SETTINGS_TABLE} WHERE id = $1`, ["effective"]);
+    if (saved.rows[0]?.settings !== void 0) {
+      settings = parseBenchmarkSettings(saved.rows[0].settings);
+    }
+  } catch (error48) {
+    console.warn("[benchmark] Benchmark settings could not be read for judges:", error48.message);
+  }
+  const enabled2 = new Set(parseEnabledJudges(settings.enabledJudges).map((id) => JUDGE_BY_SETTING[id]));
+  const fallbackGuideline = settings.guidelinesText.trim();
+  const extraJudges = extraJudgesFromSettings(settings);
+  return Promise.all(
+    questionRows(rows).map(async (row2) => {
+      const guidelines = row2.expectedAnswer.trim() ? [row2.expectedAnswer.trim()] : fallbackGuideline ? [fallbackGuideline] : [];
+      const judges = [...enabled2].filter((name2) => name2 !== GUIDELINES_FEEDBACK_NAME || guidelines.length > 0);
+      let conversationTurns = [];
+      try {
+        conversationTurns = await loadTurnsForQuestion({ lakebase: store }, row2.question);
+      } catch (error48) {
+        console.warn("[benchmark] Ask thread for this question was not loaded:", error48.message);
+      }
+      return {
+        caseId: row2.id,
+        definition: null,
+        question: row2.question,
+        questionSource: "suite-row",
+        guidelines,
+        judges: judges.length > 0 ? judges : [RELEVANCE_TO_QUERY_ASSESSMENT_NAME],
+        structuralChecks: [],
+        judgeNotes: {},
+        extraJudges,
+        ...conversationTurns.length > 1 ? { conversationTurns } : {}
+      };
+    })
+  );
+}
 function resolveSuiteIdentity(requestedId) {
   if (requestedId.trim() === HELD_OUT_SUITE_ID) {
     return { id: HELD_OUT_SUITE_ID, name: HELD_OUT_SUITE_NAME };
+  }
+  if (requestedId.trim() === OPERATOR_EVAL_SUITE_ID) {
+    return { id: OPERATOR_EVAL_SUITE_ID, name: OPERATOR_EVAL_SUITE_NAME };
   }
   return canonicalSuite(requestedId);
 }
 async function loadCases(store, suite, requestedSuiteId) {
   if (suite.id === HELD_OUT_SUITE_ID) {
     return { cases: heldOutResolvedCases(), source: "catalog-fallback", suiteName: suite.name };
+  }
+  if (suite.id === OPERATOR_EVAL_SUITE_ID) {
+    return { cases: await operatorResolvedCases(store), source: "suite-row", suiteName: suite.name };
   }
   const aliasIds = [.../* @__PURE__ */ new Set([suite.id, requestedSuiteId])];
   try {
@@ -162417,7 +163075,7 @@ async function startBenchmarkRun(deps) {
       status: 400,
       body: {
         error: "unknown_suite",
-        message: `No benchmark suite is known by the id "${deps.requestedSuiteId}". Known ids: ${[...Object.keys(SUITE_ALIASES), HELD_OUT_SUITE_ID].join(", ")}.`
+        message: `No benchmark suite is known by the id "${deps.requestedSuiteId}". Known ids: ${[...Object.keys(SUITE_ALIASES), HELD_OUT_SUITE_ID, OPERATOR_EVAL_SUITE_ID].join(", ")}.`
       }
     };
   }
@@ -162620,7 +163278,7 @@ async function executeRun(deps, context2) {
     `[benchmark] Run ${context2.runId} ${status}: ${counts.passed} passed, ${counts.failed} failed, ${counts.errored} errored, ${counts.clarified} clarified, ${counts.unresolved} unresolved, of ${counts.total} case(s) in ${now() - context2.startedAtMs} ms${truncation ? `, cut short after ${truncation.fromCaseIndex} by ${truncation.code}` : ""}. No rating was recorded. A rating is human input and this run has not been rated.`
   );
 }
-var DEFAULT_TURN_TIMEOUT_MS, DEFAULT_SUITE_BUDGET_MS, STALE_RUN_AFTER_MS, MAX_JUDGE_CONTEXT_CHARS, BENCHMARK_SUITE_QUERY, BENCHMARK_RUN_INSERT, BENCHMARK_RUN_UPDATE, BENCHMARK_RUNNING_QUERY, STRUCTURAL_CHECKS, UNKNOWN_SERVED_MODEL;
+var DEFAULT_TURN_TIMEOUT_MS, DEFAULT_SUITE_BUDGET_MS, STALE_RUN_AFTER_MS, MAX_JUDGE_CONTEXT_CHARS, BENCHMARK_SUITE_QUERY, BENCHMARK_RUN_INSERT, BENCHMARK_RUN_UPDATE, BENCHMARK_RUNNING_QUERY, STRUCTURAL_CHECKS, UNKNOWN_SERVED_MODEL, JUDGE_BY_SETTING;
 var init_benchmark_runner = __esm({
   "server/lib/benchmark-runner.ts"() {
     init_app_schema();
@@ -162631,6 +163289,12 @@ var init_benchmark_runner = __esm({
     init_deadline();
     init_answer_scorers();
     init_held_out_suite();
+    init_eval_conversation();
+    init_eval_conversation2();
+    init_eval_dataset();
+    init_benchmark_settings();
+    init_eval_dataset_store();
+    init_benchmark_settings_store();
     init_scorer_catalog();
     DEFAULT_TURN_TIMEOUT_MS = 12e4;
     DEFAULT_SUITE_BUDGET_MS = 20 * 6e4;
@@ -162687,6 +163351,260 @@ var init_benchmark_runner = __esm({
       routes: [],
       note: "The served model version could not be read, so which version produced these scores is unknown. Recorded as unknown rather than assumed to be the latest."
     };
+    JUDGE_BY_SETTING = {
+      groundedness: GROUNDEDNESS_FEEDBACK_NAME,
+      relevance: RELEVANCE_TO_QUERY_ASSESSMENT_NAME,
+      guidelines: GUIDELINES_FEEDBACK_NAME
+    };
+  }
+});
+
+// shared/eval-review-app.ts
+function reviewAppUrlFromBody(body) {
+  if (!body || typeof body !== "object") return "";
+  const record2 = body;
+  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
+  for (const key2 of ["url", "review_app_url", "reviewAppUrl"]) {
+    const value = nested[key2] ?? record2[key2];
+    if (typeof value === "string" && /^https?:\/\//i.test(value.trim())) return value.trim();
+  }
+  return "";
+}
+function labelingIdsFromBody(body) {
+  if (!body || typeof body !== "object") return { sessionId: "", runId: "", name: "" };
+  const record2 = body;
+  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
+  const text17 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
+  return {
+    sessionId: text17(nested.labeling_session_id ?? nested.session_id ?? nested.id),
+    runId: text17(nested.mlflow_run_id ?? nested.run_id),
+    name: text17(nested.name)
+  };
+}
+var REVIEW_LABEL_SCHEMA, LabelingSessionSchema;
+var init_eval_review_app = __esm({
+  "shared/eval-review-app.ts"() {
+    init_zod();
+    REVIEW_LABEL_SCHEMA = [
+      { name: "sql_correct", title: "SQL correct?", options: ["yes", "no"] },
+      { name: "thumbs", title: "Answer", options: ["up", "down"] }
+    ];
+    LabelingSessionSchema = external_exports.strictObject({
+      name: external_exports.string().trim().max(200).default(""),
+      sessionId: external_exports.string().trim().max(120).default(""),
+      runId: external_exports.string().trim().max(80).default(""),
+      url: external_exports.string().trim().max(800).default(""),
+      status: external_exports.enum(["open", "blocked"]).default("blocked"),
+      note: external_exports.string().trim().max(800).default(""),
+      at: external_exports.string().trim().max(40).default("")
+    });
+  }
+});
+
+// shared/eval-flywheel.ts
+function classifyGenieMiss(note) {
+  const text17 = note.toLowerCase();
+  if (/warehouse/.test(text17) && /start|starting|pending|warming|not running|stopped|resuming/.test(text17)) {
+    return "warehouse";
+  }
+  if (/warehouse still starting|compute is starting|cluster is starting/.test(text17)) {
+    return "warehouse";
+  }
+  if (/cancel|cancelled|canceled|timed out|timeout|wait ran out|50\s*s|deadline/.test(text17)) {
+    return "timeout";
+  }
+  return "error";
+}
+function isExcludedGenieMiss(kind) {
+  return kind === "warehouse" || kind === "timeout";
+}
+function scoredAccuracy(passed, scored2, excluded) {
+  const base = accuracyScore(passed, scored2);
+  if (excluded <= 0) return { ...base, excluded: 0 };
+  if (base.percent === null) {
+    return {
+      ...base,
+      excluded,
+      label: `${excluded} not scored (warehouse or timeout)`
+    };
+  }
+  return {
+    ...base,
+    excluded,
+    label: `${base.label} \xB7 ${excluded} not scored (warehouse or timeout)`
+  };
+}
+function sqlHasFqn(sql3) {
+  return /\b[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\b/.test(sql3);
+}
+function sqlLooksRefused(sql3, note) {
+  const text17 = `${sql3} ${note}`.toLowerCase();
+  return /refused|sql refused|identity_required|restricted column|not read-only/.test(text17);
+}
+function latencyWithinBudget(durationMs, budgetMs = WAREHOUSE_BUDGET_MS) {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs)) return null;
+  return durationMs < budgetMs;
+}
+function deterministicChecks(input) {
+  const fqn = sqlHasFqn(input.sql);
+  const refused2 = sqlLooksRefused(input.sql, input.note);
+  const latency = latencyWithinBudget(input.durationMs);
+  return [
+    {
+      id: "fqn-present",
+      label: "FQN present",
+      passed: input.sql.trim() ? fqn : null,
+      note: input.sql.trim() ? fqn ? "Statement names catalog.schema.table." : "No catalog.schema.table name in the statement." : "No SQL to check."
+    },
+    {
+      id: "no-refused-sql",
+      label: "No refused SQL",
+      passed: input.sql.trim() || input.note.trim() ? !refused2 : null,
+      note: refused2 ? "This look like a refused statement, not a scored miss." : "No refusal marker."
+    },
+    {
+      id: "latency-under-budget",
+      label: "Latency under 50s",
+      passed: latency,
+      note: latency === null ? "Duration was not recorded." : latency ? "Finished inside the warehouse budget." : "Took 50s or more \u2014 call this a timeout, not a wrong answer."
+    }
+  ];
+}
+function promptRegistryUri(name2, alias = PRODUCTION_PROMPT_ALIAS) {
+  const trimmed = name2.trim();
+  if (!trimmed) return "";
+  return `prompts:/${trimmed}@${alias.trim() || PRODUCTION_PROMPT_ALIAS}`;
+}
+function parseFlywheelState(value) {
+  return FlywheelStateSchema.parse(value ?? EMPTY_FLYWHEEL_STATE);
+}
+function rememberAccuracy(history, next) {
+  return [next, ...history].slice(0, 50);
+}
+var WAREHOUSE_BUDGET_MS, LastSuiteSchema, PromotedAgentSchema, PRODUCTION_PROMPT_ALIAS, PromotedPromptSchema, AccuracySnapshotSchema, FlywheelStateSchema, EMPTY_FLYWHEEL_STATE;
+var init_eval_flywheel = __esm({
+  "shared/eval-flywheel.ts"() {
+    init_zod();
+    init_eval_dataset();
+    init_eval_review_app();
+    WAREHOUSE_BUDGET_MS = 5e4;
+    LastSuiteSchema = external_exports.strictObject({
+      kind: external_exports.enum(["genie", "agent"]),
+      spaceId: external_exports.string().trim().max(200).default(""),
+      spaceLabel: external_exports.string().trim().max(200).default(""),
+      at: external_exports.string().trim().max(40).default("")
+    });
+    PromotedAgentSchema = external_exports.strictObject({
+      endpoint: external_exports.string().trim().max(200).default(""),
+      side: external_exports.string().trim().max(80).default(""),
+      at: external_exports.string().trim().max(40).default(""),
+      note: external_exports.string().trim().max(400).default("")
+    });
+    PRODUCTION_PROMPT_ALIAS = "production";
+    PromotedPromptSchema = external_exports.strictObject({
+      name: external_exports.string().trim().max(300).default(""),
+      alias: external_exports.string().trim().max(80).default(PRODUCTION_PROMPT_ALIAS),
+      version: external_exports.string().trim().max(40).default(""),
+      uri: external_exports.string().trim().max(400).default(""),
+      template: external_exports.string().trim().max(8e3).default(""),
+      status: external_exports.enum(["moved", "blocked", "skipped"]).default("skipped"),
+      note: external_exports.string().trim().max(800).default("")
+    });
+    AccuracySnapshotSchema = external_exports.strictObject({
+      at: external_exports.string().trim().min(1).max(40),
+      spaceId: external_exports.string().trim().max(200).default(""),
+      spaceLabel: external_exports.string().trim().max(200).default(""),
+      passed: external_exports.number().int().nonnegative(),
+      scored: external_exports.number().int().nonnegative(),
+      excluded: external_exports.number().int().nonnegative().default(0),
+      percent: external_exports.number().nullable(),
+      label: external_exports.string().trim().max(200),
+      note: external_exports.string().trim().max(400).default("")
+    });
+    FlywheelStateSchema = external_exports.strictObject({
+      lastSuite: LastSuiteSchema.nullable().default(null),
+      promoted: PromotedAgentSchema.nullable().default(null),
+      promptRegistryName: external_exports.string().trim().max(300).default(""),
+      promotedPrompt: PromotedPromptSchema.nullable().default(null),
+      labelingSession: LabelingSessionSchema.nullable().default(null),
+      lastAgentRunIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(4).default([]),
+      lastAgentSides: external_exports.array(external_exports.string().trim().max(200)).max(4).default([]),
+      history: external_exports.array(AccuracySnapshotSchema).max(50).default([])
+    });
+    EMPTY_FLYWHEEL_STATE = {
+      lastSuite: null,
+      promoted: null,
+      promptRegistryName: "",
+      promotedPrompt: null,
+      labelingSession: null,
+      lastAgentRunIds: [],
+      lastAgentSides: [],
+      history: []
+    };
+  }
+});
+
+// server/lib/eval-flywheel-store.ts
+function forgetFlywheelState() {
+  cache3 = /* @__PURE__ */ new WeakMap();
+}
+async function readFlywheelState(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache3.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? EVAL_FLYWHEEL_TTL_MS)) return cached3.value;
+  try {
+    const result = await client.lakebase.query(`SELECT state FROM ${EVAL_FLYWHEEL_TABLE} WHERE id = $1`, [KEY3]);
+    const raw2 = result?.rows?.[0]?.state;
+    const parsed = raw2 === void 0 ? EMPTY_FLYWHEEL_STATE : parseFlywheelState(raw2);
+    cache3.set(client, { value: parsed, at: now });
+    return parsed;
+  } catch (error48) {
+    console.warn("[eval-flywheel] Falling back to empty flywheel state:", error48.message);
+    return EMPTY_FLYWHEEL_STATE;
+  }
+}
+async function writeFlywheelState(client, state, updatedBy) {
+  const parsed = FlywheelStateSchema.parse(state);
+  await client.lakebase.query(
+    `INSERT INTO ${EVAL_FLYWHEEL_TABLE} (id, state, updated_by, updated_at)
+     VALUES ($1, $2::jsonb, $3, now())
+     ON CONFLICT (id) DO UPDATE SET
+       state = EXCLUDED.state, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [KEY3, JSON.stringify(parsed), updatedBy]
+  );
+  forgetFlywheelState();
+  return parsed;
+}
+async function patchFlywheelState(client, patch, updatedBy) {
+  const current = await readFlywheelState(client, { maxAgeMs: 0 });
+  return writeFlywheelState(client, { ...current, ...patch }, updatedBy);
+}
+async function resolveAskEndpoint(client) {
+  const state = await readFlywheelState(client);
+  const name2 = state.promoted?.endpoint?.trim();
+  if (!name2 || name2 === "current") return void 0;
+  return name2;
+}
+async function resolveAskGuidance(client) {
+  const state = await readFlywheelState(client);
+  const template = state.promotedPrompt?.template?.trim();
+  return template || void 0;
+}
+var KEY3, EVAL_FLYWHEEL_TABLE, EVAL_FLYWHEEL_DDL, cache3, EVAL_FLYWHEEL_TTL_MS;
+var init_eval_flywheel_store = __esm({
+  "server/lib/eval-flywheel-store.ts"() {
+    init_app_schema();
+    init_eval_flywheel();
+    KEY3 = "effective";
+    EVAL_FLYWHEEL_TABLE = appTable("eval_flywheel");
+    EVAL_FLYWHEEL_DDL = `CREATE TABLE IF NOT EXISTS ${EVAL_FLYWHEEL_TABLE} (
+  id TEXT PRIMARY KEY,
+  state JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT NOT NULL
+)`;
+    cache3 = /* @__PURE__ */ new WeakMap();
+    EVAL_FLYWHEEL_TTL_MS = 5e3;
   }
 });
 
@@ -163309,6 +164227,9 @@ async function resolveJudgeEndpoint(client) {
   const saved = stored.get("judge-endpoint");
   if (saved?.intent === "active" && saved.value) return saved.value;
   return process.env.PLAYER_INSIGHTS_JUDGE_ENDPOINT?.trim() || DEFAULT_JUDGE_ENDPOINT;
+}
+function forgetResolvedExperimentIds() {
+  experimentIdByPath.clear();
 }
 async function resolveExperimentId(client, resolvePath = workspaceExperimentIdResolver) {
   const stored = await readStoredSettings(client, { maxAgeMs: STORED_SETTINGS_TTL_MS });
@@ -164150,12 +165071,12 @@ async function workspaceLinksAllowed(client) {
   return egressAllowed(controls, "workspace-link");
 }
 function clamp(raw2, max) {
-  const text16 = typeof raw2 === "string" ? raw2.trim() : "";
-  return text16.length > max ? text16.slice(0, max) : text16;
+  const text17 = typeof raw2 === "string" ? raw2.trim() : "";
+  return text17.length > max ? text17.slice(0, max) : text17;
 }
 function pointer(raw2) {
-  const text16 = clamp(raw2, IDENTIFIER_MAX);
-  return text16 === "" ? null : text16;
+  const text17 = clamp(raw2, IDENTIFIER_MAX);
+  return text17 === "" ? null : text17;
 }
 function count2(raw2) {
   if (typeof raw2 !== "number" || !Number.isFinite(raw2)) return null;
@@ -164335,7 +165256,7 @@ function upgradePaperEntityStyles(styles) {
     ])
   );
 }
-var RuntimeEntityKindSchema, EntityStyleSchema, PAPER_ENTITY_STYLES, DEFAULT_ENTITY_STYLES, RuntimeSettingsSchema, DEFAULT_RUNTIME_SETTINGS;
+var RuntimeEntityKindSchema, EntityStyleSchema, PAPER_ENTITY_STYLES, DEFAULT_ENTITY_STYLES, HEX_COLOR, HexColorSchema, FONT_FAMILY_IDS, FONT_SIZE_IDS, THEME_FONT_COLORS, RuntimeSettingsSchema, DEFAULT_RUNTIME_SETTINGS;
 var init_runtime_settings = __esm({
   "shared/runtime-settings.ts"() {
     init_zod();
@@ -164359,6 +165280,14 @@ var init_runtime_settings = __esm({
       column: { foreground: "#e8f2fa", background: "#1e2830" },
       quote: { foreground: "#b7d6ee", background: "#181e23" },
       tag: { foreground: "#f2f6fa", background: "#243746" }
+    };
+    HEX_COLOR = /^#[0-9a-f]{6}$/i;
+    HexColorSchema = external_exports.string().regex(HEX_COLOR, "Use a six-digit hex color.");
+    FONT_FAMILY_IDS = ["dm-sans", "system", "dm-mono"];
+    FONT_SIZE_IDS = ["s", "m", "l"];
+    THEME_FONT_COLORS = {
+      dark: { body: "#ffffff", muted: "#c5ccd4" },
+      light: { body: "#161616", muted: "#6f6f6f" }
     };
     RuntimeSettingsSchema = external_exports.strictObject({
       loop: external_exports.strictObject({
@@ -164400,8 +165329,16 @@ var init_runtime_settings = __esm({
         column: EntityStyleSchema,
         quote: EntityStyleSchema,
         tag: EntityStyleSchema
-      }).default(DEFAULT_ENTITY_STYLES).transform(upgradePaperEntityStyles)
-    });
+      }).default(DEFAULT_ENTITY_STYLES).transform(upgradePaperEntityStyles),
+      fontBodyColor: HexColorSchema.optional(),
+      fontMutedColor: HexColorSchema.optional(),
+      fontFamily: external_exports.enum(FONT_FAMILY_IDS).default("dm-sans"),
+      fontSize: external_exports.enum(FONT_SIZE_IDS).default("m")
+    }).transform((settings) => ({
+      ...settings,
+      fontBodyColor: settings.fontBodyColor ?? THEME_FONT_COLORS[settings.colorScheme].body,
+      fontMutedColor: settings.fontMutedColor ?? THEME_FONT_COLORS[settings.colorScheme].muted
+    }));
     DEFAULT_RUNTIME_SETTINGS = {
       loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 150 },
       answer: {
@@ -164426,24 +165363,28 @@ var init_runtime_settings = __esm({
         injectCurrentDate: false
       },
       colorScheme: "dark",
-      entityStyles: DEFAULT_ENTITY_STYLES
+      entityStyles: DEFAULT_ENTITY_STYLES,
+      fontBodyColor: THEME_FONT_COLORS.dark.body,
+      fontMutedColor: THEME_FONT_COLORS.dark.muted,
+      fontFamily: "dm-sans",
+      fontSize: "m"
     };
   }
 });
 
 // server/lib/runtime-settings-store.ts
 function forgetRuntimeSettings() {
-  cache = /* @__PURE__ */ new WeakMap();
+  cache4 = /* @__PURE__ */ new WeakMap();
 }
 async function readRuntimeSettings(client, options = {}) {
   const now = options.now ?? Date.now();
-  const cached3 = cache.get(client);
+  const cached3 = cache4.get(client);
   if (cached3 && now - cached3.at < (options.maxAgeMs ?? RUNTIME_SETTINGS_TTL_MS)) return cached3.value;
   try {
-    const result = await client.lakebase.query(`SELECT settings FROM ${RUNTIME_SETTINGS_TABLE} WHERE id = $1`, [KEY]);
+    const result = await client.lakebase.query(`SELECT settings FROM ${RUNTIME_SETTINGS_TABLE} WHERE id = $1`, [KEY4]);
     const raw2 = result?.rows?.[0]?.settings;
     const parsed = raw2 === void 0 ? DEFAULT_RUNTIME_SETTINGS : RuntimeSettingsSchema.parse(raw2);
-    cache.set(client, { value: parsed, at: now });
+    cache4.set(client, { value: parsed, at: now });
     return parsed;
   } catch (error48) {
     console.warn("[runtime-settings] Falling back to defaults:", error48.message);
@@ -164457,17 +165398,17 @@ async function writeRuntimeSettings(client, settings, updatedBy) {
      VALUES ($1, $2::jsonb, $3, now())
      ON CONFLICT (id) DO UPDATE SET
        settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [KEY, JSON.stringify(parsed), updatedBy]
+    [KEY4, JSON.stringify(parsed), updatedBy]
   );
   forgetRuntimeSettings();
   return parsed;
 }
-var KEY, RUNTIME_SETTINGS_TABLE, RUNTIME_SETTINGS_DDL, cache, RUNTIME_SETTINGS_TTL_MS;
+var KEY4, RUNTIME_SETTINGS_TABLE, RUNTIME_SETTINGS_DDL, cache4, RUNTIME_SETTINGS_TTL_MS;
 var init_runtime_settings_store = __esm({
   "server/lib/runtime-settings-store.ts"() {
     init_app_schema();
     init_runtime_settings();
-    KEY = "effective";
+    KEY4 = "effective";
     RUNTIME_SETTINGS_TABLE = appTable("runtime_settings");
     RUNTIME_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${RUNTIME_SETTINGS_TABLE} (
   id TEXT PRIMARY KEY,
@@ -164475,8 +165416,242 @@ var init_runtime_settings_store = __esm({
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_by TEXT NOT NULL
 )`;
-    cache = /* @__PURE__ */ new WeakMap();
+    cache4 = /* @__PURE__ */ new WeakMap();
     RUNTIME_SETTINGS_TTL_MS = 15e3;
+  }
+});
+
+// shared/eval-live-scoring.ts
+function parseLiveTraceScore(value) {
+  return LiveTraceScoreSchema.parse(value);
+}
+function shouldSampleLiveTrace(seed, rate) {
+  if (!Number.isFinite(rate) || rate <= 0) return false;
+  if (rate >= 1) return true;
+  const key2 = seed.trim();
+  if (!key2) return false;
+  let hash2 = 2166136261;
+  for (let index = 0; index < key2.length; index += 1) {
+    hash2 ^= key2.charCodeAt(index);
+    hash2 = Math.imul(hash2, 16777619);
+  }
+  return (hash2 >>> 0) / 4294967295 < rate;
+}
+function liveChecksFromAnswer(input) {
+  return deterministicChecks(input);
+}
+var DEFAULT_LIVE_SAMPLE_RATE, LIVE_SCORE_KEEP, LiveJudgeVerdictSchema, LiveTraceScoreSchema, WorkspaceMonitorSchema;
+var init_eval_live_scoring = __esm({
+  "shared/eval-live-scoring.ts"() {
+    init_zod();
+    init_eval_flywheel();
+    DEFAULT_LIVE_SAMPLE_RATE = 0.2;
+    LIVE_SCORE_KEEP = 50;
+    LiveJudgeVerdictSchema = external_exports.strictObject({
+      name: external_exports.string().trim().min(1).max(80),
+      value: external_exports.enum(["yes", "no"]).nullable(),
+      state: external_exports.enum(["scored", "errored", "not-applicable", "skipped"]),
+      note: external_exports.string().trim().max(400).default("")
+    });
+    LiveTraceScoreSchema = external_exports.strictObject({
+      id: external_exports.string().trim().min(1).max(80),
+      at: external_exports.string().trim().min(1).max(40),
+      conversationId: external_exports.string().trim().min(1).max(80),
+      messageId: external_exports.string().trim().min(1).max(80),
+      traceId: external_exports.string().trim().max(80).default(""),
+      question: external_exports.string().trim().max(2e3).default(""),
+      turnCount: external_exports.number().int().nonnegative().default(0),
+      sampled: external_exports.boolean(),
+      sampleRate: external_exports.number().min(0).max(1),
+      checks: external_exports.array(
+        external_exports.strictObject({
+          id: external_exports.enum(["fqn-present", "no-refused-sql", "latency-under-budget"]),
+          label: external_exports.string(),
+          passed: external_exports.boolean().nullable(),
+          note: external_exports.string()
+        })
+      ),
+      judges: external_exports.array(LiveJudgeVerdictSchema).default([])
+    });
+    WorkspaceMonitorSchema = external_exports.strictObject({
+      status: external_exports.enum(["active", "blocked", "unknown"]),
+      note: external_exports.string().trim().max(800),
+      scorers: external_exports.array(external_exports.string().trim().min(1).max(80)).default([])
+    });
+  }
+});
+
+// server/lib/eval-live-score-store.ts
+async function appendLiveScore(client, score) {
+  const parsed = parseLiveTraceScore(score);
+  await client.lakebase.query(
+    `INSERT INTO ${EVAL_LIVE_SCORES_TABLE} (id, conversation_id, message_id, score, scored_at)
+     VALUES ($1, $2, $3, $4::jsonb, now())
+     ON CONFLICT (id) DO UPDATE SET
+       score = EXCLUDED.score, scored_at = now()`,
+    [parsed.id, parsed.conversationId, parsed.messageId, JSON.stringify(parsed)]
+  );
+  return parsed;
+}
+async function listLiveScores(client, limit = LIVE_SCORE_KEEP) {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT score FROM ${EVAL_LIVE_SCORES_TABLE} ORDER BY scored_at DESC LIMIT $1`,
+      [Math.max(1, Math.min(limit, LIVE_SCORE_KEEP))]
+    );
+    return (result?.rows ?? []).map((row2) => {
+      try {
+        return parseLiveTraceScore(row2.score);
+      } catch {
+        return null;
+      }
+    }).filter((entry) => entry !== null);
+  } catch (error48) {
+    console.warn("[eval-live-scores] Live scores could not be read:", error48.message);
+    return [];
+  }
+}
+var EVAL_LIVE_SCORES_TABLE, EVAL_LIVE_SCORES_DDL;
+var init_eval_live_score_store = __esm({
+  "server/lib/eval-live-score-store.ts"() {
+    init_app_schema();
+    init_eval_live_scoring();
+    EVAL_LIVE_SCORES_TABLE = appTable("eval_live_scores");
+    EVAL_LIVE_SCORES_DDL = `CREATE TABLE IF NOT EXISTS ${EVAL_LIVE_SCORES_TABLE} (
+  id TEXT PRIMARY KEY,
+  scored_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  conversation_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  score JSONB NOT NULL
+)`;
+  }
+});
+
+// server/lib/live-ask-scoring.ts
+function liveScoreId(conversationId, messageId) {
+  return `live-${conversationId}-${messageId}`.slice(0, 80);
+}
+function scoreLiveDeterministic(turn, settings, sampleRate = DEFAULT_LIVE_SAMPLE_RATE) {
+  if (!settings.alwaysOnTraces) return null;
+  const seed = `${turn.conversationId}:${turn.messageId}`;
+  if (!shouldSampleLiveTrace(seed, sampleRate)) return null;
+  return {
+    id: liveScoreId(turn.conversationId, turn.messageId),
+    at: (/* @__PURE__ */ new Date()).toISOString(),
+    conversationId: turn.conversationId,
+    messageId: turn.messageId,
+    traceId: turn.traceId ?? "",
+    question: turn.question.trim().slice(0, 2e3),
+    turnCount: countedThreadTurns(turn.turns ?? []),
+    sampled: true,
+    sampleRate,
+    checks: liveChecksFromAnswer({
+      sql: turn.sql,
+      note: turn.note,
+      durationMs: turn.durationMs
+    }),
+    judges: []
+  };
+}
+async function scoreLiveJudges(turn, settings, invoke2) {
+  const verdicts = [];
+  const enabled2 = new Set(settings.enabledJudges);
+  const response = turn.response.trim();
+  const question = turn.question.trim();
+  const context2 = (turn.context ?? "").trim();
+  const conversation = conversationFromTurnsOrPair(turn.turns, question, response);
+  const run2 = async (name2, prompt) => {
+    const judgement = await runJudge(
+      { invoke: invoke2, judgeEndpoint: settings.judgeEndpoint },
+      name2,
+      prompt
+    );
+    return {
+      name: name2,
+      value: judgement.state === "scored" ? judgement.value : null,
+      state: judgement.state,
+      note: judgement.rationale || judgement.reason
+    };
+  };
+  if (enabled2.has("groundedness")) {
+    verdicts.push(
+      context2 ? await run2(GROUNDEDNESS_FEEDBACK_NAME, groundednessPrompt(question, response, context2)) : {
+        name: GROUNDEDNESS_FEEDBACK_NAME,
+        value: null,
+        state: "not-applicable",
+        note: "No retrieved context on this turn, so groundedness was not scored."
+      }
+    );
+  }
+  if (enabled2.has("relevance")) {
+    verdicts.push(await run2(RELEVANCE_TO_QUERY_ASSESSMENT_NAME, relevanceToQueryPrompt(question, response)));
+  }
+  if (enabled2.has("guidelines") && settings.guidelinesText.trim()) {
+    verdicts.push(
+      await run2(
+        GUIDELINES_FEEDBACK_NAME,
+        guidelinesPrompt([settings.guidelinesText.trim()], { request: question, response })
+      )
+    );
+  }
+  for (const extra of extraJudgesFromSettings(settings)) {
+    const customPrompt = customJudgeRunPrompt(extra, { question, response, conversation });
+    if (customPrompt) {
+      verdicts.push(await run2(extra.name, customPrompt));
+      continue;
+    }
+    if (extra.guidelines.length === 0) continue;
+    const prompt = extra.kind === "multi-turn" ? guidelinesPrompt(extra.guidelines, { conversation }) : guidelinesPrompt(extra.guidelines, { request: question, response });
+    verdicts.push(await run2(extra.name, prompt));
+  }
+  return verdicts;
+}
+async function scoreSampledAskTurn(input) {
+  try {
+    const settings = input.settings ?? DEFAULT_BENCHMARK_SETTINGS;
+    const scored2 = scoreLiveDeterministic(input.turn, settings, input.sampleRate);
+    if (!scored2) return null;
+    if (input.invokeJudge && settings.judgeEndpoint.trim()) {
+      try {
+        scored2.judges = await scoreLiveJudges(input.turn, settings, input.invokeJudge);
+      } catch (error48) {
+        scored2.judges = [
+          {
+            name: "judges",
+            value: null,
+            state: "errored",
+            note: `LLM judges could not run: ${error48.message}`
+          }
+        ];
+      }
+    } else {
+      scored2.judges = [
+        {
+          name: "judges",
+          value: null,
+          state: "skipped",
+          note: "Deterministic checks ran. LLM judges need a reachable judge model."
+        }
+      ];
+    }
+    await appendLiveScore(input.client, scored2);
+    return scored2;
+  } catch (error48) {
+    console.warn("[eval-live-scores] Sampled Ask turn was not scored:", error48.message);
+    return null;
+  }
+}
+function scheduleLiveAskScore(input) {
+  void scoreSampledAskTurn(input);
+}
+var init_live_ask_scoring = __esm({
+  "server/lib/live-ask-scoring.ts"() {
+    init_eval_live_scoring();
+    init_eval_conversation();
+    init_eval_dataset();
+    init_benchmark_settings();
+    init_mlflow_judges();
+    init_eval_live_score_store();
   }
 });
 
@@ -166306,8 +167481,8 @@ function diagnoseUserToken(req, isDevelopmentIdentity) {
   };
 }
 function looksLikeMissingScope(message) {
-  const text16 = message.toLowerCase();
-  return text16.includes("does not have required scopes") || text16.includes("insufficient_scope") || text16.includes("scope") && (text16.includes("oauth") || text16.includes("token"));
+  const text17 = message.toLowerCase();
+  return text17.includes("does not have required scopes") || text17.includes("insufficient_scope") || text17.includes("scope") && (text17.includes("oauth") || text17.includes("token"));
 }
 function scopesFromToken(token) {
   const segments = token.split(".");
@@ -166406,12 +167581,12 @@ function statusForOutcome(outcome) {
 function probeStatement(table) {
   return `SELECT 1 FROM ${table} WHERE 1=0`;
 }
-function matches(text16, markers) {
-  return markers.some((marker) => text16.includes(marker));
+function matches(text17, markers) {
+  return markers.some((marker) => text17.includes(marker));
 }
 function classifyDenial(message, table) {
-  const text16 = message.toLowerCase();
-  if (matches(text16, PERMISSION_MARKERS)) {
+  const text17 = message.toLowerCase();
+  if (matches(text17, PERMISSION_MARKERS)) {
     const catalog = CATALOG_REFUSED.exec(message);
     if (catalog) {
       return { kind: "no-grant", object: catalog[1], objectKind: "catalog", permission: "USE CATALOG" };
@@ -166422,7 +167597,7 @@ function classifyDenial(message, table) {
     }
     return { kind: "no-grant", object: table, objectKind: "table", permission: "SELECT" };
   }
-  if (matches(text16, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
+  if (matches(text17, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
   return { kind: "unrecognised" };
 }
 function classify(message, table, principal) {
@@ -167789,6 +168964,10 @@ function undeclaredPlanKeys(plan) {
   });
   return found;
 }
+async function callerReadsEveryRun(store, email3) {
+  const { role } = await resolveRole(store, email3);
+  return opensAdminSurfaces(role);
+}
 function describePayloadShape(value) {
   if (value === null || typeof value !== "object") return `the endpoint returned ${typeof value}`;
   const keys = Object.keys(value);
@@ -167999,6 +169178,7 @@ function benchmarkRunTrace(row2) {
       total: numberOrNull(metrics2.total),
       groundedness: numberOrNull(metrics2.groundedness),
       relevance: numberOrNull(metrics2.relevance),
+      guidelines: numberOrNull(metrics2.guidelines),
       durationMs: numberOrNull(metrics2.durationMs ?? metrics2.duration_ms)
     }
   };
@@ -168272,15 +169452,15 @@ function extractLiveText(value) {
     const items = record2[key2];
     if (Array.isArray(items)) {
       for (const item of items) {
-        const text16 = extractLiveText(item);
-        if (text16) return text16;
+        const text17 = extractLiveText(item);
+        if (text17) return text17;
       }
     }
   }
   for (const key2 of ["message", "data", "response", "result", "body"]) {
     if (record2[key2]) {
-      const text16 = extractLiveText(record2[key2]);
-      if (text16) return text16;
+      const text17 = extractLiveText(record2[key2]);
+      if (text17) return text17;
     }
   }
   return null;
@@ -168592,7 +169772,8 @@ function buildAskServingBody({
   runId,
   expectedUser,
   deadlineAt,
-  runtimeSettings
+  runtimeSettings,
+  evalGuidance
 }) {
   const custom_inputs = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -168602,6 +169783,7 @@ function buildAskServingBody({
   if (runId) custom_inputs.run_id = runId;
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
   if (runtimeSettings) custom_inputs.runtime_settings = runtimeSettings;
+  if (evalGuidance?.trim()) custom_inputs.eval_guidance = evalGuidance.trim();
   if (expectedUser) {
     custom_inputs.identity_mode = SIGNED_IN_USER;
     custom_inputs.expected_user = expectedUser;
@@ -168609,8 +169791,7 @@ function buildAskServingBody({
   const input = history.length > 0 ? history : [{ role: "user", content: prompt }];
   return stream2 ? { input, custom_inputs, stream: true } : { input, custom_inputs };
 }
-async function invokeServing(appkit, payload, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS, userToken) {
-  const endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+async function invokeServing(appkit, payload, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS, userToken, endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME) {
   if (!endpointName) {
     throw new Error("DATABRICKS_SERVING_ENDPOINT_NAME is not set.");
   }
@@ -168650,9 +169831,9 @@ function rejectionStatus(error48) {
   if (/\b401\b|unauthenticated|unauthorized|invalid access token|expired/i.test(message)) return 401;
   return null;
 }
-async function invokeServingAsUser(appkit, payload, userToken, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS) {
+async function invokeServingAsUser(appkit, payload, userToken, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS, endpointName) {
   try {
-    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken);
+    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken, endpointName);
   } catch (error48) {
     const code = authorizationFailureFor(rejectionStatus(error48) ?? 0);
     if (!code) throw error48;
@@ -169462,6 +170643,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           servingHistory[servingHistory.length - 1] = { role: "user", content: prompt };
         }
         askRuntime = await readRuntimeSettings(appkit);
+        const evalGuidance = await resolveAskGuidance(appkit);
         const payload = buildAskServingBody({
           history: servingHistory,
           prompt,
@@ -169474,7 +170656,8 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           runId: identity.requestId,
           expectedUser: identity.token ? email3 : "",
           deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
-          runtimeSettings: askRuntime
+          runtimeSettings: askRuntime,
+          evalGuidance
         });
         const stageRecorder = admission.run ? createStageRecorder(appkit, admission.run.runId) : null;
         const onStage = (stage) => {
@@ -169489,7 +170672,8 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           if (reply.wantsStream) reply.stage(stage);
           stageRecorder?.record(stage);
         };
-        const endpointResult = identity.token ? await invokeServingAsUser(appkit, payload, identity.token, onStage) : await invokeServing(appkit, payload, onStage);
+        const askEndpoint = await resolveAskEndpoint(appkit);
+        const endpointResult = identity.token ? await invokeServingAsUser(appkit, payload, identity.token, onStage, SERVING_INVOKE_TIMEOUT_MS, askEndpoint) : await invokeServing(appkit, payload, onStage, SERVING_INVOKE_TIMEOUT_MS, void 0, askEndpoint);
         ranAsSignedInUser = Boolean(identity.token);
         const refused2 = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
         if (refused2) {
@@ -169753,6 +170937,42 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         admission,
         runStored ? { to: "SUCCEEDED", traceId: disclosed.trace.id, messageId: disclosed.id } : { to: "PERSISTENCE_FAILED", code: "PERSISTENCE_UNAVAILABLE", traceId: disclosed.trace.id }
       );
+      void readBenchmarkSettings(appkit).then(async (settings) => {
+        const judgeEndpoint = settings.judgeEndpoint.trim();
+        let invokeJudge;
+        if (judgeEndpoint) {
+          const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+          if (!workspaceClient) workspaceClient = new WorkspaceClient6({});
+          const client = workspaceClient;
+          invokeJudge = (payload) => client.apiClient.request({
+            path: servingInvocationPath(judgeEndpoint),
+            method: "POST",
+            payload,
+            headers: new Headers({ Accept: "application/json" }),
+            raw: false
+          });
+        }
+        const turns = await loadConversationTurns(appkit, conversationId).catch(() => []);
+        scheduleLiveAskScore({
+          client: appkit,
+          settings,
+          invokeJudge,
+          turn: {
+            conversationId,
+            messageId: disclosed.id,
+            traceId: disclosed.trace.id,
+            question: prompt,
+            response: [disclosed.takeaway, disclosed.narrative].filter(Boolean).join("\n"),
+            sql: disclosed.sql ?? "",
+            note: "",
+            durationMs: disclosed.trace.totalMs,
+            context: disclosed.sql ?? "",
+            turns
+          }
+        });
+      }).catch((error48) => {
+        console.warn("[eval-live-scores] Sampled Ask scoring was not started:", error48.message);
+      });
       reply.json({
         type: "answer",
         ...disclosed,
@@ -169761,7 +170981,13 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       });
     });
     app.get("/api/runs", async (req, res) => {
-      await respondWithStored(appkit, res, "GET /api/runs", RUNS_QUERY, [PLAN_APPROVAL_MESSAGE, userEmail(req)]);
+      const email3 = userEmail(req);
+      const everyRun = await callerReadsEveryRun(appkit.lakebase, email3);
+      await respondWithStored(appkit, res, "GET /api/runs", RUNS_QUERY, [
+        PLAN_APPROVAL_MESSAGE,
+        email3,
+        everyRun
+      ]);
     });
     app.get("/api/storage", (_req, res) => {
       const health2 = lakebaseHealth();
@@ -169771,10 +170997,16 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
     app.get("/api/runs/:id/trace", async (req, res) => {
       const runId = req.params.id;
       const email3 = userEmail(req);
+      const everyRun = await callerReadsEveryRun(appkit.lakebase, email3);
       const experimentId = await resolveExperimentId(appkit);
       let resolved = null;
       try {
-        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [runId, PLAN_APPROVAL_MESSAGE, email3]);
+        const message = await appkit.lakebase.query(RUN_TRACE_MESSAGE_QUERY, [
+          runId,
+          PLAN_APPROVAL_MESSAGE,
+          email3,
+          everyRun
+        ]);
         if (message.rows[0]) {
           resolved = conversationRunTrace(message.rows[0], experimentId);
         } else {
@@ -169855,6 +171087,37 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
     });
     app.get("/api/benchmarks/suite", async (req, res) => {
       const requestedSuiteId = typeof req.query.suiteId === "string" ? req.query.suiteId : CANONICAL_SUITE.id;
+      if (requestedSuiteId === OPERATOR_EVAL_SUITE_ID) {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        res.json({
+          suiteId: OPERATOR_EVAL_SUITE_ID,
+          suiteName: OPERATOR_EVAL_SUITE_NAME,
+          caseListSource: "suite-row",
+          cases: dataset.rows.filter((row2) => row2.question.trim()).map((row2) => ({
+            id: row2.id,
+            name: row2.id,
+            question: row2.question,
+            intent: row2.groundTruthSql.trim() ? "Genie accuracy: has ground-truth SQL" : row2.expectedAnswer.trim() ? "Agent judges: has an expected answer" : "Question only",
+            questionSource: "suite-row"
+          }))
+        });
+        return;
+      }
+      if (requestedSuiteId === HELD_OUT_SUITE_ID) {
+        res.json({
+          suiteId: HELD_OUT_SUITE_ID,
+          suiteName: HELD_OUT_SUITE_NAME,
+          caseListSource: "catalog",
+          cases: HELD_OUT_CASES.map((entry) => ({
+            id: entry.caseId,
+            name: entry.caseId,
+            question: entry.question,
+            intent: entry.group,
+            questionSource: "catalog"
+          }))
+        });
+        return;
+      }
       const suite = canonicalSuite(requestedSuiteId);
       if (!suite) {
         res.status(404).json({
@@ -169885,7 +171148,9 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
     });
     app.post("/api/benchmarks/run", async (req, res) => {
       const parsed = BenchmarkRunBody.safeParse(req.body);
-      const requestedSuiteId = parsed.success ? parsed.data.suiteId ?? CANONICAL_SUITE.id : CANONICAL_SUITE.id;
+      const savedBench = await readBenchmarkSettings(appkit);
+      const requestedSuiteId = parsed.success ? parsed.data.suiteId ?? savedBench.evalSetId : savedBench.evalSetId;
+      const namedAgent = parsed.success ? parsed.data.agentEndpoint?.trim() ?? "" : "";
       const email3 = userEmail(req);
       const identity = decideIdentity(req, { signedInAs: email3, required: isDeployed() });
       if (!identity.ok) {
@@ -169908,7 +171173,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         );
         return;
       }
-      const agentEndpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+      const agentEndpoint = namedAgent && namedAgent !== CURRENT_AGENT_SIDE ? namedAgent : process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
       if (!agentEndpoint) {
         res.status(503).json({
           error: "agent_endpoint_not_configured",
@@ -169947,11 +171212,26 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
             // real turn declare the same identity contract to the agent. Empty
             // on a laptop, where there is no proxy and so no user to assert.
             expectedUser: identity.token ? email3 : "",
-            runtimeSettings: await readRuntimeSettings(appkit)
+            runtimeSettings: await readRuntimeSettings(appkit),
+            evalGuidance: await resolveAskGuidance(appkit)
           });
           let raw2;
           try {
-            raw2 = identity.token ? await invokeServingAsUser(appkit, payload, identity.token) : await invokeServing(appkit, payload);
+            raw2 = identity.token ? await invokeServingAsUser(
+              appkit,
+              payload,
+              identity.token,
+              void 0,
+              SERVING_INVOKE_TIMEOUT_MS,
+              agentEndpoint
+            ) : await invokeServing(
+              appkit,
+              payload,
+              void 0,
+              SERVING_INVOKE_TIMEOUT_MS,
+              void 0,
+              agentEndpoint
+            );
           } catch (error48) {
             if (!(error48 instanceof AuthorizationRefused)) throw error48;
             return {
@@ -170056,14 +171336,23 @@ var init_insights_routes = __esm({
     init_benchmark_runner();
     init_benchmark_identity();
     init_benchmark_suite();
+    init_held_out_suite();
+    init_eval_dataset();
+    init_eval_dataset_store();
+    init_eval_flywheel_store();
     init_app_settings();
     init_run_ledger_schema();
     init_egress_store();
     init_admin_roles_schema();
     init_runtime_settings_store();
+    init_benchmark_settings_store();
+    init_eval_conversation2();
+    init_live_ask_scoring();
+    init_benchmark_settings();
     init_deployment_decisions();
     init_run_runtime_used();
     init_admin_roles();
+    init_user_roster_contract();
     init_run_admission();
     init_run_replay();
     init_run_stage_events();
@@ -170185,7 +171474,10 @@ var init_insights_routes = __esm({
       usefulness: external_exports.number().int().min(1).max(5).optional(),
       comment: external_exports.string().max(2e3).optional()
     });
-    BenchmarkRunBody = external_exports.object({ suiteId: external_exports.string().min(1).optional() });
+    BenchmarkRunBody = external_exports.object({
+      suiteId: external_exports.string().min(1).optional(),
+      agentEndpoint: external_exports.string().min(1).optional()
+    });
     FigureSchema = external_exports.looseObject({
       label: external_exports.string(),
       value: external_exports.number(),
@@ -170338,7 +171630,7 @@ var init_insights_routes = __esm({
     JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
     -- A plan proposal has no trace and is not yet a run; an answer always has one.
     WHERE m.role = 'assistant' AND jsonb_typeof(m.response_json->'trace') = 'object'
-      AND c.user_email = $2
+      AND ($3 OR c.user_email = $2)
   )
   SELECT a.id, 'conversation' AS kind, a.conversation_id,
          COALESCE((SELECT u.content FROM ${APP_SCHEMA}.messages u
@@ -170400,7 +171692,7 @@ var init_insights_routes = __esm({
   UNION ALL
   SELECT b.id, 'benchmark' AS kind, NULL AS conversation_id,
          b.metrics_json->>'prompt' AS prompt,
-         CASE WHEN b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
+         CASE WHEN $3 OR b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
          ${overlayStatusSql("b.status")} AS status,
          jsonb_typeof(b.metrics_json->'truncation') = 'object' AS truncated,
          -- NULL because a suite has no single trace to read it off: each case is
@@ -170446,6 +171738,7 @@ var init_insights_routes = __esm({
       total: external_exports.number().nullable(),
       groundedness: external_exports.number().nullable(),
       relevance: external_exports.number().nullable(),
+      guidelines: external_exports.number().nullable().optional(),
       durationMs: external_exports.number().nullable()
     });
     RunTraceSchema = external_exports.looseObject({
@@ -170528,7 +171821,7 @@ var init_insights_routes = __esm({
          ) AS prompt
   FROM ${APP_SCHEMA}.messages m
   JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
-  WHERE m.id = $1 AND c.user_email = $3`;
+  WHERE m.id = $1 AND ($4 OR c.user_email = $3)`;
     RUN_TRACE_BENCHMARK_QUERY = `
   SELECT b.id, b.suite_id, b.status, b.metrics_json, b.created_at,
          CASE WHEN b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS user_email
@@ -171178,10 +172471,10 @@ function appFacts(input) {
   const gitBacked = Object.keys(gitSource).length > 0;
   const sourcePath = gitBacked ? textOf3(gitSource.source_code_path) : textOf3(deployment.source_code_path);
   const appName = textOf3(body.name);
-  const workspaceHost2 = normalizeWorkspaceHost(input.workspaceHost);
+  const workspaceHost3 = normalizeWorkspaceHost(input.workspaceHost);
   const gitRef = textOf3(gitSource.branch) || textOf3(gitSource.tag) || textOf3(gitSource.commit);
   const workspaceId = textOf3(input.workspaceId) || workspaceIdFromAppUrl(appUrl2);
-  const folderUrl = gitBacked ? "" : browseFolderUrl({ host: workspaceHost2, folderId: input.sourceFolderId ?? "", workspaceId });
+  const folderUrl = gitBacked ? "" : browseFolderUrl({ host: workspaceHost3, folderId: input.sourceFolderId ?? "", workspaceId });
   return {
     url: appUrl2,
     answered: true,
@@ -171205,7 +172498,7 @@ function appFacts(input) {
       // refused the id for. A deployment that reported no source gets no link,
       // because a row that goes somewhere unrelated is worse than a row that is
       // not drawn.
-      workspaceUrl: folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost2, appName, workspaceId }) : ""),
+      workspaceUrl: folderUrl || (sourcePath ? appPageUrl({ host: workspaceHost3, appName, workspaceId }) : ""),
       gitRef
     },
     serving: appServing(body),
@@ -171215,7 +172508,7 @@ function appFacts(input) {
 }
 async function readAppFacts(input = {}) {
   const name2 = (input.name ?? process.env[APP_NAME_ENV] ?? "").trim();
-  const workspaceHost2 = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? "";
+  const workspaceHost3 = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? "";
   const otelExporter = (input.otelExporter ?? process.env[OTEL_ENDPOINT_ENV] ?? "").trim();
   let otelExport = NO_EXPORTER_READING;
   try {
@@ -171242,7 +172535,7 @@ async function readAppFacts(input = {}) {
       console.warn(`[settings] The folder id for ${folderPath} could not be read:`, error48.message);
     }
   }
-  return appFacts({ read: read2, workspaceHost: workspaceHost2, otelExporter, otelExport, sourceFolderId });
+  return appFacts({ read: read2, workspaceHost: workspaceHost3, otelExporter, otelExport, sourceFolderId });
 }
 var APPS_PATH2, APP_NAME_ENV, OTEL_ENDPOINT_ENV, COMPUTE_ENVELOPES, WORKSPACE_STATUS_PATH, WORKSPACE_PREFIX, workspaceAppReader, knownFolderIds, workspaceFolderIdResolver;
 var init_app_metadata = __esm({
@@ -174838,10 +176131,10 @@ function semanticIndexReport() {
   };
 }
 async function architecturePayload(appkit) {
-  const workspaceHost2 = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
+  const workspaceHost3 = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   return {
-    workspaceHost: workspaceHost2,
-    canDeepLink: Boolean(workspaceHost2),
+    workspaceHost: workspaceHost3,
+    canDeepLink: Boolean(workspaceHost3),
     servingEndpoint: fromEnvironment("DATABRICKS_SERVING_ENDPOINT_NAME"),
     appWarehouse: fromEnvironment("DATABRICKS_SQL_WAREHOUSE_ID"),
     // Through the same resolver the trace links use, so a saved override that
@@ -175430,16 +176723,16 @@ async function resolveGrants(options) {
   const now = options.now ?? Date.now();
   const ttl = options.ttlMs ?? GRANT_CACHE_TTL_MS;
   const id = cacheKey(options.key);
-  const cached3 = cache2.get(id);
+  const cached3 = cache5.get(id);
   if (cached3 && now - cached3.resolvedAt < ttl) return cached3;
   if (options.tables.length === 0) {
     const empty = { resolved: true, verdicts: /* @__PURE__ */ new Map(), resolvedAt: now };
-    cache2.set(id, empty);
+    cache5.set(id, empty);
     return empty;
   }
   if (!options.probe) {
     const failed5 = unresolvedGrants(now);
-    cache2.set(id, failed5);
+    cache5.set(id, failed5);
     return failed5;
   }
   let outcome;
@@ -175450,7 +176743,7 @@ async function resolveGrants(options) {
       `[monitoring] Table permissions could not be resolved for ${options.key.admin}: ${error48.message}. Everything is shown, and the page says the check could not run.`
     );
     const failed5 = unresolvedGrants(now);
-    cache2.set(id, failed5);
+    cache5.set(id, failed5);
     return failed5;
   }
   if (outcome.blocked) {
@@ -175458,13 +176751,13 @@ async function resolveGrants(options) {
       `[monitoring] Table permissions not established for ${options.key.admin}: ${outcome.blocked.kind}. Everything is shown.`
     );
     const failed5 = unresolvedGrants(now);
-    cache2.set(id, failed5);
+    cache5.set(id, failed5);
     return failed5;
   }
   const verdicts = /* @__PURE__ */ new Map();
   for (const verdict of outcome.verdicts) verdicts.set(verdict.table, verdict);
   const resolution = { resolved: true, verdicts, resolvedAt: now };
-  cache2.set(id, resolution);
+  cache5.set(id, resolution);
   return resolution;
 }
 function once(key2, work) {
@@ -175562,12 +176855,12 @@ function policiesFrom(body) {
   }).filter((name2) => name2 !== "");
   return { rowFilter, maskedColumns: masked };
 }
-var GRANT_CACHE_TTL_MS, cache2, EFFECTIVE_PERMISSIONS_PATH, TABLE_PATH, READ_PRIVILEGE, TABLE_POLICY_TTL_MS, PERSON_PRIVILEGE_TTL_MS, tablePolicies, personPrivileges, inFlight;
+var GRANT_CACHE_TTL_MS, cache5, EFFECTIVE_PERMISSIONS_PATH, TABLE_PATH, READ_PRIVILEGE, TABLE_POLICY_TTL_MS, PERSON_PRIVILEGE_TTL_MS, tablePolicies, personPrivileges, inFlight;
 var init_monitoring_grants = __esm({
   "server/lib/monitoring-grants.ts"() {
     init_access_verification();
     GRANT_CACHE_TTL_MS = 10 * 6e4;
-    cache2 = /* @__PURE__ */ new Map();
+    cache5 = /* @__PURE__ */ new Map();
     EFFECTIVE_PERMISSIONS_PATH = "/api/2.1/unity-catalog/effective-permissions/table";
     TABLE_PATH = "/api/2.1/unity-catalog/tables";
     READ_PRIVILEGE = "SELECT";
@@ -175591,7 +176884,7 @@ __export(monitoring_routes_exports, {
   QUESTION_READ_LIMIT: () => QUESTION_READ_LIMIT,
   pageFrom: () => pageFrom,
   questionFromRow: () => questionFromRow,
-  questionRows: () => questionRows,
+  questionRows: () => questionRows2,
   rangeFrom: () => rangeFrom,
   rangeTotalsFrom: () => rangeTotalsFrom,
   setupMonitoringRoutes: () => setupMonitoringRoutes,
@@ -175660,7 +176953,7 @@ function tokensOf(response) {
   if (prompt === null && completion === null && total === null) return null;
   return { prompt, completion, total };
 }
-function questionRows(rows) {
+function questionRows2(rows) {
   return rows.filter((row2) => text14(row2.question_id) !== "");
 }
 function rangeTotalsFrom(row2, page) {
@@ -175815,7 +177108,7 @@ function setupMonitoringRoutes(appkit, deps) {
       ]);
       const { rows, substitution } = chooseRows(
         "GET /api/monitoring/questions",
-        stored.available ? { available: true, rows: questionRows(stored.rows) } : stored
+        stored.available ? { available: true, rows: questionRows2(stored.rows) } : stored
       );
       markResponse(res, substitution);
       const readAt = new Date(clock()).toISOString();
@@ -175965,7 +177258,7 @@ function setupMonitoringRoutes(appkit, deps) {
         res.status(503).json({ error: "storage_unavailable" });
         return;
       }
-      const mine = questionRows(stored.rows).filter(
+      const mine = questionRows2(stored.rows).filter(
         (row2) => text14(row2.user_email).toLowerCase() === person.toLowerCase()
       );
       const answerIds = mine.map((row2) => text14(row2.answer_id)).filter((id) => id !== "");
@@ -177704,6 +178997,1170 @@ var init_runtime_settings_routes = __esm({
   }
 });
 
+// server/routes/benchmark-settings-routes.ts
+var benchmark_settings_routes_exports = {};
+__export(benchmark_settings_routes_exports, {
+  setupBenchmarkSettingsRoutes: () => setupBenchmarkSettingsRoutes
+});
+function experimentUrl(experimentId) {
+  const named = experimentId.trim();
+  const host2 = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
+  if (!named || !host2) return null;
+  return `${host2}/ml/experiments/${encodeURIComponent(named)}`;
+}
+function setupBenchmarkSettingsRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/benchmark-settings", async (_req, res) => {
+      const stored = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+      const experimentId = stored.experimentId.trim() || await resolveExperimentId(appkit);
+      const judgeEndpoint = stored.judgeEndpoint.trim() || await resolveJudgeEndpoint(appkit);
+      res.json({
+        settings: {
+          ...stored,
+          experimentId,
+          judgeEndpoint
+        },
+        experimentUrl: experimentUrl(experimentId),
+        currentAgentEndpoint: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
+        tracesAlwaysOnInAgent: true
+      });
+    });
+    app.put("/api/admin/benchmark-settings", async (req, res) => {
+      const parsed = BenchmarkSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_benchmark_settings", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const settings = await writeBenchmarkSettings(appkit, parsed.data, actor);
+        if (settings.experimentId) {
+          await writeStoredSetting(appkit, {
+            resourceId: "experiment-id",
+            value: settings.experimentId,
+            intent: "active",
+            note: "Saved from Settings \u2192 Experimental.",
+            updatedBy: actor
+          });
+          forgetResolvedExperimentIds();
+        }
+        if (settings.judgeEndpoint) {
+          await writeStoredSetting(appkit, {
+            resourceId: "judge-endpoint",
+            value: settings.judgeEndpoint,
+            intent: "active",
+            note: "Saved from Settings \u2192 Experimental.",
+            updatedBy: actor
+          });
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "benchmark-settings-updated",
+          subject: "benchmark-settings",
+          detail: "Updated MLflow experiment, traces, judges, and baseline/candidate sides."
+        });
+        res.json({
+          settings,
+          experimentUrl: experimentUrl(settings.experimentId),
+          currentAgentEndpoint: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
+          tracesAlwaysOnInAgent: true,
+          appliesNow: true
+        });
+      } catch (error48) {
+        res.status(503).json({
+          error: "benchmark_settings_store_unavailable",
+          detail: `The settings were not saved: ${error48.message}`
+        });
+      }
+    });
+  });
+}
+var init_benchmark_settings_routes = __esm({
+  "server/routes/benchmark-settings-routes.ts"() {
+    init_benchmark_settings();
+    init_databricks_links();
+    init_admin_roles();
+    init_app_settings();
+    init_benchmark_settings_store();
+    init_insights_routes();
+  }
+});
+
+// server/lib/judge-alignment.ts
+async function loadCasesForAlignment(client, runIds) {
+  const cases = [];
+  for (const id of runIds) {
+    const trimmed = id.trim();
+    if (!trimmed) continue;
+    try {
+      const result = await client.lakebase.query(
+        `SELECT metrics_json FROM ${appTable("benchmark_runs")} WHERE id = $1`,
+        [trimmed]
+      );
+      const raw2 = result?.rows?.[0]?.metrics_json;
+      const metrics2 = typeof raw2 === "string" ? JSON.parse(raw2) : raw2;
+      const listed = Array.isArray(metrics2?.cases) ? metrics2.cases : [];
+      cases.push(...listed);
+    } catch {
+    }
+  }
+  return cases;
+}
+function guidelinesFromAlignBody(body) {
+  if (!body || typeof body !== "object") return "";
+  const record2 = body;
+  const instructions = record2.instructions ?? record2.guidelines ?? record2.judge?.instructions ?? record2.judge?.guidelines;
+  return typeof instructions === "string" ? instructions.trim() : "";
+}
+async function tryMLflowJudgeAlign(client, input) {
+  let lastError = new Error("No judge-align path answered.");
+  for (const path19 of JUDGE_ALIGN_PATHS) {
+    try {
+      const body = await client.request({
+        method: "POST",
+        path: path19,
+        payload: {
+          name: "guidelines",
+          instructions: input.guidelines,
+          experiment_id: input.experimentId.trim() || void 0,
+          assessments: input.pairs.map((pair) => ({
+            name: "guidelines",
+            question: pair.question,
+            human: pair.human,
+            judge: pair.judge
+          }))
+        }
+      });
+      const next = guidelinesFromAlignBody(body);
+      if (next) return next;
+    } catch (error48) {
+      lastError = error48;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+async function rewriteGuidelinesWithJudge(invoke2, base, pairs) {
+  const raw2 = await invoke2({
+    messages: [{ role: "user", content: alignmentRewritePrompt(base, pairs) }],
+    temperature: 0,
+    max_tokens: 2048
+  });
+  const next = parseAlignedGuidelines(extractJudgeContent(raw2) ?? "");
+  if (!next) throw new Error("The judge model did not return replacement guidelines.");
+  return next.slice(0, 4e3);
+}
+async function alignGuidelinesToHumans(input) {
+  const pairs = pairLabelsWithCases(input.rows, input.cases);
+  const agreement = agreementFromPairs(pairs);
+  if (pairs.length === 0) {
+    return {
+      guidelinesText: input.base.trim(),
+      agreement,
+      method: "distill",
+      note: "Label at least one row before aligning.",
+      pairs
+    };
+  }
+  if (input.alignClient) {
+    try {
+      const next = await tryMLflowJudgeAlign(input.alignClient, {
+        experimentId: input.experimentId ?? "",
+        guidelines: input.base,
+        pairs
+      });
+      return {
+        guidelinesText: next.slice(0, 4e3),
+        agreement,
+        method: "mlflow",
+        note: `MLflow aligned the guidelines judge. ${agreementLine(agreement)}`,
+        pairs
+      };
+    } catch {
+    }
+  }
+  if (input.invokeJudge) {
+    try {
+      const next = await rewriteGuidelinesWithJudge(input.invokeJudge, input.base, pairs);
+      return {
+        guidelinesText: next,
+        agreement,
+        method: "rewrite",
+        note: `Guidelines were rewritten to match human verdicts. ${agreementLine(agreement)}`,
+        pairs
+      };
+    } catch (error48) {
+      const distilled2 = distillGuidelinesFromPairs(input.base, input.rows, pairs);
+      return {
+        guidelinesText: distilled2,
+        agreement,
+        method: "distill",
+        note: `The judge model could not rewrite the rubric (${error48.message}). Distilled replacement guidelines from the labels instead. ${agreementLine(agreement)}`,
+        pairs
+      };
+    }
+  }
+  const distilled = distillGuidelinesFromPairs(input.base, input.rows, pairs);
+  return {
+    guidelinesText: distilled,
+    agreement,
+    method: "distill",
+    note: `Replacement guidelines distilled from human labels. ${agreementLine(agreement)} MLflow judge.align was not available from this app.`,
+    pairs
+  };
+}
+var JUDGE_ALIGN_PATHS;
+var init_judge_alignment = __esm({
+  "server/lib/judge-alignment.ts"() {
+    init_app_schema();
+    init_eval_judge_alignment();
+    init_mlflow_judges();
+    JUDGE_ALIGN_PATHS = [
+      "/api/2.0/mlflow/genai/judges/align",
+      "/api/2.0/mlflow/judges/align"
+    ];
+  }
+});
+
+// server/lib/prompt-registry.ts
+function promptTemplateFromPromote(input) {
+  const guidelines = input.guidelines.trim();
+  const winner = input.endpoint.trim() || input.side.trim() || "the promoted agent";
+  return [
+    `Operating guidance for the promoted Ask path (${winner}).`,
+    guidelines || "Stay accurate, professional, and within the governed data the question asked about."
+  ].join("\n");
+}
+function parsePromptVersion(body) {
+  if (!body || typeof body !== "object") return "";
+  const record2 = body;
+  const version4 = record2.version ?? record2.prompt_version ?? record2.prompt?.version;
+  return version4 !== void 0 && version4 !== null ? String(version4) : "";
+}
+function parsePromptTemplate(body) {
+  if (!body || typeof body !== "object") return "";
+  const record2 = body;
+  const template = record2.template ?? record2.prompt_template ?? record2.prompt?.template;
+  return typeof template === "string" ? template : "";
+}
+async function tryFirstPath(client, method, paths, payload) {
+  let lastError = new Error("No Prompt Registry path answered.");
+  for (const path19 of paths) {
+    try {
+      const body = await client.request({ method, path: path19, payload });
+      return { path: path19, body };
+    } catch (error48) {
+      lastError = error48;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+async function registerPromptVersion(client, name2, template) {
+  const created = await tryFirstPath(client, "POST", PROMPT_REGISTER_PATHS, {
+    name: name2,
+    template,
+    commit_message: "Promoted from Player Insights Benchmarking."
+  });
+  return {
+    version: parsePromptVersion(created.body),
+    template: parsePromptTemplate(created.body) || template
+  };
+}
+async function setProductionAlias(client, name2, version4) {
+  const encoded = encodeURIComponent(name2);
+  const alias = PRODUCTION_PROMPT_ALIAS;
+  const paths = [
+    `/api/2.0/mlflow/unity-catalog/prompts/${encoded}/aliases/${encodeURIComponent(alias)}`,
+    `/api/2.0/mlflow/prompts/${encoded}/aliases/${encodeURIComponent(alias)}`
+  ];
+  await tryFirstPath(client, "PATCH", paths, { version: version4 });
+}
+async function loadProductionPrompt(client, name2) {
+  const encoded = encodeURIComponent(name2);
+  const alias = PRODUCTION_PROMPT_ALIAS;
+  const paths = [
+    `/api/2.0/mlflow/unity-catalog/prompts/${encoded}/aliases/${encodeURIComponent(alias)}`,
+    `/api/2.0/mlflow/prompts/${encoded}/aliases/${encodeURIComponent(alias)}`
+  ];
+  const loaded = await tryFirstPath(client, "GET", paths);
+  return {
+    version: parsePromptVersion(loaded.body),
+    template: parsePromptTemplate(loaded.body)
+  };
+}
+async function promotePromptAlias(client, input) {
+  const name2 = input.name.trim();
+  const template = input.template.trim();
+  if (!name2) {
+    return {
+      name: "",
+      alias: PRODUCTION_PROMPT_ALIAS,
+      version: "",
+      uri: "",
+      template,
+      status: "skipped",
+      note: "No Prompt Registry name is set. Next Ask still uses the saved guidance from this promote. Type a catalog.schema.prompt name to move the production alias."
+    };
+  }
+  try {
+    const registered = await registerPromptVersion(client, name2, template);
+    const version4 = registered.version;
+    if (version4) {
+      await setProductionAlias(client, name2, version4);
+    }
+    const loaded = version4 ? { version: version4, template: registered.template } : await loadProductionPrompt(client, name2);
+    return {
+      name: name2,
+      alias: PRODUCTION_PROMPT_ALIAS,
+      version: loaded.version || version4,
+      uri: promptRegistryUri(name2),
+      template: loaded.template || registered.template || template,
+      status: "moved",
+      note: `Moved the ${PRODUCTION_PROMPT_ALIAS} alias${loaded.version ? ` to version ${loaded.version}` : ""}. The next Ask loads ${promptRegistryUri(name2)} without a code change.`
+    };
+  } catch (error48) {
+    return {
+      name: name2,
+      alias: PRODUCTION_PROMPT_ALIAS,
+      version: "",
+      uri: promptRegistryUri(name2),
+      template,
+      status: "blocked",
+      note: `The production alias was not moved: ${error48.message} Apps often cannot write Prompt Registry. The next Ask still uses the guidance saved from this promote.`
+    };
+  }
+}
+var PROMPT_REGISTER_PATHS;
+var init_prompt_registry = __esm({
+  "server/lib/prompt-registry.ts"() {
+    init_eval_flywheel();
+    PROMPT_REGISTER_PATHS = [
+      "/api/2.0/mlflow/unity-catalog/prompts",
+      "/api/2.0/mlflow/prompts"
+    ];
+  }
+});
+
+// server/lib/review-app.ts
+async function startLabelingSession(client, input) {
+  const name2 = input.name.trim() || `PIA SME review ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}`;
+  const at = (/* @__PURE__ */ new Date()).toISOString();
+  let lastError = new Error("No labeling-session path answered.");
+  for (const path19 of LABELING_SESSION_PATHS) {
+    try {
+      const body = await client.request({
+        method: "POST",
+        path: path19,
+        payload: {
+          name: name2,
+          experiment_id: input.experimentId.trim() || void 0,
+          label_schemas: REVIEW_LABEL_SCHEMA.map((entry) => entry.name),
+          enable_multi_turn_chat: true
+        }
+      });
+      const ids = labelingIdsFromBody(body);
+      const url2 = reviewAppUrlFromBody(body);
+      if (!url2) {
+        return {
+          name: ids.name || name2,
+          sessionId: ids.sessionId,
+          runId: ids.runId,
+          url: "",
+          status: "blocked",
+          note: "A labeling session was created but Databricks did not return a Review App URL. Nothing was invented. SMEs can still label thumbs and SQL correct on this tab.",
+          at
+        };
+      }
+      return {
+        name: ids.name || name2,
+        sessionId: ids.sessionId,
+        runId: ids.runId,
+        url: url2,
+        status: "open",
+        note: "Share this Review App with SMEs. Labels use the same thumbs and SQL-correct fields already stored here.",
+        at
+      };
+    } catch (error48) {
+      lastError = error48;
+    }
+  }
+  return {
+    name: name2,
+    sessionId: "",
+    runId: "",
+    url: "",
+    status: "blocked",
+    note: `Review App could not be started: ${lastError instanceof Error ? lastError.message : String(lastError)} Apps often cannot create labeling sessions. SMEs can still label thumbs and SQL correct on this tab.`,
+    at
+  };
+}
+var LABELING_SESSION_PATHS;
+var init_review_app = __esm({
+  "server/lib/review-app.ts"() {
+    init_eval_review_app();
+    LABELING_SESSION_PATHS = [
+      "/api/2.0/mlflow/labeling-sessions",
+      "/api/2.0/mlflow/genai/labeling-sessions"
+    ];
+  }
+});
+
+// server/lib/genie-accuracy.ts
+function messageOf4(error48) {
+  return error48?.message ?? String(error48);
+}
+function asRecord2(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function text16(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function extractGenieSql(payload) {
+  const root = asRecord2(payload);
+  if (!root) return "";
+  const message = asRecord2(root.message) ?? root;
+  const attachments = message.attachments;
+  if (Array.isArray(attachments)) {
+    for (const entry of attachments) {
+      const attachment = asRecord2(entry);
+      if (!attachment) continue;
+      const query = asRecord2(attachment.query) ?? attachment;
+      const sql3 = text16(query.query) || text16(query.sql) || text16(attachment.query) || text16(attachment.sql);
+      if (sql3) return sql3;
+    }
+  }
+  return text16(message.query) || text16(root.query) || text16(root.sql);
+}
+function messageStatus(payload) {
+  const root = asRecord2(payload);
+  const message = asRecord2(root?.message) ?? root;
+  return text16(message?.status).toUpperCase();
+}
+function conversationIds(payload) {
+  const root = asRecord2(payload) ?? {};
+  const conversation = asRecord2(root.conversation);
+  const message = asRecord2(root.message);
+  return {
+    conversationId: text16(conversation?.id) || text16(root.conversation_id),
+    messageId: text16(message?.id) || text16(root.message_id)
+  };
+}
+async function jsonRequest2(call, url2, token, method, body) {
+  const response = await call(url2, {
+    method,
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/json",
+      ...method === "POST" ? { "content-type": "application/json" } : {}
+    },
+    ...method === "POST" ? { body: JSON.stringify(body ?? {}) } : {},
+    signal: AbortSignal.timeout(GENIE_ACCURACY_TIMEOUT_MS)
+  });
+  const payload = await response.json().catch(() => ({})) ?? {};
+  if (!response.ok) {
+    const detail = text16(payload.message) || text16(payload.error) || `workspace returned HTTP ${response.status}`;
+    throw new Error(detail);
+  }
+  return payload;
+}
+function createGenieAsker(options) {
+  const call = options.fetchImpl ?? fetch;
+  const sleep = options.sleep ?? ((ms) => new Promise((resolve2) => setTimeout(resolve2, ms)));
+  const now = options.now ?? Date.now;
+  const base = options.host.replace(/\/+$/, "");
+  return {
+    async ask({ spaceId, question }) {
+      if (!base || !options.token) {
+        throw new Error("This app cannot reach the workspace to ask the Genie space.");
+      }
+      const start = await jsonRequest2(
+        call,
+        `${base}/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}/start-conversation`,
+        options.token,
+        "POST",
+        { content: question }
+      );
+      const immediate = extractGenieSql(start);
+      if (immediate && ["COMPLETED", "EXECUTED"].includes(messageStatus(start))) {
+        return { sql: immediate, note: "Genie returned SQL." };
+      }
+      const ids = conversationIds(start);
+      if (!ids.conversationId || !ids.messageId) {
+        if (immediate) return { sql: immediate, note: "Genie returned SQL." };
+        throw new Error("Genie did not return a conversation to poll.");
+      }
+      const deadline = now() + GENIE_ACCURACY_TIMEOUT_MS;
+      while (now() < deadline) {
+        const polled = await jsonRequest2(
+          call,
+          `${base}/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}/conversations/${encodeURIComponent(ids.conversationId)}/messages/${encodeURIComponent(ids.messageId)}`,
+          options.token,
+          "GET"
+        );
+        const status = messageStatus(polled);
+        const sql3 = extractGenieSql(polled);
+        if (["COMPLETED", "EXECUTED"].includes(status) && sql3) {
+          return { sql: sql3, note: "Genie returned SQL." };
+        }
+        if (["FAILED", "CANCELLED", "QUERY_RESULT_EXPIRED"].includes(status)) {
+          throw new Error(`Genie finished with status ${status}.`);
+        }
+        await sleep(GENIE_ACCURACY_POLL_MS);
+      }
+      throw new Error("Genie did not finish before the wait ran out.");
+    }
+  };
+}
+async function runGenieAccuracy(input) {
+  const now = input.now ?? Date.now;
+  const startedAt = new Date(now()).toISOString();
+  const cases = [];
+  for (const row2 of sqlBackedRows(input.rows)) {
+    const caseStarted = now();
+    try {
+      const asked = await input.asker.ask({ spaceId: input.spaceId, question: row2.question });
+      const durationMs = Math.max(0, now() - caseStarted);
+      const passed2 = sqlMatches(asked.sql, row2.groundTruthSql);
+      const note = passed2 ? asked.note : "Predicted SQL did not match the ground-truth SQL.";
+      cases.push({
+        id: row2.id,
+        question: row2.question,
+        outcome: passed2 ? "pass" : "fail",
+        predictedSql: asked.sql,
+        groundTruthSql: row2.groundTruthSql,
+        note,
+        durationMs,
+        missKind: null,
+        excluded: false,
+        checks: deterministicChecks({ sql: asked.sql, note, durationMs })
+      });
+    } catch (error48) {
+      const durationMs = Math.max(0, now() - caseStarted);
+      const note = messageOf4(error48);
+      const missKind = durationMs >= WAREHOUSE_BUDGET_MS && classifyGenieMiss(note) === "error" ? "timeout" : classifyGenieMiss(note);
+      const excluded2 = isExcludedGenieMiss(missKind);
+      cases.push({
+        id: row2.id,
+        question: row2.question,
+        outcome: "error",
+        predictedSql: "",
+        groundTruthSql: row2.groundTruthSql,
+        note,
+        durationMs,
+        missKind,
+        excluded: excluded2,
+        checks: deterministicChecks({ sql: "", note, durationMs })
+      });
+    }
+  }
+  const passed = cases.filter((entry) => entry.outcome === "pass").length;
+  const excluded = cases.filter((entry) => entry.excluded).length;
+  const scored2 = cases.length - excluded;
+  return {
+    spaceId: input.spaceId,
+    spaceLabel: input.spaceLabel?.trim() || input.spaceId,
+    startedAt,
+    finishedAt: new Date(now()).toISOString(),
+    score: scoredAccuracy(passed, scored2, excluded),
+    cases
+  };
+}
+var GENIE_ACCURACY_POLL_MS, GENIE_ACCURACY_TIMEOUT_MS;
+var init_genie_accuracy = __esm({
+  "server/lib/genie-accuracy.ts"() {
+    init_eval_dataset();
+    init_eval_flywheel();
+    GENIE_ACCURACY_POLL_MS = 2e3;
+    GENIE_ACCURACY_TIMEOUT_MS = 9e4;
+  }
+});
+
+// server/lib/live-monitoring.ts
+function parseScorerNames(body) {
+  if (!body || typeof body !== "object") return [];
+  const record2 = body;
+  const lists = [record2.scorers, record2.registered_scorers, record2.entities];
+  for (const list3 of lists) {
+    if (!Array.isArray(list3)) continue;
+    const names2 = list3.map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      if (entry && typeof entry === "object" && typeof entry.name === "string") {
+        return entry.name.trim();
+      }
+      return "";
+    }).filter(Boolean);
+    if (names2.length > 0) return [...new Set(names2)];
+  }
+  return [];
+}
+function workspaceMonitorFromError(error48) {
+  const message = error48 instanceof Error ? error48.message : String(error48);
+  const blocked = /403|401|PERMISSION|scope|UNAUTHORIZED|not found|404|does not exist|INVALID_PARAMETER/i.test(
+    message
+  );
+  return {
+    status: blocked ? "blocked" : "unknown",
+    note: blocked ? `Workspace monitoring is not available to this app: ${message} Production scorers have to be registered from a Databricks notebook. Sampled Ask turns are still scored here.` : `Workspace monitoring could not be checked: ${message} Sampled Ask turns are still scored here.`,
+    scorers: []
+  };
+}
+async function probeWorkspaceMonitoring(client, experimentId) {
+  const named = experimentId.trim();
+  if (!named) {
+    return {
+      status: "unknown",
+      note: "No MLflow experiment id is configured, so workspace monitoring cannot be listed. Sampled Ask turns are still scored here.",
+      scorers: []
+    };
+  }
+  let lastError = new Error("No scorer list path answered.");
+  for (const path19 of MLFLOW_SCORER_LIST_PATHS) {
+    try {
+      const body = await client.apiClient.request({
+        method: "GET",
+        path: path19,
+        query: { experiment_id: named }
+      });
+      const scorers = parseScorerNames(body);
+      if (scorers.length > 0) {
+        return {
+          status: "active",
+          note: `Workspace monitoring already has ${scorers.length} scorer(s) on this experiment. Sampled Ask turns are also scored in this app.`,
+          scorers
+        };
+      }
+      return {
+        status: "blocked",
+        note: "The experiment has no registered production scorers. Apps cannot register Python scorers \u2014 that has to happen in a Databricks notebook. Sampled Ask turns are scored in this app instead.",
+        scorers: []
+      };
+    } catch (error48) {
+      lastError = error48;
+    }
+  }
+  return workspaceMonitorFromError(lastError);
+}
+var MLFLOW_SCORER_LIST_PATHS;
+var init_live_monitoring = __esm({
+  "server/lib/live-monitoring.ts"() {
+    MLFLOW_SCORER_LIST_PATHS = [
+      "/api/2.0/mlflow/genai/scorers/list",
+      "/api/2.0/mlflow/scorers/list"
+    ];
+  }
+});
+
+// server/routes/eval-dataset-routes.ts
+var eval_dataset_routes_exports = {};
+__export(eval_dataset_routes_exports, {
+  setupEvalDatasetRoutes: () => setupEvalDatasetRoutes
+});
+function workspaceApiRequest(client, input) {
+  return client.apiClient.request({
+    path: input.path,
+    method: input.method,
+    query: input.query,
+    payload: input.payload,
+    headers: new Headers({ Accept: "application/json" }),
+    raw: false
+  });
+}
+function workspaceHost2() {
+  return normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
+}
+function setupEvalDatasetRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/benchmarks/dataset", async (_req, res) => {
+      const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+      res.json({ dataset });
+    });
+    app.get("/api/benchmarks/flywheel", async (_req, res) => {
+      const flywheel = await readFlywheelState(appkit, { maxAgeMs: 0 });
+      res.json({ flywheel });
+    });
+    app.get("/api/benchmarks/live-scores", async (_req, res) => {
+      const [scores, settings] = await Promise.all([
+        listLiveScores(appkit),
+        readBenchmarkSettings(appkit, { maxAgeMs: 0 })
+      ]);
+      res.json({
+        scores,
+        sampleRate: DEFAULT_LIVE_SAMPLE_RATE,
+        alwaysOnTraces: settings.alwaysOnTraces,
+        workspace: {
+          status: "unknown",
+          note: "Open \u201CCheck workspace monitoring\u201D to list scorers already registered on the experiment. This list is the in-app hook, not a fabricated MLflow monitor.",
+          scorers: []
+        }
+      });
+    });
+    app.post("/api/admin/benchmarks/live-monitoring", async (req, res) => {
+      const actor = userEmail(req);
+      const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+      const experimentId = settings.experimentId.trim();
+      let workspace;
+      try {
+        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+        const client = new WorkspaceClient6({});
+        workspace = await probeWorkspaceMonitoring(
+          { apiClient: { request: (input) => workspaceApiRequest(client, input) } },
+          experimentId
+        );
+      } catch (error48) {
+        workspace = {
+          status: "blocked",
+          note: `Workspace monitoring could not be reached: ${error48.message} Sampled Ask turns are still scored in this app.`,
+          scorers: []
+        };
+      }
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: "eval-live-monitoring-probed",
+        subject: "eval-live-scores",
+        detail: workspace.note
+      });
+      res.json({
+        workspace,
+        sampleRate: DEFAULT_LIVE_SAMPLE_RATE,
+        alwaysOnTraces: settings.alwaysOnTraces
+      });
+    });
+    app.put("/api/admin/benchmarks/dataset", async (req, res) => {
+      const parsed = EvalDatasetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_eval_dataset", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const dataset = await writeEvalDataset(appkit, parsed.data, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-dataset-updated",
+          subject: "eval-dataset",
+          detail: `Updated evaluation dataset (${dataset.rows.length} row(s)).`
+        });
+        res.json({ dataset });
+      } catch (error48) {
+        res.status(503).json({
+          error: "eval_dataset_store_unavailable",
+          detail: `The dataset was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/dataset/curate", async (req, res) => {
+      const parsed = CurateBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_curate", detail: "Send the questions to add." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const added = uniqueQuestionsToAdd(current.rows, parsed.data.questions);
+        const dataset = await writeEvalDataset(appkit, { rows: [...current.rows, ...added] }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-dataset-curated",
+          subject: "eval-dataset",
+          detail: `Added ${added.length} question(s) from traces.`
+        });
+        res.json({ dataset, added: added.length });
+      } catch (error48) {
+        res.status(503).json({
+          error: "eval_dataset_store_unavailable",
+          detail: `Those questions were not added: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/align-guidelines", async (req, res) => {
+      const actor = userEmail(req);
+      try {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const labeled = labeledRowCount(dataset.rows);
+        if (labeled === 0) {
+          res.status(400).json({
+            error: "no_labels",
+            message: "Label at least one row (thumbs or SQL correct?) before aligning the guidelines."
+          });
+          return;
+        }
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const flywheel = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const cases = await loadCasesForAlignment(appkit, flywheel.lastAgentRunIds);
+        let alignClient;
+        let invokeJudge;
+        try {
+          const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+          const client = new WorkspaceClient6({});
+          alignClient = {
+            request: ({ method, path: path19, payload }) => workspaceApiRequest(client, { method, path: path19, payload })
+          };
+          const judgeEndpoint = settings.judgeEndpoint.trim();
+          if (judgeEndpoint) {
+            invokeJudge = (payload) => workspaceApiRequest(client, {
+              path: servingInvocationPath(judgeEndpoint),
+              method: "POST",
+              payload
+            });
+          }
+        } catch {
+        }
+        const aligned = await alignGuidelinesToHumans({
+          base: settings.guidelinesText,
+          rows: dataset.rows,
+          cases,
+          experimentId: settings.experimentId,
+          alignClient,
+          invokeJudge
+        });
+        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: aligned.guidelinesText }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-guidelines-aligned",
+          subject: "benchmark-settings",
+          detail: aligned.note
+        });
+        res.json({
+          guidelinesText: saved.guidelinesText,
+          labeled,
+          agreement: aligned.agreement,
+          method: aligned.method,
+          note: aligned.note
+        });
+      } catch (error48) {
+        res.status(503).json({
+          error: "align_guidelines_unavailable",
+          message: `Guidelines were not updated: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/promote", async (req, res) => {
+      const parsed = PromotedAgentSchema.safeParse(req.body);
+      if (!parsed.success || !parsed.data.endpoint.trim()) {
+        res.status(400).json({
+          error: "invalid_promote",
+          message: "Pick a baseline or candidate endpoint to use for the next Ask."
+        });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const promptName = current.promptRegistryName.trim();
+        const template = promptTemplateFromPromote({
+          side: parsed.data.side,
+          endpoint: parsed.data.endpoint,
+          guidelines: settings.guidelinesText
+        });
+        let promotedPrompt = current.promotedPrompt;
+        try {
+          const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+          const client = new WorkspaceClient6({});
+          promotedPrompt = await promotePromptAlias(
+            {
+              request: ({ method, path: path19, payload }) => workspaceApiRequest(client, { method, path: path19, payload })
+            },
+            { name: promptName, template }
+          );
+        } catch (error48) {
+          promotedPrompt = {
+            name: promptName,
+            alias: "production",
+            version: "",
+            uri: promptName ? `prompts:/${promptName}@production` : "",
+            template,
+            status: promptName ? "blocked" : "skipped",
+            note: promptName ? `The production alias was not moved: ${error48.message} The next Ask still uses the guidance saved from this promote.` : "No Prompt Registry name is set. Next Ask still uses the saved guidance from this promote."
+          };
+        }
+        const flywheel = await patchFlywheelState(
+          appkit,
+          {
+            promoted: { ...parsed.data, at: parsed.data.at || (/* @__PURE__ */ new Date()).toISOString() },
+            promotedPrompt
+          },
+          actor
+        );
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-agent-promoted",
+          subject: "eval-flywheel",
+          detail: `Next Ask will use ${parsed.data.endpoint}. ${promotedPrompt?.note ?? ""}`.trim()
+        });
+        res.json({ flywheel, promotedPrompt });
+      } catch (error48) {
+        res.status(503).json({
+          error: "promote_unavailable",
+          message: `The winner was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/review-app", async (req, res) => {
+      const actor = userEmail(req);
+      const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+      const name2 = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      let session;
+      try {
+        const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+        const client = new WorkspaceClient6({});
+        session = await startLabelingSession(
+          {
+            request: ({ method, path: path19, payload }) => workspaceApiRequest(client, { method, path: path19, payload })
+          },
+          { name: name2, experimentId: settings.experimentId }
+        );
+      } catch (error48) {
+        session = {
+          name: name2 || "PIA SME review",
+          sessionId: "",
+          runId: "",
+          url: "",
+          status: "blocked",
+          note: `Review App could not be started: ${error48.message} SMEs can still label thumbs and SQL correct on this tab.`,
+          at: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+      try {
+        const flywheel = await patchFlywheelState(appkit, { labelingSession: session }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-review-app-started",
+          subject: "eval-flywheel",
+          detail: session.note
+        });
+        res.status(session.status === "open" ? 200 : 503).json({ session, flywheel });
+      } catch (error48) {
+        res.status(session.status === "open" ? 200 : 503).json({
+          session,
+          message: session.note || error48.message
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/score-thread", async (req, res) => {
+      const actor = userEmail(req);
+      const requested = typeof req.body?.conversationId === "string" ? req.body.conversationId.trim() : "";
+      try {
+        const conversationId = requested || await findLatestAnsweredConversation(appkit);
+        if (!conversationId) {
+          res.status(404).json({
+            error: "no_thread",
+            message: "No Ask thread to score yet. Ask a question first, then score the whole conversation."
+          });
+          return;
+        }
+        const turns = await loadConversationTurns(appkit, conversationId);
+        if (turns.length < 2) {
+          res.status(400).json({
+            error: "short_thread",
+            message: "That thread does not have a full conversation yet."
+          });
+          return;
+        }
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const lastUser = [...turns].reverse().find((turn) => !/assistant|agent/i.test(turn.role));
+        const lastAssistant = [...turns].reverse().find((turn) => /assistant|agent/i.test(turn.role));
+        let invokeJudge;
+        const judgeEndpoint = settings.judgeEndpoint.trim();
+        if (judgeEndpoint) {
+          try {
+            const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+            const client = new WorkspaceClient6({});
+            invokeJudge = (payload) => workspaceApiRequest(client, {
+              path: servingInvocationPath(judgeEndpoint),
+              method: "POST",
+              payload
+            });
+          } catch {
+            invokeJudge = void 0;
+          }
+        }
+        const score = await scoreSampledAskTurn({
+          client: appkit,
+          settings: { ...settings, alwaysOnTraces: true },
+          sampleRate: 1,
+          invokeJudge,
+          turn: {
+            conversationId,
+            messageId: `thread-${conversationId}`.slice(0, 80),
+            question: lastUser?.content ?? "",
+            response: lastAssistant?.content ?? "",
+            sql: "",
+            note: `${turns.length} turns`,
+            turns
+          }
+        });
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-thread-scored",
+          subject: conversationId,
+          detail: `Scored ${turns.length} turns in the Ask thread.`
+        });
+        res.json({
+          conversationId,
+          turnCount: turns.length,
+          score,
+          transcript: formatConversationTurns(turns).slice(0, 4e3)
+        });
+      } catch (error48) {
+        res.status(503).json({
+          error: "score_thread_unavailable",
+          message: `That thread was not scored: ${error48.message}`
+        });
+      }
+    });
+    app.put("/api/admin/benchmarks/prompt-registry", async (req, res) => {
+      const name2 = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      if (name2 && !/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+){2}$/.test(name2)) {
+        res.status(400).json({
+          error: "invalid_prompt_name",
+          message: "Use a Unity Catalog name: catalog.schema.prompt"
+        });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const flywheel = await patchFlywheelState(appkit, { promptRegistryName: name2 }, actor);
+        res.json({ flywheel });
+      } catch (error48) {
+        res.status(503).json({
+          error: "prompt_registry_unavailable",
+          message: `The Prompt Registry name was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/last-suite", async (req, res) => {
+      const parsed = LastSuiteBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_last_suite", message: "The last suite could not be remembered." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const flywheel = await patchFlywheelState(
+          appkit,
+          {
+            lastSuite: {
+              kind: parsed.data.kind,
+              spaceId: parsed.data.spaceId,
+              spaceLabel: parsed.data.spaceLabel,
+              at: parsed.data.at || (/* @__PURE__ */ new Date()).toISOString()
+            },
+            lastAgentRunIds: parsed.data.runIds,
+            lastAgentSides: parsed.data.sides
+          },
+          actor
+        );
+        res.json({ flywheel });
+      } catch (error48) {
+        res.status(503).json({
+          error: "last_suite_unavailable",
+          message: `The last suite was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/benchmarks/genie-accuracy", async (req, res) => {
+      const parsed = GenieAccuracyBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: "invalid_genie_accuracy",
+          message: "Pick a connected Genie space before running accuracy."
+        });
+        return;
+      }
+      const host2 = workspaceHost2();
+      const token = forwardedUserToken(req);
+      if (!host2 || !token) {
+        res.status(503).json({
+          error: "genie_accuracy_unavailable",
+          message: "This app cannot ask the Genie space as you. Sign in to the workspace and try again. No score was invented."
+        });
+        return;
+      }
+      const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+      if (dataset.rows.every((row2) => !row2.question.trim() || !row2.groundTruthSql.trim())) {
+        res.status(400).json({
+          error: "no_sql_backed_questions",
+          message: "Add questions with ground-truth SQL first. Accuracy is passed over those rows only."
+        });
+        return;
+      }
+      const run2 = await runGenieAccuracy({
+        spaceId: parsed.data.spaceId,
+        spaceLabel: parsed.data.spaceLabel,
+        rows: dataset.rows,
+        asker: createGenieAsker({ host: host2, token })
+      });
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        await patchFlywheelState(
+          appkit,
+          {
+            lastSuite: {
+              kind: "genie",
+              spaceId: run2.spaceId,
+              spaceLabel: run2.spaceLabel,
+              at: run2.finishedAt
+            },
+            history: rememberAccuracy(current.history, {
+              at: run2.finishedAt,
+              spaceId: run2.spaceId,
+              spaceLabel: run2.spaceLabel,
+              passed: run2.score.passed,
+              scored: run2.score.total,
+              excluded: run2.score.excluded,
+              percent: run2.score.percent,
+              label: run2.score.label,
+              note: run2.score.excluded > 0 ? `${run2.score.excluded} not scored (warehouse or timeout)` : ""
+            })
+          },
+          actor
+        );
+      } catch (error48) {
+        console.warn("[eval-flywheel] Accuracy history was not saved:", error48.message);
+      }
+      res.json({ run: run2 });
+    });
+  });
+}
+var GenieAccuracyBody, CurateBody, LastSuiteBody;
+var init_eval_dataset_routes = __esm({
+  "server/routes/eval-dataset-routes.ts"() {
+    init_zod();
+    init_databricks_links();
+    init_eval_dataset();
+    init_judge_alignment();
+    init_eval_flywheel();
+    init_prompt_registry();
+    init_review_app();
+    init_eval_conversation2();
+    init_live_ask_scoring();
+    init_eval_conversation();
+    init_eval_live_scoring();
+    init_admin_roles();
+    init_benchmark_settings_store();
+    init_eval_dataset_store();
+    init_eval_flywheel_store();
+    init_eval_live_score_store();
+    init_genie_accuracy();
+    init_live_monitoring();
+    init_access_verification();
+    init_insights_routes();
+    GenieAccuracyBody = external_exports.object({
+      spaceId: external_exports.string().trim().min(1).max(200),
+      spaceLabel: external_exports.string().trim().max(200).optional()
+    });
+    CurateBody = external_exports.object({
+      questions: external_exports.array(external_exports.string().trim().max(2e3)).max(100)
+    });
+    LastSuiteBody = LastSuiteSchema.extend({
+      runIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(4).default([]),
+      sides: external_exports.array(external_exports.string().trim().max(200)).max(4).default([])
+    });
+  }
+});
+
 // server/lib/environment-info.ts
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -178688,8 +181145,8 @@ var RoutingPool = class {
     const userCtx = getUserContext();
     return userCtx ? this.resolveUserPool(userCtx) : this.spPool;
   }
-  query(text16, values) {
-    return this.activePool().query(text16, values);
+  query(text17, values) {
+    return this.activePool().query(text17, values);
   }
   connect() {
     return this.activePool().connect();
@@ -182983,9 +185440,9 @@ var FilesConnector = class {
       await client.config.authenticate(headers);
       const res = await fetch(url2.toString(), fetchOptions);
       if (!res.ok) {
-        const text16 = await res.text();
-        logger16.error(`Upload failed (${res.status}): ${text16}`);
-        throw new ApiError2(`Upload failed: ${text16.length > 200 ? `${text16.slice(0, 200)}\u2026` : text16}`, "UPLOAD_FAILED", res.status, void 0, []);
+        const text17 = await res.text();
+        logger16.error(`Upload failed (${res.status}): ${text17}`);
+        throw new ApiError2(`Upload failed: ${text17.length > 200 ? `${text17.slice(0, 200)}\u2026` : text17}`, "UPLOAD_FAILED", res.status, void 0, []);
       }
     });
   }
@@ -184581,7 +187038,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     return true;
   }
   _readSettings(cacheKey2, authMode) {
-    const cache3 = authMode === "on-behalf-of-user" ? {
+    const cache6 = authMode === "on-behalf-of-user" ? {
       ...FILES_READ_DEFAULTS.cache,
       enabled: false,
       cacheKey: cacheKey2
@@ -184591,7 +187048,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     };
     return { default: {
       ...FILES_READ_DEFAULTS,
-      cache: cache3,
+      cache: cache6,
       telemetryInterceptor: { attributes: this._authModeAttributes(authMode) }
     } };
   }
@@ -186478,8 +188935,8 @@ var LakebasePlugin = class extends Plugin {
   * );
   * ```
   */
-  async query(text16, values) {
-    return this.pool.query(text16, values);
+  async query(text17, values) {
+    return this.pool.query(text17, values);
   }
   /**
   * Execute a single statement inside a `BEGIN READ ONLY … ROLLBACK`
@@ -186495,11 +188952,11 @@ var LakebasePlugin = class extends Plugin {
   * statement may attempt (writes, writable-function side effects) are
   * rejected by PostgreSQL under the read-only transaction posture.
   */
-  async runReadOnlyStatement(text16, values) {
+  async runReadOnlyStatement(text17, values) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN READ ONLY");
-      return (await client.query(text16, values)).rows;
+      return (await client.query(text17, values)).rows;
     } finally {
       try {
         await client.query("ROLLBACK");
@@ -186766,8 +189223,8 @@ async function isAutoMigrateDisabled(projectRoot) {
     return false;
   }
 }
-function stripJsonComments(text16) {
-  return text16.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
+function stripJsonComments(text17) {
+  return text17.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
 }
 async function migrateTsconfigClient(projectRoot) {
   const results = [];
@@ -186879,8 +189336,8 @@ async function loadCache() {
   try {
     await fs5.mkdir(CACHE_DIR, { recursive: true });
     const raw2 = await fs5.readFile(cachePath, "utf8");
-    const cache3 = JSON.parse(raw2);
-    if (cache3.version === CACHE_VERSION) return cache3;
+    const cache6 = JSON.parse(raw2);
+    if (cache6.version === CACHE_VERSION) return cache6;
   } catch (err) {
     if (err.code !== "ENOENT") logger28.warn("Cache file is corrupted, flushing cache completely.");
   }
@@ -186889,9 +189346,9 @@ async function loadCache() {
     queries: {}
   };
 }
-async function saveCache(cache3) {
+async function saveCache(cache6) {
   const cachePath = path5.join(CACHE_DIR, CACHE_FILE);
-  await fs5.writeFile(cachePath, JSON.stringify(cache3, null, 2), "utf8");
+  await fs5.writeFile(cachePath, JSON.stringify(cache6, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/spinner.js
@@ -186905,8 +189362,8 @@ var Spinner = class {
   current = 0;
   interval = null;
   text = "";
-  start(text16) {
-    this.text = text16;
+  start(text17) {
+    this.text = text17;
     this.current = 0;
     process.stdout.write(`  ${this.text}${this.frames[0]}`);
     this.interval = setInterval(() => {
@@ -186914,8 +189371,8 @@ var Spinner = class {
       process.stdout.write(`\r  ${this.text}${this.frames[this.current]}`);
     }, 300);
   }
-  update(text16) {
-    this.text = text16;
+  update(text17) {
+    this.text = text17;
   }
   stop(finalText) {
     if (this.interval) {
@@ -186925,8 +189382,8 @@ var Spinner = class {
     process.stdout.write(`\x1B[Contoso\r  ${finalText || this.text}
 `);
   }
-  printDetail(text16) {
-    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text16}\x1B[0m
+  printDetail(text17) {
+    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text17}\x1B[0m
 `);
     if (this.interval) process.stdout.write(`  ${this.text}${this.frames[this.current]}`);
   }
@@ -187101,7 +189558,7 @@ function inferParameterTypes(sql3, ranges) {
 async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = {}) {
   const { noCache = false, concurrency: rawConcurrency = 10 } = options;
   const concurrency = typeof rawConcurrency === "number" && Number.isFinite(rawConcurrency) ? Math.max(1, Math.floor(rawConcurrency)) : 10;
-  const [allFiles, cache3] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
+  const [allFiles, cache6] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
     version: CACHE_VERSION,
     queries: {}
   } : loadCache()]);
@@ -187119,7 +189576,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     const queryName = normalizeQueryName(path6.basename(file2, ".sql"));
     const sql3 = sqlContents[i];
     const sqlHash = hashSQL(sql3);
-    const cached3 = cache3.queries[queryName];
+    const cached3 = cache6.queries[queryName];
     if (cached3 && cached3.hash === sqlHash && !cached3.retry) {
       cachedResults.push({
         index: i,
@@ -187216,7 +189673,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
             index: res.index,
             schema: res.schema
           });
-          cache3.queries[queryName] = res.cacheEntry;
+          cache6.queries[queryName] = res.cacheEntry;
           logEntries.push({
             queryName,
             status: "MISS",
@@ -187235,7 +189692,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
               type
             }
           });
-          cache3.queries[queryName] = {
+          cache6.queries[queryName] = {
             hash: sqlHash,
             type,
             retry: true
@@ -187252,11 +189709,11 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     if (uncachedQueries.length > concurrency) for (let b = 0; b < uncachedQueries.length; b += concurrency) {
       const batch = uncachedQueries.slice(b, b + concurrency);
       processBatchResults(await Promise.allSettled(batch.map(describeOne)), b);
-      await saveCache(cache3);
+      await saveCache(cache6);
     }
     else {
       processBatchResults(await Promise.allSettled(uncachedQueries.map(describeOne)), 0);
-      await saveCache(cache3);
+      await saveCache(cache6);
     }
     spinner.stop("");
   }
@@ -187337,8 +189794,8 @@ async function loadServingCache() {
   try {
     await fs7.mkdir(CACHE_DIR2, { recursive: true });
     const raw2 = await fs7.readFile(cachePath, "utf8");
-    const cache3 = JSON.parse(raw2);
-    if (cache3.version === CACHE_VERSION2) return cache3;
+    const cache6 = JSON.parse(raw2);
+    if (cache6.version === CACHE_VERSION2) return cache6;
     logger30.debug("Cache version mismatch, starting fresh");
   } catch (err) {
     if (err.code !== "ENOENT") logger30.warn("Cache file is corrupted, flushing cache completely.");
@@ -187348,10 +189805,10 @@ async function loadServingCache() {
     endpoints: {}
   };
 }
-async function saveServingCache(cache3) {
+async function saveServingCache(cache6) {
   const cachePath = path7.join(CACHE_DIR2, CACHE_FILE2);
   await fs7.mkdir(CACHE_DIR2, { recursive: true });
-  await fs7.writeFile(cachePath, JSON.stringify(cache3, null, 2), "utf8");
+  await fs7.writeFile(cachePath, JSON.stringify(cache6, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/serving/converter.js
@@ -187457,8 +189914,8 @@ async function fetchOpenApiSchema(client, endpointName, servedModel) {
       logger31.warn("Empty OpenAPI response for '%s', skipping type generation", endpointName);
       return null;
     }
-    const text16 = await new Response(response.contents).text();
-    const rawSpec = JSON.parse(text16);
+    const text17 = await new Response(response.contents).text();
+    const rawSpec = JSON.parse(text17);
     if (typeof rawSpec !== "object" || rawSpec === null || !("paths" in rawSpec) || typeof rawSpec.paths !== "object") {
       logger31.warn("Invalid OpenAPI schema structure for '%s', skipping", endpointName);
       return null;
@@ -187510,7 +189967,7 @@ async function generateServingTypes(options) {
     return;
   }
   const startTime = performance.now();
-  const cache3 = noCache ? {
+  const cache6 = noCache ? {
     version: CACHE_VERSION2,
     endpoints: {}
   } : await loadServingCache();
@@ -187520,7 +189977,7 @@ async function generateServingTypes(options) {
   const logEntries = [];
   for (const [alias, config2] of Object.entries(endpoints)) {
     client ??= new WorkspaceClient5({});
-    const result = await processEndpoint(alias, config2, client, cache3);
+    const result = await processEndpoint(alias, config2, client, cache6);
     if (result.cacheUpdated) updated = true;
     registryEntries.push(result.entry);
     logEntries.push(result.log);
@@ -187533,12 +189990,12 @@ async function generateServingTypes(options) {
   await migrateProjectConfig(projectRoot);
   if (registryEntries.length === 0) logger32.debug("Wrote empty serving types to %s (no endpoints resolved)", outFile);
   else logger32.debug("Wrote serving types to %s", outFile);
-  if (updated) await saveServingCache(cache3);
+  if (updated) await saveServingCache(cache6);
 }
 function genericEntry(alias) {
   return buildRegistryEntry(alias, GENERIC_REQUEST, GENERIC_RESPONSE, GENERIC_CHUNK);
 }
-async function processEndpoint(alias, config2, client, cache3) {
+async function processEndpoint(alias, config2, client, cache6) {
   const endpointName = process.env[config2.env];
   if (!endpointName) return {
     entry: genericEntry(alias),
@@ -187561,7 +190018,7 @@ async function processEndpoint(alias, config2, client, cache3) {
   };
   const { spec, pathKey } = result;
   const hash2 = hashSchema(JSON.stringify(spec));
-  const cached3 = cache3.endpoints[alias];
+  const cached3 = cache6.endpoints[alias];
   if (cached3 && cached3.hash === hash2) return {
     entry: buildRegistryEntry(alias, cached3.requestType, cached3.responseType, cached3.chunkType),
     log: {
@@ -187585,7 +190042,7 @@ async function processEndpoint(alias, config2, client, cache3) {
     const responseType = convertResponseSchema(operation);
     const chunkType = deriveChunkType(operation);
     const requestKeys = extractRequestKeys(operation);
-    cache3.endpoints[alias] = {
+    cache6.endpoints[alias] = {
       hash: hash2,
       requestType,
       responseType,
@@ -189985,8 +192442,8 @@ async function loadEndpointSchemas(cacheFile) {
       logger42.warn("Serving types cache has invalid structure, skipping");
       return allowlists;
     }
-    const cache3 = parsed;
-    for (const [alias, entry] of Object.entries(cache3.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
+    const cache6 = parsed;
+    for (const [alias, entry] of Object.entries(cache6.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
   } catch (err) {
     if (err.code !== "ENOENT") logger42.warn("Failed to load serving types cache: %s", err.message);
   }
@@ -190266,6 +192723,8 @@ createApp({
       { setupOpsRoutes: setupOpsRoutes2 },
       { setupEgressRoutes: setupEgressRoutes2 },
       { setupRuntimeSettingsRoutes: setupRuntimeSettingsRoutes2 },
+      { setupBenchmarkSettingsRoutes: setupBenchmarkSettingsRoutes2 },
+      { setupEvalDatasetRoutes: setupEvalDatasetRoutes2 },
       { setupEnvironmentRoutes: setupEnvironmentRoutes2 },
       { setupAccountRoutes: setupAccountRoutes2 },
       { setupRunLabelRoutes: setupRunLabelRoutes2 },
@@ -190282,6 +192741,8 @@ createApp({
       Promise.resolve().then(() => (init_ops_routes(), ops_routes_exports)),
       Promise.resolve().then(() => (init_egress_routes(), egress_routes_exports)),
       Promise.resolve().then(() => (init_runtime_settings_routes(), runtime_settings_routes_exports)),
+      Promise.resolve().then(() => (init_benchmark_settings_routes(), benchmark_settings_routes_exports)),
+      Promise.resolve().then(() => (init_eval_dataset_routes(), eval_dataset_routes_exports)),
       Promise.resolve().then(() => (init_environment_routes(), environment_routes_exports)),
       Promise.resolve().then(() => (init_account_routes(), account_routes_exports)),
       Promise.resolve().then(() => (init_run_label_routes(), run_label_routes_exports)),
@@ -190297,6 +192758,8 @@ createApp({
     });
     setupSettingsRoutes2(appkit);
     setupRuntimeSettingsRoutes2(appkit);
+    setupBenchmarkSettingsRoutes2(appkit);
+    setupEvalDatasetRoutes2(appkit);
     setupEnvironmentRoutes2(appkit);
     setupAccountRoutes2(appkit);
     setupBrowseRoutes2(appkit);
