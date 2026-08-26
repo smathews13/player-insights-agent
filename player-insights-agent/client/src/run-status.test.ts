@@ -83,7 +83,7 @@ describe('the harness says it is ready before anybody has asked anything', () =>
     // question was already away -- which is the one moment the mark is no use.
     expect(HOME).not.toMatch(/\(loading \|\| runStopped \|\| answer\) && \(<div className="trace-summary"/);
     expect(HOME).toMatch(/\n {10}<div className="trace-summary">/);
-    expect(HOME).toMatch(/<\/section>\n\n {6}<aside className="trace-inspector">/);
+    expect(HOME).toMatch(/<\/section>\s*<aside className="trace-inspector"/);
     // And it draws something in every state, including before the check lands.
     for (const readiness of ['checking', 'ready', 'unreachable', 'unchecked'] as const) {
       expect(draw(idle(readiness)), readiness).toContain('class="run-status');

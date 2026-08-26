@@ -35,12 +35,10 @@ export function BenchmarkSettingsPanel({
   const [currentAgentEndpoint, setCurrentAgentEndpoint] = useState('');
   const [tracesAlwaysOnInAgent, setTracesAlwaysOnInAgent] = useState(true);
   const [lastTrace, setLastTrace] = useState<{ traceId: string; url: string | null } | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const [customDraft, setCustomDraft] = useState<CustomJudge>({ name: '', guidelines: '', prompt: '' });
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
-    setState('loading');
     setFailure(null);
     try {
       const response = await fetch('/api/benchmark-settings');
@@ -49,11 +47,9 @@ export function BenchmarkSettingsPanel({
       setExperimentUrl(loaded.experimentUrl);
       setCurrentAgentEndpoint(loaded.currentAgentEndpoint);
       setTracesAlwaysOnInAgent(loaded.tracesAlwaysOnInAgent);
-      setState('ready');
       return { ok: true };
     } catch (caught) {
       const message = (caught as Error).message;
-      setState('failed');
       setFailure({ operation: 'load', message });
       return { ok: false, message };
     }
@@ -95,7 +91,6 @@ export function BenchmarkSettingsPanel({
       onSaveState(saveRetryAfterLoad(result));
       return;
     }
-    setState('saving');
     setFailure(null);
     onSaveState({ kind: 'saving' });
     try {
@@ -109,10 +104,8 @@ export function BenchmarkSettingsPanel({
       setExperimentUrl(saved.experimentUrl);
       setCurrentAgentEndpoint(saved.currentAgentEndpoint);
       setTracesAlwaysOnInAgent(saved.tracesAlwaysOnInAgent);
-      setState('saved');
       onSaveState({ kind: 'saved' });
     } catch (caught) {
-      setState('failed');
       setFailure({ operation: 'save', message: (caught as Error).message });
       onSaveState({ kind: 'failed', message: (caught as Error).message });
     }
