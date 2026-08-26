@@ -563,12 +563,17 @@ export function BenchmarkLab() {
   // selected run that would lock Run baseline on an empty lab.
   const suiteInProgress = Boolean(selected && summary.inProgress) || Boolean(lab?.contract.liveRun);
 
+  const publishedHeldOut = evalScorecard();
   const ops = useBenchmarkOps({
     settings: bakeOff,
     currentAgentEndpoint,
     running: running || suiteInProgress,
     lastRunId,
     reloadToken,
+    lastGenieRun: evalLab.lastGenieRun,
+    labelsReviewed: Boolean(
+      publishedHeldOut.published && publishedHeldOut.scorecard.provenance.labelsReviewed
+    ),
     inProgress: suiteInProgress,
     attempted: lab?.contract.liveRun?.caseIndex ?? null,
     total: lab?.contract.liveRun?.caseTotal ?? null,
@@ -691,11 +696,15 @@ export function BenchmarkLab() {
               applying={ops.applying}
               applyNote={ops.applyNote}
               canApply={ops.canApply}
+              canRollback={ops.canRollback}
               onApply={() => {
                 void ops.applyCandidate();
               }}
+              onViewRollback={() => {
+                ops.viewRollback();
+              }}
               onRollback={() => {
-                void ops.viewRollback();
+                void ops.rollbackAsk();
               }}
             />
           ),

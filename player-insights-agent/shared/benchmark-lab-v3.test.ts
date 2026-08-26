@@ -17,11 +17,13 @@ import {
   heldOutScorerRows,
   labCaseFromRow,
   labDatasetCounts,
+  labWorkspacePayload,
   mergeLabRowExtras,
   missingSqlGateCopy,
   newlyFixedAndBroken,
   nextDatasetVersionId,
   parseLabState,
+  passGatesStripLine,
   pocContractView,
   runPermalink,
   signedDelta,
@@ -327,12 +329,35 @@ describe('POC contract and cancel honesty', () => {
       versionId: 'ds_v003',
       contract: parseLabState(undefined).contract,
       scorerSet: { version: 'ss-1', activeCount: 3, nonApplicableCount: 3 },
-      gates: { passed: 0, total: 0 },
     });
     expect(view.dataset).toContain('ds_v003');
     expect(view.dataset).toContain('1 held out');
     expect(view.snapshotHref).toBe('/benchmarking');
     expect(view.passGates).toContain('Regressions are always shown');
+    expect(view.passGates).toContain('No numeric thresholds set');
+  });
+
+  it('names configured genie and groundedness minimums on the contract strip', () => {
+    const state = parseLabState(undefined);
+    const contract = {
+      ...state.contract,
+      gates: {
+        ...DEFAULT_PASS_GATES,
+        genieAccuracy: { id: 'genie_accuracy' as const, label: 'Genie accuracy', minimum: 0.9 },
+        groundedness: { id: 'groundedness' as const, label: 'Groundedness', minimum: 0.8 },
+      },
+    };
+    expect(passGatesStripLine(contract.gates)).toContain('Genie accuracy 90%');
+    expect(passGatesStripLine(contract.gates)).toContain('Groundedness 80%');
+    expect(passGatesStripLine(contract.gates)).not.toContain('No numeric thresholds set');
+    const payload = labWorkspacePayload({
+      rows: [],
+      state: { ...state, contract },
+      enabledJudges: [],
+    });
+    expect(payload.contractView.passGates).toContain('Genie accuracy 90%');
+    expect(payload.contractView.passGates).toContain('Groundedness 80%');
+    expect(payload.contractView.passGates).not.toContain('No numeric thresholds set');
   });
 
   it('does not claim the serving call can be aborted', () => {

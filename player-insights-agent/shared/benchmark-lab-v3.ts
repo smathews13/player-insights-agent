@@ -957,6 +957,18 @@ export function heldOutScorerRows(input: {
   return { rows, hiddenNonApplicable };
 }
 
+export function passGatesStripLine(gates: PassGates): string {
+  const named: string[] = [];
+  if (gates.genieAccuracy.minimum != null) {
+    named.push(`${gates.genieAccuracy.label} ${formatLabNumber(gates.genieAccuracy.minimum, 'percent')}`);
+  }
+  if (gates.groundedness.minimum != null) {
+    named.push(`${gates.groundedness.label} ${formatLabNumber(gates.groundedness.minimum, 'percent')}`);
+  }
+  if (named.length === 0) return 'No numeric thresholds set. Regressions are always shown.';
+  return `${named.join(' · ')}. Regressions are always shown.`;
+}
+
 export interface PocContractView {
   goal: string;
   dataset: string;
@@ -973,7 +985,6 @@ export function pocContractView(input: {
   versionId: string;
   contract: LabContract;
   scorerSet: { version: string; activeCount: number; nonApplicableCount: number };
-  gates: { passed: number; total: number };
 }): PocContractView {
   const version = input.versionId || 'working copy';
   const targetKind =
@@ -988,10 +999,7 @@ export function pocContractView(input: {
     dataset: `${version} · ${input.counts.cases} cases · ${input.counts.heldOut} held out`,
     baseline: input.contract.baselineRunId || '-',
     candidate: input.contract.candidateRunId || '-',
-    passGates:
-      input.gates.total === 0
-        ? 'No numeric thresholds set. Regressions are always shown.'
-        : `${input.gates.passed} of ${input.gates.total} gates. Regressions are always shown.`,
+    passGates: passGatesStripLine(input.contract.gates),
     scorerSet: `${input.scorerSet.version} · ${input.scorerSet.activeCount} active · ${input.scorerSet.nonApplicableCount} not applicable`,
     target: `${targetKind} · ${identifier}`,
     snapshotHref: configurationSnapshotHref(input.contract.target.snapshotId),
@@ -1077,7 +1085,6 @@ export function labWorkspacePayload(input: {
     enabledJudges: input.enabledJudges,
     extraJudges: input.extraJudges,
   });
-  const gates = { passed: 0, total: 0 };
   return {
     cases,
     counts,
@@ -1109,7 +1116,6 @@ export function labWorkspacePayload(input: {
       versionId: input.state.currentVersionId,
       contract: input.state.contract,
       scorerSet,
-      gates,
     }),
     applyCaptions: STAGE_04_CAPTIONS,
     heldOutAudit: input.state.heldOutAudit,

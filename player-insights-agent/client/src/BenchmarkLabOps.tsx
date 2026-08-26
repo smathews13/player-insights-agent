@@ -17,6 +17,8 @@ import {
   failedCaseIds,
   gateChip,
   genieLaneFromHistory,
+  genieLaneFromRun,
+  humanReviewedCaption,
   investigationCases,
   pairCaseOutcomes,
   resolvePromoteEndpoint,
@@ -52,6 +54,7 @@ import {
 } from '../../shared/benchmark-lab-v3';
 import { extraJudgesFromSettings, OPERATOR_EVAL_SUITE_ID } from '../../shared/eval-dataset';
 import { EMPTY_FLYWHEEL_STATE, type FlywheelState } from '../../shared/eval-flywheel';
+import type { GenieAccuracyRunView } from '../../shared/eval-genie-run';
 import { compareSides, type BenchmarkSettings } from '../../shared/benchmark-settings';
 
 export type SuiteSide = 'baseline' | 'candidate';
@@ -183,7 +186,9 @@ export function BenchmarkApplyStage({
   applying,
   applyNote,
   canApply,
+  canRollback,
   onApply,
+  onViewRollback,
   onRollback,
 }: {
   target: ApplyTargetKind;
@@ -198,7 +203,9 @@ export function BenchmarkApplyStage({
   applying: boolean;
   applyNote: string | null;
   canApply: boolean;
+  canRollback: boolean;
   onApply: () => void;
+  onViewRollback: () => void;
   onRollback: () => void;
 }) {
   return (
@@ -260,7 +267,10 @@ export function BenchmarkApplyStage({
         <BenchButton variant="primary" onClick={onApply} disabled={!canApply || applying}>
           {applying ? 'Applying…' : 'Apply candidate'}
         </BenchButton>
-        <BenchButton onClick={onRollback}>View rollback path</BenchButton>
+        <BenchButton onClick={onViewRollback}>View rollback path</BenchButton>
+        <BenchButton onClick={onRollback} disabled={!canRollback || applying}>
+          Rollback
+        </BenchButton>
       </div>
       <p className="bench-gate">Connections unchanged.</p>
       <p className="bench-gate">{rollback}</p>
@@ -462,6 +472,8 @@ export function useBenchmarkOps(input: {
   running: boolean;
   lastRunId: string | null;
   reloadToken: number;
+  lastGenieRun?: GenieAccuracyRunView | null;
+  labelsReviewed?: boolean;
   inProgress: boolean;
   attempted: number | null;
   total: number | null;
@@ -509,7 +521,7 @@ export function useBenchmarkOps(input: {
     return () => {
       active = false;
     };
-  }, [loadFlywheel, input.reloadToken]);
+  }, [loadFlywheel, input.reloadToken, input.lastGenieRun?.id]);
 
   useEffect(() => {
     let active = true;
@@ -534,7 +546,7 @@ export function useBenchmarkOps(input: {
   const candidateSide = flywheel.lastAgentSides[1] || sides[1] || '';
   const baseline = agentSideFromTrace(baselineSide, baselineTrace);
   const candidate = agentSideFromTrace(candidateSide || baselineSide, candidateTrace);
-  const genie = genieLaneFromHistory(flywheel.history);
+  const genie = genieLaneFromRun(input.lastGenieRun ?? null) ?? genieLaneFromHistory(flywheel.history);
   const comparison = compareBakeOff({
     baseline,
     candidate,
@@ -676,16 +688,19 @@ export function useBenchmarkOps(input: {
     }
   };
 
-  const viewRollback = async () => {
-    const path = rollbackCaption(flywheel.rollback);
+  const viewRollback = () => {
+    setApplyNote(rollbackCaption(flywheel.rollback));
+  };
+
+  const rollbackAsk = async () => {
     if (!flywheel.rollback?.endpoint) {
-      setApplyNote(path);
+      setApplyNote(rollbackCaption(flywheel.rollback));
       return;
     }
     try {
       const rolled = await rollbackPromotedAsk();
       setFlywheel(await loadFlywheel());
-      setApplyNote(rolled.endpoint ? `Rolled back the next Ask to ${rolled.endpoint}.` : path);
+      setApplyNote(rolled.endpoint ? `Rolled back the next Ask to ${rolled.endpoint}.` : rollbackCaption(flywheel.rollback));
     } catch (error) {
       setApplyNote((error as Error).message);
     }
@@ -766,12 +781,14 @@ export function useBenchmarkOps(input: {
     applying,
     applyNote,
     canApply,
+    canRollback: Boolean(flywheel.rollback?.endpoint),
     applyCandidate,
     viewRollback,
+    rollbackAsk,
     comparison,
     history: flywheel.compareHistory.map((entry) => bakeOffHistoryLine(entry)),
     genieNote: genie?.baseline.note ?? null,
-    coverageNote: '0 human-reviewed',
+    coverageNote: humanReviewedCaption(input.labelsReviewed, candidate.coverage ?? null),
     exportPack,
     copyPermalink,
     inspectCases,

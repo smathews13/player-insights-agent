@@ -11,7 +11,7 @@ import {
   BenchmarkFailurePane,
   BenchmarkJudgesStage,
 } from './BenchmarkLabOps';
-import { gateChip, investigationCases } from './benchmark-lab-ops';
+import { gateChip, humanReviewedCaption, investigationCases } from './benchmark-lab-ops';
 import { compareBakeOff, gatesSummary, judgeNeedTags } from '../../shared/benchmark-bakeoff';
 import { STAGE_04_CAPTIONS } from '../../shared/benchmark-lab-v3';
 
@@ -104,7 +104,9 @@ describe('apply captions stay honest', () => {
           applying={false}
           applyNote={null}
           canApply={false}
+          canRollback={false}
           onApply={() => undefined}
+          onViewRollback={() => undefined}
           onRollback={() => undefined}
         />,
       ),
@@ -122,6 +124,17 @@ describe('apply captions stay honest', () => {
   it('states gate counts exactly', () => {
     expect(gateChip('run_057', 2, 2)).toBe('run_057 passed 2 of 2 gates');
     expect(gateChip(null, 0, 0)).toContain('no numeric gates set');
+  });
+
+  it('keeps View rollback path as inspection and Rollback as the destructive control', () => {
+    const prose = apply('prompt_registry');
+    expect(prose).toContain('View rollback path');
+    expect(prose).toContain('Rollback');
+    const viewHandler = OPS.slice(OPS.indexOf('const viewRollback'), OPS.indexOf('const rollbackAsk'));
+    expect(viewHandler).not.toContain('rollbackPromotedAsk');
+    expect(viewHandler).toContain('rollbackCaption');
+    const rollbackHandler = OPS.slice(OPS.indexOf('const rollbackAsk'), OPS.indexOf('const exportPack'));
+    expect(rollbackHandler).toContain('rollbackPromotedAsk');
   });
 });
 
@@ -151,6 +164,19 @@ describe('run comparison', () => {
     expect(html).not.toMatch(/—/);
     expect(JSON.stringify(comparison)).not.toMatch(/composite/i);
     expect(gatesSummary(comparison).label).toMatch(/gates/i);
+  });
+
+  it('says human-reviewed when labels were reviewed, and zero when they were not', () => {
+    expect(humanReviewedCaption(true, 0.8)).toBe('human-reviewed');
+    expect(humanReviewedCaption(false, 0.8)).toBe('0 human-reviewed');
+    expect(humanReviewedCaption(undefined, null)).toBe('0 human-reviewed');
+    expect(OPS).toContain('humanReviewedCaption(input.labelsReviewed');
+    expect(OPS).not.toMatch(/coverageNote:\s*'0 human-reviewed'/);
+  });
+
+  it('refetches flywheel after a Genie suite, not only after agent runs', () => {
+    expect(OPS).toContain('input.lastGenieRun?.id');
+    expect(OPS).toContain('genieLaneFromRun(input.lastGenieRun ?? null)');
   });
 });
 

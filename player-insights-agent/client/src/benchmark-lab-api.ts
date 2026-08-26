@@ -9,11 +9,21 @@ import type { EvalRowLike, ImportFilter, LabWorkspace, SuiteKind } from '../../s
 type FailureBody = {
   detail?: unknown;
   message?: unknown;
+  decision?: { note?: unknown };
+  apply?: { note?: unknown };
 };
+
+function nestedNote(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  const note = (value as { note?: unknown }).note;
+  return typeof note === 'string' && note.trim() ? note.trim() : '';
+}
 
 function serverDetail(body: unknown): string {
   if (!body || typeof body !== 'object') return '';
   const failure = body as FailureBody;
+  const fromApply = nestedNote(failure.decision) || nestedNote(failure.apply);
+  if (fromApply) return fromApply;
   if (typeof failure.detail === 'string' && failure.detail.trim()) return failure.detail.trim();
   if (typeof failure.message === 'string' && failure.message.trim()) return failure.message.trim();
   return '';

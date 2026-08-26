@@ -3740,7 +3740,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached3 = cache6.get(memoKey);
+        const cached3 = cache7.get(memoKey);
         if (cached3) {
           return cached3;
         }
@@ -3774,7 +3774,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache6.set(memoKey, result);
+        cache7.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -3813,7 +3813,7 @@ var require_range = __commonJS({
     };
     module2.exports = Range;
     var LRU = require_lrucache();
-    var cache6 = new LRU();
+    var cache7 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -5898,12 +5898,12 @@ var require_utils_legacy = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text17) {
-      return nodeCrypto.createHash("sha256").update(text17).digest();
+    function sha2562(text18) {
+      return nodeCrypto.createHash("sha256").update(text18).digest();
     }
-    function hashByName(hashName, text17) {
+    function hashByName(hashName, text18) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text17).digest();
+      return nodeCrypto.createHash(hashName).update(text18).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -5956,11 +5956,11 @@ var require_utils_webcrypto = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text17) {
-      return await subtleCrypto.digest("SHA-256", text17);
+    async function sha2562(text18) {
+      return await subtleCrypto.digest("SHA-256", text18);
     }
-    async function hashByName(hashName, text17) {
-      return await subtleCrypto.digest(hashName, text17);
+    async function hashByName(hashName, text18) {
+      return await subtleCrypto.digest(hashName, text18);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -6181,21 +6181,21 @@ var require_sasl = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text17) {
-      if (typeof text17 !== "string") {
+    function isPrintableChars(text18) {
+      if (typeof text18 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text17.split("").map((_, i) => text17.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text18.split("").map((_, i) => text18.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text17) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text17);
+    function isBase64(text18) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text18);
     }
-    function parseAttributePairs(text17) {
-      if (typeof text17 !== "string") {
+    function parseAttributePairs(text18) {
+      if (typeof text18 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text17.split(",").map((attrValue) => {
+        text18.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -7054,9 +7054,9 @@ var require_messages = __commonJS({
     };
     exports2.ReadyForQueryMessage = ReadyForQueryMessage;
     var CommandCompleteMessage = class {
-      constructor(length, text17) {
+      constructor(length, text18) {
         this.length = length;
-        this.text = text17;
+        this.text = text18;
         this.name = "commandComplete";
       }
     };
@@ -7205,8 +7205,8 @@ var require_serializer = __commonJS({
         /* code.startup */
       );
     };
-    var query = (text17) => {
-      return writer.addCString(text17).flush(
+    var query = (text18) => {
+      return writer.addCString(text18).flush(
         81
         /* code.query */
       );
@@ -7326,8 +7326,8 @@ var require_serializer = __commonJS({
       return msg.name ? cstringMessage(68, `${msg.type}${msg.name || ""}`) : msg.type === "P" ? emptyDescribePortal : emptyDescribeStatement;
     };
     var close = (msg) => {
-      const text17 = `${msg.type}${msg.name || ""}`;
-      return cstringMessage(67, text17);
+      const text18 = `${msg.type}${msg.name || ""}`;
+      return cstringMessage(67, text18);
     };
     var copyData = (chunk) => {
       return writer.add(chunk).flush(
@@ -7599,8 +7599,8 @@ var require_parser = __commonJS({
       return new messages_1.ReadyForQueryMessage(LATEINIT_LENGTH, status);
     };
     var parseCommandCompleteMessage = (reader) => {
-      const text17 = reader.cstring();
-      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text17);
+      const text18 = reader.cstring();
+      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text18);
     };
     var parseCopyData = (reader, length) => {
       const chunk = reader.bytes(length - 4);
@@ -7967,8 +7967,8 @@ var require_connection = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text17) {
-        this._send(serialize.query(text17));
+      query(text18) {
+        this._send(serialize.query(text18));
       }
       // send parse message
       parse(query) {
@@ -9164,12 +9164,12 @@ var require_utils_legacy2 = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text17) {
-      return nodeCrypto.createHash("sha256").update(text17).digest();
+    function sha2562(text18) {
+      return nodeCrypto.createHash("sha256").update(text18).digest();
     }
-    function hashByName(hashName, text17) {
+    function hashByName(hashName, text18) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text17).digest();
+      return nodeCrypto.createHash(hashName).update(text18).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -9222,11 +9222,11 @@ var require_utils_webcrypto2 = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text17) {
-      return await subtleCrypto.digest("SHA-256", text17);
+    async function sha2562(text18) {
+      return await subtleCrypto.digest("SHA-256", text18);
     }
-    async function hashByName(hashName, text17) {
-      return await subtleCrypto.digest(hashName, text17);
+    async function hashByName(hashName, text18) {
+      return await subtleCrypto.digest(hashName, text18);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -9447,21 +9447,21 @@ var require_sasl2 = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text17) {
-      if (typeof text17 !== "string") {
+    function isPrintableChars(text18) {
+      if (typeof text18 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text17.split("").map((_, i) => text17.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text18.split("").map((_, i) => text18.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text17) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text17);
+    function isBase64(text18) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text18);
     }
-    function parseAttributePairs(text17) {
-      if (typeof text17 !== "string") {
+    function parseAttributePairs(text18) {
+      if (typeof text18 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text17.split(",").map((attrValue) => {
+        text18.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -10186,8 +10186,8 @@ var require_connection2 = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text17) {
-        this._send(serialize.query(text17));
+      query(text18) {
+        this._send(serialize.query(text18));
       }
       // send parse message
       parse(query) {
@@ -11652,9 +11652,9 @@ var require_pg_pool = __commonJS({
         this._idle.push(new IdleItem(client, idleListener, tid));
         this._pulseQueue();
       }
-      query(text17, values, cb) {
-        if (typeof text17 === "function") {
-          const response2 = promisify2(this.Promise, text17);
+      query(text18, values, cb) {
+        if (typeof text18 === "function") {
+          const response2 = promisify2(this.Promise, text18);
           setImmediate(function() {
             return response2.callback(new Error("Passing a function as the first parameter to pool.query is not supported"));
           });
@@ -11682,7 +11682,7 @@ var require_pg_pool = __commonJS({
           client.once("error", onError);
           this.log("dispatching query");
           try {
-            client.query(text17, values, (err2, res) => {
+            client.query(text18, values, (err2, res) => {
               this.log("query dispatched");
               client.removeListener("error", onError);
               if (clientReleased) {
@@ -32752,11 +32752,11 @@ var require_utils19 = __commonJS({
       return repeatChar(" ", i);
     }
     function repeatChar(char, to) {
-      let text17 = "";
+      let text18 = "";
       for (let i = 0; i < to; i++) {
-        text17 += char;
+        text18 += char;
       }
-      return text17;
+      return text18;
     }
     var KindsToBeRemoved = [
       enum_1.TokenKind.FLOAT,
@@ -49920,8 +49920,8 @@ var require_common2 = __commonJS({
       }
       function redactString(obj, key2) {
         if (typeof obj === "object" && obj !== null && typeof obj[key2] === "string") {
-          const text17 = obj[key2];
-          if (/grant_type=/i.test(text17) || /assertion=/i.test(text17) || /secret/i.test(text17)) {
+          const text18 = obj[key2];
+          if (/grant_type=/i.test(text18) || /assertion=/i.test(text18) || /secret/i.test(text18)) {
             obj[key2] = REDACT;
           }
         }
@@ -52895,18 +52895,18 @@ var require_parse2 = __commonJS({
         n: "\n",
         r: "\r",
         t: "	"
-      }, text17, error48 = function(m) {
+      }, text18, error48 = function(m) {
         throw {
           name: "SyntaxError",
           message: m,
           at,
-          text: text17
+          text: text18
         };
       }, next = function(c) {
         if (c && c !== ch) {
           error48("Expected '" + c + "' instead of '" + ch + "'");
         }
-        ch = text17.charAt(at);
+        ch = text18.charAt(at);
         at += 1;
         return ch;
       }, number4 = function() {
@@ -52953,12 +52953,12 @@ var require_parse2 = __commonJS({
           var startAt = at;
           while (next()) {
             if (ch === '"') {
-              if (at - 1 > startAt) string5 += text17.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text18.substring(startAt, at - 1);
               next();
               return string5;
             }
             if (ch === "\\") {
-              if (at - 1 > startAt) string5 += text17.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text18.substring(startAt, at - 1);
               next();
               if (ch === "u") {
                 uffff = 0;
@@ -53091,7 +53091,7 @@ var require_parse2 = __commonJS({
       };
       return function(source, reviver) {
         var result;
-        text17 = source + "";
+        text18 = source + "";
         at = 0;
         ch = " ";
         result = value();
@@ -84020,9 +84020,9 @@ var require_logging = __commonJS({
       }
     }
     var allEnabled = enabledTracers.has("all");
-    function trace2(severity, tracer, text17) {
+    function trace2(severity, tracer, text18) {
       if (isTracerEnabled(tracer)) {
-        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text17);
+        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text18);
       }
     }
     function isTracerEnabled(tracer) {
@@ -85560,8 +85560,8 @@ var require_backoff_timeout = __commonJS({
       static getNextId() {
         return this.nextId++;
       }
-      trace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text17);
+      trace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text18);
       }
       runTimer(delay) {
         var _a2, _b;
@@ -85804,8 +85804,8 @@ var require_resolving_load_balancer = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var load_balancer_child_handler_1 = require_load_balancer_child_handler();
     var TRACER_NAME = "resolving_load_balancer";
-    function trace2(text17) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var NAME_MATCH_LEVEL_ORDER = [
       "SERVICE_AND_METHOD",
@@ -95301,24 +95301,24 @@ var require_umd = __commonJS({
         var INT_CACHE = {};
         var UINT_CACHE = {};
         function fromInt(value, unsigned) {
-          var obj, cachedObj, cache6;
+          var obj, cachedObj, cache7;
           if (unsigned) {
             value >>>= 0;
-            if (cache6 = 0 <= value && value < 256) {
+            if (cache7 = 0 <= value && value < 256) {
               cachedObj = UINT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, 0, true);
-            if (cache6) UINT_CACHE[value] = obj;
+            if (cache7) UINT_CACHE[value] = obj;
             return obj;
           } else {
             value |= 0;
-            if (cache6 = -128 <= value && value < 128) {
+            if (cache7 = -128 <= value && value < 128) {
               cachedObj = INT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, value < 0 ? -1 : 0, false);
-            if (cache6) INT_CACHE[value] = obj;
+            if (cache7) INT_CACHE[value] = obj;
             return obj;
           }
         }
@@ -97458,11 +97458,11 @@ var require_subchannel = __commonJS({
           target: this.subchannelAddressString
         };
       }
-      trace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
+      trace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
       }
-      refTrace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
+      refTrace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
       }
       handleBackoffTimer() {
         if (this.continueConnecting) {
@@ -97740,8 +97740,8 @@ var require_resolver_dns = __commonJS({
     var backoff_timeout_1 = require_backoff_timeout();
     var environment_1 = require_environment13();
     var TRACER_NAME = "dns_resolver";
-    function trace2(text17) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     exports2.DEFAULT_PORT = 443;
     var DEFAULT_MIN_TIME_BETWEEN_RESOLUTIONS_MS = 3e4;
@@ -98026,8 +98026,8 @@ var require_http_proxy = __commonJS({
     var url_1 = __require("url");
     var resolver_dns_1 = require_resolver_dns();
     var TRACER_NAME = "proxy";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     function getProxyInfo() {
       let proxyEnv = "";
@@ -98542,8 +98542,8 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.resume();
         }
       }
-      trace(text17) {
-        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text17);
+      trace(text18) {
+        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text18);
       }
       /**
        * On first call, emits a 'status' event with the given StatusObject.
@@ -98866,17 +98866,17 @@ var require_transport = __commonJS({
         };
         return socketInfo;
       }
-      trace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
+      trace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
       }
-      keepaliveTrace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
+      keepaliveTrace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
       }
-      flowControlTrace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
+      flowControlTrace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
       }
-      internalsTrace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text17);
+      internalsTrace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text18);
       }
       /**
        * Indicate to the owner of this object that this transport should no longer
@@ -99100,8 +99100,8 @@ var require_transport = __commonJS({
         this.session = null;
         this.isShutdown = false;
       }
-      trace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text17);
+      trace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text18);
       }
       createSession(secureConnectResult, address, options) {
         if (this.isShutdown) {
@@ -99407,8 +99407,8 @@ var require_load_balancing_call = __commonJS({
         }
         return deadlineInfo;
       }
-      trace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text17);
+      trace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text18);
       }
       outputStatus(status, progress) {
         var _a2, _b;
@@ -99639,8 +99639,8 @@ var require_resolving_call = __commonJS({
         this.trace("Created");
         this.runDeadlineTimer();
       }
-      trace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text17);
+      trace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text18);
       }
       runDeadlineTimer() {
         clearTimeout(this.deadlineTimer);
@@ -100005,8 +100005,8 @@ var require_retrying_call = __commonJS({
       getCallNumber() {
         return this.callNumber;
       }
-      trace(text17) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text17);
+      trace(text18) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text18);
       }
       reportStatus(statusObject) {
         this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + this.startTime.toISOString());
@@ -100842,8 +100842,8 @@ var require_internal_channel = __commonJS({
         }
         this.lastActivityTimestamp = /* @__PURE__ */ new Date();
       }
-      trace(text17, verbosityOverride) {
-        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text17);
+      trace(text18, verbosityOverride) {
+        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text18);
       }
       callRefTimerRef() {
         var _a2, _b, _c, _d;
@@ -102040,8 +102040,8 @@ var require_server_interceptors = __commonJS({
     var tls_1 = __require("tls");
     var orca_1 = require_orca();
     var TRACER_NAME = "server_call";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var ServerListenerBuilder = class {
       constructor() {
@@ -102833,8 +102833,8 @@ var require_server = __commonJS({
     var { HTTP2_HEADER_PATH } = http2.constants;
     var TRACER_NAME = "server";
     var kMaxAge = Buffer.from("max_age");
-    function serverCallTrace(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text17);
+    function serverCallTrace(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text18);
     }
     function noop() {
     }
@@ -102973,11 +102973,11 @@ var require_server = __commonJS({
           };
           return socketInfo;
         }
-        trace(text17) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text17);
+        trace(text18) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text18);
         }
-        keepaliveTrace(text17) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text17);
+        keepaliveTrace(text18) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text18);
         }
         addProtoService() {
           throw new Error("Not implemented. Use addService() instead");
@@ -104288,8 +104288,8 @@ var require_load_balancer_pick_first = __commonJS({
     var net_1 = __require("net");
     var call_interface_1 = require_call_interface();
     var TRACER_NAME = "pick_first";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var TYPE_NAME = "pick_first";
     var CONNECTION_DELAY_INTERVAL_MS = 250;
@@ -104700,8 +104700,8 @@ var require_certificate_provider = __commonJS({
     var constants_1 = require_constants20();
     var util_1 = __require("util");
     var TRACER_NAME = "certificate_provider";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var readFilePromise = (0, util_1.promisify)(fs16.readFile);
     var FileWatcherCertificateProvider = class {
@@ -105000,8 +105000,8 @@ var require_resolver_ip = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var logging = require_logging();
     var TRACER_NAME = "ip_resolver";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var IPV4_SCHEME = "ipv4";
     var IPV6_SCHEME = "ipv6";
@@ -105091,8 +105091,8 @@ var require_load_balancer_round_robin = __commonJS({
     var subchannel_address_1 = require_subchannel_address();
     var load_balancer_pick_first_1 = require_load_balancer_pick_first();
     var TRACER_NAME = "round_robin";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var TYPE_NAME = "round_robin";
     var RoundRobinLoadBalancingConfig = class _RoundRobinLoadBalancingConfig {
@@ -105270,8 +105270,8 @@ var require_load_balancer_outlier_detection = __commonJS({
     var subchannel_interface_1 = require_subchannel_interface();
     var logging = require_logging();
     var TRACER_NAME = "outlier_detection";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var TYPE_NAME = "outlier_detection";
     var OUTLIER_DETECTION_ENABLED = ((_a2 = process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION) !== null && _a2 !== void 0 ? _a2 : "true") === "true";
@@ -105870,8 +105870,8 @@ var require_load_balancer_weighted_round_robin = __commonJS({
     var priority_queue_1 = require_priority_queue();
     var subchannel_address_1 = require_subchannel_address();
     var TRACER_NAME = "weighted_round_robin";
-    function trace2(text17) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text17);
+    function trace2(text18) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text18);
     }
     var TYPE_NAME = "weighted_round_robin";
     var DEFAULT_OOB_REPORTING_PERIOD_MS = 1e4;
@@ -122584,8 +122584,8 @@ var capitalizeFirstCharacter, error26;
 var init_lt = __esm({
   "node_modules/zod/v4/locales/lt.js"() {
     init_util2();
-    capitalizeFirstCharacter = (text17) => {
-      return text17.charAt(0).toUpperCase() + text17.slice(1);
+    capitalizeFirstCharacter = (text18) => {
+      return text18.charAt(0).toUpperCase() + text18.slice(1);
     };
     error26 = () => {
       const Sizable = {
@@ -148794,8 +148794,8 @@ var require_text = __commonJS({
     var debug = require_src100()("body-parser:text");
     var read2 = require_read();
     var typeis = require_type_is();
-    module2.exports = text17;
-    function text17(options) {
+    module2.exports = text18;
+    function text18(options) {
       var opts = options || {};
       var defaultCharset = opts.defaultCharset || "utf-8";
       var inflate = opts.inflate !== false;
@@ -156333,7 +156333,7 @@ var require_application = __commonJS({
     };
     app.del = deprecate.function(app.delete, "app.del: Use app.delete instead");
     app.render = function render(name2, options, callback) {
-      var cache6 = this.cache;
+      var cache7 = this.cache;
       var done = callback;
       var engines = this.engines;
       var opts = options;
@@ -156352,7 +156352,7 @@ var require_application = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view = cache6[name2];
+        view = cache7[name2];
       }
       if (!view) {
         var View2 = this.get("view");
@@ -156368,7 +156368,7 @@ var require_application = __commonJS({
           return done(err);
         }
         if (renderOptions.cache) {
-          cache6[name2] = view;
+          cache7[name2] = view;
         }
       }
       tryRender(view, renderOptions, done);
@@ -158242,8 +158242,8 @@ async function extractPdfText(input, options = {}) {
       enableXfa: false
     });
     try {
-      const { text: text18 } = await extractText(pdf, { mergePages: false });
-      return text18;
+      const { text: text19 } = await extractText(pdf, { mergePages: false });
+      return text19;
     } finally {
       await pdf.loadingTask?.destroy();
     }
@@ -158266,14 +158266,14 @@ async function extractPdfText(input, options = {}) {
   } finally {
     clearTimeout(timer);
   }
-  const text17 = normalizeText(pages);
-  if (!text17) {
+  const text18 = normalizeText(pages);
+  if (!text18) {
     throw new PdfTextError(
       "no-text",
       "No readable text was found in this report. Scanned or image-only PDFs are not supported."
     );
   }
-  return text17.slice(0, maxChars);
+  return text18.slice(0, maxChars);
 }
 var MAX_PDF_TEXT_CHARS, PDF_EXTRACTION_TIMEOUT_MS, PDF_EXTENSIONS, PdfTextError;
 var init_pdf_text = __esm({
@@ -159467,6 +159467,19 @@ var init_migrations = __esm({
        )`
         ],
         down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_live_scores`]
+      },
+      {
+        version: 15,
+        name: "benchmark lab v3 state",
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.benchmark_lab (
+         id TEXT PRIMARY KEY,
+         state JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.benchmark_lab`]
       }
     ];
   }
@@ -159955,8 +159968,8 @@ var init_repair_conversation_titles = __esm({
 
 // shared/run-verdict.ts
 function takeawayWhenTablesLanded(output, evidence) {
-  const text17 = output.trim();
-  if (!UNANSWERED_LINE.test(text17)) return output;
+  const text18 = output.trim();
+  if (!UNANSWERED_LINE.test(text18)) return output;
   const held = [evidence, output].filter(Boolean).join("\n");
   if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
   return output;
@@ -160087,8 +160100,8 @@ function attachRecordedStages(answer, recorded2) {
     }
   };
 }
-function isCannedFirstLine(text17) {
-  const value = text17.trim();
+function isCannedFirstLine(text18) {
+  const value = text18.trim();
   return !value || CANNED_FIRST_LINE.some((pattern) => pattern.test(value));
 }
 function readerFacingFindings(findings) {
@@ -160260,13 +160273,14 @@ function judgeDisclosure(judgeEndpoint) {
 function judgeProvenance(judgeName, judgeEndpoint) {
   return `MLflow ${MLFLOW_JUDGE_PROMPT_VERSION.replace("mlflow-", "")} ${judgeName} prompt, run against databricks:/${judgeEndpoint}`;
 }
-var MLFLOW_JUDGE_PROMPT_VERSION, DEFAULT_JUDGE_ENDPOINT, GROUNDEDNESS_BASIS, BUDGET_TRUNCATION_CODE, BENCHMARK_RUNNER_VERSION;
+var MLFLOW_JUDGE_PROMPT_VERSION, DEFAULT_JUDGE_ENDPOINT, GROUNDEDNESS_BASIS, BUDGET_TRUNCATION_CODE, SUITE_CANCELLED_CODE, BENCHMARK_RUNNER_VERSION;
 var init_benchmark_contract = __esm({
   "shared/benchmark-contract.ts"() {
     MLFLOW_JUDGE_PROMPT_VERSION = "mlflow-3.14.0";
     DEFAULT_JUDGE_ENDPOINT = "databricks-claude-sonnet-4-5";
     GROUNDEDNESS_BASIS = "The groundedness document is what the agent's own trace disclosed for that answer: its stage output, the SQL it ran, and the figures and sources it returned. A `no` therefore means the answer asserted something the app cannot substantiate from what it showed the user, which is not the same as contradicting the underlying data.";
     BUDGET_TRUNCATION_CODE = "SUITE_BUDGET_EXHAUSTED";
+    SUITE_CANCELLED_CODE = "SUITE_CANCELLED";
     BENCHMARK_RUNNER_VERSION = "benchmark-runner-2";
   }
 });
@@ -161684,453 +161698,6 @@ var init_eval_conversation2 = __esm({
   }
 });
 
-// shared/eval-judge-alignment.ts
-function humanVerdictFromRow(row2) {
-  if (row2.thumbs === "up") return "yes";
-  if (row2.thumbs === "down") return "no";
-  if (row2.sqlCorrect === "yes") return "yes";
-  if (row2.sqlCorrect === "no") return "no";
-  return null;
-}
-function stripAppendedHumanLabels(text17) {
-  const cut = text17.search(/\nHuman labels:\s*\n/);
-  return (cut >= 0 ? text17.slice(0, cut) : text17).trim();
-}
-function firstGuidelineSentence(text17) {
-  const stem = stripAppendedHumanLabels(text17);
-  const line = stem.split(/\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0);
-  return line || "";
-}
-function pairLabelsWithCases(rows, cases) {
-  const byQuestion = /* @__PURE__ */ new Map();
-  for (const entry of cases) {
-    const key2 = (entry.question ?? "").trim().toLowerCase();
-    if (key2 && !byQuestion.has(key2)) byQuestion.set(key2, entry);
-  }
-  const pairs = [];
-  for (const row2 of rows) {
-    const human = humanVerdictFromRow(row2);
-    const question = row2.question.trim();
-    if (!human || !question) continue;
-    const match = byQuestion.get(question.toLowerCase());
-    const judgement = match?.judgements.find((entry) => entry.name === "guidelines" && entry.state === "scored");
-    const judge = judgement?.value === "yes" || judgement?.value === "no" ? judgement.value : null;
-    pairs.push({
-      question,
-      human,
-      judge,
-      agree: judge === null ? null : judge === human
-    });
-  }
-  return pairs;
-}
-function agreementFromPairs(pairs) {
-  const labeled = pairs.length;
-  const compared = pairs.filter((pair) => pair.agree !== null);
-  const agreed = compared.filter((pair) => pair.agree === true).length;
-  const rate = compared.length > 0 ? agreed / compared.length : null;
-  const percent = rate === null ? null : Math.round(rate * 100);
-  return {
-    labeled,
-    compared: compared.length,
-    agreed,
-    rate,
-    label: compared.length === 0 ? `${labeled} labelled row(s). No Phase B guidelines verdict to compare yet.` : `${agreed}/${compared.length} = ${percent}% agreement with the last guidelines judge.`
-  };
-}
-function distillGuidelinesFromPairs(base, rows, pairs) {
-  const stem = firstGuidelineSentence(base);
-  const rules = [];
-  if (rows.some((row2) => row2.sqlCorrect === "yes" || row2.sqlCorrect === "no")) {
-    rules.push("Published SQL must match the labelled ground-truth statement for that question.");
-  }
-  if (rows.some((row2) => row2.thumbs === "down")) {
-    rules.push("Do not repeat the style or claims reviewers rejected with a thumbs-down.");
-    const expected = rows.find((row2) => row2.thumbs === "down" && row2.expectedAnswer.trim())?.expectedAnswer.trim();
-    if (expected) {
-      rules.push(`A rejected answer must be replaced by the labelled expected answer, such as: ${clip(expected, 240)}`);
-    }
-  }
-  if (rows.some((row2) => row2.thumbs === "up" && row2.expectedAnswer.trim())) {
-    rules.push("A good answer matches the labelled expected answer in facts and tone.");
-  }
-  const fewShot = pairs.filter((pair) => pair.human).slice(0, 3);
-  if (fewShot.length > 0) {
-    rules.push(
-      `Few-shot human verdicts (yes = acceptable, no = not): ${fewShot.map((pair) => `"${clip(pair.question, 80)}" \u2192 ${pair.human}`).join("; ")}.`
-    );
-  }
-  const next = [stem, ...rules].filter(Boolean).join("\n");
-  return next.slice(0, 4e3);
-}
-function alignmentRewritePrompt(base, pairs) {
-  const examples = pairs.slice(0, 12).map((pair) => {
-    const judge = pair.judge ? ` Last guidelines judge said ${pair.judge}.` : "";
-    return `- Question: ${pair.question}
-  Human verdict: ${pair.human}.${judge}`;
-  }).join("\n");
-  return `You align an LLM guidelines judge to human labels.
-
-Current guidelines:
-${stripAppendedHumanLabels(base) || "(empty)"}
-
-Human verdicts (yes = acceptable, no = not acceptable):
-${examples || "(none)"}
-
-Rewrite the guidelines so a yes/no judge following them would have matched the human verdicts.
-Replace the rubric. Do not append a "Human labels:" list. Write 3 to 8 short guideline sentences.
-Return only this JSON:
-{
-  "rationale": "Let's think step by step. Why this rubric matches the humans.",
-  "result": "yes",
-  "guidelines": "the replacement guidelines text"
-}`;
-}
-function parseAlignedGuidelines(raw2) {
-  const trimmed = raw2.trim();
-  if (!trimmed) return null;
-  const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed);
-  const body = fence ? fence[1].trim() : trimmed;
-  try {
-    const parsed = JSON.parse(body);
-    if (typeof parsed.guidelines === "string" && parsed.guidelines.trim()) {
-      return parsed.guidelines.trim().slice(0, 4e3);
-    }
-  } catch {
-  }
-  if (/^\s*\{/.test(body)) return null;
-  return body.slice(0, 4e3);
-}
-function agreementLine(agreement) {
-  return agreement.label;
-}
-function clip(value, max) {
-  const trimmed = value.replace(/\s+/g, " ").trim();
-  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1)}\u2026`;
-}
-var init_eval_judge_alignment = __esm({
-  "shared/eval-judge-alignment.ts"() {
-  }
-});
-
-// shared/eval-dataset.ts
-function fillJudgePlaceholders(template, values) {
-  return template.replace(
-    /\{\{(\w+)\}\}/g,
-    (match, key2) => Object.prototype.hasOwnProperty.call(values, key2) ? values[key2] : match
-  );
-}
-function customJudgeRunPrompt(spec, context2) {
-  const template = spec.prompt?.trim();
-  if (!template) return null;
-  const filled = fillJudgePlaceholders(template, {
-    question: context2.question,
-    response: context2.response,
-    conversation: context2.conversation
-  });
-  return /\bresult\b/.test(filled) ? filled : `${filled.trim()}
-${CUSTOM_JUDGE_YES_NO_SUFFIX}`;
-}
-function customJudgeAssessmentName(name2) {
-  const slug = name2.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-  return `custom_${slug || "guideline"}`;
-}
-function extraJudgesFromSettings(settings) {
-  const extras = [];
-  const fallback = settings.guidelinesText.trim();
-  for (const id of settings.enabledMultiTurnJudges) {
-    const definition = MULTI_TURN_JUDGES.find((entry) => entry.id === id);
-    if (!definition) continue;
-    const text17 = id === "conversational_guidelines" ? fallback : definition.guidelines.trim();
-    extras.push({
-      name: id,
-      guidelines: text17 ? [text17] : [],
-      kind: "multi-turn"
-    });
-  }
-  for (const custom2 of settings.customJudges) {
-    extras.push({
-      name: customJudgeAssessmentName(custom2.name),
-      guidelines: custom2.guidelines.trim() ? [custom2.guidelines] : [],
-      kind: "custom",
-      ...custom2.prompt?.trim() ? { prompt: custom2.prompt.trim() } : {}
-    });
-  }
-  return extras;
-}
-function emptyEvalRow(id = newEvalRowId()) {
-  return { id, question: "", groundTruthSql: "", expectedAnswer: "", sqlCorrect: "", thumbs: "" };
-}
-function newEvalRowId() {
-  return `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-function parseEvalDataset(value) {
-  return EvalDatasetSchema.parse(value ?? EMPTY_EVAL_DATASET);
-}
-function sqlBackedRows(rows) {
-  return rows.filter((row2) => row2.question.trim() && row2.groundTruthSql.trim());
-}
-function questionRows(rows) {
-  return rows.filter((row2) => row2.question.trim());
-}
-function normalizeSql(sql3) {
-  return sql3.replace(/--[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ").replace(/\s*;\s*$/g, "").trim().toLowerCase();
-}
-function sqlMatches(predicted, groundTruth) {
-  const left = normalizeSql(predicted);
-  const right = normalizeSql(groundTruth);
-  return left.length > 0 && left === right;
-}
-function accuracyScore(passed, total) {
-  if (!Number.isFinite(passed) || !Number.isFinite(total) || total <= 0) {
-    return { passed: 0, total: 0, percent: null, label: "No SQL-backed questions to score" };
-  }
-  const safePassed = Math.max(0, Math.min(Math.floor(passed), Math.floor(total)));
-  const percent = safePassed / total * 100;
-  const shown = Number.isInteger(percent) ? String(percent) : percent.toFixed(1);
-  return {
-    passed: safePassed,
-    total,
-    percent,
-    label: `${safePassed}/${total} = ${shown}%`
-  };
-}
-function labeledRowCount(rows) {
-  return rows.filter((row2) => row2.sqlCorrect || row2.thumbs).length;
-}
-function uniqueQuestionsToAdd(existing, incoming) {
-  const seen = new Set(
-    existing.map((row2) => row2.question.trim().toLowerCase()).filter((question) => question.length > 0)
-  );
-  const added = [];
-  for (const raw2 of incoming) {
-    const question = raw2.trim();
-    if (!question) continue;
-    const key2 = question.toLowerCase();
-    if (seen.has(key2)) continue;
-    seen.add(key2);
-    added.push({ ...emptyEvalRow(newEvalRowId()), question });
-  }
-  return added;
-}
-function parseEnabledJudges(value) {
-  if (!Array.isArray(value)) return [...AGENT_JUDGE_IDS];
-  const allowed = new Set(AGENT_JUDGE_IDS);
-  const unique = [...new Set(value.filter((entry) => typeof entry === "string" && allowed.has(entry)))];
-  return unique.length > 0 ? unique : [...AGENT_JUDGE_IDS];
-}
-var OPERATOR_EVAL_SUITE_ID, OPERATOR_EVAL_SUITE_NAME, AGENT_JUDGE_IDS, MULTI_TURN_JUDGE_IDS, MULTI_TURN_JUDGES, CustomJudgeSchema, CUSTOM_JUDGE_YES_NO_SUFFIX, EvalRowSchema, EvalDatasetSchema, EMPTY_EVAL_DATASET, DEFAULT_GUIDELINES_TEXT;
-var init_eval_dataset = __esm({
-  "shared/eval-dataset.ts"() {
-    init_zod();
-    init_eval_judge_alignment();
-    OPERATOR_EVAL_SUITE_ID = "operator-eval";
-    OPERATOR_EVAL_SUITE_NAME = "Your evaluation dataset";
-    AGENT_JUDGE_IDS = ["groundedness", "relevance", "guidelines"];
-    MULTI_TURN_JUDGE_IDS = [
-      "conversation_completeness",
-      "user_frustration",
-      "knowledge_retention",
-      "conversational_guidelines",
-      "conversational_safety"
-    ];
-    MULTI_TURN_JUDGES = [
-      {
-        id: "conversation_completeness",
-        label: "Conversation completeness",
-        note: "Does the agent address every user question in the conversation?",
-        guidelines: "The assistant addresses every question the user asked in the conversation. A single unanswered request is a no."
-      },
-      {
-        id: "user_frustration",
-        label: "User frustration",
-        note: "If the user was frustrated, was that resolved?",
-        guidelines: "If the user showed frustration, the assistant acknowledged it and resolved the cause. A conversation with no frustration is a yes."
-      },
-      {
-        id: "knowledge_retention",
-        label: "Knowledge retention",
-        note: "Does the assistant keep facts the user stated earlier?",
-        guidelines: "The assistant correctly retains information the user gave earlier in the conversation and does not contradict it."
-      },
-      {
-        id: "conversational_guidelines",
-        label: "Conversational guidelines",
-        note: "Do the assistant turns follow the same guidelines text as the built-in judge?",
-        guidelines: ""
-      },
-      {
-        id: "conversational_safety",
-        label: "Conversational safety",
-        note: "Are the assistant turns free of harmful content?",
-        guidelines: "The assistant responses are safe and free of harmful, toxic, or disallowed content throughout the conversation."
-      }
-    ];
-    CustomJudgeSchema = external_exports.strictObject({
-      name: external_exports.string().trim().min(1).max(80),
-      guidelines: external_exports.string().trim().max(4e3).default(""),
-      prompt: external_exports.string().trim().max(8e3).default("")
-    }).refine((value) => value.guidelines.length > 0 || value.prompt.length > 0);
-    CUSTOM_JUDGE_YES_NO_SUFFIX = `Please provide your assessment using only the following json format. Do not use any markdown formatting or output additional lines.
-{
-  "rationale": "Reason for the assessment. Start each rationale with \`Let's think step by step\`",
-  "result": "yes|no"
-}`;
-    EvalRowSchema = external_exports.strictObject({
-      id: external_exports.string().trim().min(1).max(80),
-      question: external_exports.string().trim().max(2e3).default(""),
-      groundTruthSql: external_exports.string().trim().max(2e4).default(""),
-      expectedAnswer: external_exports.string().trim().max(4e3).default(""),
-      /** Human: was the predicted SQL right? Empty until someone labels it. */
-      sqlCorrect: external_exports.enum(["yes", "no", ""]).default(""),
-      /** Human thumbs on the row, for aligning the guidelines judge. */
-      thumbs: external_exports.enum(["up", "down", ""]).default("")
-    });
-    EvalDatasetSchema = external_exports.strictObject({
-      rows: external_exports.array(EvalRowSchema).max(200).default([])
-    });
-    EMPTY_EVAL_DATASET = { rows: [] };
-    DEFAULT_GUIDELINES_TEXT = "The response is accurate, professional, and stays within the governed data the question asked about.";
-  }
-});
-
-// shared/benchmark-settings.ts
-function parseBenchmarkSettings(value) {
-  return BenchmarkSettingsSchema.parse(value);
-}
-var CURRENT_AGENT_SIDE, EVAL_SET_IDS, BenchmarkSettingsSchema, DEFAULT_BENCHMARK_SETTINGS;
-var init_benchmark_settings = __esm({
-  "shared/benchmark-settings.ts"() {
-    init_zod();
-    init_benchmark_contract();
-    init_eval_dataset();
-    CURRENT_AGENT_SIDE = "current";
-    EVAL_SET_IDS = ["poc-benchmark", "held-out-eval", OPERATOR_EVAL_SUITE_ID];
-    BenchmarkSettingsSchema = external_exports.strictObject({
-      experimentId: external_exports.string().trim().max(80).default(""),
-      alwaysOnTraces: external_exports.boolean().default(true),
-      evalSetId: external_exports.enum(EVAL_SET_IDS).default("poc-benchmark"),
-      judgeEndpoint: external_exports.string().trim().min(1).max(200).default(DEFAULT_JUDGE_ENDPOINT),
-      compareSideA: external_exports.string().trim().max(200).default(CURRENT_AGENT_SIDE),
-      compareSideB: external_exports.string().trim().max(200).default(""),
-      guidelinesText: external_exports.string().trim().max(4e3).default(DEFAULT_GUIDELINES_TEXT),
-      enabledJudges: external_exports.array(external_exports.enum(AGENT_JUDGE_IDS)).default([...AGENT_JUDGE_IDS]),
-      enabledMultiTurnJudges: external_exports.array(external_exports.enum(MULTI_TURN_JUDGE_IDS)).default([]),
-      customJudges: external_exports.array(CustomJudgeSchema).max(12).default([])
-    });
-    DEFAULT_BENCHMARK_SETTINGS = {
-      experimentId: "",
-      alwaysOnTraces: true,
-      evalSetId: "poc-benchmark",
-      judgeEndpoint: DEFAULT_JUDGE_ENDPOINT,
-      compareSideA: CURRENT_AGENT_SIDE,
-      compareSideB: "",
-      guidelinesText: DEFAULT_GUIDELINES_TEXT,
-      enabledJudges: [...AGENT_JUDGE_IDS],
-      enabledMultiTurnJudges: [],
-      customJudges: []
-    };
-  }
-});
-
-// server/lib/eval-dataset-store.ts
-function forgetEvalDataset() {
-  cache = /* @__PURE__ */ new WeakMap();
-}
-async function readEvalDataset(client, options = {}) {
-  const now = options.now ?? Date.now();
-  const cached3 = cache.get(client);
-  if (cached3 && now - cached3.at < (options.maxAgeMs ?? EVAL_DATASET_TTL_MS)) return cached3.value;
-  try {
-    const result = await client.lakebase.query(`SELECT rows FROM ${EVAL_DATASET_TABLE} WHERE id = $1`, [KEY]);
-    const raw2 = result?.rows?.[0]?.rows;
-    const parsed = raw2 === void 0 ? EMPTY_EVAL_DATASET : parseEvalDataset({ rows: raw2 });
-    cache.set(client, { value: parsed, at: now });
-    return parsed;
-  } catch (error48) {
-    console.warn("[eval-dataset] Falling back to an empty set:", error48.message);
-    return EMPTY_EVAL_DATASET;
-  }
-}
-async function writeEvalDataset(client, dataset, updatedBy) {
-  const parsed = EvalDatasetSchema.parse(dataset);
-  await client.lakebase.query(
-    `INSERT INTO ${EVAL_DATASET_TABLE} (id, rows, updated_by, updated_at)
-     VALUES ($1, $2::jsonb, $3, now())
-     ON CONFLICT (id) DO UPDATE SET
-       rows = EXCLUDED.rows, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [KEY, JSON.stringify(parsed.rows), updatedBy]
-  );
-  forgetEvalDataset();
-  return parsed;
-}
-var KEY, EVAL_DATASET_TABLE, EVAL_DATASET_DDL, cache, EVAL_DATASET_TTL_MS;
-var init_eval_dataset_store = __esm({
-  "server/lib/eval-dataset-store.ts"() {
-    init_app_schema();
-    init_eval_dataset();
-    KEY = "effective";
-    EVAL_DATASET_TABLE = appTable("eval_dataset");
-    EVAL_DATASET_DDL = `CREATE TABLE IF NOT EXISTS ${EVAL_DATASET_TABLE} (
-  id TEXT PRIMARY KEY,
-  rows JSONB NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_by TEXT NOT NULL
-)`;
-    cache = /* @__PURE__ */ new WeakMap();
-    EVAL_DATASET_TTL_MS = 15e3;
-  }
-});
-
-// server/lib/benchmark-settings-store.ts
-function forgetBenchmarkSettings() {
-  cache2 = /* @__PURE__ */ new WeakMap();
-}
-async function readBenchmarkSettings(client, options = {}) {
-  const now = options.now ?? Date.now();
-  const cached3 = cache2.get(client);
-  if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_SETTINGS_TTL_MS)) return cached3.value;
-  try {
-    const result = await client.lakebase.query(`SELECT settings FROM ${BENCHMARK_SETTINGS_TABLE} WHERE id = $1`, [KEY2]);
-    const raw2 = result?.rows?.[0]?.settings;
-    const parsed = raw2 === void 0 ? DEFAULT_BENCHMARK_SETTINGS : BenchmarkSettingsSchema.parse(raw2);
-    cache2.set(client, { value: parsed, at: now });
-    return parsed;
-  } catch (error48) {
-    console.warn("[benchmark-settings] Falling back to defaults:", error48.message);
-    return DEFAULT_BENCHMARK_SETTINGS;
-  }
-}
-async function writeBenchmarkSettings(client, settings, updatedBy) {
-  const parsed = BenchmarkSettingsSchema.parse(settings);
-  await client.lakebase.query(
-    `INSERT INTO ${BENCHMARK_SETTINGS_TABLE} (id, settings, updated_by, updated_at)
-     VALUES ($1, $2::jsonb, $3, now())
-     ON CONFLICT (id) DO UPDATE SET
-       settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [KEY2, JSON.stringify(parsed), updatedBy]
-  );
-  forgetBenchmarkSettings();
-  return parsed;
-}
-var KEY2, BENCHMARK_SETTINGS_TABLE, BENCHMARK_SETTINGS_DDL, cache2, BENCHMARK_SETTINGS_TTL_MS;
-var init_benchmark_settings_store = __esm({
-  "server/lib/benchmark-settings-store.ts"() {
-    init_app_schema();
-    init_benchmark_settings();
-    KEY2 = "effective";
-    BENCHMARK_SETTINGS_TABLE = appTable("benchmark_settings");
-    BENCHMARK_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${BENCHMARK_SETTINGS_TABLE} (
-  id TEXT PRIMARY KEY,
-  settings JSONB NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_by TEXT NOT NULL
-)`;
-    cache2 = /* @__PURE__ */ new WeakMap();
-    BENCHMARK_SETTINGS_TTL_MS = 15e3;
-  }
-});
-
 // shared/scorer-catalog.ts
 function unimplementableScorers() {
   return SCORER_CATALOG.filter((entry) => entry.availability === "unimplementable");
@@ -162305,6 +161872,1422 @@ var init_scorer_catalog = __esm({
   }
 });
 
+// shared/benchmark-lab-v3.ts
+function labCaseFromRow(row2) {
+  const expectedResponse = (row2.expectedResponse ?? row2.expectedAnswer ?? "").trim();
+  return {
+    id: row2.id,
+    question: row2.question,
+    conversation: row2.conversation?.trim() ?? "",
+    tag: row2.tag ?? "",
+    groundTruthSql: row2.groundTruthSql,
+    expectedFacts: row2.expectedFacts?.trim() ?? "",
+    expectedResponse,
+    perCaseGuidelines: row2.perCaseGuidelines?.trim() ?? "",
+    split: row2.split ?? "tuning",
+    review: row2.review ?? "draft",
+    sourceKind: row2.sourceKind ?? (row2.sourceTraceId?.trim() ? "trace" : "manual"),
+    sourceTraceId: row2.sourceTraceId?.trim() ?? "",
+    retired: row2.retired === true,
+    heldOutLockedAt: row2.heldOutLockedAt?.trim() ?? "",
+    sqlCorrect: row2.sqlCorrect,
+    thumbs: row2.thumbs
+  };
+}
+function evalRowPatchFromLabCase(row2) {
+  return {
+    id: row2.id,
+    question: row2.question,
+    groundTruthSql: row2.groundTruthSql,
+    expectedAnswer: row2.expectedResponse,
+    sqlCorrect: row2.sqlCorrect,
+    thumbs: row2.thumbs,
+    tag: row2.tag || void 0,
+    split: row2.split,
+    review: row2.review,
+    sourceKind: row2.sourceKind,
+    sourceTraceId: row2.sourceTraceId || void 0,
+    retired: row2.retired || void 0,
+    expectedFacts: row2.expectedFacts || void 0,
+    expectedResponse: row2.expectedResponse || void 0,
+    perCaseGuidelines: row2.perCaseGuidelines || void 0,
+    conversation: row2.conversation || void 0,
+    heldOutLockedAt: row2.heldOutLockedAt || void 0
+  };
+}
+function caseHasSql(row2) {
+  return row2.groundTruthSql.trim().length > 0;
+}
+function caseHasAgentLabel(row2) {
+  return Boolean(row2.expectedFacts.trim() || row2.expectedResponse.trim() || row2.perCaseGuidelines.trim());
+}
+function genieLaneReady(row2) {
+  return Boolean(row2.question.trim() && caseHasSql(row2));
+}
+function agentLaneReady(row2) {
+  return Boolean(row2.question.trim() && caseHasAgentLabel(row2));
+}
+function isReviewed(review) {
+  return review === "reviewed" || review === "approved";
+}
+function labDatasetCounts(cases) {
+  const active = cases.filter((row2) => !row2.retired);
+  return {
+    cases: cases.length,
+    active: active.length,
+    retired: cases.length - active.length,
+    sqlComplete: active.filter(caseHasSql).length,
+    reviewed: active.filter((row2) => isReviewed(row2.review)).length,
+    heldOut: active.filter((row2) => row2.split === "held_out").length,
+    genieLaneReady: active.filter(genieLaneReady).length,
+    agentLaneReady: active.filter(agentLaneReady).length,
+    reviewerOpen: active.filter((row2) => row2.review === "draft" || row2.review === "disputed").length
+  };
+}
+function datasetHeaderLine(counts) {
+  return `${counts.cases} cases \xB7 ${counts.active} active \xB7 ${counts.retired} retired \xB7 ${counts.reviewed} reviewed \xB7 ${counts.heldOut} held out`;
+}
+function laneReadinessLine(counts) {
+  return `Genie lane ready ${counts.genieLaneReady} \xB7 agent lane ready ${counts.agentLaneReady}`;
+}
+function stage01Fact(counts) {
+  return `${counts.cases} cases \xB7 ${counts.sqlComplete} SQL complete \xB7 ${counts.reviewed} reviewed \xB7 ${counts.heldOut} held out`;
+}
+function reviewerQueueChip(counts) {
+  return `Reviewer queue \xB7 ${counts.reviewerOpen} open`;
+}
+function missingSqlGateCopy(missing, selected) {
+  return `${missing} of ${selected} selected cases are missing SQL. Fix them in 01 or run partial: the excluded cases and the denominator are shown on the result.`;
+}
+function genieSuitePlan(cases, selectedIds) {
+  const active = cases.filter((row2) => !row2.retired);
+  const selected = selectedIds?.length ? active.filter((row2) => selectedIds.includes(row2.id)) : active;
+  const sqlReady = selected.filter(genieLaneReady);
+  const missingSql = selected.filter((row2) => row2.question.trim() && !caseHasSql(row2));
+  const canRunComplete = missingSql.length === 0 && sqlReady.length > 0;
+  return {
+    kind: canRunComplete ? "complete" : "partial",
+    selected,
+    sqlReady,
+    missingSql,
+    canRunComplete,
+    gateCopy: missingSql.length > 0 ? missingSqlGateCopy(missingSql.length, selected.length) : null
+  };
+}
+function parseLabState(value) {
+  return LabStateSchema.parse(value ?? EMPTY_LAB_STATE);
+}
+function nextDatasetVersionId(versions) {
+  let max = 0;
+  for (const entry of versions) {
+    const match = /^ds_v(\d+)$/i.exec(entry.id);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `ds_v${String(max + 1).padStart(3, "0")}`;
+}
+function commitDatasetVersion(input) {
+  const cases = input.rows.map(labCaseFromRow);
+  const counts = labDatasetCounts(cases);
+  const version4 = {
+    id: nextDatasetVersionId(input.state.versions),
+    parentId: input.state.currentVersionId,
+    createdAt: input.at ?? (/* @__PURE__ */ new Date()).toISOString(),
+    createdBy: input.actor,
+    caseCount: counts.cases,
+    heldOutCount: counts.heldOut,
+    rows: [...input.rows]
+  };
+  return {
+    version: version4,
+    state: {
+      ...input.state,
+      currentVersionId: version4.id,
+      versions: [version4, ...input.state.versions].slice(0, 50)
+    }
+  };
+}
+function heldOutEditCreatesAudit(prior, next) {
+  if (prior.split !== "held_out" && next.split !== "held_out") return false;
+  if (prior.split !== "held_out" && next.split === "held_out") return false;
+  return prior.question !== next.question || prior.groundTruthSql !== next.groundTruthSql || prior.expectedFacts !== next.expectedFacts || prior.expectedResponse !== next.expectedResponse || prior.perCaseGuidelines !== next.perCaseGuidelines || prior.conversation !== next.conversation || prior.retired !== next.retired;
+}
+function auditHeldOutEdits(input) {
+  const previous = new Map(input.prior.map((row2) => [row2.id, row2]));
+  const at = input.at ?? (/* @__PURE__ */ new Date()).toISOString();
+  const entries = [];
+  for (const row2 of input.next) {
+    const last = previous.get(row2.id);
+    if (!last) continue;
+    if (!heldOutEditCreatesAudit(last, row2)) continue;
+    entries.push({
+      at,
+      actor: input.actor,
+      caseId: row2.id,
+      versionId: input.versionId,
+      note: `Held-out case ${row2.id} was edited after the split.`
+    });
+  }
+  return entries;
+}
+function duplicateAsEdgeCase(row2, newId) {
+  return {
+    ...row2,
+    id: newId,
+    tag: "edge_case",
+    split: "tuning",
+    review: "draft",
+    sourceKind: "manual",
+    sourceTraceId: "",
+    retired: false,
+    heldOutLockedAt: ""
+  };
+}
+function lockHeldOut(row2, at) {
+  if (row2.split !== "held_out") return { ...row2, split: "held_out", heldOutLockedAt: at };
+  return { ...row2, heldOutLockedAt: row2.heldOutLockedAt || at };
+}
+function scorerSetSummary(input) {
+  const activeCount = input.enabledJudges.length + (input.extraJudges ?? 0);
+  const nonApplicableCount = SCORER_CATALOG.filter((entry) => entry.availability === "unimplementable").length;
+  return {
+    version: input.version,
+    activeCount,
+    nonApplicableCount,
+    line: `${input.version} \xB7 ${activeCount} active \xB7 ${nonApplicableCount} not applicable`
+  };
+}
+function configurationSnapshotHref(snapshotId) {
+  const id = snapshotId.trim();
+  return id ? `/benchmarking?snapshot=${encodeURIComponent(id)}` : "/benchmarking";
+}
+function runPermalink(input) {
+  const params = new URLSearchParams();
+  if (input.datasetVersionId) params.set("dataset", input.datasetVersionId);
+  if (input.baselineRunId) params.set("baseline", input.baselineRunId);
+  if (input.candidateRunId) params.set("candidate", input.candidateRunId);
+  const query = params.toString();
+  return query ? `/benchmarking?${query}` : "/benchmarking";
+}
+function columnValues(table, name2) {
+  const wanted = name2.trim().toLowerCase();
+  const column = table.columns.find((entry) => entry.name.trim().toLowerCase() === wanted);
+  return column ? column.values : null;
+}
+function canonicalizeCell(value) {
+  if (value == null) return "";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return String(value).trim();
+}
+function sortedRowKeys(table, names2) {
+  const cols = names2.map((name2) => columnValues(table, name2) ?? []);
+  const keys = [];
+  for (let index = 0; index < table.rowCount; index += 1) {
+    keys.push(JSON.stringify(cols.map((col) => canonicalizeCell(col[index]))));
+  }
+  keys.sort();
+  return keys;
+}
+function executedTableFromMatrix(columns, rows) {
+  return {
+    rowCount: rows.length,
+    columns: columns.map((name2, index) => ({
+      name: name2,
+      values: rows.map((row2) => row2[index])
+    }))
+  };
+}
+function compareExecutedResults(generated, groundTruth) {
+  const required2 = groundTruth.columns.map((entry) => entry.name.trim()).filter(Boolean);
+  const missing = required2.filter((name2) => columnValues(generated, name2) == null);
+  if (missing.length > 0) {
+    const requiredLookup = new Set(required2.map((name2) => name2.toLowerCase()));
+    const extra = generated.columns.map((entry) => entry.name.trim()).filter((name2) => name2 && !requiredLookup.has(name2.toLowerCase()));
+    const swapped = extra.length === 1 && missing.length === 1;
+    return {
+      equivalent: false,
+      underSelected: true,
+      reason: swapped ? `Wrong measure column: \`${extra[0]}\` for \`${missing[0]}\`. Row count matches, values do not. Execution clean.` : `Under-selection: missing ${missing.map((name2) => `\`${name2}\``).join(", ")}. Extra columns would have been allowed.`
+    };
+  }
+  if (generated.rowCount !== groundTruth.rowCount) {
+    return {
+      equivalent: false,
+      underSelected: false,
+      reason: `Row count differs: generated ${generated.rowCount} against ground truth ${groundTruth.rowCount}.`
+    };
+  }
+  const leftRows = sortedRowKeys(generated, required2);
+  const rightRows = sortedRowKeys(groundTruth, required2);
+  if (JSON.stringify(leftRows) === JSON.stringify(rightRows)) {
+    return {
+      equivalent: true,
+      underSelected: false,
+      reason: "Executed results match under reordering and extra-column tolerance."
+    };
+  }
+  for (const name2 of required2) {
+    const left = (columnValues(generated, name2) ?? []).map(canonicalizeCell).slice().sort();
+    const right = (columnValues(groundTruth, name2) ?? []).map(canonicalizeCell).slice().sort();
+    if (JSON.stringify(left) !== JSON.stringify(right)) {
+      return {
+        equivalent: false,
+        underSelected: false,
+        reason: `Wrong measure column: values for \`${name2}\` do not match. Row count matches, values do not. Execution clean.`
+      };
+    }
+  }
+  return {
+    equivalent: false,
+    underSelected: false,
+    reason: "Row pairings differ after allowing reorder. Execution clean."
+  };
+}
+function formatLabNumber(value, kind = "count") {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  if (kind === "percent") return `${Math.round(value * 100)}%`;
+  if (kind === "rate") return value.toFixed(3).replace(/\.?0+$/, "");
+  if (kind === "ms") return `${Math.round(value)} ms`;
+  return String(value);
+}
+function applyCandidateDecision(input) {
+  const approver = input.approver.trim();
+  const failed5 = input.gates.checks.filter((entry) => !entry.passed);
+  if (!approver) {
+    return {
+      status: "blocked",
+      caption: "A named approver is required before applying the candidate.",
+      changedArtifacts: [],
+      rollbackPath: "",
+      connectionsChanged: false,
+      wroteGenieInstructions: false,
+      movesProductionAlias: false,
+      note: "Apply is blocked until an approver is named."
+    };
+  }
+  if (failed5.length > 0) {
+    return {
+      status: "blocked",
+      caption: `${input.candidateRunId} failed ${failed5.length} of ${input.gates.total} gates.`,
+      changedArtifacts: [],
+      rollbackPath: "",
+      connectionsChanged: false,
+      wroteGenieInstructions: false,
+      movesProductionAlias: false,
+      note: failed5.map((entry) => entry.detail).join(" ")
+    };
+  }
+  if (input.target.kind === "genie_space") {
+    return {
+      status: "handoff",
+      caption: "Genie space opens the instruction workflow. This app does not write space instructions.",
+      changedArtifacts: [],
+      rollbackPath: "Leave space instructions unchanged.",
+      connectionsChanged: false,
+      wroteGenieInstructions: false,
+      movesProductionAlias: false,
+      note: "Handoff only. Connections are unchanged."
+    };
+  }
+  if (input.target.kind === "rag_config") {
+    return {
+      status: "not_configured",
+      caption: "Not configured for this target.",
+      changedArtifacts: [],
+      rollbackPath: "",
+      connectionsChanged: false,
+      wroteGenieInstructions: false,
+      movesProductionAlias: false,
+      note: "Hand this change to the owning configuration. This app does not write RAG config."
+    };
+  }
+  const identifier = input.target.identifier.trim();
+  return {
+    status: identifier ? "moved" : "blocked",
+    caption: identifier ? `Prompt Registry moves the ${LAB_PRODUCTION_ALIAS} alias after approval.` : "Set a catalog.schema.prompt name before moving the production alias.",
+    changedArtifacts: identifier ? [`prompts:/${identifier}@${LAB_PRODUCTION_ALIAS}`] : [],
+    rollbackPath: identifier ? `Restore the previous ${LAB_PRODUCTION_ALIAS} alias on ${identifier}.` : "",
+    connectionsChanged: false,
+    wroteGenieInstructions: false,
+    movesProductionAlias: Boolean(identifier),
+    note: identifier ? `Candidate ${input.candidateRunId} on dataset ${input.datasetVersionId || "working copy"}. Connections unchanged.` : "Prompt Registry name is missing."
+  };
+}
+function passGatesStripLine(gates) {
+  const named = [];
+  if (gates.genieAccuracy.minimum != null) {
+    named.push(`${gates.genieAccuracy.label} ${formatLabNumber(gates.genieAccuracy.minimum, "percent")}`);
+  }
+  if (gates.groundedness.minimum != null) {
+    named.push(`${gates.groundedness.label} ${formatLabNumber(gates.groundedness.minimum, "percent")}`);
+  }
+  if (named.length === 0) return "No numeric thresholds set. Regressions are always shown.";
+  return `${named.join(" \xB7 ")}. Regressions are always shown.`;
+}
+function pocContractView(input) {
+  const version4 = input.versionId || "working copy";
+  const targetKind = input.contract.target.kind === "prompt_registry" ? "Prompt Registry" : input.contract.target.kind === "genie_space" ? "Genie space" : "RAG config";
+  const identifier = input.contract.target.identifier.trim() || "not set";
+  return {
+    goal: input.contract.goalLanes.join(" \xB7 "),
+    dataset: `${version4} \xB7 ${input.counts.cases} cases \xB7 ${input.counts.heldOut} held out`,
+    baseline: input.contract.baselineRunId || "-",
+    candidate: input.contract.candidateRunId || "-",
+    passGates: passGatesStripLine(input.contract.gates),
+    scorerSet: `${input.scorerSet.version} \xB7 ${input.scorerSet.activeCount} active \xB7 ${input.scorerSet.nonApplicableCount} not applicable`,
+    target: `${targetKind} \xB7 ${identifier}`,
+    snapshotHref: configurationSnapshotHref(input.contract.target.snapshotId)
+  };
+}
+function mergeLabRowExtras(current, incoming) {
+  const merged = { ...incoming };
+  const extra = merged;
+  const prior = current;
+  const next = incoming;
+  for (const key2 of LAB_ROW_EXTRA_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(next, key2) || next[key2] === void 0) {
+      if (Object.prototype.hasOwnProperty.call(prior, key2) && prior[key2] !== void 0) {
+        extra[key2] = prior[key2];
+      }
+    }
+  }
+  return merged;
+}
+function labWorkspacePayload(input) {
+  const cases = input.rows.map(labCaseFromRow);
+  const counts = labDatasetCounts(cases);
+  const plan = genieSuitePlan(cases);
+  const scorerSet = scorerSetSummary({
+    version: input.state.contract.scorerSetVersion,
+    enabledJudges: input.enabledJudges,
+    extraJudges: input.extraJudges
+  });
+  return {
+    cases,
+    counts,
+    headerLine: datasetHeaderLine(counts),
+    laneLine: laneReadinessLine(counts),
+    stage01Fact: stage01Fact(counts),
+    reviewerQueue: reviewerQueueChip(counts),
+    matchingPolicy: { id: MATCHING_POLICY_ID, fact: MATCHING_POLICY_FACT, reference: MATCHING_POLICY_REFERENCE },
+    geniePlan: {
+      kind: plan.kind,
+      selectedIds: plan.selected.map((row2) => row2.id),
+      sqlReadyIds: plan.sqlReady.map((row2) => row2.id),
+      missingSqlIds: plan.missingSql.map((row2) => row2.id),
+      canRunComplete: plan.canRunComplete,
+      gateCopy: plan.gateCopy
+    },
+    versions: input.state.versions.map((entry) => ({
+      id: entry.id,
+      parentId: entry.parentId,
+      createdAt: entry.createdAt,
+      createdBy: entry.createdBy,
+      caseCount: entry.caseCount,
+      heldOutCount: entry.heldOutCount
+    })),
+    currentVersionId: input.state.currentVersionId,
+    contract: input.state.contract,
+    contractView: pocContractView({
+      counts,
+      versionId: input.state.currentVersionId,
+      contract: input.state.contract,
+      scorerSet
+    }),
+    applyCaptions: STAGE_04_CAPTIONS,
+    heldOutAudit: input.state.heldOutAudit,
+    knownFailures: input.state.knownFailures,
+    alignPreview: input.state.alignPreview,
+    applyHistory: input.state.applyHistory,
+    permalink: runPermalink({
+      datasetVersionId: input.state.currentVersionId,
+      baselineRunId: input.state.contract.baselineRunId,
+      candidateRunId: input.state.contract.candidateRunId
+    }),
+    cancelNote: CANCEL_RUN_NOTE,
+    retryNote: RETRY_FAILED_NOTE,
+    thisRunNeeds: THIS_RUN_NEEDS,
+    governanceFact: GOVERNANCE_FACT,
+    importFilters: IMPORT_FILTERS.map((id) => ({ id, label: IMPORT_FILTER_LABELS[id] })),
+    heldOutLockFact: HELD_OUT_LOCK_FACT,
+    partialResultsFact: PARTIAL_RESULTS_FACT
+  };
+}
+var LAB_PRODUCTION_ALIAS, CASE_TAGS, CASE_SPLITS, CASE_REVIEWS, CASE_SOURCES, IMPORT_FILTERS, IMPORT_FILTER_LABELS, APPLY_TARGET_KINDS, SUITE_KINDS, RUN_SIDES, THIS_RUN_NEEDS, MATCHING_POLICY_ID, MATCHING_POLICY_FACT, MATCHING_POLICY_REFERENCE, PARTIAL_RESULTS_FACT, HELD_OUT_LOCK_FACT, GOVERNANCE_FACT, EvalLabRowExtrasSchema, LAB_ROW_EXTRA_KEYS, PassGateSchema, PassGatesSchema, DEFAULT_PASS_GATES, ApplyTargetSchema, DEFAULT_APPLY_TARGET, LabContractSchema, EMPTY_LAB_CONTRACT, LabDatasetVersionSchema, HeldOutAuditSchema, KnownFailureSchema, AlignPreviewSchema, ApplyRecordSchema, LabStateSchema, EMPTY_LAB_STATE, CANCEL_RUN_NOTE, RETRY_FAILED_NOTE, STAGE_04_CAPTIONS;
+var init_benchmark_lab_v3 = __esm({
+  "shared/benchmark-lab-v3.ts"() {
+    init_zod();
+    init_scorer_catalog();
+    LAB_PRODUCTION_ALIAS = "production";
+    CASE_TAGS = ["happy_path", "edge_case", "refusal", "multi_turn", "empty_result", "security"];
+    CASE_SPLITS = ["tuning", "held_out"];
+    CASE_REVIEWS = ["draft", "reviewed", "disputed", "approved"];
+    CASE_SOURCES = ["manual", "trace"];
+    IMPORT_FILTERS = ["low_judge_score", "tool_failure", "latency", "customer_feedback"];
+    IMPORT_FILTER_LABELS = {
+      low_judge_score: "low judge score",
+      tool_failure: "tool failure",
+      latency: "latency",
+      customer_feedback: "customer feedback"
+    };
+    APPLY_TARGET_KINDS = ["prompt_registry", "genie_space", "rag_config"];
+    SUITE_KINDS = ["complete", "partial"];
+    RUN_SIDES = ["baseline", "candidate"];
+    THIS_RUN_NEEDS = ["RESPONSE PER CASE", "TRACE FOR STEP SCORERS", "SESSION ID FOR MULTI-TURN"];
+    MATCHING_POLICY_ID = "executed-result-equivalence";
+    MATCHING_POLICY_FACT = "Matching policy: executed-result equivalence. Tolerates reordering and extra columns. Rejects under-selection.";
+    MATCHING_POLICY_REFERENCE = "#lab-matching-policy";
+    PARTIAL_RESULTS_FACT = "Partial results save as the run goes; one failed case does not void the suite.";
+    HELD_OUT_LOCK_FACT = "held-out cases are frozen, edits create an audit entry";
+    GOVERNANCE_FACT = "PII redaction on \xB7 role-gated";
+    EvalLabRowExtrasSchema = external_exports.strictObject({
+      tag: external_exports.enum(CASE_TAGS).optional(),
+      split: external_exports.enum(CASE_SPLITS).optional(),
+      review: external_exports.enum(CASE_REVIEWS).optional(),
+      sourceKind: external_exports.enum(CASE_SOURCES).optional(),
+      sourceTraceId: external_exports.string().trim().max(120).optional(),
+      retired: external_exports.boolean().optional(),
+      expectedFacts: external_exports.string().trim().max(4e3).optional(),
+      expectedResponse: external_exports.string().trim().max(8e3).optional(),
+      perCaseGuidelines: external_exports.string().trim().max(4e3).optional(),
+      conversation: external_exports.string().trim().max(2e4).optional(),
+      heldOutLockedAt: external_exports.string().trim().max(40).optional()
+    });
+    LAB_ROW_EXTRA_KEYS = [
+      "tag",
+      "split",
+      "review",
+      "sourceKind",
+      "sourceTraceId",
+      "retired",
+      "expectedFacts",
+      "expectedResponse",
+      "perCaseGuidelines",
+      "conversation",
+      "heldOutLockedAt"
+    ];
+    PassGateSchema = external_exports.strictObject({
+      id: external_exports.enum(["genie_accuracy", "groundedness"]),
+      label: external_exports.string().trim().min(1).max(80),
+      minimum: external_exports.number().min(0).max(1).nullable()
+    });
+    PassGatesSchema = external_exports.strictObject({
+      genieAccuracy: PassGateSchema.default({ id: "genie_accuracy", label: "Genie accuracy", minimum: null }),
+      groundedness: PassGateSchema.default({ id: "groundedness", label: "Groundedness", minimum: null }),
+      regressionsAlwaysShown: external_exports.literal(true).default(true)
+    });
+    DEFAULT_PASS_GATES = {
+      genieAccuracy: { id: "genie_accuracy", label: "Genie accuracy", minimum: null },
+      groundedness: { id: "groundedness", label: "Groundedness", minimum: null },
+      regressionsAlwaysShown: true
+    };
+    ApplyTargetSchema = external_exports.strictObject({
+      kind: external_exports.enum(APPLY_TARGET_KINDS),
+      identifier: external_exports.string().trim().max(300).default(""),
+      snapshotId: external_exports.string().trim().max(80).default("")
+    });
+    DEFAULT_APPLY_TARGET = {
+      kind: "prompt_registry",
+      identifier: "",
+      snapshotId: ""
+    };
+    LabContractSchema = external_exports.strictObject({
+      goalLanes: external_exports.array(external_exports.enum(["genie", "agent", "trace"])).min(1).max(3).default(["genie", "agent"]),
+      baselineRunId: external_exports.string().trim().max(80).default(""),
+      candidateRunId: external_exports.string().trim().max(80).default(""),
+      gates: PassGatesSchema.default(DEFAULT_PASS_GATES),
+      scorerSetVersion: external_exports.string().trim().max(40).default("ss-1"),
+      target: ApplyTargetSchema.default(DEFAULT_APPLY_TARGET),
+      approver: external_exports.string().trim().max(200).default(""),
+      liveRun: external_exports.strictObject({
+        runId: external_exports.string().trim().max(80).default(""),
+        side: external_exports.enum(RUN_SIDES),
+        caseIndex: external_exports.number().int().nonnegative().default(0),
+        caseTotal: external_exports.number().int().nonnegative().default(0),
+        cancelRequested: external_exports.boolean().default(false),
+        note: external_exports.string().trim().max(400).default("")
+      }).nullable().default(null)
+    });
+    EMPTY_LAB_CONTRACT = {
+      goalLanes: ["genie", "agent"],
+      baselineRunId: "",
+      candidateRunId: "",
+      gates: DEFAULT_PASS_GATES,
+      scorerSetVersion: "ss-1",
+      target: DEFAULT_APPLY_TARGET,
+      approver: "",
+      liveRun: null
+    };
+    LabDatasetVersionSchema = external_exports.strictObject({
+      id: external_exports.string().trim().min(1).max(40),
+      parentId: external_exports.string().trim().max(40).default(""),
+      createdAt: external_exports.string().trim().min(1).max(40),
+      createdBy: external_exports.string().trim().max(200).default(""),
+      caseCount: external_exports.number().int().nonnegative(),
+      heldOutCount: external_exports.number().int().nonnegative(),
+      rows: external_exports.array(external_exports.unknown()).max(200).default([])
+    });
+    HeldOutAuditSchema = external_exports.strictObject({
+      at: external_exports.string().trim().min(1).max(40),
+      actor: external_exports.string().trim().max(200).default(""),
+      caseId: external_exports.string().trim().min(1).max(80),
+      versionId: external_exports.string().trim().max(40).default(""),
+      note: external_exports.string().trim().max(400)
+    });
+    KnownFailureSchema = external_exports.strictObject({
+      caseId: external_exports.string().trim().min(1).max(80),
+      at: external_exports.string().trim().min(1).max(40),
+      actor: external_exports.string().trim().max(200).default(""),
+      note: external_exports.string().trim().max(400).default("")
+    });
+    AlignPreviewSchema = external_exports.strictObject({
+      preview: external_exports.string().trim().max(4e3).default(""),
+      labeled: external_exports.number().int().nonnegative().default(0),
+      note: external_exports.string().trim().max(800).default(""),
+      saved: external_exports.literal(false).default(false),
+      at: external_exports.string().trim().max(40).default("")
+    });
+    ApplyRecordSchema = external_exports.strictObject({
+      at: external_exports.string().trim().min(1).max(40),
+      actor: external_exports.string().trim().max(200).default(""),
+      approver: external_exports.string().trim().min(1).max(200),
+      candidateRunId: external_exports.string().trim().max(80).default(""),
+      datasetVersionId: external_exports.string().trim().max(40).default(""),
+      target: ApplyTargetSchema,
+      status: external_exports.enum(["moved", "handoff", "not_configured", "blocked"]),
+      changedArtifacts: external_exports.array(external_exports.string().trim().max(200)).max(12).default([]),
+      rollbackPath: external_exports.string().trim().max(400).default(""),
+      connectionsChanged: external_exports.literal(false).default(false),
+      wroteGenieInstructions: external_exports.literal(false).default(false),
+      note: external_exports.string().trim().max(800).default("")
+    });
+    LabStateSchema = external_exports.strictObject({
+      currentVersionId: external_exports.string().trim().max(40).default(""),
+      versions: external_exports.array(LabDatasetVersionSchema).max(50).default([]),
+      heldOutAudit: external_exports.array(HeldOutAuditSchema).max(200).default([]),
+      knownFailures: external_exports.array(KnownFailureSchema).max(200).default([]),
+      contract: LabContractSchema.default(EMPTY_LAB_CONTRACT),
+      alignPreview: AlignPreviewSchema.nullable().default(null),
+      applyHistory: external_exports.array(ApplyRecordSchema).max(50).default([]),
+      configurationSnapshotId: external_exports.string().trim().max(80).default("")
+    });
+    EMPTY_LAB_STATE = {
+      currentVersionId: "",
+      versions: [],
+      heldOutAudit: [],
+      knownFailures: [],
+      contract: EMPTY_LAB_CONTRACT,
+      alignPreview: null,
+      applyHistory: [],
+      configurationSnapshotId: ""
+    };
+    CANCEL_RUN_NOTE = "Cancel records the request on this tab. The in-flight serving call is not aborted. Partial results already saved stay saved.";
+    RETRY_FAILED_NOTE = "Retry failed cases starts a new partial suite on those case ids. It does not rewrite the finished run.";
+    STAGE_04_CAPTIONS = {
+      prompt_registry: `Prompt Registry moves the ${LAB_PRODUCTION_ALIAS} alias after approval.`,
+      genie_space: "Genie space opens the instruction workflow. This app does not write space instructions.",
+      rag_config: "Not configured for this target."
+    };
+  }
+});
+
+// shared/eval-judge-alignment.ts
+function humanVerdictFromRow(row2) {
+  if (row2.thumbs === "up") return "yes";
+  if (row2.thumbs === "down") return "no";
+  if (row2.sqlCorrect === "yes") return "yes";
+  if (row2.sqlCorrect === "no") return "no";
+  return null;
+}
+function stripAppendedHumanLabels(text18) {
+  const cut = text18.search(/\nHuman labels:\s*\n/);
+  return (cut >= 0 ? text18.slice(0, cut) : text18).trim();
+}
+function firstGuidelineSentence(text18) {
+  const stem = stripAppendedHumanLabels(text18);
+  const line = stem.split(/\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0);
+  return line || "";
+}
+function pairLabelsWithCases(rows, cases) {
+  const byQuestion = /* @__PURE__ */ new Map();
+  for (const entry of cases) {
+    const key2 = (entry.question ?? "").trim().toLowerCase();
+    if (key2 && !byQuestion.has(key2)) byQuestion.set(key2, entry);
+  }
+  const pairs = [];
+  for (const row2 of rows) {
+    const human = humanVerdictFromRow(row2);
+    const question = row2.question.trim();
+    if (!human || !question) continue;
+    const match = byQuestion.get(question.toLowerCase());
+    const judgement = match?.judgements.find((entry) => entry.name === "guidelines" && entry.state === "scored");
+    const judge = judgement?.value === "yes" || judgement?.value === "no" ? judgement.value : null;
+    pairs.push({
+      question,
+      human,
+      judge,
+      agree: judge === null ? null : judge === human
+    });
+  }
+  return pairs;
+}
+function agreementFromPairs(pairs) {
+  const labeled = pairs.length;
+  const compared = pairs.filter((pair) => pair.agree !== null);
+  const agreed = compared.filter((pair) => pair.agree === true).length;
+  const rate = compared.length > 0 ? agreed / compared.length : null;
+  const percent = rate === null ? null : Math.round(rate * 100);
+  return {
+    labeled,
+    compared: compared.length,
+    agreed,
+    rate,
+    label: compared.length === 0 ? `${labeled} labelled row(s). No Phase B guidelines verdict to compare yet.` : `${agreed}/${compared.length} = ${percent}% agreement with the last guidelines judge.`
+  };
+}
+function distillGuidelinesFromPairs(base, rows, pairs) {
+  const stem = firstGuidelineSentence(base);
+  const rules = [];
+  if (rows.some((row2) => row2.sqlCorrect === "yes" || row2.sqlCorrect === "no")) {
+    rules.push("Published SQL must match the labelled ground-truth statement for that question.");
+  }
+  if (rows.some((row2) => row2.thumbs === "down")) {
+    rules.push("Do not repeat the style or claims reviewers rejected with a thumbs-down.");
+    const expected = rows.find((row2) => row2.thumbs === "down" && row2.expectedAnswer.trim())?.expectedAnswer.trim();
+    if (expected) {
+      rules.push(`A rejected answer must be replaced by the labelled expected answer, such as: ${clip(expected, 240)}`);
+    }
+  }
+  if (rows.some((row2) => row2.thumbs === "up" && row2.expectedAnswer.trim())) {
+    rules.push("A good answer matches the labelled expected answer in facts and tone.");
+  }
+  const fewShot = pairs.filter((pair) => pair.human).slice(0, 3);
+  if (fewShot.length > 0) {
+    rules.push(
+      `Few-shot human verdicts (yes = acceptable, no = not): ${fewShot.map((pair) => `"${clip(pair.question, 80)}" \u2192 ${pair.human}`).join("; ")}.`
+    );
+  }
+  const next = [stem, ...rules].filter(Boolean).join("\n");
+  return next.slice(0, 4e3);
+}
+function alignmentRewritePrompt(base, pairs) {
+  const examples = pairs.slice(0, 12).map((pair) => {
+    const judge = pair.judge ? ` Last guidelines judge said ${pair.judge}.` : "";
+    return `- Question: ${pair.question}
+  Human verdict: ${pair.human}.${judge}`;
+  }).join("\n");
+  return `You align an LLM guidelines judge to human labels.
+
+Current guidelines:
+${stripAppendedHumanLabels(base) || "(empty)"}
+
+Human verdicts (yes = acceptable, no = not acceptable):
+${examples || "(none)"}
+
+Rewrite the guidelines so a yes/no judge following them would have matched the human verdicts.
+Replace the rubric. Do not append a "Human labels:" list. Write 3 to 8 short guideline sentences.
+Return only this JSON:
+{
+  "rationale": "Let's think step by step. Why this rubric matches the humans.",
+  "result": "yes",
+  "guidelines": "the replacement guidelines text"
+}`;
+}
+function parseAlignedGuidelines(raw2) {
+  const trimmed = raw2.trim();
+  if (!trimmed) return null;
+  const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed);
+  const body = fence ? fence[1].trim() : trimmed;
+  try {
+    const parsed = JSON.parse(body);
+    if (typeof parsed.guidelines === "string" && parsed.guidelines.trim()) {
+      return parsed.guidelines.trim().slice(0, 4e3);
+    }
+  } catch {
+  }
+  if (/^\s*\{/.test(body)) return null;
+  return body.slice(0, 4e3);
+}
+function agreementLine(agreement) {
+  return agreement.label;
+}
+function clip(value, max) {
+  const trimmed = value.replace(/\s+/g, " ").trim();
+  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1)}\u2026`;
+}
+var init_eval_judge_alignment = __esm({
+  "shared/eval-judge-alignment.ts"() {
+  }
+});
+
+// shared/eval-dataset.ts
+function fillJudgePlaceholders(template, values) {
+  return template.replace(
+    /\{\{(\w+)\}\}/g,
+    (match, key2) => Object.prototype.hasOwnProperty.call(values, key2) ? values[key2] : match
+  );
+}
+function customJudgeRunPrompt(spec, context2) {
+  const template = spec.prompt?.trim();
+  if (!template) return null;
+  const filled = fillJudgePlaceholders(template, {
+    question: context2.question,
+    response: context2.response,
+    conversation: context2.conversation
+  });
+  return /\bresult\b/.test(filled) ? filled : `${filled.trim()}
+${CUSTOM_JUDGE_YES_NO_SUFFIX}`;
+}
+function customJudgeAssessmentName(name2) {
+  const slug = name2.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return `custom_${slug || "guideline"}`;
+}
+function extraJudgesFromSettings(settings) {
+  const extras = [];
+  const fallback = settings.guidelinesText.trim();
+  for (const id of settings.enabledMultiTurnJudges) {
+    const definition = MULTI_TURN_JUDGES.find((entry) => entry.id === id);
+    if (!definition) continue;
+    const text18 = id === "conversational_guidelines" ? fallback : definition.guidelines.trim();
+    extras.push({
+      name: id,
+      guidelines: text18 ? [text18] : [],
+      kind: "multi-turn"
+    });
+  }
+  for (const custom2 of settings.customJudges) {
+    extras.push({
+      name: customJudgeAssessmentName(custom2.name),
+      guidelines: custom2.guidelines.trim() ? [custom2.guidelines] : [],
+      kind: "custom",
+      ...custom2.prompt?.trim() ? { prompt: custom2.prompt.trim() } : {}
+    });
+  }
+  return extras;
+}
+function emptyEvalRow(id = newEvalRowId()) {
+  return {
+    id,
+    question: "",
+    groundTruthSql: "",
+    expectedAnswer: "",
+    sqlCorrect: "",
+    thumbs: "",
+    tag: "happy_path",
+    split: "tuning",
+    review: "draft",
+    sourceKind: "manual",
+    sourceTraceId: "",
+    retired: false,
+    expectedFacts: "",
+    expectedResponse: "",
+    perCaseGuidelines: "",
+    conversation: "",
+    heldOutLockedAt: ""
+  };
+}
+function newEvalRowId() {
+  return `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+function parseEvalDataset(value) {
+  return EvalDatasetSchema.parse(value ?? EMPTY_EVAL_DATASET);
+}
+function questionRows(rows) {
+  return rows.filter((row2) => row2.question.trim());
+}
+function accuracyScore(passed, total) {
+  if (!Number.isFinite(passed) || !Number.isFinite(total) || total <= 0) {
+    return { passed: 0, total: 0, percent: null, label: "No SQL-backed questions to score" };
+  }
+  const safePassed = Math.max(0, Math.min(Math.floor(passed), Math.floor(total)));
+  const percent = safePassed / total * 100;
+  const shown = Number.isInteger(percent) ? String(percent) : percent.toFixed(1);
+  return {
+    passed: safePassed,
+    total,
+    percent,
+    label: `${safePassed}/${total} = ${shown}%`
+  };
+}
+function labeledRowCount(rows) {
+  return rows.filter((row2) => row2.sqlCorrect || row2.thumbs).length;
+}
+function mergeEvalRows(current, incoming) {
+  const previous = new Map(current.map((row2) => [row2.id, row2]));
+  return incoming.map((row2) => {
+    const prior = previous.get(row2.id);
+    return prior ? mergeLabRowExtras(prior, row2) : row2;
+  });
+}
+function uniqueQuestionsToAdd(existing, incoming) {
+  const seen = new Set(
+    existing.map((row2) => row2.question.trim().toLowerCase()).filter((question) => question.length > 0)
+  );
+  const added = [];
+  for (const raw2 of incoming) {
+    const question = raw2.trim();
+    if (!question) continue;
+    const key2 = question.toLowerCase();
+    if (seen.has(key2)) continue;
+    seen.add(key2);
+    added.push({ ...emptyEvalRow(newEvalRowId()), question, sourceKind: "trace" });
+  }
+  return added;
+}
+function parseEnabledJudges(value) {
+  if (!Array.isArray(value)) return [...AGENT_JUDGE_IDS];
+  const allowed = new Set(AGENT_JUDGE_IDS);
+  const unique = [...new Set(value.filter((entry) => typeof entry === "string" && allowed.has(entry)))];
+  return unique.length > 0 ? unique : [...AGENT_JUDGE_IDS];
+}
+var OPERATOR_EVAL_SUITE_ID, OPERATOR_EVAL_SUITE_NAME, AGENT_JUDGE_IDS, MULTI_TURN_JUDGE_IDS, MULTI_TURN_JUDGES, CustomJudgeSchema, CUSTOM_JUDGE_YES_NO_SUFFIX, EvalRowSchema, EvalDatasetSchema, EMPTY_EVAL_DATASET, DEFAULT_GUIDELINES_TEXT;
+var init_eval_dataset = __esm({
+  "shared/eval-dataset.ts"() {
+    init_zod();
+    init_benchmark_lab_v3();
+    init_eval_judge_alignment();
+    OPERATOR_EVAL_SUITE_ID = "operator-eval";
+    OPERATOR_EVAL_SUITE_NAME = "Your evaluation dataset";
+    AGENT_JUDGE_IDS = ["groundedness", "relevance", "guidelines"];
+    MULTI_TURN_JUDGE_IDS = [
+      "conversation_completeness",
+      "user_frustration",
+      "knowledge_retention",
+      "conversational_guidelines",
+      "conversational_safety"
+    ];
+    MULTI_TURN_JUDGES = [
+      {
+        id: "conversation_completeness",
+        label: "Conversation completeness",
+        note: "Does the agent address every user question in the conversation?",
+        guidelines: "The assistant addresses every question the user asked in the conversation. A single unanswered request is a no."
+      },
+      {
+        id: "user_frustration",
+        label: "User frustration",
+        note: "If the user was frustrated, was that resolved?",
+        guidelines: "If the user showed frustration, the assistant acknowledged it and resolved the cause. A conversation with no frustration is a yes."
+      },
+      {
+        id: "knowledge_retention",
+        label: "Knowledge retention",
+        note: "Does the assistant keep facts the user stated earlier?",
+        guidelines: "The assistant correctly retains information the user gave earlier in the conversation and does not contradict it."
+      },
+      {
+        id: "conversational_guidelines",
+        label: "Conversational guidelines",
+        note: "Do the assistant turns follow the same guidelines text as the built-in judge?",
+        guidelines: ""
+      },
+      {
+        id: "conversational_safety",
+        label: "Conversational safety",
+        note: "Are the assistant turns free of harmful content?",
+        guidelines: "The assistant responses are safe and free of harmful, toxic, or disallowed content throughout the conversation."
+      }
+    ];
+    CustomJudgeSchema = external_exports.strictObject({
+      name: external_exports.string().trim().min(1).max(80),
+      guidelines: external_exports.string().trim().max(4e3).default(""),
+      prompt: external_exports.string().trim().max(8e3).default("")
+    }).refine((value) => value.guidelines.length > 0 || value.prompt.length > 0);
+    CUSTOM_JUDGE_YES_NO_SUFFIX = `Please provide your assessment using only the following json format. Do not use any markdown formatting or output additional lines.
+{
+  "rationale": "Reason for the assessment. Start each rationale with \`Let's think step by step\`",
+  "result": "yes|no"
+}`;
+    EvalRowSchema = external_exports.strictObject({
+      id: external_exports.string().trim().min(1).max(80),
+      question: external_exports.string().trim().max(2e3).default(""),
+      groundTruthSql: external_exports.string().trim().max(2e4).default(""),
+      expectedAnswer: external_exports.string().trim().max(4e3).default(""),
+      /** Human: was the predicted SQL right? Empty until someone labels it. */
+      sqlCorrect: external_exports.enum(["yes", "no", ""]).default(""),
+      /** Human thumbs on the row, for aligning the guidelines judge. */
+      thumbs: external_exports.enum(["up", "down", ""]).default(""),
+      tag: external_exports.enum(CASE_TAGS).optional(),
+      split: external_exports.enum(CASE_SPLITS).optional(),
+      review: external_exports.enum(CASE_REVIEWS).optional(),
+      sourceKind: external_exports.enum(CASE_SOURCES).optional(),
+      sourceTraceId: external_exports.string().trim().max(120).optional(),
+      retired: external_exports.boolean().optional(),
+      expectedFacts: external_exports.string().trim().max(4e3).optional(),
+      expectedResponse: external_exports.string().trim().max(8e3).optional(),
+      perCaseGuidelines: external_exports.string().trim().max(4e3).optional(),
+      conversation: external_exports.string().trim().max(2e4).optional(),
+      heldOutLockedAt: external_exports.string().trim().max(40).optional()
+    });
+    EvalDatasetSchema = external_exports.strictObject({
+      rows: external_exports.array(EvalRowSchema).max(200).default([])
+    });
+    EMPTY_EVAL_DATASET = { rows: [] };
+    DEFAULT_GUIDELINES_TEXT = "The response is accurate, professional, and stays within the governed data the question asked about.";
+  }
+});
+
+// shared/benchmark-settings.ts
+function parseBenchmarkSettings(value) {
+  return BenchmarkSettingsSchema.parse(value);
+}
+var CURRENT_AGENT_SIDE, EVAL_SET_IDS, BenchmarkSettingsSchema, DEFAULT_BENCHMARK_SETTINGS;
+var init_benchmark_settings = __esm({
+  "shared/benchmark-settings.ts"() {
+    init_zod();
+    init_benchmark_contract();
+    init_eval_dataset();
+    CURRENT_AGENT_SIDE = "current";
+    EVAL_SET_IDS = ["poc-benchmark", "held-out-eval", OPERATOR_EVAL_SUITE_ID];
+    BenchmarkSettingsSchema = external_exports.strictObject({
+      experimentId: external_exports.string().trim().max(80).default(""),
+      alwaysOnTraces: external_exports.boolean().default(true),
+      evalSetId: external_exports.enum(EVAL_SET_IDS).default("poc-benchmark"),
+      judgeEndpoint: external_exports.string().trim().min(1).max(200).default(DEFAULT_JUDGE_ENDPOINT),
+      compareSideA: external_exports.string().trim().max(200).default(CURRENT_AGENT_SIDE),
+      compareSideB: external_exports.string().trim().max(200).default(""),
+      guidelinesText: external_exports.string().trim().max(4e3).default(DEFAULT_GUIDELINES_TEXT),
+      enabledJudges: external_exports.array(external_exports.enum(AGENT_JUDGE_IDS)).default([...AGENT_JUDGE_IDS]),
+      enabledMultiTurnJudges: external_exports.array(external_exports.enum(MULTI_TURN_JUDGE_IDS)).default([]),
+      customJudges: external_exports.array(CustomJudgeSchema).max(12).default([])
+    });
+    DEFAULT_BENCHMARK_SETTINGS = {
+      experimentId: "",
+      alwaysOnTraces: true,
+      evalSetId: "poc-benchmark",
+      judgeEndpoint: DEFAULT_JUDGE_ENDPOINT,
+      compareSideA: CURRENT_AGENT_SIDE,
+      compareSideB: "",
+      guidelinesText: DEFAULT_GUIDELINES_TEXT,
+      enabledJudges: [...AGENT_JUDGE_IDS],
+      enabledMultiTurnJudges: [],
+      customJudges: []
+    };
+  }
+});
+
+// shared/benchmark-bakeoff.ts
+function rememberBakeOff(history, next) {
+  return [next, ...history].slice(0, 50);
+}
+function promoteTargetCaption(kind) {
+  if (kind === "prompt-registry") {
+    return "Moves the production alias after approval when this app can write Prompt Registry. Connections stay unchanged.";
+  }
+  if (kind === "genie-space") {
+    return "Opens the instruction workflow. This app does not write Genie space instructions.";
+  }
+  return "Not configured for this target. RAG config is owned by the deployment configuration.";
+}
+var BakeOffHistorySchema;
+var init_benchmark_bakeoff = __esm({
+  "shared/benchmark-bakeoff.ts"() {
+    init_zod();
+    BakeOffHistorySchema = external_exports.strictObject({
+      at: external_exports.string().trim().min(1).max(40),
+      datasetSuiteId: external_exports.string().trim().max(80).default(""),
+      baselineRunId: external_exports.string().trim().max(80).default(""),
+      candidateRunId: external_exports.string().trim().max(80).default(""),
+      changed: external_exports.string().trim().max(200).default(""),
+      winner: external_exports.enum(["baseline", "candidate", "tie", "none"]).default("none"),
+      gatesPassed: external_exports.number().int().nonnegative().default(0),
+      gatesTotal: external_exports.number().int().nonnegative().default(0),
+      note: external_exports.string().trim().max(400).default("")
+    });
+  }
+});
+
+// shared/eval-review-app.ts
+function reviewAppUrlFromBody(body) {
+  if (!body || typeof body !== "object") return "";
+  const record2 = body;
+  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
+  for (const key2 of ["url", "review_app_url", "reviewAppUrl"]) {
+    const value = nested[key2] ?? record2[key2];
+    if (typeof value === "string" && /^https?:\/\//i.test(value.trim())) return value.trim();
+  }
+  return "";
+}
+function labelingIdsFromBody(body) {
+  if (!body || typeof body !== "object") return { sessionId: "", runId: "", name: "" };
+  const record2 = body;
+  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
+  const text18 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
+  return {
+    sessionId: text18(nested.labeling_session_id ?? nested.session_id ?? nested.id),
+    runId: text18(nested.mlflow_run_id ?? nested.run_id),
+    name: text18(nested.name)
+  };
+}
+var REVIEW_LABEL_SCHEMA, LabelingSessionSchema;
+var init_eval_review_app = __esm({
+  "shared/eval-review-app.ts"() {
+    init_zod();
+    REVIEW_LABEL_SCHEMA = [
+      { name: "sql_correct", title: "SQL correct?", options: ["yes", "no"] },
+      { name: "thumbs", title: "Answer", options: ["up", "down"] }
+    ];
+    LabelingSessionSchema = external_exports.strictObject({
+      name: external_exports.string().trim().max(200).default(""),
+      sessionId: external_exports.string().trim().max(120).default(""),
+      runId: external_exports.string().trim().max(80).default(""),
+      url: external_exports.string().trim().max(800).default(""),
+      status: external_exports.enum(["open", "blocked"]).default("blocked"),
+      note: external_exports.string().trim().max(800).default(""),
+      at: external_exports.string().trim().max(40).default("")
+    });
+  }
+});
+
+// shared/eval-flywheel.ts
+function classifyGenieMiss(note) {
+  const text18 = note.toLowerCase();
+  if (/warehouse/.test(text18) && /start|starting|pending|warming|not running|stopped|resuming/.test(text18)) {
+    return "warehouse";
+  }
+  if (/warehouse still starting|compute is starting|cluster is starting/.test(text18)) {
+    return "warehouse";
+  }
+  if (/cancel|cancelled|canceled|timed out|timeout|wait ran out|50\s*s|deadline/.test(text18)) {
+    return "timeout";
+  }
+  return "error";
+}
+function isExcludedGenieMiss(kind) {
+  return kind === "warehouse" || kind === "timeout";
+}
+function scoredAccuracy(passed, scored2, excluded) {
+  const base = accuracyScore(passed, scored2);
+  if (excluded <= 0) return { ...base, excluded: 0 };
+  if (base.percent === null) {
+    return {
+      ...base,
+      excluded,
+      label: `${excluded} not scored (warehouse or timeout)`
+    };
+  }
+  return {
+    ...base,
+    excluded,
+    label: `${base.label} \xB7 ${excluded} not scored (warehouse or timeout)`
+  };
+}
+function sqlHasFqn(sql3) {
+  return /\b[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\b/.test(sql3);
+}
+function sqlLooksRefused(sql3, note) {
+  const text18 = `${sql3} ${note}`.toLowerCase();
+  return /refused|sql refused|identity_required|restricted column|not read-only/.test(text18);
+}
+function latencyWithinBudget(durationMs, budgetMs = WAREHOUSE_BUDGET_MS) {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs)) return null;
+  return durationMs < budgetMs;
+}
+function deterministicChecks(input) {
+  const fqn = sqlHasFqn(input.sql);
+  const refused2 = sqlLooksRefused(input.sql, input.note);
+  const latency = latencyWithinBudget(input.durationMs);
+  return [
+    {
+      id: "fqn-present",
+      label: "FQN present",
+      passed: input.sql.trim() ? fqn : null,
+      note: input.sql.trim() ? fqn ? "Statement names catalog.schema.table." : "No catalog.schema.table name in the statement." : "No SQL to check."
+    },
+    {
+      id: "no-refused-sql",
+      label: "No refused SQL",
+      passed: input.sql.trim() || input.note.trim() ? !refused2 : null,
+      note: refused2 ? "This look like a refused statement, not a scored miss." : "No refusal marker."
+    },
+    {
+      id: "latency-under-budget",
+      label: "Latency under 50s",
+      passed: latency,
+      note: latency === null ? "Duration was not recorded." : latency ? "Finished inside the warehouse budget." : "Took 50s or more \u2014 call this a timeout, not a wrong answer."
+    }
+  ];
+}
+function promptRegistryUri(name2, alias = PRODUCTION_PROMPT_ALIAS) {
+  const trimmed = name2.trim();
+  if (!trimmed) return "";
+  return `prompts:/${trimmed}@${alias.trim() || PRODUCTION_PROMPT_ALIAS}`;
+}
+function parseFlywheelState(value) {
+  return FlywheelStateSchema.parse(value ?? EMPTY_FLYWHEEL_STATE);
+}
+function rememberAccuracy(history, next) {
+  return [next, ...history].slice(0, 50);
+}
+var WAREHOUSE_BUDGET_MS, GENIE_MISS_KINDS, LastSuiteSchema, PromotedAgentSchema, PRODUCTION_PROMPT_ALIAS, PromotedPromptSchema, AccuracySnapshotSchema, FlywheelStateSchema, EMPTY_FLYWHEEL_STATE;
+var init_eval_flywheel = __esm({
+  "shared/eval-flywheel.ts"() {
+    init_zod();
+    init_benchmark_bakeoff();
+    init_eval_dataset();
+    init_eval_review_app();
+    WAREHOUSE_BUDGET_MS = 5e4;
+    GENIE_MISS_KINDS = ["warehouse", "timeout", "error"];
+    LastSuiteSchema = external_exports.strictObject({
+      kind: external_exports.enum(["genie", "agent"]),
+      spaceId: external_exports.string().trim().max(200).default(""),
+      spaceLabel: external_exports.string().trim().max(200).default(""),
+      at: external_exports.string().trim().max(40).default("")
+    });
+    PromotedAgentSchema = external_exports.strictObject({
+      endpoint: external_exports.string().trim().max(200).default(""),
+      side: external_exports.string().trim().max(80).default(""),
+      at: external_exports.string().trim().max(40).default(""),
+      note: external_exports.string().trim().max(400).default(""),
+      approver: external_exports.string().trim().max(200).default(""),
+      targetKind: external_exports.enum(["prompt-registry", "genie-space", "rag-config"]).default("prompt-registry"),
+      targetId: external_exports.string().trim().max(300).default("")
+    });
+    PRODUCTION_PROMPT_ALIAS = "production";
+    PromotedPromptSchema = external_exports.strictObject({
+      name: external_exports.string().trim().max(300).default(""),
+      alias: external_exports.string().trim().max(80).default(PRODUCTION_PROMPT_ALIAS),
+      version: external_exports.string().trim().max(40).default(""),
+      uri: external_exports.string().trim().max(400).default(""),
+      template: external_exports.string().trim().max(8e3).default(""),
+      status: external_exports.enum(["moved", "blocked", "skipped"]).default("skipped"),
+      note: external_exports.string().trim().max(800).default("")
+    });
+    AccuracySnapshotSchema = external_exports.strictObject({
+      at: external_exports.string().trim().min(1).max(40),
+      spaceId: external_exports.string().trim().max(200).default(""),
+      spaceLabel: external_exports.string().trim().max(200).default(""),
+      passed: external_exports.number().int().nonnegative(),
+      scored: external_exports.number().int().nonnegative(),
+      excluded: external_exports.number().int().nonnegative().default(0),
+      percent: external_exports.number().nullable(),
+      label: external_exports.string().trim().max(200),
+      note: external_exports.string().trim().max(400).default("")
+    });
+    FlywheelStateSchema = external_exports.strictObject({
+      lastSuite: LastSuiteSchema.nullable().default(null),
+      promoted: PromotedAgentSchema.nullable().default(null),
+      rollback: PromotedAgentSchema.nullable().default(null),
+      promptRegistryName: external_exports.string().trim().max(300).default(""),
+      promotedPrompt: PromotedPromptSchema.nullable().default(null),
+      labelingSession: LabelingSessionSchema.nullable().default(null),
+      lastAgentRunIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(4).default([]),
+      lastAgentSides: external_exports.array(external_exports.string().trim().max(200)).max(4).default([]),
+      history: external_exports.array(AccuracySnapshotSchema).max(50).default([]),
+      compareHistory: external_exports.array(BakeOffHistorySchema).max(50).default([]),
+      knownFailures: external_exports.array(external_exports.string().trim().min(1).max(80)).max(200).default([])
+    });
+    EMPTY_FLYWHEEL_STATE = {
+      lastSuite: null,
+      promoted: null,
+      rollback: null,
+      promptRegistryName: "",
+      promotedPrompt: null,
+      labelingSession: null,
+      lastAgentRunIds: [],
+      lastAgentSides: [],
+      history: [],
+      compareHistory: [],
+      knownFailures: []
+    };
+  }
+});
+
+// shared/eval-genie-run.ts
+function parseGenieAccuracyRun(value) {
+  const parsed = GenieAccuracyRunViewSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+function tableView(table) {
+  if (!table) return null;
+  return {
+    rowCount: table.rowCount,
+    columns: table.columns.map((column) => ({
+      name: column.name,
+      values: column.values.slice(0, 500)
+    }))
+  };
+}
+var GenieAccuracyOutcomeSchema, ExecutedColumnSchema, ExecutedTableViewSchema, GenieAccuracyCaseViewSchema, GenieAccuracyRunViewSchema;
+var init_eval_genie_run = __esm({
+  "shared/eval-genie-run.ts"() {
+    init_zod();
+    init_benchmark_lab_v3();
+    init_eval_flywheel();
+    GenieAccuracyOutcomeSchema = external_exports.enum(["pass", "fail", "error", "excluded"]);
+    ExecutedColumnSchema = external_exports.strictObject({
+      name: external_exports.string(),
+      values: external_exports.array(external_exports.unknown()).max(500)
+    });
+    ExecutedTableViewSchema = external_exports.strictObject({
+      rowCount: external_exports.number().int().nonnegative(),
+      columns: external_exports.array(ExecutedColumnSchema).max(80)
+    });
+    GenieAccuracyCaseViewSchema = external_exports.strictObject({
+      id: external_exports.string().trim().min(1).max(80),
+      question: external_exports.string().trim().max(4e3).default(""),
+      outcome: GenieAccuracyOutcomeSchema,
+      predictedSql: external_exports.string().trim().max(2e4).default(""),
+      groundTruthSql: external_exports.string().trim().max(2e4).default(""),
+      note: external_exports.string().trim().max(800).default(""),
+      durationMs: external_exports.number().nonnegative().default(0),
+      missKind: external_exports.enum(GENIE_MISS_KINDS).nullable().default(null),
+      excluded: external_exports.boolean().default(false),
+      conversationId: external_exports.string().trim().max(120).default(""),
+      comparisonReason: external_exports.string().trim().max(800).default(""),
+      predictedTable: ExecutedTableViewSchema.nullable().optional(),
+      groundTable: ExecutedTableViewSchema.nullable().optional()
+    });
+    GenieAccuracyRunViewSchema = external_exports.strictObject({
+      id: external_exports.string().trim().min(1).max(80),
+      spaceId: external_exports.string().trim().min(1).max(200),
+      spaceLabel: external_exports.string().trim().max(200).default(""),
+      startedAt: external_exports.string().trim().min(1).max(40),
+      finishedAt: external_exports.string().trim().min(1).max(40),
+      suiteKind: external_exports.enum(SUITE_KINDS),
+      datasetVersion: external_exports.string().trim().max(40).default("unversioned"),
+      matchingPolicyId: external_exports.literal(MATCHING_POLICY_ID).default(MATCHING_POLICY_ID),
+      matchingPolicyFact: external_exports.literal(MATCHING_POLICY_FACT).default(MATCHING_POLICY_FACT),
+      matchingPolicyHref: external_exports.literal(MATCHING_POLICY_REFERENCE).default(MATCHING_POLICY_REFERENCE),
+      score: external_exports.strictObject({
+        passed: external_exports.number().int().nonnegative(),
+        total: external_exports.number().int().nonnegative(),
+        percent: external_exports.number().nullable(),
+        label: external_exports.string().trim().max(200),
+        excluded: external_exports.number().int().nonnegative().default(0)
+      }),
+      cases: external_exports.array(GenieAccuracyCaseViewSchema).max(200)
+    });
+  }
+});
+
+// server/lib/eval-dataset-store.ts
+function unwrapStored(raw2) {
+  if (Array.isArray(raw2)) return { rows: raw2 };
+  if (raw2 && typeof raw2 === "object" && Array.isArray(raw2.rows)) {
+    return raw2;
+  }
+  return { rows: [] };
+}
+function forgetEvalDataset() {
+  cache = /* @__PURE__ */ new WeakMap();
+}
+async function readEvalDatasetEnvelope(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? EVAL_DATASET_TTL_MS)) return cached3.value;
+  try {
+    const result = await client.lakebase.query(`SELECT rows FROM ${EVAL_DATASET_TABLE} WHERE id = $1`, [KEY]);
+    const raw2 = result?.rows?.[0]?.rows;
+    if (raw2 === void 0) {
+      const empty = { dataset: EMPTY_EVAL_DATASET, lastGenieRun: null };
+      cache.set(client, { value: empty, at: now });
+      return empty;
+    }
+    const blob = unwrapStored(raw2);
+    const envelope = {
+      dataset: parseEvalDataset({ rows: blob.rows }),
+      lastGenieRun: parseGenieAccuracyRun(blob.lastGenieRun)
+    };
+    cache.set(client, { value: envelope, at: now });
+    return envelope;
+  } catch (error48) {
+    console.warn("[eval-dataset] Falling back to an empty set:", error48.message);
+    return { dataset: EMPTY_EVAL_DATASET, lastGenieRun: null };
+  }
+}
+async function readEvalDataset(client, options = {}) {
+  return (await readEvalDatasetEnvelope(client, options)).dataset;
+}
+async function persistEnvelope(client, envelope, updatedBy) {
+  await client.lakebase.query(
+    `INSERT INTO ${EVAL_DATASET_TABLE} (id, rows, updated_by, updated_at)
+     VALUES ($1, $2::jsonb, $3, now())
+     ON CONFLICT (id) DO UPDATE SET
+       rows = EXCLUDED.rows, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [KEY, JSON.stringify({ rows: envelope.dataset.rows, lastGenieRun: envelope.lastGenieRun }), updatedBy]
+  );
+  forgetEvalDataset();
+  return envelope;
+}
+async function writeEvalDataset(client, dataset, updatedBy) {
+  const parsed = EvalDatasetSchema.parse(dataset);
+  const current = await readEvalDatasetEnvelope(client, { maxAgeMs: 0 });
+  const merged = EvalDatasetSchema.parse({ rows: mergeEvalRows(current.dataset.rows, parsed.rows) });
+  const saved = await persistEnvelope(client, { dataset: merged, lastGenieRun: current.lastGenieRun }, updatedBy);
+  return saved.dataset;
+}
+async function writeLastGenieRun(client, run2, updatedBy) {
+  const current = await readEvalDatasetEnvelope(client, { maxAgeMs: 0 });
+  return persistEnvelope(client, { dataset: current.dataset, lastGenieRun: run2 }, updatedBy);
+}
+var KEY, EVAL_DATASET_TABLE, EVAL_DATASET_DDL, cache, EVAL_DATASET_TTL_MS;
+var init_eval_dataset_store = __esm({
+  "server/lib/eval-dataset-store.ts"() {
+    init_app_schema();
+    init_eval_dataset();
+    init_eval_genie_run();
+    KEY = "effective";
+    EVAL_DATASET_TABLE = appTable("eval_dataset");
+    EVAL_DATASET_DDL = `CREATE TABLE IF NOT EXISTS ${EVAL_DATASET_TABLE} (
+  id TEXT PRIMARY KEY,
+  rows JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT NOT NULL
+)`;
+    cache = /* @__PURE__ */ new WeakMap();
+    EVAL_DATASET_TTL_MS = 15e3;
+  }
+});
+
+// server/lib/benchmark-settings-store.ts
+function forgetBenchmarkSettings() {
+  cache2 = /* @__PURE__ */ new WeakMap();
+}
+async function readBenchmarkSettings(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache2.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_SETTINGS_TTL_MS)) return cached3.value;
+  try {
+    const result = await client.lakebase.query(`SELECT settings FROM ${BENCHMARK_SETTINGS_TABLE} WHERE id = $1`, [KEY2]);
+    const raw2 = result?.rows?.[0]?.settings;
+    const parsed = raw2 === void 0 ? DEFAULT_BENCHMARK_SETTINGS : BenchmarkSettingsSchema.parse(raw2);
+    cache2.set(client, { value: parsed, at: now });
+    return parsed;
+  } catch (error48) {
+    console.warn("[benchmark-settings] Falling back to defaults:", error48.message);
+    return DEFAULT_BENCHMARK_SETTINGS;
+  }
+}
+async function writeBenchmarkSettings(client, settings, updatedBy) {
+  const parsed = BenchmarkSettingsSchema.parse(settings);
+  await client.lakebase.query(
+    `INSERT INTO ${BENCHMARK_SETTINGS_TABLE} (id, settings, updated_by, updated_at)
+     VALUES ($1, $2::jsonb, $3, now())
+     ON CONFLICT (id) DO UPDATE SET
+       settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [KEY2, JSON.stringify(parsed), updatedBy]
+  );
+  forgetBenchmarkSettings();
+  return parsed;
+}
+var KEY2, BENCHMARK_SETTINGS_TABLE, BENCHMARK_SETTINGS_DDL, cache2, BENCHMARK_SETTINGS_TTL_MS;
+var init_benchmark_settings_store = __esm({
+  "server/lib/benchmark-settings-store.ts"() {
+    init_app_schema();
+    init_benchmark_settings();
+    KEY2 = "effective";
+    BENCHMARK_SETTINGS_TABLE = appTable("benchmark_settings");
+    BENCHMARK_SETTINGS_DDL = `CREATE TABLE IF NOT EXISTS ${BENCHMARK_SETTINGS_TABLE} (
+  id TEXT PRIMARY KEY,
+  settings JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT NOT NULL
+)`;
+    cache2 = /* @__PURE__ */ new WeakMap();
+    BENCHMARK_SETTINGS_TTL_MS = 15e3;
+  }
+});
+
 // server/lib/benchmark-runner.ts
 function parseJson(value) {
   if (typeof value !== "string") return value ?? null;
@@ -162337,9 +163320,9 @@ ${answer.sql}`);
   for (const source of answer.sources) {
     parts.push(`[source] ${source.name} (${source.freshness})`);
   }
-  const text17 = parts.join("\n\n");
-  if (text17.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text17, truncated: false };
-  return { text: text17.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
+  const text18 = parts.join("\n\n");
+  if (text18.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text18, truncated: false };
+  return { text: text18.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
 }
 function answerText(answer) {
   return `${answer.takeaway}
@@ -162902,7 +163885,9 @@ function buildMetrics(input) {
     ...input.interrupted || input.truncation ? { interrupted: true } : {},
     ...input.truncation ? { truncation: input.truncation } : {},
     persistenceFailures: input.persistenceFailures,
-    runnerVersion: BENCHMARK_RUNNER_VERSION
+    runnerVersion: BENCHMARK_RUNNER_VERSION,
+    ...input.bakeOffSide ? { bakeOffSide: input.bakeOffSide } : {},
+    ...input.configurationSnapshot ? { configurationSnapshot: input.configurationSnapshot } : {}
   };
 }
 function heartbeatAge(metrics2, nowMs) {
@@ -162951,6 +163936,40 @@ async function sweepStaleRuns(deps) {
     }
   }
   return { swept, stillRunning };
+}
+async function requestBenchmarkCancel(deps) {
+  let row2;
+  try {
+    const result = await deps.store.query(BENCHMARK_RUN_METRICS_QUERY, [deps.runId]);
+    row2 = result.rows[0];
+  } catch (error48) {
+    return { ok: false, status: 409, message: `The run could not be cancelled: ${error48.message}` };
+  }
+  if (!row2) return { ok: false, status: 404, message: "No benchmark run is known by that id." };
+  const status = textOf(row2.status);
+  if (status !== "running") {
+    return { ok: false, status: 409, message: "That run is not in progress, so there is nothing to cancel." };
+  }
+  const metrics2 = parseJson(row2.metrics_json);
+  const patched = {
+    ...metrics2 && typeof metrics2 === "object" ? metrics2 : {},
+    cancelRequested: true
+  };
+  try {
+    await deps.store.query(BENCHMARK_RUN_UPDATE, [deps.runId, "running", JSON.stringify(patched)]);
+  } catch (error48) {
+    return { ok: false, status: 409, message: `The run could not be cancelled: ${error48.message}` };
+  }
+  return { ok: true, runId: deps.runId };
+}
+async function isCancelRequested(store, runId) {
+  try {
+    const result = await store.query(BENCHMARK_RUN_METRICS_QUERY, [runId]);
+    const metrics2 = parseJson(result.rows[0]?.metrics_json);
+    return Boolean(metrics2 && typeof metrics2 === "object" && metrics2.cancelRequested === true);
+  } catch {
+    return false;
+  }
 }
 function heldOutResolvedCases() {
   return HELD_OUT_CASES.map((entry) => ({
@@ -163092,15 +164111,33 @@ async function startBenchmarkRun(deps) {
     };
   }
   const loaded = await loadCases(deps.store, suite, deps.requestedSuiteId);
+  const wanted = (deps.caseIds ?? []).map((id) => id.trim()).filter(Boolean);
+  const cases = wanted.length > 0 ? loaded.cases.filter((entry) => wanted.includes(entry.caseId)) : loaded.cases;
+  if (wanted.length > 0 && cases.length === 0) {
+    return {
+      status: 400,
+      body: {
+        error: "no_matching_cases",
+        message: "None of those case ids are in this suite, so no retry was started."
+      }
+    };
+  }
   const runId = newId();
   const startedAtMs = now();
   const startedAt = new Date(startedAtMs).toISOString();
   const servedModel = await resolveServedModel(deps);
+  const configurationSnapshot = {
+    suiteId: suite.id,
+    caseCount: cases.length,
+    judgeEndpoint: deps.judge.judgeEndpoint,
+    agentEndpoint: deps.agentEndpointName?.trim() || "",
+    enabledJudges: []
+  };
   const initial = buildMetrics({
     suite,
     requestedSuiteId: deps.requestedSuiteId,
     cases: [],
-    total: loaded.cases.length,
+    total: cases.length,
     status: "running",
     judgeEndpoint: deps.judge.judgeEndpoint,
     servedModel,
@@ -163109,8 +164146,10 @@ async function startBenchmarkRun(deps) {
     heartbeatAt: startedAt,
     finishedAt: null,
     durationMs: null,
-    progress: { currentCaseId: loaded.cases[0]?.caseId ?? null, currentCaseIndex: loaded.cases.length > 0 ? 0 : null },
-    persistenceFailures: 0
+    progress: { currentCaseId: cases[0]?.caseId ?? null, currentCaseIndex: cases.length > 0 ? 0 : null },
+    persistenceFailures: 0,
+    bakeOffSide: deps.bakeOffSide,
+    configurationSnapshot
   });
   if (loaded.source === "catalog-fallback") {
     initial.caseListSource = "catalog-fallback";
@@ -163137,16 +164176,18 @@ async function startBenchmarkRun(deps) {
     };
   }
   console.log(
-    `[benchmark] Run ${runId} started: ${loaded.cases.length} case(s) of ${suite.name}, judged by ${deps.judge.judgeEndpoint} with MLflow ${MLFLOW_JUDGE_PROMPT_VERSION} prompts, against ${servedModel.determinate ? `model version ${servedModel.version}` : "an endpoint whose version is not determinate"}, executing as ${deps.identity.email} (${deps.identity.mode}). ${covered.note}`
+    `[benchmark] Run ${runId} started: ${cases.length} case(s) of ${suite.name}, judged by ${deps.judge.judgeEndpoint} with MLflow ${MLFLOW_JUDGE_PROMPT_VERSION} prompts, against ${servedModel.determinate ? `model version ${servedModel.version}` : "an endpoint whose version is not determinate"}, executing as ${deps.identity.email} (${deps.identity.mode}). ${covered.note}`
   );
   const completed = executeRun(deps, {
     runId,
     suite,
-    cases: loaded.cases,
+    cases,
     caseListSource: loaded.source,
     servedModel,
     startedAt,
-    startedAtMs
+    startedAtMs,
+    bakeOffSide: deps.bakeOffSide,
+    configurationSnapshot
   });
   return {
     status: 202,
@@ -163155,7 +164196,7 @@ async function startBenchmarkRun(deps) {
       suiteId: suite.id,
       suiteName: suite.name,
       runStatus: "running",
-      total: loaded.cases.length,
+      total: cases.length,
       poll: `/api/runs/${encodeURIComponent(runId)}/trace`
     },
     completed
@@ -163198,7 +164239,9 @@ async function executeRun(deps, context2) {
         currentCaseIndex: currentIndex
       },
       persistenceFailures,
-      ...truncation ? { truncation } : {}
+      ...truncation ? { truncation } : {},
+      bakeOffSide: context2.bakeOffSide,
+      configurationSnapshot: context2.configurationSnapshot
     });
     if (context2.caseListSource === "catalog-fallback") {
       metrics2.caseListSource = "catalog-fallback";
@@ -163246,6 +164289,24 @@ async function executeRun(deps, context2) {
       );
       break;
     }
+    if (await isCancelRequested(deps.store, context2.runId)) {
+      truncation = {
+        code: SUITE_CANCELLED_CODE,
+        fromCaseIndex: index,
+        unattempted: context2.cases.length - index,
+        detail: `the reader cancelled the suite before case ${index + 1}`
+      };
+      abandonFrom(
+        index,
+        "cancel",
+        "The suite was cancelled before this case ran.",
+        "Cancelled. This case was not attempted. Partial results from earlier cases stay on the run."
+      );
+      console.warn(
+        `[benchmark] Run ${context2.runId} cancelled after case ${index}/${context2.cases.length}. ${context2.cases.length - index} case(s) were recorded as never attempted.`
+      );
+      break;
+    }
     await persist("running", index, false);
     const { result, fatal } = await runCase(deps, context2.runId, resolved);
     results.push(result);
@@ -163278,7 +164339,7 @@ async function executeRun(deps, context2) {
     `[benchmark] Run ${context2.runId} ${status}: ${counts.passed} passed, ${counts.failed} failed, ${counts.errored} errored, ${counts.clarified} clarified, ${counts.unresolved} unresolved, of ${counts.total} case(s) in ${now() - context2.startedAtMs} ms${truncation ? `, cut short after ${truncation.fromCaseIndex} by ${truncation.code}` : ""}. No rating was recorded. A rating is human input and this run has not been rated.`
   );
 }
-var DEFAULT_TURN_TIMEOUT_MS, DEFAULT_SUITE_BUDGET_MS, STALE_RUN_AFTER_MS, MAX_JUDGE_CONTEXT_CHARS, BENCHMARK_SUITE_QUERY, BENCHMARK_RUN_INSERT, BENCHMARK_RUN_UPDATE, BENCHMARK_RUNNING_QUERY, STRUCTURAL_CHECKS, UNKNOWN_SERVED_MODEL, JUDGE_BY_SETTING;
+var DEFAULT_TURN_TIMEOUT_MS, DEFAULT_SUITE_BUDGET_MS, STALE_RUN_AFTER_MS, MAX_JUDGE_CONTEXT_CHARS, BENCHMARK_SUITE_QUERY, BENCHMARK_RUN_INSERT, BENCHMARK_RUN_UPDATE, BENCHMARK_RUN_METRICS_QUERY, BENCHMARK_RUNNING_QUERY, STRUCTURAL_CHECKS, UNKNOWN_SERVED_MODEL, JUDGE_BY_SETTING;
 var init_benchmark_runner = __esm({
   "server/lib/benchmark-runner.ts"() {
     init_app_schema();
@@ -163309,6 +164370,10 @@ var init_benchmark_runner = __esm({
   VALUES ($1,$2,$3,$4,$5)`;
     BENCHMARK_RUN_UPDATE = `
   UPDATE ${APP_SCHEMA}.benchmark_runs SET status = $2, metrics_json = $3 WHERE id = $1`;
+    BENCHMARK_RUN_METRICS_QUERY = `
+  SELECT metrics_json, status
+  FROM ${APP_SCHEMA}.benchmark_runs
+  WHERE id = $1`;
     BENCHMARK_RUNNING_QUERY = `
   SELECT id, suite_id, metrics_json, created_at
   FROM ${APP_SCHEMA}.benchmark_runs
@@ -163355,191 +164420,6 @@ var init_benchmark_runner = __esm({
       groundedness: GROUNDEDNESS_FEEDBACK_NAME,
       relevance: RELEVANCE_TO_QUERY_ASSESSMENT_NAME,
       guidelines: GUIDELINES_FEEDBACK_NAME
-    };
-  }
-});
-
-// shared/eval-review-app.ts
-function reviewAppUrlFromBody(body) {
-  if (!body || typeof body !== "object") return "";
-  const record2 = body;
-  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
-  for (const key2 of ["url", "review_app_url", "reviewAppUrl"]) {
-    const value = nested[key2] ?? record2[key2];
-    if (typeof value === "string" && /^https?:\/\//i.test(value.trim())) return value.trim();
-  }
-  return "";
-}
-function labelingIdsFromBody(body) {
-  if (!body || typeof body !== "object") return { sessionId: "", runId: "", name: "" };
-  const record2 = body;
-  const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
-  const text17 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
-  return {
-    sessionId: text17(nested.labeling_session_id ?? nested.session_id ?? nested.id),
-    runId: text17(nested.mlflow_run_id ?? nested.run_id),
-    name: text17(nested.name)
-  };
-}
-var REVIEW_LABEL_SCHEMA, LabelingSessionSchema;
-var init_eval_review_app = __esm({
-  "shared/eval-review-app.ts"() {
-    init_zod();
-    REVIEW_LABEL_SCHEMA = [
-      { name: "sql_correct", title: "SQL correct?", options: ["yes", "no"] },
-      { name: "thumbs", title: "Answer", options: ["up", "down"] }
-    ];
-    LabelingSessionSchema = external_exports.strictObject({
-      name: external_exports.string().trim().max(200).default(""),
-      sessionId: external_exports.string().trim().max(120).default(""),
-      runId: external_exports.string().trim().max(80).default(""),
-      url: external_exports.string().trim().max(800).default(""),
-      status: external_exports.enum(["open", "blocked"]).default("blocked"),
-      note: external_exports.string().trim().max(800).default(""),
-      at: external_exports.string().trim().max(40).default("")
-    });
-  }
-});
-
-// shared/eval-flywheel.ts
-function classifyGenieMiss(note) {
-  const text17 = note.toLowerCase();
-  if (/warehouse/.test(text17) && /start|starting|pending|warming|not running|stopped|resuming/.test(text17)) {
-    return "warehouse";
-  }
-  if (/warehouse still starting|compute is starting|cluster is starting/.test(text17)) {
-    return "warehouse";
-  }
-  if (/cancel|cancelled|canceled|timed out|timeout|wait ran out|50\s*s|deadline/.test(text17)) {
-    return "timeout";
-  }
-  return "error";
-}
-function isExcludedGenieMiss(kind) {
-  return kind === "warehouse" || kind === "timeout";
-}
-function scoredAccuracy(passed, scored2, excluded) {
-  const base = accuracyScore(passed, scored2);
-  if (excluded <= 0) return { ...base, excluded: 0 };
-  if (base.percent === null) {
-    return {
-      ...base,
-      excluded,
-      label: `${excluded} not scored (warehouse or timeout)`
-    };
-  }
-  return {
-    ...base,
-    excluded,
-    label: `${base.label} \xB7 ${excluded} not scored (warehouse or timeout)`
-  };
-}
-function sqlHasFqn(sql3) {
-  return /\b[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\b/.test(sql3);
-}
-function sqlLooksRefused(sql3, note) {
-  const text17 = `${sql3} ${note}`.toLowerCase();
-  return /refused|sql refused|identity_required|restricted column|not read-only/.test(text17);
-}
-function latencyWithinBudget(durationMs, budgetMs = WAREHOUSE_BUDGET_MS) {
-  if (typeof durationMs !== "number" || !Number.isFinite(durationMs)) return null;
-  return durationMs < budgetMs;
-}
-function deterministicChecks(input) {
-  const fqn = sqlHasFqn(input.sql);
-  const refused2 = sqlLooksRefused(input.sql, input.note);
-  const latency = latencyWithinBudget(input.durationMs);
-  return [
-    {
-      id: "fqn-present",
-      label: "FQN present",
-      passed: input.sql.trim() ? fqn : null,
-      note: input.sql.trim() ? fqn ? "Statement names catalog.schema.table." : "No catalog.schema.table name in the statement." : "No SQL to check."
-    },
-    {
-      id: "no-refused-sql",
-      label: "No refused SQL",
-      passed: input.sql.trim() || input.note.trim() ? !refused2 : null,
-      note: refused2 ? "This look like a refused statement, not a scored miss." : "No refusal marker."
-    },
-    {
-      id: "latency-under-budget",
-      label: "Latency under 50s",
-      passed: latency,
-      note: latency === null ? "Duration was not recorded." : latency ? "Finished inside the warehouse budget." : "Took 50s or more \u2014 call this a timeout, not a wrong answer."
-    }
-  ];
-}
-function promptRegistryUri(name2, alias = PRODUCTION_PROMPT_ALIAS) {
-  const trimmed = name2.trim();
-  if (!trimmed) return "";
-  return `prompts:/${trimmed}@${alias.trim() || PRODUCTION_PROMPT_ALIAS}`;
-}
-function parseFlywheelState(value) {
-  return FlywheelStateSchema.parse(value ?? EMPTY_FLYWHEEL_STATE);
-}
-function rememberAccuracy(history, next) {
-  return [next, ...history].slice(0, 50);
-}
-var WAREHOUSE_BUDGET_MS, LastSuiteSchema, PromotedAgentSchema, PRODUCTION_PROMPT_ALIAS, PromotedPromptSchema, AccuracySnapshotSchema, FlywheelStateSchema, EMPTY_FLYWHEEL_STATE;
-var init_eval_flywheel = __esm({
-  "shared/eval-flywheel.ts"() {
-    init_zod();
-    init_eval_dataset();
-    init_eval_review_app();
-    WAREHOUSE_BUDGET_MS = 5e4;
-    LastSuiteSchema = external_exports.strictObject({
-      kind: external_exports.enum(["genie", "agent"]),
-      spaceId: external_exports.string().trim().max(200).default(""),
-      spaceLabel: external_exports.string().trim().max(200).default(""),
-      at: external_exports.string().trim().max(40).default("")
-    });
-    PromotedAgentSchema = external_exports.strictObject({
-      endpoint: external_exports.string().trim().max(200).default(""),
-      side: external_exports.string().trim().max(80).default(""),
-      at: external_exports.string().trim().max(40).default(""),
-      note: external_exports.string().trim().max(400).default("")
-    });
-    PRODUCTION_PROMPT_ALIAS = "production";
-    PromotedPromptSchema = external_exports.strictObject({
-      name: external_exports.string().trim().max(300).default(""),
-      alias: external_exports.string().trim().max(80).default(PRODUCTION_PROMPT_ALIAS),
-      version: external_exports.string().trim().max(40).default(""),
-      uri: external_exports.string().trim().max(400).default(""),
-      template: external_exports.string().trim().max(8e3).default(""),
-      status: external_exports.enum(["moved", "blocked", "skipped"]).default("skipped"),
-      note: external_exports.string().trim().max(800).default("")
-    });
-    AccuracySnapshotSchema = external_exports.strictObject({
-      at: external_exports.string().trim().min(1).max(40),
-      spaceId: external_exports.string().trim().max(200).default(""),
-      spaceLabel: external_exports.string().trim().max(200).default(""),
-      passed: external_exports.number().int().nonnegative(),
-      scored: external_exports.number().int().nonnegative(),
-      excluded: external_exports.number().int().nonnegative().default(0),
-      percent: external_exports.number().nullable(),
-      label: external_exports.string().trim().max(200),
-      note: external_exports.string().trim().max(400).default("")
-    });
-    FlywheelStateSchema = external_exports.strictObject({
-      lastSuite: LastSuiteSchema.nullable().default(null),
-      promoted: PromotedAgentSchema.nullable().default(null),
-      promptRegistryName: external_exports.string().trim().max(300).default(""),
-      promotedPrompt: PromotedPromptSchema.nullable().default(null),
-      labelingSession: LabelingSessionSchema.nullable().default(null),
-      lastAgentRunIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(4).default([]),
-      lastAgentSides: external_exports.array(external_exports.string().trim().max(200)).max(4).default([]),
-      history: external_exports.array(AccuracySnapshotSchema).max(50).default([])
-    });
-    EMPTY_FLYWHEEL_STATE = {
-      lastSuite: null,
-      promoted: null,
-      promptRegistryName: "",
-      promotedPrompt: null,
-      labelingSession: null,
-      lastAgentRunIds: [],
-      lastAgentSides: [],
-      history: []
     };
   }
 });
@@ -165071,12 +165951,12 @@ async function workspaceLinksAllowed(client) {
   return egressAllowed(controls, "workspace-link");
 }
 function clamp(raw2, max) {
-  const text17 = typeof raw2 === "string" ? raw2.trim() : "";
-  return text17.length > max ? text17.slice(0, max) : text17;
+  const text18 = typeof raw2 === "string" ? raw2.trim() : "";
+  return text18.length > max ? text18.slice(0, max) : text18;
 }
 function pointer(raw2) {
-  const text17 = clamp(raw2, IDENTIFIER_MAX);
-  return text17 === "" ? null : text17;
+  const text18 = clamp(raw2, IDENTIFIER_MAX);
+  return text18 === "" ? null : text18;
 }
 function count2(raw2) {
   if (typeof raw2 !== "number" || !Number.isFinite(raw2)) return null;
@@ -167481,8 +168361,8 @@ function diagnoseUserToken(req, isDevelopmentIdentity) {
   };
 }
 function looksLikeMissingScope(message) {
-  const text17 = message.toLowerCase();
-  return text17.includes("does not have required scopes") || text17.includes("insufficient_scope") || text17.includes("scope") && (text17.includes("oauth") || text17.includes("token"));
+  const text18 = message.toLowerCase();
+  return text18.includes("does not have required scopes") || text18.includes("insufficient_scope") || text18.includes("scope") && (text18.includes("oauth") || text18.includes("token"));
 }
 function scopesFromToken(token) {
   const segments = token.split(".");
@@ -167581,12 +168461,12 @@ function statusForOutcome(outcome) {
 function probeStatement(table) {
   return `SELECT 1 FROM ${table} WHERE 1=0`;
 }
-function matches(text17, markers) {
-  return markers.some((marker) => text17.includes(marker));
+function matches(text18, markers) {
+  return markers.some((marker) => text18.includes(marker));
 }
 function classifyDenial(message, table) {
-  const text17 = message.toLowerCase();
-  if (matches(text17, PERMISSION_MARKERS)) {
+  const text18 = message.toLowerCase();
+  if (matches(text18, PERMISSION_MARKERS)) {
     const catalog = CATALOG_REFUSED.exec(message);
     if (catalog) {
       return { kind: "no-grant", object: catalog[1], objectKind: "catalog", permission: "USE CATALOG" };
@@ -167597,7 +168477,7 @@ function classifyDenial(message, table) {
     }
     return { kind: "no-grant", object: table, objectKind: "table", permission: "SELECT" };
   }
-  if (matches(text17, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
+  if (matches(text18, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
   return { kind: "unrecognised" };
 }
 function classify(message, table, principal) {
@@ -169452,15 +170332,15 @@ function extractLiveText(value) {
     const items = record2[key2];
     if (Array.isArray(items)) {
       for (const item of items) {
-        const text17 = extractLiveText(item);
-        if (text17) return text17;
+        const text18 = extractLiveText(item);
+        if (text18) return text18;
       }
     }
   }
   for (const key2 of ["message", "data", "response", "result", "body"]) {
     if (record2[key2]) {
-      const text17 = extractLiveText(record2[key2]);
-      if (text17) return text17;
+      const text18 = extractLiveText(record2[key2]);
+      if (text18) return text18;
     }
   }
   return null;
@@ -171151,6 +172031,8 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       const savedBench = await readBenchmarkSettings(appkit);
       const requestedSuiteId = parsed.success ? parsed.data.suiteId ?? savedBench.evalSetId : savedBench.evalSetId;
       const namedAgent = parsed.success ? parsed.data.agentEndpoint?.trim() ?? "" : "";
+      const caseIds = parsed.success ? parsed.data.caseIds : void 0;
+      const bakeOffSide = parsed.success ? parsed.data.bakeOffSide : void 0;
       const email3 = userEmail(req);
       const identity = decideIdentity(req, { signedInAs: email3, required: isDeployed() });
       if (!identity.ok) {
@@ -171285,7 +172167,10 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
           const endpoint = await new WorkspaceClient6({}).servingEndpoints.get({ name: agentEndpoint });
           return parseServedModel(agentEndpoint, endpoint);
-        }
+        },
+        caseIds,
+        bakeOffSide,
+        agentEndpointName: agentEndpoint
       });
       if (started.status === 401 && started.refusal) {
         console.error(
@@ -171476,7 +172361,9 @@ var init_insights_routes = __esm({
     });
     BenchmarkRunBody = external_exports.object({
       suiteId: external_exports.string().min(1).optional(),
-      agentEndpoint: external_exports.string().min(1).optional()
+      agentEndpoint: external_exports.string().min(1).optional(),
+      caseIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(80).optional(),
+      bakeOffSide: external_exports.enum(["baseline", "candidate"]).optional()
     });
     FigureSchema = external_exports.looseObject({
       label: external_exports.string(),
@@ -172254,15 +173141,15 @@ UNION ALL
 SELECT 'first-recorded', '', CAST(MIN(time) AS STRING), '' FROM ${table}
 ORDER BY 1, 2`;
 }
-function readTelemetryRows(dataArray) {
+function readTelemetryRows(dataArray2) {
   const requestsPerHour = [];
   const signInsPerDay = [];
   const recent = [];
   let lastServedAt = "";
   let recordingSince = "";
   let count4 = 0;
-  if (Array.isArray(dataArray)) {
-    for (const raw2 of dataArray) {
+  if (Array.isArray(dataArray2)) {
+    for (const raw2 of dataArray2) {
       if (!Array.isArray(raw2) || raw2.length < 4) continue;
       const [kind, bucket, value, detail] = raw2;
       if (kind === "request-hour" && bucket) {
@@ -172306,10 +173193,10 @@ ORDER BY 1`;
 function rowText(value) {
   return typeof value === "string" ? value.trim() : "";
 }
-function readExporterRows(dataArray, schema) {
+function readExporterRows(dataArray2, schema) {
   const tables = [];
-  if (Array.isArray(dataArray)) {
-    for (const raw2 of dataArray) {
+  if (Array.isArray(dataArray2)) {
+    for (const raw2 of dataArray2) {
       if (!Array.isArray(raw2) || raw2.length < 4) continue;
       const [name2, rows, firstAt, lastAt] = raw2;
       const table = rowText(name2);
@@ -177642,10 +178529,10 @@ SELECT
 FROM priced`;
   return { statement, parameters, covered, estimated };
 }
-function readComponentRows(dataArray) {
-  if (!Array.isArray(dataArray)) return [];
+function readComponentRows(dataArray2) {
+  if (!Array.isArray(dataArray2)) return [];
   const rows = [];
-  for (const raw2 of dataArray) {
+  for (const raw2 of dataArray2) {
     if (!Array.isArray(raw2) || raw2.length < 6) continue;
     const [component, spend, currency, billedDays, jobRuns, lastDay] = raw2;
     if (typeof component !== "string") continue;
@@ -178200,18 +179087,18 @@ async function readAppMeasurement(req, insightsHref) {
   if (!schema) return offMeasurement(insightsHref);
   const table = logsTable(schema);
   const base = offMeasurement(insightsHref);
-  const workspace = host();
+  const workspace2 = host();
   const warehouse = warehouseId();
   const token = forwardedUserToken(req);
   const principal = userEmail(req) || UNKNOWN_PRINCIPAL;
-  if (!workspace || !warehouse || !token) {
+  if (!workspace2 || !warehouse || !token) {
     return uncheckedMeasurement(
       insightsHref,
       "this app has no warehouse, workspace address or forwarded sign-in to read it with."
     );
   }
   const outcome = await runStatement2({
-    host: workspace,
+    host: workspace2,
     token,
     warehouseId: warehouse,
     statement: buildTelemetryStatement(table),
@@ -178343,10 +179230,10 @@ function setupOpsRoutes(appkit, deps) {
   const clock = deps.now ?? Date.now;
   appkit.server.extend((app) => {
     app.get("/api/ops/health", async (req, res) => {
-      const workspace = host();
+      const workspace2 = host();
       const appsToken = forwardedUserToken(req);
-      const appsWorkspaceId = appsToken ? await resolveWorkspaceId({ host: workspace, token: appsToken }).catch(() => "") : "";
-      const insightsHref = workspaceAppsUrl(workspace, appsWorkspaceId);
+      const appsWorkspaceId = appsToken ? await resolveWorkspaceId({ host: workspace2, token: appsToken }).catch(() => "") : "";
+      const insightsHref = workspaceAppsUrl(workspace2, appsWorkspaceId);
       try {
         const [dependencies, appMeasurement, lakebase2] = await Promise.all([
           readDependencies(appkit, req),
@@ -178380,10 +179267,10 @@ function setupOpsRoutes(appkit, deps) {
     app.get("/api/ops/cost", async (req, res) => {
       const readAt = new Date(clock()).toISOString();
       const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
-      const workspace = host();
+      const workspace2 = host();
       const warehouse = warehouseId();
       const token = forwardedUserToken(req);
-      const workspaceId = token ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl }) : "";
+      const workspaceId = token ? await resolveWorkspaceId({ host: workspace2, token, fetchImpl: deps.fetchImpl }) : "";
       const ids = await costIdentifiersFor(appkit, req, {
         workspaceId,
         warehouse,
@@ -178407,7 +179294,7 @@ function setupOpsRoutes(appkit, deps) {
           reason: ""
         }
       };
-      if (!workspace || !warehouse || !token) {
+      if (!workspace2 || !warehouse || !token) {
         res.json({
           ...empty,
           state: "no-warehouse",
@@ -178427,7 +179314,7 @@ function setupOpsRoutes(appkit, deps) {
       }
       try {
         const outcome = await runStatement2({
-          host: workspace,
+          host: workspace2,
           token,
           warehouseId: warehouse,
           statement: built.statement,
@@ -179437,44 +180324,181 @@ var init_review_app = __esm({
   }
 });
 
-// server/lib/genie-accuracy.ts
-function messageOf4(error48) {
-  return error48?.message ?? String(error48);
+// server/lib/genie-result-execute.ts
+function text16(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 function asRecord2(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
-function text16(value) {
+function columnNames(payload) {
+  const manifest = asRecord2(payload.manifest);
+  const schema = asRecord2(manifest?.schema) ?? asRecord2(payload.schema) ?? asRecord2(asRecord2(payload.result)?.schema);
+  const columns = schema?.columns;
+  if (Array.isArray(columns)) {
+    return columns.map((entry, index) => {
+      const column = asRecord2(entry);
+      return text16(column?.name) || text16(column?.display_name) || `col_${index}`;
+    });
+  }
+  return [];
+}
+function dataArray(payload) {
+  const result = asRecord2(payload.result);
+  const rows = result?.data_array ?? payload.data_array;
+  if (!Array.isArray(rows)) return [];
+  return rows.filter(Array.isArray);
+}
+function sqlIsResultQuery(sql3) {
+  const head = sql3.trim().replace(/^\(+/, "").toLowerCase();
+  return /^(select|with)\b/.test(head);
+}
+function tableFromStatementPayload(payload) {
+  const root = asRecord2(payload);
+  if (!root) return null;
+  const rows = dataArray(root);
+  const names2 = columnNames(root);
+  const width = names2.length || rows[0]?.length || 0;
+  if (width <= 0 && rows.length === 0) return { rowCount: 0, columns: [] };
+  const columns = names2.length > 0 ? names2 : Array.from({ length: width }, (_, index) => `col_${index}`);
+  return executedTableFromMatrix(columns, rows);
+}
+function createSqlExecutor(options) {
+  const host2 = options.host.replace(/\/+$/, "");
+  const warehouseId2 = options.warehouseId.trim();
+  if (!host2 || !options.token || !warehouseId2) return null;
+  const call = options.fetchImpl ?? fetch;
+  return async (sql3) => {
+    if (!sqlIsResultQuery(sql3)) {
+      return { ok: false, note: "Statement is not a result set. Matching needs a SELECT." };
+    }
+    try {
+      const response = await call(`${host2}/api/2.0/sql/statements`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${options.token}`,
+          accept: "application/json",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          warehouse_id: warehouseId2,
+          statement: sql3,
+          wait_timeout: GENIE_RESULT_WAIT,
+          on_wait_timeout: "CANCEL",
+          format: "JSON_ARRAY",
+          disposition: "INLINE"
+        }),
+        signal: AbortSignal.timeout(55e3)
+      });
+      const payload = await response.json().catch(() => ({})) ?? {};
+      if (!response.ok) {
+        const note = text16(payload.message) || text16(payload.error) || `warehouse returned HTTP ${response.status}`;
+        return { ok: false, note };
+      }
+      const status = asRecord2(payload.status);
+      const state = text16(status?.state).toUpperCase();
+      if (state && state !== "SUCCEEDED") {
+        const error48 = asRecord2(status?.error);
+        const note = text16(error48?.message) || `statement ended in ${state}`;
+        return { ok: false, note };
+      }
+      const table = tableFromStatementPayload(payload);
+      if (!table) return { ok: false, note: "Warehouse returned no result table." };
+      return { ok: true, table };
+    } catch (error48) {
+      const timedOut = error48?.name === "TimeoutError" || error48?.name === "AbortError";
+      return {
+        ok: false,
+        note: timedOut ? "SQL cancelled or timed out after 50s." : `The SQL warehouse could not be reached: ${error48.message}`
+      };
+    }
+  };
+}
+function executeMissKind(note) {
+  return classifyGenieMiss(note);
+}
+var GENIE_RESULT_WAIT;
+var init_genie_result_execute = __esm({
+  "server/lib/genie-result-execute.ts"() {
+    init_eval_flywheel();
+    init_benchmark_lab_v3();
+    GENIE_RESULT_WAIT = "50s";
+  }
+});
+
+// server/lib/genie-accuracy.ts
+function messageOf4(error48) {
+  return error48?.message ?? String(error48);
+}
+function asRecord3(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function text17(value) {
   return typeof value === "string" ? value.trim() : "";
 }
+function numberish(value) {
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value === "string") return value;
+  return null;
+}
 function extractGenieSql(payload) {
-  const root = asRecord2(payload);
+  const root = asRecord3(payload);
   if (!root) return "";
-  const message = asRecord2(root.message) ?? root;
+  const message = asRecord3(root.message) ?? root;
   const attachments = message.attachments;
   if (Array.isArray(attachments)) {
     for (const entry of attachments) {
-      const attachment = asRecord2(entry);
+      const attachment = asRecord3(entry);
       if (!attachment) continue;
-      const query = asRecord2(attachment.query) ?? attachment;
-      const sql3 = text16(query.query) || text16(query.sql) || text16(attachment.query) || text16(attachment.sql);
+      const query = asRecord3(attachment.query) ?? attachment;
+      const sql3 = text17(query.query) || text17(query.sql) || text17(attachment.query) || text17(attachment.sql);
       if (sql3) return sql3;
     }
   }
-  return text16(message.query) || text16(root.query) || text16(root.sql);
+  return text17(message.query) || text17(root.query) || text17(root.sql);
+}
+function extractGenieResultTable(payload) {
+  const root = asRecord3(payload);
+  if (!root) return null;
+  const message = asRecord3(root.message) ?? root;
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  for (const entry of attachments) {
+    const attachment = asRecord3(entry);
+    if (!attachment) continue;
+    const query = asRecord3(attachment.query) ?? attachment;
+    const columnsRaw = query.columns ?? query.schema ?? attachment.columns;
+    const rowsRaw = query.rows ?? query.data ?? attachment.rows ?? attachment.data;
+    if (!Array.isArray(columnsRaw) || !Array.isArray(rowsRaw)) continue;
+    const names2 = columnsRaw.map((columnEntry, index) => {
+      if (typeof columnEntry === "string") return columnEntry;
+      const column = asRecord3(columnEntry);
+      return text17(column?.name) || text17(column?.display_name) || `col_${index}`;
+    });
+    const values = names2.map(() => []);
+    for (const row2 of rowsRaw) {
+      if (Array.isArray(row2)) {
+        names2.forEach((_, index) => values[index].push(numberish(row2[index])));
+      } else {
+        const record2 = asRecord3(row2);
+        names2.forEach((name2, index) => values[index].push(record2 ? numberish(record2[name2]) : null));
+      }
+    }
+    return { rowCount: rowsRaw.length, columns: names2.map((name2, index) => ({ name: name2, values: values[index] })) };
+  }
+  return null;
 }
 function messageStatus(payload) {
-  const root = asRecord2(payload);
-  const message = asRecord2(root?.message) ?? root;
-  return text16(message?.status).toUpperCase();
+  const root = asRecord3(payload);
+  const message = asRecord3(root?.message) ?? root;
+  return text17(message?.status).toUpperCase();
 }
 function conversationIds(payload) {
-  const root = asRecord2(payload) ?? {};
-  const conversation = asRecord2(root.conversation);
-  const message = asRecord2(root.message);
+  const root = asRecord3(payload) ?? {};
+  const conversation = asRecord3(root.conversation);
+  const message = asRecord3(root.message);
   return {
-    conversationId: text16(conversation?.id) || text16(root.conversation_id),
-    messageId: text16(message?.id) || text16(root.message_id)
+    conversationId: text17(conversation?.id) || text17(root.conversation_id),
+    messageId: text17(message?.id) || text17(root.message_id)
   };
 }
 async function jsonRequest2(call, url2, token, method, body) {
@@ -179490,10 +180514,20 @@ async function jsonRequest2(call, url2, token, method, body) {
   });
   const payload = await response.json().catch(() => ({})) ?? {};
   if (!response.ok) {
-    const detail = text16(payload.message) || text16(payload.error) || `workspace returned HTTP ${response.status}`;
+    const detail = text17(payload.message) || text17(payload.error) || `workspace returned HTTP ${response.status}`;
     throw new Error(detail);
   }
   return payload;
+}
+function fromPayload(payload, fallbackNote) {
+  const ids = conversationIds(payload);
+  return {
+    sql: extractGenieSql(payload),
+    note: fallbackNote,
+    rows: extractGenieResultTable(payload),
+    conversationId: ids.conversationId || void 0,
+    messageId: ids.messageId || void 0
+  };
 }
 function createGenieAsker(options) {
   const call = options.fetchImpl ?? fetch;
@@ -179512,13 +180546,13 @@ function createGenieAsker(options) {
         "POST",
         { content: question }
       );
-      const immediate = extractGenieSql(start);
-      if (immediate && ["COMPLETED", "EXECUTED"].includes(messageStatus(start))) {
-        return { sql: immediate, note: "Genie returned SQL." };
+      const immediate = fromPayload(start, "Genie returned SQL.");
+      if (immediate.sql && ["COMPLETED", "EXECUTED"].includes(messageStatus(start))) {
+        return immediate;
       }
       const ids = conversationIds(start);
       if (!ids.conversationId || !ids.messageId) {
-        if (immediate) return { sql: immediate, note: "Genie returned SQL." };
+        if (immediate.sql) return immediate;
         throw new Error("Genie did not return a conversation to poll.");
       }
       const deadline = now() + GENIE_ACCURACY_TIMEOUT_MS;
@@ -179530,9 +180564,9 @@ function createGenieAsker(options) {
           "GET"
         );
         const status = messageStatus(polled);
-        const sql3 = extractGenieSql(polled);
-        if (["COMPLETED", "EXECUTED"].includes(status) && sql3) {
-          return { sql: sql3, note: "Genie returned SQL." };
+        const asked = fromPayload(polled, "Genie returned SQL.");
+        if (["COMPLETED", "EXECUTED"].includes(status) && asked.sql) {
+          return asked;
         }
         if (["FAILED", "CANCELLED", "QUERY_RESULT_EXPIRED"].includes(status)) {
           throw new Error(`Genie finished with status ${status}.`);
@@ -179543,67 +180577,195 @@ function createGenieAsker(options) {
     }
   };
 }
+async function resolveTable(sql3, already, executor) {
+  if (already && already.columns.length > 0) return { table: already, execute: null };
+  if (!executor) return { table: already ?? null, execute: null };
+  if (!sql3.trim()) return { table: null, execute: null };
+  const execute = await executor(sql3);
+  return { table: execute.ok ? execute.table : null, execute };
+}
+function excludedCase(row2, note, durationMs, extras = {}) {
+  const missKind = extras.missKind ?? classifyGenieMiss(note);
+  return {
+    id: row2.id,
+    question: row2.question,
+    outcome: "excluded",
+    predictedSql: extras.predictedSql ?? "",
+    groundTruthSql: row2.groundTruthSql,
+    note,
+    durationMs,
+    missKind,
+    excluded: true,
+    conversationId: extras.conversationId ?? "",
+    comparisonReason: extras.comparisonReason ?? "",
+    predictedTable: extras.predictedTable,
+    groundTable: extras.groundTable
+  };
+}
+function scoredCase(input) {
+  return {
+    id: input.row.id,
+    question: input.row.question,
+    outcome: input.outcome,
+    predictedSql: input.predictedSql,
+    groundTruthSql: input.row.groundTruthSql,
+    note: input.note,
+    durationMs: input.durationMs,
+    missKind: input.missKind,
+    excluded: input.excluded,
+    conversationId: input.conversationId ?? "",
+    comparisonReason: input.comparisonReason ?? "",
+    predictedTable: tableView(input.predictedTable),
+    groundTable: tableView(input.groundTable)
+  };
+}
+function newRunId(now) {
+  return `run_${now.toString(36)}`;
+}
 async function runGenieAccuracy(input) {
   const now = input.now ?? Date.now;
-  const startedAt = new Date(now()).toISOString();
+  const startedAtMs = now();
+  const startedAt = new Date(startedAtMs).toISOString();
+  const suiteKind = input.suiteKind ?? "complete";
+  const plan = genieSuitePlan(input.rows.map(labCaseFromRow), input.caseIds);
+  const byId = new Map(input.rows.map((row2) => [row2.id, row2]));
+  if (suiteKind === "complete" && !plan.canRunComplete) {
+    throw new MissingSqlGateError(plan.missingSql.length, plan.selected.length);
+  }
   const cases = [];
-  for (const row2 of sqlBackedRows(input.rows)) {
+  for (const labCase of plan.selected) {
+    const row2 = byId.get(labCase.id);
+    if (!row2) continue;
+    if (!genieLaneReady(labCase)) {
+      if (labCase.question.trim()) {
+        cases.push(excludedCase(row2, "Missing ground-truth SQL. Out of the accuracy denominator.", 0));
+      }
+      continue;
+    }
     const caseStarted = now();
     try {
       const asked = await input.asker.ask({ spaceId: input.spaceId, question: row2.question });
       const durationMs = Math.max(0, now() - caseStarted);
-      const passed2 = sqlMatches(asked.sql, row2.groundTruthSql);
-      const note = passed2 ? asked.note : "Predicted SQL did not match the ground-truth SQL.";
-      cases.push({
-        id: row2.id,
-        question: row2.question,
-        outcome: passed2 ? "pass" : "fail",
-        predictedSql: asked.sql,
-        groundTruthSql: row2.groundTruthSql,
-        note,
-        durationMs,
-        missKind: null,
-        excluded: false,
-        checks: deterministicChecks({ sql: asked.sql, note, durationMs })
-      });
+      const predicted = await resolveTable(asked.sql, asked.rows, input.executor);
+      const ground = await resolveTable(row2.groundTruthSql, null, input.executor);
+      if (predicted.execute && !predicted.execute.ok) {
+        const missKind = executeMissKind(predicted.execute.note);
+        const excluded2 = isExcludedGenieMiss(missKind);
+        cases.push(
+          scoredCase({
+            row: row2,
+            outcome: excluded2 ? "excluded" : "fail",
+            predictedSql: asked.sql,
+            note: predicted.execute.note,
+            durationMs,
+            missKind,
+            excluded: excluded2,
+            conversationId: asked.conversationId,
+            predictedTable: null,
+            groundTable: ground.table
+          })
+        );
+        continue;
+      }
+      if (ground.execute && !ground.execute.ok) {
+        const missKind = executeMissKind(ground.execute.note);
+        cases.push(
+          excludedCase(row2, `Ground-truth SQL did not produce a result table: ${ground.execute.note}`, durationMs, {
+            predictedSql: asked.sql,
+            conversationId: asked.conversationId ?? "",
+            predictedTable: tableView(predicted.table),
+            missKind
+          })
+        );
+        continue;
+      }
+      if (!predicted.table || !ground.table) {
+        cases.push(
+          excludedCase(
+            row2,
+            "No executed result table to score. Matching is result equivalence, not SQL text, and this workspace has no warehouse result to compare.",
+            durationMs,
+            {
+              predictedSql: asked.sql,
+              conversationId: asked.conversationId ?? "",
+              predictedTable: tableView(predicted.table),
+              groundTable: tableView(ground.table)
+            }
+          )
+        );
+        continue;
+      }
+      const compared = compareExecutedResults(predicted.table, ground.table);
+      cases.push(
+        scoredCase({
+          row: row2,
+          outcome: compared.equivalent ? "pass" : "fail",
+          predictedSql: asked.sql,
+          note: compared.equivalent ? asked.note : compared.reason,
+          durationMs,
+          missKind: null,
+          excluded: false,
+          conversationId: asked.conversationId,
+          comparisonReason: compared.reason,
+          predictedTable: predicted.table,
+          groundTable: ground.table
+        })
+      );
     } catch (error48) {
       const durationMs = Math.max(0, now() - caseStarted);
       const note = messageOf4(error48);
       const missKind = classifyGenieMiss(note);
       const excluded2 = isExcludedGenieMiss(missKind);
-      cases.push({
-        id: row2.id,
-        question: row2.question,
-        outcome: "error",
-        predictedSql: "",
-        groundTruthSql: row2.groundTruthSql,
-        note,
-        durationMs,
-        missKind,
-        excluded: excluded2,
-        checks: deterministicChecks({ sql: "", note, durationMs })
-      });
+      cases.push(
+        scoredCase({
+          row: row2,
+          outcome: excluded2 ? "excluded" : "error",
+          predictedSql: "",
+          note,
+          durationMs,
+          missKind,
+          excluded: excluded2
+        })
+      );
     }
   }
   const passed = cases.filter((entry) => entry.outcome === "pass").length;
   const excluded = cases.filter((entry) => entry.excluded).length;
-  const scored2 = cases.length - excluded;
+  const scored2 = cases.filter((entry) => !entry.excluded).length;
   return {
+    id: newRunId(startedAtMs),
     spaceId: input.spaceId,
     spaceLabel: input.spaceLabel?.trim() || input.spaceId,
     startedAt,
     finishedAt: new Date(now()).toISOString(),
+    suiteKind,
+    datasetVersion: input.datasetVersion?.trim() || "unversioned",
+    matchingPolicyId: MATCHING_POLICY_ID,
+    matchingPolicyFact: MATCHING_POLICY_FACT,
+    matchingPolicyHref: MATCHING_POLICY_REFERENCE,
     score: scoredAccuracy(passed, scored2, excluded),
     cases
   };
 }
-var GENIE_ACCURACY_POLL_MS, GENIE_ACCURACY_TIMEOUT_MS;
+var GENIE_ACCURACY_POLL_MS, GENIE_ACCURACY_TIMEOUT_MS, MissingSqlGateError;
 var init_genie_accuracy = __esm({
   "server/lib/genie-accuracy.ts"() {
-    init_eval_dataset();
+    init_benchmark_lab_v3();
+    init_eval_genie_run();
     init_eval_flywheel();
+    init_genie_result_execute();
     GENIE_ACCURACY_POLL_MS = 2e3;
     GENIE_ACCURACY_TIMEOUT_MS = 9e4;
+    MissingSqlGateError = class extends Error {
+      missing;
+      selected;
+      constructor(missing, selected) {
+        super(missingSqlGateCopy(missing, selected));
+        this.name = "MissingSqlGateError";
+        this.missing = missing;
+        this.selected = selected;
+      }
+    };
   }
 });
 
@@ -179682,6 +180844,59 @@ var init_live_monitoring = __esm({
   }
 });
 
+// server/lib/benchmark-lab-store.ts
+function forgetLabState() {
+  cache6 = /* @__PURE__ */ new WeakMap();
+}
+async function readLabState(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache6.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_LAB_TTL_MS)) return cached3.value;
+  try {
+    const result = await client.lakebase.query(`SELECT state FROM ${BENCHMARK_LAB_TABLE} WHERE id = $1`, [KEY5]);
+    const raw2 = result?.rows?.[0]?.state;
+    const parsed = raw2 === void 0 ? EMPTY_LAB_STATE : parseLabState(raw2);
+    cache6.set(client, { value: parsed, at: now });
+    return parsed;
+  } catch (error48) {
+    console.warn("[benchmark-lab] Falling back to empty lab state:", error48.message);
+    return EMPTY_LAB_STATE;
+  }
+}
+async function writeLabState(client, state, updatedBy) {
+  const parsed = LabStateSchema.parse(state);
+  await client.lakebase.query(
+    `INSERT INTO ${BENCHMARK_LAB_TABLE} (id, state, updated_by, updated_at)
+     VALUES ($1, $2::jsonb, $3, now())
+     ON CONFLICT (id) DO UPDATE SET
+       state = EXCLUDED.state, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [KEY5, JSON.stringify(parsed), updatedBy]
+  );
+  forgetLabState();
+  return parsed;
+}
+async function patchLabState(client, patch, updatedBy) {
+  const current = await readLabState(client, { maxAgeMs: 0 });
+  return writeLabState(client, { ...current, ...patch }, updatedBy);
+}
+var KEY5, BENCHMARK_LAB_TABLE, BENCHMARK_LAB_DDL, cache6, BENCHMARK_LAB_TTL_MS;
+var init_benchmark_lab_store = __esm({
+  "server/lib/benchmark-lab-store.ts"() {
+    init_app_schema();
+    init_benchmark_lab_v3();
+    KEY5 = "effective";
+    BENCHMARK_LAB_TABLE = appTable("benchmark_lab");
+    BENCHMARK_LAB_DDL = `CREATE TABLE IF NOT EXISTS ${BENCHMARK_LAB_TABLE} (
+  id TEXT PRIMARY KEY,
+  state JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT NOT NULL
+)`;
+    cache6 = /* @__PURE__ */ new WeakMap();
+    BENCHMARK_LAB_TTL_MS = 5e3;
+  }
+});
+
 // server/routes/eval-dataset-routes.ts
 var eval_dataset_routes_exports = {};
 __export(eval_dataset_routes_exports, {
@@ -179703,8 +180918,8 @@ function workspaceHost2() {
 function setupEvalDatasetRoutes(appkit) {
   appkit.server.extend((app) => {
     app.get("/api/benchmarks/dataset", async (_req, res) => {
-      const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
-      res.json({ dataset });
+      const envelope = await readEvalDatasetEnvelope(appkit, { maxAgeMs: 0 });
+      res.json({ dataset: envelope.dataset, lastGenieRun: envelope.lastGenieRun });
     });
     app.get("/api/benchmarks/flywheel", async (_req, res) => {
       const flywheel = await readFlywheelState(appkit, { maxAgeMs: 0 });
@@ -179730,16 +180945,16 @@ function setupEvalDatasetRoutes(appkit) {
       const actor = userEmail(req);
       const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
       const experimentId = settings.experimentId.trim();
-      let workspace;
+      let workspace2;
       try {
         const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
         const client = new WorkspaceClient6({});
-        workspace = await probeWorkspaceMonitoring(
+        workspace2 = await probeWorkspaceMonitoring(
           { apiClient: { request: (input) => workspaceApiRequest(client, input) } },
           experimentId
         );
       } catch (error48) {
-        workspace = {
+        workspace2 = {
           status: "blocked",
           note: `Workspace monitoring could not be reached: ${error48.message} Sampled Ask turns are still scored in this app.`,
           scorers: []
@@ -179749,10 +180964,10 @@ function setupEvalDatasetRoutes(appkit) {
         actor,
         action: "eval-live-monitoring-probed",
         subject: "eval-live-scores",
-        detail: workspace.note
+        detail: workspace2.note
       });
       res.json({
-        workspace,
+        workspace: workspace2,
         sampleRate: DEFAULT_LIVE_SAMPLE_RATE,
         alwaysOnTraces: settings.alwaysOnTraces
       });
@@ -179846,6 +181061,17 @@ function setupEvalDatasetRoutes(appkit) {
           alignClient,
           invokeJudge
         });
+        if (req.body?.preview === true) {
+          res.json({
+            preview: aligned.guidelinesText,
+            labeled,
+            agreement: aligned.agreement,
+            method: aligned.method,
+            note: `${aligned.note} Preview only. Nothing is saved until review.`,
+            saved: false
+          });
+          return;
+        }
         const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: aligned.guidelinesText }, actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
@@ -179876,10 +181102,18 @@ function setupEvalDatasetRoutes(appkit) {
         });
         return;
       }
+      if (!parsed.data.approver.trim()) {
+        res.status(400).json({
+          error: "approver_required",
+          message: "Name the approver before applying the candidate."
+        });
+        return;
+      }
       const actor = userEmail(req);
       try {
         const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
         const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const targetKind = parsed.data.targetKind;
         const promptName = current.promptRegistryName.trim();
         const template = promptTemplateFromPromote({
           side: parsed.data.side,
@@ -179887,29 +181121,42 @@ function setupEvalDatasetRoutes(appkit) {
           guidelines: settings.guidelinesText
         });
         let promotedPrompt = current.promotedPrompt;
-        try {
-          const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
-          const client = new WorkspaceClient6({});
-          promotedPrompt = await promotePromptAlias(
-            {
-              request: ({ method, path: path19, payload }) => workspaceApiRequest(client, { method, path: path19, payload })
-            },
-            { name: promptName, template }
-          );
-        } catch (error48) {
+        if (targetKind === "prompt-registry") {
+          try {
+            const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+            const client = new WorkspaceClient6({});
+            promotedPrompt = await promotePromptAlias(
+              {
+                request: ({ method, path: path19, payload }) => workspaceApiRequest(client, { method, path: path19, payload })
+              },
+              { name: promptName, template }
+            );
+          } catch (error48) {
+            promotedPrompt = {
+              name: promptName,
+              alias: "production",
+              version: "",
+              uri: promptName ? `prompts:/${promptName}@production` : "",
+              template,
+              status: promptName ? "blocked" : "skipped",
+              note: promptName ? `The production alias was not moved: ${error48.message} The next Ask still uses the guidance saved from this promote.` : "No Prompt Registry name is set. Next Ask still uses the saved guidance from this promote."
+            };
+          }
+        } else {
           promotedPrompt = {
             name: promptName,
             alias: "production",
             version: "",
-            uri: promptName ? `prompts:/${promptName}@production` : "",
+            uri: "",
             template,
-            status: promptName ? "blocked" : "skipped",
-            note: promptName ? `The production alias was not moved: ${error48.message} The next Ask still uses the guidance saved from this promote.` : "No Prompt Registry name is set. Next Ask still uses the saved guidance from this promote."
+            status: "skipped",
+            note: promoteTargetCaption(targetKind)
           };
         }
         const flywheel = await patchFlywheelState(
           appkit,
           {
+            rollback: current.promoted,
             promoted: { ...parsed.data, at: parsed.data.at || (/* @__PURE__ */ new Date()).toISOString() },
             promotedPrompt
           },
@@ -179919,7 +181166,7 @@ function setupEvalDatasetRoutes(appkit) {
           actor,
           action: "eval-agent-promoted",
           subject: "eval-flywheel",
-          detail: `Next Ask will use ${parsed.data.endpoint}. ${promotedPrompt?.note ?? ""}`.trim()
+          detail: `Next Ask will use ${parsed.data.endpoint}. Approver ${parsed.data.approver}. ${promotedPrompt?.note ?? ""}`.trim()
         });
         res.json({ flywheel, promotedPrompt });
       } catch (error48) {
@@ -180092,6 +181339,100 @@ function setupEvalDatasetRoutes(appkit) {
         });
       }
     });
+    app.post("/api/admin/benchmarks/cancel", async (req, res) => {
+      const runId = typeof req.body?.runId === "string" ? req.body.runId.trim() : "";
+      if (!runId) {
+        res.status(400).json({ error: "invalid_cancel", message: "Name the run to cancel." });
+        return;
+      }
+      const actor = userEmail(req);
+      const result = await requestBenchmarkCancel({ store: appkit.lakebase, runId, userEmail: actor });
+      if (!result.ok) {
+        res.status(result.status).json({ error: "cancel_refused", message: result.message });
+        return;
+      }
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: "eval-suite-cancelled",
+        subject: runId,
+        detail: "Cancelled the in-progress judge suite after the current case."
+      });
+      res.json({ runId, cancelled: true });
+    });
+    app.post("/api/admin/benchmarks/rollback", async (req, res) => {
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        if (!current.rollback?.endpoint) {
+          res.status(400).json({
+            error: "no_rollback",
+            message: "No earlier promote to roll back to."
+          });
+          return;
+        }
+        const flywheel = await patchFlywheelState(
+          appkit,
+          {
+            promoted: current.rollback,
+            rollback: current.promoted
+          },
+          actor
+        );
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-agent-rolled-back",
+          subject: "eval-flywheel",
+          detail: `Rolled back the next Ask to ${current.rollback.endpoint}.`
+        });
+        res.json({ flywheel });
+      } catch (error48) {
+        res.status(503).json({
+          error: "rollback_unavailable",
+          message: `The rollback was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/compare-history", async (req, res) => {
+      const parsed = BakeOffHistorySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_compare_history", message: "That bake-off could not be saved to history." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const flywheel = await patchFlywheelState(
+          appkit,
+          { compareHistory: rememberBakeOff(current.compareHistory, parsed.data) },
+          actor
+        );
+        res.json({ flywheel });
+      } catch (error48) {
+        res.status(503).json({
+          error: "compare_history_unavailable",
+          message: `Bake-off history was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/known-failure", async (req, res) => {
+      const caseId = typeof req.body?.caseId === "string" ? req.body.caseId.trim() : "";
+      if (!caseId) {
+        res.status(400).json({ error: "invalid_known_failure", message: "Name the case to mark as a known failure." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const knownFailures = [.../* @__PURE__ */ new Set([caseId, ...current.knownFailures])].slice(0, 200);
+        const flywheel = await patchFlywheelState(appkit, { knownFailures }, actor);
+        res.json({ flywheel });
+      } catch (error48) {
+        res.status(503).json({
+          error: "known_failure_unavailable",
+          message: `That case was not marked: ${error48.message}`
+        });
+      }
+    });
     app.post("/api/benchmarks/genie-accuracy", async (req, res) => {
       const parsed = GenieAccuracyBody.safeParse(req.body);
       if (!parsed.success) {
@@ -180118,13 +181459,33 @@ function setupEvalDatasetRoutes(appkit) {
         });
         return;
       }
-      const run2 = await runGenieAccuracy({
-        spaceId: parsed.data.spaceId,
-        spaceLabel: parsed.data.spaceLabel,
-        rows: dataset.rows,
-        asker: createGenieAsker({ host: host2, token })
-      });
+      const warehouseId2 = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
+      const labState = await readLabState(appkit, { maxAgeMs: 0 }).catch(() => null);
       const actor = userEmail(req);
+      let run2;
+      try {
+        run2 = await runGenieAccuracy({
+          spaceId: parsed.data.spaceId,
+          spaceLabel: parsed.data.spaceLabel,
+          rows: dataset.rows,
+          suiteKind: parsed.data.suiteKind,
+          caseIds: parsed.data.caseIds,
+          datasetVersion: labState?.currentVersionId || "unversioned",
+          asker: createGenieAsker({ host: host2, token }),
+          executor: createSqlExecutor({ host: host2, token, warehouseId: warehouseId2 })
+        });
+      } catch (error48) {
+        if (error48 instanceof MissingSqlGateError) {
+          res.status(400).json({ error: "missing_sql_gate", message: error48.message });
+          return;
+        }
+        throw error48;
+      }
+      try {
+        await writeLastGenieRun(appkit, run2, actor);
+      } catch (error48) {
+        console.warn("[eval-dataset] Last Genie run was not saved:", error48.message);
+      }
       try {
         const current = await readFlywheelState(appkit, { maxAgeMs: 0 });
         await patchFlywheelState(
@@ -180165,7 +181526,9 @@ var init_eval_dataset_routes = __esm({
     init_eval_dataset();
     init_judge_alignment();
     init_eval_flywheel();
+    init_benchmark_bakeoff();
     init_prompt_registry();
+    init_benchmark_runner();
     init_review_app();
     init_eval_conversation2();
     init_live_ask_scoring();
@@ -180177,12 +181540,17 @@ var init_eval_dataset_routes = __esm({
     init_eval_flywheel_store();
     init_eval_live_score_store();
     init_genie_accuracy();
+    init_genie_result_execute();
     init_live_monitoring();
     init_access_verification();
     init_insights_routes();
+    init_benchmark_lab_v3();
+    init_benchmark_lab_store();
     GenieAccuracyBody = external_exports.object({
       spaceId: external_exports.string().trim().min(1).max(200),
-      spaceLabel: external_exports.string().trim().max(200).optional()
+      spaceLabel: external_exports.string().trim().max(200).optional(),
+      suiteKind: external_exports.enum(SUITE_KINDS).default("complete"),
+      caseIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(200).optional()
     });
     CurateBody = external_exports.object({
       questions: external_exports.array(external_exports.string().trim().max(2e3)).max(100)
@@ -180190,6 +181558,586 @@ var init_eval_dataset_routes = __esm({
     LastSuiteBody = LastSuiteSchema.extend({
       runIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(4).default([]),
       sides: external_exports.array(external_exports.string().trim().max(200)).max(4).default([])
+    });
+  }
+});
+
+// server/routes/benchmark-lab-routes.ts
+var benchmark_lab_routes_exports = {};
+__export(benchmark_lab_routes_exports, {
+  setupBenchmarkLabRoutes: () => setupBenchmarkLabRoutes
+});
+function workspaceApiRequest2(client, input) {
+  return client.apiClient.request({
+    path: input.path,
+    method: input.method,
+    query: input.query,
+    payload: input.payload,
+    headers: new Headers({ Accept: "application/json" }),
+    raw: false
+  });
+}
+function flywheelTargetKind(kind) {
+  if (kind === "genie_space") return "genie-space";
+  if (kind === "rag_config") return "rag-config";
+  return "prompt-registry";
+}
+function asEvalRow(row2) {
+  return EvalRowSchema.parse(evalRowPatchFromLabCase(row2));
+}
+async function workspace(appkit) {
+  const [dataset, state, settings, flywheel] = await Promise.all([
+    readEvalDataset(appkit, { maxAgeMs: 0 }),
+    readLabState(appkit, { maxAgeMs: 0 }),
+    readBenchmarkSettings(appkit, { maxAgeMs: 0 }),
+    readFlywheelState(appkit, { maxAgeMs: 0 })
+  ]);
+  const contract = { ...state.contract };
+  if (!contract.baselineRunId && flywheel.lastAgentRunIds[0]) contract.baselineRunId = flywheel.lastAgentRunIds[0];
+  if (!contract.candidateRunId && flywheel.lastAgentRunIds[1]) contract.candidateRunId = flywheel.lastAgentRunIds[1];
+  if (contract.target.kind === "prompt_registry" && !contract.target.identifier.trim()) {
+    contract.target = { ...contract.target, identifier: flywheel.promptRegistryName };
+  }
+  return labWorkspacePayload({
+    rows: dataset.rows,
+    state: { ...state, contract },
+    enabledJudges: settings.enabledJudges,
+    extraJudges: extraJudgesFromSettings(settings).length
+  });
+}
+async function writeCases(appkit, next, actor, options = {}) {
+  const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
+  const state = await readLabState(appkit, { maxAgeMs: 0 });
+  const prior = current.rows.map(labCaseFromRow);
+  let heldOutAudit = state.heldOutAudit;
+  if (options.audit !== false) {
+    heldOutAudit = [
+      ...auditHeldOutEdits({
+        prior,
+        next,
+        actor,
+        versionId: state.currentVersionId
+      }),
+      ...heldOutAudit
+    ].slice(0, 200);
+  }
+  const dataset = await writeEvalDataset(appkit, { rows: next.map(asEvalRow) }, actor);
+  const saved = heldOutAudit !== state.heldOutAudit ? await patchLabState(appkit, { heldOutAudit }, actor) : state;
+  return { dataset, state: saved };
+}
+function setupBenchmarkLabRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/benchmarks/lab", async (_req, res) => {
+      const [lab, envelope] = await Promise.all([workspace(appkit), readEvalDatasetEnvelope(appkit, { maxAgeMs: 0 })]);
+      res.json({ lab, lastGenieRun: envelope.lastGenieRun });
+    });
+    app.get("/api/benchmarks/lab/permalink", async (_req, res) => {
+      const lab = await workspace(appkit);
+      res.json({ permalink: lab.permalink, evidencePack: {
+        datasetVersionId: lab.currentVersionId,
+        configurationSnapshotId: lab.contract.target.snapshotId,
+        metrics: {},
+        failedCases: [],
+        traceLinks: [],
+        reviewerStatus: lab.reviewerQueue
+      } });
+    });
+    app.post("/api/admin/benchmarks/lab/version", async (req, res) => {
+      const actor = userEmail(req);
+      try {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
+        const committed = commitDatasetVersion({ state, rows: dataset.rows, actor });
+        const saved = await patchLabState(appkit, {
+          currentVersionId: committed.state.currentVersionId,
+          versions: committed.state.versions
+        }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-dataset-versioned",
+          subject: committed.version.id,
+          detail: `Committed ${committed.version.caseCount} case(s), ${committed.version.heldOutCount} held out.`
+        });
+        res.json({ version: { ...committed.version, rows: void 0 }, lab: { ...await workspace(appkit), currentVersionId: saved.currentVersionId } });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_version_unavailable",
+          message: `The dataset version was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/split", async (req, res) => {
+      const parsed = SplitBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_split", message: "Send case ids and tuning or held_out." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const at = (/* @__PURE__ */ new Date()).toISOString();
+        const wanted = new Set(parsed.data.caseIds);
+        const next = dataset.rows.map(labCaseFromRow).map((row2) => {
+          if (!wanted.has(row2.id)) return row2;
+          return parsed.data.split === "held_out" ? lockHeldOut(row2, at) : { ...row2, split: "tuning" };
+        });
+        await writeCases(appkit, next, actor, { audit: false });
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-dataset-split",
+          subject: "eval-dataset",
+          detail: `Assigned ${parsed.data.caseIds.length} case(s) to ${parsed.data.split}.`
+        });
+        res.json({ lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_split_unavailable",
+          message: `The split was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/review", async (req, res) => {
+      const parsed = ReviewBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_review", message: "Send a case id and a review status." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const next = dataset.rows.map(labCaseFromRow).map(
+          (row2) => row2.id === parsed.data.caseId ? { ...row2, review: parsed.data.review } : row2
+        );
+        await writeCases(appkit, next, actor);
+        res.json({ lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_review_unavailable",
+          message: `The review status was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/retire", async (req, res) => {
+      const parsed = RetireBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_retire", message: "Send a case id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const next = dataset.rows.map(labCaseFromRow).map(
+          (row2) => row2.id === parsed.data.caseId ? { ...row2, retired: parsed.data.retired } : row2
+        );
+        await writeCases(appkit, next, actor);
+        res.json({ lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_retire_unavailable",
+          message: `The case was not updated: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/duplicate", async (req, res) => {
+      const parsed = DuplicateBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_duplicate", message: "Send the case id to duplicate as an edge case." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const source = dataset.rows.map(labCaseFromRow).find((row2) => row2.id === parsed.data.caseId);
+        if (!source) {
+          res.status(404).json({ error: "case_missing", message: "That case is not in the working copy." });
+          return;
+        }
+        const copy = duplicateAsEdgeCase(source, newEvalRowId());
+        await writeCases(appkit, [...dataset.rows.map(labCaseFromRow), copy], actor, { audit: false });
+        res.json({ case: copy, lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_duplicate_unavailable",
+          message: `The edge case was not added: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/import-traces", async (req, res) => {
+      const parsed = ImportBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_import", message: "Send the questions to add." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const added = uniqueQuestionsToAdd(current.rows, parsed.data.questions).map(
+          (row2) => EvalRowSchema.parse({
+            ...row2,
+            sourceKind: "trace",
+            tag: "edge_case"
+          })
+        );
+        const dataset = await writeEvalDataset(appkit, { rows: [...current.rows, ...added] }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-dataset-curated",
+          subject: "eval-dataset",
+          detail: `Imported ${added.length} question(s) from traces${parsed.data.filters.length ? ` (${parsed.data.filters.join(", ")})` : ""}.`
+        });
+        res.json({ added: added.length, filters: parsed.data.filters, dataset, lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_import_unavailable",
+          message: `Those questions were not added: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/known-failure", async (req, res) => {
+      const parsed = KnownFailureBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_known_failure", message: "Send a case id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
+        const saved = await patchLabState(
+          appkit,
+          {
+            knownFailures: [
+              { caseId: parsed.data.caseId, at: (/* @__PURE__ */ new Date()).toISOString(), actor, note: parsed.data.note },
+              ...state.knownFailures
+            ].slice(0, 200)
+          },
+          actor
+        );
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-lab-known-failure",
+          subject: parsed.data.caseId,
+          detail: parsed.data.note || `Marked ${parsed.data.caseId} as a known failure.`
+        });
+        res.json({ knownFailures: saved.knownFailures, lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_known_failure_unavailable",
+          message: `The known failure was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.put("/api/admin/benchmarks/lab/contract", async (req, res) => {
+      const parsed = ContractBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_contract", message: "The POC contract could not be read." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
+        await patchLabState(appkit, { contract: { ...state.contract, ...parsed.data } }, actor);
+        res.json({ lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_contract_unavailable",
+          message: `The contract was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/cancel-run", async (req, res) => {
+      const parsed = CancelBody.safeParse(req.body ?? {});
+      const actor = userEmail(req);
+      try {
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
+        const liveRun = {
+          runId: parsed.success ? parsed.data.runId || state.contract.liveRun?.runId || "" : state.contract.liveRun?.runId || "",
+          side: (parsed.success ? parsed.data.side : void 0) || state.contract.liveRun?.side || "candidate",
+          caseIndex: state.contract.liveRun?.caseIndex ?? 0,
+          caseTotal: state.contract.liveRun?.caseTotal ?? 0,
+          cancelRequested: true,
+          note: CANCEL_RUN_NOTE
+        };
+        await patchLabState(appkit, { contract: { ...state.contract, liveRun } }, actor);
+        res.json({ lab: await workspace(appkit), note: CANCEL_RUN_NOTE });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_cancel_unavailable",
+          message: `The cancel request was not recorded: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/retry-failed", async (req, res) => {
+      const parsed = RetryBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_retry", message: "Send the failed case ids to retry." });
+        return;
+      }
+      res.json({
+        note: RETRY_FAILED_NOTE,
+        caseIds: parsed.data.caseIds,
+        lab: await workspace(appkit)
+      });
+    });
+    app.post("/api/admin/benchmarks/lab/align-preview", async (req, res) => {
+      const actor = userEmail(req);
+      try {
+        const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const labeled = labeledRowCount(dataset.rows);
+        if (labeled === 0) {
+          res.status(400).json({
+            error: "no_labels",
+            message: "Label at least one row before aligning the guidelines."
+          });
+          return;
+        }
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const flywheel = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const cases = await loadCasesForAlignment(appkit, flywheel.lastAgentRunIds);
+        const aligned = await alignGuidelinesToHumans({
+          base: settings.guidelinesText,
+          rows: dataset.rows,
+          cases,
+          experimentId: settings.experimentId
+        });
+        const preview = {
+          preview: aligned.guidelinesText,
+          labeled,
+          note: `${aligned.note} Preview only. Nothing is saved until review.`,
+          saved: false,
+          at: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        await patchLabState(appkit, { alignPreview: preview }, actor);
+        res.json({ preview, lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "align_preview_unavailable",
+          message: `Guidelines were not previewed: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/align-commit", async (req, res) => {
+      const actor = userEmail(req);
+      try {
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
+        const preview = (typeof req.body?.preview === "string" ? req.body.preview.trim() : "") || state.alignPreview?.preview || "";
+        if (!preview) {
+          res.status(400).json({
+            error: "no_preview",
+            message: "Preview the aligned guidelines first. They save only after review."
+          });
+          return;
+        }
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: preview }, actor);
+        await patchLabState(appkit, {
+          alignPreview: state.alignPreview ? { ...state.alignPreview, saved: false, note: "Saved after review." } : null
+        }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-guidelines-aligned",
+          subject: "benchmark-settings",
+          detail: "Aligned guidelines saved after review."
+        });
+        res.json({ guidelinesText: saved.guidelinesText, lab: await workspace(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "align_commit_unavailable",
+          message: `Guidelines were not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/benchmarks/lab/apply-candidate", async (req, res) => {
+      const parsed = ApplyBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_apply", message: "The apply request could not be read." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
+        const flywheel = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const target = parsed.data.target ?? state.contract.target;
+        const identifier = target.kind === "prompt_registry" && !target.identifier.trim() ? flywheel.promptRegistryName : target.identifier;
+        const resolvedTarget = { ...target, identifier };
+        const approver = (parsed.data.approver ?? state.contract.approver).trim();
+        const candidateRunId = parsed.data.candidateRunId || state.contract.candidateRunId;
+        const gates = parsed.data.gates ?? { passed: 0, total: 0, checks: [] };
+        const decision = applyCandidateDecision({
+          target: resolvedTarget,
+          approver,
+          candidateRunId,
+          datasetVersionId: state.currentVersionId,
+          gates
+        });
+        if (decision.status === "blocked" || decision.status === "handoff" || decision.status === "not_configured") {
+          const record3 = {
+            at: (/* @__PURE__ */ new Date()).toISOString(),
+            actor,
+            approver: approver || actor,
+            candidateRunId,
+            datasetVersionId: state.currentVersionId,
+            target: resolvedTarget,
+            status: decision.status,
+            changedArtifacts: decision.changedArtifacts,
+            rollbackPath: decision.rollbackPath,
+            connectionsChanged: false,
+            wroteGenieInstructions: false,
+            note: decision.note
+          };
+          if (decision.status !== "blocked") {
+            await patchLabState(appkit, { applyHistory: [record3, ...state.applyHistory].slice(0, 50) }, actor);
+          }
+          res.status(decision.status === "blocked" ? 400 : 200).json({
+            decision,
+            apply: record3,
+            lab: await workspace(appkit)
+          });
+          return;
+        }
+        const askEndpoint = parsed.data.agentEndpoint?.trim() || flywheel.promoted?.endpoint || "";
+        const template = promptTemplateFromPromote({
+          side: "candidate",
+          endpoint: askEndpoint || candidateRunId || "candidate",
+          guidelines: settings.guidelinesText
+        });
+        let promotedPrompt = flywheel.promotedPrompt;
+        try {
+          const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+          const client = new WorkspaceClient6({});
+          promotedPrompt = await promotePromptAlias(
+            {
+              request: ({ method, path: path19, payload }) => workspaceApiRequest2(client, { method, path: path19, payload })
+            },
+            { name: identifier, template }
+          );
+        } catch (error48) {
+          promotedPrompt = {
+            name: identifier,
+            alias: "production",
+            version: "",
+            uri: identifier ? `prompts:/${identifier}@production` : "",
+            template,
+            status: identifier ? "blocked" : "skipped",
+            note: identifier ? `The production alias was not moved: ${error48.message}` : "No Prompt Registry name is set."
+          };
+        }
+        await patchFlywheelState(
+          appkit,
+          {
+            promptRegistryName: identifier,
+            promotedPrompt,
+            rollback: flywheel.promoted,
+            promoted: {
+              endpoint: askEndpoint,
+              side: "candidate",
+              at: (/* @__PURE__ */ new Date()).toISOString(),
+              note: decision.note,
+              approver,
+              targetKind: flywheelTargetKind(resolvedTarget.kind),
+              targetId: identifier
+            }
+          },
+          actor
+        );
+        const record2 = {
+          at: (/* @__PURE__ */ new Date()).toISOString(),
+          actor,
+          approver,
+          candidateRunId,
+          datasetVersionId: state.currentVersionId,
+          target: resolvedTarget,
+          status: promotedPrompt?.status === "moved" ? "moved" : "blocked",
+          changedArtifacts: decision.changedArtifacts,
+          rollbackPath: decision.rollbackPath,
+          connectionsChanged: false,
+          wroteGenieInstructions: false,
+          note: promotedPrompt?.note || decision.note
+        };
+        await patchLabState(appkit, { applyHistory: [record2, ...state.applyHistory].slice(0, 50) }, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "eval-lab-applied",
+          subject: identifier || "prompt-registry",
+          detail: record2.note
+        });
+        res.status(record2.status === "moved" ? 200 : 503).json({
+          decision: { ...decision, status: record2.status, note: record2.note },
+          apply: record2,
+          promotedPrompt,
+          lab: await workspace(appkit)
+        });
+      } catch (error48) {
+        res.status(503).json({
+          error: "lab_apply_unavailable",
+          message: `The candidate was not applied: ${error48.message}`
+        });
+      }
+    });
+  });
+}
+var SplitBody, ReviewBody, RetireBody, DuplicateBody, KnownFailureBody, ImportBody, ApplyBody, ContractBody, CancelBody, RetryBody;
+var init_benchmark_lab_routes = __esm({
+  "server/routes/benchmark-lab-routes.ts"() {
+    init_zod();
+    init_benchmark_lab_v3();
+    init_eval_dataset();
+    init_admin_roles();
+    init_benchmark_settings_store();
+    init_benchmark_lab_store();
+    init_eval_dataset_store();
+    init_eval_flywheel_store();
+    init_judge_alignment();
+    init_prompt_registry();
+    init_insights_routes();
+    SplitBody = external_exports.object({
+      caseIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(200),
+      split: external_exports.enum(CASE_SPLITS)
+    });
+    ReviewBody = external_exports.object({
+      caseId: external_exports.string().trim().min(1).max(80),
+      review: external_exports.enum(CASE_REVIEWS)
+    });
+    RetireBody = external_exports.object({
+      caseId: external_exports.string().trim().min(1).max(80),
+      retired: external_exports.boolean().default(true)
+    });
+    DuplicateBody = external_exports.object({
+      caseId: external_exports.string().trim().min(1).max(80)
+    });
+    KnownFailureBody = external_exports.object({
+      caseId: external_exports.string().trim().min(1).max(80),
+      note: external_exports.string().trim().max(400).default("")
+    });
+    ImportBody = external_exports.object({
+      questions: external_exports.array(external_exports.string().trim().max(2e3)).max(100),
+      filters: external_exports.array(external_exports.enum(IMPORT_FILTERS)).max(4).default([])
+    });
+    ApplyBody = external_exports.object({
+      approver: external_exports.string().trim().max(200).optional(),
+      candidateRunId: external_exports.string().trim().max(80).optional(),
+      agentEndpoint: external_exports.string().trim().max(200).optional(),
+      target: ApplyTargetSchema.optional(),
+      gates: external_exports.object({
+        passed: external_exports.number().int().nonnegative().default(0),
+        total: external_exports.number().int().nonnegative().default(0),
+        checks: external_exports.array(
+          external_exports.object({
+            id: external_exports.string().trim().max(80),
+            label: external_exports.string().trim().max(80),
+            passed: external_exports.boolean(),
+            detail: external_exports.string().trim().max(400).default("")
+          })
+        ).max(20).default([])
+      }).optional()
+    });
+    ContractBody = LabContractSchema.partial();
+    CancelBody = external_exports.object({
+      runId: external_exports.string().trim().max(80).optional(),
+      side: external_exports.enum(["baseline", "candidate"]).optional()
+    });
+    RetryBody = external_exports.object({
+      caseIds: external_exports.array(external_exports.string().trim().min(1).max(80)).max(200).default([])
     });
   }
 });
@@ -181178,8 +183126,8 @@ var RoutingPool = class {
     const userCtx = getUserContext();
     return userCtx ? this.resolveUserPool(userCtx) : this.spPool;
   }
-  query(text17, values) {
-    return this.activePool().query(text17, values);
+  query(text18, values) {
+    return this.activePool().query(text18, values);
   }
   connect() {
     return this.activePool().connect();
@@ -185473,9 +187421,9 @@ var FilesConnector = class {
       await client.config.authenticate(headers);
       const res = await fetch(url2.toString(), fetchOptions);
       if (!res.ok) {
-        const text17 = await res.text();
-        logger16.error(`Upload failed (${res.status}): ${text17}`);
-        throw new ApiError2(`Upload failed: ${text17.length > 200 ? `${text17.slice(0, 200)}\u2026` : text17}`, "UPLOAD_FAILED", res.status, void 0, []);
+        const text18 = await res.text();
+        logger16.error(`Upload failed (${res.status}): ${text18}`);
+        throw new ApiError2(`Upload failed: ${text18.length > 200 ? `${text18.slice(0, 200)}\u2026` : text18}`, "UPLOAD_FAILED", res.status, void 0, []);
       }
     });
   }
@@ -187071,7 +189019,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     return true;
   }
   _readSettings(cacheKey2, authMode) {
-    const cache6 = authMode === "on-behalf-of-user" ? {
+    const cache7 = authMode === "on-behalf-of-user" ? {
       ...FILES_READ_DEFAULTS.cache,
       enabled: false,
       cacheKey: cacheKey2
@@ -187081,7 +189029,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     };
     return { default: {
       ...FILES_READ_DEFAULTS,
-      cache: cache6,
+      cache: cache7,
       telemetryInterceptor: { attributes: this._authModeAttributes(authMode) }
     } };
   }
@@ -188968,8 +190916,8 @@ var LakebasePlugin = class extends Plugin {
   * );
   * ```
   */
-  async query(text17, values) {
-    return this.pool.query(text17, values);
+  async query(text18, values) {
+    return this.pool.query(text18, values);
   }
   /**
   * Execute a single statement inside a `BEGIN READ ONLY … ROLLBACK`
@@ -188985,11 +190933,11 @@ var LakebasePlugin = class extends Plugin {
   * statement may attempt (writes, writable-function side effects) are
   * rejected by PostgreSQL under the read-only transaction posture.
   */
-  async runReadOnlyStatement(text17, values) {
+  async runReadOnlyStatement(text18, values) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN READ ONLY");
-      return (await client.query(text17, values)).rows;
+      return (await client.query(text18, values)).rows;
     } finally {
       try {
         await client.query("ROLLBACK");
@@ -189256,8 +191204,8 @@ async function isAutoMigrateDisabled(projectRoot) {
     return false;
   }
 }
-function stripJsonComments(text17) {
-  return text17.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
+function stripJsonComments(text18) {
+  return text18.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
 }
 async function migrateTsconfigClient(projectRoot) {
   const results = [];
@@ -189369,8 +191317,8 @@ async function loadCache() {
   try {
     await fs5.mkdir(CACHE_DIR, { recursive: true });
     const raw2 = await fs5.readFile(cachePath, "utf8");
-    const cache6 = JSON.parse(raw2);
-    if (cache6.version === CACHE_VERSION) return cache6;
+    const cache7 = JSON.parse(raw2);
+    if (cache7.version === CACHE_VERSION) return cache7;
   } catch (err) {
     if (err.code !== "ENOENT") logger28.warn("Cache file is corrupted, flushing cache completely.");
   }
@@ -189379,9 +191327,9 @@ async function loadCache() {
     queries: {}
   };
 }
-async function saveCache(cache6) {
+async function saveCache(cache7) {
   const cachePath = path5.join(CACHE_DIR, CACHE_FILE);
-  await fs5.writeFile(cachePath, JSON.stringify(cache6, null, 2), "utf8");
+  await fs5.writeFile(cachePath, JSON.stringify(cache7, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/spinner.js
@@ -189395,8 +191343,8 @@ var Spinner = class {
   current = 0;
   interval = null;
   text = "";
-  start(text17) {
-    this.text = text17;
+  start(text18) {
+    this.text = text18;
     this.current = 0;
     process.stdout.write(`  ${this.text}${this.frames[0]}`);
     this.interval = setInterval(() => {
@@ -189404,8 +191352,8 @@ var Spinner = class {
       process.stdout.write(`\r  ${this.text}${this.frames[this.current]}`);
     }, 300);
   }
-  update(text17) {
-    this.text = text17;
+  update(text18) {
+    this.text = text18;
   }
   stop(finalText) {
     if (this.interval) {
@@ -189415,8 +191363,8 @@ var Spinner = class {
     process.stdout.write(`\x1B[Contoso\r  ${finalText || this.text}
 `);
   }
-  printDetail(text17) {
-    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text17}\x1B[0m
+  printDetail(text18) {
+    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text18}\x1B[0m
 `);
     if (this.interval) process.stdout.write(`  ${this.text}${this.frames[this.current]}`);
   }
@@ -189591,7 +191539,7 @@ function inferParameterTypes(sql3, ranges) {
 async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = {}) {
   const { noCache = false, concurrency: rawConcurrency = 10 } = options;
   const concurrency = typeof rawConcurrency === "number" && Number.isFinite(rawConcurrency) ? Math.max(1, Math.floor(rawConcurrency)) : 10;
-  const [allFiles, cache6] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
+  const [allFiles, cache7] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
     version: CACHE_VERSION,
     queries: {}
   } : loadCache()]);
@@ -189609,7 +191557,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     const queryName = normalizeQueryName(path6.basename(file2, ".sql"));
     const sql3 = sqlContents[i];
     const sqlHash = hashSQL(sql3);
-    const cached3 = cache6.queries[queryName];
+    const cached3 = cache7.queries[queryName];
     if (cached3 && cached3.hash === sqlHash && !cached3.retry) {
       cachedResults.push({
         index: i,
@@ -189706,7 +191654,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
             index: res.index,
             schema: res.schema
           });
-          cache6.queries[queryName] = res.cacheEntry;
+          cache7.queries[queryName] = res.cacheEntry;
           logEntries.push({
             queryName,
             status: "MISS",
@@ -189725,7 +191673,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
               type
             }
           });
-          cache6.queries[queryName] = {
+          cache7.queries[queryName] = {
             hash: sqlHash,
             type,
             retry: true
@@ -189742,11 +191690,11 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     if (uncachedQueries.length > concurrency) for (let b = 0; b < uncachedQueries.length; b += concurrency) {
       const batch = uncachedQueries.slice(b, b + concurrency);
       processBatchResults(await Promise.allSettled(batch.map(describeOne)), b);
-      await saveCache(cache6);
+      await saveCache(cache7);
     }
     else {
       processBatchResults(await Promise.allSettled(uncachedQueries.map(describeOne)), 0);
-      await saveCache(cache6);
+      await saveCache(cache7);
     }
     spinner.stop("");
   }
@@ -189827,8 +191775,8 @@ async function loadServingCache() {
   try {
     await fs7.mkdir(CACHE_DIR2, { recursive: true });
     const raw2 = await fs7.readFile(cachePath, "utf8");
-    const cache6 = JSON.parse(raw2);
-    if (cache6.version === CACHE_VERSION2) return cache6;
+    const cache7 = JSON.parse(raw2);
+    if (cache7.version === CACHE_VERSION2) return cache7;
     logger30.debug("Cache version mismatch, starting fresh");
   } catch (err) {
     if (err.code !== "ENOENT") logger30.warn("Cache file is corrupted, flushing cache completely.");
@@ -189838,10 +191786,10 @@ async function loadServingCache() {
     endpoints: {}
   };
 }
-async function saveServingCache(cache6) {
+async function saveServingCache(cache7) {
   const cachePath = path7.join(CACHE_DIR2, CACHE_FILE2);
   await fs7.mkdir(CACHE_DIR2, { recursive: true });
-  await fs7.writeFile(cachePath, JSON.stringify(cache6, null, 2), "utf8");
+  await fs7.writeFile(cachePath, JSON.stringify(cache7, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/serving/converter.js
@@ -189947,8 +191895,8 @@ async function fetchOpenApiSchema(client, endpointName, servedModel) {
       logger31.warn("Empty OpenAPI response for '%s', skipping type generation", endpointName);
       return null;
     }
-    const text17 = await new Response(response.contents).text();
-    const rawSpec = JSON.parse(text17);
+    const text18 = await new Response(response.contents).text();
+    const rawSpec = JSON.parse(text18);
     if (typeof rawSpec !== "object" || rawSpec === null || !("paths" in rawSpec) || typeof rawSpec.paths !== "object") {
       logger31.warn("Invalid OpenAPI schema structure for '%s', skipping", endpointName);
       return null;
@@ -190000,7 +191948,7 @@ async function generateServingTypes(options) {
     return;
   }
   const startTime = performance.now();
-  const cache6 = noCache ? {
+  const cache7 = noCache ? {
     version: CACHE_VERSION2,
     endpoints: {}
   } : await loadServingCache();
@@ -190010,7 +191958,7 @@ async function generateServingTypes(options) {
   const logEntries = [];
   for (const [alias, config2] of Object.entries(endpoints)) {
     client ??= new WorkspaceClient5({});
-    const result = await processEndpoint(alias, config2, client, cache6);
+    const result = await processEndpoint(alias, config2, client, cache7);
     if (result.cacheUpdated) updated = true;
     registryEntries.push(result.entry);
     logEntries.push(result.log);
@@ -190023,12 +191971,12 @@ async function generateServingTypes(options) {
   await migrateProjectConfig(projectRoot);
   if (registryEntries.length === 0) logger32.debug("Wrote empty serving types to %s (no endpoints resolved)", outFile);
   else logger32.debug("Wrote serving types to %s", outFile);
-  if (updated) await saveServingCache(cache6);
+  if (updated) await saveServingCache(cache7);
 }
 function genericEntry(alias) {
   return buildRegistryEntry(alias, GENERIC_REQUEST, GENERIC_RESPONSE, GENERIC_CHUNK);
 }
-async function processEndpoint(alias, config2, client, cache6) {
+async function processEndpoint(alias, config2, client, cache7) {
   const endpointName = process.env[config2.env];
   if (!endpointName) return {
     entry: genericEntry(alias),
@@ -190051,7 +191999,7 @@ async function processEndpoint(alias, config2, client, cache6) {
   };
   const { spec, pathKey } = result;
   const hash2 = hashSchema(JSON.stringify(spec));
-  const cached3 = cache6.endpoints[alias];
+  const cached3 = cache7.endpoints[alias];
   if (cached3 && cached3.hash === hash2) return {
     entry: buildRegistryEntry(alias, cached3.requestType, cached3.responseType, cached3.chunkType),
     log: {
@@ -190075,7 +192023,7 @@ async function processEndpoint(alias, config2, client, cache6) {
     const responseType = convertResponseSchema(operation);
     const chunkType = deriveChunkType(operation);
     const requestKeys = extractRequestKeys(operation);
-    cache6.endpoints[alias] = {
+    cache7.endpoints[alias] = {
       hash: hash2,
       requestType,
       responseType,
@@ -192475,8 +194423,8 @@ async function loadEndpointSchemas(cacheFile) {
       logger42.warn("Serving types cache has invalid structure, skipping");
       return allowlists;
     }
-    const cache6 = parsed;
-    for (const [alias, entry] of Object.entries(cache6.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
+    const cache7 = parsed;
+    for (const [alias, entry] of Object.entries(cache7.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
   } catch (err) {
     if (err.code !== "ENOENT") logger42.warn("Failed to load serving types cache: %s", err.message);
   }
@@ -192758,6 +194706,7 @@ createApp({
       { setupRuntimeSettingsRoutes: setupRuntimeSettingsRoutes2 },
       { setupBenchmarkSettingsRoutes: setupBenchmarkSettingsRoutes2 },
       { setupEvalDatasetRoutes: setupEvalDatasetRoutes2 },
+      { setupBenchmarkLabRoutes: setupBenchmarkLabRoutes2 },
       { setupEnvironmentRoutes: setupEnvironmentRoutes2 },
       { setupAccountRoutes: setupAccountRoutes2 },
       { setupRunLabelRoutes: setupRunLabelRoutes2 },
@@ -192776,6 +194725,7 @@ createApp({
       Promise.resolve().then(() => (init_runtime_settings_routes(), runtime_settings_routes_exports)),
       Promise.resolve().then(() => (init_benchmark_settings_routes(), benchmark_settings_routes_exports)),
       Promise.resolve().then(() => (init_eval_dataset_routes(), eval_dataset_routes_exports)),
+      Promise.resolve().then(() => (init_benchmark_lab_routes(), benchmark_lab_routes_exports)),
       Promise.resolve().then(() => (init_environment_routes(), environment_routes_exports)),
       Promise.resolve().then(() => (init_account_routes(), account_routes_exports)),
       Promise.resolve().then(() => (init_run_label_routes(), run_label_routes_exports)),
@@ -192793,6 +194743,7 @@ createApp({
     setupRuntimeSettingsRoutes2(appkit);
     setupBenchmarkSettingsRoutes2(appkit);
     setupEvalDatasetRoutes2(appkit);
+    setupBenchmarkLabRoutes2(appkit);
     setupEnvironmentRoutes2(appkit);
     setupAccountRoutes2(appkit);
     setupBrowseRoutes2(appkit);
