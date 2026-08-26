@@ -780,7 +780,7 @@ export function QuestionDrawer({
             the line ending in a dangling middot. */}
         {/* Asked-by is a compact corner chip on the answer card, the same
             register as "Live agent response". It stays here only when there is
-            no card — a conditioned or failed run still has to name who asked.
+            no card: a conditioned or failed run still has to name who asked.
             The timestamp and grants stay a caption, not a second washed bar. */}
         <div className="monitoring-drawer-meta-row">
           {!answer ? <UserIdentityChip identity={detail.askedBy} label="Asked by" compact /> : null}

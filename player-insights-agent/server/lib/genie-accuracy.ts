@@ -3,7 +3,6 @@ import {
   classifyGenieMiss,
   deterministicChecks,
   isExcludedGenieMiss,
-  WAREHOUSE_BUDGET_MS,
   scoredAccuracy,
   type DeterministicCheck,
   type GenieMissKind,
@@ -212,10 +211,9 @@ export async function runGenieAccuracy(input: {
     } catch (error) {
       const durationMs = Math.max(0, now() - caseStarted);
       const note = messageOf(error);
-      const missKind =
-        durationMs >= WAREHOUSE_BUDGET_MS && classifyGenieMiss(note) === 'error'
-          ? 'timeout'
-          : classifyGenieMiss(note);
+      // Duration is not a timeout signal. A real Genie FAILED after 50s is still
+      // a scored miss; only warehouse-start / cancel / wait-ran-out drop out.
+      const missKind = classifyGenieMiss(note);
       const excluded = isExcludedGenieMiss(missKind);
       cases.push({
         id: row.id,

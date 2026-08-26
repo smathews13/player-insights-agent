@@ -8,7 +8,7 @@ import {
 } from '../../shared/eval-dataset';
 import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
-import { SETTINGS_SAVE_IDLE, type SettingsSaveState } from './settings-save-state';
+import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
 import { Input, Switch, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
 
@@ -39,7 +39,7 @@ export function BenchmarkSettingsPanel({
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const [customDraft, setCustomDraft] = useState<CustomJudge>({ name: '', guidelines: '', prompt: '' });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
     setFailure(null);
     try {
@@ -50,9 +50,12 @@ export function BenchmarkSettingsPanel({
       setCurrentAgentEndpoint(loaded.currentAgentEndpoint);
       setTracesAlwaysOnInAgent(loaded.tracesAlwaysOnInAgent);
       setState('ready');
+      return { ok: true };
     } catch (caught) {
+      const message = (caught as Error).message;
       setState('failed');
-      setFailure({ operation: 'load', message: (caught as Error).message });
+      setFailure({ operation: 'load', message });
+      return { ok: false, message };
     }
   }, []);
 
@@ -88,12 +91,8 @@ export function BenchmarkSettingsPanel({
     if (!enabled) return;
     if (failure?.operation === 'load') {
       onSaveState({ kind: 'saving' });
-      await load();
-      onSaveState(
-        failure.operation === 'load' && state === 'failed'
-          ? { kind: 'failed', message: 'These settings could not be read, so there is nothing to save yet.' }
-          : SETTINGS_SAVE_IDLE
-      );
+      const result = await load();
+      onSaveState(saveRetryAfterLoad(result));
       return;
     }
     setState('saving');

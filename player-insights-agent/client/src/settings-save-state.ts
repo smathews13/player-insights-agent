@@ -22,6 +22,25 @@ export type SettingsSaveState =
 
 export const SETTINGS_SAVE_IDLE: SettingsSaveState = { kind: 'idle' };
 
+export const SETTINGS_UNREADABLE =
+  'These settings could not be read, so there is nothing to save yet.';
+
+/** What a settings pane load just did. Save-as-retry must read this value. */
+export type SettingsLoadResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Footer state after Save has retried a failed load.
+ *
+ * MUST take the reload's own result. `failure` and `state` from when Save
+ * started stay stale after `await load()`, so a successful retry used to keep
+ * saying there was nothing to save.
+ */
+export function saveRetryAfterLoad(result: SettingsLoadResult): SettingsSaveState {
+  if (result.ok) return SETTINGS_SAVE_IDLE;
+  const message = result.message.trim();
+  return { kind: 'failed', message: message || SETTINGS_UNREADABLE };
+}
+
 /**
  * How long Save holds its pressed paint, and how long the modal waits after a
  * save lands before it closes.

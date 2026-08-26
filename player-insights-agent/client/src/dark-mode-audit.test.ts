@@ -84,7 +84,9 @@ describe('dark mode covers the shipped surfaces', () => {
     ]) {
       expect(DARK, `${selector} has no dark treatment`).toContain(selector);
     }
-    expect(source('ArchitecturePage.tsx')).toContain('className="arch-node"');
+    expect(source('ArchitecturePage.tsx')).toMatch(
+      /className=\{selected \? 'arch-node arch-node-selected' : 'arch-node'\}/
+    );
     expect(source('MonitoringPage.tsx')).toContain('className="monitoring-drawer"');
     expect(source('AccountMenu.tsx')).toContain('className="account-menu"');
     expect(source('App.tsx')).toContain('useRuntimeEntityStyles();');

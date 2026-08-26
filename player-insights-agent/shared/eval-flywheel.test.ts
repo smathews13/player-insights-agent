@@ -28,6 +28,7 @@ describe('warehouse and timeout misses', () => {
     expect(classifyGenieMiss('warehouse is starting')).toBe('warehouse');
     expect(classifyGenieMiss('Genie finished with status CANCELLED.')).toBe('timeout');
     expect(classifyGenieMiss('Genie did not finish before the wait ran out.')).toBe('timeout');
+    expect(classifyGenieMiss('Genie finished with status FAILED.')).toBe('error');
   });
 
   it('keeps those misses out of the accuracy fraction', () => {

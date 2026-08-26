@@ -56,6 +56,49 @@ describe('Genie accuracy run', () => {
     expect(result.score.label).toBe('0/1 = 0%');
   });
 
+  it('does not call a slow Genie FAILED a warehouse timeout', async () => {
+    // Duration ≥ 50s used to flip any 'error' note to 'timeout' before checking
+    // whether Genie actually failed. A real FAILED is a scored miss.
+    let clock = 0;
+    const result = await runGenieAccuracy({
+      spaceId: 'space-data',
+      rows: [{ id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' }],
+      asker: asker({ 'How many?': { error: 'Genie finished with status FAILED.' } }),
+      now: () => {
+        const at = clock;
+        clock += 51_000;
+        return at;
+      },
+    });
+    expect(result.cases[0]?.durationMs).toBeGreaterThanOrEqual(50_000);
+    expect(result.cases[0]?.missKind).toBe('error');
+    expect(result.cases[0]?.excluded).toBe(false);
+    expect(result.score).toEqual({ passed: 0, total: 1, percent: 0, label: '0/1 = 0%', excluded: 0 });
+  });
+
+  it('still excludes a slow cancel or warehouse start', async () => {
+    let clock = 0;
+    const result = await runGenieAccuracy({
+      spaceId: 'space-data',
+      rows: [
+        { id: '1', question: 'Cancelled', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
+        { id: '2', question: 'Warming', groundTruthSql: 'SELECT 2', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
+      ],
+      asker: asker({
+        Cancelled: { error: 'Genie finished with status CANCELLED.' },
+        Warming: { error: 'warehouse is starting' },
+      }),
+      now: () => {
+        const at = clock;
+        clock += 51_000;
+        return at;
+      },
+    });
+    expect(result.cases.map((entry) => entry.missKind)).toEqual(['timeout', 'warehouse']);
+    expect(result.cases.every((entry) => entry.excluded)).toBe(true);
+    expect(result.score.excluded).toBe(2);
+  });
+
   it('keeps a starting warehouse out of the accuracy fraction', async () => {
     const result = await runGenieAccuracy({
       spaceId: 'space-data',

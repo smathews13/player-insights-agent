@@ -13,7 +13,7 @@ import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
 import { adoptRuntimeEntityStyles, previewRuntimeTypography } from './runtime-entity-styles';
 import { wholeNumberFrom } from './runtime-number';
-import { SETTINGS_SAVE_IDLE, type SettingsSaveState } from './settings-save-state';
+import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
 import { Input, Switch } from './ui';
 
 const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
@@ -158,7 +158,7 @@ export function RuntimeSettingsPanel({
   const savedSettings = useRef<RuntimeSettings | null>(null);
   const appearancePreviewed = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
     setFailure(null);
     try {
@@ -168,9 +168,12 @@ export function RuntimeSettingsPanel({
       setSettings(loaded);
       if (!appearancePreviewed.current) applyColorScheme(loaded.colorScheme);
       setState('ready');
+      return { ok: true };
     } catch (caught) {
+      const message = (caught as Error).message;
       setState('failed');
-      setFailure({ operation: 'load', message: (caught as Error).message });
+      setFailure({ operation: 'load', message });
+      return { ok: false, message };
     }
   }, []);
 
@@ -212,12 +215,8 @@ export function RuntimeSettingsPanel({
      */
     if (failure?.operation === 'load') {
       onSaveState({ kind: 'saving' });
-      await load();
-      onSaveState(
-        failure.operation === 'load' && state === 'failed'
-          ? { kind: 'failed', message: 'These settings could not be read, so there is nothing to save yet.' }
-          : SETTINGS_SAVE_IDLE
-      );
+      const result = await load();
+      onSaveState(saveRetryAfterLoad(result));
       return;
     }
     setState('saving');

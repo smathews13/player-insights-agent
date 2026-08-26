@@ -16,12 +16,15 @@ import { SettingsPage } from './SettingsPage';
 import { wholeNumberFrom } from './runtime-number';
 import {
   SETTINGS_SAVE_IDLE,
+  SETTINGS_UNREADABLE,
   saveButtonLabel,
   saveInFlight,
   saveNotice,
+  saveRetryAfterLoad,
 } from './settings-save-state';
 
 const PANEL = readFileSync(new URL('RuntimeSettingsPanel.tsx', import.meta.url), 'utf8');
+const BENCHMARK = readFileSync(new URL('BenchmarkSettingsPanel.tsx', import.meta.url), 'utf8');
 
 describe('Runtime numeric fields', () => {
   it('keeps the last good value when the box is emptied, rather than snapping to zero', () => {
@@ -89,6 +92,26 @@ describe('Save feedback', () => {
     expect(PANEL).toContain("onSaveState({ kind: 'saving' })");
     expect(PANEL).toContain("onSaveState({ kind: 'saved' })");
     expect(PANEL).toContain("onSaveState({ kind: 'failed'");
+  });
+
+  it('uses the reload result after Save retries a failed load, not the stale failure', () => {
+    // The defect: Save awaited load(), then read `failure`/`state` captured when
+    // the click started. A successful retry still said there was nothing to save.
+    expect(saveRetryAfterLoad({ ok: true })).toEqual(SETTINGS_SAVE_IDLE);
+    expect(saveNotice(saveRetryAfterLoad({ ok: true }))).toBeNull();
+    expect(saveRetryAfterLoad({ ok: false, message: 'The endpoint answered 503.' })).toEqual({
+      kind: 'failed',
+      message: 'The endpoint answered 503.',
+    });
+    expect(saveRetryAfterLoad({ ok: false, message: '  ' })).toEqual({
+      kind: 'failed',
+      message: SETTINGS_UNREADABLE,
+    });
+    for (const source of [PANEL, BENCHMARK]) {
+      expect(source).toContain('const result = await load()');
+      expect(source).toContain('onSaveState(saveRetryAfterLoad(result))');
+      expect(source).not.toContain("state === 'failed'");
+    }
   });
 
   it('draws the button in the footer, which does not scroll', () => {
