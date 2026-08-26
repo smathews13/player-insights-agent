@@ -43,7 +43,15 @@ describe('flywheel state persistence', () => {
       writer as never,
       {
         ...EMPTY_FLYWHEEL_STATE,
-        promoted: { endpoint: 'candidate-agent', side: 'candidate', at: '2026-08-25T00:00:00.000Z', note: 'Won 9/10' },
+        promoted: {
+          endpoint: 'candidate-agent',
+          side: 'candidate',
+          at: '2026-08-25T00:00:00.000Z',
+          note: 'Won 9/10',
+          approver: '',
+          targetKind: 'prompt-registry',
+          targetId: '',
+        },
       },
       'admin@example.com'
     );

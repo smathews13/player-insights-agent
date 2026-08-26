@@ -482,6 +482,19 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     ],
     down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.eval_live_scores`],
   },
+  {
+    version: 15,
+    name: 'benchmark lab v3 state',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.benchmark_lab (
+         id TEXT PRIMARY KEY,
+         state JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.benchmark_lab`],
+  },
 ];
 
 /**

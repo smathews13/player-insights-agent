@@ -656,7 +656,19 @@ export type AdminAction =
   /** An admin started an MLflow Review App labeling session for SMEs. */
   | 'eval-review-app-started'
   /** An admin scored a full Ask thread with multi-turn judges. */
-  | 'eval-thread-scored';
+  | 'eval-thread-scored'
+  /** An admin committed an immutable evaluation dataset version. */
+  | 'eval-dataset-versioned'
+  /** An admin assigned the tuning / held-out split. */
+  | 'eval-dataset-split'
+  /** An admin applied a candidate after a named approval. */
+  | 'eval-lab-applied'
+  /** An admin marked a case as a known failure. */
+  | 'eval-lab-known-failure'
+  /** An admin cancelled an in-progress judge suite. */
+  | 'eval-suite-cancelled'
+  /** An admin restored the previous promoted Ask endpoint. */
+  | 'eval-agent-rolled-back';
 
 /**
  * Record what an admin did: who, when, what.

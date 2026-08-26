@@ -49,13 +49,67 @@ describe('evaluation dataset persistence', () => {
       ],
     };
     const writer = client();
+    forgetEvalDataset();
     await writeEvalDataset(writer as never, dataset, 'admin@example.com');
-    expect(writer.calls[0]?.sql).toContain(EVAL_DATASET_TABLE);
-    expect(writer.calls[0]?.values?.[0]).toBe('effective');
-    expect(writer.calls[0]?.values?.[2]).toBe('admin@example.com');
+    const insert = writer.calls.find((call) => call.sql.includes('INSERT'));
+    expect(insert?.sql).toContain(EVAL_DATASET_TABLE);
+    expect(insert?.values?.[0]).toBe('effective');
+    expect(insert?.values?.[2]).toBe('admin@example.com');
+    const stored = JSON.parse(String(insert?.values?.[1])) as { rows?: { question?: string }[] };
+    expect(stored.rows?.[0]?.question).toBe('How many players?');
 
     const reader = client([{ rows: dataset.rows }]);
     forgetEvalDataset();
     expect((await readEvalDataset(reader as never, { maxAgeMs: 0 })).rows[0]?.question).toBe('How many players?');
+  });
+
+  it('reads a legacy JSON array and an envelope with a last Genie run', async () => {
+    forgetEvalDataset();
+    const legacy = await readEvalDataset(
+      client([{ rows: [{ id: 'q-1', question: 'How many?', groundTruthSql: '', expectedAnswer: '', sqlCorrect: '', thumbs: '' }] }]) as never,
+      { maxAgeMs: 0 }
+    );
+    expect(legacy.rows[0]?.question).toBe('How many?');
+  });
+
+  it('keeps a held-out lock when the next save omits lab extras', async () => {
+    forgetEvalDataset();
+    const store = client([
+      {
+        rows: [
+          {
+            id: 'q-1',
+            question: 'How many players?',
+            groundTruthSql: 'SELECT 1',
+            expectedAnswer: '',
+            sqlCorrect: '',
+            thumbs: '',
+            tag: 'edge_case',
+            split: 'held_out',
+            heldOutLockedAt: '2026-08-01T00:00:00.000Z',
+          },
+        ],
+      },
+    ]);
+    const saved = await writeEvalDataset(
+      store as never,
+      {
+        rows: [
+          {
+            id: 'q-1',
+            question: 'How many players now?',
+            groundTruthSql: 'SELECT 1',
+            expectedAnswer: '',
+            sqlCorrect: '',
+            thumbs: '',
+          },
+        ],
+      },
+      'admin@example.com'
+    );
+    expect(saved.rows[0]?.question).toBe('How many players now?');
+    expect(saved.rows[0]?.tag).toBe('edge_case');
+    expect(saved.rows[0]?.split).toBe('held_out');
+    expect(saved.rows[0]?.heldOutLockedAt).toBe('2026-08-01T00:00:00.000Z');
   });
 });

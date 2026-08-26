@@ -16,6 +16,7 @@ import {
   sqlMatches,
   starterEvalDataset,
   uniqueQuestionsToAdd,
+  mergeEvalRows,
 } from './eval-dataset';
 
 describe('evaluation dataset', () => {
@@ -55,6 +56,36 @@ describe('evaluation dataset', () => {
     expect(starter.rows).toHaveLength(POC_STARTER_QUESTIONS.length);
     expect(starter.rows.every((row) => row.groundTruthSql === '' && row.expectedAnswer === '')).toBe(true);
     expect(starter.rows.map((row) => row.question)).toEqual([...POC_STARTER_QUESTIONS]);
+  });
+
+  it('keeps lab extras when a later save omits them', () => {
+    const merged = mergeEvalRows(
+      [
+        {
+          id: '1',
+          question: 'How many players?',
+          groundTruthSql: 'SELECT 1',
+          expectedAnswer: '',
+          sqlCorrect: '',
+          thumbs: '',
+          tag: 'edge_case',
+          split: 'held_out',
+        },
+      ],
+      [
+        {
+          id: '1',
+          question: 'How many players now?',
+          groundTruthSql: 'SELECT 1',
+          expectedAnswer: '',
+          sqlCorrect: '',
+          thumbs: '',
+        },
+      ]
+    );
+    expect(merged[0]?.question).toBe('How many players now?');
+    expect(merged[0]?.tag).toBe('edge_case');
+    expect(merged[0]?.split).toBe('held_out');
   });
 
   it('adds Ask questions that are not already in the dataset', () => {

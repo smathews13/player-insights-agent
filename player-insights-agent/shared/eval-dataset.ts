@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CASE_REVIEWS, CASE_SOURCES, CASE_SPLITS, CASE_TAGS, mergeLabRowExtras } from './benchmark-lab-v3';
 
 /**
  * The evaluation dataset Acme runs: questions first, then Genie accuracy,
@@ -184,6 +185,17 @@ export const EvalRowSchema = z.strictObject({
   sqlCorrect: z.enum(['yes', 'no', '']).default(''),
   /** Human thumbs on the row, for aligning the guidelines judge. */
   thumbs: z.enum(['up', 'down', '']).default(''),
+  tag: z.enum(CASE_TAGS).optional(),
+  split: z.enum(CASE_SPLITS).optional(),
+  review: z.enum(CASE_REVIEWS).optional(),
+  sourceKind: z.enum(CASE_SOURCES).optional(),
+  sourceTraceId: z.string().trim().max(120).optional(),
+  retired: z.boolean().optional(),
+  expectedFacts: z.string().trim().max(4000).optional(),
+  expectedResponse: z.string().trim().max(8000).optional(),
+  perCaseGuidelines: z.string().trim().max(4000).optional(),
+  conversation: z.string().trim().max(20_000).optional(),
+  heldOutLockedAt: z.string().trim().max(40).optional(),
 });
 
 export type EvalRow = z.infer<typeof EvalRowSchema>;
@@ -212,7 +224,25 @@ export const POC_STARTER_QUESTIONS: readonly string[] = [
 ];
 
 export function emptyEvalRow(id: string = newEvalRowId()): EvalRow {
-  return { id, question: '', groundTruthSql: '', expectedAnswer: '', sqlCorrect: '', thumbs: '' };
+  return {
+    id,
+    question: '',
+    groundTruthSql: '',
+    expectedAnswer: '',
+    sqlCorrect: '',
+    thumbs: '',
+    tag: 'happy_path',
+    split: 'tuning',
+    review: 'draft',
+    sourceKind: 'manual',
+    sourceTraceId: '',
+    retired: false,
+    expectedFacts: '',
+    expectedResponse: '',
+    perCaseGuidelines: '',
+    conversation: '',
+    heldOutLockedAt: '',
+  };
 }
 
 export function newEvalRowId(): string {
@@ -226,12 +256,8 @@ export function parseEvalDataset(value: unknown): EvalDataset {
 export function starterEvalDataset(): EvalDataset {
   return {
     rows: POC_STARTER_QUESTIONS.map((question, index) => ({
-      id: `poc-${index + 1}`,
+      ...emptyEvalRow(`poc-${index + 1}`),
       question,
-      groundTruthSql: '',
-      expectedAnswer: '',
-      sqlCorrect: '',
-      thumbs: '',
     })),
   };
 }
@@ -332,6 +358,20 @@ export function labeledRowCount(rows: readonly EvalRow[]): number {
   return rows.filter((row) => row.sqlCorrect || row.thumbs).length;
 }
 
+/**
+ * Keep Lab v3 extras when a v2-shaped PUT omits them.
+ *
+ * The working copy is still one row list. A save that only sends question/SQL
+ * must not wipe a tag, split, or held-out lock the other surfaces already set.
+ */
+export function mergeEvalRows(current: readonly EvalRow[], incoming: readonly EvalRow[]): EvalRow[] {
+  const previous = new Map(current.map((row) => [row.id, row]));
+  return incoming.map((row) => {
+    const prior = previous.get(row.id);
+    return prior ? mergeLabRowExtras(prior, row) : row;
+  });
+}
+
 /** Questions from Ask / Monitoring that are not already in the dataset. */
 export function uniqueQuestionsToAdd(existing: readonly EvalRow[], incoming: readonly string[]): EvalRow[] {
   const seen = new Set(
@@ -344,7 +384,7 @@ export function uniqueQuestionsToAdd(existing: readonly EvalRow[], incoming: rea
     const key = question.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    added.push({ ...emptyEvalRow(newEvalRowId()), question });
+    added.push({ ...emptyEvalRow(newEvalRowId()), question, sourceKind: 'trace' });
   }
   return added;
 }
