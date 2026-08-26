@@ -45,6 +45,8 @@ describe('Benchmarking flywheel copy', () => {
     expect(markup).toContain('Check workspace monitoring');
     expect(markup).toContain('Prompt Registry name');
     expect(markup).toContain('Start Review App for SMEs');
+    expect(markup).toContain('Score last Ask thread');
+    expect(markup).toContain('whole Ask thread');
     expect(markup).not.toContain('https://example.com/review');
     expect(markup).toContain('production');
     expect(markup).toContain('Guidelines(name=');

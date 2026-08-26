@@ -34,6 +34,7 @@ import { workspaceLinksAllowed } from '../lib/egress-store';
 import { ADMIN_ROLES_DDL } from '../lib/admin-roles-schema';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
 import { readBenchmarkSettings } from '../lib/benchmark-settings-store';
+import { loadConversationTurns } from '../lib/eval-conversation';
 import { scheduleLiveAskScore } from '../lib/live-ask-scoring';
 import { CURRENT_AGENT_SIDE } from '../../shared/benchmark-settings';
 import {
@@ -4665,6 +4666,7 @@ export function setupInsightsRoutes(
                 raw: false,
               });
           }
+          const turns = await loadConversationTurns(appkit, conversationId).catch(() => []);
           scheduleLiveAskScore({
             client: appkit,
             settings,
@@ -4679,6 +4681,7 @@ export function setupInsightsRoutes(
               note: '',
               durationMs: disclosed.trace.totalMs,
               context: disclosed.sql ?? '',
+              turns,
             },
           });
         })

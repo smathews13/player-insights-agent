@@ -37,7 +37,7 @@ export function BenchmarkSettingsPanel({
   const [lastTrace, setLastTrace] = useState<{ traceId: string; url: string | null } | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
-  const [customDraft, setCustomDraft] = useState<CustomJudge>({ name: '', guidelines: '' });
+  const [customDraft, setCustomDraft] = useState<CustomJudge>({ name: '', guidelines: '', prompt: '' });
 
   const load = useCallback(async () => {
     setState('loading');
@@ -278,7 +278,8 @@ export function BenchmarkSettingsPanel({
         {settings.customJudges.map((judge, index) => (
           <div className="eval-custom-judge" key={`${judge.name}-${index}`}>
             <p className="settings-row-label">{judge.name}</p>
-            <p className="settings-row-note">{judge.guidelines}</p>
+            {judge.guidelines ? <p className="settings-row-note">{judge.guidelines}</p> : null}
+            {judge.prompt ? <p className="settings-row-note">Prompt: {judge.prompt}</p> : null}
             <button
               type="button"
               className="tile-link"
@@ -317,15 +318,34 @@ export function BenchmarkSettingsPanel({
             onChange={(event) => setCustomDraft((current) => ({ ...current, guidelines: event.target.value }))}
           />
         </label>
+        <label className="runtime-field runtime-field-wide">
+          <span className="runtime-field-label">Custom judge prompt</span>
+          <Textarea
+            aria-label="Custom judge prompt"
+            rows={3}
+            placeholder="Optional. What to score and how. Use {{question}}, {{response}}, {{conversation}}."
+            value={customDraft.prompt}
+            disabled={!enabled}
+            onChange={(event) => setCustomDraft((current) => ({ ...current, prompt: event.target.value }))}
+          />
+          <span className="runtime-control-note">
+            Beyond the guidelines box. A free-form prompt is sent as the judge. Leave blank to keep{' '}
+            <code>Guidelines(name=…)</code> only.
+          </span>
+        </label>
         <button
           type="button"
           className="tile-link"
           disabled={!enabled}
           onClick={() => {
-            const next = { name: customDraft.name.trim(), guidelines: customDraft.guidelines.trim() };
-            if (!next.name || !next.guidelines) return;
+            const next = {
+              name: customDraft.name.trim(),
+              guidelines: customDraft.guidelines.trim(),
+              prompt: customDraft.prompt.trim(),
+            };
+            if (!next.name || (!next.guidelines && !next.prompt)) return;
             setSettings((current) => ({ ...current, customJudges: [...current.customJudges, next].slice(0, 12) }));
-            setCustomDraft({ name: '', guidelines: '' });
+            setCustomDraft({ name: '', guidelines: '', prompt: '' });
           }}
         >
           Add this custom judge

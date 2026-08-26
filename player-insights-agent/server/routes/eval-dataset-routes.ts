@@ -1,14 +1,13 @@
 import { z } from 'zod';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
-import {
-  alignGuidelinesFromLabels,
-  EvalDatasetSchema,
-  labeledRowCount,
-  uniqueQuestionsToAdd,
-} from '../../shared/eval-dataset';
+import { EvalDatasetSchema, labeledRowCount, uniqueQuestionsToAdd } from '../../shared/eval-dataset';
+import { alignGuidelinesToHumans, loadCasesForAlignment } from '../lib/judge-alignment';
 import { LastSuiteSchema, PromotedAgentSchema, rememberAccuracy } from '../../shared/eval-flywheel';
 import { promotePromptAlias, promptTemplateFromPromote } from '../lib/prompt-registry';
 import { startLabelingSession } from '../lib/review-app';
+import { findLatestAnsweredConversation, loadConversationTurns } from '../lib/eval-conversation';
+import { scoreSampledAskTurn } from '../lib/live-ask-scoring';
+import { formatConversationTurns } from '../../shared/eval-conversation';
 import { DEFAULT_LIVE_SAMPLE_RATE } from '../../shared/eval-live-scoring';
 import { recordAdminAction } from '../lib/admin-roles';
 import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
@@ -18,7 +17,7 @@ import { listLiveScores } from '../lib/eval-live-score-store';
 import { createGenieAsker, runGenieAccuracy } from '../lib/genie-accuracy';
 import { probeWorkspaceMonitoring } from '../lib/live-monitoring';
 import { forwardedUserToken } from './access-verification';
-import { userEmail, type InsightsAppKit } from './insights-routes';
+import { servingInvocationPath, userEmail, type InsightsAppKit } from './insights-routes';
 
 const GenieAccuracyBody = z.object({
   spaceId: z.string().trim().min(1).max(200),
@@ -159,15 +158,52 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           return;
         }
         const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
-        const guidelinesText = alignGuidelinesFromLabels(settings.guidelinesText, dataset.rows);
-        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText }, actor);
+        const flywheel = await readFlywheelState(appkit, { maxAgeMs: 0 });
+        const cases = await loadCasesForAlignment(appkit, flywheel.lastAgentRunIds);
+        let alignClient;
+        let invokeJudge;
+        try {
+          const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+          const client = new WorkspaceClient({});
+          alignClient = {
+            request: ({ method, path, payload }: { method: string; path: string; payload?: Record<string, unknown> }) =>
+              client.apiClient.request({ method, path, payload, raw: false }),
+          };
+          const judgeEndpoint = settings.judgeEndpoint.trim();
+          if (judgeEndpoint) {
+            invokeJudge = (payload: Record<string, unknown>) =>
+              client.apiClient.request({
+                path: servingInvocationPath(judgeEndpoint),
+                method: 'POST',
+                payload,
+                raw: false,
+              });
+          }
+        } catch {
+          // Apps without a workspace client still distill a replacement rubric.
+        }
+        const aligned = await alignGuidelinesToHumans({
+          base: settings.guidelinesText,
+          rows: dataset.rows,
+          cases,
+          experimentId: settings.experimentId,
+          alignClient,
+          invokeJudge,
+        });
+        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: aligned.guidelinesText }, actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-guidelines-aligned',
           subject: 'benchmark-settings',
-          detail: `Aligned guidelines from ${labeled} labelled row(s).`,
+          detail: aligned.note,
         });
-        res.json({ guidelinesText: saved.guidelinesText, labeled });
+        res.json({
+          guidelinesText: saved.guidelinesText,
+          labeled,
+          agreement: aligned.agreement,
+          method: aligned.method,
+          note: aligned.note,
+        });
       } catch (error) {
         res.status(503).json({
           error: 'align_guidelines_unavailable',
@@ -281,6 +317,81 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
         res.status(session.status === 'open' ? 200 : 503).json({
           session,
           message: session.note || (error as Error).message,
+        });
+      }
+    });
+
+    app.post('/api/admin/benchmarks/score-thread', async (req, res) => {
+      const actor = userEmail(req);
+      const requested = typeof req.body?.conversationId === 'string' ? req.body.conversationId.trim() : '';
+      try {
+        const conversationId = requested || (await findLatestAnsweredConversation(appkit));
+        if (!conversationId) {
+          res.status(404).json({
+            error: 'no_thread',
+            message: 'No Ask thread to score yet. Ask a question first, then score the whole conversation.',
+          });
+          return;
+        }
+        const turns = await loadConversationTurns(appkit, conversationId);
+        if (turns.length < 2) {
+          res.status(400).json({
+            error: 'short_thread',
+            message: 'That thread does not have a full conversation yet.',
+          });
+          return;
+        }
+        const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
+        const lastUser = [...turns].reverse().find((turn) => !/assistant|agent/i.test(turn.role));
+        const lastAssistant = [...turns].reverse().find((turn) => /assistant|agent/i.test(turn.role));
+        let invokeJudge;
+        const judgeEndpoint = settings.judgeEndpoint.trim();
+        if (judgeEndpoint) {
+          try {
+            const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+            const client = new WorkspaceClient({});
+            invokeJudge = (payload: Record<string, unknown>) =>
+              client.apiClient.request({
+                path: servingInvocationPath(judgeEndpoint),
+                method: 'POST',
+                payload,
+                raw: false,
+              });
+          } catch {
+            invokeJudge = undefined;
+          }
+        }
+        const score = await scoreSampledAskTurn({
+          client: appkit,
+          settings: { ...settings, alwaysOnTraces: true },
+          sampleRate: 1,
+          invokeJudge,
+          turn: {
+            conversationId,
+            messageId: `thread-${conversationId}`.slice(0, 80),
+            question: lastUser?.content ?? '',
+            response: lastAssistant?.content ?? '',
+            sql: '',
+            note: `${turns.length} turns`,
+            turns,
+          },
+        });
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'eval-thread-scored',
+          subject: conversationId,
+          detail: `Scored ${turns.length} turns in the Ask thread.`,
+        });
+        res.json({
+          conversationId,
+          turnCount: turns.length,
+          score,
+          transcript: formatConversationTurns(turns).slice(0, 4000),
+        });
+      } catch (error) {
+        res.status(503).json({
+          error: 'score_thread_unavailable',
+          message: `That thread was not scored: ${(error as Error).message}`,
         });
       }
     });

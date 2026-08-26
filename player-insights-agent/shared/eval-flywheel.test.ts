@@ -53,14 +53,14 @@ describe('baseline vs candidate', () => {
 });
 
 describe('human label alignment', () => {
-  it('adds labelled sentences to the guidelines instead of inventing a score', () => {
+  it('replaces the rubric from labels instead of appending Human labels', () => {
     const aligned = alignGuidelinesFromLabels('Be professional.', [
       row({ sqlCorrect: 'yes' }),
       row({ id: '2', thumbs: 'up' }),
     ]);
     expect(aligned).toContain('Be professional.');
-    expect(aligned).toContain('Human labels:');
-    expect(aligned).toContain('How many players?');
+    expect(aligned).not.toContain('Human labels:');
+    expect(aligned).toContain('Published SQL must match');
   });
 
   it('leaves the base text alone when nobody has labelled a row', () => {

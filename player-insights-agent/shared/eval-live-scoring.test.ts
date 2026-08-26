@@ -44,7 +44,8 @@ describe('live deterministic checks', () => {
           { id: 'no-refused-sql', label: 'SQL', passed: false, note: '' },
         ],
         judges: [{ name: 'relevance', value: 'yes', state: 'scored', note: '' }],
+        turnCount: 4,
       })
-    ).toBe('1/2 checks · 1/1 judges');
+    ).toBe('1/2 checks · 1/1 judges · 4 turns');
   });
 });

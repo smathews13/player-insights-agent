@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BENCHMARK_SETTINGS } from '../../shared/benchmark-settings';
 import { shouldSampleLiveTrace } from '../../shared/eval-live-scoring';
-import { scoreLiveDeterministic, scoreSampledAskTurn } from './live-ask-scoring';
+import { scoreLiveDeterministic, scoreLiveJudges, scoreSampledAskTurn } from './live-ask-scoring';
 
 const turn = {
   conversationId: 'conv-live',
@@ -40,5 +40,57 @@ describe('sampled Ask scoring', () => {
       sampleRate: 1,
     });
     expect(scored).toBeNull();
+  });
+
+  it('sends a free-form custom judge prompt instead of only Guidelines text', async () => {
+    const seen: string[] = [];
+    await scoreLiveJudges(
+      turn,
+      {
+        ...DEFAULT_BENCHMARK_SETTINGS,
+        enabledJudges: [],
+        customJudges: [
+          {
+            name: 'tone',
+            guidelines: '',
+            prompt: 'Is {{response}} a complete answer to {{question}}?',
+          },
+        ],
+      },
+      async (payload) => {
+        const content = (payload.messages as { content: string }[])[0]?.content ?? '';
+        seen.push(content);
+        return { choices: [{ message: { content: '{"result":"yes","rationale":"ok"}' } }] };
+      }
+    );
+    expect(seen[0]).toContain('Is Twelve. a complete answer to How many players?');
+    expect(seen[0]).toContain('"result": "yes|no"');
+  });
+
+  it('sends the whole Ask thread to a multi-turn judge', async () => {
+    const seen: string[] = [];
+    await scoreLiveJudges(
+      {
+        ...turn,
+        turns: [
+          { role: 'user', content: 'How many players?' },
+          { role: 'assistant', content: 'Twelve.' },
+          { role: 'user', content: 'And last month?' },
+          { role: 'assistant', content: 'Eleven.' },
+        ],
+      },
+      {
+        ...DEFAULT_BENCHMARK_SETTINGS,
+        enabledJudges: [],
+        enabledMultiTurnJudges: ['conversation_completeness'],
+      },
+      async (payload) => {
+        const content = (payload.messages as { content: string }[])[0]?.content ?? '';
+        seen.push(content);
+        return { choices: [{ message: { content: '{"result":"yes","rationale":"ok"}' } }] };
+      }
+    );
+    expect(seen[0]).toContain('And last month?');
+    expect(seen[0]).toContain('Eleven.');
   });
 });

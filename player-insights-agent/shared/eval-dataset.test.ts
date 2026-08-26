@@ -6,6 +6,7 @@ import {
   datasetSizeLabel,
   EMPTY_EVAL_DATASET,
   extraJudgesFromSettings,
+  customJudgeRunPrompt,
   normalizeSql,
   parseCustomJudges,
   parseEnabledJudges,
@@ -118,9 +119,13 @@ describe('judge selection', () => {
   it('keeps named custom judges and slugs them the way Guidelines(name=…) does', () => {
     expect(customJudgeAssessmentName('English only')).toBe('custom_english_only');
     expect(parseCustomJudges([{ name: 'english', guidelines: 'The response must be in English.' }])).toEqual([
-      { name: 'english', guidelines: 'The response must be in English.' },
+      { name: 'english', guidelines: 'The response must be in English.', prompt: '' },
+    ]);
+    expect(parseCustomJudges([{ name: 'tone', prompt: 'Is {{response}} polite? Score {{question}}.' }])).toEqual([
+      { name: 'tone', guidelines: '', prompt: 'Is {{response}} polite? Score {{question}}.' },
     ]);
     expect(parseCustomJudges([{ name: '', guidelines: 'x' }])).toEqual([]);
+    expect(parseCustomJudges([{ name: 'empty' }])).toEqual([]);
   });
 
   it('builds extra judges from settings without inventing a score', () => {
@@ -148,5 +153,28 @@ describe('judge selection', () => {
         kind: 'custom',
       },
     ]);
+  });
+});
+
+describe('free-form custom judge prompt', () => {
+  it('fills question, response, and conversation placeholders', () => {
+    const prompt = customJudgeRunPrompt(
+      { prompt: 'Score this.\nQ: {{question}}\nA: {{response}}\nThread:\n{{conversation}}' },
+      { question: 'How many?', response: '14', conversation: 'User: How many?\nAssistant: 14' }
+    );
+    expect(prompt).toContain('Q: How many?');
+    expect(prompt).toContain('A: 14');
+    expect(prompt).toContain('User: How many?');
+    expect(prompt).toContain('"result": "yes|no"');
+  });
+
+  it('does not wrap a prompt that already asks for result', () => {
+    expect(
+      customJudgeRunPrompt({ prompt: 'Return {"result":"yes"} for {{question}}' }, {
+        question: 'Q',
+        response: 'A',
+        conversation: '',
+      })
+    ).toBe('Return {"result":"yes"} for Q');
   });
 });

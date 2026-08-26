@@ -74,16 +74,47 @@ export const MULTI_TURN_JUDGES: readonly {
   },
 ];
 
-export const CustomJudgeSchema = z.strictObject({
-  name: z.string().trim().min(1).max(80),
-  guidelines: z.string().trim().min(1).max(4000),
-});
+export const CustomJudgeSchema = z
+  .strictObject({
+    name: z.string().trim().min(1).max(80),
+    guidelines: z.string().trim().max(4000).default(''),
+    prompt: z.string().trim().max(8_000).default(''),
+  })
+  .refine((value) => value.guidelines.length > 0 || value.prompt.length > 0);
 export type CustomJudge = z.infer<typeof CustomJudgeSchema>;
 
 export interface ExtraJudgeSpec {
   name: string;
   guidelines: string[];
   kind: 'multi-turn' | 'custom';
+  /** Free-form judge prompt. Placeholders: {{question}}, {{response}}, {{conversation}}. */
+  prompt?: string;
+}
+
+export const CUSTOM_JUDGE_YES_NO_SUFFIX = `Please provide your assessment using only the following json format. Do not use any markdown formatting or output additional lines.
+{
+  "rationale": "Reason for the assessment. Start each rationale with \`Let's think step by step\`",
+  "result": "yes|no"
+}`;
+
+export function fillJudgePlaceholders(template: string, values: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match
+  );
+}
+
+export function customJudgeRunPrompt(
+  spec: Pick<ExtraJudgeSpec, 'prompt'>,
+  context: { question: string; response: string; conversation: string }
+): string | null {
+  const template = spec.prompt?.trim();
+  if (!template) return null;
+  const filled = fillJudgePlaceholders(template, {
+    question: context.question,
+    response: context.response,
+    conversation: context.conversation,
+  });
+  return /\bresult\b/.test(filled) ? filled : `${filled.trim()}\n${CUSTOM_JUDGE_YES_NO_SUFFIX}`;
 }
 
 export function customJudgeAssessmentName(name: string): string {
@@ -136,8 +167,9 @@ export function extraJudgesFromSettings(settings: {
   for (const custom of settings.customJudges) {
     extras.push({
       name: customJudgeAssessmentName(custom.name),
-      guidelines: [custom.guidelines],
+      guidelines: custom.guidelines.trim() ? [custom.guidelines] : [],
       kind: 'custom',
+      ...(custom.prompt?.trim() ? { prompt: custom.prompt.trim() } : {}),
     });
   }
   return extras;
@@ -291,32 +323,10 @@ export const DEFAULT_GUIDELINES_TEXT =
   'The response is accurate, professional, and stays within the governed data the question asked about.';
 
 /**
- * Fold human labels into the guidelines the judge will read next.
- *
- * This is alignment in the small: the operator's thumbs and "SQL correct?"
- * answers become extra sentences. It does not train a model.
+ * @deprecated Use distillGuidelinesFromLabels. Kept so older imports still
+ * replace the rubric instead of appending "Human labels:".
  */
-export function alignGuidelinesFromLabels(base: string, rows: readonly EvalRow[]): string {
-  const extras: string[] = [];
-  for (const row of rows) {
-    if (!row.question.trim()) continue;
-    if (row.sqlCorrect === 'yes') {
-      extras.push(`When asked "${row.question}", a correct response publishes SQL that matches the labelled ground truth.`);
-    }
-    if (row.sqlCorrect === 'no') {
-      extras.push(`When asked "${row.question}", do not publish SQL that disagrees with the labelled ground truth.`);
-    }
-    if (row.thumbs === 'up' && row.expectedAnswer.trim()) {
-      extras.push(`A good answer to "${row.question}" looks like: ${row.expectedAnswer.trim()}`);
-    }
-    if (row.thumbs === 'down') {
-      extras.push(`The previous style of answer to "${row.question}" was rejected. Stay closer to the labelled expected answer.`);
-    }
-  }
-  const unique = [...new Set(extras)];
-  if (unique.length === 0) return base.trim();
-  return [base.trim(), 'Human labels:', ...unique].filter(Boolean).join('\n');
-}
+export { distillGuidelinesFromLabels as alignGuidelinesFromLabels } from './eval-judge-alignment';
 
 export function labeledRowCount(rows: readonly EvalRow[]): number {
   return rows.filter((row) => row.sqlCorrect || row.thumbs).length;

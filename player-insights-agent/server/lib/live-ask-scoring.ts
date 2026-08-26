@@ -5,10 +5,10 @@ import {
   type LiveJudgeVerdict,
   type LiveTraceScore,
 } from '../../shared/eval-live-scoring';
-import { extraJudgesFromSettings } from '../../shared/eval-dataset';
+import { conversationFromTurnsOrPair, countedThreadTurns } from '../../shared/eval-conversation';
+import { customJudgeRunPrompt, extraJudgesFromSettings } from '../../shared/eval-dataset';
 import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
 import {
-  conversationTranscript,
   guidelinesPrompt,
   groundednessPrompt,
   GROUNDEDNESS_FEEDBACK_NAME,
@@ -60,6 +60,7 @@ export function scoreLiveDeterministic(
     messageId: turn.messageId,
     traceId: turn.traceId ?? '',
     question: turn.question.trim().slice(0, 2000),
+    turnCount: countedThreadTurns(turn.turns ?? []),
     sampled: true,
     sampleRate,
     checks: liveChecksFromAnswer({
@@ -81,10 +82,7 @@ export async function scoreLiveJudges(
   const response = turn.response.trim();
   const question = turn.question.trim();
   const context = (turn.context ?? '').trim();
-  const conversation =
-    turn.turns && turn.turns.length > 0
-      ? turn.turns.map((entry) => `${entry.role}: ${entry.content}`).join('\n')
-      : conversationTranscript(question, response);
+  const conversation = conversationFromTurnsOrPair(turn.turns, question, response);
 
   const run = async (name: string, prompt: string): Promise<LiveJudgeVerdict> => {
     const judgement = await runJudge(
@@ -124,6 +122,11 @@ export async function scoreLiveJudges(
     );
   }
   for (const extra of extraJudgesFromSettings(settings)) {
+    const customPrompt = customJudgeRunPrompt(extra, { question, response, conversation });
+    if (customPrompt) {
+      verdicts.push(await run(extra.name, customPrompt));
+      continue;
+    }
     if (extra.guidelines.length === 0) continue;
     const prompt =
       extra.kind === 'multi-turn'

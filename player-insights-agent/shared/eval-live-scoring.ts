@@ -30,6 +30,7 @@ export const LiveTraceScoreSchema = z.strictObject({
   messageId: z.string().trim().min(1).max(80),
   traceId: z.string().trim().max(80).default(''),
   question: z.string().trim().max(2000).default(''),
+  turnCount: z.number().int().nonnegative().default(0),
   sampled: z.boolean(),
   sampleRate: z.number().min(0).max(1),
   checks: z.array(
@@ -84,12 +85,13 @@ export function liveChecksFromAnswer(input: {
   return deterministicChecks(input);
 }
 
-export function liveScoreSummary(score: Pick<LiveTraceScore, 'checks' | 'judges'>): string {
+export function liveScoreSummary(score: Pick<LiveTraceScore, 'checks' | 'judges' | 'turnCount'>): string {
   const checked = score.checks.filter((entry) => entry.passed !== null);
   const passed = checked.filter((entry) => entry.passed === true).length;
   const judged = score.judges.filter((entry) => entry.state === 'scored');
   const yes = judged.filter((entry) => entry.value === 'yes').length;
   const checks = checked.length > 0 ? `${passed}/${checked.length} checks` : 'no checks';
   const judges = judged.length > 0 ? `${yes}/${judged.length} judges` : 'no LLM judges';
-  return `${checks} · ${judges}`;
+  const thread = score.turnCount > 1 ? ` · ${score.turnCount} turns` : '';
+  return `${checks} · ${judges}${thread}`;
 }

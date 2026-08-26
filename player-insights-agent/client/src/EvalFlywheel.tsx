@@ -142,6 +142,8 @@ export function EvalFlywheel({
   const [workspaceMonitor, setWorkspaceMonitor] = useState<WorkspaceMonitor | null>(null);
   const [liveMonitorNote, setLiveMonitorNote] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState<string | null>(null);
+  const [threadNote, setThreadNote] = useState<string | null>(null);
+  const [threadScoring, setThreadScoring] = useState(false);
 
   const loadFlywheel = useCallback(async () => {
     const response = await fetch('/api/benchmarks/flywheel');
@@ -398,13 +400,19 @@ export function EvalFlywheel({
   const alignGuidelines = async () => {
     setAlignNote(null);
     const response = await fetch('/api/admin/benchmarks/align-guidelines', { method: 'POST' });
-    const body = (await response.json().catch(() => null)) as { labeled?: number; message?: unknown } | null;
+    const body = (await response.json().catch(() => null)) as {
+      labeled?: number;
+      note?: unknown;
+      message?: unknown;
+    } | null;
     if (!response.ok) {
       setAlignNote(typeof body?.message === 'string' ? body.message : 'Guidelines were not updated.');
       return;
     }
     setAlignNote(
-      `Guidelines now include ${body?.labeled ?? labeledRowCount(dataset.rows)} labelled row(s). The next Phase B run uses them.`
+      typeof body?.note === 'string'
+        ? body.note
+        : `Guidelines were replaced from ${body?.labeled ?? labeledRowCount(dataset.rows)} labelled row(s). The next Phase B run uses them.`
     );
   };
 
@@ -442,6 +450,30 @@ export function EvalFlywheel({
       setCurateNote((caught as Error).message);
     } finally {
       setCurateLoading(false);
+    }
+  };
+
+  const scoreLastThread = async () => {
+    setThreadNote(null);
+    setThreadScoring(true);
+    try {
+      const response = await fetch('/api/admin/benchmarks/score-thread', { method: 'POST' });
+      const body = (await response.json().catch(() => null)) as {
+        turnCount?: number;
+        conversationId?: string;
+        message?: unknown;
+        score?: LiveTraceScore | null;
+      } | null;
+      if (!response.ok) {
+        setThreadNote(typeof body?.message === 'string' ? body.message : 'That thread was not scored.');
+        return;
+      }
+      if (body?.score) setLiveScores((current) => [body.score as LiveTraceScore, ...current].slice(0, 50));
+      setThreadNote(
+        `Scored ${body?.turnCount ?? 0} turns in the last Ask thread. Multi-turn judges read the whole conversation.`
+      );
+    } finally {
+      setThreadScoring(false);
     }
   };
 
@@ -864,7 +896,8 @@ export function EvalFlywheel({
           <CardTitle className="text-base">Phase B · Agent judges</CardTitle>
           <CardDescription>
             Same dataset, scored by the judges you picked: built-in (groundedness, relevance, guidelines), plus any
-            multi-turn or custom <code>Guidelines(name=…, guidelines=…)</code> judges from Settings → Experimental.
+            multi-turn or custom <code>Guidelines(name=…)</code> judges from Settings → Experimental. Multi-turn judges
+            read a whole Ask thread, not one question and answer.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -873,10 +906,16 @@ export function EvalFlywheel({
             This starts a real agent run ({OPERATOR_EVAL_SUITE_ID}), not a placeholder score. It takes several
             minutes. Results land in the recorded runs below.
           </p>
-          <Button type="button" onClick={() => void runAgent()} disabled={agentRunning || !agentReady}>
-            {agentRunning ? <Loader2 className="animate-spin" /> : <Play />}
-            {agentRunning ? 'Starting…' : sides.length > 1 ? 'Run baseline and candidate' : 'Run agent judges'}
-          </Button>
+          <div className="eval-dataset-actions">
+            <Button type="button" onClick={() => void runAgent()} disabled={agentRunning || !agentReady}>
+              {agentRunning ? <Loader2 className="animate-spin" /> : <Play />}
+              {agentRunning ? 'Starting…' : sides.length > 1 ? 'Run baseline and candidate' : 'Run agent judges'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void scoreLastThread()} disabled={threadScoring}>
+              {threadScoring ? 'Scoring…' : 'Score last Ask thread'}
+            </Button>
+          </div>
+          {threadNote ? <p className="settings-row-note">{threadNote}</p> : null}
           {!agentReady ? (
             <p className="settings-row-note">Add at least one question before running the agent.</p>
           ) : null}

@@ -20,7 +20,6 @@ import {
 import { type FailureCode } from '../../shared/failure-taxonomy';
 import { coverage, endsTheSuite, type CredentialLifetime } from './benchmark-identity';
 import {
-  conversationTranscript,
   GROUNDEDNESS_FEEDBACK_NAME,
   GUIDELINES_FEEDBACK_NAME,
   groundednessPrompt,
@@ -49,8 +48,11 @@ import {
   HELD_OUT_SUITE_NAME,
   heldOutCase,
 } from '../../shared/held-out-suite';
+import { conversationFromTurnsOrPair } from '../../shared/eval-conversation';
+import { loadTurnsForQuestion } from './eval-conversation';
 import {
   extraJudgesFromSettings,
+  customJudgeRunPrompt,
   OPERATOR_EVAL_SUITE_ID,
   OPERATOR_EVAL_SUITE_NAME,
   parseEnabledJudges,
@@ -449,6 +451,12 @@ async function judgeCase(judge: JudgeConfig,
   }
 
   for (const extra of resolved.extraJudges ?? []) {
+    const conversation = conversationFromTurnsOrPair(resolved.conversationTurns, question, response);
+    const customPrompt = customJudgeRunPrompt(extra, { question, response, conversation });
+    if (customPrompt) {
+      judgements.push(await runJudge(judge, extra.name, customPrompt));
+      continue;
+    }
     if (extra.guidelines.length === 0) {
       judgements.push(
         notApplicable(
@@ -456,16 +464,14 @@ async function judgeCase(judge: JudgeConfig,
           judge.judgeEndpoint,
           extra.kind === 'multi-turn'
             ? 'This conversational judge has no guideline text to apply.'
-            : 'This custom judge has no guidelines.'
+            : 'This custom judge has no guidelines or prompt.'
         )
       );
       continue;
     }
     const prompt =
       extra.kind === 'multi-turn'
-        ? guidelinesPrompt(extra.guidelines, {
-            conversation: conversationTranscript(question, response),
-          })
+        ? guidelinesPrompt(extra.guidelines, { conversation })
         : guidelinesPrompt(extra.guidelines, { request: question, response });
     judgements.push(await runJudge(judge, extra.name, prompt));
   }
@@ -1340,25 +1346,34 @@ export async function operatorResolvedCases(store: BenchmarkStore): Promise<Reso
   const enabled = new Set(parseEnabledJudges(settings.enabledJudges).map((id) => JUDGE_BY_SETTING[id]));
   const fallbackGuideline = settings.guidelinesText.trim();
   const extraJudges = extraJudgesFromSettings(settings);
-  return questionRows(rows).map((row) => {
-    const guidelines = row.expectedAnswer.trim()
-      ? [row.expectedAnswer.trim()]
-      : fallbackGuideline
-        ? [fallbackGuideline]
-        : [];
-    const judges = [...enabled].filter((name) => name !== GUIDELINES_FEEDBACK_NAME || guidelines.length > 0);
-    return {
-      caseId: row.id,
-      definition: null,
-      question: row.question,
-      questionSource: 'suite-row' as const,
-      guidelines,
-      judges: judges.length > 0 ? judges : [RELEVANCE_TO_QUERY_ASSESSMENT_NAME],
-      structuralChecks: [],
-      judgeNotes: {},
-      extraJudges,
-    };
-  });
+  return Promise.all(
+    questionRows(rows).map(async (row) => {
+      const guidelines = row.expectedAnswer.trim()
+        ? [row.expectedAnswer.trim()]
+        : fallbackGuideline
+          ? [fallbackGuideline]
+          : [];
+      const judges = [...enabled].filter((name) => name !== GUIDELINES_FEEDBACK_NAME || guidelines.length > 0);
+      let conversationTurns: { role: string; content: string }[] = [];
+      try {
+        conversationTurns = await loadTurnsForQuestion({ lakebase: store }, row.question);
+      } catch (error) {
+        console.warn('[benchmark] Ask thread for this question was not loaded:', (error as Error).message);
+      }
+      return {
+        caseId: row.id,
+        definition: null,
+        question: row.question,
+        questionSource: 'suite-row' as const,
+        guidelines,
+        judges: judges.length > 0 ? judges : [RELEVANCE_TO_QUERY_ASSESSMENT_NAME],
+        structuralChecks: [],
+        judgeNotes: {},
+        extraJudges,
+        ...(conversationTurns.length > 1 ? { conversationTurns } : {}),
+      };
+    })
+  );
 }
 
 /**

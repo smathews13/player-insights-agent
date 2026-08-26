@@ -654,7 +654,9 @@ export type AdminAction =
   /** An admin asked this app to list or start workspace production scorers. */
   | 'eval-live-monitoring-probed'
   /** An admin started an MLflow Review App labeling session for SMEs. */
-  | 'eval-review-app-started';
+  | 'eval-review-app-started'
+  /** An admin scored a full Ask thread with multi-turn judges. */
+  | 'eval-thread-scored';
 
 /**
  * Record what an admin did: who, when, what.

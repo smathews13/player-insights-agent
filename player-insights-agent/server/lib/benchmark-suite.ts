@@ -201,6 +201,8 @@ export interface ResolvedCase {
   structuralChecks: StructuralCheckId[];
   judgeNotes: Partial<Record<JudgeName, string>>;
   extraJudges?: ExtraJudgeSpec[];
+  /** Full Ask thread when this case matches a stored conversation. */
+  conversationTurns?: { role: string; content: string }[];
 }
 
 /** A `cases_json` entry, read loosely: anything beyond `id` is optional. */
