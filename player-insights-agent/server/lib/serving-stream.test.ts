@@ -143,6 +143,22 @@ describe('consumeServingStream', () => {
     expect(result.output).toHaveLength(1);
   });
 
+  it('keeps the serving envelope’s MLflow id instead of dropping it', async () => {
+    const body = bodyOf([
+      stageEvent('step-1', 'Chose the next step'),
+      `data: ${JSON.stringify({
+        type: 'response.output_item.done',
+        item: { id: 'response-msg-1', type: 'message', content: [{ type: 'output_text', text: 'Done.' }] },
+        custom_outputs: { type: 'answer', answer: { takeaway: 'VLH Online led.', trace: { id: 'trace-local' } } },
+        databricks_output: { databricks_request_id: 'tr-0123456789abcdef0123456789abcdef' },
+      })}\n\n`,
+    ]);
+
+    const result = await consumeServingStream(body, () => {});
+
+    expect(result.databricks_output).toEqual({ databricks_request_id: 'tr-0123456789abcdef0123456789abcdef' });
+  });
+
   it('drops the flush events the agent writes to push each stage out', async () => {
     const stages: string[] = [];
     const body = bodyOf([

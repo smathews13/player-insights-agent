@@ -258,6 +258,7 @@ export function railStagesFor({
   liveStages,
   answeredStages,
   clarificationStages,
+  recorded = false,
 }: {
   loading: boolean;
   /** Whether the run in view died mid-flight, which keeps its steps on screen. */
@@ -266,12 +267,18 @@ export function railStagesFor({
   /** The newest stored answer's trace, for a conversation that is not running. */
   answeredStages: TraceStage[];
   clarificationStages: TraceStage[];
+  /**
+   * Whether the finished answer (or clarification) carries a real MLflow id.
+   *
+   * Local stages without one are the split: a Gantt (from the stored answer
+   * or the socket) and no backend connector. Keep them only while the turn is
+   * in flight, or when MLflow actually recorded the run.
+   */
+  recorded?: boolean;
 }): TraceStage[] {
   if (loading || runStopped) return liveStages;
+  if (!recorded) return [];
   if (answeredStages.length > 0) return answeredStages;
-  // A finished answer can land with an empty stored trace after the stream
-  // already reported steps (the prose-only path used to persist none). Keep
-  // those rows on screen rather than replacing a real process with "no steps".
   if (liveStages.length > 0) return liveStages;
   return clarificationStages;
 }

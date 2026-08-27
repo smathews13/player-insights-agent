@@ -79,6 +79,7 @@ import { slowestStageName } from './progress-labels';
 import { AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
 import { LiveProgress } from './LiveProgress';
 import { railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
+import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import { beginLiveAsk, endLiveAsk, hydrateLiveAsk, openLiveAsk, recordLiveStage, useLiveAsk } from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
@@ -522,6 +523,7 @@ export function HomePage() {
       liveStages,
       answeredStages: answer?.trace.stages ?? [],
       clarificationStages: asked?.trace.stages ?? [],
+      recorded: isMlflowTraceId(answer?.trace.id) || isMlflowTraceId(asked?.trace.id),
     }),
     !loading && answer
       ? answerRunVerdict({

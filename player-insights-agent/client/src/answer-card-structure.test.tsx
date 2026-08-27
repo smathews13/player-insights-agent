@@ -376,6 +376,7 @@ describe('a failed run’s process', () => {
         sql: '',
         caveats: [failedCaveat],
         trace: {
+          id: 'tr-1',
           stages: [
             {
               id: 'step-1',
@@ -410,6 +411,37 @@ describe('a failed run’s process', () => {
     expect(markup).not.toContain('This run recorded no steps');
     expect(markup).not.toContain('data-tone="stored"');
     expect(markup).toContain('data-tone="failed"');
+  });
+
+  it('does not draw a process view when stages arrived with no MLflow id', () => {
+    const markup = processCard(
+      answer({
+        takeaway: 'Sessions reached 25 on the final day.',
+        caveats: [],
+        trace: {
+          id: 'trace-local',
+          totalMs: 77_000,
+          toolCalls: 2,
+          stages: [
+            {
+              id: 'step-1',
+              name: 'Querying governed data',
+              kind: 'tool',
+              status: 'complete',
+              start: 0,
+              duration: 40_000,
+              calls: 1,
+              input: '',
+              output: '',
+            },
+          ],
+        },
+      })
+    );
+    expect(markup).not.toContain('run-process');
+    expect(markup).not.toContain('Querying governed data');
+    expect(markup).not.toContain('Step timeline');
+    expect(markup).not.toContain('Advanced trace details');
   });
 
   it('does not call a tabled answer unanswered because sources were incomplete', () => {
@@ -501,7 +533,7 @@ describe('a failed run’s process', () => {
         sources: [],
         sql: '',
         caveats: [`${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`],
-        trace: { stages: [] },
+        trace: { id: 'tr-1', stages: [] },
       })
     );
     expect(markup).toContain('No result recorded');

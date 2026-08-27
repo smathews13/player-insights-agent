@@ -1,0 +1,94 @@
+/**
+ * Whether an id is one MLflow actually issued.
+ *
+ * MLflow's own ids are `tr-` plus hex. The agent used to mint `trace-<uuid>`
+ * when no span was active, and Databricks serving sometimes stamps a request id
+ * that is not that shape. `mlflowReference` already refused to link either of
+ * those; the rest of the app still painted the local stage list as a recorded
+ * run. This helper is the one predicate every surface has to share so that
+ * split cannot come back.
+ *
+ * Do not loosen this to "any non-empty string" or to a Review App request id.
+ * An invented link is worse than no link.
+ */
+const MLFLOW_TRACE_ID = /^tr-[0-9a-f]+$/i;
+
+export function isMlflowTraceId(value: unknown): boolean {
+  return typeof value === 'string' && MLFLOW_TRACE_ID.test(value.trim());
+}
+
+/**
+ * The MLflow id Databricks serving put on the envelope, if it did.
+ *
+ * The agent stamps `answer.trace.id` from the span it opened. On a streamed
+ * serving call that span's contextvars can be gone by the time the id is read,
+ * so the payload falls back to a local id while the platform still recorded a
+ * real trace and put its id on `databricks_output`. Reading that field is how
+ * the connector comes back; inventing a Review App URL from some other id is
+ * not.
+ */
+export function servingMlflowTraceId(payload: unknown): string {
+  for (const candidate of servingTraceCandidates(payload)) {
+    const text = typeof candidate === 'string' ? candidate.trim() : '';
+    if (isMlflowTraceId(text)) return text;
+  }
+  return '';
+}
+
+function servingTraceCandidates(payload: unknown): unknown[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const record = payload as Record<string, unknown>;
+  const buckets: unknown[] = [record.databricks_output, record];
+  for (const key of ['data', 'response', 'result', 'body']) {
+    const nested = record[key];
+    if (nested && typeof nested === 'object') {
+      const inner = nested as Record<string, unknown>;
+      buckets.push(inner.databricks_output, inner);
+    }
+  }
+  const found: unknown[] = [];
+  for (const bucket of buckets) {
+    if (!bucket || typeof bucket !== 'object') continue;
+    const row = bucket as Record<string, unknown>;
+    found.push(row.databricks_request_id, row.trace_id, row.traceId, row.mlflow_trace_id);
+  }
+  return found;
+}
+
+/**
+ * Stamp a serving-envelope MLflow id onto an answer that did not already have one.
+ *
+ * Leaves a real `tr-` id untouched. Refuses anything that is not that shape, so
+ * a UUID request id cannot become a fake Open-in-MLflow link.
+ */
+export function bindServingMlflowTraceId<T extends { trace: { id: string } }>(answer: T, platformTraceId: string): T {
+  if (isMlflowTraceId(answer.trace.id) || !isMlflowTraceId(platformTraceId)) return answer;
+  return { ...answer, trace: { ...answer.trace, id: platformTraceId } };
+}
+
+/**
+ * Take the process view off an answer that has no recorded MLflow trace.
+ *
+ * The agent's `RunLog` always records local stages, even when MLflow handed
+ * back a no-op span. Those stages are what made Keep in mind say "no trace"
+ * while the card still drew a convincing Gantt. Figures and SQL stay: they are
+ * the answer. The timeline, stage timings and tool-call count do not.
+ */
+export function withoutUntracedProcess<
+  T extends { trace: { id: string; stages?: unknown[]; totalMs?: number; toolCalls?: number } },
+>(answer: T): T {
+  if (isMlflowTraceId(answer.trace.id)) return answer;
+  const stages = answer.trace.stages;
+  const hasProcess =
+    (Array.isArray(stages) && stages.length > 0) || Boolean(answer.trace.totalMs) || Boolean(answer.trace.toolCalls);
+  if (!hasProcess) return answer;
+  return {
+    ...answer,
+    trace: {
+      ...answer.trace,
+      stages: [],
+      totalMs: 0,
+      toolCalls: 0,
+    },
+  };
+}

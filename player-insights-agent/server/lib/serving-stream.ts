@@ -15,6 +15,7 @@ interface StreamEvent {
 export interface AssembledResponse {
   output: unknown[];
   custom_outputs: Record<string, unknown>;
+  databricks_output?: Record<string, unknown>;
 }
 
 export type StageSink = (stage: Record<string, unknown>) => void;
@@ -183,6 +184,7 @@ export async function consumeServingStream(body: unknown,
 ): Promise<AssembledResponse> {
   const output: unknown[] = [];
   let customOutputs: Record<string, unknown> | null = null;
+  let databricksOutput: Record<string, unknown> | null = null;
   let stages = 0;
   let announced = 0;
 
@@ -209,6 +211,10 @@ export async function consumeServingStream(body: unknown,
       if (event.custom_outputs && typeof event.custom_outputs === 'object') {
         customOutputs = event.custom_outputs as Record<string, unknown>;
       }
+      const platform = event.databricks_output;
+      if (platform && typeof platform === 'object') {
+        databricksOutput = platform as Record<string, unknown>;
+      }
     }
   } catch (error) {
     // The socket died part-way through. undici reports this as a bare
@@ -229,5 +235,9 @@ export async function consumeServingStream(body: unknown,
   if (customOutputs === null && output.length === 0) {
     throw new TruncatedStreamError(stages, announced);
   }
-  return { output, custom_outputs: customOutputs ?? {} };
+  return {
+    output,
+    custom_outputs: customOutputs ?? {},
+    ...(databricksOutput ? { databricks_output: databricksOutput } : {}),
+  };
 }

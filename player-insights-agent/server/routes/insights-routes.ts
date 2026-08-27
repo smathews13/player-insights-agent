@@ -16,6 +16,12 @@ import { describeSql, runMigrations, type SchemaStatementFailure } from '../lib/
 import { buildMigrations } from '../lib/migrations';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer';
+import {
+  bindServingMlflowTraceId,
+  isMlflowTraceId,
+  servingMlflowTraceId,
+  withoutUntracedProcess,
+} from '../../shared/mlflow-trace-id';
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, carriesEvidence, proseOnlyAnswer } from '../../shared/prose-only-answer';
@@ -897,14 +903,8 @@ function appWarehouseId() {
   return (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
 }
 
-/** MLflow's own trace ids; `trace-<uuid>` is the agent's local fallback and is not one. */
-const MLFLOW_TRACE_ID = /^tr-[0-9a-f]+$/i;
-
-/**
- * Names the MLflow trace behind an answer, when there is one.
- */
 export function mlflowReference(traceId: string, experimentId: string) {
-  if (!MLFLOW_TRACE_ID.test(traceId)) return null;
+  if (!isMlflowTraceId(traceId)) return null;
   const named = experimentId.trim();
   const host = workspaceHost();
   const url =
@@ -918,20 +918,25 @@ export function mlflowReference(traceId: string, experimentId: string) {
 // Defined in shared/representative-answer.ts alongside the answer it describes,
 // and re-exported here because that is where callers already import it from.
 export { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer';
+export {
+  bindServingMlflowTraceId,
+  isMlflowTraceId,
+  servingMlflowTraceId,
+  withoutUntracedProcess,
+} from '../../shared/mlflow-trace-id';
 
 /**
  * Marks any answer that did not come from a traced agent run.
  *
- * The signal is the trace id, which is the one thing only a live answer can
- * produce: `agent.py` sets `trace.id` from the active MLflow span and falls
- * back to `trace-<uuid>` when there is none, and `mlflowReference` already
- * relies on that shape. Deriving the caveat from it instead of from a second
- * `isCanned` flag means a canned answer added later cannot be shipped without
- * the disclosure: there is nothing to remember to set.
+ * The signal is the trace id, which is the one thing only a recorded run can
+ * produce: `agent.py` sets `trace.id` from the bound MLflow span, and anything
+ * that is not `tr-<hex>` is treated as untraced. `mlflowReference` already
+ * refuses to link those. Deriving the caveat from the same predicate means a
+ * later answer without a real id cannot be shipped without the disclosure.
  *
  * An answer carrying no evidence at all is left alone, and that is not a hole
- * in the rule. The caveat's sentence is about where the figures, SQL and stage
- * timings came from, so putting it on an answer that has none of them tells a
+ * in the rule. The caveat's sentence is about whether the run can be opened in
+ * MLflow, so putting it on an answer that has no figures, SQL or stages tells a
  * reader there is a stored demo response on the screen when what is on the
  * screen is prose and four empty sections. The prose-only path says what it is
  * in its own words. See shared/prose-only-answer.ts.
@@ -945,7 +950,7 @@ export function discloseAnswerProvenance<
     sql?: string;
   },
 >(answer: T): T {
-  if (MLFLOW_TRACE_ID.test(answer.trace.id)) return answer;
+  if (isMlflowTraceId(answer.trace.id)) return answer;
   if (!carriesEvidence(answer)) return answer;
   if (answer.caveats.includes(REPRESENTATIVE_ANSWER_CAVEAT)) return answer;
   return { ...answer, caveats: [REPRESENTATIVE_ANSWER_CAVEAT, ...answer.caveats] };
@@ -966,7 +971,7 @@ export function discloseExecutingIdentity<T extends { caveats: string[]; trace: 
   ranAsSignedInUser: boolean
 ): T {
   if (ranAsSignedInUser) return answer;
-  if (!MLFLOW_TRACE_ID.test(answer.trace.id)) return answer;
+  if (!isMlflowTraceId(answer.trace.id)) return answer;
   if (answer.caveats.includes(SERVICE_PRINCIPAL_FALLBACK_CAVEAT)) return answer;
   return { ...answer, caveats: [SERVICE_PRINCIPAL_FALLBACK_CAVEAT, ...answer.caveats] };
 }
@@ -1057,6 +1062,10 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     const clarification = ClarificationSchema.safeParse(record.clarification);
     const asked = clarification.success ? TraceDetailSchema.safeParse(clarification.data.trace) : null;
     if (clarification.success && asked?.success) {
+      const recorded = isMlflowTraceId(asked.data.id);
+      const process = recorded
+        ? asked.data
+        : { ...asked.data, stages: [], totalMs: 0, toolCalls: 0 };
       return {
         ...identity,
         state: 'trace',
@@ -1065,15 +1074,14 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
         narrative: clarification.data.reason,
         sql: '',
         sources: [],
-        // A clarification carries no caveats and none are invented for it: the
-        // turn produced a question rather than a figure, so there is nothing here
-        // for a caveat to qualify.
         caveats: [],
-        trace: asked.data,
-        toolStages: toolStagesFromTrace(asked.data.stages),
-        mlflow: mlflowReference(asked.data.id, experimentId),
+        trace: process,
+        toolStages: recorded ? toolStagesFromTrace(asked.data.stages) : [],
+        mlflow: recorded ? mlflowReference(asked.data.id, experimentId) : null,
         benchmark: null,
-        note: 'This turn ended in a question back to the user rather than an answer, so the stages stop where it asked.',
+        note: recorded
+          ? 'This turn ended in a question back to the user rather than an answer, so the stages stop where it asked.'
+          : 'No MLflow trace was recorded for this turn, so there is no run timeline to show.',
         undeclaredKeys: [],
         runtimeUsed,
       };
@@ -1103,6 +1111,9 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     );
   }
 
+  const recorded = isMlflowTraceId(trace.data.id);
+  const process = recorded ? trace.data : { ...trace.data, stages: [], totalMs: 0, toolCalls: 0 };
+
   return {
     ...identity,
     state: 'trace',
@@ -1122,12 +1133,13 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     // half-shaped one read straight off a drifted record would render as a
     // labelled fact with nothing beside the label.
     ...(answer.success && answer.data.derivation.length > 0 ? { derivation: answer.data.derivation } : {}),
-    trace: trace.data,
-    toolStages: toolStagesFromTrace(trace.data.stages),
-    mlflow: mlflowReference(trace.data.id, experimentId),
+    trace: process,
+    toolStages: recorded ? toolStagesFromTrace(trace.data.stages) : [],
+    mlflow: recorded ? mlflowReference(trace.data.id, experimentId) : null,
     benchmark: null,
-    note:
-      mode === 'representative'
+    note: !recorded
+      ? 'No MLflow trace was recorded for this answer, so there is no run timeline to show.'
+      : mode === 'representative'
         ? 'This run was answered offline from the representative dataset, so these are reference stages rather than a live agent run.'
         : '',
     undeclaredKeys: answer.success ? undeclaredAnswerKeys(answer.data) : [],
@@ -4352,10 +4364,13 @@ export function setupInsightsRoutes(
         // not answer, with the figures of a different question, over HTTP 200.
         const clarification = extractClarification(endpointResult);
         if (clarification) {
+          const honestClarification = withoutUntracedProcess(
+            bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
+          );
           const clarificationResponse = {
             type: 'clarification' as const,
             mode: 'live' as const,
-            clarification,
+            clarification: honestClarification,
           };
           await safeQuery(
             appkit,
@@ -4370,13 +4385,13 @@ export function setupInsightsRoutes(
               'assistant',
               clarification.question,
               JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
-              clarification.trace.id,
+              honestClarification.trace.id,
               ...executionIdentityColumns(email, executionIdentityClaim(identity)),
             ]
           );
           await settleRun(appkit, admission, {
             to: 'CLARIFICATION_REQUIRED',
-            traceId: clarification.trace.id,
+            traceId: honestClarification.trace.id,
             messageId: `msg-${clarification.id}`,
           });
           reply.json(clarificationResponse);
@@ -4384,19 +4399,29 @@ export function setupInsightsRoutes(
         }
         const structuredAnswer = extractStructuredAnswer(endpointResult);
         const liveText = extractLiveText(endpointResult);
+        const platformTraceId = servingMlflowTraceId(endpointResult);
         if (structuredAnswer) {
           // Everything a reader will see came back from this run:
           // `LiveAnswerSchema` requires the figures, sources, SQL and trace, so
           // there is nothing here for the app to have filled in. This is the
           // only path allowed to say 'live', and saying it here is what makes
           // the silence on the path below mean something.
-          answer = attachRecordedStages({ ...structuredAnswer, mode: 'live', provenance: 'live' }, collectedStages);
+          //
+          // Local stream stages are attached only after a real MLflow id is on
+          // the answer. Grafting them onto `trace-<uuid>` is how a 77s Ask
+          // drew a Gantt with no backend connector.
+          const withPlatform = bindServingMlflowTraceId(
+            { ...structuredAnswer, mode: 'live', provenance: 'live' },
+            platformTraceId
+          );
+          answer = attachRecordedStages(withPlatform, collectedStages);
         } else if (liveText) {
           // The endpoint replied in prose and sent no result contract. Its
           // words are kept and nothing is put under them -- except the steps
-          // the stream already reported. Those used to be dropped here, which
-          // is why a failed run that had taken many tools stored a card that
-          // said "no steps".
+          // the stream already reported, and only when serving also handed
+          // back a real MLflow id. Those used to be stored unconditionally,
+          // which is why a failed run that had taken many tools stored a card
+          // that looked traced with nothing in MLflow.
           //
           // This used to build the answer on top of the stored demo answer, so
           // the figures, charts, sources, SQL and stage timings a reader saw
@@ -4409,11 +4434,17 @@ export function setupInsightsRoutes(
           // `provenance` is 'live' and that is not a downgrade of the claim: it
           // means every reader-facing part came from this run, which is now
           // true here because there are no parts that did not.
-          answer = {
-            ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
-            mode: 'live',
-            provenance: 'live',
-          };
+          answer = attachRecordedStages(
+            bindServingMlflowTraceId(
+              {
+                ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
+                mode: 'live',
+                provenance: 'live',
+              },
+              platformTraceId
+            ),
+            collectedStages
+          );
         } else {
           // Not a warning. The app and the model version have drifted apart,
           // which is two artifacts released separately and in either order, and
@@ -4554,7 +4585,10 @@ export function setupInsightsRoutes(
       // Disclosed on the way out rather than only where the fallback is built,
       // so a stored answer reaching here by any route is covered rather than
       // whichever ones somebody remembered.
-      const disclosed = discloseExecutingIdentity(discloseAnswerProvenance(answer), ranAsSignedInUser);
+      const disclosed = discloseExecutingIdentity(
+        withoutUntracedProcess(discloseAnswerProvenance(answer)),
+        ranAsSignedInUser
+      );
       // Not `safeQuery`, whose contract is that a failed write does not change
       // the response. It does change this one. This row IS the run: `/api/runs`
       // derives conversation runs from stored answers, so when the write is lost

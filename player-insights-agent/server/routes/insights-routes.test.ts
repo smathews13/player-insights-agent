@@ -3474,6 +3474,54 @@ describe('a canned answer discloses that no live query produced it', () => {
       await app.close();
     }
   });
+
+  it('strips the process view off a live answer that has no MLflow id', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const payload = JSON.parse(JSON.stringify(servingResponses.liveAnswerResponse)) as Record<string, unknown>;
+    const outputs = payload.custom_outputs as { answer: { trace: { id: string; stages: unknown[] } } };
+    outputs.answer.trace.id = 'trace-local';
+    const app = await startInsightsApp(() => Promise.resolve(payload), memoryLakebase());
+
+    try {
+      const answered = await app.ask({
+        conversationId: 'conv-untraced-process',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+
+      expect(answered.caveats).toContain(REPRESENTATIVE_ANSWER_CAVEAT);
+      expect((answered.trace as { id: string }).id).toBe('trace-local');
+      expect((answered.trace as { stages: unknown[] }).stages).toEqual([]);
+      expect((answered.trace as { totalMs: number; toolCalls: number }).totalMs).toBe(0);
+      expect((answered.trace as { toolCalls: number }).toolCalls).toBe(0);
+      expect(answered.figures).toEqual(servingResponses.liveAnswerResponse.custom_outputs.answer.figures);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('recovers the MLflow id from the serving envelope and keeps the process view', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const payload = JSON.parse(JSON.stringify(servingResponses.liveAnswerResponse)) as Record<string, unknown>;
+    const outputs = payload.custom_outputs as { answer: { trace: { id: string } } };
+    outputs.answer.trace.id = 'trace-local';
+    payload.databricks_output = { databricks_request_id: 'tr-0123456789abcdef0123456789abcdef' };
+    const app = await startInsightsApp(() => Promise.resolve(payload), memoryLakebase());
+
+    try {
+      const answered = await app.ask({
+        conversationId: 'conv-recovered-trace',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+
+      expect(answered.caveats).not.toContain(REPRESENTATIVE_ANSWER_CAVEAT);
+      expect((answered.trace as { id: string }).id).toBe('tr-0123456789abcdef0123456789abcdef');
+      expect((answered.trace as { stages: unknown[] }).stages.length).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 /**
@@ -3780,7 +3828,7 @@ describe('an answer says which of its parts came from the run', () => {
     }
   });
 
-  it('keeps the streamed steps on a prose reply so the card can show where the run broke', async () => {
+  it('does not keep streamed steps on a prose reply that has no MLflow id', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const transport: ServingTransport = ({ onStage }) => {
       onStage?.({
@@ -3817,15 +3865,61 @@ describe('an answer says which of its parts came from the run', () => {
         prompt: NONTRIVIAL_QUESTION,
         executePlan: true,
       });
-      const stages = (answered.trace as { stages: { id: string; status: string }[] }).stages;
-      expect(stages.map((stage) => [stage.id, stage.status])).toEqual([
-        ['step-1', 'complete'],
-        ['step-2', 'failed'],
-      ]);
+      expect((answered.trace as { stages: unknown[] }).stages).toEqual([]);
       expect((answered.caveats as string[]).some((caveat) => caveat.includes('stopped after 2 steps'))).toBe(true);
       expect((answered.caveats as string[]).some((caveat) => caveat.includes('no tool steps were recorded'))).toBe(
         false
       );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('keeps streamed steps on a prose reply once serving recorded an MLflow id', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const transport: ServingTransport = ({ onStage }) => {
+      onStage?.({
+        id: 'step-1',
+        name: 'Chose the next step',
+        kind: 'agent',
+        status: 'complete',
+        start: 0,
+        duration: 12,
+        calls: 1,
+        input: '',
+        output: 'data_genie',
+      });
+      onStage?.({
+        id: 'step-2',
+        name: 'Querying governed data',
+        kind: 'tool',
+        status: 'running',
+        start: 12,
+        duration: 40,
+        calls: 0,
+        input: '{"question":"x"}',
+        output: '',
+      });
+      return Promise.resolve({
+        output: [{ content: [{ type: 'output_text', text: 'VLH Online leads the last 30 days.' }] }],
+        databricks_output: { databricks_request_id: 'tr-0123456789abcdef0123456789abcdef' },
+      });
+    };
+    const app = await startInsightsApp(transport, memoryLakebase());
+
+    try {
+      const answered = await app.ask({
+        conversationId: 'conv-prov-prose-traced',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      const stages = (answered.trace as { stages: { id: string; status: string }[] }).stages;
+      expect((answered.trace as { id: string }).id).toBe('tr-0123456789abcdef0123456789abcdef');
+      expect(stages.map((stage) => [stage.id, stage.status])).toEqual([
+        ['step-1', 'complete'],
+        ['step-2', 'failed'],
+      ]);
+      expect(answered.caveats).not.toContain(REPRESENTATIVE_ANSWER_CAVEAT);
     } finally {
       await app.close();
     }

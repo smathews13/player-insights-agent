@@ -13,6 +13,7 @@ import json
 import re
 from types import SimpleNamespace
 
+import mlflow
 import pytest
 from mlflow.types.responses import ResponsesAgentRequest
 from mlflow.types.responses import ResponsesAgentRequest as _RawRequest
@@ -4783,10 +4784,9 @@ def test_the_trace_id_is_read_while_a_span_is_open():
     """`trace-<uuid>` is not a cosmetic fallback: the app reads it as provenance.
 
     `discloseAnswerProvenance` in the server marks any answer whose trace id is
-    not MLflow's own `tr-<hex>` as not having come from a traced run and adds a
-    representative-data caveat. Reading the id after the agent's span had closed
-    produced that fallback whenever the agent's own span was the root, which
-    stamps a live answer as canned.
+    not MLflow's own `tr-<hex>` as not having come from a traced run. Reading
+    the id after the agent's span had closed produced that fallback whenever
+    the agent's own span was the root, which stamps a live answer as canned.
     """
 
     response = ask(build(ScriptedLlm("Done.")))
@@ -4794,6 +4794,30 @@ def test_the_trace_id_is_read_while_a_span_is_open():
     trace_id = response.custom_outputs["answer"]["trace"]["id"]
     assert trace_id.startswith("tr-"), trace_id
     assert not trace_id.startswith("trace-")
+
+
+def test_the_trace_id_is_read_from_the_bound_span_when_contextvars_are_empty(monkeypatch):
+    """Serving can resume the generator with no current MLflow span.
+
+    `_trace_id` used to call `get_current_active_span()`, which is None in that
+    case, and mint `trace-<uuid>`. The app then disclosed a live 77s answer as
+    untraced while still drawing the local RunLog Gantt.
+    """
+
+    monkeypatch.setattr(mlflow, "get_current_active_span", lambda: None)
+    span = SimpleNamespace(trace_id="tr-0123456789abcdef0123456789abcdef")
+    runtime = build(ScriptedLlm("Done."))
+    assert runtime._trace_id(span) == "tr-0123456789abcdef0123456789abcdef"
+
+
+def test_the_trace_id_is_empty_when_mlflow_recorded_nothing(monkeypatch):
+    """An invented `trace-<uuid>` is what made the card look recorded."""
+
+    monkeypatch.setattr(mlflow, "get_current_active_span", lambda: None)
+    monkeypatch.setattr(agent, "_last_active_trace_id", lambda: "")
+    runtime = build(ScriptedLlm("Done."))
+    assert runtime._trace_id(SimpleNamespace(trace_id=None)) == ""
+    assert runtime._trace_id(None) == ""
 
 
 # ---------------------------------------------------------------------------

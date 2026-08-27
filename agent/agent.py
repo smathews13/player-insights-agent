@@ -1955,6 +1955,52 @@ def _salvaged_synthesis(text: str, findings: str) -> Synthesis:
     )
 
 
+#: MLflow's own trace ids. Kept in lockstep with `isMlflowTraceId` in
+#: `player-insights-agent/shared/mlflow-trace-id.ts`. A local `trace-<uuid>` is
+#: deliberately not one: the app will not paint a process view for it.
+_MLFLOW_TRACE_ID = re.compile(r"^tr-[0-9a-f]+$", re.I)
+
+
+def _is_mlflow_trace_id(value: object) -> bool:
+    return isinstance(value, str) and bool(_MLFLOW_TRACE_ID.match(value.strip()))
+
+
+def _last_active_trace_id() -> str:
+    """The last id MLflow recorded, even after the current context was lost."""
+
+    owners: list[object] = [mlflow]
+    tracing = getattr(mlflow, "tracing", None)
+    if tracing is not None:
+        owners.append(tracing)
+    for owner in owners:
+        for name in ("get_last_active_trace_id", "get_active_trace_id"):
+            reader = getattr(owner, name, None)
+            if not callable(reader):
+                continue
+            try:
+                value = reader()
+            except Exception:  # noqa: BLE001 - missing tracing is not a turn failure
+                continue
+            text = str(value or "").strip()
+            if text:
+                return text
+    return ""
+
+
+def _recorded_mlflow_trace_id(*candidates: object) -> str:
+    """The first candidate that is a real MLflow id, else empty.
+
+    Empty rather than `trace-<uuid>`: an invented id is what made the card look
+    traced when MLflow had recorded nothing.
+    """
+
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if _is_mlflow_trace_id(text):
+            return text
+    return ""
+
+
 def _in_trace_context(work: Callable[..., Any], *arguments: Any) -> Callable[[], Any]:
     """Wrap work so a pool worker opens its spans inside the CALLER's trace.
 
@@ -5012,11 +5058,13 @@ Tables available to this analysis, with their columns:
                 parent_id=orchestrator.id,
                 depth=1,
             )
-            # Read WHILE A SPAN IS ACTIVE. Taken after the block, the only span
-            # this module opens has closed and the id falls back to a local one,
-            # which the app reads as "not from a traced run" and discloses as
-            # representative.
-            trace_id = self._trace_id(run_id)
+            # Read off THIS SPAN OBJECT, not `get_current_active_span()`.
+            # Serving drives this generator with `next()`; after `yield from`
+            # the tool batch, MLflow's contextvars can be empty even though
+            # this `with` is still open. Asking the current context then
+            # minted `trace-<uuid>`, which the app disclosed as untraced
+            # while still painting the local RunLog stages.
+            trace_id = self._trace_id(span)
             span.set_outputs(
                 {
                     "sources": log.sources,
@@ -5141,19 +5189,26 @@ Tables available to this analysis, with their columns:
             custom_outputs={"type": "answer", "answer": answer.model_dump()},
         )
 
-    def _trace_id(self, run_id: str) -> str:
-        """The MLflow trace this run belongs to, or a local id when it has none.
+    def _trace_id(self, span: object | None = None) -> str:
+        """The MLflow trace this run belongs to, or empty when none was recorded.
 
-        The `trace-` prefix is load-bearing downstream and is not cosmetic: the
-        app tests `trace.id` against MLflow's own `tr-<hex>` shape and, when it
-        does not match, marks the answer as not having come from a traced run
-        (`discloseAnswerProvenance` in server/routes/insights-routes.ts). So this
-        fallback must stay distinguishable, and must only fire when tracing
-        genuinely is not running. Call it where a span is active.
+        Only MLflow's own `tr-<hex>` shape is returned. The app treats anything
+        else as "not a recorded run" and will not paint a process view for it
+        (`isMlflowTraceId` in shared/mlflow-trace-id.ts). A local `trace-<uuid>`
+        used to be minted here when the current span context was empty; that id
+        is not in MLflow, and stamping it made the card look traced.
+
+        Prefer the span this `with` bound. `get_current_active_span()` is the
+        contextvar, which serving can lose across `yield from` and still leave
+        the bound span holding the real id.
         """
 
-        active_span = mlflow.get_current_active_span()
-        return str(getattr(active_span, "trace_id", None) or f"trace-{run_id}")
+        active = mlflow.get_current_active_span()
+        return _recorded_mlflow_trace_id(
+            getattr(span, "trace_id", None),
+            getattr(active, "trace_id", None) if active is not None else None,
+            _last_active_trace_id(),
+        )
 
     def _answer(
         self,

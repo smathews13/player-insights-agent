@@ -699,23 +699,70 @@ describe('which run the agent path draws', () => {
 
   it('draws the stored trace once the conversation is not running', () => {
     expect(
-      railStagesFor({ loading: false, runStopped: false, liveStages: [], answeredStages: answered, clarificationStages: [] })
+      railStagesFor({
+        loading: false,
+        runStopped: false,
+        liveStages: [],
+        answeredStages: answered,
+        clarificationStages: [],
+        recorded: true,
+      })
     ).toEqual(answered);
   });
 
   it('draws a clarification’s own trace when that is all the turn produced', () => {
     const asked = [stage({ id: 'step-1-clarify' })];
     expect(
-      railStagesFor({ loading: false, runStopped: false, liveStages: [], answeredStages: [], clarificationStages: asked })
+      railStagesFor({
+        loading: false,
+        runStopped: false,
+        liveStages: [],
+        answeredStages: [],
+        clarificationStages: asked,
+        recorded: true,
+      })
     ).toEqual(asked);
   });
 
-  it('keeps the streamed path when the stored answer arrived empty', () => {
-    // The prose-only route used to persist stages: [] over a run the stream had
-    // already narrated. Once loading went false, this function preferred that
-    // empty stored list and the process disappeared.
+  it('does not draw stored stages when the finished answer has no MLflow id', () => {
     expect(
-      railStagesFor({ loading: false, runStopped: false, liveStages: live, answeredStages: [], clarificationStages: [] })
+      railStagesFor({
+        loading: false,
+        runStopped: false,
+        liveStages: [],
+        answeredStages: answered,
+        clarificationStages: [],
+        recorded: false,
+      })
+    ).toEqual([]);
+  });
+
+  it('keeps the streamed path when a recorded answer arrived with an empty stored trace', () => {
+    // A recorded run can still persist stages: [] (a race with the final
+    // event). Once loading went false, preferring that empty stored list made
+    // the process disappear. Keep the socket's path only when MLflow recorded.
+    expect(
+      railStagesFor({
+        loading: false,
+        runStopped: false,
+        liveStages: live,
+        answeredStages: [],
+        clarificationStages: [],
+        recorded: true,
+      })
     ).toEqual(live);
+  });
+
+  it('does not keep streamed stages when the finished answer has no MLflow id', () => {
+    expect(
+      railStagesFor({
+        loading: false,
+        runStopped: false,
+        liveStages: live,
+        answeredStages: [],
+        clarificationStages: [],
+        recorded: false,
+      })
+    ).toEqual([]);
   });
 });

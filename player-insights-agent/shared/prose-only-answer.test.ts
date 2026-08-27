@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  attachRecordedStages,
   carriesEvidence,
   foldRecordedStages,
   proseOnlyAnswer,
@@ -106,6 +107,20 @@ describe('folding recorded steps', () => {
     ]);
     expect(folded.stages).toHaveLength(1);
     expect(folded.stages[0]?.status).toBe('complete');
+  });
+});
+
+describe('grafting stream stages onto a stored answer', () => {
+  const recorded = [{ id: 's1', name: 'Chose the next step', kind: 'agent', status: 'complete', duration: 9 }];
+
+  it('does not graft stream stages onto an answer with no MLflow id', () => {
+    const answer = { trace: { id: 'trace-local', stages: [] as unknown[], totalMs: 0, toolCalls: 0 } };
+    expect(attachRecordedStages(answer, recorded).trace.stages).toEqual([]);
+  });
+
+  it('does graft stream stages once a real MLflow id is present', () => {
+    const answer = { trace: { id: 'tr-abc', stages: [] as unknown[], totalMs: 0, toolCalls: 0 } };
+    expect(attachRecordedStages(answer, recorded).trace.stages).toHaveLength(1);
   });
 });
 

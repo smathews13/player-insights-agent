@@ -26,6 +26,7 @@
  * make, which is the class of bug this workstream is removing rather than a new
  * instance of it.
  */
+import { isMlflowTraceId } from './mlflow-trace-id';
 import { takeawayWhenTablesLanded, UNANSWERED_LINE } from './run-verdict';
 import { DEGRADED_ANSWER_MARKER } from './setup-remedies';
 
@@ -125,16 +126,22 @@ export function foldRecordedStages(stages: readonly unknown[]): {
 }
 
 /**
- * Put recorded steps onto an answer whose own trace is empty.
+ * Put recorded steps onto an answer whose own trace is empty, if MLflow recorded it.
  *
  * The prose-only path used to store `stages: []` even when the stream had
  * already reported a dozen tool calls. A later reader then saw "no steps"
- * over a run they had watched fill in. This is the restore: keep the words,
- * keep the emptiness of figures and SQL, and keep the path that actually ran.
+ * over a run they had watched fill in. Restoring those steps is still right
+ * when the run has a real MLflow id. Without one, grafting them on is how a
+ * live Ask drew a Gantt that could not be opened in MLflow.
  */
 export function attachRecordedStages<
-  T extends { trace: { stages: unknown[]; totalMs?: number; toolCalls?: number } },
+  T extends { trace: { id?: string; stages: unknown[]; totalMs?: number; toolCalls?: number } },
 >(answer: T, recorded: readonly unknown[]): T {
+  // Local stream stages without an MLflow id are exactly the split this helper
+  // used to create: a Gantt that looks recorded and a Keep in mind line that
+  // says it was not. The live rail can still narrate the run; the stored answer
+  // may not.
+  if (!isMlflowTraceId(answer.trace.id)) return answer;
   if ((answer.trace.stages?.length ?? 0) > 0 || recorded.length === 0) return answer;
   const folded = foldRecordedStages(recorded);
   return {
