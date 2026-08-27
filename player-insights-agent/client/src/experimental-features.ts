@@ -47,6 +47,17 @@ export interface ExperimentalFeatures {
    * preference into a way to reopen a control an administrator closed.
    */
   egressControls: boolean;
+  /**
+   * Service-principal identities: the Settings → Identity pane, grayed until
+   * this is on — same pattern as Benchmarking's MLflow cluster.
+   *
+   * THIS FLAG IS STILL ONLY A BROWSER PREFERENCE. The switch on Experimental
+   * also writes the deployment-wide pivot (`sp-identity-enabled`) so warehouse,
+   * Genie, and agent calls actually run as the assigned persona. Unassigned
+   * people stay on OAuth. Turning this off in one browser grays that pane here;
+   * the PUT beside it is what turns the pivot off for everybody.
+   */
+  spIdentities: boolean;
 }
 
 /**
@@ -56,12 +67,14 @@ export interface ExperimentalFeatures {
 export const EXPERIMENTAL_FEATURE_KEYS: Readonly<Record<keyof ExperimentalFeatures, string>> = {
   benchmarkLab: 'pia.experimental.benchmark-lab',
   egressControls: 'pia.experimental.egress-controls',
+  spIdentities: 'pia.experimental.sp-identities',
 };
 
 /** What a browser that has never been asked gets. */
 export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
   benchmarkLab: false,
   egressControls: false,
+  spIdentities: false,
 };
 
 /**
@@ -117,6 +130,7 @@ export function readExperimentalFeatures(
     return {
       benchmarkLab: enabled(store.getItem(EXPERIMENTAL_FEATURE_KEYS.benchmarkLab)),
       egressControls: enabled(store.getItem(EXPERIMENTAL_FEATURE_KEYS.egressControls)),
+      spIdentities: enabled(store.getItem(EXPERIMENTAL_FEATURE_KEYS.spIdentities)),
     };
   } catch {
     return { ...NO_EXPERIMENTS };
@@ -141,6 +155,7 @@ export function persistExperimentalFeatures(
   try {
     store.setItem(EXPERIMENTAL_FEATURE_KEYS.benchmarkLab, features.benchmarkLab ? ENABLED : 'false');
     store.setItem(EXPERIMENTAL_FEATURE_KEYS.egressControls, features.egressControls ? ENABLED : 'false');
+    store.setItem(EXPERIMENTAL_FEATURE_KEYS.spIdentities, features.spIdentities ? ENABLED : 'false');
     return true;
   } catch {
     return false;
@@ -170,4 +185,15 @@ export function showsBenchmarkLab(features: ExperimentalFeatures): boolean {
  */
 export function showsEgressControls(features: ExperimentalFeatures): boolean {
   return features.egressControls;
+}
+
+/**
+ * Whether the Identity pane's persona controls are live.
+ *
+ * Grays the pane; it does not hide the rail item. An administrator who has not
+ * opted in still needs to find the surface and the note that tells them where
+ * the switch is.
+ */
+export function showsSpIdentities(features: ExperimentalFeatures): boolean {
+  return features.spIdentities;
 }

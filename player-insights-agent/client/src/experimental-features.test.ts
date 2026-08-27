@@ -6,6 +6,7 @@ import {
   readExperimentalFeatures,
   showsBenchmarkLab,
   showsEgressControls,
+  showsSpIdentities,
   type PreferenceStore,
 } from './experimental-features';
 
@@ -165,9 +166,29 @@ describe('deciding whether to draw the egress panel', () => {
 
   it('does not turn the other experiment on when it is written', () => {
     const store = fakeStore();
-    persistExperimentalFeatures({ benchmarkLab: false, egressControls: true }, store);
+    persistExperimentalFeatures({ ...NO_EXPERIMENTS, egressControls: true }, store);
     const features = readExperimentalFeatures(store);
     expect(features.egressControls).toBe(true);
     expect(features.benchmarkLab).toBe(false);
+    expect(features.spIdentities).toBe(false);
+  });
+});
+
+describe('deciding whether the Identity pane is live', () => {
+  it('is off for a browser that has not opted in', () => {
+    expect(NO_EXPERIMENTS.spIdentities).toBe(false);
+    expect(showsSpIdentities(readExperimentalFeatures(fakeStore()))).toBe(false);
+  });
+
+  it('is on once its own key says so', () => {
+    const store = fakeStore({ [EXPERIMENTAL_FEATURE_KEYS.spIdentities]: 'true' });
+    expect(showsSpIdentities(readExperimentalFeatures(store))).toBe(true);
+  });
+
+  it('does not turn on because another experiment did', () => {
+    const store = fakeStore({ [EXPERIMENTAL_FEATURE_KEYS.benchmarkLab]: 'true' });
+    const features = readExperimentalFeatures(store);
+    expect(features.benchmarkLab).toBe(true);
+    expect(features.spIdentities).toBe(false);
   });
 });

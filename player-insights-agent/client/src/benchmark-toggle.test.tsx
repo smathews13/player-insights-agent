@@ -188,6 +188,9 @@ describe('flipping it is wired to something', () => {
     expect(source).toMatch(/showsBenchmarkLab/);
     expect(source).toMatch(/setFeature\('benchmarkLab'/);
     expect(source).toMatch(/setFeature\('egressControls'/);
+    expect(source).toMatch(/setFeature\('spIdentities'/);
+    expect(source).toMatch(/persistSpIdentityMode/);
     expect(source.indexOf("setFeature('benchmarkLab'")).toBeLessThan(source.indexOf("setFeature('egressControls'"));
+    expect(source.indexOf("setFeature('egressControls'")).toBeLessThan(source.indexOf("setFeature('spIdentities'"));
   });
 });

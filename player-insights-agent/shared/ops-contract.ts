@@ -1,3 +1,5 @@
+import type { CostBudgets } from './cost-budgets';
+
 /**
  * What the three Ops blocks answer with, declared once for both sides.
  *
@@ -202,6 +204,15 @@ export interface OpsCostPayload {
   tiles: CostTile[];
   /** Component-by-component attribution, never a cross-quality total. */
   perQuestion: QuestionCostAttribution;
+  /**
+   * Nominal budgets the operator set. Independent of billing rows: a missing
+   * spend figure does not become $0.00, and a budget may still be stored.
+   * `total` is the app cap; `resources` is keyed by tile id. They are not
+   * summed, and Cost does not invent a total spend to compare `total` against.
+   */
+  budgets: CostBudgets;
+  /** False when Lakebase could not be read, so Save retries that load. */
+  budgetsReadable: boolean;
 }
 
 /**

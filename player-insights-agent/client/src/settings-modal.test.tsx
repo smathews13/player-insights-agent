@@ -8,10 +8,10 @@ import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
-const FEATURES = { benchmarkLab: false, egressControls: true };
+const FEATURES = { benchmarkLab: false, egressControls: true, spIdentities: false };
 
 function render(
-  section: 'roles' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
+  section: 'roles' | 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
   role: RoleResolution = roleFrom(NORMAL_IDENTITY)
 ) {
   return renderToStaticMarkup(
@@ -30,7 +30,15 @@ describe('Settings modal', () => {
     // the server enforce that, and neither needs announcing.
     expect(markup).not.toContain('Admin only');
     expect(markup).not.toContain('Enforced on the server');
-    for (const label of ['Roles', 'Runtime', 'Environment', 'Appearance', 'Egress controls', 'Experimental']) {
+    for (const label of [
+      'Roles',
+      'Identity',
+      'Runtime',
+      'Environment',
+      'Appearance',
+      'Egress controls',
+      'Experimental',
+    ]) {
       expect(markup).toContain(`>${label}</button>`);
     }
     expect(markup).not.toContain('>Benchmarking</button>');
@@ -59,6 +67,33 @@ describe('Settings modal', () => {
     expect(render('experimental')).not.toContain('>Apply Astrolabe tags</button>');
   });
 
+  it('puts personas on Identity, grayed until Experimental SP identities is on', () => {
+    const off = render('identity');
+    expect(off).toContain('data-testid="sp-identity-pane"');
+    expect(off).toContain('Turn SP identities on under Experimental');
+    expect(off).toContain('disabled=""');
+    expect(off).not.toContain('type="password"');
+    expect(off).not.toMatch(/secret value/i);
+    expect(off).not.toContain('>Save</button>');
+
+    const on = renderToStaticMarkup(
+      <SettingsPage
+        initialSection="identity"
+        features={{ benchmarkLab: false, egressControls: true, spIdentities: true }}
+        setFeature={() => {}}
+        role={roleFrom(NORMAL_IDENTITY)}
+      />
+    );
+    expect(on).toContain('Each named identity is a Databricks service principal');
+    expect(on).toContain('People using the app do not pick a persona on Ask');
+  });
+
+  it('puts the SP-identities switch on Experimental next to the others', () => {
+    const markup = render('experimental');
+    expect(markup).toContain('aria-label="Run assigned people as their service principal"');
+    expect(markup).toContain('People without an assignment still use OAuth');
+  });
+
   it('puts MLflow and bake-off controls on Experimental, disabled while Benchmarking is off', () => {
     const off = render('experimental');
     expect(off).toContain('MLflow experiment');
@@ -72,7 +107,7 @@ describe('Settings modal', () => {
     const on = renderToStaticMarkup(
       <SettingsPage
         initialSection="experimental"
-        features={{ benchmarkLab: true, egressControls: true }}
+        features={{ benchmarkLab: true, egressControls: true, spIdentities: false }}
         setFeature={() => {}}
         role={roleFrom(NORMAL_IDENTITY)}
       />
@@ -91,7 +126,15 @@ describe('Settings modal', () => {
   });
 
   it('renders every pane without router outlet context', () => {
-    for (const section of ['roles', 'runtime', 'environment', 'appearance', 'egress', 'experimental'] as const) {
+    for (const section of [
+      'roles',
+      'identity',
+      'runtime',
+      'environment',
+      'appearance',
+      'egress',
+      'experimental',
+    ] as const) {
       const markup = render(section);
       expect(markup).toContain('data-testid="settings-modal-overlay"');
       expect(markup).not.toContain('This view could not be displayed');

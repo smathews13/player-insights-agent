@@ -55,7 +55,8 @@ import {
   type TableProbe,
   type WorkspaceRead,
 } from '../lib/monitoring-grants';
-import { accessDependenciesFrom, statementRunnerFor, forwardedUserToken } from './access-verification';
+import { accessDependenciesFrom, statementRunnerFor } from './access-verification';
+import { executionToken } from '../lib/execution-credential';
 import { mlflowReference, userEmail, PLAN_APPROVAL_MESSAGE, type InsightsAppKit } from './insights-routes';
 import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
@@ -547,7 +548,8 @@ export function questionRows(rows: Record<string, unknown>[]): Record<string, un
  * "partial" flag on the response can only under-report the truncation, never
  * invent one.
  */
-export function rangeTotalsFrom(row: Record<string, unknown> | undefined,
+export function rangeTotalsFrom(
+  row: Record<string, unknown> | undefined,
   page: MonitoringQuestion[]
 ): { asked: number; people: number; peopleList: string[] } {
   const asked = integer(row?.asked_total);
@@ -695,7 +697,7 @@ async function readLedger(appkit: InsightsAppKit, answerIds: string[]): Promise<
 function probeForAdmin(req: Request): TableProbe | null {
   const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   const warehouseId = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   if (!host || !warehouseId || !token) return null;
   return statementRunnerFor({ host, token, warehouseId });
 }

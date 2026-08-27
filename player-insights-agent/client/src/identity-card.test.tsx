@@ -83,6 +83,24 @@ describe('IdentityCard', () => {
     expect(text).not.toMatch(/dependency checks and your own access are separate/i);
   });
 
+  it('says when an assigned persona could not be used, instead of pretending it was', () => {
+    const text = textOf({
+      identity: {
+        ...IDENTITY,
+        spIdentity: {
+          enabled: true,
+          minting: { available: false, detail: 'minting unavailable' },
+          assigned: { id: 'p1', displayName: 'Finance analyst', clientId: 'aaaaaaaa-0000-4000-8000-000000000001' },
+          executingAs: 'oauth',
+          fallbackReason: 'This app cannot mint a token for another service principal. Questions stay on OAuth.',
+        },
+      },
+      failed: false,
+    });
+    expect(text).toContain('Questions stay on OAuth');
+    expect(text).toContain('someone');
+  });
+
   /**
    * THE REMEDY IN `scope-refusal.ts` NAMES THIS CARD. Three of its branches end
    * "The Connected as section of the Connections page lists what your sign-in
@@ -338,9 +356,45 @@ describe('questionsRunAs', () => {
   });
 
   it('never prints the internal mode string at a reader', () => {
-    for (const mode of ['signed_in_user', 'app_service_principal', 'on_behalf_of_group']) {
+    for (const mode of [
+      'signed_in_user',
+      'app_service_principal',
+      'on_behalf_of_group',
+      'assigned_service_principal',
+    ]) {
       expect(questionsRunAs({ ...IDENTITY, analyticalExecution: { mode, verified: true } })).not.toContain('_');
     }
+  });
+
+  it('names the assigned persona when that is who questions run as', () => {
+    expect(
+      questionsRunAs({
+        ...IDENTITY,
+        analyticalExecution: { mode: 'assigned_service_principal', verified: true },
+        spIdentity: {
+          enabled: true,
+          minting: { available: true, detail: 'ok' },
+          assigned: { id: 'p1', displayName: 'Finance analyst', clientId: 'aaaaaaaa-0000-4000-8000-000000000001' },
+          executingAs: 'service_principal',
+          fallbackReason: null,
+        },
+      })
+    ).toBe('Finance analyst');
+  });
+
+  it('names the reader when the pivot is on but this person has no persona', () => {
+    expect(
+      questionsRunAs({
+        ...IDENTITY,
+        spIdentity: {
+          enabled: true,
+          minting: { available: true, detail: 'ok' },
+          assigned: null,
+          executingAs: 'oauth',
+          fallbackReason: null,
+        },
+      })
+    ).toBe('someone@example.com');
   });
 
   it('returns nothing at all when there is no identity, so no row is drawn', () => {

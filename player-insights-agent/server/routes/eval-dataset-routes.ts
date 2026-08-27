@@ -13,13 +13,18 @@ import { formatConversationTurns } from '../../shared/eval-conversation';
 import { DEFAULT_LIVE_SAMPLE_RATE } from '../../shared/eval-live-scoring';
 import { recordAdminAction } from '../lib/admin-roles';
 import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
-import { readEvalDataset, readEvalDatasetEnvelope, writeEvalDataset, writeLastGenieRun } from '../lib/eval-dataset-store';
+import {
+  readEvalDataset,
+  readEvalDatasetEnvelope,
+  writeEvalDataset,
+  writeLastGenieRun,
+} from '../lib/eval-dataset-store';
 import { patchFlywheelState, readFlywheelState } from '../lib/eval-flywheel-store';
 import { listLiveScores } from '../lib/eval-live-score-store';
 import { createGenieAsker, MissingSqlGateError, runGenieAccuracy } from '../lib/genie-accuracy';
 import { createSqlExecutor } from '../lib/genie-result-execute';
 import { probeWorkspaceMonitoring } from '../lib/live-monitoring';
-import { forwardedUserToken } from './access-verification';
+import { executionToken } from '../lib/execution-credential';
 import { servingInvocationPath, userEmail, type InsightsAppKit } from './insights-routes';
 import { SUITE_KINDS } from '../../shared/benchmark-lab-v3';
 import { readLabState } from '../lib/benchmark-lab-store';
@@ -237,7 +242,11 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           });
           return;
         }
-        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: aligned.guidelinesText }, actor);
+        const saved = await writeBenchmarkSettings(
+          appkit,
+          { ...settings, guidelinesText: aligned.guidelinesText },
+          actor
+        );
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-guidelines-aligned',
@@ -293,8 +302,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
             const client = new WorkspaceClient({});
             promotedPrompt = await promotePromptAlias(
               {
-                request: ({ method, path, payload }) =>
-                  workspaceApiRequest(client, { method, path, payload }),
+                request: ({ method, path, payload }) => workspaceApiRequest(client, { method, path, payload }),
               },
               { name: promptName, template }
             );
@@ -335,7 +343,8 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           actor,
           action: 'eval-agent-promoted',
           subject: 'eval-flywheel',
-          detail: `Next Ask will use ${parsed.data.endpoint}. Approver ${parsed.data.approver}. ${promotedPrompt?.note ?? ''}`.trim(),
+          detail:
+            `Next Ask will use ${parsed.data.endpoint}. Approver ${parsed.data.approver}. ${promotedPrompt?.note ?? ''}`.trim(),
         });
         res.json({ flywheel, promotedPrompt });
       } catch (error) {
@@ -356,8 +365,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
         const client = new WorkspaceClient({});
         session = await startLabelingSession(
           {
-            request: ({ method, path, payload }) =>
-              workspaceApiRequest(client, { method, path, payload }),
+            request: ({ method, path, payload }) => workspaceApiRequest(client, { method, path, payload }),
           },
           { name, experimentId: settings.experimentId }
         );
@@ -573,7 +581,9 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
     app.post('/api/admin/benchmarks/compare-history', async (req, res) => {
       const parsed = BakeOffHistorySchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ error: 'invalid_compare_history', message: 'That bake-off could not be saved to history.' });
+        res
+          .status(400)
+          .json({ error: 'invalid_compare_history', message: 'That bake-off could not be saved to history.' });
         return;
       }
       const actor = userEmail(req);
@@ -623,7 +633,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
         return;
       }
       const host = workspaceHost();
-      const token = forwardedUserToken(req);
+      const token = executionToken(req);
       if (!host || !token) {
         res.status(503).json({
           error: 'genie_accuracy_unavailable',

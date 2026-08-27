@@ -38,7 +38,7 @@ from typing import Any
 #: Bumped when what the gate ENFORCES changes, so a trace from an older model
 #: version cannot be read as having been through the current rules. Not the
 #: model version, which moves for unrelated reasons.
-POLICY_VERSION = "identity-policy/1"
+POLICY_VERSION = "identity-policy/2"
 
 # ---------------------------------------------------------------------------
 # The `custom_inputs` keys the app sends. Named here rather than in `agent.py`
@@ -53,12 +53,20 @@ RUN_ID_KEY = "run_id"
 #: The request asserts it is being made for a named human, whose token it
 #: forwarded. The only mode any version will now run.
 SIGNED_IN_USER = "signed_in_user"
+#: An admin-assigned service principal. The invoker token belongs to that
+#: principal's client id, not to a human email. The human is still recorded
+#: on the app side; this mode only names whose grants the data calls use.
+ASSIGNED_SERVICE_PRINCIPAL = "assigned_service_principal"
 #: A LABEL, NEVER AN ADMISSIBLE REQUEST. Kept so a record can state that a run
 #: was not attributed to a human; no longer a mode `verify` will let through.
 #: It used to be honoured by a version logged without a user auth policy, which
 #: is how a question could be answered from the customer's governed tables under
 #: this endpoint's own principal.
 SERVICE_PRINCIPAL = "service_principal"
+
+#: Modes this version will execute. Anything else is refused rather than run
+#: as the app's own principal.
+ADMISSIBLE_MODES = frozenset({SIGNED_IN_USER, ASSIGNED_SERVICE_PRINCIPAL})
 
 # ---------------------------------------------------------------------------
 # Failure codes. These are the identity half of the app's shared failure
@@ -216,7 +224,7 @@ def verify(
             ),
         )
 
-    if required.mode != SIGNED_IN_USER:
+    if required.mode not in ADMISSIBLE_MODES:
         return Refusal(
             code=IDENTITY_REQUIRED,
             detail=(
@@ -230,10 +238,10 @@ def verify(
         return Refusal(
             code=IDENTITY_REQUIRED,
             detail=(
-                "The request declared signed_in_user and named no user, so there is "
-                "nothing to hold the invoker against. The app sends the address it "
-                "resolved from x-forwarded-email; its absence means the app did not "
-                "resolve one and should not have called."
+                "The request named an identity mode and named no principal, so there is "
+                "nothing to hold the invoker against. For a signed-in user the app sends "
+                "the address it resolved from x-forwarded-email; for an assigned service "
+                "principal it sends that principal's application id."
             ),
         )
     if not observed:
@@ -291,7 +299,12 @@ def credentials_unavailable(detail: str = "") -> Refusal:
     )
 
 
-def effective_mode(*, user_authorization: bool, verified: bool) -> str:
+def effective_mode(
+    *,
+    user_authorization: bool,
+    verified: bool,
+    requested_mode: str = SIGNED_IN_USER,
+) -> str:
     """What the run is actually executing as, for the trace and the record.
 
     Distinct from the requested mode on purpose. They agree on every path that
@@ -299,7 +312,11 @@ def effective_mode(*, user_authorization: bool, verified: bool) -> str:
     where they do not.
     """
 
-    return SIGNED_IN_USER if (user_authorization and verified) else SERVICE_PRINCIPAL
+    if not (user_authorization and verified):
+        return SERVICE_PRINCIPAL
+    if requested_mode == ASSIGNED_SERVICE_PRINCIPAL:
+        return ASSIGNED_SERVICE_PRINCIPAL
+    return SIGNED_IN_USER
 
 
 def trace_attributes(
@@ -319,7 +336,9 @@ def trace_attributes(
     return {
         "identity.requested_mode": required.mode or "unset",
         "identity.effective_mode": effective_mode(
-            user_authorization=user_authorization, verified=verified
+            user_authorization=user_authorization,
+            verified=verified,
+            requested_mode=required.mode or SIGNED_IN_USER,
         ),
         "identity.verified": verified,
         "identity.policy_version": POLICY_VERSION,

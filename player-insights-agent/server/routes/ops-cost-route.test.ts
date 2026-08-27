@@ -142,6 +142,8 @@ describe('the ranged cost route', () => {
         expect.objectContaining({ id: 'genie', quality: 'unknown', amount: null }),
       ])
     );
+    expect(payload.budgets).toEqual({ total: null, resources: {} });
+    expect(payload.budgetsReadable).toBe(true);
   });
 
   it('shows each connected Genie space and Vector Search index even when billing is empty', async () => {
@@ -169,6 +171,11 @@ describe('the ranged cost route', () => {
               changed_by: 'sam',
             },
           ],
+        });
+      }
+      if (sql.includes('cost_budgets')) {
+        return Promise.resolve({
+          rows: [{ settings: { total: 250, resources: { 'app-compute': 40 } } }],
         });
       }
       return Promise.resolve({ rows: [] });
@@ -247,5 +254,7 @@ describe('the ranged cost route', () => {
       remedy: 'system_billing=astrolabe is on this app.',
     });
     expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
+    expect(payload.budgets).toEqual({ total: 250, resources: { 'app-compute': 40 } });
+    expect(payload.budgetsReadable).toBe(true);
   });
 });

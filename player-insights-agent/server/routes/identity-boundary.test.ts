@@ -24,7 +24,23 @@ function recordingStore() {
   };
 }
 
-async function startApp(lakebase: InsightsAppKit['lakebase'],
+/**
+ * Queries that name a person. The experimental SP-identity pivot reads
+ * deployment settings (and maybe a persona row) on the way through; those are
+ * not tenancy keys. Latency telemetry already had the same carve-out.
+ */
+function tenancyQueries(queries: { sql: string; params: unknown[] }[]) {
+  return queries.filter(
+    (entry) =>
+      !entry.sql.includes('request_latencies') &&
+      !entry.sql.includes('deployment_settings') &&
+      !entry.sql.includes('sp_personas') &&
+      !entry.sql.includes('sp_assignments')
+  );
+}
+
+async function startApp(
+  lakebase: InsightsAppKit['lakebase'],
   servingTransport: InsightsAppKit['servingTransport'] = () => Promise.reject(new Error('not used'))
 ) {
   const app = express();
@@ -141,7 +157,8 @@ describe('a deployed app with no forwarded identity', () => {
    * arrives without the header, and one mixed-case path from a script took the
    * container down.
    */
-  it.each(['/API/conversations', '/Api/Conversations', '/api/CONVERSATIONS'])('refuses %s, because Express routes to the same handler either way',
+  it.each(['/API/conversations', '/Api/Conversations', '/api/CONVERSATIONS'])(
+    'refuses %s, because Express routes to the same handler either way',
     async (path) => {
       const store = recordingStore();
       const app = await startApp(store.lakebase);
@@ -223,11 +240,10 @@ describe('a deployed app with a forwarded identity', () => {
     // The whole defect was that these collapsed into one bucket.
     // Latency telemetry also writes on every /api/ response, with GET as $1;
     // that is not a tenancy key and must not be counted as one.
-    expect(
-      store.queries
-        .filter((entry) => !entry.sql.includes('request_latencies'))
-        .map((entry) => entry.params[0])
-    ).toEqual(['first@example.example', 'second@example.example']);
+    expect(tenancyQueries(store.queries).map((entry) => entry.params[0])).toEqual([
+      'first@example.example',
+      'second@example.example',
+    ]);
   });
 
   it('reports the caller as signed in, not the app owner', async () => {
@@ -288,7 +304,10 @@ describe('a developer running the app locally', () => {
       await app.close();
     }
 
-    expect(store.queries[0]?.params).toEqual([DEVELOPMENT_IDENTITY]);
+    const read = tenancyQueries(store.queries).find((entry) =>
+      entry.sql.includes('FROM player_insights.conversations')
+    );
+    expect(read?.params).toEqual([DEVELOPMENT_IDENTITY]);
   });
 });
 
@@ -450,7 +469,7 @@ describe('one signed-in user cannot read another', () => {
     }
   );
 
-  it('opens another user\'s run when the caller is an administrator', async () => {
+  it("opens another user's run when the caller is an administrator", async () => {
     announceSeedAdmins(ALICE);
     const app = await startApp(twoTenantStore().lakebase);
 
@@ -541,9 +560,7 @@ describe('one signed-in user cannot read another', () => {
 describe('one signed-in user cannot write into another user\u2019s conversation', () => {
   beforeEach(() => void (process.env.NODE_ENV = 'production'));
 
-  function upload(app: { fetch: (path: string, init?: RequestInit) => Promise<Response> },
-    conversationId: string
-  ) {
+  function upload(app: { fetch: (path: string, init?: RequestInit) => Promise<Response> }, conversationId: string) {
     return app.fetch(`/api/conversations/${conversationId}/attachments`, {
       method: 'POST',
       headers: {
@@ -573,9 +590,7 @@ describe('one signed-in user cannot write into another user\u2019s conversation'
       // exists but belongs to someone else is itself a disclosure.
       expect(response.status).toBe(404);
       expect(await response.json()).toMatchObject({ error: 'conversation_not_found' });
-      expect(
-        statements.filter((sql) => sql.startsWith('INSERT') && !sql.includes('request_latencies'))
-      ).toEqual([]);
+      expect(statements.filter((sql) => sql.startsWith('INSERT') && !sql.includes('request_latencies'))).toEqual([]);
     } finally {
       await app.close();
     }
@@ -659,10 +674,12 @@ describe('an answer remains available when optional Postgres context cannot be r
     const app = await startApp(storeFailingOn(table), () => {
       invoked += 1;
       return Promise.resolve({
-        output: [{
-          type: 'message',
-          content: [{ type: 'output_text', text: `Stateless answer without ${missing}.` }],
-        }],
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: `Stateless answer without ${missing}.` }],
+          },
+        ],
       });
     });
 
@@ -687,12 +704,16 @@ describe('an answer remains available when optional Postgres context cannot be r
   });
 
   it('says in the logs that it answered statelessly, and why', async () => {
-    const app = await startApp(storeFailingOn('attachments'), () => Promise.resolve({
-      output: [{
-        type: 'message',
-        content: [{ type: 'output_text', text: 'Stateless answer.' }],
-      }],
-    }));
+    const app = await startApp(storeFailingOn('attachments'), () =>
+      Promise.resolve({
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: 'Stateless answer.' }],
+          },
+        ],
+      })
+    );
 
     try {
       await app.fetch('/api/insights/ask', {

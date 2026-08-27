@@ -89,6 +89,13 @@ import {
   refusedIdentityClaim,
   SIGNED_IN_USER,
 } from '../lib/identity-binding';
+import {
+  describeSpIdentity,
+  executionCredentialMiddleware,
+  executionToken,
+  overlayAssignedPersona,
+  servingIdentityFields,
+} from '../lib/execution-credential';
 import { consumeServingStream, TruncatedStreamError, type StageSink } from '../lib/serving-stream';
 import { createAskResponder } from '../lib/ask-responder';
 import { allowAstrolabeUserApiScopes } from '../lib/app-user-api-scopes';
@@ -1006,10 +1013,7 @@ function runWithoutTrace(
 }
 
 /** Stamps the runtime this Ask sent onto whatever we persist for the run. */
-function withAskRuntime<T extends Record<string, unknown>>(
-  body: T,
-  runtimeSettings: RuntimeSettings | undefined
-): T {
+function withAskRuntime<T extends Record<string, unknown>>(body: T, runtimeSettings: RuntimeSettings | undefined): T {
   return runtimeSettings ? { ...body, runtime_settings: runtimeSettings } : body;
 }
 
@@ -1898,8 +1902,7 @@ const CONVERSATION_VERDICT_JOIN = `
   ) verdict ON TRUE`;
 
 const CONVERSATION_LIST_COLUMNS =
-  'c.id, c.title, c.updated_at, c.user_email, ' +
-  'verdict.status, verdict.truncated, verdict.duration_ms';
+  'c.id, c.title, c.updated_at, c.user_email, ' + 'verdict.status, verdict.truncated, verdict.duration_ms';
 
 function conversationListQuery(email: string) {
   return sharedRail.shared
@@ -2248,7 +2251,7 @@ export function identityPayload(req: Request) {
  * to an actual question, not on a page anyone can load.
  */
 function analyticalExecution(req: Request, signedInAs: string): ExecutionIdentityClaim {
-  const decision = decideIdentity(req, { signedInAs, required: isDeployed() });
+  const decision = overlayAssignedPersona(decideIdentity(req, { signedInAs, required: isDeployed() }), req);
   return decision.ok ? executionIdentityClaim(decision) : refusedIdentityClaim();
 }
 
@@ -2362,7 +2365,7 @@ function warmWarehouseForArrival(warmup: WarehouseWarmup): void {
  * granted, while that reader already needs CAN RUN and CAN USE to ask Genie.
  */
 function warmGenieWarehousesForArrival(req: Request): void {
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   const host = workspaceHost();
   if (!token || !host) return;
   const { genieSpaces } = accessDependenciesFrom({ env: process.env });
@@ -2468,9 +2471,7 @@ export function createServingTransport(
       // With no reported stage and therefore no resumable work, one blocking
       // attempt is still the only route to an answer. This preserves the old
       // recovery for streams that fail before the agent reports doing anything.
-      console.warn(
-        `[serving] ${error.message} No stage reported work; asking once without streaming.`
-      );
+      console.warn(`[serving] ${error.message} No stage reported work; asking once without streaming.`);
       // `stream: true` lives inside the body, so it has to come back out or the
       // endpoint streams into a caller no longer reading events.
       const blocking = { ...payload, stream: false };
@@ -2552,6 +2553,13 @@ interface AskServingInputs {
   runtimeSettings?: RuntimeSettings;
   /** Promoted Prompt Registry guidance. Omitted when nothing has been promoted. */
   evalGuidance?: string;
+  /**
+   * Which identity-mode the agent gate should enforce. Defaults to signed-in
+   * user. Assigned service-principal turns send the persona client id as
+   * `expectedUser` and this mode so the gate holds the invoker against that
+   * principal rather than the human email.
+   */
+  identityMode?: string;
 }
 
 /**
@@ -2574,6 +2582,7 @@ export function buildAskServingBody({
   deadlineAt,
   runtimeSettings,
   evalGuidance,
+  identityMode,
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -2589,7 +2598,7 @@ export function buildAskServingBody({
   // nothing to hold its invoker against, so sending one without the other
   // would break the local path rather than securing it.
   if (expectedUser) {
-    custom_inputs.identity_mode = SIGNED_IN_USER;
+    custom_inputs.identity_mode = identityMode || SIGNED_IN_USER;
     custom_inputs.expected_user = expectedUser;
   }
 
@@ -3072,6 +3081,7 @@ export function setupInsightsRoutes(
     // throws instead of rejecting into an unhandled promise and exiting Node.
     answerRatherThanExit(app);
     app.use(requireIdentity);
+    app.use(executionCredentialMiddleware(appkit));
     if (options.rolesReady) {
       app.use((req, _res, next) => {
         if (!isAdminRoute(req.path)) {
@@ -3137,7 +3147,8 @@ export function setupInsightsRoutes(
      */
     app.get('/api/identity', async (req, res) => {
       const role = await rolePayload(appkit.lakebase, userEmail(req));
-      res.json({ ...identityPayload(req), ...role });
+      const spIdentity = await describeSpIdentity(req, appkit);
+      res.json({ ...identityPayload(req), ...role, spIdentity });
     });
 
     /**
@@ -3334,7 +3345,7 @@ export function setupInsightsRoutes(
         return;
       }
 
-      const userToken = forwardedUserToken(req)!;
+      const userToken = executionToken(req)!;
       const statementOptions = { host, token: userToken, warehouseId };
       const outcome = await verifyAccess(
         {
@@ -3438,11 +3449,11 @@ export function setupInsightsRoutes(
       const report = withStorageCheck(
         preflightFailure(
           agentEndpointMetadataCheck(endpointName, {
-          status: 'ok',
+            status: 'ok',
             detail:
               `The configured endpoint metadata is reachable${state ? ` (state ${state})` : ''}. ` +
               'This does not prove that the current principal may query it.',
-        }),
+          }),
           'No serving invocation was attempted. Endpoint visibility (CAN_VIEW) and query permission (CAN_QUERY) are separate, and dependencies remain unchecked.'
         ),
         lakebaseStorageCheck()
@@ -3838,7 +3849,7 @@ export function setupInsightsRoutes(
       // conversation row, a user turn, or an `updated_at` behind it: the rail
       // would then list a question that was never asked, and the next turn in
       // that conversation would carry it as context.
-      const identity = decideIdentity(req, { signedInAs: email, required: isDeployed() });
+      const identity = overlayAssignedPersona(decideIdentity(req, { signedInAs: email, required: isDeployed() }), req);
       if (!identity.ok) {
         console.error(describeRefusal(identity));
         reply.status(unavailableHttpStatus(identity.code)).json(
@@ -4164,7 +4175,7 @@ export function setupInsightsRoutes(
           stream: reply.wantsStream,
           requestId: identity.correlationId,
           runId: identity.requestId,
-          expectedUser: identity.token ? email : '',
+          ...servingIdentityFields(identity),
           deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
           runtimeSettings: askRuntime,
           evalGuidance,
@@ -4379,10 +4390,7 @@ export function setupInsightsRoutes(
           // there is nothing here for the app to have filled in. This is the
           // only path allowed to say 'live', and saying it here is what makes
           // the silence on the path below mean something.
-          answer = attachRecordedStages(
-            { ...structuredAnswer, mode: 'live', provenance: 'live' },
-            collectedStages
-          );
+          answer = attachRecordedStages({ ...structuredAnswer, mode: 'live', provenance: 'live' }, collectedStages);
         } else if (liveText) {
           // The endpoint replied in prose and sent no result contract. Its
           // words are kept and nothing is put under them -- except the steps
@@ -4660,11 +4668,7 @@ export function setupInsightsRoutes(
     app.get('/api/runs', async (req, res) => {
       const email = userEmail(req);
       const everyRun = await callerReadsEveryRun(appkit.lakebase, email);
-      await respondWithStored(appkit, res, 'GET /api/runs', RUNS_QUERY, [
-        PLAN_APPROVAL_MESSAGE,
-        email,
-        everyRun,
-      ]);
+      await respondWithStored(appkit, res, 'GET /api/runs', RUNS_QUERY, [PLAN_APPROVAL_MESSAGE, email, everyRun]);
     });
 
     /**
@@ -4905,10 +4909,8 @@ export function setupInsightsRoutes(
     app.post('/api/benchmarks/run', async (req, res) => {
       const parsed = BenchmarkRunBody.safeParse(req.body);
       const savedBench = await readBenchmarkSettings(appkit);
-      const requestedSuiteId = parsed.success
-        ? (parsed.data.suiteId ?? savedBench.evalSetId)
-        : savedBench.evalSetId;
-      const namedAgent = parsed.success ? parsed.data.agentEndpoint?.trim() ?? '' : '';
+      const requestedSuiteId = parsed.success ? (parsed.data.suiteId ?? savedBench.evalSetId) : savedBench.evalSetId;
+      const namedAgent = parsed.success ? (parsed.data.agentEndpoint?.trim() ?? '') : '';
       const caseIds = parsed.success ? parsed.data.caseIds : undefined;
       const bakeOffSide = parsed.success ? parsed.data.bakeOffSide : undefined;
       const email = userEmail(req);
@@ -4932,7 +4934,7 @@ export function setupInsightsRoutes(
        * to the signed-in user costs a session and buys a benchmark that fails
        * when the product fails.
        */
-      const identity = decideIdentity(req, { signedInAs: email, required: isDeployed() });
+      const identity = overlayAssignedPersona(decideIdentity(req, { signedInAs: email, required: isDeployed() }), req);
       if (!identity.ok) {
         console.error(describeRefusal(identity));
         res.status(unavailableHttpStatus(identity.code)).json(
@@ -4955,9 +4957,7 @@ export function setupInsightsRoutes(
       }
 
       const agentEndpoint =
-        namedAgent && namedAgent !== CURRENT_AGENT_SIDE
-          ? namedAgent
-          : process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+        namedAgent && namedAgent !== CURRENT_AGENT_SIDE ? namedAgent : process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
       if (!agentEndpoint) {
         // Said plainly rather than answered with a representative run. Every
         // other read path in this file may fall back to demo data and label it;
@@ -5002,10 +5002,10 @@ export function setupInsightsRoutes(
             attachmentText: '',
             requestId: identity.correlationId,
             runId: identity.requestId,
-            // The same expression the ask route uses, so a benchmark turn and a
+            // The same helper the ask route uses, so a benchmark turn and a
             // real turn declare the same identity contract to the agent. Empty
             // on a laptop, where there is no proxy and so no user to assert.
-            expectedUser: identity.token ? email : '',
+            ...servingIdentityFields(identity),
             runtimeSettings: await readRuntimeSettings(appkit),
             evalGuidance: await resolveAskGuidance(appkit),
           });
@@ -5026,14 +5026,7 @@ export function setupInsightsRoutes(
                   SERVING_INVOKE_TIMEOUT_MS,
                   agentEndpoint
                 )
-              : await invokeServing(
-                  appkit,
-                  payload,
-                  undefined,
-                  SERVING_INVOKE_TIMEOUT_MS,
-                  undefined,
-                  agentEndpoint
-                );
+              : await invokeServing(appkit, payload, undefined, SERVING_INVOKE_TIMEOUT_MS, undefined, agentEndpoint);
           } catch (error) {
             if (!(error instanceof AuthorizationRefused)) throw error;
             // `disclosable`, not `message`, for the reason spelled out on the

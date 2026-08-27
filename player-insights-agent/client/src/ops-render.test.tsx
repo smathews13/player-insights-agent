@@ -169,6 +169,8 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       limited: false,
       reason: 'No completed runs were recorded in this billing range.',
     },
+    budgets: { total: null, resources: {} },
+    budgetsReadable: true,
     ...overrides,
   };
 }
@@ -1132,6 +1134,78 @@ describe('the cost block', () => {
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('Nothing in billing named this endpoint.');
     expect(markup).not.toContain('0.00');
+  });
+
+  it('lets an operator set an app budget and a per-tile budget for the Cost window', () => {
+    const payload = cost({
+      budgets: { total: 400, resources: { 'serving-endpoint': 40 } },
+      tiles: [
+        { ...cost().tiles[0], id: 'serving-endpoint', label: 'Serving endpoint', basis: 'total-in-range' },
+        { ...cost().tiles[1], id: 'vector-search', label: 'Vector search', basis: 'per-day' },
+      ],
+    });
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    expect(markup).toContain('App budget');
+    expect(markup).toContain('Budget in range');
+    expect(markup).toContain('Budget per day');
+    expect(markup).toContain('Same window as the tiles');
+    expect(markup).not.toMatch(/month|monthly|PagerDuty|forecast/i);
+    expect(markup).toContain('400');
+    expect(markup).toContain('40');
+    expect(markup).toContain('>Save</button>');
+  });
+
+  it('compares spend to a tile budget when both exist, and still offers a budget when spend is missing', () => {
+    const payload = cost({
+      budgets: { total: null, resources: { 'serving-endpoint': 11, 'app-compute': 25 } },
+      tiles: [
+        {
+          ...cost().tiles[0],
+          id: 'serving-endpoint',
+          label: 'Serving endpoint',
+          amount: 12,
+          quality: 'real',
+          basis: 'total-in-range',
+        },
+        {
+          ...cost().tiles[0],
+          id: 'app-compute',
+          label: 'App compute',
+          amount: null,
+          quality: 'unknown',
+          unavailable: 'No billing rows',
+          basis: 'total-in-range',
+        },
+      ],
+    });
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).toContain('Over budget');
+    expect(markup).toContain('No billing rows');
+    expect(markup).toContain('spend not measured');
+  });
+
+  it('keeps budget fields when billing has no rows and when the grant is missing', () => {
+    const empty = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
+    expect(empty).toContain('App budget');
+    expect(empty).toContain('Budget in range');
+    const denied = render(
+      <CostBody
+        block={block(
+          cost({
+            state: 'no-grant',
+            tiles: [],
+            grant: {
+              object: 'system.billing',
+              privilege: 'SELECT',
+              statement: 'GRANT SELECT ON SCHEMA system.billing TO `someone@example.test`;',
+            },
+          })
+        )}
+      />
+    );
+    expect(denied).toContain('App budget');
+    expect(denied).toContain('GRANT SELECT ON SCHEMA system.billing');
+    expect(denied).toContain('Serving endpoint');
   });
 });
 

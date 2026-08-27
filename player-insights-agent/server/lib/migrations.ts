@@ -495,6 +495,63 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     ],
     down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.benchmark_lab`],
   },
+  {
+    version: 16,
+    name: 'cost budgets',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.cost_budgets (
+         id TEXT PRIMARY KEY,
+         settings JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.cost_budgets`],
+  },
+  {
+    version: 17,
+    name: 'service principal personas',
+    statements: [
+      /**
+       * Admin-defined identities the experimental SP-identity pivot may run as.
+       *
+       * A NEW TABLE rather than JSON on deployment_settings: there are many
+       * rows, they are named by administrators, and a settings row is one
+       * value per known resource. `secret_scope` and `secret_key` are
+       * references into Databricks Secrets. There is no secret-value column
+       * and none may be added — a credential in this table would be copied
+       * to every replica and would be a leak the public mirror must never
+       * see.
+       */
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.sp_personas (
+         id TEXT PRIMARY KEY,
+         display_name TEXT NOT NULL,
+         client_id TEXT NOT NULL,
+         secret_scope TEXT NOT NULL,
+         secret_key TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+      /**
+       * One persona per signed-in address. Unassigned people stay on OAuth
+       * when the pivot is on, which is why a missing row is a valid state
+       * rather than a default persona.
+       */
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.sp_assignments (
+         email TEXT PRIMARY KEY,
+         persona_id TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+      `CREATE INDEX IF NOT EXISTS sp_assignments_persona_idx
+         ON ${APP_SCHEMA}.sp_assignments (persona_id)`,
+    ],
+    down: [
+      `DROP INDEX IF EXISTS ${APP_SCHEMA}.sp_assignments_persona_idx`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_assignments`,
+      `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_personas`,
+    ],
+  },
 ];
 
 /**

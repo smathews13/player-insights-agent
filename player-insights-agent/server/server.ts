@@ -34,12 +34,14 @@ createApp({
       { setupOpsRoutes },
       { setupEgressRoutes },
       { setupRuntimeSettingsRoutes },
+      { setupCostBudgetsRoutes },
       { setupBenchmarkSettingsRoutes },
       { setupEvalDatasetRoutes },
       { setupBenchmarkLabRoutes },
       { setupEnvironmentRoutes },
       { setupAccountRoutes },
       { setupRunLabelRoutes },
+      { setupSpIdentityRoutes },
       { bootstrapSeedRoles, isAdminRoute },
       { respondToHandlerFailures },
     ] = await Promise.all([
@@ -53,12 +55,14 @@ createApp({
       import('./routes/ops-routes'),
       import('./routes/egress-routes'),
       import('./routes/runtime-settings-routes'),
+      import('./routes/cost-budgets-routes'),
       import('./routes/benchmark-settings-routes'),
       import('./routes/eval-dataset-routes'),
       import('./routes/benchmark-lab-routes'),
       import('./routes/environment-routes'),
       import('./routes/account-routes'),
       import('./routes/run-label-routes'),
+      import('./routes/sp-identity-routes'),
       import('./lib/admin-roles'),
       import('./lib/handler-failures'),
     ]);
@@ -85,7 +89,9 @@ createApp({
     // the settings routes first would leave the write route unguarded.
     setupSettingsRoutes(appkit);
     setupRuntimeSettingsRoutes(appkit);
+    setupCostBudgetsRoutes(appkit);
     setupBenchmarkSettingsRoutes(appkit);
+    setupSpIdentityRoutes(appkit);
     setupEvalDatasetRoutes(appkit);
     setupBenchmarkLabRoutes(appkit);
     setupEnvironmentRoutes(appkit);

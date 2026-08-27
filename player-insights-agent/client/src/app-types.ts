@@ -13,6 +13,7 @@ import type { ExperimentalFeatures } from './experimental-features';
 import type { Derivation, NormalizedAnswer, StageStatus, TraceStage, TraceSummary } from './answer-shape';
 import type { SessionReport } from '../../shared/session-contract';
 import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
+import type { SpIdentitySummary } from '../../shared/sp-identity';
 
 /**
  * What the components are allowed to render: every field present, because it came
@@ -104,6 +105,13 @@ export interface Identity {
    * nothing was established, which is what the OAuth badge does with it.
    */
   session?: SessionReport;
+  /**
+   * What the experimental SP-identity pivot would do for this reader.
+   *
+   * Optional because a client can outlive the server. Absent means OAuth, which
+   * is also the default until an administrator turns the pivot on.
+   */
+  spIdentity?: SpIdentitySummary;
 }
 // Rows can come from benchmark runs, where several columns are null.
 export interface Run {

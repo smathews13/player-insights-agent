@@ -51,14 +51,11 @@ import {
   type EgressClassificationPayload,
   type EgressControlsPayload,
 } from '../../shared/egress-contract';
-import {
-  readEgressControls,
-  recordEgress,
-  writeEgressControl,
-} from '../lib/egress-store';
+import { readEgressControls, recordEgress, writeEgressControl } from '../lib/egress-store';
 import { classifyTables, NO_TOKEN_REASON, NO_WAREHOUSE_REASON } from '../lib/egress-classification';
 import { accessRunner, type SqlRunner } from '../lib/admin-access';
-import { accessDependenciesFrom, forwardedUserToken } from './access-verification';
+import { accessDependenciesFrom } from './access-verification';
+import { executionToken } from '../lib/execution-credential';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 
@@ -99,7 +96,7 @@ export interface EgressDeps {
 function readerRunner(req: Request): { run: SqlRunner | null; unavailable: string } {
   const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   const warehouseId = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   if (!host || !warehouseId) return { run: null, unavailable: NO_WAREHOUSE_REASON };
   if (!token) return { run: null, unavailable: NO_TOKEN_REASON };
   return { run: accessRunner({ host, token, warehouseId }), unavailable: '' };

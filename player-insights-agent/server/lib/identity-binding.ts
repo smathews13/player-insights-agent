@@ -35,6 +35,14 @@ export type IdentityMode =
   /** The signed-in human, whose token was forwarded. The only customer mode. */
   | 'signed_in_user'
   /**
+   * An admin-assigned service principal, when the experimental SP-identity
+   * pivot is on and a token could be minted for that persona.
+   *
+   * The signed-in human is still `email`; this mode only names the credential
+   * downstream Databricks APIs see. Unassigned users never reach it.
+   */
+  | 'assigned_service_principal'
+  /**
    * The app's own service principal.
    *
    * Named so a record can state that a run was NOT executed as its reader,
@@ -45,6 +53,7 @@ export type IdentityMode =
   | 'app_service_principal';
 
 export const SIGNED_IN_USER: IdentityMode = 'signed_in_user';
+export const ASSIGNED_SERVICE_PRINCIPAL: IdentityMode = 'assigned_service_principal';
 export const APP_SERVICE_PRINCIPAL: IdentityMode = 'app_service_principal';
 
 /** The identity a request is allowed to proceed under. */
@@ -69,6 +78,11 @@ export interface BoundIdentity {
    */
   verified: boolean;
   mode: IdentityMode;
+  /**
+   * The assigned persona when {@link mode} is `assigned_service_principal`.
+   * Display only — never a secret.
+   */
+  persona?: { id: string; displayName: string; clientId: string };
   requestId: string;
   /**
    * The id every cross-system record of this question carries.

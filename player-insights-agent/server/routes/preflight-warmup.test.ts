@@ -177,7 +177,7 @@ describe('the page never waits for the warm-up', () => {
     const source = readFileSync(new URL('./insights-routes.ts', import.meta.url), 'utf8');
     expect(source).toContain('warmGenieWarehousesForArrival(req)');
     expect(source).toContain('createGenieWarehouseWarmup');
-    expect(source).toContain('forwardedUserToken(req)');
+    expect(source).toContain('executionToken(req)');
   });
 });
 

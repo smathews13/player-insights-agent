@@ -50,6 +50,7 @@ import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
 import { BILLING_TAG } from '../../shared/billing-tag';
 import { databricksLink } from '../../shared/databricks-links';
+import { CostBudgetProvider, CostTileBudget, CostTotalBudget } from './CostBudgets';
 import {
   bars,
   costAbsence,
@@ -550,6 +551,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
 
   const absent = payload ? costAbsence(payload) : null;
   const replaceGrid = payload ? costAbsenceReplacesGrid(payload) : false;
+  const displayed = payload ? costTilesForDisplay(payload.tiles) : [];
 
   return (
     <section className="ops-block" aria-labelledby="ops-cost-heading">
@@ -563,12 +565,14 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
       <BlockBody>
         {block.busy && !payload ? (
           <Skeleton className="ops-skeleton" />
-        ) : replaceGrid && absent ? (
-          <Absence notice={absent}>{payload?.grant ? <Grant grant={payload.grant} /> : null}</Absence>
         ) : payload ? (
-          <>
+          <CostBudgetProvider payload={payload} tileIds={displayed.map((tile) => tile.id)}>
+            <CostTotalBudget />
+            {replaceGrid && absent ? (
+              <Absence notice={absent}>{payload.grant ? <Grant grant={payload.grant} /> : null}</Absence>
+            ) : null}
             <div className="ops-tiles">
-              {costTilesForDisplay(payload.tiles).map((tile) => {
+              {displayed.map((tile) => {
                 const view = tileView(tile, payload.currency);
                 const product = productForCostTile(tile.id);
                 const object = costTileWorkspaceObject(tile);
@@ -590,6 +594,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                     ) : (
                       <p className="ops-tile-absent">{view.absence}</p>
                     )}
+                    <CostTileBudget tile={tile} />
                     {view.estimate || view.sharedScope || view.remedy ? (
                       <p className="ops-tile-foot">
                         {view.estimate ? (
@@ -606,7 +611,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               })}
               <QuestionCostAverage payload={payload} />
             </div>
-            {absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
+            {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
             {billingHref ? (
               <a
                 className="ops-external"
@@ -623,7 +628,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               Filtered to key = <code>{`"${BILLING_TAG.key}"`}</code> and value ={' '}
               <code>{`"${BILLING_TAG.value}"`}</code>.
             </p>
-          </>
+          </CostBudgetProvider>
         ) : null}
       </BlockBody>
     </section>

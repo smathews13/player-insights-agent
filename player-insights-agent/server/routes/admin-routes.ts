@@ -48,7 +48,7 @@ import {
   type AdminStore,
 } from '../lib/admin-roles';
 import type { AdminListPayload } from '../../shared/admin-contract';
-import { forwardedUserToken } from './access-verification';
+import { executionToken } from '../lib/execution-credential';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request } from 'express';
 
@@ -84,7 +84,7 @@ async function readAdded(store: AdminStore): Promise<{ added: AddedAdmin[]; read
 export function runnerFor(req: Request): { run: SqlRunner | null; unavailable: string } {
   const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   const warehouseId = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   if (!host) {
     return {
       run: null,
@@ -211,7 +211,9 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
       try {
         added = await readAddedAdmins(appkit.lakebase);
       } catch (error) {
-        console.error('[admin] The stored admin list could not be read, so no removal was attempted:', (error as Error).message
+        console.error(
+          '[admin] The stored admin list could not be read, so no removal was attempted:',
+          (error as Error).message
         );
         res.status(503).json({
           error: 'admin_store_unavailable',
@@ -227,7 +229,9 @@ export function setupAdminRoutes(appkit: InsightsAppKit) {
         return;
       }
       if (refusal) {
-        res.status(409).json({ error: `removal_refused_${refusal.replace('-', '_')}`, detail: REMOVAL_REFUSAL_DETAIL[refusal] });
+        res
+          .status(409)
+          .json({ error: `removal_refused_${refusal.replace('-', '_')}`, detail: REMOVAL_REFUSAL_DETAIL[refusal] });
         return;
       }
       try {

@@ -202,7 +202,9 @@ export function IdentityCard({
   const orchestrator = identity?.servingPrincipal?.id ?? checkedAs ?? '';
   const observedAt = when(identity?.servingPrincipal?.observedAt);
   const runsAs = questionsRunAs(identity);
-  const runsAsPerson = identity?.analyticalExecution?.mode !== 'app_service_principal';
+  const runsAsPerson =
+    identity?.analyticalExecution?.mode !== 'app_service_principal' &&
+    identity?.spIdentity?.executingAs !== 'service_principal';
   const clientId = identity?.executionIdentity?.trim() ?? '';
   const session = identity?.session;
   const tableScopes = identityTableScopes(session?.declaredScopes);
@@ -249,6 +251,11 @@ export function IdentityCard({
                 ) : (
                   <span className="identity-principal">{runsAs}</span>
                 )}
+              </Fact>
+            ) : null}
+            {identity?.spIdentity?.fallbackReason ? (
+              <Fact label="Assigned persona" wrap>
+                <span>{identity.spIdentity.fallbackReason}</span>
               </Fact>
             ) : null}
             <Fact label="App client id">

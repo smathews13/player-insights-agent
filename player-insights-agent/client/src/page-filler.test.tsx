@@ -64,7 +64,7 @@ function inApp(page: React.ReactElement): string {
           element={
             <Outlet
               context={{
-                features: { benchmarkLab: false, egressControls: true },
+                features: { benchmarkLab: false, egressControls: true, spIdentities: false },
                 setFeature: () => {},
                 role: { state: 'admin', addedAdminsReadable: true },
               }}
@@ -90,12 +90,22 @@ const SCREENS: readonly { name: string; markup: () => string; source: string }[]
   },
   {
     name: 'Architecture',
-    markup: () => renderToStaticMarkup(<MemoryRouter><ArchitecturePage /></MemoryRouter>),
+    markup: () =>
+      renderToStaticMarkup(
+        <MemoryRouter>
+          <ArchitecturePage />
+        </MemoryRouter>
+      ),
     source: 'ArchitecturePage.tsx',
   },
   {
     name: 'Ops',
-    markup: () => renderToStaticMarkup(<MemoryRouter><OpsPage /></MemoryRouter>),
+    markup: () =>
+      renderToStaticMarkup(
+        <MemoryRouter>
+          <OpsPage />
+        </MemoryRouter>
+      ),
     source: 'OpsPage.tsx',
   },
   { name: 'Settings', markup: settingsMarkup, source: 'SettingsPage.tsx' },

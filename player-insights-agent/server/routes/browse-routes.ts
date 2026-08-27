@@ -13,7 +13,7 @@
  */
 import type { Request, Response } from 'express';
 import type { InsightsAppKit } from './insights-routes';
-import { forwardedUserToken } from './access-verification';
+import { executionToken } from '../lib/execution-credential';
 import {
   browseRequestContext,
   listCatalogs,
@@ -45,9 +45,9 @@ function defaultNotebookPath(req: Request): string {
 async function sendBrowse(
   req: Request,
   res: Response,
-  run: (ctx: { host: string; token: string }) => Promise<unknown>,
+  run: (ctx: { host: string; token: string }) => Promise<unknown>
 ): Promise<void> {
-  const ctx = browseRequestContext({ token: forwardedUserToken(req) });
+  const ctx = browseRequestContext({ token: executionToken(req) });
   const payload = await run(ctx);
   res.status(200).json(payload);
 }
@@ -56,7 +56,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
   appkit.server.extend((app) => {
     app.get('/api/browse/catalogs', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
-        listCatalogs({ ...ctx, pageToken: queryString(req, 'page_token') || undefined }),
+        listCatalogs({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
       );
     });
 
@@ -66,7 +66,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           ...ctx,
           catalog: queryString(req, 'catalog'),
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -77,7 +77,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           catalog: queryString(req, 'catalog'),
           schema: queryString(req, 'schema'),
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -88,7 +88,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           catalog: queryString(req, 'catalog'),
           schema: queryString(req, 'schema'),
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -99,13 +99,13 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
 
     app.get('/api/browse/warehouses', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
-        listWarehouses({ ...ctx, pageToken: queryString(req, 'page_token') || undefined }),
+        listWarehouses({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
       );
     });
 
     app.get('/api/browse/genie-spaces', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
-        listGenieSpaces({ ...ctx, pageToken: queryString(req, 'page_token') || undefined }),
+        listGenieSpaces({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
       );
     });
 
@@ -115,7 +115,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
     // object in the workspace.
     app.get('/api/browse/serving-endpoints', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
-        listServingEndpoints({ ...ctx, pageToken: queryString(req, 'page_token') || undefined }),
+        listServingEndpoints({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
       );
     });
 
@@ -124,7 +124,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
         listVectorSearchEndpoints({
           ...ctx,
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -134,7 +134,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           ...ctx,
           endpoint: queryString(req, 'endpoint'),
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -143,7 +143,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
         listLakebaseProjects({
           ...ctx,
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -153,7 +153,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           ...ctx,
           project: queryString(req, 'project'),
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -163,7 +163,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
           ...ctx,
           branch: queryString(req, 'branch'),
           pageToken: queryString(req, 'page_token') || undefined,
-        }),
+        })
       );
     });
 
@@ -172,7 +172,7 @@ export function setupBrowseRoutes(appkit: InsightsAppKit): void {
     // rather than a blank box with no explanation.
     app.get('/api/browse/experiments', async (req, res) => {
       await sendBrowse(req, res, (ctx) =>
-        listExperiments({ ...ctx, pageToken: queryString(req, 'page_token') || undefined }),
+        listExperiments({ ...ctx, pageToken: queryString(req, 'page_token') || undefined })
       );
     });
   });

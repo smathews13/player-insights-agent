@@ -14,7 +14,8 @@
  *  3. Every figure says how good it is, on itself. A legend elsewhere is
  *     consulted once and then not again.
  *  4. No grant and no rows are different sentences. Empty spend still draws
- *     the resource tiles; a missing grant does not.
+ *     the resource tiles so a budget can be set; a missing grant still names
+ *     the statement that fixes it.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -37,9 +38,11 @@ import {
   productForCostTile,
   QUESTION_COST_FORMULA,
   questionServingAverage,
+  spendVersusBudget,
   splitMethod,
   telemetryNotice,
   tileView,
+  totalBudgetView,
   trafficCaption,
 } from './ops-view';
 import { databricksLink } from '../../shared/databricks-links';
@@ -105,6 +108,8 @@ function costPayload(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       limited: false,
       reason: '',
     },
+    budgets: { total: null, resources: {} },
+    budgetsReadable: true,
     ...overrides,
   };
 }
@@ -366,6 +371,36 @@ describe('an empty cost block', () => {
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
 });
+
+describe('a nominal budget against the Cost window', () => {
+  it('does not treat missing spend as zero, and does not invent a total spend', () => {
+    expect(spendVersusBudget(tile({ amount: null, quality: 'unknown' }), 40, 'USD')).toEqual({
+      kind: 'budget-only',
+      budgetLabel: '40.00 USD',
+    });
+    expect(spendVersusBudget(tile({ amount: 12, quality: 'real' }), null, 'USD')).toEqual({ kind: 'none' });
+    expect(totalBudgetView(250, 'USD')).toEqual({ kind: 'budget-only', budgetLabel: '250.00 USD' });
+    expect(totalBudgetView(null, 'USD')).toEqual({ kind: 'none' });
+  });
+
+  it('compares a measured tile to its budget in the same window, and flags only an overage', () => {
+    expect(spendVersusBudget(tile({ amount: 12, quality: 'real' }), 40, 'USD')).toEqual({
+      kind: 'compared',
+      spendLabel: '12.00 USD',
+      budgetLabel: '40.00 USD',
+      over: false,
+    });
+    expect(spendVersusBudget(tile({ amount: 50, quality: 'real' }), 40, 'USD')).toMatchObject({
+      kind: 'compared',
+      over: true,
+    });
+  });
+
+  it('will not compare an unknown-quality tile even if a number rode along', () => {
+    expect(spendVersusBudget(tile({ amount: 9, quality: 'unknown' }), 40, 'USD').kind).toBe('budget-only');
+  });
+});
+
 
 /* ── Telemetry has four ordinary states ──────────────────────────────────── */
 

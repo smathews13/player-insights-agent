@@ -1576,3 +1576,62 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   margin-top: 4px;
   font-size: var(--text-sm);
 }
+
+/* Settings → Identity: personas and assignments. Grayed while the
+   Experimental SP-identities switch is off; the fieldset disables the
+   controls the same way Benchmarking's cluster does. */
+.sp-identity-cluster {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.sp-identity-cluster:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.sp-identity-add {
+  display: grid;
+  gap: 10px;
+}
+
+.sp-identity-list,
+.sp-identity-assignments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.sp-identity-persona,
+.sp-identity-assignment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sp-identity-persona-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.sp-identity-persona-id {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+}
+
+.sp-identity-assignment-email {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sp-identity-assign-select {
+  flex: none;
+}

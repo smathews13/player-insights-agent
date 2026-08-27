@@ -72,6 +72,46 @@ export function count(value: number | null): string {
   return value === null || !Number.isFinite(value) ? '' : value.toLocaleString('en-US');
 }
 
+/**
+ * Spend on one tile compared to its budget, in the same window the tile already
+ * shows. A missing spend figure is not compared, and is never treated as $0.00.
+ *
+ * Unknown-quality tiles cannot be compared even if a number snuck onto the wire:
+ * that amount is not a measurement. The app total is handled separately and is
+ * never a sum of these.
+ */
+export type SpendVersusBudget =
+  | { kind: 'none' }
+  | { kind: 'budget-only'; budgetLabel: string }
+  | { kind: 'compared'; spendLabel: string; budgetLabel: string; over: boolean };
+
+export function spendVersusBudget(
+  tile: Pick<CostTile, 'amount' | 'quality'>,
+  budget: number | null,
+  currency: string
+): SpendVersusBudget {
+  if (budget === null || !Number.isFinite(budget)) return { kind: 'none' };
+  const budgetLabel = money(budget, currency);
+  if (tile.quality === 'unknown' || tile.amount === null || !Number.isFinite(tile.amount)) {
+    return { kind: 'budget-only', budgetLabel };
+  }
+  const spendLabel = money(tile.amount, currency);
+  if (!spendLabel || !budgetLabel) return { kind: 'budget-only', budgetLabel };
+  return { kind: 'compared', spendLabel, budgetLabel, over: tile.amount > budget };
+}
+
+/**
+ * The app-wide budget, never compared to a summed spend.
+ *
+ * Cost does not add tiles: their qualities do not mix. The amount is for the
+ * same Cost window the tiles already show, not a separate monthly calendar.
+ */
+export function totalBudgetView(budget: number | null, currency: string): SpendVersusBudget {
+  if (budget === null || !Number.isFinite(budget)) return { kind: 'none' };
+  const budgetLabel = money(budget, currency);
+  return budgetLabel ? { kind: 'budget-only', budgetLabel } : { kind: 'none' };
+}
+
 /* ── Cost tiles ──────────────────────────────────────────────────────────── */
 
 /**

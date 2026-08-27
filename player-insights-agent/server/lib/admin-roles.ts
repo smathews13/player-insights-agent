@@ -36,14 +36,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE } from './admin-roles-schema';
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-identity';
 import { opensAdminSurfaces, opensUserRoster, type Role } from '../../shared/user-roster-contract';
-import {
-  effectiveRole,
-  readRoster,
-  ROLE_COLUMN,
-  seedFloorFor,
-  type SeedRoles,
-  type StoredRoster,
-} from './user-roster';
+import { effectiveRole, readRoster, ROLE_COLUMN, seedFloorFor, type SeedRoles, type StoredRoster } from './user-roster';
 // The wire shape lives in shared/ so the editor and these routes cannot disagree
 // about what a row is. Re-exported because most callers here want it, and a second
 // import line at every call site is noise.
@@ -634,6 +627,8 @@ export type AdminAction =
   | 'conversation-read'
   | 'access-revoked'
   | 'runtime-settings-updated'
+  /** An admin saved nominal Cost budgets for the app total and resource tiles. */
+  | 'cost-budgets-updated'
   /** An admin recorded or cleared a Connections setting intention (or live value). */
   | 'connection-setting-saved'
   | 'connection-setting-cleared'
@@ -668,7 +663,14 @@ export type AdminAction =
   /** An admin cancelled an in-progress judge suite. */
   | 'eval-suite-cancelled'
   /** An admin restored the previous promoted Ask endpoint. */
-  | 'eval-agent-rolled-back';
+  | 'eval-agent-rolled-back'
+  | 'sp-identity-enabled'
+  | 'sp-identity-disabled'
+  | 'sp-persona-created'
+  | 'sp-persona-updated'
+  | 'sp-persona-removed'
+  | 'sp-persona-assigned'
+  | 'sp-persona-unassigned';
 
 /**
  * Record what an admin did: who, when, what.

@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import type { Identity } from './app-types';
 import type { AnalyticalExecution } from './analytical-execution';
 import { forgetIdentityRequest, identityRequest } from './app-state';
+import type { SpIdentitySummary } from '../../shared/sp-identity';
 
 export interface PanelIdentity extends Identity {
   accessDecision?: { mode: string; decidedAt: string; detail: string } | null;
   servingPrincipal?: { id: string; observedAt: string } | null;
   analyticalExecution?: AnalyticalExecution | null;
+  spIdentity?: SpIdentitySummary;
 }
 
 export interface DeploymentIdentity {
@@ -70,6 +72,10 @@ export function questionsRunAs(identity: PanelIdentity | null): string {
   if (!identity) return '';
   if (identity.analyticalExecution?.mode === 'app_service_principal') {
     return identity.executionIdentity ?? '';
+  }
+  const assigned = identity.spIdentity?.assigned;
+  if (identity.spIdentity?.executingAs === 'service_principal' && assigned) {
+    return assigned.displayName;
   }
   return identity.signedInAs ?? '';
 }

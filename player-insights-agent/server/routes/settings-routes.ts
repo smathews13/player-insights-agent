@@ -42,7 +42,7 @@ import { probeConnections } from '../lib/dependency-probes';
 import { accessDependenciesFrom } from './access-verification';
 import { validateNotebookPath } from '../lib/browse-assets';
 import { checkExperimentAsApp } from '../lib/experiment-probe';
-import { forwardedUserToken } from './access-verification';
+import { executionToken } from '../lib/execution-credential';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { readPublishedDeclaration, type DeclarationRead } from '../lib/notebook-declaration-read';
 import { compareDeclaration, type DeclarationComparison } from '../../shared/notebook-declaration';
@@ -324,7 +324,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
           appkit,
           path: parsed.data.path,
           host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
-          token: forwardedUserToken(req) ?? '',
+          token: executionToken(req) ?? '',
           updatedBy: userEmail(req),
         });
         if (!savedResult.ok) {
@@ -823,7 +823,7 @@ async function readNotebook(
       host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
       // Absent reads as "nobody to read as", which the reader is told. It is never
       // replaced by the app's own credential.
-      token: forwardedUserToken(req) ?? '',
+      token: executionToken(req) ?? '',
     });
     return {
       location,
@@ -934,7 +934,7 @@ async function readReachability(
         env: process.env,
       }).tables,
       host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
-      token: forwardedUserToken(req),
+      token: executionToken(req),
       principal: req.header('x-forwarded-email')?.trim() ?? '',
     });
     // The MLflow experiment, asked as the APPLICATION rather than as the reader,

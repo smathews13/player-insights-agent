@@ -3,9 +3,15 @@ import { X } from 'lucide-react';
 import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
-import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
+import {
+  showsBenchmarkLab,
+  showsEgressControls,
+  showsSpIdentities,
+  type ExperimentalFeatures,
+} from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
+import { persistSpIdentityMode, SpIdentityPanel } from './SpIdentityPanel';
 import { showsUserRoster, type RoleResolution } from './role';
 import {
   SAVE_PRESS_MS,
@@ -19,13 +25,14 @@ import {
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
 
-type SettingsSection = 'roles' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
+type SettingsSection = 'roles' | 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
 
 const noopClose = () => {};
 const noopSetFeature = () => {};
 
 const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'roles', label: 'Roles' },
+  { id: 'identity', label: 'Identity' },
   { id: 'runtime', label: 'Runtime' },
   { id: 'environment', label: 'Environment' },
   { id: 'appearance', label: 'Appearance' },
@@ -33,7 +40,11 @@ const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'experimental', label: 'Experimental' },
 ];
 
-const DEFAULT_FEATURES: ExperimentalFeatures = { benchmarkLab: false, egressControls: false };
+const DEFAULT_FEATURES: ExperimentalFeatures = {
+  benchmarkLab: false,
+  egressControls: false,
+  spIdentities: false,
+};
 const DEFAULT_ROLE: RoleResolution = { state: 'failed', addedAdminsReadable: false };
 
 interface SettingsPaneBoundaryProps {
@@ -101,6 +112,8 @@ export function SettingsPage({
   // The press paint, held for a beat so the click is visible before the modal
   // goes. See SAVE_PRESS_MS.
   const [pressed, setPressed] = useState(false);
+  const [spModeError, setSpModeError] = useState<string | null>(null);
+  const [spModeBusy, setSpModeBusy] = useState(false);
   const close = onClose ?? noopClose;
   // `?? ` rather than a default parameter, because a default parameter only
   // covers `undefined`. A caller handing down a value it fetched can hand down
@@ -206,6 +219,15 @@ export function SettingsPage({
                   {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
                 </div>
               ) : null}
+              {active === 'identity' ? (
+                <div className="settings-pane">
+                  <div className="settings-pane-heading">
+                    <h3>Identity</h3>
+                    <p>Who questions run as. Changes save immediately.</p>
+                  </div>
+                  <SpIdentityPanel enabled={showsSpIdentities(features)} />
+                </div>
+              ) : null}
               {active === 'runtime' || active === 'appearance' ? (
                 <RuntimeSettingsPanel section={active} onSaveState={setSaveState} />
               ) : null}
@@ -232,10 +254,7 @@ export function SettingsPage({
                       aria-label="Show Benchmarking tab"
                     />
                   </div>
-                  <BenchmarkSettingsPanel
-                    enabled={showsBenchmarkLab(features)}
-                    onSaveState={setSaveState}
-                  />
+                  <BenchmarkSettingsPanel enabled={showsBenchmarkLab(features)} onSaveState={setSaveState} />
                   <div className="settings-row">
                     <div>
                       <p className="settings-row-label">
@@ -251,6 +270,40 @@ export function SettingsPage({
                         setFeature('egressControls', enabled);
                       }}
                       aria-label="Show the egress controls on this page"
+                    />
+                  </div>
+                  <div className="settings-row">
+                    <div>
+                      <p className="settings-row-label">SP identities · {showsSpIdentities(features) ? 'On' : 'Off'}</p>
+                      <p className="settings-row-note">
+                        Assigned people run warehouse, Genie, and agent calls as the service principal an administrator
+                        named for them. People without an assignment still use OAuth.
+                      </p>
+                      {spModeError ? (
+                        <p className="settings-status settings-error" role="alert">
+                          {spModeError}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Switch
+                      checked={showsSpIdentities(features)}
+                      disabled={spModeBusy}
+                      onCheckedChange={(enabled) => {
+                        setSpModeError(null);
+                        setFeature('spIdentities', enabled);
+                        setSpModeBusy(true);
+                        void persistSpIdentityMode(enabled)
+                          .catch((caught: unknown) => {
+                            setFeature('spIdentities', !enabled);
+                            setSpModeError(
+                              caught instanceof Error
+                                ? caught.message
+                                : 'The experimental pivot could not be saved. Questions still use OAuth.'
+                            );
+                          })
+                          .finally(() => setSpModeBusy(false));
+                      }}
+                      aria-label="Run assigned people as their service principal"
                     />
                   </div>
                 </div>
@@ -281,13 +334,7 @@ export function SettingsPage({
                 {notice.text}
               </p>
             ) : null}
-            <Button
-              variant="outline"
-              data-variant="outline"
-              className="settings-cancel"
-              type="button"
-              onClick={close}
-            >
+            <Button variant="outline" data-variant="outline" className="settings-cancel" type="button" onClick={close}>
               Cancel
             </Button>
             {form ? (

@@ -55,7 +55,8 @@ import {
   telemetrySchema,
   uncheckedMeasurement,
 } from '../lib/ops-telemetry';
-import { classifyDenial, forwardedUserToken, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './access-verification';
+import { classifyDenial, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './access-verification';
+import { executionToken } from '../lib/execution-credential';
 import {
   ANSWER_PATH_ENDPOINT_IDS,
   probeConnections,
@@ -67,6 +68,7 @@ import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databrick
 import { readAppBillingTag } from '../lib/resource-tagging';
 import { readOrchestratorReport } from './settings-routes';
 import { isFailureCode } from '../lib/run-failure-codes';
+import { readCostBudgets } from '../lib/cost-budgets-store';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import type {
@@ -295,7 +297,7 @@ async function costIdentifiersFor(
   if (!vectorEndpoint && vectorIndex) {
     vectorEndpoint = await lookupVectorEndpoint({
       host: host(),
-      token: forwardedUserToken(req) ?? '',
+      token: executionToken(req) ?? '',
       index: vectorIndex,
       fetchImpl: extras.fetchImpl,
     });
@@ -535,7 +537,7 @@ async function readAppMeasurement(req: Request, insightsHref: string): Promise<A
   const base = offMeasurement(insightsHref);
   const workspace = host();
   const warehouse = warehouseId();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   const principal = userEmail(req) || UNKNOWN_PRINCIPAL;
 
   if (!workspace || !warehouse || !token) {
@@ -619,7 +621,7 @@ async function readDependencies(
         env: process.env,
       }).tables,
       host: host(),
-      token: forwardedUserToken(req),
+      token: executionToken(req),
       principal: userEmail(req) || '',
     });
     const checkedAt = new Date().toISOString();
@@ -891,7 +893,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       // `?o=` is what makes the Apps list land for a reader signed in to more
       // than one workspace. The id is resolved rather than configured, since
       // nothing hands the container one, and '' simply omits the parameter.
-      const appsToken = forwardedUserToken(req);
+      const appsToken = executionToken(req);
       const appsWorkspaceId = appsToken
         ? await resolveWorkspaceId({ host: workspace, token: appsToken }).catch(() => '')
         : '';
@@ -936,7 +938,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       const range = opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const workspace = host();
       const warehouse = warehouseId();
-      const token = forwardedUserToken(req);
+      const token = executionToken(req);
       const workspaceId = token
         ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl })
         : '';
@@ -946,6 +948,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         fetchImpl: deps.fetchImpl,
         readAppBillingTag: deps.readAppBillingTag,
       });
+      const storedBudgets = await readCostBudgets(appkit);
       const empty = {
         grant: null,
         reason: '',
@@ -962,6 +965,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           limited: false,
           reason: '',
         },
+        budgets: storedBudgets.budgets,
+        budgetsReadable: storedBudgets.readable,
       };
 
       if (!workspace || !warehouse || !token) {
