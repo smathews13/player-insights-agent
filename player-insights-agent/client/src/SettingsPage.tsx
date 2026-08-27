@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
+import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
@@ -242,7 +243,6 @@ export function SettingsPage({
                 <div className="settings-pane settings-roles">
                   <div className="settings-pane-heading">
                     <h3>Roles</h3>
-                    <p>Identity and deployment roles. Changes save immediately.</p>
                   </div>
                   {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
                 </div>
@@ -251,7 +251,6 @@ export function SettingsPage({
                 <div className="settings-pane">
                   <div className="settings-pane-heading">
                     <h3>Identity</h3>
-                    <p>Who questions run as. Changes save immediately.</p>
                   </div>
                   <SpIdentityPanel enabled={spIdentityEnabled} />
                 </div>
@@ -265,24 +264,7 @@ export function SettingsPage({
                 <div className="settings-pane">
                   <div className="settings-pane-heading">
                     <h3>Experimental</h3>
-                    <p>Unfinished or internal surfaces, off by default.</p>
                   </div>
-                  <div className="settings-row">
-                    <div>
-                      <p className="settings-row-label">
-                        Benchmarking · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
-                      </p>
-                      <p className="settings-row-note">
-                        Shows the Benchmarking tab: evaluation dataset, Genie accuracy, then agent judges.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={showsBenchmarkLab(features)}
-                      onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
-                      aria-label="Show Benchmarking tab"
-                    />
-                  </div>
-                  <BenchmarkSettingsPanel enabled={showsBenchmarkLab(features)} onSaveState={setSaveState} />
                   <div className="settings-row">
                     <div>
                       <p className="settings-row-label">
@@ -337,6 +319,20 @@ export function SettingsPage({
                       aria-label="Run assigned people as their service principal"
                     />
                   </div>
+                  <ResourceTagsPanel />
+                  <div className="settings-row">
+                    <div>
+                      <p className="settings-row-label">
+                        Benchmarking · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={showsBenchmarkLab(features)}
+                      onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
+                      aria-label="Show Benchmarking tab"
+                    />
+                  </div>
+                  <BenchmarkSettingsPanel enabled={showsBenchmarkLab(features)} onSaveState={setSaveState} />
                 </div>
               ) : null}
             </SettingsPaneBoundary>

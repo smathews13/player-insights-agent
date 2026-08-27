@@ -98,7 +98,7 @@ export function ResourceTagsPanel() {
   return (
     <div className="settings-row settings-resource-tags">
       <div>
-        <p className="settings-row-label">Astrolabe resource tags</p>
+        <p className="settings-row-label">Astrolabe resource tags · Experimental</p>
         <p className="settings-row-note">
           Apply <code>system_billing=astrolabe</code> to everything this app manages. This repairs older deployments
           that were created before Astrolabe added the tag automatically, and removes the retired <code>astrolabe</code>{' '}

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { EMPTY_SP_IDENTITY, SpIdentityEditor, UNASSIGNED_PERSONA } from './SpIdentityPanel';
-import type { SpIdentityAdminPayload } from '../../shared/sp-identity';
+import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpIdentityAdminPayload } from '../../shared/sp-identity';
 
 const PAYLOAD: SpIdentityAdminPayload = {
   ...EMPTY_SP_IDENTITY,
@@ -56,7 +56,7 @@ describe('Settings → Identity', () => {
     expect(markup).toContain('aria-label="Service principal application id"');
     expect(markup).toContain('aria-label="Databricks secret scope"');
     expect(markup).toContain('aria-label="Databricks secret key"');
-    expect(markup).toContain('never the secret itself');
+    expect(markup).not.toContain('never the secret itself');
     expect(markup).not.toContain('type="password"');
     expect(markup).not.toMatch(/secret value/i);
     expect(JSON.stringify(payloadWithoutSecrets(PAYLOAD))).not.toMatch(/s3cret|client_secret|secretValue/i);
@@ -82,6 +82,21 @@ describe('Settings → Identity', () => {
       },
     });
     expect(markup).toContain('This app has no service-principal credentials of its own.');
+  });
+
+  it('does not lecture about minting, empty personas, or who assigns', () => {
+    const empty = render(true, {
+      ...EMPTY_SP_IDENTITY,
+      minting: { available: false, detail: SP_IDENTITY_MINTING_UNAVAILABLE },
+      roster: PAYLOAD.roster,
+    });
+    expect(empty).not.toContain(SP_IDENTITY_MINTING_UNAVAILABLE);
+    expect(empty).not.toContain('No personas yet.');
+    expect(empty).not.toContain('Who runs as which persona');
+    expect(empty).not.toContain('Administrators assign this');
+    expect(empty).not.toContain('People using the app do not pick a persona on Ask');
+    expect(empty).not.toContain('never the secret itself');
+    expect(empty).toContain('sp-identity-assignments');
   });
 });
 

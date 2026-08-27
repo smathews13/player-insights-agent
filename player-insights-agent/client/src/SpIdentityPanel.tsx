@@ -6,7 +6,13 @@
  * There is no picker on Ask: an administrator assigns one persona per person.
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { SpIdentityAdminPayload, SpIdentityRosterRow, SpMintingStatus, SpPersona } from '../../shared/sp-identity';
+import {
+  SP_IDENTITY_MINTING_UNAVAILABLE,
+  type SpIdentityAdminPayload,
+  type SpIdentityRosterRow,
+  type SpMintingStatus,
+  type SpPersona,
+} from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
 import { Button, Input } from './ui';
 
@@ -142,10 +148,6 @@ export function SpIdentityEditor({
             onChange={(event) => setSecretKey(event.target.value)}
           />
         </label>
-        <p className="runtime-control-note">
-          The OAuth client secret stays in Databricks Secrets. This app stores only the scope and key names, never the
-          secret itself.
-        </p>
         <Button
           type="button"
           data-variant="primary"
@@ -194,14 +196,8 @@ export function SpIdentityEditor({
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="settings-row-note">No personas yet.</p>
-      )}
+      ) : null}
 
-      <p className="runtime-section-label">Who runs as which persona</p>
-      <p className="settings-row-note">
-        Administrators assign this. People using the app do not pick a persona on Ask.
-      </p>
       <AssignmentRows
         roster={payload.roster}
         personas={payload.personas}
@@ -214,17 +210,18 @@ export function SpIdentityEditor({
 }
 
 function MintingNotice({ minting }: { minting: SpMintingStatus }) {
+  const detail = minting.detail.trim();
+  if (!detail || detail === SP_IDENTITY_MINTING_UNAVAILABLE) return null;
   if (minting.available) {
     return (
       <p className="settings-row-note" data-testid="sp-identity-minting">
-        {minting.detail}
+        {detail}
       </p>
     );
   }
   return (
     <p className="settings-status settings-error" role="status" data-testid="sp-identity-minting">
-      {minting.detail ||
-        'This app cannot mint a token for another service principal. Assigned people would stay on OAuth.'}
+      {detail}
     </p>
   );
 }

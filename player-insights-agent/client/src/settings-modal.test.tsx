@@ -45,11 +45,10 @@ describe('Settings modal', () => {
   });
 
   it('renders Runtime, Environment, Appearance and Egress as separate selected panes', () => {
-    expect(render('runtime')).toContain('Live behavior for the next ask.');
+    expect(render('runtime')).toContain('<h3>Runtime</h3>');
+    expect(render('runtime')).toContain('Loop structure');
     expect(render('environment')).toContain('<h3>Environment</h3>');
-    expect(render('appearance')).toContain(
-      'Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.'
-    );
+    expect(render('appearance')).toContain('<h3>Appearance</h3>');
     expect(render('appearance')).toContain('aria-label="Dark"');
     expect(render('appearance')).toContain('Body text color');
     expect(render('appearance')).toContain('Secondary text color');
@@ -58,14 +57,38 @@ describe('Settings modal', () => {
     expect(render('egress')).toContain('What can leave this deployment: downloads, copies, and outbound links.');
   });
 
-  it('puts the legacy-deployment tag repair under Environment', () => {
-    const markup = render('environment');
-    expect(markup).toContain('Astrolabe resource tags');
-    expect(markup).toContain('system_billing=astrolabe');
-    expect(markup).toContain('>Apply Astrolabe tags</button>');
-    expect(markup).toContain('retired');
-    expect(markup).not.toContain('Admin only');
-    expect(render('experimental')).not.toContain('>Apply Astrolabe tags</button>');
+  it('keeps Settings tab titles and drops the grey captions under them', () => {
+    const roles = render('roles');
+    const identity = render('identity');
+    const runtime = render('runtime');
+    const appearance = render('appearance');
+    const experimental = render('experimental');
+    expect(roles).toContain('<h3>Roles</h3>');
+    expect(identity).toContain('<h3>Identity</h3>');
+    expect(runtime).toContain('<h3>Runtime</h3>');
+    expect(appearance).toContain('<h3>Appearance</h3>');
+    expect(experimental).toContain('<h3>Experimental</h3>');
+    expect(experimental).toContain('Benchmarking ·');
+    for (const markup of [roles, identity, runtime, appearance, experimental]) {
+      expect(markup).not.toContain('Who questions run as. Changes save immediately.');
+      expect(markup).not.toContain('Identity and deployment roles. Changes save immediately.');
+      expect(markup).not.toContain('Live behavior for the next ask.');
+      expect(markup).not.toContain('Theme, type, and chip colours');
+      expect(markup).not.toContain('Unfinished or internal surfaces, off by default.');
+      expect(markup).not.toContain('Shows the Benchmarking tab: evaluation dataset, Genie accuracy, then agent judges.');
+    }
+  });
+
+  it('puts the legacy-deployment tag repair on Experimental, not Environment', () => {
+    const environment = render('environment');
+    expect(environment).not.toContain('Astrolabe resource tags');
+    expect(environment).not.toContain('>Apply Astrolabe tags</button>');
+
+    const experimental = render('experimental');
+    expect(experimental).toContain('Astrolabe resource tags · Experimental');
+    expect(experimental).toContain('system_billing=astrolabe');
+    expect(experimental).toContain('>Apply Astrolabe tags</button>');
+    expect(experimental).toContain('retired');
   });
 
   it('puts personas on Identity, grayed until the deployment-wide SP identities pivot is on', () => {
@@ -87,7 +110,12 @@ describe('Settings modal', () => {
       />
     );
     expect(on).toContain('Each named identity is a Databricks service principal');
-    expect(on).toContain('People using the app do not pick a persona on Ask');
+    expect(on).not.toContain('People using the app do not pick a persona on Ask');
+    expect(on).not.toContain('No personas yet.');
+    expect(on).not.toContain('Who runs as which persona');
+    expect(on).not.toContain('Administrators assign this');
+    expect(on).not.toContain('never the secret itself');
+    expect(on).not.toContain("Databricks Apps cannot mint a token for another service principal");
   });
 
   /**
@@ -152,6 +180,20 @@ describe('Settings modal', () => {
     const markup = render('experimental');
     expect(markup).toContain('aria-label="Run assigned people as their service principal"');
     expect(markup).toContain('People without an assignment still use OAuth');
+  });
+
+  it('puts PII egress, SP identities, and resource tags above the benchmarking Candidate cluster', () => {
+    const markup = render('experimental');
+    const pii = markup.indexOf('PII egress judge');
+    const identities = markup.indexOf('SP identities');
+    const tags = markup.indexOf('Astrolabe resource tags');
+    const benchmarking = markup.indexOf('Benchmarking ·');
+    const candidate = markup.indexOf('>Candidate<');
+    expect(pii).toBeGreaterThan(-1);
+    expect(identities).toBeGreaterThan(pii);
+    expect(tags).toBeGreaterThan(identities);
+    expect(benchmarking).toBeGreaterThan(tags);
+    expect(candidate).toBeGreaterThan(benchmarking);
   });
 
   it('puts MLflow and bake-off controls on Experimental, disabled while Benchmarking is off', () => {

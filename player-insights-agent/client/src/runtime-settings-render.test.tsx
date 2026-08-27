@@ -96,8 +96,8 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-type-preview');
   });
 
-  it('keeps the Appearance caption, previews theme changes and applies a save immediately', () => {
-    expect(source).toContain('Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.');
+  it('previews theme changes and applies a save immediately', () => {
+    expect(source).not.toContain('Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.');
     expect(source).not.toContain('Limits how many reasoning passes');
     expect(source).toContain('2026-07-22 – 2026-08-03');
     expect(source).toContain('Northwind, Contoso');

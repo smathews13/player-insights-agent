@@ -283,7 +283,6 @@ export function RuntimeSettingsPanel({
         <>
           <div className="settings-pane-heading">
             <h3>Runtime</h3>
-            <p>Live behavior for the next ask. Model, warehouse, Genie and data access are set on Connections.</p>
           </div>
 
           <section className="runtime-section">
@@ -396,7 +395,6 @@ export function RuntimeSettingsPanel({
         <>
           <div className="settings-pane-heading">
             <h3>Appearance</h3>
-            <p>Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.</p>
           </div>
           <section className="runtime-section appearance-theme-section">
             <h4 className="runtime-section-label">Theme</h4>
