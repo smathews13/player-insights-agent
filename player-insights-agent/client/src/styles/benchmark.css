@@ -1182,13 +1182,13 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #9ad6ce;
+  background: var(--ast-pos-on-dark);
 }
 .bench-span-dot.is-slow {
-  background: #e0c07a;
+  background: var(--ast-warn-on-dark);
 }
 .bench-span-dot.is-error {
-  background: #e8a9b8;
+  background: var(--ast-neg-on-dark);
 }
 .bench-snapshot {
   padding: 8px 16px 0;

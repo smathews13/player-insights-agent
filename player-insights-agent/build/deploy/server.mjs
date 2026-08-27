@@ -162115,7 +162115,7 @@ function scorerSetSummary(input) {
 }
 function configurationSnapshotHref(snapshotId) {
   const id = snapshotId.trim();
-  return id ? `/benchmarking?snapshot=${encodeURIComponent(id)}` : "/benchmarking";
+  return id ? `/benchmarking?snapshot=${encodeURIComponent(id)}#lab-snapshot` : "#lab-snapshot";
 }
 function runPermalink(input) {
   const params = new URLSearchParams();
@@ -162284,15 +162284,19 @@ function pocContractView(input) {
   const version4 = input.versionId || "working copy";
   const targetKind = input.contract.target.kind === "prompt_registry" ? "Prompt Registry" : input.contract.target.kind === "genie_space" ? "Genie space" : "RAG config";
   const identifier = input.contract.target.identifier.trim() || "not set";
+  const snapshotId = input.contract.target.snapshotId.trim() || input.contract.candidateRunId.trim() || input.contract.baselineRunId.trim();
+  const scorerLine = input.scorerSet.line || `${input.scorerSet.version} \xB7 ${input.scorerSet.activeCount} active \xB7 ${input.scorerSet.nonApplicableCount} not applicable`;
   return {
     goal: input.contract.goalLanes.join(" \xB7 "),
     dataset: `${version4} \xB7 ${input.counts.cases} cases \xB7 ${input.counts.heldOut} held out`,
     baseline: input.contract.baselineRunId || "-",
     candidate: input.contract.candidateRunId || "-",
     passGates: passGatesStripLine(input.contract.gates),
-    scorerSet: `${input.scorerSet.version} \xB7 ${input.scorerSet.activeCount} active \xB7 ${input.scorerSet.nonApplicableCount} not applicable`,
+    scorerSet: scorerLine,
     target: `${targetKind} \xB7 ${identifier}`,
-    snapshotHref: configurationSnapshotHref(input.contract.target.snapshotId)
+    snapshotHref: configurationSnapshotHref(snapshotId),
+    snapshotDetail: snapshotId ? `${snapshotId} \xB7 ${version4} \xB7 ${input.counts.cases} cases \xB7 ${scorerLine} \xB7 baseline ${input.contract.baselineRunId || "not set"} \xB7 candidate ${input.contract.candidateRunId || "not set"}` : "No configuration snapshot is saved until a judge run starts. This link stays on the Lab.",
+    heldOutLocked: input.counts.heldOut > 0
   };
 }
 function mergeLabRowExtras(current, incoming) {
@@ -163381,6 +163385,14 @@ ${answer.sql}`);
   if (text20.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text20, truncated: false };
   return { text: text20.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
 }
+function compactAnswerStages(answer) {
+  return answer.trace.stages.map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    kind: stage.kind,
+    status: stage.status
+  }));
+}
 function answerText(answer) {
   return `${answer.takeaway}
 
@@ -163806,6 +163818,8 @@ async function runCase(deps, runId, resolved) {
       turns,
       mlflowTraceId: answer.trace.id,
       answerId: answer.id,
+      tokens: typeof answer.trace.total_tokens === "number" ? answer.trace.total_tokens : null,
+      stages: compactAnswerStages(answer),
       structuralChecks,
       judgements,
       // Recorded beside the verdict, never folded into it. `decideOutcome` above
@@ -176349,6 +176363,9 @@ function resourceTagInventory(input = {}) {
 function hasTag(tags) {
   return tags.some((tag) => tag.key === ASTROLABE_TAG.key && tag.value === ASTROLABE_TAG.value);
 }
+function hasRetiredTag(tags) {
+  return tags.some((tag) => tag.key === RETIRED_BILLING_TAG_KEY);
+}
 function mergeTag(tags) {
   return [
     ...tags.filter((tag) => tag.key !== ASTROLABE_TAG.key && tag.key !== RETIRED_BILLING_TAG_KEY),
@@ -176461,50 +176478,89 @@ async function tagTargetOnce(target, platform) {
   }
   if (target.kind === "serving-endpoint") {
     const tags = await platform.getServingTags(target.name);
-    if (hasTag(tags)) {
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.addServingTag(target.name);
+    if (retired) await platform.deleteServingTag(target.name, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
-    await platform.addServingTag(target.name);
-    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
+    return {
+      ...target,
+      status: "tagged",
+      detail: retired ? tagStateDetail("tagged", `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`) : tagStateDetail("tagged")
+    };
   }
   if (target.kind === "registered-model") {
-    if (hasTag(await platform.getModelTags(target.name))) {
+    const tags = await platform.getModelTags(target.name);
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.setModelTag(target.name);
+    if (retired) await platform.deleteModelTag(target.name, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
-    await platform.setModelTag(target.name);
-    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
+    return {
+      ...target,
+      status: "tagged",
+      detail: retired ? tagStateDetail("tagged", `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`) : tagStateDetail("tagged")
+    };
   }
   if (target.kind === "model-version") {
     const version4 = target.version;
     if (!version4) throw new Error("The connected agent model version was not resolved.");
-    if (hasTag(await platform.getModelVersionTags(target.name, version4))) {
+    const tags = await platform.getModelVersionTags(target.name, version4);
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.setModelVersionTag(target.name, version4);
+    if (retired) await platform.deleteModelVersionTag(target.name, version4, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
-    await platform.setModelVersionTag(target.name, version4);
-    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
+    return {
+      ...target,
+      status: "tagged",
+      detail: retired ? tagStateDetail("tagged", `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`) : tagStateDetail("tagged")
+    };
   }
   if (target.kind === "mlflow-experiment") {
-    if (hasTag(await platform.getExperimentTags(target.name))) {
+    const tags = await platform.getExperimentTags(target.name);
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.setExperimentTag(target.name);
+    if (retired) await platform.deleteExperimentTag(target.name, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
-    await platform.setExperimentTag(target.name);
-    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
+    return {
+      ...target,
+      status: "tagged",
+      detail: retired ? tagStateDetail("tagged", `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`) : tagStateDetail("tagged")
+    };
   }
   if (target.kind === "sql-warehouse") {
     const tags = await platform.getWarehouseTags(target.name);
-    if (hasTag(tags)) {
+    if (hasTag(tags) && !hasRetiredTag(tags)) {
       return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.setWarehouseTags(target.name, mergeTag(tags));
-    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
+    return {
+      ...target,
+      status: "tagged",
+      detail: hasRetiredTag(tags) ? tagStateDetail("tagged", `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`) : tagStateDetail("tagged")
+    };
   }
   if (target.kind === "lakebase") {
     const tags = await platform.getLakebaseTags(target.name);
-    if (hasTag(tags)) {
+    if (hasTag(tags) && !hasRetiredTag(tags)) {
       return { ...target, status: "already-correct", detail: tagStateDetail("already-correct") };
     }
     await platform.setLakebaseTags(target.name, mergeTag(tags));
-    return { ...target, status: "tagged", detail: tagStateDetail("tagged") };
+    return {
+      ...target,
+      status: "tagged",
+      detail: hasRetiredTag(tags) ? tagStateDetail("tagged", `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`) : tagStateDetail("tagged")
+    };
   }
   return {
     ...target,
@@ -176559,11 +176615,15 @@ async function applyAstrolabeTags(input) {
             action: "tag"
           };
           const tags = await platform.getVectorEndpointTags(endpointName);
-          if (hasTag(tags)) {
+          if (hasTag(tags) && !hasRetiredTag(tags)) {
             return { ...endpoint, status: "already-correct", detail: tagStateDetail("already-correct") };
           }
           await platform.setVectorEndpointTags(endpointName, mergeTag(tags));
-          return { ...endpoint, status: "tagged", detail: tagStateDetail("tagged") };
+          return {
+            ...endpoint,
+            status: "tagged",
+            detail: hasRetiredTag(tags) ? tagStateDetail("tagged", `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`) : tagStateDetail("tagged")
+          };
         }, policy2)
       );
     } catch (error48) {
@@ -176654,11 +176714,17 @@ async function workspaceTagPlatform() {
     async addServingTag(name2) {
       await client.servingEndpoints.patch({ name: name2, add_tags: [{ ...ASTROLABE_TAG }] });
     },
+    async deleteServingTag(name2, key2) {
+      await client.servingEndpoints.patch({ name: name2, delete_tags: [key2] });
+    },
     async getModelTags(name2) {
       return (await client.modelRegistry.getModel({ name: name2 })).registered_model_databricks?.tags ?? [];
     },
     async setModelTag(name2) {
       await client.modelRegistry.setModelTag({ name: name2, ...ASTROLABE_TAG });
+    },
+    async deleteModelTag(name2, key2) {
+      await client.modelRegistry.deleteModelTag({ name: name2, key: key2 });
     },
     async getModelVersionTags(name2, version4) {
       return (await client.modelRegistry.getModelVersion({ name: name2, version: version4 })).model_version?.tags ?? [];
@@ -176666,11 +176732,23 @@ async function workspaceTagPlatform() {
     async setModelVersionTag(name2, version4) {
       await client.modelRegistry.setModelVersionTag({ name: name2, version: version4, ...ASTROLABE_TAG });
     },
+    async deleteModelVersionTag(name2, version4, key2) {
+      await client.modelRegistry.deleteModelVersionTag({ name: name2, version: version4, key: key2 });
+    },
     async getExperimentTags(experimentId) {
       return (await client.experiments.getExperiment({ experiment_id: experimentId })).experiment?.tags ?? [];
     },
     async setExperimentTag(experimentId) {
       await client.experiments.setExperimentTag({ experiment_id: experimentId, ...ASTROLABE_TAG });
+    },
+    async deleteExperimentTag(experimentId, key2) {
+      await client.apiClient.request({
+        path: "/api/2.0/mlflow/experiments/delete-experiment-tag",
+        method: "POST",
+        headers: jsonHeaders,
+        payload: { experiment_id: experimentId, key: key2 },
+        raw: false
+      });
     },
     async getWarehouseTags(warehouseId2) {
       return (await client.warehouses.get({ id: warehouseId2 })).tags?.custom_tags ?? [];
@@ -179003,6 +179081,7 @@ function buildCostStatement(ids, range) {
   };
   bind("from_day", range.from, "DATE");
   bind("to_day", range.to, "DATE");
+  if (ids.workspaceId) bind("workspaceId", ids.workspaceId, "STRING");
   for (const component of covered) {
     const matcher = MATCHERS[component];
     const marker = String(matcher.parameter);
@@ -179017,67 +179096,474 @@ function buildCostStatement(ids, range) {
       `      WHEN u.billing_origin_product = '${matcher.product}' AND u.workspace_id = :workspaceId THEN '${workspaceEstimateRow(component)}'`
     );
   }
-  const statement = `WITH priced AS (
+  const resourcePredicates = [];
+  if (ids.warehouseId) {
+    resourcePredicates.push(`(u.billing_origin_product = 'SQL' AND u.usage_metadata.warehouse_id = :warehouseId)`);
+  }
+  if (ids.endpointName) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName)`
+    );
+  }
+  if (ids.vectorEndpoint) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint)`
+    );
+  }
+  if (ids.appName) {
+    resourcePredicates.push(`(u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)`);
+  }
+  if (ids.workspaceId) {
+    resourcePredicates.push(`(u.billing_origin_product = 'GENIE' AND u.workspace_id = :workspaceId)`);
+  }
+  const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join("\n     OR ") : "FALSE";
+  const statement = `WITH tagged AS (
   SELECT
     u.usage_date,
-    u.usage_quantity * COALESCE(p.pricing.default, 0) AS spend,
-    p.currency_code,
+    u.usage_quantity,
+    u.sku_name,
+    u.cloud,
+    u.usage_unit,
+    u.usage_end_time,
     u.usage_metadata.job_run_id AS job_run_id,
+    u.workspace_id,
+    u.billing_origin_product,
+    COALESCE(
+      CAST(u.record_id AS STRING),
+      CONCAT_WS('|', CAST(u.workspace_id AS STRING), u.sku_name, CAST(u.usage_start_time AS STRING), CAST(u.usage_end_time AS STRING))
+    ) AS record_id,
+    COALESCE(u.record_type, 'ORIGINAL') AS record_type,
     CASE
 ${branches.join("\n")}
       ELSE NULL
     END AS component
   FROM system.billing.usage u
-  LEFT JOIN system.billing.list_prices p
-    ON u.sku_name = p.sku_name
-   AND u.cloud = p.cloud
-   AND u.usage_end_time >= p.price_start_time
-   AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
   WHERE u.usage_date >= :from_day
     AND u.usage_date <= :to_day
     AND u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
+),
+price_hits AS (
+  SELECT
+    t.*,
+    p.pricing.default AS unit_price,
+    p.currency_code,
+    p.price_start_time,
+    COUNT(p.sku_name) OVER (PARTITION BY t.record_id) AS price_match_count
+  FROM tagged t
+  LEFT JOIN system.billing.list_prices p
+    ON t.sku_name = p.sku_name
+   AND t.cloud = p.cloud
+   AND t.usage_unit = p.usage_unit
+   AND t.usage_end_time >= p.price_start_time
+   AND (p.price_end_time IS NULL OR t.usage_end_time < p.price_end_time)
+),
+deduped AS (
+  SELECT
+    record_id,
+    usage_date,
+    usage_quantity,
+    sku_name,
+    job_run_id,
+    billing_origin_product,
+    component,
+    record_type,
+    MAX(price_match_count) AS price_match_count,
+    MAX(unit_price) AS unit_price,
+    MAX(currency_code) AS currency_code,
+    MAX(CAST(price_start_time AS STRING)) AS price_start_time
+  FROM price_hits
+  GROUP BY record_id, usage_date, usage_quantity, sku_name, job_run_id, billing_origin_product, component, record_type
+),
+priced AS (
+  SELECT
+    *,
+    CASE
+      WHEN unit_price IS NOT NULL AND price_match_count = 1 THEN usage_quantity * unit_price
+      ELSE CAST(NULL AS DOUBLE)
+    END AS spend,
+    CASE
+      WHEN price_match_count > 1 THEN 'duplicate'
+      WHEN unit_price IS NULL THEN 'unpriced'
+      ELSE 'priced'
+    END AS row_match
+  FROM deduped
 )
 SELECT
-  component,
+  'component' AS row_kind,
+  component AS key,
   SUM(spend) AS spend,
-  MAX(currency_code) AS currency,
+  CASE WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) = 1
+       THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
+  COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
   COUNT(DISTINCT usage_date) AS billed_days,
   COUNT(DISTINCT job_run_id) AS job_runs,
-  MAX(usage_date) AS last_day
+  MAX(usage_date) AS last_day,
+  SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
+  SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
+  COUNT(*) FILTER (WHERE row_match = 'priced') AS priced_rows,
+  COUNT(*) FILTER (WHERE row_match <> 'priced') AS unpriced_rows,
+  array_join(collect_set(CASE WHEN row_match <> 'priced' THEN sku_name END), ',') AS unpriced_skus,
+  CASE
+    WHEN COUNT(*) FILTER (WHERE row_match = 'duplicate') > 0 THEN 'duplicate'
+    WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) > 1 THEN 'mixed-currency'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'unpriced') > 0 AND COUNT(*) FILTER (WHERE row_match = 'priced') > 0 THEN 'partial'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'priced') = 0 THEN 'unpriced'
+    ELSE 'priced'
+  END AS price_match_status,
+  COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
+  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
+  MAX(price_start_time) AS price_effective_at,
+  COUNT(*) AS tagged_rows,
+  CAST(0 AS BIGINT) AS untagged_rows
 FROM priced
 WHERE component IS NOT NULL
 GROUP BY component
 UNION ALL
 SELECT
-  '${RANGE_ROW}' AS component,
-  CAST(NULL AS DOUBLE) AS spend,
-  MAX(currency_code) AS currency,
+  'coverage' AS row_kind,
+  billing_origin_product AS key,
+  SUM(spend) AS spend,
+  CASE WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) = 1
+       THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
+  COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
   COUNT(DISTINCT usage_date) AS billed_days,
   CAST(NULL AS BIGINT) AS job_runs,
-  MAX(usage_date) AS last_day
-FROM priced`;
+  MAX(usage_date) AS last_day,
+  SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
+  SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
+  COUNT(*) FILTER (WHERE row_match = 'priced') AS priced_rows,
+  COUNT(*) FILTER (WHERE row_match <> 'priced') AS unpriced_rows,
+  array_join(collect_set(CASE WHEN row_match <> 'priced' THEN sku_name END), ',') AS unpriced_skus,
+  CASE
+    WHEN COUNT(*) FILTER (WHERE row_match = 'duplicate') > 0 THEN 'duplicate'
+    WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) > 1 THEN 'mixed-currency'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'unpriced') > 0 AND COUNT(*) FILTER (WHERE row_match = 'priced') > 0 THEN 'partial'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'priced') = 0 THEN 'unpriced'
+    ELSE 'priced'
+  END AS price_match_status,
+  COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
+  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
+  MAX(price_start_time) AS price_effective_at,
+  COUNT(*) AS tagged_rows,
+  CAST(0 AS BIGINT) AS untagged_rows
+FROM priced
+GROUP BY billing_origin_product
+UNION ALL
+SELECT
+  'range' AS row_kind,
+  '${RANGE_ROW}' AS key,
+  CAST(NULL AS DOUBLE) AS spend,
+  CASE WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) = 1
+       THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
+  COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
+  COUNT(DISTINCT usage_date) AS billed_days,
+  CAST(NULL AS BIGINT) AS job_runs,
+  MAX(usage_date) AS last_day,
+  SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
+  SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
+  COUNT(*) FILTER (WHERE row_match = 'priced') AS priced_rows,
+  COUNT(*) FILTER (WHERE row_match <> 'priced') AS unpriced_rows,
+  CAST('' AS STRING) AS unpriced_skus,
+  CAST('' AS STRING) AS price_match_status,
+  COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
+  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
+  MAX(price_start_time) AS price_effective_at,
+  COUNT(*) AS tagged_rows,
+  CAST(0 AS BIGINT) AS untagged_rows
+FROM priced
+UNION ALL
+SELECT
+  'propagation' AS row_kind,
+  u.billing_origin_product AS key,
+  CAST(NULL AS DOUBLE) AS spend,
+  CAST('' AS STRING) AS currency,
+  CAST(0 AS BIGINT) AS currency_count,
+  COUNT(DISTINCT u.usage_date) AS billed_days,
+  CAST(NULL AS BIGINT) AS job_runs,
+  MAX(u.usage_date) AS last_day,
+  CAST(0 AS DOUBLE) AS priced_quantity,
+  CAST(0 AS DOUBLE) AS unpriced_quantity,
+  CAST(0 AS BIGINT) AS priced_rows,
+  CAST(0 AS BIGINT) AS unpriced_rows,
+  CAST('' AS STRING) AS unpriced_skus,
+  CAST('' AS STRING) AS price_match_status,
+  CAST(0 AS BIGINT) AS correction_rows,
+  CAST(0 AS BIGINT) AS duplicate_matches,
+  CAST('' AS STRING) AS price_effective_at,
+  COUNT(*) FILTER (WHERE u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}') AS tagged_rows,
+  COUNT(*) FILTER (
+    WHERE u.custom_tags['${BILLING_TAG.key}'] IS NULL
+       OR u.custom_tags['${BILLING_TAG.key}'] <> '${BILLING_TAG.value}'
+  ) AS untagged_rows
+FROM system.billing.usage u
+WHERE u.usage_date >= :from_day
+  AND u.usage_date <= :to_day
+  AND (${leakPredicate})
+GROUP BY u.billing_origin_product`;
   return { statement, parameters, covered, estimated };
+}
+function emptyRow(kind, component) {
+  return {
+    kind,
+    component,
+    spend: null,
+    currency: "",
+    currencyCount: 0,
+    billedDays: 0,
+    jobRuns: null,
+    lastDay: "",
+    pricedQuantity: 0,
+    unpricedQuantity: 0,
+    pricedRows: 0,
+    unpricedRows: 0,
+    unpricedSkus: [],
+    priceMatchStatus: "none",
+    correctionRows: 0,
+    duplicateMatches: 0,
+    priceEffectiveAt: "",
+    taggedRows: 0,
+    untaggedRows: 0
+  };
+}
+function asNumber(value) {
+  if (value === null || value === void 0 || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function asCount(value) {
+  return asNumber(value) ?? 0;
+}
+function asMatch(value) {
+  if (value === "priced" || value === "unpriced" || value === "partial" || value === "duplicate" || value === "mixed-currency" || value === "none") {
+    return value;
+  }
+  return "none";
+}
+function parseSkus(value) {
+  if (!value) return [];
+  return value.split(",").map((sku) => sku.trim()).filter(Boolean);
 }
 function readComponentRows(dataArray2) {
   if (!Array.isArray(dataArray2)) return [];
   const rows = [];
   for (const raw2 of dataArray2) {
     if (!Array.isArray(raw2) || raw2.length < 6) continue;
-    const [component, spend, currency, billedDays, jobRuns, lastDay] = raw2;
+    const cells2 = raw2;
+    const wide = cells2.length >= 8 && typeof cells2[0] === "string" && ROW_KINDS.has(cells2[0]);
+    if (wide) {
+      const [
+        kind2,
+        component2,
+        spend2,
+        currency2,
+        currencyCount,
+        billedDays2,
+        jobRuns2,
+        lastDay2,
+        pricedQuantity,
+        unpricedQuantity,
+        pricedRows,
+        unpricedRows,
+        unpricedSkus,
+        priceMatchStatus,
+        correctionRows,
+        duplicateMatches,
+        priceEffectiveAt,
+        taggedRows,
+        untaggedRows
+      ] = cells2;
+      if (typeof component2 !== "string" || typeof kind2 !== "string") continue;
+      rows.push({
+        kind: kind2,
+        component: component2,
+        spend: asNumber(spend2),
+        currency: typeof currency2 === "string" ? currency2 : "",
+        currencyCount: asCount(currencyCount),
+        billedDays: asCount(billedDays2),
+        jobRuns: asNumber(jobRuns2),
+        lastDay: typeof lastDay2 === "string" ? lastDay2 : "",
+        pricedQuantity: asCount(pricedQuantity),
+        unpricedQuantity: asCount(unpricedQuantity),
+        pricedRows: asCount(pricedRows),
+        unpricedRows: asCount(unpricedRows),
+        unpricedSkus: parseSkus(unpricedSkus),
+        priceMatchStatus: asMatch(priceMatchStatus),
+        correctionRows: asCount(correctionRows),
+        duplicateMatches: asCount(duplicateMatches),
+        priceEffectiveAt: typeof priceEffectiveAt === "string" ? priceEffectiveAt : "",
+        taggedRows: asCount(taggedRows),
+        untaggedRows: asCount(untaggedRows)
+      });
+      continue;
+    }
+    const [component, spend, currency, billedDays, jobRuns, lastDay] = cells2;
     if (typeof component !== "string") continue;
+    const kind = component === RANGE_ROW ? "range" : "component";
     rows.push({
-      component,
-      spend: spend === null || spend === void 0 || spend === "" ? null : Number(spend),
+      ...emptyRow(kind, component),
+      spend: asNumber(spend),
       currency: typeof currency === "string" ? currency : "",
-      billedDays: billedDays ? Number(billedDays) : 0,
-      jobRuns: jobRuns === null || jobRuns === void 0 || jobRuns === "" ? null : Number(jobRuns),
+      billedDays: asCount(billedDays),
+      jobRuns: asNumber(jobRuns),
       lastDay: typeof lastDay === "string" ? lastDay : ""
     });
   }
   return rows;
 }
+function splitBillingRows(rows) {
+  return {
+    components: rows.filter((row2) => (row2.kind ?? "component") === "component" && row2.component !== RANGE_ROW),
+    coverage: rows.filter((row2) => row2.kind === "coverage"),
+    propagation: rows.filter((row2) => row2.kind === "propagation"),
+    meta: rows.find((row2) => row2.kind === "range" || row2.component === RANGE_ROW)
+  };
+}
+function pricingFromRow(row2) {
+  if (!row2) return { ...EMPTY_PRICING };
+  const pricedRows = row2.pricedRows ?? 0;
+  const unpricedRows = row2.unpricedRows ?? 0;
+  const unpricedQuantity = row2.unpricedQuantity ?? 0;
+  const duplicateMatches = row2.duplicateMatches ?? 0;
+  const currencyCount = row2.currencyCount ?? (row2.currency ? 1 : 0);
+  let match = row2.priceMatchStatus ?? "none";
+  if (currencyCount > 1) match = "mixed-currency";
+  else if (duplicateMatches > 0 || match === "duplicate") match = "duplicate";
+  else if (unpricedRows > 0 && pricedRows > 0) match = "partial";
+  else if (pricedRows === 0 && (unpricedRows > 0 || unpricedQuantity > 0)) match = "unpriced";
+  else if (pricedRows > 0) match = match === "none" ? "priced" : match;
+  else if (row2.spend !== null && Number.isFinite(row2.spend) && match === "none") match = "priced";
+  return {
+    source: "list_prices",
+    match,
+    currency: currencyCount > 1 ? "" : row2.currency,
+    pricedQuantity: row2.pricedQuantity ?? 0,
+    unpricedQuantity,
+    pricedRows,
+    unpricedRows,
+    unpricedSkus: row2.unpricedSkus ?? [],
+    duplicateMatches,
+    correctionRows: row2.correctionRows ?? 0,
+    priceEffectiveAt: row2.priceEffectiveAt ?? ""
+  };
+}
+function attributionFor(population, amount) {
+  if (population === "Whole warehouse" || population === "Whole workspace") return "shared-upper-bound";
+  if (amount === null) return "unavailable";
+  return "deployment";
+}
+function spendAmountFor(row2, basis) {
+  if (!row2) return null;
+  const pricing = pricingFromRow(row2);
+  if (pricing.match === "unpriced" || pricing.match === "duplicate" || pricing.match === "mixed-currency") {
+    return null;
+  }
+  if (row2.spend === null || !Number.isFinite(row2.spend)) return null;
+  if (pricing.match === "partial" || pricing.match === "priced" || pricing.match === "none") {
+    return basis === "per-day" ? row2.spend / Math.max(row2.billedDays, 1) : row2.spend;
+  }
+  return null;
+}
+function unpricedUnavailable(pricing) {
+  if (pricing.match === "duplicate") return "Duplicate list prices; spend withheld";
+  if (pricing.match === "mixed-currency") return "Mixed currencies; spend withheld";
+  if (pricing.match === "unpriced") {
+    const skus = pricing.unpricedSkus.slice(0, 4).join(", ");
+    return skus ? `Unpriced SKUs: ${skus}` : "Usage has no matching list price";
+  }
+  return "";
+}
+function buildHonesty(range, meta3, tiles) {
+  const currencies = new Set(tiles.map((tile) => tile.pricing?.currency).filter((code) => Boolean(code)));
+  const through = meta3?.lastDay || "";
+  return {
+    priceSource: "list_prices",
+    contractRates: "unavailable",
+    dataThrough: through,
+    rangeMayStillFill: Boolean(through && through < range.to) || !through,
+    currencyConsistent: currencies.size <= 1
+  };
+}
+function buildCoverage(input) {
+  const products = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const row2 of input.coverageRows) {
+    seen.add(row2.component);
+    const tiled = TILED_PRODUCTS.has(row2.component) || row2.component === "GENIE";
+    products.push({
+      product: row2.component,
+      taggedRows: row2.taggedRows || (row2.pricedRows ?? 0) + (row2.unpricedRows ?? 0),
+      taggedQuantity: (row2.pricedQuantity ?? 0) + (row2.unpricedQuantity ?? 0),
+      pricedRows: row2.pricedRows ?? 0,
+      unpricedRows: row2.unpricedRows ?? 0,
+      tiled,
+      reason: PRODUCT_REASONS[row2.component] ?? (tiled ? "On the tracked cost grid." : "Tagged usage with no Cost tile.")
+    });
+  }
+  for (const [product, reason] of Object.entries(PRODUCT_REASONS)) {
+    if (seen.has(product)) continue;
+    if (product === "MLFLOW" || product === "JOBS" || product === "LAKEBASE") {
+      products.push({
+        product,
+        taggedRows: 0,
+        taggedQuantity: 0,
+        pricedRows: 0,
+        unpricedRows: 0,
+        tiled: false,
+        reason
+      });
+    }
+  }
+  const through = input.meta?.lastDay || "";
+  const delayed = Boolean(through && through < input.range.to);
+  const propagation2 = input.propagationRows.map((row2) => {
+    if (row2.component === "APPS") {
+      return {
+        product: "APPS",
+        status: "unsupported",
+        detail: "Databricks app tags are organizational and may not appear on billing rows. App compute is matched by app name, not the tag."
+      };
+    }
+    if (row2.component === "GENIE") {
+      return {
+        product: "GENIE",
+        status: "unsupported",
+        detail: GENIE_LLM_UNAVAILABLE + " " + GENIE_SQL_NOT_COMPLETE
+      };
+    }
+    if ((row2.taggedRows ?? 0) > 0) {
+      return {
+        product: row2.component,
+        status: "propagated",
+        detail: `${row2.taggedRows} tagged billing rows in this range.`
+      };
+    }
+    if ((row2.untaggedRows ?? 0) > 0) {
+      return {
+        product: row2.component,
+        status: "unpropagated",
+        detail: `${row2.untaggedRows} matching usage rows have no ${BILLING_TAG.key}=${BILLING_TAG.value} tag.`
+      };
+    }
+    if (delayed) {
+      return {
+        product: row2.component,
+        status: "delayed",
+        detail: `Billing data through ${through}. Later days in this range may still be filling.`
+      };
+    }
+    return { product: row2.component, status: "unused", detail: "No matching usage rows in this range." };
+  });
+  return {
+    inventoryCount: input.inventoryCount,
+    costModelCount: COST_COMPONENTS.length,
+    products,
+    propagation: propagation2
+  };
+}
 function buildTiles(ids, rows) {
-  const byComponent = new Map(rows.map((row2) => [row2.component, row2]));
+  const byComponent = new Map(
+    rows.filter((row2) => (row2.kind ?? "component") === "component").map((row2) => [row2.component, row2])
+  );
   const tiles = [];
   for (const component of COST_COMPONENTS) {
     if (component === "genie") {
@@ -179097,13 +179583,15 @@ function genieSpaceTiles(ids) {
         label: "Genie",
         resourceId: "",
         resourceKind: "",
-        quality: "estimate",
+        quality: "unknown",
         amount: null,
         basis: "total-in-range",
         population: "Whole workspace",
-        unavailable: "Genie space identifier unavailable",
-        remedy: "",
-        note: ""
+        attribution: "unavailable",
+        pricing: { ...EMPTY_PRICING },
+        unavailable: GENIE_LLM_UNAVAILABLE,
+        remedy: "Genie space identifier unavailable",
+        note: GENIE_SQL_NOT_COMPLETE
       }
     ];
   }
@@ -179112,13 +179600,15 @@ function genieSpaceTiles(ids) {
     label: space.label.trim() || "Genie space",
     resourceId: space.id.trim(),
     resourceKind: "genie-space",
-    quality: "estimate",
+    quality: "unknown",
     amount: null,
     basis: "total-in-range",
     population: "This space",
-    unavailable: "No billing rows",
+    attribution: "unavailable",
+    pricing: { ...EMPTY_PRICING },
+    unavailable: GENIE_LLM_UNAVAILABLE,
     remedy: "",
-    note: ""
+    note: GENIE_SQL_NOT_COMPLETE
   }));
 }
 function appComputeTagAbsence(state) {
@@ -179148,52 +179638,81 @@ function componentTile(component, ids, byComponent) {
     basis: description.basis,
     population: description.population
   };
+  const withMeta = (tile) => {
+    const pricing2 = tile.pricing ?? EMPTY_PRICING;
+    const amount2 = tile.amount;
+    const unpriced = unpricedUnavailable(pricing2);
+    const partialNote = pricing2.match === "partial" && pricing2.unpricedSkus.length > 0 ? `Unpriced SKUs: ${pricing2.unpricedSkus.slice(0, 4).join(", ")}` : "";
+    return {
+      ...tile,
+      quality: unpriced ? "unknown" : tile.quality,
+      amount: unpriced ? null : amount2,
+      attribution: attributionFor(tile.population, unpriced ? null : amount2),
+      pricing: pricing2,
+      unavailable: tile.unavailable || unpriced,
+      note: tile.note || partialNote
+    };
+  };
   if (!canAsk(component, ids)) {
     const estimate = byComponent.get(workspaceEstimateRow(component));
-    if (estimate && estimate.spend !== null && Number.isFinite(estimate.spend)) {
-      return {
+    const pricing2 = pricingFromRow(estimate);
+    const amount2 = spendAmountFor(estimate, description.basis);
+    if (amount2 !== null) {
+      return withMeta({
         ...base,
         quality: "estimate",
         population: "Whole workspace",
-        amount: description.basis === "per-day" ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
+        amount: amount2,
+        pricing: pricing2,
         note: "",
         unavailable: "",
         remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : ""
-      };
+      });
     }
     if (component === "vector-search") {
-      return {
+      return withMeta({
         ...base,
         amount: null,
+        pricing: pricing2,
         note: "",
         unavailable: base.resourceId ? "No billing rows" : "Vector Search index identifier unavailable",
         remedy: ""
-      };
+      });
     }
-    return {
+    return withMeta({
       ...base,
       amount: null,
+      pricing: pricing2,
       note: "",
       unavailable: "Resource identifier unavailable",
       remedy: description.variable ? `Set ${description.variable}.` : ""
-    };
+    });
   }
   const row2 = byComponent.get(component);
-  if (!row2 || row2.spend === null || !Number.isFinite(row2.spend)) {
-    if (component === "app-compute") {
+  const pricing = pricingFromRow(row2);
+  const amount = spendAmountFor(row2, description.basis);
+  if (amount === null) {
+    if (component === "app-compute" && pricing.match === "none") {
       const absence = appComputeTagAbsence(ids.appBillingTag);
-      return {
+      return withMeta({
         ...base,
         amount: null,
+        pricing,
         note: "",
         unavailable: absence.unavailable,
         remedy: absence.remedy
-      };
+      });
     }
-    return { ...base, amount: null, note: "", unavailable: "No billing rows", remedy: "" };
+    return withMeta({
+      ...base,
+      amount: null,
+      pricing,
+      note: "",
+      unavailable: unpricedUnavailable(pricing) || "No billing rows",
+      remedy: ""
+    });
   }
-  const amount = description.basis === "per-day" ? row2.spend / Math.max(row2.billedDays, 1) : row2.spend;
-  return { ...base, amount, note: "", unavailable: "", remedy: "" };
+  return withMeta({ ...base, amount, pricing, note: "", unavailable: "", remedy: "" });
 }
 function unknownPart(id, label, unavailable4) {
   return { id, label, quality: "unknown", amount: null, unavailable: unavailable4 };
@@ -179266,7 +179785,7 @@ function buildQuestionAttribution(runs, tiles, limit) {
     reason: runsInRange === 0 ? "No completed runs were recorded in this billing range." : ""
   };
 }
-var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, BILLING_TAG_VALUE, DESCRIPTIONS, UNKNOWN_QUESTION_PARTS;
+var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, BILLING_TAG_VALUE, GENIE_LLM_UNAVAILABLE, GENIE_SQL_NOT_COMPLETE, TILED_PRODUCTS, PRODUCT_REASONS, EMPTY_PRICING, ROW_KINDS, DESCRIPTIONS, UNKNOWN_QUESTION_PARTS;
 var init_ops_billing = __esm({
   "server/lib/ops-billing.ts"() {
     init_billing_tag();
@@ -179310,6 +179829,33 @@ var init_ops_billing = __esm({
     RANGE_ROW = "__range";
     BILLING_TAG_KEY = BILLING_TAG.key;
     BILLING_TAG_VALUE = BILLING_TAG.value;
+    GENIE_LLM_UNAVAILABLE = "Genie LLM spend not attributable in this model";
+    GENIE_SQL_NOT_COMPLETE = "SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.";
+    TILED_PRODUCTS = /* @__PURE__ */ new Set(["MODEL_SERVING", "SQL", "VECTOR_SEARCH", "APPS"]);
+    PRODUCT_REASONS = {
+      MODEL_SERVING: "Tracked as the serving-endpoint tile when the endpoint name matches.",
+      SQL: "Tracked as the SQL warehouse tile. This is a shared meter, not app-only spend.",
+      VECTOR_SEARCH: "Tracked as the Vector Search tile when the endpoint name matches.",
+      APPS: "Matched by app name. App tags are organizational and may never appear on billing rows.",
+      GENIE: "Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.",
+      JOBS: "The semantic rebuild job is tagged when connected, but it is not a Cost tile.",
+      LAKEBASE: "Lakebase can be tagged. No documented billing join exists in this model.",
+      MLFLOW: "MLflow experiments can be tagged. They have no Cost tile."
+    };
+    EMPTY_PRICING = {
+      source: "list_prices",
+      match: "none",
+      currency: "",
+      pricedQuantity: 0,
+      unpricedQuantity: 0,
+      pricedRows: 0,
+      unpricedRows: 0,
+      unpricedSkus: [],
+      duplicateMatches: 0,
+      correctionRows: 0,
+      priceEffectiveAt: ""
+    };
+    ROW_KINDS = /* @__PURE__ */ new Set(["component", "coverage", "propagation", "range"]);
     DESCRIPTIONS = {
       "serving-endpoint": {
         label: "Serving endpoint",
@@ -179355,7 +179901,7 @@ var init_ops_billing = __esm({
       {
         id: "genie",
         label: "Genie spaces",
-        unavailable: "Space tags are organizational only; Genie SQL is billed through the associated warehouse."
+        unavailable: "Space tags are organizational only. Genie LLM spend is not attributable in this model; Genie SQL is billed through the associated warehouse and is not the complete Genie cost."
       },
       {
         id: "vector-search",
@@ -179643,6 +180189,33 @@ function host() {
 }
 function warehouseId() {
   return (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
+}
+function billingGrant(principal) {
+  const usage = grantFor("system.billing.usage", principal);
+  const prices = grantFor("system.billing.list_prices", principal);
+  return {
+    object: "system.billing",
+    privilege: "SELECT",
+    statement: `${usage.statement}
+${prices.statement}`
+  };
+}
+async function readWarehouseAutoStop(input) {
+  const id = input.warehouseId.trim();
+  if (!input.host || !input.token || !id) return { minutes: null, readable: false };
+  try {
+    const call = input.fetchImpl ?? fetch;
+    const response = await call(`${input.host}/api/2.0/sql/warehouses/${encodeURIComponent(id)}`, {
+      headers: { authorization: `Bearer ${input.token}` },
+      signal: AbortSignal.timeout(8e3)
+    });
+    if (!response.ok) return { minutes: null, readable: false };
+    const body = await response.json().catch(() => ({}));
+    const minutes = Number(body.auto_stop_mins);
+    return { minutes: Number.isFinite(minutes) ? minutes : null, readable: true };
+  } catch {
+    return { minutes: null, readable: false };
+  }
 }
 function resultFor(status) {
   if (status === "ok") return "answered";
@@ -179932,6 +180505,12 @@ function setupOpsRoutes(appkit, deps) {
         });
         return;
       }
+      const autoStopPromise = readWarehouseAutoStop({
+        host: workspace2,
+        token,
+        warehouseId: warehouse,
+        fetchImpl: deps.fetchImpl
+      });
       try {
         const outcome = await runStatement2({
           host: workspace2,
@@ -179941,15 +180520,18 @@ function setupOpsRoutes(appkit, deps) {
           parameters: built.parameters,
           fetchImpl: deps.fetchImpl
         });
+        const warehouseAutoStop = await autoStopPromise;
+        const inventoryCount = resourceTagInventory({ environment: process.env, report: null }).length;
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, "system.billing.usage");
           if (denial.kind === "no-grant") {
             res.json({
               ...empty,
               state: "no-grant",
-              grant: grantFor(denial.object, userEmail(req) || UNKNOWN_PRINCIPAL, denial.permission),
+              grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
               tiles: [],
-              reason: `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing runs under your own grants rather than this app\u2019s, so being an administrator here does not grant it.`
+              warehouseAutoStop,
+              reason: `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing runs under your own grants rather than this app\u2019s, so being an administrator here does not grant it. SELECT is needed on both system.billing.usage and system.billing.list_prices.`
             });
             return;
           }
@@ -179957,26 +180539,39 @@ function setupOpsRoutes(appkit, deps) {
             ...empty,
             state: "unreadable",
             tiles: [],
+            warehouseAutoStop,
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`
           });
           return;
         }
-        const rows = readComponentRows(outcome.rows);
-        const meta3 = rows.find((row2) => row2.component === RANGE_ROW);
-        const componentRows = rows.filter((row2) => row2.component !== RANGE_ROW);
-        if (componentRows.length === 0 && (!meta3 || meta3.billedDays === 0)) {
+        const split = splitBillingRows(readComponentRows(outcome.rows));
+        const coverage2 = buildCoverage({
+          inventoryCount,
+          coverageRows: split.coverage,
+          propagationRows: split.propagation,
+          range,
+          meta: split.meta
+        });
+        const unpropagated = coverage2.propagation.filter((row2) => row2.status === "unpropagated");
+        const delayed = coverage2.propagation.some((row2) => row2.status === "delayed");
+        if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
+          const tiles2 = buildTiles(ids, []);
+          const reason = unpropagated.length ? "Matching usage exists without the Astrolabe tag, so spend is unpropagated rather than unused." : delayed ? "No tagged billing rows in this range yet. Later days may still be filling." : "No billing rows matched the Astrolabe tag in this range.";
           res.json({
             ...empty,
             state: "no-rows",
-            tiles: buildTiles(ids, []),
-            currency: meta3?.currency ?? "",
-            throughDay: meta3?.lastDay || "",
-            billingLagDays: lagDays(range.to, meta3?.lastDay || ""),
-            reason: "No billing rows matched the Astrolabe tag in this range."
+            tiles: tiles2,
+            currency: split.meta?.currency ?? "",
+            throughDay: split.meta?.lastDay || "",
+            billingLagDays: lagDays(range.to, split.meta?.lastDay || ""),
+            coverage: coverage2,
+            honesty: buildHonesty(range, split.meta, tiles2),
+            warehouseAutoStop,
+            reason
           });
           return;
         }
-        const tiles = buildTiles(ids, componentRows);
+        const tiles = buildTiles(ids, split.components);
         let perQuestion = {
           ...empty.perQuestion,
           reason: "Per-question attribution could not be read from the run ledger."
@@ -179994,11 +180589,14 @@ function setupOpsRoutes(appkit, deps) {
         res.json({
           ...empty,
           state: "ready",
-          currency: meta3?.currency ?? "",
-          throughDay: meta3?.lastDay || "",
-          billingLagDays: lagDays(range.to, meta3?.lastDay || ""),
+          currency: split.meta?.currency ?? tiles.find((tile) => tile.pricing?.currency)?.pricing?.currency ?? "",
+          throughDay: split.meta?.lastDay || "",
+          billingLagDays: lagDays(range.to, split.meta?.lastDay || ""),
           tiles,
-          perQuestion
+          perQuestion,
+          coverage: coverage2,
+          honesty: buildHonesty(range, split.meta, tiles),
+          warehouseAutoStop
         });
       } catch (error48) {
         res.json({
@@ -180121,6 +180719,7 @@ var init_ops_routes = __esm({
   "server/routes/ops-routes.ts"() {
     init_app_schema();
     init_ops_billing();
+    init_resource_tagging();
     init_ops_telemetry();
     init_access_verification();
     init_execution_credential();
@@ -180180,8 +180779,8 @@ var init_ops_routes = __esm({
   counted AS (
     SELECT *,
            COUNT(*) OVER ()::int AS runs_in_range,
-           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL) OVER ()::int AS token_covered_runs,
-           COALESCE(SUM(total_tokens) OVER (), 0)::bigint AS total_recorded_tokens
+           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0) OVER ()::int AS token_covered_runs,
+           COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0) OVER (), 0)::bigint AS total_recorded_tokens
     FROM completed
   )
   SELECT run_id, correlation_id, trace_id, completed_at, total_tokens,
@@ -181547,6 +182146,15 @@ async function patchLabState(client, patch, updatedBy) {
   const current = await readLabState(client, { maxAgeMs: 0 });
   return writeLabState(client, { ...current, ...patch }, updatedBy);
 }
+async function snapshotWorkingCopy(client, rows, actor, extra = {}) {
+  const current = await readLabState(client, { maxAgeMs: 0 });
+  const committed = commitDatasetVersion({
+    state: { ...current, ...extra },
+    rows,
+    actor
+  });
+  return writeLabState(client, committed.state, actor);
+}
 var KEY6, BENCHMARK_LAB_TABLE, BENCHMARK_LAB_DDL, cache7, BENCHMARK_LAB_TTL_MS;
 var init_benchmark_lab_store = __esm({
   "server/lib/benchmark-lab-store.ts"() {
@@ -181648,7 +182256,19 @@ function setupEvalDatasetRoutes(appkit) {
       }
       const actor = userEmail(req);
       try {
+        const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
         const dataset = await writeEvalDataset(appkit, parsed.data, actor);
+        const heldOutAudit = [
+          ...auditHeldOutEdits({
+            prior: current.rows.map(labCaseFromRow),
+            next: dataset.rows.map(labCaseFromRow),
+            actor,
+            versionId: state.currentVersionId
+          }),
+          ...state.heldOutAudit
+        ].slice(0, 200);
+        await snapshotWorkingCopy(appkit, dataset.rows, actor, { heldOutAudit });
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "eval-dataset-updated",
@@ -181674,6 +182294,7 @@ function setupEvalDatasetRoutes(appkit) {
         const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
         const added = uniqueQuestionsToAdd(current.rows, parsed.data.questions);
         const dataset = await writeEvalDataset(appkit, { rows: [...current.rows, ...added] }, actor);
+        await snapshotWorkingCopy(appkit, dataset.rows, actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "eval-dataset-curated",
@@ -182294,7 +182915,7 @@ async function writeCases(appkit, next, actor, options = {}) {
     ].slice(0, 200);
   }
   const dataset = await writeEvalDataset(appkit, { rows: next.map(asEvalRow) }, actor);
-  const saved = heldOutAudit !== state.heldOutAudit ? await patchLabState(appkit, { heldOutAudit }, actor) : state;
+  const saved = await snapshotWorkingCopy(appkit, dataset.rows, actor, { heldOutAudit });
   return { dataset, state: saved };
 }
 function setupBenchmarkLabRoutes(appkit) {
@@ -182450,7 +183071,8 @@ function setupBenchmarkLabRoutes(appkit) {
             tag: "edge_case"
           })
         );
-        const dataset = await writeEvalDataset(appkit, { rows: [...current.rows, ...added] }, actor);
+        const next = [...current.rows.map(labCaseFromRow), ...added.map(labCaseFromRow)];
+        const { dataset } = await writeCases(appkit, next, actor, { audit: false });
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "eval-dataset-curated",

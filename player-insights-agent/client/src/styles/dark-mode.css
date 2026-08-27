@@ -432,7 +432,7 @@ html[data-theme='dark'] .bench-surface {
   border-color: rgba(255, 255, 255, 0.22);
 }
 html[data-theme='dark'] .bench-failure-drawer {
-  background: rgba(12, 18, 28, 0.92);
+  background: color-mix(in srgb, var(--ast-navy) 92%, transparent);
   border-color: rgba(255, 255, 255, 0.22);
 }
 html[data-theme='dark'] .bench-stage-node {

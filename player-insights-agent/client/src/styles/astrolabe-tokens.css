@@ -111,6 +111,12 @@
   --ast-pos-on-dark: #9ad6ce;
   --ast-neg-on-dark: #e8a9b8;
   /*
+   * On-navy warning mass, sibling of pos/neg above. Lab span dots use these
+   * three and nothing else: a fourth gold written at the call site is how a
+   * second amber arrives on a screen that already spends amber on evaluation.
+   */
+  --ast-warn-on-dark: #e0c07a;
+  /*
    * The opaque stand-in for a frosted surface: what the settings modal, the
    * drawers and the menus paint unconditionally, and what EVERY surface in the
    * app paints when the reader has asked for reduced transparency.
