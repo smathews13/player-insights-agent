@@ -99,8 +99,14 @@ import {
   isWorkingConversationRun,
   readConversationRun,
   replayedStages,
-  type ConversationRunStatus,
 } from './conversation-run';
+import {
+  conversationIsLive,
+  forgetActiveConversationRun,
+  settleActiveConversationRun,
+  trackActiveConversationRun,
+  type ActiveConversationRuns,
+} from './active-conversation-runs';
 import { AstrolabeMark } from './AstrolabeMark';
 import { ConceptFlicker } from './ConceptFlicker';
 import { WorkingInlineRow } from './WorkingInlineRow';
@@ -328,9 +334,7 @@ export function HomePage() {
    * exist. This is only the durable handle a returning view polls; it never
    * starts or resumes execution.
    */
-  const [activeConversationRun, setActiveConversationRun] = useState<
-    (ConversationRunStatus & { conversationId: string }) | null
-  >(null);
+  const [activeConversationRuns, setActiveConversationRuns] = useState<ActiveConversationRuns>(new Map());
   const [conversationLoading, setConversationLoading] = useState(true);
   /**
    * What the rail's own emptiness means, taken from the response rather than
@@ -453,6 +457,7 @@ export function HomePage() {
    * given any.
    */
   const liveAsk = useLiveAsk(conversationId);
+  const activeConversationRun = activeConversationRuns.get(conversationId) ?? null;
   const liveStages = liveAsk?.stages ?? NO_LIVE_STAGES;
   /**
    * Busy belongs to the conversation on screen, not to this mounted page.
@@ -461,8 +466,7 @@ export function HomePage() {
    * navigation; the durable row covers reloads and other browser tabs.
    */
   const loading = Boolean(
-    liveAsk?.inFlight ||
-      (activeConversationRun?.conversationId === conversationId && isWorkingConversationRun(activeConversationRun))
+    liveAsk?.inFlight || isWorkingConversationRun(activeConversationRun)
   );
   const displayedStopNotice = stopNotice ?? liveAsk?.stopNotice ?? null;
   const displayedRunStopped =
@@ -714,7 +718,6 @@ export function HomePage() {
     setConversationId(id);
     activeConversationRef.current = id;
     setConversationLoading(true);
-    setActiveConversationRun(null);
     setError(null);
     setStopNotice(null);
     setFeedback({});
@@ -761,7 +764,7 @@ export function HomePage() {
       setDraft('');
       const replayed = replayedStages(durableRun);
       if (isWorkingConversationRun(durableRun)) {
-        setActiveConversationRun({ ...durableRun, conversationId: id });
+        setActiveConversationRuns((current) => trackActiveConversationRun(current, id, durableRun));
         const started = Date.parse(durableRun.created_at);
         setAskStartedAt(Number.isFinite(started) ? started : Date.now());
         // Only as the fallback. A run this browser is still streaming reports its
@@ -820,7 +823,7 @@ export function HomePage() {
       setDraft('');
       setMessages([]);
       setAttachments([]);
-      setActiveConversationRun(null);
+      setActiveConversationRuns((current) => forgetActiveConversationRun(current, id));
       setAttachmentsUnreadable(false);
       setError('This conversation could not be loaded. Start a new conversation or try again.');
     } finally {
@@ -879,77 +882,89 @@ export function HomePage() {
    * Called after a turn completes. The read on arrival is not this -- it is one
    * half of `startInitialRail`, which issues both lists at once.
    */
-  const loadRunSummaries = useCallback(() => {
-    void readRunSummaries().then((summaries) => setRunSummaries(summaries));
+  const loadRunSummaries = useCallback(async (conversationToSettle?: string) => {
+    const summaries = await readRunSummaries();
+    // An empty result is also the endpoint's failure shape. Never replace useful
+    // rail state with it, and never use it as evidence that a live run failed.
+    if (summaries.size > 0) setRunSummaries(summaries);
+    return conversationToSettle ? summaries.has(conversationToSettle) : summaries.size > 0;
   }, []);
 
   /**
-   * Follow a run whose original stream belonged to another view or browser tab.
+   * Follow every durable run, regardless of which conversation is open.
    *
    * Unmounting clears only this timer. There is intentionally no AbortController
    * here: the browser has no authority to cancel the server's Model Serving
    * invocation, and reopening this page creates a fresh status read.
    */
   useEffect(() => {
-    if (!activeConversationRun) return;
+    if (activeConversationRuns.size === 0) return;
     let live = true;
     let timer: number | undefined;
     const schedule = () => {
       timer = window.setTimeout(() => void poll(), 1500);
     };
-    const poll = async () => {
+    const pollOne = async (runConversationId: string) => {
       try {
-        const status = await readConversationRun(activeConversationRun.conversationId);
-        if (!live || activeConversationRef.current !== activeConversationRun.conversationId) return;
+        const status = await readConversationRun(runConversationId);
+        if (!live) return;
         if (isWorkingConversationRun(status)) {
-          setActiveConversationRun({ ...status, conversationId: activeConversationRun.conversationId });
+          setActiveConversationRuns((current) => trackActiveConversationRun(current, runConversationId, status));
           // The steps the run has taken since the last poll. This is what makes a
           // reconnected path GROW rather than sit at whatever the first read
           // caught: a browser that is not holding the stream learns about each
           // step from here. Merged by id, so a view that is holding the stream as
           // well is unaffected -- it already has these rows and keeps them.
           hydrateLiveAsk({
-            conversationId: activeConversationRun.conversationId,
+            conversationId: runConversationId,
             stages: replayedStages(status),
           });
-          schedule();
           return;
         }
+        // Keep Live until the terminal summary itself is readable. Removing the
+        // live overlay first exposes the conversation list's stale prior verdict
+        // (often Failed) during the gap between these two reads.
+        if (!(await loadRunSummaries(runConversationId)) || !live) return;
         // The status row and its stages are the only data that can change while
         // work is in flight. The transcript includes every stored response JSON;
         // rereading and replacing that whole list every 1.5 seconds made a long
         // reconnect progressively more expensive. Read it once, after the run
         // reaches a terminal state and an assistant message may actually exist.
-        const response = await fetch(
-          `/api/conversations/${encodeURIComponent(activeConversationRun.conversationId)}/messages`
-        );
-        if (response.ok) {
+        const response =
+          activeConversationRef.current === runConversationId
+            ? await fetch(`/api/conversations/${encodeURIComponent(runConversationId)}/messages`)
+            : null;
+        if (response?.ok) {
           const stored = (await response.json()) as ConversationMessage[];
-          if (!live || activeConversationRef.current !== activeConversationRun.conversationId) return;
+          if (!live || activeConversationRef.current !== runConversationId) return;
           setMessages(stored);
           setFeedback(feedbackFromStored(stored));
         }
         if (status?.state === 'CANCELLED') {
-          setRunStopped({
-            steps: replayedStages(status).filter((stage) => stage.status !== 'running').length,
-          });
-          setStopNotice(readLiveAsk(activeConversationRun.conversationId)?.stopNotice ?? 'Stopped');
+          if (activeConversationRef.current === runConversationId) {
+            setRunStopped({
+              steps: replayedStages(status).filter((stage) => stage.status !== 'running').length,
+            });
+            setStopNotice(readLiveAsk(runConversationId)?.stopNotice ?? 'Stopped');
+          }
         }
-        setActiveConversationRun(null);
-        endLiveAsk(activeConversationRun.conversationId);
-        loadRunSummaries();
+        setActiveConversationRuns((current) => settleActiveConversationRun(current, runConversationId, true));
+        endLiveAsk(runConversationId);
       } catch {
         // A transient status-read failure is not evidence that the server work
-        // stopped. Keep the working state and reconnect on the next tick.
-        if (live) schedule();
+        // stopped. Keep the working state; the shared timer retries it.
       }
+    };
+    const poll = async () => {
+      await Promise.all([...activeConversationRuns.keys()].map((id) => pollOne(id)));
+      if (live) schedule();
     };
     schedule();
     return () => {
       live = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [activeConversationRun, loadRunSummaries]);
+  }, [activeConversationRuns, loadRunSummaries]);
 
   /**
    * The rail, in one round trip rather than two.
@@ -1067,7 +1082,7 @@ export function HomePage() {
       streamed ??
       (activeConversationRun
         ? {
-            conversationId: activeConversationRun.conversationId,
+            conversationId,
             correlationId: activeConversationRun.run_id,
             controller: new AbortController(),
             stopRequested: false,
@@ -1084,7 +1099,7 @@ export function HomePage() {
       if (!streamed) {
         const completed = liveStages.filter((stage) => stage.status !== 'running').length;
         setRunStopped({ steps: completed });
-        setActiveConversationRun(null);
+        setActiveConversationRuns((runs) => forgetActiveConversationRun(runs, current.conversationId));
         endLiveAsk(current.conversationId);
       }
     } catch (stopError) {
@@ -1183,6 +1198,16 @@ export function HomePage() {
           },
           onStart: (correlationId) => {
             currentAsk.correlationId = correlationId;
+            const now = new Date().toISOString();
+            setActiveConversationRuns((runs) =>
+              trackActiveConversationRun(runs, runConversationId, {
+                run_id: correlationId,
+                state: 'RUNNING',
+                created_at: now,
+                updated_at: now,
+                terminal_code: null,
+              })
+            );
           },
           // The run is under way and the request passed every check. Recorded
           // as an instant because the panel says so on screen, and because the
@@ -1196,7 +1221,6 @@ export function HomePage() {
         controller.signal
       );
       if (!stillInThisConversation()) return;
-      setActiveConversationRun(null);
       // Normalized before it is read rather than after it is stored: the envelope
       // below reads `result.narrative` and `result.id`, and those can be absent too.
       const result = normalizeResponse(body);
@@ -1247,7 +1271,7 @@ export function HomePage() {
       // assembled here from what this page happens to know: the pill has to say
       // what the store recorded, and a turn with a failed stage in it is
       // 'partial' there while looking like a success from up here.
-      loadRunSummaries();
+      void loadRunSummaries();
       // Now that this conversation has something stored in it, name it in the URL
       // so it can be linked to and so Back and Forward have somewhere to land.
       // Replace rather than push: asking a question is not a navigation.
@@ -1332,19 +1356,10 @@ export function HomePage() {
         })
       );
     } finally {
-      // Unconditional, because it is about the run rather than about the view.
-      // Every way a run can end passes through here -- answered, refused, stopped
-      // mid-step -- and the record has to stop counting even if the reader is
-      // somewhere else, or they would come back to a step that has been "running"
-      // since the run ended. The steps it did report are kept: a run that died
-      // after four of them is shown as those four.
-      endLiveAsk(runConversationId);
-      // This half is still conditional. Leaving this conversation already cleared
-      // the flag, and a question asked in the new one would have its "Working…"
-      // state switched off by the abandoned run finishing behind it.
-      if (stillInThisConversation()) {
-        setActiveConversationRun(null);
-      }
+      // Once the server issued a run id, the durable poll owns settlement. It
+      // keeps Live visible until `/api/runs` contains the terminal summary,
+      // including when this stream finishes while another conversation is open.
+      if (!currentAsk.correlationId) endLiveAsk(runConversationId);
       forgetActiveAsk(runConversationId, currentAsk);
     }
   }
@@ -1368,7 +1383,6 @@ export function HomePage() {
     setDraft('');
     setMessages([]);
     setAttachments([]);
-    setActiveConversationRun(null);
     setError(null);
     setFeedback({});
     setRunStopped(null);
@@ -1807,8 +1821,11 @@ export function HomePage() {
             // A run in flight belongs to the open conversation. Seat the same
             // live pill as the agent-steps pane here, including its breathing
             // dot, instead of leaving the row badged with its previous turn.
-            const runningConversation =
-              Boolean(readLiveAsk(conversation.id)?.inFlight) || (loading && conversation.id === conversationId);
+            const runningConversation = conversationIsLive(
+              activeConversationRuns,
+              conversation.id,
+              Boolean(readLiveAsk(conversation.id)?.inFlight)
+            );
             return (
               // Drawn from the entry rather than from the conversation, so the
               // watermark below is the same answer to "whose is this" that the

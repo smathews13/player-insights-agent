@@ -704,7 +704,7 @@ describe('the owner filter chips are the one control that may not move when pres
 describe('the inspector while a run is still going', () => {
   it('polls the small run record and reloads the transcript only when work finishes', () => {
     const reconnect = HOME_PAGE.slice(
-      HOME_PAGE.indexOf('Follow a run whose original stream belonged to another view'),
+      HOME_PAGE.indexOf('Follow every durable run, regardless of which conversation is open'),
       HOME_PAGE.indexOf('The rail, in one round trip rather than two')
     );
     const statusRead = reconnect.indexOf('readConversationRun(');
@@ -715,7 +715,8 @@ describe('the inspector while a run is still going', () => {
     expect(workingCheck).toBeGreaterThan(statusRead);
     expect(transcriptRead).toBeGreaterThan(workingCheck);
     expect(reconnect.match(/\/messages/g)).toHaveLength(1);
-    expect(reconnect).not.toContain('Promise.all');
+    expect(reconnect).toContain("Promise.all([...activeConversationRuns.keys()].map((id) => pollOne(id)))");
+    expect(reconnect).toContain('await loadRunSummaries(runConversationId)');
   });
 
   it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
@@ -779,7 +780,7 @@ describe('the inspector while a run is still going', () => {
      */
     expect(HOME_PAGE).toMatch(/const liveAsk = useLiveAsk\(conversationId\);/);
     expect(HOME_PAGE).toMatch(
-      /liveAsk\?\.inFlight \|\|\s*\(activeConversationRun\?\.conversationId === conversationId && isWorkingConversationRun\(activeConversationRun\)\)/
+      /liveAsk\?\.inFlight \|\| isWorkingConversationRun\(activeConversationRun\)/
     );
     expect(HOME_PAGE).toMatch(
       /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
