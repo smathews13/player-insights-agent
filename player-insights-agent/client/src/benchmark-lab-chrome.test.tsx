@@ -115,6 +115,7 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
     expect(prose).toContain('Prompt Registry moves the production alias');
     expect(markup).toContain('href="#lab-snapshot"');
     expect(prose).not.toContain('Rollback');
+    expect(prose).toContain('This control runs once the Lab workspace is connected.');
   });
 });
 
@@ -142,13 +143,15 @@ describe('the page seats that chrome', () => {
     expect(markup).not.toContain('Recorded runs');
     expect(markup).not.toContain('Per-case results');
     expect(markup.match(/>Benchmark Lab</g)).toHaveLength(1);
+    expect(readable(markup)).not.toContain('This control runs once the Lab workspace is connected.');
+    expect(markup).toContain('Roll back next Ask');
   });
 
   it('leaves dataset and Genie bodies as slots, not a second flywheel stack', () => {
     expect(PAGE).not.toContain('EvalFlywheel');
     expect(PAGE).toContain('BenchmarkLabChrome');
-    expect(PAGE).toContain('fetchLabWorkspace');
-    expect(PAGE).toContain("from './benchmark-lab-api'");
+    expect(PAGE).toContain('useEvaluationLab');
+    expect(PAGE).toContain('suiteIsLive');
     expect(PAGE).not.toContain('metrics?.counts');
   });
 });

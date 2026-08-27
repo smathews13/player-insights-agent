@@ -233,10 +233,15 @@ export function GenieStageControls({ lab }: { lab: EvaluationLabModel }) {
           variant="primary"
           onClick={() => void lab.runSuite('complete')}
           disabled={lab.busy === 'genie' || !lab.spaceId}
+          title={!lab.spaceId ? 'Connect a Genie space on Connections first.' : undefined}
         >
           {lab.busy === 'genie' ? 'Asking Genie' : 'Run complete suite'}
         </BenchButton>
-        <BenchButton onClick={() => void lab.runSuite('partial')} disabled={lab.busy === 'genie' || !lab.spaceId}>
+        <BenchButton
+          onClick={() => void lab.runSuite('partial')}
+          disabled={lab.busy === 'genie' || !lab.spaceId}
+          title={!lab.spaceId ? 'Connect a Genie space on Connections first.' : undefined}
+        >
           Run partial suite
         </BenchButton>
         <span className={astPill('neutral-outline', 'bench-chip')}>matching · executed-result equivalence</span>
@@ -247,6 +252,8 @@ export function GenieStageControls({ lab }: { lab: EvaluationLabModel }) {
             ? 'No SQL-complete cases yet. Fix them in 01 or run partial: excluded cases and the denominator are shown on the result.'
             : 'Complete suite is the customer-facing default. Partial keeps missing SQL out of the denominator.')}
       </p>
+      {lab.notice ? <p className="bench-caption bench-pad">{lab.notice}</p> : null}
+      {lab.error ? <p className="bench-caption bench-pad">{lab.error}</p> : null}
     </>
   );
 }

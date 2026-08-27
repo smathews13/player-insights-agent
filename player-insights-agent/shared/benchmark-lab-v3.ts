@@ -1020,7 +1020,7 @@ export function heldOutScorerRows(input: {
       heldOut: applicable ? formatHeldOutCell(score) : '-',
       status: applicable ? heldOutStatusFor(score, judgedUnreviewed) : 'skipped',
       applicable,
-      casesAndTracesHref: `/benchmarking?scorer=${encodeURIComponent(definition.id)}`,
+      casesAndTracesHref: `/benchmarking?scorer=${encodeURIComponent(definition.id)}#lab-evaluation-set`,
     });
   }
   return { rows, hiddenNonApplicable };

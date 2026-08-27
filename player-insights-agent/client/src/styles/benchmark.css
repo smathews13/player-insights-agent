@@ -788,6 +788,10 @@
   font: 500 var(--ast-fs-13) var(--font-sans);
   cursor: pointer;
 }
+.bench-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .bench-btn-primary {
   background: var(--db-blue-tint);
   border: 1px solid rgba(143, 193, 232, 0.55);

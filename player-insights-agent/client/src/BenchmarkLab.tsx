@@ -77,12 +77,11 @@ import {
   liveRunProgressLine,
   type HeldOutAuditEntry,
   type HeldOutStatus,
-  type LabWorkspace,
 } from '../../shared/benchmark-lab-v3';
-import { BenchmarkLabChrome, LabSurface, cellsFromPocContract, labContractCells } from './BenchmarkLabChrome';
+import { BenchmarkLabChrome, LabSurface, cellsFromPocContract } from './BenchmarkLabChrome';
 import { EvaluationSet, CurateStageControls } from './EvaluationSet';
 import { GenieAccuracyDiagnostics, GenieStageControls } from './GenieAccuracyDiagnostics';
-import { fetchLabWorkspace } from './benchmark-lab-api';
+import { suiteIsLive } from './benchmark-lab-ops';
 import {
   BenchmarkApplyStage,
   BenchmarkBakeOffSurface,
@@ -426,7 +425,6 @@ export function BenchmarkLab() {
   const [reloadToken, setReloadToken] = useState(0);
   const [bakeOff, setBakeOff] = useState(DEFAULT_BENCHMARK_SETTINGS);
   const [currentAgentEndpoint, setCurrentAgentEndpoint] = useState('');
-  const [lab, setLab] = useState<LabWorkspace | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -438,8 +436,11 @@ export function BenchmarkLab() {
           setCurrentAgentEndpoint(payload.currentAgentEndpoint);
         }
       })
-      .catch(() => {
-        if (!cancelled) setBakeOff(DEFAULT_BENCHMARK_SETTINGS);
+      .catch((error) => {
+        if (!cancelled) {
+          setBakeOff(DEFAULT_BENCHMARK_SETTINGS);
+          setRunError((error as Error).message || 'Benchmark settings could not be read.');
+        }
       });
     return () => {
       cancelled = true;
@@ -447,18 +448,9 @@ export function BenchmarkLab() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    fetchLabWorkspace()
-      .then((workspace) => {
-        if (!cancelled) setLab(workspace);
-      })
-      .catch(() => {
-        if (!cancelled) setLab(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [reloadToken]);
+    if (reloadToken === 0) return;
+    void evalLab.reload();
+  }, [reloadToken, evalLab.reload]);
 
   useEffect(() => {
     let active = true;
@@ -551,6 +543,7 @@ export function BenchmarkLab() {
       if (id) started.push(id);
       setLastRunId(id);
       if (id) setSelectedId(id);
+      setReloadToken((token) => token + 1);
       const flywheelResponse = await fetch('/api/benchmarks/flywheel');
       const flywheelBody = flywheelResponse.ok
         ? ((await flywheelResponse.json()) as { flywheel?: { lastAgentRunIds?: string[]; lastAgentSides?: string[] } })
@@ -568,20 +561,33 @@ export function BenchmarkLab() {
           runIds,
           sides: named,
         }),
+      }).then(async (response) => {
+        if (!response.ok) {
+          const refusal = (await response.json().catch(() => null)) as { message?: unknown } | null;
+          const message = typeof refusal?.message === 'string' ? refusal.message.trim() : '';
+          throw new Error(message || 'Suite started, but the bake-off pairing was not saved.');
+        }
       });
-      setReloadToken((token) => token + 1);
       return started;
     } catch (error) {
-      setRunError((error as Error).message || 'The suite could not be started.');
-      return started;
+      const message = (error as Error).message || 'The suite could not be started.';
+      setRunError(message);
+      throw error instanceof Error ? error : new Error(message);
     } finally {
       setRunning(false);
     }
   }, [bakeOff]);
 
-  // A missing status is treated as in-progress by the summary helper. With no
-  // selected run that would lock Run baseline on an empty lab.
-  const suiteInProgress = Boolean(selected && summary.inProgress) || Boolean(lab?.contract.liveRun);
+  // A leftover cancel flag, or an old stored run auto-selected on first
+  // visit, must not freeze Run baseline. Only a suite this page started.
+  const started = lastRunId ? runs?.find((run) => run.id === lastRunId) : null;
+  const suiteInProgress = suiteIsLive({
+    running,
+    lastRunId,
+    lastRunFound: Boolean(started),
+    lastRunInProgress: Boolean(started && !isTerminal(benchmarkStatus(started.status))),
+    liveRun: evalLab.lab.contract.liveRun,
+  });
 
   const publishedHeldOut = evalScorecard();
   const ops = useBenchmarkOps({
@@ -595,12 +601,12 @@ export function BenchmarkLab() {
       publishedHeldOut.published && publishedHeldOut.scorecard.provenance.labelsReviewed
     ),
     inProgress: suiteInProgress,
-    attempted: lab?.contract.liveRun?.caseIndex ?? null,
-    total: lab?.contract.liveRun?.caseTotal ?? null,
+    attempted: evalLab.lab.contract.liveRun?.caseIndex ?? null,
+    total: evalLab.lab.contract.liveRun?.caseTotal ?? null,
     selectedId: selected?.id || selectedId || null,
     runSuite,
-    lab,
-    setLab,
+    lab: evalLab.lab,
+    setLab: evalLab.setLab,
   });
 
   // Every qualification this run carries, as the rows of one ledger. The page
@@ -609,9 +615,9 @@ export function BenchmarkLab() {
   // exactly what its alert said: the derivation is the single place they come
   // from, and none of them is conditional on anything but the run.
   const qualifications = benchmarkQualifications(summary);
-  const runProgress = lab?.contract.liveRun
-    ? liveRunProgressLine(lab.contract.liveRun)
-    : selected && summary.inProgress
+  const runProgress = evalLab.lab.contract.liveRun && !evalLab.lab.contract.liveRun.cancelRequested
+    ? liveRunProgressLine(evalLab.lab.contract.liveRun)
+    : selected && summary.inProgress && selected.id === lastRunId
       ? `${selected.id} in progress`
       : null;
 
@@ -634,6 +640,12 @@ export function BenchmarkLab() {
         </Alert>
       )}
 
+      {evalLab.error && evalLab.error !== runError && (<Alert>
+          <TriangleAlert />
+          <AlertDescription>{evalLab.error}</AlertDescription>
+        </Alert>
+      )}
+
       {lastRunId && !runError && (<Alert>
           {summary.inProgress ? <Loader2 className="animate-spin" /> : <Check />}
           <AlertDescription>
@@ -648,16 +660,7 @@ export function BenchmarkLab() {
         </Alert>
       )}
         </>}
-        contract={
-          lab
-            ? cellsFromPocContract(lab.contractView)
-            : labContractCells({
-                scorerActive: bakeOff.enabledJudges.length,
-                scorerDetail: bakeOff.experimentId.trim()
-                  ? `experiment ${bakeOff.experimentId.trim()}`
-                  : 'experiment id picked in Settings → Experimental',
-              })
-        }
+        contract={cellsFromPocContract(evalLab.lab.contractView)}
         judges={bakeOff.enabledJudges}
         runProgress={runProgress}
         running={running || suiteInProgress}
@@ -717,11 +720,17 @@ export function BenchmarkLab() {
               applyNote={ops.applyNote}
               applyPreview={ops.applyPreview}
               canApply={ops.canApply}
+              applyBlockedReason={ops.applyBlockedReason}
               onApply={() => {
                 void ops.applyCandidate();
               }}
               onViewRollback={() => {
                 ops.viewRollback();
+              }}
+              canRollback={ops.canRollback}
+              rollbackDisabledReason={ops.rollbackDisabledReason}
+              onRollback={() => {
+                void ops.rollbackAsk();
               }}
             />
           ),
@@ -732,6 +741,7 @@ export function BenchmarkLab() {
               history={ops.history}
               genieNote={ops.genieNote}
               coverageNote={ops.coverageNote}
+              actionNote={ops.actionNote}
               onExport={ops.exportPack}
               onCopyPermalink={() => {
                 void ops.copyPermalink();

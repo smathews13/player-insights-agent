@@ -65,6 +65,7 @@ export type EvaluationLabModel = {
   commitAlign: () => Promise<void>;
   runSuite: (kind: SuiteKind) => Promise<void>;
   rerunLast: () => Promise<void>;
+  setLab: (lab: LabWorkspace) => void;
 };
 
 const EMPTY_LAB = labWorkspacePayload({ rows: [], state: EMPTY_LAB_STATE, enabledJudges: [] });
@@ -160,6 +161,7 @@ export function useEvaluationLab(): EvaluationLabModel {
     error,
     busy,
     reload,
+    setLab,
     commitVersion: () =>
       run('version', async () => {
         setLab(await commitLabDatasetVersion());

@@ -12,6 +12,7 @@ import {
 } from './benchmark-lab-api';
 import {
   agentSideFromTrace,
+  applyDisabledReason,
   bakeOffPermalink,
   casesFromTrace,
   failedCaseIds,
@@ -144,13 +145,32 @@ export function BenchmarkJudgesStage({
         ))}
       </p>
       <div className="bench-btn-row">
-        <BenchButton variant="primary" onClick={onRunBaseline} disabled={running}>
+        <BenchButton
+          variant="primary"
+          onClick={onRunBaseline}
+          disabled={running}
+          title={running ? 'A suite is already running.' : undefined}
+        >
           {running ? 'Run in progress' : 'Run baseline'}
         </BenchButton>
-        <BenchButton onClick={onRunCandidate} disabled={running || !hasCandidate}>
+        <BenchButton
+          onClick={onRunCandidate}
+          disabled={running || !hasCandidate}
+          title={
+            running
+              ? 'A suite is already running.'
+              : !hasCandidate
+                ? 'Add a candidate endpoint in Settings → Experimental.'
+                : undefined
+          }
+        >
           {running ? 'Run in progress' : 'Run candidate'}
         </BenchButton>
-        <BenchButton title="Scores every turn in the picked session" onClick={onScoreSession} disabled={running}>
+        <BenchButton
+          title="Scores every turn in the last Ask conversation"
+          onClick={onScoreSession}
+          disabled={running}
+        >
           Score one Ask session
         </BenchButton>
       </div>
@@ -159,10 +179,10 @@ export function BenchmarkJudgesStage({
       ) : null}
       <div className="bench-btn-row">
         {progress ? <p className="bench-run-progress ast-num">{progress}</p> : null}
-        <BenchButton onClick={onCancel} disabled={!running}>
+        <BenchButton onClick={onCancel} disabled={!running} title={!running ? 'Nothing is running to cancel.' : undefined}>
           Cancel
         </BenchButton>
-        <BenchButton onClick={onRetryFailed} disabled={running}>
+        <BenchButton onClick={onRetryFailed} disabled={running} title={running ? 'A suite is already running.' : undefined}>
           Retry failed cases
         </BenchButton>
       </div>
@@ -186,8 +206,12 @@ export function BenchmarkApplyStage({
   applyNote,
   applyPreview,
   canApply,
+  applyBlockedReason,
   onApply,
   onViewRollback,
+  canRollback,
+  rollbackDisabledReason,
+  onRollback,
 }: {
   target: ApplyTargetKind;
   onTarget: (next: ApplyTargetKind) => void;
@@ -202,8 +226,12 @@ export function BenchmarkApplyStage({
   applyNote: string | null;
   applyPreview: string;
   canApply: boolean;
+  applyBlockedReason: string;
   onApply: () => void;
   onViewRollback: () => void;
+  canRollback: boolean;
+  rollbackDisabledReason: string;
+  onRollback: () => void;
 }) {
   return (
     <>
@@ -262,11 +290,26 @@ export function BenchmarkApplyStage({
           value={approver}
           onChange={(event) => onApprover(event.target.value)}
         />
-        <BenchButton variant="primary" onClick={onApply} disabled={!canApply || applying}>
+        <BenchButton
+          variant="primary"
+          onClick={onApply}
+          disabled={!canApply || applying}
+          title={!canApply ? applyBlockedReason || undefined : undefined}
+        >
           {applying ? 'Applying…' : 'Apply candidate'}
         </BenchButton>
-        <BenchButton onClick={onViewRollback}>View rollback path</BenchButton>
+        <BenchButton onClick={onViewRollback} title="Shows the restore path. Does not roll anything back.">
+          View rollback path
+        </BenchButton>
+        <BenchButton
+          onClick={onRollback}
+          disabled={!canRollback}
+          title={!canRollback ? rollbackDisabledReason || undefined : 'Restores the previous Ask endpoint.'}
+        >
+          Roll back next Ask
+        </BenchButton>
       </div>
+      {!canApply && applyBlockedReason ? <p className="bench-gate">{applyBlockedReason}</p> : null}
       <p className="bench-gate">Connections unchanged.</p>
       <p className="bench-gate">{rollback}</p>
       {applyNote ? <p className="bench-caption">{applyNote}</p> : null}
@@ -280,6 +323,7 @@ export function BenchmarkBakeOffSurface({
   history,
   genieNote,
   coverageNote,
+  actionNote,
   onExport,
   onCopyPermalink,
   onInspect,
@@ -289,6 +333,7 @@ export function BenchmarkBakeOffSurface({
   history: string[];
   genieNote: string | null;
   coverageNote: string | null;
+  actionNote?: string | null;
   onExport: () => void;
   onCopyPermalink: () => void;
   onInspect: (caseId: string) => void;
@@ -306,6 +351,7 @@ export function BenchmarkBakeOffSurface({
       }
     >
       {extras}
+      {actionNote ? <p className="bench-caption">{actionNote}</p> : null}
       <div className="bench-lanes">
         <LaneBlock title="Genie lane" metrics={comparison.genie} extras={genieNote ? <p className="bench-caption">{genieNote}</p> : null} />
         <LaneBlock
@@ -540,6 +586,7 @@ export function useBenchmarkOps(input: {
   const [threadNote, setThreadNote] = useState<string | null>(null);
   const [applyNote, setApplyNote] = useState<string | null>(null);
   const [failureNote, setFailureNote] = useState<string | null>(null);
+  const [actionNote, setActionNote] = useState<string | null>(null);
   const [target, setTarget] = useState<ApplyTargetKind>('prompt_registry');
   const [approver, setApprover] = useState('');
   const [promptName, setPromptName] = useState('');
@@ -647,19 +694,39 @@ export function useBenchmarkOps(input: {
       snapshotId: lab?.contract.target.snapshotId || '',
     },
   });
-  const canApply =
-    Boolean(approver.trim()) &&
-    (target !== 'prompt_registry' || (gates.total > 0 && gates.passed === gates.total && Boolean(askEndpoint)));
+  const canRollback = Boolean(flywheel.rollback?.endpoint);
+  const rollbackDisabledReason = canRollback ? '' : rollbackCaption(flywheel.rollback);
+  const applyBlockedReason = applyDisabledReason({
+    approver,
+    target,
+    gatesPassed: gates.passed,
+    gatesTotal: gates.total,
+    askEndpoint,
+    candidateRunId: candidate.runId || input.lastRunId || '',
+  });
+  const canApply = !applyBlockedReason;
 
   const runBaseline = async () => {
     setLiveSide('baseline');
-    await input.runSuite('baseline');
-    setLiveSide(null);
+    setThreadNote(null);
+    try {
+      await input.runSuite('baseline');
+    } catch (error) {
+      setThreadNote((error as Error).message);
+    } finally {
+      setLiveSide(null);
+    }
   };
   const runCandidate = async () => {
     setLiveSide('candidate');
-    await input.runSuite('candidate');
-    setLiveSide(null);
+    setThreadNote(null);
+    try {
+      await input.runSuite('candidate');
+    } catch (error) {
+      setThreadNote((error as Error).message);
+    } finally {
+      setLiveSide(null);
+    }
   };
   const retryFailed = async () => {
     const ids = failedCaseIds(casesFromTrace(candidateTrace) || casesFromTrace(baselineTrace));
@@ -669,8 +736,13 @@ export function useBenchmarkOps(input: {
     }
     setLiveSide(sides[1] ? 'candidate' : 'baseline');
     setThreadNote(RETRY_FAILED_NOTE);
-    await input.runSuite(sides[1] ? 'candidate' : 'baseline', ids);
-    setLiveSide(null);
+    try {
+      await input.runSuite(sides[1] ? 'candidate' : 'baseline', ids);
+    } catch (error) {
+      setThreadNote((error as Error).message);
+    } finally {
+      setLiveSide(null);
+    }
   };
   const cancelRun = async () => {
     const runId = input.lastRunId || input.selectedId;
@@ -679,8 +751,12 @@ export function useBenchmarkOps(input: {
       return;
     }
     try {
-      await cancelJudgeRun(runId);
-      setThreadNote('Cancel requested. The current case still finishes. Partial results stay saved.');
+      const warning = await cancelJudgeRun(runId);
+      setThreadNote(
+        warning
+          ? `Cancel requested. The current case still finishes. Partial results stay saved. ${warning}`
+          : 'Cancel requested. The current case still finishes. Partial results stay saved.'
+      );
     } catch (error) {
       setThreadNote((error as Error).message);
     }
@@ -699,12 +775,8 @@ export function useBenchmarkOps(input: {
   };
 
   const applyCandidate = async () => {
-    if (!approver.trim()) {
-      setApplyNote('Name the approver before applying the candidate.');
-      return;
-    }
-    if (target === 'prompt_registry' && (gates.total === 0 || gates.passed < gates.total)) {
-      setApplyNote(gates.label);
+    if (applyBlockedReason) {
+      setApplyNote(applyBlockedReason);
       return;
     }
     setApplying(true);
@@ -745,7 +817,12 @@ export function useBenchmarkOps(input: {
   };
 
   const viewRollback = () => {
-    setApplyNote(rollbackCaption(flywheel.rollback));
+    const path = rollbackCaption(flywheel.rollback);
+    setApplyNote(
+      canRollback
+        ? `Rollback path (inspection only, nothing was changed): ${path}`
+        : path
+    );
   };
 
   const rollbackAsk = async () => {
@@ -761,7 +838,6 @@ export function useBenchmarkOps(input: {
       setApplyNote((error as Error).message);
     }
   };
-  void rollbackAsk;
 
   const exportPack = () => {
     const failed = pairCaseOutcomes(casesFromTrace(baselineTrace), casesFromTrace(candidateTrace)).filter(
@@ -792,6 +868,7 @@ export function useBenchmarkOps(input: {
     link.download = `evidence-${baseline.runId || 'baseline'}-${candidate.runId || 'candidate'}.json`;
     link.click();
     URL.revokeObjectURL(href);
+    setActionNote('Downloaded the evidence pack.');
   };
 
   const copyPermalink = async () => {
@@ -799,17 +876,21 @@ export function useBenchmarkOps(input: {
     const absolute = typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
     try {
       await navigator.clipboard.writeText(absolute);
-      setFailureNote(`Copied ${path}`);
-    } catch {
-      setFailureNote(path);
+      setActionNote(`Copied ${path}`);
+    } catch (error) {
+      setActionNote((error as Error).message || path);
     }
   };
 
   const addEdge = async () => {
     const picked = inspectCases.find((row) => row.id === selectedFailure);
-    if (!picked) return;
+    if (!picked) {
+      setFailureNote('Pick a failed case first.');
+      return;
+    }
     try {
-      await duplicateLabEdgeCase(picked.id);
+      const next = await duplicateLabEdgeCase(picked.id);
+      input.setLab(next);
       setFailureNote(`Added ${picked.id} to the dataset as an edge case.`);
     } catch (error) {
       setFailureNote((error as Error).message);
@@ -817,9 +898,13 @@ export function useBenchmarkOps(input: {
   };
 
   const markKnown = async () => {
-    if (!selectedFailure) return;
+    if (!selectedFailure) {
+      setFailureNote('Pick a failed case first.');
+      return;
+    }
     try {
-      await markLabKnownFailure(selectedFailure);
+      const next = await markLabKnownFailure(selectedFailure);
+      input.setLab(next);
       setFailureNote(`Marked ${selectedFailure} as a known failure.`);
     } catch (error) {
       setFailureNote((error as Error).message);
@@ -850,8 +935,12 @@ export function useBenchmarkOps(input: {
     applyNote,
     applyPreview,
     canApply,
+    applyBlockedReason,
     applyCandidate,
     viewRollback,
+    canRollback,
+    rollbackDisabledReason,
+    rollbackAsk,
     comparison,
     history: flywheel.compareHistory.map((entry) => bakeOffHistoryLine(entry)),
     genieNote: genie
@@ -862,6 +951,7 @@ export function useBenchmarkOps(input: {
           : `Baseline ${genie.baseline.note}. Candidate ${genie.candidate.note}.`
       : null,
     coverageNote: humanReviewedCaption(input.labelsReviewed, candidate.coverage ?? null),
+    actionNote,
     exportPack,
     copyPermalink,
     inspectCases,

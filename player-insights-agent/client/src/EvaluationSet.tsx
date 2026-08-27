@@ -404,6 +404,8 @@ export function CurateStageControls({ lab }: { lab: EvaluationLabModel }) {
           Duplicate as edge case
         </BenchButton>
       </div>
+      {lab.notice ? <p className="bench-caption">{lab.notice}</p> : null}
+      {lab.error ? <p className="bench-caption">{lab.error}</p> : null}
     </>
   );
 }

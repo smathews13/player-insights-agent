@@ -53,6 +53,7 @@ function model(lab: ReturnType<typeof workspace>, extra: Partial<EvaluationLabMo
     error: null,
     busy: null,
     reload: noop,
+    setLab: () => {},
     commitVersion: noop,
     loadImportCandidates: noop,
     importPicked: noop,

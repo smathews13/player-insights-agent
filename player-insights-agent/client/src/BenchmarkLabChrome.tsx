@@ -142,6 +142,22 @@ export function BenchButton({
   );
 }
 
+const UNWIRED_TITLE = 'This control runs once the Lab workspace is connected.';
+
+function UnwiredButton({
+  children,
+  variant = 'secondary',
+}: {
+  children: ReactNode;
+  variant?: 'primary' | 'secondary';
+}) {
+  return (
+    <BenchButton variant={variant} disabled title={UNWIRED_TITLE}>
+      {children}
+    </BenchButton>
+  );
+}
+
 export function LabSurface({
   id,
   title,
@@ -221,12 +237,13 @@ function DefaultCurateStage({ workspace }: { workspace?: LabWorkspace | null }) 
         <span className={astPill('neutral-outline', 'bench-chip ast-num')}>{workspace.reviewerQueue}</span>
       ) : null}
       <div className="bench-btn-row">
-        <BenchButton variant="primary">Import from Ask and Monitoring traces</BenchButton>
-        <BenchButton>New dataset version</BenchButton>
-        <BenchButton>Assign tuning / held-out split</BenchButton>
-        <BenchButton>Open reviewer queue</BenchButton>
-        <BenchButton>Duplicate as edge case</BenchButton>
+        <UnwiredButton variant="primary">Import from Ask and Monitoring traces</UnwiredButton>
+        <UnwiredButton>New dataset version</UnwiredButton>
+        <UnwiredButton>Assign tuning / held-out split</UnwiredButton>
+        <UnwiredButton>Open reviewer queue</UnwiredButton>
+        <UnwiredButton>Duplicate as edge case</UnwiredButton>
       </div>
+      <p className="bench-caption">{UNWIRED_TITLE}</p>
     </>
   );
 }
@@ -240,8 +257,8 @@ function DefaultGenieStage({ workspace }: { workspace?: LabWorkspace | null }) {
             Pick a Genie space
           </option>
         </select>
-        <BenchButton variant="primary">Run complete suite</BenchButton>
-        <BenchButton>Run partial suite</BenchButton>
+        <UnwiredButton variant="primary">Run complete suite</UnwiredButton>
+        <UnwiredButton>Run partial suite</UnwiredButton>
         <span className={astPill('neutral-outline', 'bench-chip')}>matching · executed-result equivalence</span>
       </div>
       <p className="bench-gate">
@@ -287,20 +304,33 @@ function DefaultJudgesStage({
         ))}
       </p>
       <div className="bench-btn-row">
-        <BenchButton variant="primary" onClick={onRunBaseline} disabled={running}>
+        <BenchButton
+          variant="primary"
+          onClick={onRunBaseline}
+          disabled={running || !onRunBaseline}
+          title={!onRunBaseline ? UNWIRED_TITLE : undefined}
+        >
           {running ? 'Run in progress' : 'Run baseline'}
         </BenchButton>
-        <BenchButton onClick={onRunCandidate} disabled={running}>
+        <BenchButton
+          onClick={onRunCandidate}
+          disabled={running || !onRunCandidate}
+          title={!onRunCandidate ? UNWIRED_TITLE : undefined}
+        >
           {running ? 'Run in progress' : 'Run candidate'}
         </BenchButton>
-        <BenchButton title="Scores every turn in the picked session">Score one Ask session</BenchButton>
+        <UnwiredButton>Score one Ask session</UnwiredButton>
       </div>
       <div className="bench-btn-row">
         {runProgress ? <p className="bench-run-progress ast-num">{runProgress}</p> : null}
-        <BenchButton disabled={!running} onClick={onCancel}>
+        <BenchButton
+          disabled={!running || !onCancel}
+          onClick={onCancel}
+          title={!running ? 'Nothing is running to cancel.' : undefined}
+        >
           Cancel
         </BenchButton>
-        <BenchButton disabled>Retry failed cases</BenchButton>
+        <UnwiredButton>Retry failed cases</UnwiredButton>
       </div>
       <p className="bench-gate">{PARTIAL_RESULTS_FACT}</p>
     </>
@@ -352,10 +382,11 @@ function DefaultApplyStage() {
       </p>
       <div className="bench-btn-row">
         <input className="bench-approver ast-num" aria-label="Named approver" placeholder="Named approver" />
-        <BenchButton variant="primary">Apply candidate</BenchButton>
-        <BenchButton>View rollback path</BenchButton>
+        <UnwiredButton variant="primary">Apply candidate</UnwiredButton>
+        <UnwiredButton>View rollback path</UnwiredButton>
       </div>
       <p className="bench-gate">Apply is available once a candidate has passed its gates and a named approver is set.</p>
+      <p className="bench-caption">{UNWIRED_TITLE}</p>
     </>
   );
 }
@@ -368,10 +399,10 @@ function DefaultEvaluationSet() {
       fact="versioned and immutable. New edits create the next version. Held-out edits create an audit entry."
       actions={
         <div className="bench-btn-row">
-          <BenchButton variant="primary">Import from traces</BenchButton>
-          <BenchButton>New dataset version</BenchButton>
-          <BenchButton>Reviewer queue</BenchButton>
-          <BenchButton>Align guidelines from labels</BenchButton>
+          <UnwiredButton variant="primary">Import from traces</UnwiredButton>
+          <UnwiredButton>New dataset version</UnwiredButton>
+          <UnwiredButton>Reviewer queue</UnwiredButton>
+          <UnwiredButton>Align guidelines from labels</UnwiredButton>
         </div>
       }
     >
@@ -493,8 +524,8 @@ function DefaultRunComparison({ extras }: { extras?: ReactNode }) {
       fact="baseline vs candidate on the same dataset version and scorer set. No composite score."
       actions={
         <div className="bench-btn-row">
-          <BenchButton>Export evidence pack</BenchButton>
-          <BenchButton>Copy run permalink</BenchButton>
+          <UnwiredButton>Export evidence pack</UnwiredButton>
+          <UnwiredButton>Copy run permalink</UnwiredButton>
         </div>
       }
     >
@@ -565,8 +596,8 @@ function DefaultFailureInvestigation({
           <p className="bench-empty-row">Span tree, tokens, and cost land with the trace.</p>
           <p className="bench-caption">Judge rationale ends in the concrete fix.</p>
           <div className="bench-btn-row">
-            <BenchButton variant="primary">Add to dataset as edge case</BenchButton>
-            <BenchButton>Mark as known failure</BenchButton>
+            <UnwiredButton variant="primary">Add to dataset as edge case</UnwiredButton>
+            <UnwiredButton>Mark as known failure</UnwiredButton>
           </div>
         </div>
       </div>

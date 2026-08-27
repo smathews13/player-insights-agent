@@ -452,6 +452,48 @@ export function resolvePromoteEndpoint(side: string, currentAgentEndpoint: strin
   return named;
 }
 
+/** Why Apply looks dead. Empty string means the click is allowed. */
+export function applyDisabledReason(input: {
+  approver: string;
+  target: ApplyTargetSeg;
+  gatesPassed: number;
+  gatesTotal: number;
+  askEndpoint: string;
+  candidateRunId: string;
+}): string {
+  if (!input.approver.trim()) return 'Name the approver before applying the candidate.';
+  if (input.target !== 'prompt_registry') return '';
+  if (!input.candidateRunId.trim()) return 'Run a candidate before applying.';
+  if (!input.askEndpoint.trim()) return 'Add a candidate endpoint in Settings → Experimental.';
+  if (input.gatesTotal > 0 && input.gatesPassed < input.gatesTotal) {
+    return `Apply is blocked: passed ${input.gatesPassed} of ${input.gatesTotal} gates.`;
+  }
+  return '';
+}
+
+/**
+ * Whether judge-run buttons should stay locked.
+ *
+ * A leftover cancel flag, or an old stored run auto-selected on an empty visit,
+ * must not freeze the whole Lab. Only a suite this page started, or a live run
+ * that has not been cancelled, counts.
+ */
+export function suiteIsLive(input: {
+  running: boolean;
+  lastRunId: string | null;
+  lastRunFound: boolean;
+  lastRunInProgress: boolean;
+  liveRun: { runId?: string | null; cancelRequested?: boolean } | null | undefined;
+}): boolean {
+  if (input.running) return true;
+  if (input.lastRunId) {
+    if (!input.lastRunFound) return true;
+    return input.lastRunInProgress;
+  }
+  const live = input.liveRun;
+  return Boolean(live?.runId && !live.cancelRequested);
+}
+
 export function readApiError(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback;
   const record = body as { detail?: unknown; message?: unknown };

@@ -140,6 +140,7 @@ describe('the v3 Lab chrome', () => {
     expect(rule('.bench-btn')).toMatch(/height:\s*30px/);
     expect(rule('.bench-btn-primary')).toMatch(/background:\s*var\(--db-blue-tint\)/);
     expect(rule('.bench-btn-secondary')).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(rule('.bench-btn:disabled')).toMatch(/cursor:\s*not-allowed/);
   });
 
   it('draws 28px mono nodes on the ice-blue spine', () => {

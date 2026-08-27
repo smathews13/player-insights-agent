@@ -203,7 +203,7 @@ export async function markLabKnownFailure(caseId: string, note = ''): Promise<La
   return labFromPayload(await readJson(response, 'known failure'));
 }
 
-export async function cancelJudgeRun(runId: string): Promise<void> {
+export async function cancelJudgeRun(runId: string): Promise<string | null> {
   const response = await fetch('/api/admin/benchmarks/cancel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -212,8 +212,9 @@ export async function cancelJudgeRun(runId: string): Promise<void> {
   await readJson(response, 'cancel');
   try {
     await requestLabRunCancel(runId);
-  } catch {
-    // Lab contract flag is secondary. The runner cancel is what stops the suite.
+    return null;
+  } catch (error) {
+    return (error as Error).message || 'The Lab progress flag was not updated.';
   }
 }
 

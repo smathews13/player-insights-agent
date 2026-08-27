@@ -11,7 +11,7 @@ import {
   BenchmarkFailurePane,
   BenchmarkJudgesStage,
 } from './BenchmarkLabOps';
-import { gateChip, genieLanePair, humanReviewedCaption, investigationCases, spanTreeFromCase } from './benchmark-lab-ops';
+import { applyDisabledReason, gateChip, genieLanePair, humanReviewedCaption, investigationCases, spanTreeFromCase, suiteIsLive } from './benchmark-lab-ops';
 import { compareBakeOff, gatesSummary, judgeNeedTags } from '../../shared/benchmark-bakeoff';
 import { MATCHING_POLICY_FACT, MATCHING_POLICY_ID, MATCHING_POLICY_REFERENCE, STAGE_04_CAPTIONS } from '../../shared/benchmark-lab-v3';
 
@@ -87,8 +87,12 @@ describe('apply captions stay honest', () => {
           applyNote={null}
           applyPreview="Candidate run_057 · dataset ds_v003 · prompts:/ask@production"
           canApply={false}
+          applyBlockedReason="Name the approver before applying the candidate."
           onApply={() => undefined}
           onViewRollback={() => undefined}
+          canRollback={false}
+          rollbackDisabledReason="No earlier promote to roll back to."
+          onRollback={() => undefined}
         />,
       ),
     );
@@ -107,16 +111,19 @@ describe('apply captions stay honest', () => {
     expect(gateChip(null, 0, 0)).toContain('no numeric gates set');
   });
 
-  it('keeps View rollback path as inspection and does not mount a Rollback button', () => {
+  it('keeps View rollback path as inspection and mounts Roll back next Ask separately', () => {
     const prose = apply('prompt_registry');
     expect(prose).toContain('View rollback path');
+    expect(prose).toContain('Roll back next Ask');
     expect(prose).toContain('Candidate run_057 · dataset ds_v003');
-    expect(prose).not.toMatch(/\bRollback\b/);
+    expect(prose).toContain('Name the approver before applying the candidate.');
     const viewHandler = OPS.slice(OPS.indexOf('const viewRollback'), OPS.indexOf('const rollbackAsk'));
     expect(viewHandler).not.toContain('rollbackPromotedAsk');
     expect(viewHandler).toContain('rollbackCaption');
+    expect(viewHandler).toContain('inspection only');
     const rollbackHandler = OPS.slice(OPS.indexOf('const rollbackAsk'), OPS.indexOf('const exportPack'));
     expect(rollbackHandler).toContain('rollbackPromotedAsk');
+    expect(OPS).not.toContain('void rollbackAsk');
   });
 });
 
@@ -287,5 +294,61 @@ describe('Genie lane pairing', () => {
     });
     expect(two?.baseline.accuracy).toBe(0.8);
     expect(two?.candidate.accuracy).toBe(0.9);
+  });
+});
+
+describe('apply and live-run gates', () => {
+  it('does not block Apply just because no numeric gates exist yet', () => {
+    expect(
+      applyDisabledReason({
+        approver: 'sam@example.com',
+        target: 'prompt_registry',
+        gatesPassed: 0,
+        gatesTotal: 0,
+        askEndpoint: 'agent-prod',
+        candidateRunId: 'run_1',
+      })
+    ).toBe('');
+    expect(
+      applyDisabledReason({
+        approver: '',
+        target: 'prompt_registry',
+        gatesPassed: 0,
+        gatesTotal: 0,
+        askEndpoint: 'agent-prod',
+        candidateRunId: 'run_1',
+      })
+    ).toContain('approver');
+    expect(
+      applyDisabledReason({
+        approver: 'sam@example.com',
+        target: 'prompt_registry',
+        gatesPassed: 1,
+        gatesTotal: 2,
+        askEndpoint: 'agent-prod',
+        candidateRunId: 'run_1',
+      })
+    ).toContain('passed 1 of 2');
+  });
+
+  it('does not freeze the Lab on a leftover cancel flag or an old stored run', () => {
+    expect(
+      suiteIsLive({
+        running: false,
+        lastRunId: null,
+        lastRunFound: false,
+        lastRunInProgress: false,
+        liveRun: { runId: 'run_old', cancelRequested: true },
+      })
+    ).toBe(false);
+    expect(
+      suiteIsLive({
+        running: false,
+        lastRunId: 'run_new',
+        lastRunFound: true,
+        lastRunInProgress: true,
+        liveRun: null,
+      })
+    ).toBe(true);
   });
 });
