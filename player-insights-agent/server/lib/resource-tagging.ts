@@ -77,12 +77,16 @@ export interface ResourceTagPlatform {
   updateAppTag(appName: string): Promise<void>;
   getServingTags(name: string): Promise<KeyValueTag[]>;
   addServingTag(name: string): Promise<void>;
+  deleteServingTag(name: string, key: string): Promise<void>;
   getModelTags(name: string): Promise<KeyValueTag[]>;
   setModelTag(name: string): Promise<void>;
+  deleteModelTag(name: string, key: string): Promise<void>;
   getModelVersionTags(name: string, version: string): Promise<KeyValueTag[]>;
   setModelVersionTag(name: string, version: string): Promise<void>;
+  deleteModelVersionTag(name: string, version: string, key: string): Promise<void>;
   getExperimentTags(experimentId: string): Promise<KeyValueTag[]>;
   setExperimentTag(experimentId: string): Promise<void>;
+  deleteExperimentTag(experimentId: string, key: string): Promise<void>;
   getWarehouseTags(warehouseId: string): Promise<KeyValueTag[]>;
   setWarehouseTags(warehouseId: string, tags: KeyValueTag[]): Promise<void>;
   getLakebaseTags(projectName: string): Promise<KeyValueTag[]>;
@@ -226,6 +230,10 @@ export function resourceTagInventory(
 
 function hasTag(tags: readonly KeyValueTag[]): boolean {
   return tags.some((tag) => tag.key === ASTROLABE_TAG.key && tag.value === ASTROLABE_TAG.value);
+}
+
+function hasRetiredTag(tags: readonly KeyValueTag[]): boolean {
+  return tags.some((tag) => tag.key === RETIRED_BILLING_TAG_KEY);
 }
 
 function mergeTag(tags: readonly KeyValueTag[]): KeyValueTag[] {
@@ -377,50 +385,101 @@ async function tagTargetOnce(target: ResourceTagTarget, platform: ResourceTagPla
   }
   if (target.kind === 'serving-endpoint') {
     const tags = await platform.getServingTags(target.name);
-    if (hasTag(tags)) {
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.addServingTag(target.name);
+    if (retired) await platform.deleteServingTag(target.name, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
-    await platform.addServingTag(target.name);
-    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
+    return {
+      ...target,
+      status: 'tagged',
+      detail: retired
+        ? tagStateDetail('tagged', `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`)
+        : tagStateDetail('tagged'),
+    };
   }
   if (target.kind === 'registered-model') {
-    if (hasTag(await platform.getModelTags(target.name))) {
+    const tags = await platform.getModelTags(target.name);
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.setModelTag(target.name);
+    if (retired) await platform.deleteModelTag(target.name, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
-    await platform.setModelTag(target.name);
-    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
+    return {
+      ...target,
+      status: 'tagged',
+      detail: retired
+        ? tagStateDetail('tagged', `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`)
+        : tagStateDetail('tagged'),
+    };
   }
   if (target.kind === 'model-version') {
     const version = target.version;
     if (!version) throw new Error('The connected agent model version was not resolved.');
-    if (hasTag(await platform.getModelVersionTags(target.name, version))) {
+    const tags = await platform.getModelVersionTags(target.name, version);
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.setModelVersionTag(target.name, version);
+    if (retired) await platform.deleteModelVersionTag(target.name, version, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
-    await platform.setModelVersionTag(target.name, version);
-    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
+    return {
+      ...target,
+      status: 'tagged',
+      detail: retired
+        ? tagStateDetail('tagged', `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`)
+        : tagStateDetail('tagged'),
+    };
   }
   if (target.kind === 'mlflow-experiment') {
-    if (hasTag(await platform.getExperimentTags(target.name))) {
+    const tags = await platform.getExperimentTags(target.name);
+    const current = hasTag(tags);
+    const retired = hasRetiredTag(tags);
+    if (!current) await platform.setExperimentTag(target.name);
+    if (retired) await platform.deleteExperimentTag(target.name, RETIRED_BILLING_TAG_KEY);
+    if (current && !retired) {
       return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
-    await platform.setExperimentTag(target.name);
-    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
+    return {
+      ...target,
+      status: 'tagged',
+      detail: retired
+        ? tagStateDetail('tagged', `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`)
+        : tagStateDetail('tagged'),
+    };
   }
   if (target.kind === 'sql-warehouse') {
     const tags = await platform.getWarehouseTags(target.name);
-    if (hasTag(tags)) {
+    if (hasTag(tags) && !hasRetiredTag(tags)) {
       return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.setWarehouseTags(target.name, mergeTag(tags));
-    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
+    return {
+      ...target,
+      status: 'tagged',
+      detail: hasRetiredTag(tags)
+        ? tagStateDetail('tagged', `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`)
+        : tagStateDetail('tagged'),
+    };
   }
   if (target.kind === 'lakebase') {
     const tags = await platform.getLakebaseTags(target.name);
-    if (hasTag(tags)) {
+    if (hasTag(tags) && !hasRetiredTag(tags)) {
       return { ...target, status: 'already-correct', detail: tagStateDetail('already-correct') };
     }
     await platform.setLakebaseTags(target.name, mergeTag(tags));
-    return { ...target, status: 'tagged', detail: tagStateDetail('tagged') };
+    return {
+      ...target,
+      status: 'tagged',
+      detail: hasRetiredTag(tags)
+        ? tagStateDetail('tagged', `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`)
+        : tagStateDetail('tagged'),
+    };
   }
   return {
     ...target,
@@ -497,11 +556,17 @@ export async function applyAstrolabeTags(input: {
             action: 'tag',
           };
           const tags = await platform.getVectorEndpointTags(endpointName);
-          if (hasTag(tags)) {
+          if (hasTag(tags) && !hasRetiredTag(tags)) {
             return { ...endpoint, status: 'already-correct', detail: tagStateDetail('already-correct') };
           }
           await platform.setVectorEndpointTags(endpointName, mergeTag(tags));
-          return { ...endpoint, status: 'tagged', detail: tagStateDetail('tagged') };
+          return {
+            ...endpoint,
+            status: 'tagged',
+            detail: hasRetiredTag(tags)
+              ? tagStateDetail('tagged', `Removed retired key ${RETIRED_BILLING_TAG_KEY}.`)
+              : tagStateDetail('tagged'),
+          };
         }, policy)
       );
     } catch (error) {
@@ -606,11 +671,17 @@ async function workspaceTagPlatform(): Promise<ResourceTagPlatform> {
     async addServingTag(name) {
       await client.servingEndpoints.patch({ name, add_tags: [{ ...ASTROLABE_TAG }] });
     },
+    async deleteServingTag(name, key) {
+      await client.servingEndpoints.patch({ name, delete_tags: [key] });
+    },
     async getModelTags(name) {
       return (await client.modelRegistry.getModel({ name })).registered_model_databricks?.tags ?? [];
     },
     async setModelTag(name) {
       await client.modelRegistry.setModelTag({ name, ...ASTROLABE_TAG });
+    },
+    async deleteModelTag(name, key) {
+      await client.modelRegistry.deleteModelTag({ name, key });
     },
     async getModelVersionTags(name, version) {
       return (await client.modelRegistry.getModelVersion({ name, version })).model_version?.tags ?? [];
@@ -618,11 +689,23 @@ async function workspaceTagPlatform(): Promise<ResourceTagPlatform> {
     async setModelVersionTag(name, version) {
       await client.modelRegistry.setModelVersionTag({ name, version, ...ASTROLABE_TAG });
     },
+    async deleteModelVersionTag(name, version, key) {
+      await client.modelRegistry.deleteModelVersionTag({ name, version, key });
+    },
     async getExperimentTags(experimentId) {
       return (await client.experiments.getExperiment({ experiment_id: experimentId })).experiment?.tags ?? [];
     },
     async setExperimentTag(experimentId) {
       await client.experiments.setExperimentTag({ experiment_id: experimentId, ...ASTROLABE_TAG });
+    },
+    async deleteExperimentTag(experimentId, key) {
+      await client.apiClient.request({
+        path: '/api/2.0/mlflow/experiments/delete-experiment-tag',
+        method: 'POST',
+        headers: jsonHeaders,
+        payload: { experiment_id: experimentId, key },
+        raw: false,
+      });
     },
     async getWarehouseTags(warehouseId) {
       return (await client.warehouses.get({ id: warehouseId })).tags?.custom_tags ?? [];

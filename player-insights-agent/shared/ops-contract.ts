@@ -65,6 +65,87 @@ export type CostResourceKind =
   | 'genie-space'
   | 'vector-index';
 
+/**
+ * Whose money a tile's figure is, independent of the chip wording.
+ *
+ * Display text can change; this cannot. A whole-warehouse meter compared to an
+ * app budget is a false overage unless the comparison knows the figure is a
+ * shared upper bound.
+ */
+export type CostAttributionScope = 'deployment' | 'shared-upper-bound' | 'unavailable';
+
+/**
+ * How the list-price join resolved for a tile.
+ *
+ * `priced` is the only status that may be compared as measured spend.
+ * Unpriced, duplicate, or mixed-currency rows must not render as $0.00.
+ */
+export type CostPriceMatch =
+  | 'priced'
+  | 'unpriced'
+  | 'partial'
+  | 'duplicate'
+  | 'mixed-currency'
+  | 'none';
+
+/** List-price join evidence for one tile. Contracted rates are not available here. */
+export interface CostTilePricing {
+  source: 'list_prices';
+  match: CostPriceMatch;
+  currency: string;
+  pricedQuantity: number;
+  unpricedQuantity: number;
+  pricedRows: number;
+  unpricedRows: number;
+  unpricedSkus: readonly string[];
+  duplicateMatches: number;
+  correctionRows: number;
+  priceEffectiveAt: string;
+}
+
+export type CostPropagationStatus = 'propagated' | 'unpropagated' | 'delayed' | 'unused' | 'unsupported';
+
+export interface CostCoverageProduct {
+  product: string;
+  taggedRows: number;
+  taggedQuantity: number;
+  pricedRows: number;
+  unpricedRows: number;
+  tiled: boolean;
+  reason: string;
+}
+
+export interface CostPropagation {
+  product: string;
+  status: CostPropagationStatus;
+  detail: string;
+}
+
+/**
+ * Tagged usage vs the five tracked tiles, so a successful tag repair cannot be
+ * mistaken for complete cost coverage.
+ */
+export interface CostCoverage {
+  inventoryCount: number;
+  costModelCount: number;
+  products: CostCoverageProduct[];
+  propagation: CostPropagation[];
+}
+
+export interface CostHonesty {
+  priceSource: 'list_prices';
+  contractRates: 'unavailable';
+  dataThrough: string;
+  rangeMayStillFill: boolean;
+  currencyConsistent: boolean;
+}
+
+/** The warehouse auto-stop setting, when this app can read it. It does not change it. */
+export interface WarehouseAutoStop {
+  minutes: number | null;
+  readable: boolean;
+}
+
 export interface CostTile {
   id: string;
   /** What it is, in the reader's words. */
@@ -99,6 +180,14 @@ export interface CostTile {
    * two questions. 'Whole workspace' fits in a chip; the paragraph did not.
    */
   population: string;
+  /**
+   * Deployment-attributable vs a shared upper bound vs unavailable.
+   *
+   * Optional on older payloads; the page infers from `population` when absent.
+   */
+  attribution?: CostAttributionScope;
+  /** List-price join evidence. Absent on older payloads. */
+  pricing?: CostTilePricing | null;
   /** The state shown in place of a figure, e.g. 'Not attributable'. Empty when there is one. */
   unavailable: string;
   /** What to set to make this figure attributable. Empty where nothing would. */
@@ -213,6 +302,15 @@ export interface OpsCostPayload {
   budgets: CostBudgets;
   /** False when Lakebase could not be read, so Save retries that load. */
   budgetsReadable: boolean;
+  /**
+   * Tagged usage vs the five tracked tiles. Absent on older payloads; the page
+   * then draws the grid without a coverage strip.
+   */
+  coverage?: CostCoverage | null;
+  /** List-price source, lag, and currency consistency. */
+  honesty?: CostHonesty | null;
+  /** Warehouse auto-stop, when readable. This app never writes that setting. */
+  warehouseAutoStop?: WarehouseAutoStop | null;
 }
 
 /**

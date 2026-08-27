@@ -186,6 +186,13 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
           <span className="ast-num">{compared.budgetLabel}</span>
           {compared.over ? <span className={astPill('warn', 'ops-pill')}>Over budget</span> : null}
         </p>
+      ) : compared.kind === 'shared-meter' ? (
+        <p className="ops-budget-compare">
+          <span className="ast-num">{compared.spendLabel}</span>
+          {' of '}
+          <span className="ast-num">{compared.budgetLabel}</span>
+          <span className={astPill('neutral-outline', 'ops-pill')}>shared meter vs named budget</span>
+        </p>
       ) : compared.kind === 'budget-only' ? (
         <p className="ops-budget-compare">
           Budget <span className="ast-num">{compared.budgetLabel}</span>

@@ -50,7 +50,8 @@ variables:
   warehouse_id:
     description: >-
       REQUIRED. ID of an existing PRO or SERVERLESS SQL warehouse used by Genie
-      and the agent. This bundle does not create or modify the warehouse. Set
+      and the agent. This bundle does not create or modify the warehouse, including
+      auto-stop. Confirm auto_stop_mins in the warehouse console. Set
       this in the git-ignored
       `.databricks/bundle/<target>/variable-overrides.json` or as
       BUNDLE_VAR_warehouse_id. Do not put workspace-specific warehouse ids in

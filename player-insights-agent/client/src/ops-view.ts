@@ -34,6 +34,9 @@ import {
   LATENCY_BASELINE_FLOOR,
   LATENCY_SLOWER_RATIO,
   SPAN_PERCENTILE_FLOOR,
+  type CostAttributionScope,
+  type CostCoverage,
+  type CostHonesty,
   type CostTile,
   type DependencyResult,
   type HealthDependency,
@@ -43,6 +46,7 @@ import {
   type RouteLatency,
   type TelemetryState,
   type TrafficBar,
+  type WarehouseAutoStop,
 } from '../../shared/ops-contract';
 
 /* ── Money ───────────────────────────────────────────────────────────────── */
@@ -77,26 +81,45 @@ export function count(value: number | null): string {
  * shows. A missing spend figure is not compared, and is never treated as $0.00.
  *
  * Unknown-quality tiles cannot be compared even if a number snuck onto the wire:
- * that amount is not a measurement. The app total is handled separately and is
- * never a sum of these.
+ * that amount is not a measurement. Shared meters cannot trigger app over-budget.
+ * Unpriced or duplicate list-price joins cannot pass a budget check. The app
+ * total is handled separately and is never a sum of these.
  */
 export type SpendVersusBudget =
   | { kind: 'none' }
   | { kind: 'budget-only'; budgetLabel: string }
-  | { kind: 'compared'; spendLabel: string; budgetLabel: string; over: boolean };
+  | { kind: 'compared'; spendLabel: string; budgetLabel: string; over: boolean }
+  | { kind: 'shared-meter'; spendLabel: string; budgetLabel: string };
+
+export function tileAttribution(tile: Pick<CostTile, 'amount' | 'population' | 'attribution'>): CostAttributionScope {
+  if (tile.attribution) return tile.attribution;
+  if (SHARED_POPULATIONS.has(tile.population)) return 'shared-upper-bound';
+  if (tile.amount === null) return 'unavailable';
+  return 'deployment';
+}
 
 export function spendVersusBudget(
-  tile: Pick<CostTile, 'amount' | 'quality'>,
+  tile: Pick<CostTile, 'amount' | 'quality' | 'population' | 'attribution' | 'pricing'>,
   budget: number | null,
   currency: string
 ): SpendVersusBudget {
   if (budget === null || !Number.isFinite(budget)) return { kind: 'none' };
   const budgetLabel = money(budget, currency);
-  if (tile.quality === 'unknown' || tile.amount === null || !Number.isFinite(tile.amount)) {
+  const match = tile.pricing?.match;
+  const unusable =
+    tile.quality === 'unknown' ||
+    match === 'unpriced' ||
+    match === 'duplicate' ||
+    match === 'mixed-currency' ||
+    match === 'partial';
+  if (unusable || tile.amount === null || !Number.isFinite(tile.amount)) {
     return { kind: 'budget-only', budgetLabel };
   }
   const spendLabel = money(tile.amount, currency);
   if (!spendLabel || !budgetLabel) return { kind: 'budget-only', budgetLabel };
+  if (tileAttribution(tile) === 'shared-upper-bound' || SHARED_POPULATIONS.has(tile.population)) {
+    return { kind: 'shared-meter', spendLabel, budgetLabel };
+  }
   return { kind: 'compared', spendLabel, budgetLabel, over: tile.amount > budget };
 }
 
@@ -404,6 +427,8 @@ const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
   amount: null,
   basis: 'total-in-range',
   population: '',
+  attribution: 'unavailable',
+  pricing: null,
   unavailable: 'No billing rows',
   remedy: '',
   note: '',
@@ -706,8 +731,13 @@ export const QUESTION_COST_FORMULA = 'serving endpoint spend ÷ questions with r
 export function questionServingAverage(payload: OpsCostPayload): number | null {
   const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
   const covered = payload.perQuestion.tokenCoveredRuns;
+  const dedicated =
+    serving?.population === 'This endpoint' && tileAttribution(serving) === 'deployment';
+  const priced = !serving?.pricing || serving.pricing.match === 'priced' || serving.pricing.match === 'none';
   if (
     serving?.quality !== 'real' ||
+    !dedicated ||
+    !priced ||
     typeof serving.amount !== 'number' ||
     !Number.isFinite(serving.amount) ||
     covered <= 0 ||
@@ -716,6 +746,51 @@ export function questionServingAverage(payload: OpsCostPayload): number | null {
     return null;
   }
   return serving.amount / covered;
+}
+
+export function costHonestyLine(honesty: CostHonesty | null | undefined): string {
+  if (!honesty) {
+    return 'Figures are list prices from system.billing.list_prices, not contracted rates.';
+  }
+  const through = honesty.dataThrough
+    ? ` Data through ${honesty.dataThrough}${honesty.rangeMayStillFill ? '; later days in this range may still be filling' : ''}.`
+    : honesty.rangeMayStillFill
+      ? ' Later days in this range may still be filling.'
+      : '';
+  const currency = honesty.currencyConsistent ? '' : ' Mixed currencies were withheld rather than combined.';
+  return `Figures are list prices from system.billing.list_prices, not contracted rates.${through}${currency}`;
+}
+
+export function warehouseAutoStopLine(autoStop: WarehouseAutoStop | null | undefined): string {
+  if (!autoStop?.readable) return '';
+  if (autoStop.minutes === null) return 'Warehouse auto-stop could not be read. This app does not change that setting.';
+  const noun = autoStop.minutes === 1 ? 'minute' : 'minutes';
+  return `Warehouse auto-stop is ${autoStop.minutes} ${noun}. This app does not change that setting.`;
+}
+
+export function costCoverageSummary(coverage: CostCoverage | null | undefined): {
+  heading: string;
+  inventory: string;
+  products: Array<{ line: string; tiled: boolean }>;
+  propagation: string[];
+} | null {
+  if (!coverage) return null;
+  const excluded = coverage.products.filter((product) => !product.tiled && product.taggedRows > 0);
+  const inventory =
+    `${coverage.inventoryCount} tagged resources · ${coverage.costModelCount} tracked cost components` +
+    (excluded.length > 0 ? ` · ${excluded.length} tagged products with no Cost tile` : '');
+  return {
+    heading: 'Tracked cost components',
+    inventory,
+    products: coverage.products.map((product) => ({
+      tiled: product.tiled,
+      line:
+        `${product.product}: ${product.taggedRows} tagged rows` +
+        (product.unpricedRows > 0 ? `, ${product.unpricedRows} unpriced` : '') +
+        ` · ${product.tiled ? 'on the grid' : 'not a Cost tile'} · ${product.reason}`,
+    })),
+    propagation: coverage.propagation.map((row) => `${row.product}: ${row.status} · ${row.detail}`),
+  };
 }
 
 /*

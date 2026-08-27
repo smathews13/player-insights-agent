@@ -63,6 +63,7 @@ describe('Settings modal', () => {
     expect(markup).toContain('Astrolabe resource tags');
     expect(markup).toContain('system_billing=astrolabe');
     expect(markup).toContain('>Apply Astrolabe tags</button>');
+    expect(markup).toContain('retired');
     expect(markup).not.toContain('Admin only');
     expect(render('experimental')).not.toContain('>Apply Astrolabe tags</button>');
   });

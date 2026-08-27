@@ -34,15 +34,18 @@ import type { AppBillingTagState } from '../../shared/billing-tag';
 import type { Application, Request, Response } from 'express';
 import {
   buildCostStatement,
+  buildCoverage,
+  buildHonesty,
   buildQuestionAttribution,
   buildTiles,
   readComponentRows,
-  RANGE_ROW,
+  splitBillingRows,
   type CostIdentifiers,
   type QuestionRunInput,
   type StatementParameter,
   vectorIndexName,
 } from '../lib/ops-billing';
+import { resourceTagInventory } from '../lib/resource-tagging';
 import {
   buildTelemetryStatement,
   grantFor,
@@ -74,6 +77,7 @@ import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } 
 import type {
   AppMeasurement,
   DependencyResult,
+  GrantRemedy,
   HealthDependency,
   OpsCostPayload,
   OpsHealthPayload,
@@ -81,6 +85,7 @@ import type {
   OpsTrafficPayload,
   PlatformReading,
   TrafficBar,
+  WarehouseAutoStop,
 } from '../../shared/ops-contract';
 import { opsDayRange } from '../../shared/ops-contract';
 
@@ -389,6 +394,39 @@ function host(): string {
 
 function warehouseId(): string {
   return (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
+}
+
+function billingGrant(principal: string): GrantRemedy {
+  const usage = grantFor('system.billing.usage', principal);
+  const prices = grantFor('system.billing.list_prices', principal);
+  return {
+    object: 'system.billing',
+    privilege: 'SELECT',
+    statement: `${usage.statement}\n${prices.statement}`,
+  };
+}
+
+async function readWarehouseAutoStop(input: {
+  host: string;
+  token: string;
+  warehouseId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<WarehouseAutoStop> {
+  const id = input.warehouseId.trim();
+  if (!input.host || !input.token || !id) return { minutes: null, readable: false };
+  try {
+    const call = input.fetchImpl ?? fetch;
+    const response = await call(`${input.host}/api/2.0/sql/warehouses/${encodeURIComponent(id)}`, {
+      headers: { authorization: `Bearer ${input.token}` },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return { minutes: null, readable: false };
+    const body = (await response.json().catch(() => ({}))) as { auto_stop_mins?: unknown };
+    const minutes = Number(body.auto_stop_mins);
+    return { minutes: Number.isFinite(minutes) ? minutes : null, readable: true };
+  } catch {
+    return { minutes: null, readable: false };
+  }
 }
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
@@ -778,8 +816,8 @@ export const QUESTION_COST_RUNS_QUERY = `
   counted AS (
     SELECT *,
            COUNT(*) OVER ()::int AS runs_in_range,
-           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL) OVER ()::int AS token_covered_runs,
-           COALESCE(SUM(total_tokens) OVER (), 0)::bigint AS total_recorded_tokens
+           COUNT(*) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0) OVER ()::int AS token_covered_runs,
+           COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0) OVER (), 0)::bigint AS total_recorded_tokens
     FROM completed
   )
   SELECT run_id, correlation_id, trace_id, completed_at, total_tokens,
@@ -991,6 +1029,13 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         return;
       }
 
+      const autoStopPromise = readWarehouseAutoStop({
+        host: workspace,
+        token,
+        warehouseId: warehouse,
+        fetchImpl: deps.fetchImpl,
+      });
+
       try {
         const outcome = await runStatement({
           host: workspace,
@@ -1000,6 +1045,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           parameters: built.parameters,
           fetchImpl: deps.fetchImpl,
         });
+        const warehouseAutoStop = await autoStopPromise;
+        const inventoryCount = resourceTagInventory({ environment: process.env, report: null }).length;
 
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, 'system.billing.usage');
@@ -1007,12 +1054,13 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             res.json({
               ...empty,
               state: 'no-grant',
-              grant: grantFor(denial.object, userEmail(req) || UNKNOWN_PRINCIPAL, denial.permission),
+              grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
               tiles: [],
+              warehouseAutoStop,
               reason:
                 `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing ` +
                 'runs under your own grants rather than this app\u2019s, so being an administrator here ' +
-                'does not grant it.',
+                'does not grant it. SELECT is needed on both system.billing.usage and system.billing.list_prices.',
             } satisfies OpsCostPayload);
             return;
           }
@@ -1020,33 +1068,47 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             ...empty,
             state: 'unreadable',
             tiles: [],
+            warehouseAutoStop,
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`,
           } satisfies OpsCostPayload);
           return;
         }
 
-        const rows = readComponentRows(outcome.rows);
-        const meta = rows.find((row) => row.component === RANGE_ROW);
-        const componentRows = rows.filter((row) => row.component !== RANGE_ROW);
+        const split = splitBillingRows(readComponentRows(outcome.rows));
+        const coverage = buildCoverage({
+          inventoryCount,
+          coverageRows: split.coverage,
+          propagationRows: split.propagation,
+          range,
+          meta: split.meta,
+        });
+        const unpropagated = coverage.propagation.filter((row) => row.status === 'unpropagated');
+        const delayed = coverage.propagation.some((row) => row.status === 'delayed');
 
-        // No rows at all is its OWN state and not a missing grant. The statement
-        // succeeded, so the reader has the privilege; billing simply has nothing
-        // for this range yet. Telling them to ask for a grant they already hold
-        // is the confusion this distinction exists to prevent.
-        if (componentRows.length === 0 && (!meta || meta.billedDays === 0)) {
+        // No tagged component rows is its OWN state and not a missing grant.
+        if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
+          const tiles = buildTiles(ids, []);
+          const reason = unpropagated.length
+            ? 'Matching usage exists without the Astrolabe tag, so spend is unpropagated rather than unused.'
+            : delayed
+              ? 'No tagged billing rows in this range yet. Later days may still be filling.'
+              : 'No billing rows matched the Astrolabe tag in this range.';
           res.json({
             ...empty,
             state: 'no-rows',
-            tiles: buildTiles(ids, []),
-            currency: meta?.currency ?? '',
-            throughDay: meta?.lastDay || '',
-            billingLagDays: lagDays(range.to, meta?.lastDay || ''),
-            reason: 'No billing rows matched the Astrolabe tag in this range.',
+            tiles,
+            currency: split.meta?.currency ?? '',
+            throughDay: split.meta?.lastDay || '',
+            billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
+            coverage,
+            honesty: buildHonesty(range, split.meta, tiles),
+            warehouseAutoStop,
+            reason,
           } satisfies OpsCostPayload);
           return;
         }
 
-        const tiles = buildTiles(ids, componentRows);
+        const tiles = buildTiles(ids, split.components);
         let perQuestion: OpsCostPayload['perQuestion'] = {
           ...empty.perQuestion,
           reason: 'Per-question attribution could not be read from the run ledger.',
@@ -1065,11 +1127,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         res.json({
           ...empty,
           state: 'ready',
-          currency: meta?.currency ?? '',
-          throughDay: meta?.lastDay || '',
-          billingLagDays: lagDays(range.to, meta?.lastDay || ''),
+          currency: split.meta?.currency ?? tiles.find((tile) => tile.pricing?.currency)?.pricing?.currency ?? '',
+          throughDay: split.meta?.lastDay || '',
+          billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
           tiles,
           perQuestion,
+          coverage,
+          honesty: buildHonesty(range, split.meta, tiles),
+          warehouseAutoStop,
         } satisfies OpsCostPayload);
       } catch (error) {
         res.json({

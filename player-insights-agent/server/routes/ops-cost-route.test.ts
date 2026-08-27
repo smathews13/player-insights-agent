@@ -84,6 +84,14 @@ describe('the ranged cost route', () => {
           })
         );
       }
+      if (url.includes('/api/2.0/sql/warehouses/')) {
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify({ auto_stop_mins: 5 }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        );
+      }
       statementBodies.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>);
       return Promise.resolve(
         new globalThis.Response(
@@ -144,6 +152,9 @@ describe('the ranged cost route', () => {
     );
     expect(payload.budgets).toEqual({ total: null, resources: {} });
     expect(payload.budgetsReadable).toBe(true);
+    expect(payload.warehouseAutoStop).toEqual({ minutes: 5, readable: true });
+    expect(payload.honesty?.priceSource).toBe('list_prices');
+    expect(payload.honesty?.contractRates).toBe('unavailable');
   });
 
   it('shows each connected Genie space and Vector Search index even when billing is empty', async () => {
@@ -195,6 +206,14 @@ describe('the ranged cost route', () => {
           })
         );
       }
+      if (url.includes('/api/2.0/sql/warehouses/')) {
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify({ auto_stop_mins: 5 }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        );
+      }
       if (url.includes('/vector-search/indexes/')) {
         return Promise.resolve(
           new globalThis.Response(JSON.stringify({ endpoint_name: 'vs-endpoint' }), {
@@ -242,7 +261,8 @@ describe('the ranged cost route', () => {
     const genie = payload.tiles.filter((tile) => tile.id.startsWith('genie:'));
     expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary', 'space-extra']);
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
-    expect(genie.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
+    expect(genie.every((tile) => tile.unavailable === 'Genie LLM spend not attributable in this model')).toBe(true);
+    expect(genie.every((tile) => tile.note.includes('not the complete Genie cost'))).toBe(true);
     expect(payload.tiles.some((tile) => tile.unavailable.includes('identifier unavailable'))).toBe(false);
     expect(payload.tiles.find((tile) => tile.id === 'vector-search')).toMatchObject({
       resourceId: 'cat.schema.index',

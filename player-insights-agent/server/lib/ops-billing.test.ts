@@ -28,6 +28,8 @@ describe('billing attribution', () => {
 
     expect(BILLING_TAG_KEY).toBe('system_billing');
     expect(query?.statement).toContain("u.custom_tags['system_billing'] = 'astrolabe'");
+    expect(query?.statement).not.toContain('COALESCE(p.pricing.default, 0)');
+    expect(query?.statement).toContain('t.usage_unit = p.usage_unit');
   });
 
   it('bounds the billing scan to the complete days the page requested', () => {
@@ -101,7 +103,9 @@ describe('billing attribution', () => {
     ]).find((tile) => tile.id === 'genie');
 
     expect(genie?.amount).toBeNull();
-    expect(genie?.unavailable).toBe('Genie space identifier unavailable');
+    expect(genie?.unavailable).toBe('Genie LLM spend not attributable in this model');
+    expect(genie?.remedy).toBe('Genie space identifier unavailable');
+    expect(genie?.note).toContain('not the complete Genie cost');
   });
 
   it('emits one Genie tile per configured space and links the space id', () => {
@@ -119,7 +123,8 @@ describe('billing attribution', () => {
     expect(genie).toHaveLength(2);
     expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
-    expect(genie.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
+    expect(genie.every((tile) => tile.unavailable === 'Genie LLM spend not attributable in this model')).toBe(true);
+    expect(genie.every((tile) => tile.note.includes('not the complete Genie cost'))).toBe(true);
     expect(tiles.some((tile) => tile.id === 'genie')).toBe(false);
   });
 

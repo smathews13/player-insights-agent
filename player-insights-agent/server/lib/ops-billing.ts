@@ -40,9 +40,16 @@
 
 import { BILLING_TAG, billingTagPair, type AppBillingTagState } from '../../shared/billing-tag';
 import type {
+  CostAttributionScope,
+  CostCoverage,
+  CostCoverageProduct,
+  CostHonesty,
+  CostPriceMatch,
+  CostPropagation,
   CostQuality,
   CostResourceKind,
   CostTile,
+  CostTilePricing,
   QuestionCostAttribution,
   QuestionCostPart,
   QuestionCostRun,
@@ -216,6 +223,38 @@ const MATCHERS: Record<
 export const RANGE_ROW = '__range';
 export const BILLING_TAG_KEY = BILLING_TAG.key;
 export const BILLING_TAG_VALUE = BILLING_TAG.value;
+export const LIST_PRICE_SOURCE = 'system.billing.list_prices' as const;
+
+/** Genie space cards stay dollar-free; LLM spend is a separate stream we cannot join. */
+export const GENIE_LLM_UNAVAILABLE = 'Genie LLM spend not attributable in this model';
+export const GENIE_SQL_NOT_COMPLETE =
+  'SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.';
+
+const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']);
+const PRODUCT_REASONS: Record<string, string> = {
+  MODEL_SERVING: 'Tracked as the serving-endpoint tile when the endpoint name matches.',
+  SQL: 'Tracked as the SQL warehouse tile. This is a shared meter, not app-only spend.',
+  VECTOR_SEARCH: 'Tracked as the Vector Search tile when the endpoint name matches.',
+  APPS: 'Matched by app name. App tags are organizational and may never appear on billing rows.',
+  GENIE: 'Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.',
+  JOBS: 'The semantic rebuild job is tagged when connected, but it is not a Cost tile.',
+  LAKEBASE: 'Lakebase can be tagged. No documented billing join exists in this model.',
+  MLFLOW: 'MLflow experiments can be tagged. They have no Cost tile.',
+};
+
+export const EMPTY_PRICING: CostTilePricing = {
+  source: 'list_prices',
+  match: 'none',
+  currency: '',
+  pricedQuantity: 0,
+  unpricedQuantity: 0,
+  pricedRows: 0,
+  unpricedRows: 0,
+  unpricedSkus: [],
+  duplicateMatches: 0,
+  correctionRows: 0,
+  priceEffectiveAt: '',
+};
 
 /**
  * Whether this deployment knows enough to ask about a component.
@@ -305,6 +344,7 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   };
   bind('from_day', range.from, 'DATE');
   bind('to_day', range.to, 'DATE');
+  if (ids.workspaceId) bind('workspaceId', ids.workspaceId, 'STRING');
 
   for (const component of covered) {
     const matcher = MATCHERS[component];
@@ -326,57 +366,294 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
     );
   }
 
-  const statement = `WITH priced AS (
+  const resourcePredicates: string[] = [];
+  if (ids.warehouseId) {
+    resourcePredicates.push(`(u.billing_origin_product = 'SQL' AND u.usage_metadata.warehouse_id = :warehouseId)`);
+  }
+  if (ids.endpointName) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName)`
+    );
+  }
+  if (ids.vectorEndpoint) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint)`
+    );
+  }
+  if (ids.appName) {
+    resourcePredicates.push(`(u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)`);
+  }
+  if (ids.workspaceId) {
+    resourcePredicates.push(`(u.billing_origin_product = 'GENIE' AND u.workspace_id = :workspaceId)`);
+  }
+  const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join('\n     OR ') : 'FALSE';
+
+  const statement = `WITH tagged AS (
   SELECT
     u.usage_date,
-    u.usage_quantity * COALESCE(p.pricing.default, 0) AS spend,
-    p.currency_code,
+    u.usage_quantity,
+    u.sku_name,
+    u.cloud,
+    u.usage_unit,
+    u.usage_end_time,
     u.usage_metadata.job_run_id AS job_run_id,
+    u.workspace_id,
+    u.billing_origin_product,
+    COALESCE(
+      CAST(u.record_id AS STRING),
+      CONCAT_WS('|', CAST(u.workspace_id AS STRING), u.sku_name, CAST(u.usage_start_time AS STRING), CAST(u.usage_end_time AS STRING))
+    ) AS record_id,
+    COALESCE(u.record_type, 'ORIGINAL') AS record_type,
     CASE
 ${branches.join('\n')}
       ELSE NULL
     END AS component
   FROM system.billing.usage u
-  LEFT JOIN system.billing.list_prices p
-    ON u.sku_name = p.sku_name
-   AND u.cloud = p.cloud
-   AND u.usage_end_time >= p.price_start_time
-   AND (p.price_end_time IS NULL OR u.usage_end_time < p.price_end_time)
   WHERE u.usage_date >= :from_day
     AND u.usage_date <= :to_day
     AND u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
+),
+price_hits AS (
+  SELECT
+    t.*,
+    p.pricing.default AS unit_price,
+    p.currency_code,
+    p.price_start_time,
+    COUNT(p.sku_name) OVER (PARTITION BY t.record_id) AS price_match_count
+  FROM tagged t
+  LEFT JOIN system.billing.list_prices p
+    ON t.sku_name = p.sku_name
+   AND t.cloud = p.cloud
+   AND t.usage_unit = p.usage_unit
+   AND t.usage_end_time >= p.price_start_time
+   AND (p.price_end_time IS NULL OR t.usage_end_time < p.price_end_time)
+),
+deduped AS (
+  SELECT
+    record_id,
+    usage_date,
+    usage_quantity,
+    sku_name,
+    job_run_id,
+    billing_origin_product,
+    component,
+    record_type,
+    MAX(price_match_count) AS price_match_count,
+    MAX(unit_price) AS unit_price,
+    MAX(currency_code) AS currency_code,
+    MAX(CAST(price_start_time AS STRING)) AS price_start_time
+  FROM price_hits
+  GROUP BY record_id, usage_date, usage_quantity, sku_name, job_run_id, billing_origin_product, component, record_type
+),
+priced AS (
+  SELECT
+    *,
+    CASE
+      WHEN unit_price IS NOT NULL AND price_match_count = 1 THEN usage_quantity * unit_price
+      ELSE CAST(NULL AS DOUBLE)
+    END AS spend,
+    CASE
+      WHEN price_match_count > 1 THEN 'duplicate'
+      WHEN unit_price IS NULL THEN 'unpriced'
+      ELSE 'priced'
+    END AS row_match
+  FROM deduped
 )
 SELECT
-  component,
+  'component' AS row_kind,
+  component AS key,
   SUM(spend) AS spend,
-  MAX(currency_code) AS currency,
+  CASE WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) = 1
+       THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
+  COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
   COUNT(DISTINCT usage_date) AS billed_days,
   COUNT(DISTINCT job_run_id) AS job_runs,
-  MAX(usage_date) AS last_day
+  MAX(usage_date) AS last_day,
+  SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
+  SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
+  COUNT(*) FILTER (WHERE row_match = 'priced') AS priced_rows,
+  COUNT(*) FILTER (WHERE row_match <> 'priced') AS unpriced_rows,
+  array_join(collect_set(CASE WHEN row_match <> 'priced' THEN sku_name END), ',') AS unpriced_skus,
+  CASE
+    WHEN COUNT(*) FILTER (WHERE row_match = 'duplicate') > 0 THEN 'duplicate'
+    WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) > 1 THEN 'mixed-currency'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'unpriced') > 0 AND COUNT(*) FILTER (WHERE row_match = 'priced') > 0 THEN 'partial'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'priced') = 0 THEN 'unpriced'
+    ELSE 'priced'
+  END AS price_match_status,
+  COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
+  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
+  MAX(price_start_time) AS price_effective_at,
+  COUNT(*) AS tagged_rows,
+  CAST(0 AS BIGINT) AS untagged_rows
 FROM priced
 WHERE component IS NOT NULL
 GROUP BY component
 UNION ALL
 SELECT
-  '${RANGE_ROW}' AS component,
-  CAST(NULL AS DOUBLE) AS spend,
-  MAX(currency_code) AS currency,
+  'coverage' AS row_kind,
+  billing_origin_product AS key,
+  SUM(spend) AS spend,
+  CASE WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) = 1
+       THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
+  COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
   COUNT(DISTINCT usage_date) AS billed_days,
   CAST(NULL AS BIGINT) AS job_runs,
-  MAX(usage_date) AS last_day
-FROM priced`;
+  MAX(usage_date) AS last_day,
+  SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
+  SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
+  COUNT(*) FILTER (WHERE row_match = 'priced') AS priced_rows,
+  COUNT(*) FILTER (WHERE row_match <> 'priced') AS unpriced_rows,
+  array_join(collect_set(CASE WHEN row_match <> 'priced' THEN sku_name END), ',') AS unpriced_skus,
+  CASE
+    WHEN COUNT(*) FILTER (WHERE row_match = 'duplicate') > 0 THEN 'duplicate'
+    WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) > 1 THEN 'mixed-currency'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'unpriced') > 0 AND COUNT(*) FILTER (WHERE row_match = 'priced') > 0 THEN 'partial'
+    WHEN COUNT(*) FILTER (WHERE row_match = 'priced') = 0 THEN 'unpriced'
+    ELSE 'priced'
+  END AS price_match_status,
+  COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
+  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
+  MAX(price_start_time) AS price_effective_at,
+  COUNT(*) AS tagged_rows,
+  CAST(0 AS BIGINT) AS untagged_rows
+FROM priced
+GROUP BY billing_origin_product
+UNION ALL
+SELECT
+  'range' AS row_kind,
+  '${RANGE_ROW}' AS key,
+  CAST(NULL AS DOUBLE) AS spend,
+  CASE WHEN COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) = 1
+       THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
+  COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
+  COUNT(DISTINCT usage_date) AS billed_days,
+  CAST(NULL AS BIGINT) AS job_runs,
+  MAX(usage_date) AS last_day,
+  SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
+  SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
+  COUNT(*) FILTER (WHERE row_match = 'priced') AS priced_rows,
+  COUNT(*) FILTER (WHERE row_match <> 'priced') AS unpriced_rows,
+  CAST('' AS STRING) AS unpriced_skus,
+  CAST('' AS STRING) AS price_match_status,
+  COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
+  COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
+  MAX(price_start_time) AS price_effective_at,
+  COUNT(*) AS tagged_rows,
+  CAST(0 AS BIGINT) AS untagged_rows
+FROM priced
+UNION ALL
+SELECT
+  'propagation' AS row_kind,
+  u.billing_origin_product AS key,
+  CAST(NULL AS DOUBLE) AS spend,
+  CAST('' AS STRING) AS currency,
+  CAST(0 AS BIGINT) AS currency_count,
+  COUNT(DISTINCT u.usage_date) AS billed_days,
+  CAST(NULL AS BIGINT) AS job_runs,
+  MAX(u.usage_date) AS last_day,
+  CAST(0 AS DOUBLE) AS priced_quantity,
+  CAST(0 AS DOUBLE) AS unpriced_quantity,
+  CAST(0 AS BIGINT) AS priced_rows,
+  CAST(0 AS BIGINT) AS unpriced_rows,
+  CAST('' AS STRING) AS unpriced_skus,
+  CAST('' AS STRING) AS price_match_status,
+  CAST(0 AS BIGINT) AS correction_rows,
+  CAST(0 AS BIGINT) AS duplicate_matches,
+  CAST('' AS STRING) AS price_effective_at,
+  COUNT(*) FILTER (WHERE u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}') AS tagged_rows,
+  COUNT(*) FILTER (
+    WHERE u.custom_tags['${BILLING_TAG.key}'] IS NULL
+       OR u.custom_tags['${BILLING_TAG.key}'] <> '${BILLING_TAG.value}'
+  ) AS untagged_rows
+FROM system.billing.usage u
+WHERE u.usage_date >= :from_day
+  AND u.usage_date <= :to_day
+  AND (${leakPredicate})
+GROUP BY u.billing_origin_product`;
 
   return { statement, parameters, covered, estimated };
 }
 
+const ROW_KINDS = new Set(['component', 'coverage', 'propagation', 'range']);
+
 /** One component's figures, as read back. */
 export interface ComponentRow {
+  kind?: 'component' | 'coverage' | 'propagation' | 'range';
   component: string;
   spend: number | null;
   currency: string;
+  currencyCount?: number;
   billedDays: number;
   jobRuns: number | null;
   lastDay: string;
+  pricedQuantity?: number;
+  unpricedQuantity?: number;
+  pricedRows?: number;
+  unpricedRows?: number;
+  unpricedSkus?: string[];
+  priceMatchStatus?: CostPriceMatch;
+  correctionRows?: number;
+  duplicateMatches?: number;
+  priceEffectiveAt?: string;
+  taggedRows?: number;
+  untaggedRows?: number;
+}
+
+function emptyRow(kind: ComponentRow['kind'], component: string): ComponentRow {
+  return {
+    kind,
+    component,
+    spend: null,
+    currency: '',
+    currencyCount: 0,
+    billedDays: 0,
+    jobRuns: null,
+    lastDay: '',
+    pricedQuantity: 0,
+    unpricedQuantity: 0,
+    pricedRows: 0,
+    unpricedRows: 0,
+    unpricedSkus: [],
+    priceMatchStatus: 'none',
+    correctionRows: 0,
+    duplicateMatches: 0,
+    priceEffectiveAt: '',
+    taggedRows: 0,
+    untaggedRows: 0,
+  };
+}
+
+function asNumber(value: string | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function asCount(value: string | null | undefined): number {
+  return asNumber(value) ?? 0;
+}
+
+function asMatch(value: string | null | undefined): CostPriceMatch {
+  if (
+    value === 'priced' ||
+    value === 'unpriced' ||
+    value === 'partial' ||
+    value === 'duplicate' ||
+    value === 'mixed-currency' ||
+    value === 'none'
+  ) {
+    return value;
+  }
+  return 'none';
+}
+
+function parseSkus(value: string | null | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((sku) => sku.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -385,24 +662,248 @@ export interface ComponentRow {
  * The API returns every value as a string or null, so a null spend stays null
  * here rather than becoming zero on the way through `Number()`. That single
  * coercion is how a tile would come to promise a figure nothing measured.
+ *
+ * Six-column rows from older tests still parse as component/range rows.
  */
 export function readComponentRows(dataArray: unknown): ComponentRow[] {
   if (!Array.isArray(dataArray)) return [];
   const rows: ComponentRow[] = [];
   for (const raw of dataArray) {
     if (!Array.isArray(raw) || raw.length < 6) continue;
-    const [component, spend, currency, billedDays, jobRuns, lastDay] = raw as (string | null)[];
+    const cells = raw as (string | null)[];
+    const wide = cells.length >= 8 && typeof cells[0] === 'string' && ROW_KINDS.has(cells[0]);
+    if (wide) {
+      const [
+        kind,
+        component,
+        spend,
+        currency,
+        currencyCount,
+        billedDays,
+        jobRuns,
+        lastDay,
+        pricedQuantity,
+        unpricedQuantity,
+        pricedRows,
+        unpricedRows,
+        unpricedSkus,
+        priceMatchStatus,
+        correctionRows,
+        duplicateMatches,
+        priceEffectiveAt,
+        taggedRows,
+        untaggedRows,
+      ] = cells;
+      if (typeof component !== 'string' || typeof kind !== 'string') continue;
+      rows.push({
+        kind: kind as ComponentRow['kind'],
+        component,
+        spend: asNumber(spend),
+        currency: typeof currency === 'string' ? currency : '',
+        currencyCount: asCount(currencyCount),
+        billedDays: asCount(billedDays),
+        jobRuns: asNumber(jobRuns),
+        lastDay: typeof lastDay === 'string' ? lastDay : '',
+        pricedQuantity: asCount(pricedQuantity),
+        unpricedQuantity: asCount(unpricedQuantity),
+        pricedRows: asCount(pricedRows),
+        unpricedRows: asCount(unpricedRows),
+        unpricedSkus: parseSkus(unpricedSkus),
+        priceMatchStatus: asMatch(priceMatchStatus),
+        correctionRows: asCount(correctionRows),
+        duplicateMatches: asCount(duplicateMatches),
+        priceEffectiveAt: typeof priceEffectiveAt === 'string' ? priceEffectiveAt : '',
+        taggedRows: asCount(taggedRows),
+        untaggedRows: asCount(untaggedRows),
+      });
+      continue;
+    }
+    const [component, spend, currency, billedDays, jobRuns, lastDay] = cells;
     if (typeof component !== 'string') continue;
+    const kind = component === RANGE_ROW ? 'range' : 'component';
     rows.push({
-      component,
-      spend: spend === null || spend === undefined || spend === '' ? null : Number(spend),
+      ...emptyRow(kind, component),
+      spend: asNumber(spend),
       currency: typeof currency === 'string' ? currency : '',
-      billedDays: billedDays ? Number(billedDays) : 0,
-      jobRuns: jobRuns === null || jobRuns === undefined || jobRuns === '' ? null : Number(jobRuns),
+      billedDays: asCount(billedDays),
+      jobRuns: asNumber(jobRuns),
       lastDay: typeof lastDay === 'string' ? lastDay : '',
     });
   }
   return rows;
+}
+
+export function splitBillingRows(rows: ComponentRow[]): {
+  components: ComponentRow[];
+  coverage: ComponentRow[];
+  propagation: ComponentRow[];
+  meta: ComponentRow | undefined;
+} {
+  return {
+    components: rows.filter((row) => (row.kind ?? 'component') === 'component' && row.component !== RANGE_ROW),
+    coverage: rows.filter((row) => row.kind === 'coverage'),
+    propagation: rows.filter((row) => row.kind === 'propagation'),
+    meta: rows.find((row) => row.kind === 'range' || row.component === RANGE_ROW),
+  };
+}
+
+export function pricingFromRow(row: ComponentRow | undefined): CostTilePricing {
+  if (!row) return { ...EMPTY_PRICING };
+  const pricedRows = row.pricedRows ?? 0;
+  const unpricedRows = row.unpricedRows ?? 0;
+  const unpricedQuantity = row.unpricedQuantity ?? 0;
+  const duplicateMatches = row.duplicateMatches ?? 0;
+  const currencyCount = row.currencyCount ?? (row.currency ? 1 : 0);
+  let match: CostPriceMatch = row.priceMatchStatus ?? 'none';
+  if (currencyCount > 1) match = 'mixed-currency';
+  else if (duplicateMatches > 0 || match === 'duplicate') match = 'duplicate';
+  else if (unpricedRows > 0 && pricedRows > 0) match = 'partial';
+  else if (pricedRows === 0 && (unpricedRows > 0 || unpricedQuantity > 0)) match = 'unpriced';
+  else if (pricedRows > 0) match = match === 'none' ? 'priced' : match;
+  else if (row.spend !== null && Number.isFinite(row.spend) && match === 'none') match = 'priced';
+  return {
+    source: 'list_prices',
+    match,
+    currency: currencyCount > 1 ? '' : row.currency,
+    pricedQuantity: row.pricedQuantity ?? 0,
+    unpricedQuantity,
+    pricedRows,
+    unpricedRows,
+    unpricedSkus: row.unpricedSkus ?? [],
+    duplicateMatches,
+    correctionRows: row.correctionRows ?? 0,
+    priceEffectiveAt: row.priceEffectiveAt ?? '',
+  };
+}
+
+export function attributionFor(population: string, amount: number | null): CostAttributionScope {
+  if (population === 'Whole warehouse' || population === 'Whole workspace') return 'shared-upper-bound';
+  if (amount === null) return 'unavailable';
+  return 'deployment';
+}
+
+export function spendAmountFor(row: ComponentRow | undefined, basis: CostTile['basis']): number | null {
+  if (!row) return null;
+  const pricing = pricingFromRow(row);
+  if (pricing.match === 'unpriced' || pricing.match === 'duplicate' || pricing.match === 'mixed-currency') {
+    return null;
+  }
+  if (row.spend === null || !Number.isFinite(row.spend)) return null;
+  if (pricing.match === 'partial' || pricing.match === 'priced' || pricing.match === 'none') {
+    return basis === 'per-day' ? row.spend / Math.max(row.billedDays, 1) : row.spend;
+  }
+  return null;
+}
+
+export function unpricedUnavailable(pricing: CostTilePricing): string {
+  if (pricing.match === 'duplicate') return 'Duplicate list prices; spend withheld';
+  if (pricing.match === 'mixed-currency') return 'Mixed currencies; spend withheld';
+  if (pricing.match === 'unpriced') {
+    const skus = pricing.unpricedSkus.slice(0, 4).join(', ');
+    return skus ? `Unpriced SKUs: ${skus}` : 'Usage has no matching list price';
+  }
+  return '';
+}
+
+export function buildHonesty(
+  range: CostRange,
+  meta: ComponentRow | undefined,
+  tiles: CostTile[]
+): CostHonesty {
+  const currencies = new Set(tiles.map((tile) => tile.pricing?.currency).filter((code): code is string => Boolean(code)));
+  const through = meta?.lastDay || '';
+  return {
+    priceSource: 'list_prices',
+    contractRates: 'unavailable',
+    dataThrough: through,
+    rangeMayStillFill: Boolean(through && through < range.to) || !through,
+    currencyConsistent: currencies.size <= 1,
+  };
+}
+
+export function buildCoverage(input: {
+  inventoryCount: number;
+  coverageRows: ComponentRow[];
+  propagationRows: ComponentRow[];
+  range: CostRange;
+  meta?: ComponentRow;
+}): CostCoverage {
+  const products: CostCoverageProduct[] = [];
+  const seen = new Set<string>();
+  for (const row of input.coverageRows) {
+    seen.add(row.component);
+    const tiled = TILED_PRODUCTS.has(row.component) || row.component === 'GENIE';
+    products.push({
+      product: row.component,
+      taggedRows: row.taggedRows || (row.pricedRows ?? 0) + (row.unpricedRows ?? 0),
+      taggedQuantity: (row.pricedQuantity ?? 0) + (row.unpricedQuantity ?? 0),
+      pricedRows: row.pricedRows ?? 0,
+      unpricedRows: row.unpricedRows ?? 0,
+      tiled,
+      reason: PRODUCT_REASONS[row.component] ?? (tiled ? 'On the tracked cost grid.' : 'Tagged usage with no Cost tile.'),
+    });
+  }
+  for (const [product, reason] of Object.entries(PRODUCT_REASONS)) {
+    if (seen.has(product)) continue;
+    if (product === 'MLFLOW' || product === 'JOBS' || product === 'LAKEBASE') {
+      products.push({
+        product,
+        taggedRows: 0,
+        taggedQuantity: 0,
+        pricedRows: 0,
+        unpricedRows: 0,
+        tiled: false,
+        reason,
+      });
+    }
+  }
+  const through = input.meta?.lastDay || '';
+  const delayed = Boolean(through && through < input.range.to);
+  const propagation: CostPropagation[] = input.propagationRows.map((row) => {
+    if (row.component === 'APPS') {
+      return {
+        product: 'APPS',
+        status: 'unsupported' as const,
+        detail:
+          'Databricks app tags are organizational and may not appear on billing rows. App compute is matched by app name, not the tag.',
+      };
+    }
+    if (row.component === 'GENIE') {
+      return {
+        product: 'GENIE',
+        status: 'unsupported' as const,
+        detail: GENIE_LLM_UNAVAILABLE + ' ' + GENIE_SQL_NOT_COMPLETE,
+      };
+    }
+    if ((row.taggedRows ?? 0) > 0) {
+      return {
+        product: row.component,
+        status: 'propagated',
+        detail: `${row.taggedRows} tagged billing rows in this range.`,
+      };
+    }
+    if ((row.untaggedRows ?? 0) > 0) {
+      return {
+        product: row.component,
+        status: 'unpropagated',
+        detail: `${row.untaggedRows} matching usage rows have no ${BILLING_TAG.key}=${BILLING_TAG.value} tag.`,
+      };
+    }
+    if (delayed) {
+      return {
+        product: row.component,
+        status: 'delayed',
+        detail: `Billing data through ${through}. Later days in this range may still be filling.`,
+      };
+    }
+    return { product: row.component, status: 'unused', detail: 'No matching usage rows in this range.' };
+  });
+  return {
+    inventoryCount: input.inventoryCount,
+    costModelCount: COST_COMPONENTS.length,
+    products,
+    propagation,
+  };
 }
 
 /**
@@ -496,7 +997,11 @@ const DESCRIPTIONS: Record<
  * endpoint URL.
  */
 export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile[] {
-  const byComponent = new Map(rows.map((row) => [row.component, row]));
+  const byComponent = new Map(
+    rows
+      .filter((row) => (row.kind ?? 'component') === 'component')
+      .map((row) => [row.component, row])
+  );
   const tiles: CostTile[] = [];
 
   for (const component of COST_COMPONENTS) {
@@ -518,13 +1023,15 @@ function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
         label: 'Genie',
         resourceId: '',
         resourceKind: '',
-        quality: 'estimate',
+        quality: 'unknown',
         amount: null,
         basis: 'total-in-range',
         population: 'Whole workspace',
-        unavailable: 'Genie space identifier unavailable',
-        remedy: '',
-        note: '',
+        attribution: 'unavailable',
+        pricing: { ...EMPTY_PRICING },
+        unavailable: GENIE_LLM_UNAVAILABLE,
+        remedy: 'Genie space identifier unavailable',
+        note: GENIE_SQL_NOT_COMPLETE,
       },
     ];
   }
@@ -533,13 +1040,15 @@ function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
     label: space.label.trim() || 'Genie space',
     resourceId: space.id.trim(),
     resourceKind: 'genie-space' as const,
-    quality: 'estimate' as const,
+    quality: 'unknown' as const,
     amount: null,
     basis: 'total-in-range' as const,
     population: 'This space',
-    unavailable: 'No billing rows',
+    attribution: 'unavailable' as const,
+    pricing: { ...EMPTY_PRICING },
+    unavailable: GENIE_LLM_UNAVAILABLE,
     remedy: '',
-    note: '',
+    note: GENIE_SQL_NOT_COMPLETE,
   }));
 }
 
@@ -584,54 +1093,89 @@ function componentTile(
     population: description.population,
   };
 
+  const withMeta = (
+    tile: Omit<CostTile, 'attribution' | 'pricing'> & { pricing?: CostTilePricing | null }
+  ): CostTile => {
+    const pricing = tile.pricing ?? EMPTY_PRICING;
+    const amount = tile.amount;
+    const unpriced = unpricedUnavailable(pricing);
+    const partialNote =
+      pricing.match === 'partial' && pricing.unpricedSkus.length > 0
+        ? `Unpriced SKUs: ${pricing.unpricedSkus.slice(0, 4).join(', ')}`
+        : '';
+    return {
+      ...tile,
+      quality: unpriced ? 'unknown' : tile.quality,
+      amount: unpriced ? null : amount,
+      attribution: attributionFor(tile.population, unpriced ? null : amount),
+      pricing,
+      unavailable: tile.unavailable || unpriced,
+      note: tile.note || partialNote,
+    };
+  };
+
   if (!canAsk(component, ids)) {
     const estimate = byComponent.get(workspaceEstimateRow(component));
-    if (estimate && estimate.spend !== null && Number.isFinite(estimate.spend)) {
-      return {
+    const pricing = pricingFromRow(estimate);
+    const amount = spendAmountFor(estimate, description.basis);
+    if (amount !== null) {
+      return withMeta({
         ...base,
         quality: 'estimate',
         population: 'Whole workspace',
-        amount: description.basis === 'per-day' ? estimate.spend / Math.max(estimate.billedDays, 1) : estimate.spend,
+        amount,
+        pricing,
         note: '',
         unavailable: '',
         remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : '',
-      };
+      });
     }
     if (component === 'vector-search') {
-      return {
+      return withMeta({
         ...base,
         amount: null,
+        pricing,
         note: '',
         unavailable: base.resourceId ? 'No billing rows' : 'Vector Search index identifier unavailable',
         remedy: '',
-      };
+      });
     }
-    return {
+    return withMeta({
       ...base,
       amount: null,
+      pricing,
       note: '',
       unavailable: 'Resource identifier unavailable',
       remedy: description.variable ? `Set ${description.variable}.` : '',
-    };
+    });
   }
 
   const row = byComponent.get(component);
-  if (!row || row.spend === null || !Number.isFinite(row.spend)) {
-    if (component === 'app-compute') {
+  const pricing = pricingFromRow(row);
+  const amount = spendAmountFor(row, description.basis);
+  if (amount === null) {
+    if (component === 'app-compute' && pricing.match === 'none') {
       const absence = appComputeTagAbsence(ids.appBillingTag);
-      return {
+      return withMeta({
         ...base,
         amount: null,
+        pricing,
         note: '',
         unavailable: absence.unavailable,
         remedy: absence.remedy,
-      };
+      });
     }
-    return { ...base, amount: null, note: '', unavailable: 'No billing rows', remedy: '' };
+    return withMeta({
+      ...base,
+      amount: null,
+      pricing,
+      note: '',
+      unavailable: unpricedUnavailable(pricing) || 'No billing rows',
+      remedy: '',
+    });
   }
 
-  const amount = description.basis === 'per-day' ? row.spend / Math.max(row.billedDays, 1) : row.spend;
-  return { ...base, amount, note: '', unavailable: '', remedy: '' };
+  return withMeta({ ...base, amount, pricing, note: '', unavailable: '', remedy: '' });
 }
 
 /*
@@ -668,7 +1212,7 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
     {
       id: 'genie',
       label: 'Genie spaces',
-      unavailable: 'Space tags are organizational only; Genie SQL is billed through the associated warehouse.',
+      unavailable: 'Space tags are organizational only. Genie LLM spend is not attributable in this model; Genie SQL is billed through the associated warehouse and is not the complete Genie cost.',
     },
     {
       id: 'vector-search',

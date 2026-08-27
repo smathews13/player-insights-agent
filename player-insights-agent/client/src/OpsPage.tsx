@@ -55,6 +55,8 @@ import {
   bars,
   costAbsence,
   costAbsenceReplacesGrid,
+  costCoverageSummary,
+  costHonestyLine,
   costTilesForDisplay,
   costTileWorkspaceObject,
   count,
@@ -77,6 +79,7 @@ import {
   withheldReason,
   tileView,
   trafficCaption,
+  warehouseAutoStopLine,
   type Absence as AbsenceCopy,
   type HealthRow,
 } from './ops-view';
@@ -595,7 +598,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                       <p className="ops-tile-absent">{view.absence}</p>
                     )}
                     <CostTileBudget tile={tile} />
-                    {view.estimate || view.sharedScope || view.remedy ? (
+                    {view.estimate || view.sharedScope || view.remedy || view.note ? (
                       <p className="ops-tile-foot">
                         {view.estimate ? (
                           <span className={astPill('warn', 'ops-pill')}>{view.qualityLabel}</span>
@@ -603,6 +606,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                         {view.sharedScope ? (
                           <span className={astPill('neutral-outline', 'ops-pill')}>{view.population}</span>
                         ) : null}
+                        {view.note ? <span className="ops-tile-note">{view.note}</span> : null}
                         {view.remedy ? <span className="ops-tile-remedy">{view.remedy}</span> : null}
                       </p>
                     ) : null}
@@ -612,6 +616,11 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               <QuestionCostAverage payload={payload} />
             </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
+            <CostCoveragePanel payload={payload} />
+            <p className="ops-cost-honesty">{costHonestyLine(payload.honesty)}</p>
+            {warehouseAutoStopLine(payload.warehouseAutoStop) ? (
+              <p className="ops-cost-honesty">{warehouseAutoStopLine(payload.warehouseAutoStop)}</p>
+            ) : null}
             {billingHref ? (
               <a
                 className="ops-external"
@@ -668,6 +677,31 @@ export function CostTileTitle({ label, href }: { label: string; href: string | n
  * divided by the questions that recorded tokens. Same size as the resource
  * tiles, in the same grid.
  */
+function CostCoveragePanel({ payload }: { payload: OpsCostPayload }) {
+  const summary = costCoverageSummary(payload.coverage);
+  if (!summary) return null;
+  return (
+    <div className="ops-cost-coverage">
+      <h4>{summary.heading}</h4>
+      <p>{summary.inventory}</p>
+      {summary.products.length > 0 ? (
+        <ul>
+          {summary.products.map((product) => (
+            <li key={product.line}>{product.line}</li>
+          ))}
+        </ul>
+      ) : null}
+      {summary.propagation.length > 0 ? (
+        <ul>
+          {summary.propagation.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
   const amount = questionServingAverage(payload);
   const reason = payload.perQuestion.reason || 'No token-covered endpoint spend in this range';

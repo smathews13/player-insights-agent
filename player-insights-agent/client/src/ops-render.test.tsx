@@ -837,9 +837,8 @@ describe('the cost block', () => {
     expect(markup).toContain('Experimental');
     expect(markup).not.toContain('Under development');
     expect(markup).not.toContain('Not production');
-    expect(markup).not.toMatch(/List prices/);
-    expect(markup).not.toMatch(/Complete through/);
     expect(markup).not.toMatch(/How to read these figures/);
+    expect(markup).toContain('list prices from system.billing.list_prices, not contracted rates');
   });
 
   it('draws that badge as the badge the rest of the tab uses', () => {
@@ -1182,6 +1181,76 @@ describe('the cost block', () => {
     expect(markup).toContain('Over budget');
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('spend not measured');
+  });
+
+  it('never labels a whole-warehouse meter as an app overage', () => {
+    const payload = cost({
+      budgets: { total: null, resources: { 'sql-warehouse': 10 } },
+      tiles: [
+        {
+          ...cost().tiles[0],
+          id: 'sql-warehouse',
+          label: 'SQL warehouse',
+          amount: 50,
+          quality: 'estimate',
+          population: 'Whole warehouse',
+          attribution: 'shared-upper-bound',
+        },
+      ],
+    });
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).toContain('shared meter vs named budget');
+    expect(markup).not.toContain('Over budget');
+  });
+
+  it('keeps Genie cards dollar-free and names LLM spend as not attributable', () => {
+    const payload = cost({
+      tiles: [
+        {
+          id: 'genie:space-data',
+          label: 'Player data',
+          resourceId: 'space-data',
+          resourceKind: 'genie-space',
+          quality: 'unknown',
+          amount: null,
+          basis: 'total-in-range',
+          population: 'This space',
+          attribution: 'unavailable',
+          unavailable: 'Genie LLM spend not attributable in this model',
+          remedy: '',
+          note: 'SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.',
+        },
+      ],
+    });
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).toContain('Genie LLM spend not attributable');
+    expect(markup).toContain('not the complete Genie cost');
+    expect(markup).not.toContain('0.00');
+  });
+
+  it('names tracked cost components under the grid', () => {
+    const payload = cost({
+      coverage: {
+        inventoryCount: 11,
+        costModelCount: 5,
+        products: [
+          {
+            product: 'JOBS',
+            taggedRows: 4,
+            taggedQuantity: 4,
+            pricedRows: 4,
+            unpricedRows: 0,
+            tiled: false,
+            reason: 'The semantic rebuild job is tagged when connected, but it is not a Cost tile.',
+          },
+        ],
+        propagation: [{ product: 'APPS', status: 'unsupported', detail: 'App tags are organizational.' }],
+      },
+    });
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).toContain('Tracked cost components');
+    expect(markup).toContain('11 tagged resources');
+    expect(markup).toContain('not a Cost tile');
   });
 
   it('keeps budget fields when billing has no rows and when the grant is missing', () => {

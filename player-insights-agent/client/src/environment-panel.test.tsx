@@ -67,6 +67,7 @@ describe('Environment panel', () => {
     expect(markup).toContain('Astrolabe resource tags');
     expect(markup).toContain('system_billing=astrolabe');
     expect(markup).toContain('Apply Astrolabe tags');
+    expect(markup).toContain('retired');
   });
 
   it('keeps only complete string rows from hostile payloads', () => {

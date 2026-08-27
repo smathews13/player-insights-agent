@@ -19,12 +19,16 @@ function platform(overrides: Partial<ResourceTagPlatform> = {}): ResourceTagPlat
     updateAppTag: vi.fn(() => Promise.resolve()),
     getServingTags: vi.fn(() => Promise.resolve([])),
     addServingTag: vi.fn(() => Promise.resolve()),
+    deleteServingTag: vi.fn(() => Promise.resolve()),
     getModelTags: vi.fn(() => Promise.resolve([])),
     setModelTag: vi.fn(() => Promise.resolve()),
+    deleteModelTag: vi.fn(() => Promise.resolve()),
     getModelVersionTags: vi.fn(() => Promise.resolve([])),
     setModelVersionTag: vi.fn(() => Promise.resolve()),
+    deleteModelVersionTag: vi.fn(() => Promise.resolve()),
     getExperimentTags: vi.fn(() => Promise.resolve([])),
     setExperimentTag: vi.fn(() => Promise.resolve()),
+    deleteExperimentTag: vi.fn(() => Promise.resolve()),
     getWarehouseTags: vi.fn(() => Promise.resolve([])),
     setWarehouseTags: vi.fn(() => Promise.resolve()),
     getLakebaseTags: vi.fn(() => Promise.resolve([])),
@@ -392,6 +396,49 @@ describe('applying Astrolabe resource tags', () => {
 
     expect(summary.results[0]).toMatchObject({ kind: 'lakebase', status: 'permission-required' });
     expect(summary.results[0].detail).toContain('CAN_MANAGE (or ownership)');
+  });
+
+  it('strips the retired astrolabe key from serving, models, experiments, and replaceable tag maps', async () => {
+    const deleteServingTag = vi.fn(() => Promise.resolve());
+    const deleteModelTag = vi.fn(() => Promise.resolve());
+    const deleteModelVersionTag = vi.fn(() => Promise.resolve());
+    const deleteExperimentTag = vi.fn(() => Promise.resolve());
+    const setWarehouseTags = vi.fn(() => Promise.resolve());
+    const retired = [
+      { key: 'system_billing', value: 'astrolabe' },
+      { key: 'astrolabe', value: 'true' },
+    ];
+    const summary = await applyAstrolabeTags({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'agent-endpoint',
+        PLAYER_INSIGHTS_EXPERIMENT_ID: 'exp-1',
+        DATABRICKS_SQL_WAREHOUSE_ID: 'warehouse-1',
+      },
+      report: report([
+        { key: 'model_name', value: 'app.schema.agent' },
+        { key: 'model_version', value: '3' },
+      ]),
+      platform: platform({
+        getServingTags: vi.fn(() => Promise.resolve(retired)),
+        deleteServingTag,
+        getModelTags: vi.fn(() => Promise.resolve(retired)),
+        deleteModelTag,
+        getModelVersionTags: vi.fn(() => Promise.resolve(retired)),
+        deleteModelVersionTag,
+        getExperimentTags: vi.fn(() => Promise.resolve(retired)),
+        deleteExperimentTag,
+        getWarehouseTags: vi.fn(() => Promise.resolve(retired)),
+        setWarehouseTags,
+      }),
+    });
+
+    expect(deleteServingTag).toHaveBeenCalledWith('agent-endpoint', 'astrolabe');
+    expect(deleteModelTag).toHaveBeenCalledWith('app.schema.agent', 'astrolabe');
+    expect(deleteModelVersionTag).toHaveBeenCalledWith('app.schema.agent', '3', 'astrolabe');
+    expect(deleteExperimentTag).toHaveBeenCalledWith('exp-1', 'astrolabe');
+    expect(setWarehouseTags).toHaveBeenCalledWith('warehouse-1', [{ key: 'system_billing', value: 'astrolabe' }]);
+    expect(summary.results.every((result) => result.status === 'tagged')).toBe(true);
+    expect(summary.results.every((result) => result.detail.includes('Removed retired key'))).toBe(true);
   });
 
   it('uses Apps-injected service-principal credentials, never the viewer token', () => {

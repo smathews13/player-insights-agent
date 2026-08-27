@@ -44,6 +44,9 @@ import {
   tileView,
   totalBudgetView,
   trafficCaption,
+  costHonestyLine,
+  warehouseAutoStopLine,
+  costCoverageSummary,
 } from './ops-view';
 import { databricksLink } from '../../shared/databricks-links';
 import {
@@ -399,6 +402,32 @@ describe('a nominal budget against the Cost window', () => {
   it('will not compare an unknown-quality tile even if a number rode along', () => {
     expect(spendVersusBudget(tile({ amount: 9, quality: 'unknown' }), 40, 'USD').kind).toBe('budget-only');
   });
+
+  it('will not call a whole-warehouse or whole-workspace meter an app overage', () => {
+    expect(
+      spendVersusBudget(tile({ amount: 50, quality: 'estimate', population: 'Whole warehouse' }), 10, 'USD')
+    ).toMatchObject({ kind: 'shared-meter' });
+    expect(
+      spendVersusBudget(tile({ amount: 50, quality: 'estimate', population: 'Whole workspace' }), 10, 'USD')
+    ).toMatchObject({ kind: 'shared-meter' });
+  });
+
+  it('will not compare unpriced or partial spend as a measured overage', () => {
+    expect(
+      spendVersusBudget(
+        tile({ amount: 12, quality: 'real', pricing: { source: 'list_prices', match: 'unpriced', currency: 'USD', pricedQuantity: 0, unpricedQuantity: 4, pricedRows: 0, unpricedRows: 1, unpricedSkus: ['PREMIUM_SQL'], duplicateMatches: 0, correctionRows: 0, priceEffectiveAt: '' } }),
+        10,
+        'USD'
+      ).kind
+    ).toBe('budget-only');
+    expect(
+      spendVersusBudget(
+        tile({ amount: 12, quality: 'real', pricing: { source: 'list_prices', match: 'partial', currency: 'USD', pricedQuantity: 4, unpricedQuantity: 2, pricedRows: 1, unpricedRows: 1, unpricedSkus: ['NEW_SKU'], duplicateMatches: 0, correctionRows: 0, priceEffectiveAt: '' } }),
+        10,
+        'USD'
+      ).kind
+    ).toBe('budget-only');
+  });
 });
 
 
@@ -589,6 +618,84 @@ describe('approx average cost per question', () => {
         })
       )
     ).toBe(5);
+  });
+
+  it('refuses a workspace-wide serving meter and a zero-token denominator', () => {
+    expect(
+      questionServingAverage(
+        costPayload({
+          tiles: [tile({ id: 'serving-endpoint', quality: 'real', amount: 10, population: 'Whole workspace' })],
+          perQuestion: {
+            runs: [],
+            runsInRange: 2,
+            tokenCoveredRuns: 2,
+            totalRecordedTokens: 1000,
+            limited: false,
+            reason: '',
+          },
+        })
+      )
+    ).toBeNull();
+    expect(
+      questionServingAverage(
+        costPayload({
+          tiles: [tile({ id: 'serving-endpoint', quality: 'real', amount: 10 })],
+          perQuestion: {
+            runs: [],
+            runsInRange: 2,
+            tokenCoveredRuns: 0,
+            totalRecordedTokens: 0,
+            limited: false,
+            reason: '',
+          },
+        })
+      )
+    ).toBeNull();
+  });
+});
+
+describe('cost honesty and coverage copy', () => {
+  it('says list prices, not contracted rates, and names when the range may still fill', () => {
+    expect(costHonestyLine(null)).toContain('not contracted rates');
+    expect(
+      costHonestyLine({
+        priceSource: 'list_prices',
+        contractRates: 'unavailable',
+        dataThrough: '2026-08-14',
+        rangeMayStillFill: true,
+        currencyConsistent: true,
+      })
+    ).toContain('later days in this range may still be filling');
+  });
+
+  it('reports warehouse auto-stop without claiming this app can change it', () => {
+    expect(warehouseAutoStopLine({ minutes: 5, readable: true })).toContain('5 minutes');
+    expect(warehouseAutoStopLine({ minutes: 5, readable: true })).toContain('does not change');
+  });
+
+  it('names tracked cost components rather than treating every tagged product as a tile', () => {
+    const summary = costCoverageSummary({
+      inventoryCount: 11,
+      costModelCount: 5,
+      products: [
+        {
+          product: 'JOBS',
+          taggedRows: 4,
+          taggedQuantity: 4,
+          pricedRows: 4,
+          unpricedRows: 0,
+          tiled: false,
+          reason: 'Tagged usage with no Cost tile.',
+        },
+      ],
+      propagation: [
+        { product: 'APPS', status: 'unsupported', detail: 'App tags are organizational.' },
+      ],
+    });
+    expect(summary?.heading).toBe('Tracked cost components');
+    expect(summary?.inventory).toContain('11 tagged resources');
+    expect(summary?.inventory).toContain('5 tracked cost components');
+    expect(summary?.products[0].line).toContain('not a Cost tile');
   });
 });
 
