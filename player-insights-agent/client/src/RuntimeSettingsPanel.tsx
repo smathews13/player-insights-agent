@@ -526,24 +526,39 @@ export function RuntimeSettingsPanel({
                   ['fontBodyColor', 'Body text', 'Body text color'],
                   ['fontMutedColor', 'Secondary', 'Secondary text color'],
                 ] as const
-              ).map(([key, label, aria]) => (
-                <label className="appearance-color" key={key}>
-                  <span className="appearance-type-color-label">{label}</span>
-                  <span className="appearance-color-swatch" aria-hidden="true">
-                    <span style={{ background: settings[key] }} />
-                  </span>
-                  <Input
-                    aria-label={aria}
-                    value={settings[key]}
-                    onChange={(event) =>
-                      setSettings((current) => ({
-                        ...current,
-                        [key]: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              ))}
+              ).map(([key, label, aria]) => {
+                const hex = settings[key];
+                return (
+                  <div className="appearance-color" key={key}>
+                    <span className="appearance-type-color-label">{label}</span>
+                    <span className="appearance-color-swatch">
+                      <span aria-hidden="true" style={{ background: hex }} />
+                      <input
+                        type="color"
+                        className="appearance-color-picker"
+                        aria-label={`${aria} picker`}
+                        value={isHexColor(hex) ? hex : '#000000'}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            [key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </span>
+                    <Input
+                      aria-label={aria}
+                      value={hex}
+                      onChange={(event) =>
+                        setSettings((current) => ({
+                          ...current,
+                          [key]: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                );
+              })}
             </div>
             <div className="appearance-type-controls">
               <label className="runtime-field appearance-type-family">

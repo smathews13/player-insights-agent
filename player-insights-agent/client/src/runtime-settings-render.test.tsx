@@ -99,6 +99,15 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-type-preview');
   });
 
+  it('pairs Body text and Secondary hex fields with a native colour picker', () => {
+    expect(source).toContain('type="color"');
+    expect(source).toContain('appearance-color-picker');
+    expect(source).toContain("isHexColor(hex) ? hex : '#000000'");
+    expect(source).toContain('`${aria} picker`');
+    expect(styles).toContain('.appearance-color-picker');
+    expect(styles).toContain("input:not([type='color'])");
+  });
+
   it('previews theme changes and applies a save immediately', () => {
     expect(source).not.toContain('Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.');
     expect(source).not.toContain('Limits how many reasoning passes');
