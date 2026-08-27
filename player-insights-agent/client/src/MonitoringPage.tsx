@@ -54,7 +54,6 @@ import {
   formatDuration,
   grantBadge,
   GRANTS_UNRESOLVED_LINE,
-  LIVE_VERSUS_RECORDED,
   localPart,
   medianAnswerTimeTile,
   monitoringState,
@@ -119,7 +118,7 @@ export function SummaryTile({ label, tile }: { label: string; tile: TileValue })
            measurement. */
         <p className="monitoring-tile-absent">{tile.absence}</p>
       )}
-      <p className="monitoring-tile-caption">{tile.caption}</p>
+      {tile.caption ? <p className="monitoring-tile-caption">{tile.caption}</p> : null}
     </div>
   );
 }
@@ -132,11 +131,11 @@ export function SummaryTile({ label, tile }: { label: string; tile: TileValue })
  * the app not working. The two are separately coloured and separately counted,
  * and the caption only claims they sum to the questions asked when they do.
  */
-export function SummaryStrip({ payload, rangeLabel }: { payload: MonitoringQuestionsPayload; rangeLabel: string }) {
+export function SummaryStrip({ payload }: { payload: MonitoringQuestionsPayload; rangeLabel?: string }) {
   const outcomes = outcomeTile(payload.summary);
   return (
     <div className="monitoring-strip" aria-label="Summary for the selected range">
-      <SummaryTile label="Questions asked" tile={questionsAskedTile(payload.summary, rangeLabel)} />
+      <SummaryTile label="Questions asked" tile={questionsAskedTile(payload.summary)} />
       <SummaryTile label="People asking" tile={peopleAskingTile(payload.summary)} />
       <div className="monitoring-tile">
         <p className="monitoring-tile-label">Completed · Partial · Refused · Failed</p>
@@ -146,7 +145,7 @@ export function SummaryStrip({ payload, rangeLabel }: { payload: MonitoringQuest
           <span className="monitoring-refused"> · {outcomes.refused}</span>
           <span className="monitoring-failed"> · {outcomes.failed}</span>
         </p>
-        <p className="monitoring-tile-caption">{outcomes.caption}</p>
+        {outcomes.caption ? <p className="monitoring-tile-caption">{outcomes.caption}</p> : null}
       </div>
       <SummaryTile label="Rated helpful" tile={ratedHelpfulTile(payload.summary)} />
       <SummaryTile label="Median answer time" tile={medianAnswerTimeTile(payload.summary)} />
@@ -904,13 +903,11 @@ function PanelTile({
       ) : (
         <p className="monitoring-tile-absent">{tile.absence}</p>
       )}
-      {/* `title` only on the tile whose caption truncates. On the tables tile the
-          caption carries a second table name; everywhere else it is a run of
-          ordinary words that wraps, and a `title` repeating visible text is a
-          tooltip that teaches a reader nothing. */}
+      {tile.caption ? (
       <p className="monitoring-tile-caption" title={wide ? tile.caption : undefined}>
         {tile.caption}
       </p>
+      ) : null}
     </div>
   );
 }
@@ -1055,10 +1052,7 @@ export function PersonPanel({
                   filtered query succeeds and returns fewer rows, and nothing in
                   the result says a filter ran. */}
                 {grant.rowFilter ? (
-                  <p className="monitoring-grant-note">
-                    Row filter applied. Two people with different group membership will see different totals from this
-                    table.
-                  </p>
+                  <p className="monitoring-grant-note">Row filter applied.</p>
                 ) : null}
                 {grant.maskedColumns && grant.maskedColumns.length > 0 ? (
                   <p className="monitoring-grant-note">{`Column mask on ${grant.maskedColumns.join(', ')}.`}</p>
@@ -1079,20 +1073,14 @@ export function PersonPanel({
             Refused for a missing grant
           </p>
           <p className="monitoring-panel-tile-value ast-num">{panel.refusedMissingGrant.toLocaleString()}</p>
-          <p className="monitoring-tile-caption">a grant somebody can make</p>
         </div>
         <div className="monitoring-panel-tile">
           <p className="monitoring-panel-tile-label" title={codesForCause('agent-rules').join(', ')}>
             Refused by the agent&apos;s own rules
           </p>
           <p className="monitoring-panel-tile-value ast-num">{panel.refusedAgentRules.toLocaleString()}</p>
-          <p className="monitoring-tile-caption">a release or question change</p>
         </div>
       </div>
-      {/* Load-bearing. A grant made this morning changes the live rows above and
-          changes nothing about a refusal from last week, and an admin looking at
-          both on one screen will otherwise assume they disagree. */}
-      <p className="monitoring-tile-caption">{LIVE_VERSUS_RECORDED}</p>
 
       <h4 className="monitoring-eyebrow">
         Their questions <span className="monitoring-eyebrow-range">{rangeLabel}</span>

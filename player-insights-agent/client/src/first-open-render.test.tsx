@@ -143,7 +143,7 @@ describe('all required scopes granted', () => {
     expect(markup).toContain('aria-label="Databricks"');
     expect(markup).toContain('You are signing in as');
     expect(markup).toContain('jordan.lee@example.com');
-    expect(markup).toContain('Questions run under this identity.');
+    expect(markup).not.toContain('Questions run under this identity.');
   });
 
   it('carries the OAuth badge', () => {
@@ -171,8 +171,8 @@ describe('all required scopes granted', () => {
      */
     expect(markup).not.toContain('Allows the app to read Lakebase projects, branches, and databases.');
     expect(markup).not.toContain('fo-scope-detail');
-    expect(markup).toContain('The app cannot answer questions without these: they power serving, SQL, and Genie.');
-    expect(markup).toContain(
+    expect(markup).not.toContain('The app cannot answer questions without these: they power serving, SQL, and Genie.');
+    expect(markup).not.toContain(
       'Questions still work without these; they unlock Connections browsing (catalogs, tables, notebooks, Vector Search) and Lakebase, and a deployment can omit any of them.'
     );
     expect(markup).not.toContain('Questions do not need these.');

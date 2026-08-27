@@ -439,7 +439,7 @@ export function TraceTimeline({
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (model.rows.length === 0) {
-    return <p className="trace-note">This run recorded no steps, so there is no timing to break down.</p>;
+    return <p className="trace-note">No steps recorded.</p>;
   }
 
   const shell = ['trace-timeline', variant === 'explorer' ? 'trace-timeline--explorer' : '', className]

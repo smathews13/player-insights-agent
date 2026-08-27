@@ -129,15 +129,13 @@ describe('Ask and Run Explorer use one conversation set', () => {
     // own conversations and nothing else, so it cannot speak for the store --
     // and Run Explorer and Monitoring were both still listing that store's
     // history while the rail said none of it had ever been saved.
-    expect(railEmptyNotice(false)).toBe(
-      'No conversations of your own yet. This rail lists only conversations you started.'
-    );
+    expect(railEmptyNotice(false)).toBe('No conversations yet.');
     // Unknown scope is treated as the narrow one: the identity payload has not
     // arrived, and "the store is empty" is the sentence that cannot be walked
     // back.
     expect(railEmptyNotice(undefined)).toBe(railEmptyNotice(false));
     // A shared rail did read every row, so here the plain sentence is true.
-    expect(railEmptyNotice(true)).toBe('No saved conversations yet.');
+    expect(railEmptyNotice(true)).toBe('No conversations yet.');
     expect(ASK).toContain('railEmptyNotice(identity.sharedConversationRail)');
   });
 });

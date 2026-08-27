@@ -83,7 +83,7 @@ describe('Connections Apply release request', () => {
     expect(source).toContain('Review the staged settings below.');
     expect(source).toContain('Approve the release request.');
     expect(source).toContain('Run the copied notebook cell.');
-    expect(source).toContain('Outcome: a new model version with these settings, ready for deployment.');
+    expect(source).not.toContain('Outcome: a new model version with these settings, ready for deployment.');
     expect(source).not.toContain('does not change the live agent silently');
   });
 

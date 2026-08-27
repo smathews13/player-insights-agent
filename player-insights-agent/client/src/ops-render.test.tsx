@@ -1147,7 +1147,7 @@ describe('the cost block', () => {
     expect(markup).toContain('App budget');
     expect(markup).toContain('Budget in range');
     expect(markup).toContain('Budget per day');
-    expect(markup).toContain('Same window as the tiles');
+    expect(markup).not.toContain('Same window as the tiles');
     expect(markup).not.toMatch(/month|monthly|PagerDuty|forecast/i);
     expect(markup).toContain('400');
     expect(markup).toContain('40');

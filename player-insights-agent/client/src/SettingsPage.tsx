@@ -270,9 +270,6 @@ export function SettingsPage({
                       <p className="settings-row-label">
                         PII egress judge · {showsEgressControls(features) ? 'Shown' : 'Hidden'}
                       </p>
-                      <p className="settings-row-note">
-                        Shows the Egress controls section. Hiding it does not change what is permitted.
-                      </p>
                     </div>
                     <Switch
                       checked={showsEgressControls(features)}
@@ -285,11 +282,6 @@ export function SettingsPage({
                   <div className="settings-row">
                     <div>
                       <p className="settings-row-label">SP identities · {spIdentityEnabled ? 'On' : 'Off'}</p>
-                      <p className="settings-row-note">
-                        Assigned people run warehouse, Genie, and agent calls as the service principal an administrator
-                        named for them. People without an assignment still use OAuth. This is for the whole deployment,
-                        not this browser.
-                      </p>
                       {spModeError ? (
                         <p className="settings-status settings-error" role="alert">
                           {spModeError}

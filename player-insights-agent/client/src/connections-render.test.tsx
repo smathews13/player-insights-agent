@@ -989,9 +989,9 @@ describe('optional permissions are not a thing to fix', () => {
     expect(readable).toContain('Optional permissions');
     // Fifteen now: the twelve tables, catalog, schema, and the Vector Search
     // index, all optional as of Sam's call.
-    expect(readable).toContain('15 checks on this page');
+    expect(readable).toContain('15 checks stopped before reaching the object');
     expect(readable).toContain('before reaching the object');
-    expect(readable).toContain('Questions do not need them');
+    expect(readable).not.toContain('Questions do not need them');
     expect(readable).not.toMatch(/you have not|because/i);
   });
 

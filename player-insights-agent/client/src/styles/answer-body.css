@@ -364,13 +364,9 @@
 /* 500, which the toggle row's label takes in the design reference and which the
    markup used to ask for as a utility class this rule outranked. Stated here so
    there is one answer to what weight the label is. */
-.advanced-row > div > p:first-child {
+.advanced-row > div > p {
   font-size: var(--ast-fs-13);
   font-weight: 500;
-}
-.advanced-row > div > p:last-child {
-  font-size: var(--ast-fs-12);
-  color: var(--ast-text-secondary);
 }
 .code-panel {
   border: 1px solid var(--ast-hairline);

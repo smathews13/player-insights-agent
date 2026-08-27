@@ -64,7 +64,6 @@ import { UserIdentityChip } from './UserIdentityChip';
 import {
   conversationFilterOptions,
   conversationRunNumber,
-  KPI_HINTS,
   matchingRuns,
   toolStageDurationMs,
   usernameFilterOptions,
@@ -371,7 +370,6 @@ export function RunExplorer() {
               ? '. What you are looking at is a different run, not the one this link named.'
               : ' and nothing is selected.'}{' '}
             It may have been created by a different workspace, or its answer may never have been stored.
-            {selected ? '' : ' Pick a run from the list to inspect that one instead.'}
           </AlertDescription>
         </Alert>
       )}
@@ -463,7 +461,6 @@ export function RunExplorer() {
                     <Workflow />
                   </EmptyMedia>
                   <EmptyTitle>No runs yet</EmptyTitle>
-                  <EmptyDescription>Ask a question or run a benchmark to create one.</EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : visibleRuns.length === 0 ? (
@@ -473,9 +470,6 @@ export function RunExplorer() {
                     <Search />
                   </EmptyMedia>
                   <EmptyTitle>No matching runs</EmptyTitle>
-                  <EmptyDescription>
-                    Try a different conversation, username, prompt, or stakeholder search.
-                  </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : (
@@ -526,7 +520,7 @@ export function RunExplorer() {
                 <UsedThisRun used={runTrace?.runtimeUsed ?? null} />
               ) : null}
               <div className="summary-grid">
-                <Card title={KPI_HINTS.wallTime}>
+                <Card>
                   <CardContent>
                     <span>Wall time</span>
                     <strong className={tileValue(!selected?.duration_ms)}>
@@ -534,7 +528,7 @@ export function RunExplorer() {
                     </strong>
                   </CardContent>
                 </Card>
-                <Card title={KPI_HINTS.toolStageTime}>
+                <Card>
                   <CardContent>
                     <span>Tool-stage time</span>
                     {/* Absent covers both "no trace" and "a trace that tagged no
@@ -545,13 +539,13 @@ export function RunExplorer() {
                     </strong>
                   </CardContent>
                 </Card>
-                <Card title={KPI_HINTS.agentToolCalls}>
+                <Card>
                   <CardContent>
                     <span>Agent tool calls</span>
                     <strong className={tileValue(agentToolCalls === null)}>{agentToolCalls ?? ABSENT}</strong>
                   </CardContent>
                 </Card>
-                <Card title={KPI_HINTS.llmTokens}>
+                <Card>
                   <CardContent>
                     <span>LLM tokens</span>
                     <strong className={tileValue(totalTokens === null || totalTokens <= 0)}>
@@ -562,7 +556,7 @@ export function RunExplorer() {
                     )}
                   </CardContent>
                 </Card>
-                <Card title={KPI_HINTS.userRating}>
+                <Card>
                   <CardContent>
                     <span>User rating</span>
                     {/* In words, and with the way to supply one. A run nobody has
@@ -595,11 +589,9 @@ export function RunExplorer() {
                   conversationId={selected?.conversation_id}
                   runId={selected?.id}
                 />
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  {traceState.status === 'ready' ? runTrace?.note : 'Pick a run from the list to read its answer.'}
-                </p>
-              )}
+              ) : runTrace?.note ? (
+                <p className="text-muted-foreground text-sm">{runTrace.note}</p>
+              ) : null}
             </TabsContent>
             <TabsContent value="map" className="space-y-4 pt-5">
               {selected && traceState.status === 'ready' ? (
@@ -746,7 +738,7 @@ function TraceUnavailable({ state }: { state: RunTraceState }) {
       ? ['This run is no longer stored', 'It may have been created in a different workspace or database.']
       : state.status === 'ready'
         ? ['No trace for this run', state.data.note]
-        : ['No run selected', 'Pick a run from the list to inspect its trace.'];
+        : ['No run selected', ''];
   return (
     <Empty>
       <EmptyHeader>
@@ -754,7 +746,7 @@ function TraceUnavailable({ state }: { state: RunTraceState }) {
           <Workflow />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
+        {description ? <EmptyDescription>{description}</EmptyDescription> : null}
       </EmptyHeader>
     </Empty>
   );

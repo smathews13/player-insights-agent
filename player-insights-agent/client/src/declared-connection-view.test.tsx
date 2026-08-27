@@ -465,15 +465,16 @@ describe('every addable kind browses', () => {
    * action above the manual field. It now disappears from both visual and
    * accessibility order, while the short fallback line remains.
    */
-  it('replaces an empty browser with the Unity Catalog grants explanation', () => {
+  it('hides an empty browser and leaves a short blank', () => {
     expect(CONNECTIONS_CSS).toMatch(
       /\.plane-picker:has\(\.asset-picker-empty\) > \.asset-picker\s*\{[\s\S]*display:\s*none/
     );
     expect(CONNECTIONS_CSS).toMatch(
       /\.plane-picker:has\(\.asset-picker-empty\) > \.plane-picker-empty-note\s*\{[\s\S]*display:\s*block/
     );
-    expect(CARD_SOURCE).toContain('no Unity Catalog grants');
-    expect(CARD_SOURCE).toContain('still enter the name manually');
+    expect(CARD_SOURCE).toContain('No catalogs are visible.');
+    expect(CARD_SOURCE).not.toContain('no Unity Catalog grants');
+    expect(CARD_SOURCE).not.toContain('still enter the name manually');
   });
 
   it('associates the disabled Add reason with the button that needs it', () => {

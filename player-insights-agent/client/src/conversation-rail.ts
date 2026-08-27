@@ -81,10 +81,8 @@ export function ownerKey(email: string | null | undefined): string {
  * per-user for the same reason the server's scope fails closed: claiming the
  * whole store is empty is the one sentence that cannot be walked back.
  */
-export function railEmptyNotice(shared: boolean | undefined): string {
-  return shared
-    ? 'No saved conversations yet.'
-    : 'No conversations of your own yet. This rail lists only conversations you started.';
+export function railEmptyNotice(_shared: boolean | undefined): string {
+  return 'No conversations yet.';
 }
 
 /** One rail row, with the ownership question already answered for it. */

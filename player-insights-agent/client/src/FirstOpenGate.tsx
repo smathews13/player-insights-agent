@@ -67,12 +67,9 @@ import { TRANSITION_MS, transitionRuns, type GateStage } from './login-transitio
 import {
   CONTINUE_LABEL,
   DISCLAIMER_TITLE,
-  IDENTITY_CAPTION,
   IDENTITY_LABEL,
   OAUTH_BADGE,
   OPTIONAL_SCOPES_HEADING,
-  OPTIONAL_SCOPES_NOTE,
-  REQUIRED_SCOPES_NOTE,
   SCOPES_HEADING,
   SKIP_LABEL,
   SKIP_NOTE,
@@ -314,13 +311,11 @@ export function FirstOpenPanel({
               </span>
             ) : null}
           </p>
-          <p className="fo-caption">{IDENTITY_CAPTION}</p>
         </section>
 
         <ScopeSection
           heading={SCOPES_HEADING}
           scopes={requiredScopeRows(report.scopes)}
-          note={REQUIRED_SCOPES_NOTE}
           footer={
             report.footer ? (
               <p className="fo-scope-footer">
@@ -345,7 +340,6 @@ export function FirstOpenPanel({
         <ScopeSection
           heading={OPTIONAL_SCOPES_HEADING}
           scopes={optionalScopeRows(report.scopes)}
-          note={OPTIONAL_SCOPES_NOTE}
           onRequestScope={onRequestScope}
           requestingScope={requestingScope}
         />

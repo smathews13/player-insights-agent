@@ -54,7 +54,8 @@ describe('Settings modal', () => {
     expect(render('appearance')).toContain('Secondary text color');
     expect(render('appearance')).toContain('aria-label="Font size L"');
     expect(render('appearance')).not.toContain('Quote colors');
-    expect(render('egress')).toContain('What can leave this deployment: downloads, copies, and outbound links.');
+    expect(render('egress')).toContain('<h3>Egress controls</h3>');
+    expect(render('egress')).not.toContain('What can leave this deployment');
   });
 
   it('keeps Settings tab titles and drops the grey captions under them', () => {
@@ -88,7 +89,7 @@ describe('Settings modal', () => {
     expect(experimental).toContain('Astrolabe resource tags · Experimental');
     expect(experimental).toContain('system_billing=astrolabe');
     expect(experimental).toContain('>Apply Astrolabe tags</button>');
-    expect(experimental).toContain('retired');
+    expect(experimental).not.toContain('retired');
   });
 
   it('puts personas on Identity, grayed until the deployment-wide SP identities pivot is on', () => {
@@ -109,7 +110,7 @@ describe('Settings modal', () => {
         spIdentityEnabled={true}
       />
     );
-    expect(on).toContain('Each named identity is a Databricks service principal');
+    expect(on).not.toContain('Each named identity is a Databricks service principal');
     expect(on).not.toContain('People using the app do not pick a persona on Ask');
     expect(on).not.toContain('No personas yet.');
     expect(on).not.toContain('Who runs as which persona');
@@ -136,7 +137,7 @@ describe('Settings modal', () => {
       />
     );
     expect(experimental).toContain('SP identities · Off');
-    expect(experimental).toContain('the whole deployment');
+    expect(experimental).not.toContain('the whole deployment');
 
     const identity = renderToStaticMarkup(
       <SettingsPage
@@ -172,14 +173,14 @@ describe('Settings modal', () => {
         spIdentityEnabled={true}
       />
     );
-    expect(identity).toContain('Each named identity is a Databricks service principal');
     expect(identity).not.toContain('Turn SP identities on under Experimental');
+    expect(identity).not.toContain('Each named identity is a Databricks service principal');
   });
 
   it('puts the SP-identities switch on Experimental next to the others', () => {
     const markup = render('experimental');
     expect(markup).toContain('aria-label="Run assigned people as their service principal"');
-    expect(markup).toContain('People without an assignment still use OAuth');
+    expect(markup).not.toContain('People without an assignment still use OAuth');
   });
 
   it('puts PII egress, SP identities, and resource tags above the benchmarking Candidate cluster', () => {

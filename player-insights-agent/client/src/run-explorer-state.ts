@@ -50,15 +50,6 @@ export function toolStageDurationMs(stages: readonly TraceStage[], wallMs?: numb
   return typeof wallMs === 'number' && wallMs > 0 && total > wallMs ? wallMs : total;
 }
 
-export const KPI_HINTS = {
-  wallTime: 'How long this run took from end to end, from the question arriving to the answer being stored.',
-  toolStageTime:
-    'How much of that run was spent in data work, counting nested and parallel steps once rather than twice.',
-  agentToolCalls: 'How many external tool calls the agent recorded making while it answered this question.',
-  llmTokens: 'How many tokens the model gateway metred for this run, split into the prompt and the reply.',
-  userRating: 'What a person scored this answer out of five, or Not rated when nobody has scored it yet.',
-} as const;
-
 export function conversationRunNumber(runs: readonly Run[], selected: Run | null): number | undefined {
   if (!selected?.conversation_id) return undefined;
   const chronological = [...runs].reverse();

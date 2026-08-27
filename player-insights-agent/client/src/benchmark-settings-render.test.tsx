@@ -24,6 +24,6 @@ describe('Settings → Experimental benchmarking cluster', () => {
     const markup = renderToStaticMarkup(<BenchmarkSettingsPanel enabled={true} />);
     expect(markup).toContain('MLflow experiment');
     expect(markup).not.toContain('disabled=""');
-    expect(markup).toContain('build a dataset, score a Genie space');
+    expect(markup).not.toContain('build a dataset, score a Genie space');
   });
 });

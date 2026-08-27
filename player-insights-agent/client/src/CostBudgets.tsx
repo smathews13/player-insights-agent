@@ -137,9 +137,6 @@ export function CostTotalBudget() {
         currency={api.currency}
         onCommit={api.setTotal}
       />
-      <p className="ops-cost-total-note">
-        Same window as the tiles. Not a sum of them — Cost does not add products together.
-      </p>
       {view.kind === 'budget-only' ? (
         <p className="ops-budget-compare">
           <span className="ast-num">{view.budgetLabel}</span> app budget

@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
-  KPI_HINTS,
   conversationFilterOptions,
   conversationRunNumber,
   conversationSummary,
@@ -100,28 +99,10 @@ describe('Run Explorer feedback', () => {
     expect(toolStageDurationMs(unplaced, 150_000)).toBe(150_000);
   });
 
-  it('says in one sentence what each tile on the Overview grid measures', () => {
-    // Five figures, five definitions, each on the tile it belongs to. The copy
-    // lives in one exported object so this can read the sentences rather than
-    // match them out of the markup.
-    expect(Object.keys(KPI_HINTS)).toEqual([
-      'wallTime',
-      'toolStageTime',
-      'agentToolCalls',
-      'llmTokens',
-      'userRating',
-    ]);
-    for (const [tile, hint] of Object.entries(KPI_HINTS)) {
-      // One sentence, ending in one full stop, and no em dash: §7 of the
-      // rebuild spec, which this file's neighbour holds the whole page to.
-      expect(hint, tile).toMatch(/^[A-Z].*\.$/);
-      expect(hint.match(/\./g), tile).toHaveLength(1);
-      expect(hint, tile).not.toMatch(/—/);
-    }
-    // On the tiles, and on all five of them.
-    for (const tile of Object.keys(KPI_HINTS)) {
-      expect(EXPLORER).toContain(`<Card title={KPI_HINTS.${tile}}>`);
-    }
+  it('does not attach a how-it-works sentence to the Overview tiles', () => {
+    expect(EXPLORER).not.toContain('KPI_HINTS');
+    expect(EXPLORER).not.toContain('How long this run took from end to end');
+    expect(EXPLORER).not.toContain('<Card title=');
   });
 
   it('names a conversation by its stable id and numbers only its runs', () => {

@@ -78,7 +78,7 @@ describe('which fields get a browser', () => {
     const experiment = pickerForField('experiment-id');
     expect(experiment).not.toBeNull();
     expect(experiment?.levels).toEqual(['experiments']);
-    expect(experiment?.typeNote.toLowerCase()).toContain('mlflow');
+    expect(experiment?.typeNote).toBe('');
   });
 
   it('offers no notebook picker, because no editable field takes a path', () => {
@@ -435,9 +435,7 @@ describe('the three outcomes, kept apart', () => {
     expect(BROWSE_UNAVAILABLE_CHIP).toBe('Not carried');
     // Not the gate's words for a required shortfall, and not a claim about grants.
     expect(BROWSE_UNAVAILABLE_CHIP).not.toMatch(/missing/i);
-    expect(BROWSE_GRANT_ACTION).toMatch(/stays optional/);
-    expect(BROWSE_GRANT_ACTION).toMatch(/user_api_scopes/);
-    expect(BROWSE_GRANT_ACTION).toMatch(/private window/);
+    expect(BROWSE_GRANT_ACTION).toBe('');
   });
 
   it('says nothing was established, so an absence is not read as an answer', () => {

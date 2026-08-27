@@ -763,9 +763,9 @@ export function costHonestyLine(honesty: CostHonesty | null | undefined): string
 
 export function warehouseAutoStopLine(autoStop: WarehouseAutoStop | null | undefined): string {
   if (!autoStop?.readable) return '';
-  if (autoStop.minutes === null) return 'Warehouse auto-stop could not be read. This app does not change that setting.';
+  if (autoStop.minutes === null) return 'Warehouse auto-stop could not be read.';
   const noun = autoStop.minutes === 1 ? 'minute' : 'minutes';
-  return `Warehouse auto-stop is ${autoStop.minutes} ${noun}. This app does not change that setting.`;
+  return `Warehouse auto-stop is ${autoStop.minutes} ${noun}.`;
 }
 
 export function costCoverageSummary(coverage: CostCoverage | null | undefined): {

@@ -81,12 +81,12 @@ export function formatDuration(ms: number | null): string | null {
 /** The label on the range, for the captions that name it. */
 export type RangeLabel = string;
 
-export function questionsAskedTile(summary: MonitoringSummary, range: RangeLabel): TileValue {
-  return tile(count(summary.questionsAsked), range);
+export function questionsAskedTile(summary: MonitoringSummary): TileValue {
+  return tile(count(summary.questionsAsked), '');
 }
 
 export function peopleAskingTile(summary: MonitoringSummary): TileValue {
-  return tile(count(summary.peopleAsking), 'distinct owners');
+  return tile(count(summary.peopleAsking), '');
 }
 
 /**
@@ -113,9 +113,7 @@ export function outcomeTile(summary: MonitoringSummary): OutcomeTile {
   const accounted = completed + partial + refused + failed;
   const missing = questionsAsked - accounted;
   const caption =
-    accounted === questionsAsked
-      ? 'sum to questions asked'
-      : `${count(missing)} more ${missing === 1 ? 'has' : 'have'} no recorded outcome`;
+    accounted === questionsAsked ? '' : `${count(missing)} more ${missing === 1 ? 'has' : 'have'} no recorded outcome`;
   return {
     completed: count(completed),
     partial: count(partial),
@@ -134,7 +132,7 @@ export function outcomeTile(summary: MonitoringSummary): OutcomeTile {
  */
 export function ratedHelpfulTile(summary: MonitoringSummary): TileValue {
   if (summary.ratedTotal <= 0) {
-    return absent('Not rated yet', 'no answers were rated in this range');
+    return absent('Not rated yet', '');
   }
   const share = Math.round((summary.ratedUp / summary.ratedTotal) * 100);
   return tile(`${share}%`, `of ${count(summary.ratedTotal)} rated answers`);
@@ -150,12 +148,12 @@ export function ratedHelpfulTile(summary: MonitoringSummary): TileValue {
 export function medianAnswerTimeTile(summary: MonitoringSummary): TileValue {
   const formatted = formatDuration(summary.medianMs);
   if (formatted === null) {
-    return absent('No run times recorded', 'nothing in this range recorded a run time');
+    return absent('No run times recorded', '');
   }
   const caption =
     summary.timedCount < summary.questionsAsked
       ? `over ${count(summary.timedCount)} of ${count(summary.questionsAsked)} runs`
-      : 'recorded run time';
+      : '';
   return tile(formatted, caption);
 }
 
@@ -168,10 +166,10 @@ export function medianAnswerTimeTile(summary: MonitoringSummary): TileValue {
  */
 export function tokensTile(tokens: { total: number; metredRuns: number; totalRuns: number }): TileValue {
   if (tokens.totalRuns === 0) {
-    return absent('No runs in range', 'nothing was metred');
+    return absent('No runs in range', '');
   }
   if (tokens.metredRuns === 0) {
-    return absent('Not metred', `no run in this range reported token usage, so the total is unknown rather than zero`);
+    return absent('Not metred', '');
   }
   return tile(count(tokens.total), `over ${count(tokens.metredRuns)} of ${count(tokens.totalRuns)} runs`);
 }
@@ -220,7 +218,7 @@ export function answerTimeTile(durationsMs: number[]): AnswerTimeTile {
   const sorted = durationsMs.filter((ms) => Number.isFinite(ms) && ms >= 0).sort((a, b) => a - b);
   if (sorted.length === 0) {
     return {
-      ...absent('No run times recorded', 'nothing in this range recorded a run time'),
+      ...absent('No run times recorded', ''),
       tail: '',
     };
   }
@@ -229,7 +227,7 @@ export function answerTimeTile(durationsMs: number[]): AnswerTimeTile {
   if (sorted.length < PERCENTILE_FLOOR) {
     return {
       ...tile(median, 'median'),
-      tail: `${slowest} was the slowest run. Under ${PERCENTILE_FLOOR} runs a 95th percentile is not reported.`,
+      tail: `${slowest} was the slowest run`,
     };
   }
   return {
@@ -248,7 +246,7 @@ function percentile(sortedAscending: number[], p: number): number {
 /** The rated split on the per-user panel. Up and down, never netted. */
 export function ratedTile(up: number, down: number): TileValue {
   const total = up + down;
-  if (total === 0) return absent('Not rated', 'they rated nothing in this range');
+  if (total === 0) return absent('Not rated', '');
   return tile(count(total), `${count(up)} up · ${count(down)} down`);
 }
 
@@ -261,7 +259,7 @@ export function ratedTile(up: number, down: number): TileValue {
 export function tablesReadTile(rows: { table: string; runs: number }[]): TileValue & { table: string | null } {
   if (rows.length === 0) {
     return {
-      ...absent('No sources recorded', 'no answer in this range recorded which tables it read'),
+      ...absent('No sources recorded', ''),
       table: null,
     };
   }
@@ -315,9 +313,7 @@ export function emptyCopy(state: EmptyState, options: { search?: string; chips?:
     const term = (options.search ?? '').trim();
     const quoted = term ? `Nothing matches "${term}".` : 'Nothing matches your search.';
     return {
-      sentence: options.chips
-        ? `${quoted} The other filters are narrowing this list too, so clearing the search alone may not be enough.`
-        : quoted,
+      sentence: quoted,
       clearFilters: options.chips === true,
       clearSearch: true,
     };

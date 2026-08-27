@@ -408,7 +408,7 @@ describe('a failed run’s process', () => {
     expect(markup).toContain('Querying governed data');
     expect(markup).toContain('failed');
     expect(markup).toContain('Failed after 2 steps');
-    expect(markup).not.toContain('This run recorded no steps');
+    expect(markup).not.toContain('No steps recorded.');
     expect(markup).not.toContain('data-tone="stored"');
     expect(markup).toContain('data-tone="failed"');
   });
@@ -537,7 +537,7 @@ describe('a failed run’s process', () => {
       })
     );
     expect(markup).toContain('No result recorded');
-    expect(markup).toContain('This run recorded no steps');
+    expect(markup).toContain('No steps recorded.');
     expect(markup).toContain('data-tone="failed"');
     expect(markup.match(/No steps and no structured result were recorded/g)?.length).toBe(1);
   });

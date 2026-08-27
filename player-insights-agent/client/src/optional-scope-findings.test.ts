@@ -185,8 +185,8 @@ describe('what the neutral line is allowed to say', () => {
   });
 
   it('names the population its count is over', () => {
-    expect(optionalScopeNote(14)).toContain('14 checks on this page');
-    expect(optionalScopeNote(1)).toContain('one check on this page');
+    expect(optionalScopeNote(14)).toBe('14 checks stopped before reaching the object.');
+    expect(optionalScopeNote(1)).toBe('One check stopped before reaching the object.');
     expect(optionalScopeNote(1)).not.toContain('1 checks');
   });
 

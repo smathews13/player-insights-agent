@@ -52,7 +52,7 @@ describe('runtime and appearance modal sections', () => {
     ]) {
       expect(source).toContain(label);
     }
-    expect(source).toContain('Guidance goes to the agent with every ask.');
+    expect(source).not.toContain('Guidance goes to the agent with every ask.');
     expect(source).not.toContain('Limits how many reasoning passes');
     expect(source).not.toContain('Changes how relative dates');
   });

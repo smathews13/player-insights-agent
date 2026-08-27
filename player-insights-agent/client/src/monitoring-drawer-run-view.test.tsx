@@ -257,7 +257,7 @@ describe('the modal draws one run view, the card\'s own', () => {
     const empty = { ...trace, id: 'tr-2', totalMs: 0, toolCalls: 0, stages: [] };
     const bare = text(drawer({ trace: empty, answer: answerWith(empty) }));
 
-    expect(occurrences(bare, 'This run recorded no steps')).toBe(1);
+    expect(occurrences(bare, 'No steps recorded.')).toBe(1);
   });
 });
 

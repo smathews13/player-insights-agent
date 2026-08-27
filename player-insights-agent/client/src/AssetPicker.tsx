@@ -41,7 +41,6 @@ import {
   pickerForField,
   BROWSE_APPS_NO_SCOPE_PROMPT,
   BROWSE_FAILED_CHIP,
-  BROWSE_GRANT_ACTION,
   BROWSE_GRANT_PROMPT,
   BROWSE_TYPE_INSTEAD,
   BROWSE_UNAVAILABLE_CHIP,
@@ -111,7 +110,6 @@ export function BrowseGrantPrompt({
           would be a second copy of a vocabulary this repository has already got
           wrong twice. */}
       {detail ? <p className="asset-picker-grant-detail">{detail}</p> : null}
-      {noAppsScope ? null : <p className="asset-picker-grant-action">{BROWSE_GRANT_ACTION}</p>}
       <p className="asset-picker-grant-fallback">{BROWSE_TYPE_INSTEAD}</p>
     </div>
   );

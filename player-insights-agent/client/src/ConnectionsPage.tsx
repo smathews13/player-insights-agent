@@ -22,7 +22,7 @@
  * the old one. Which affordance a row gets is decided in
  * `shared/deployment-config.ts` rather than here.
  */
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { showsAdminSurfaces, useRole } from './role';
 import {
   Alert,
@@ -50,7 +50,6 @@ import {
   Copy,
   ExternalLink,
   GitCommitHorizontal,
-  Info,
   Lock,
   Pencil,
   Save,
@@ -196,62 +195,6 @@ const GROUP_TONE: Record<ConnectionGroupKey, StatusTone> = {
   'not-checked': 'plain',
   configuration: 'plain',
 };
-
-/**
- * What a section IS, for the reader who does not build this app.
- *
- * Only the two sections whose names are nouns rather than verdicts. "Blocked"
- * and "Unreachable" say what they mean in the word; "Connected resources" and
- * "Configuration" name a KIND of thing, and a reader who has never deployed
- * this agent cannot tell from either name what the rows under it decide.
- *
- * One sentence each, and no file paths, product internals or setting names in
- * either -- the rows already carry those, and a tooltip that restates the list
- * beneath it is a tooltip nobody reads twice.
- */
-const GROUP_HINTS: Partial<Record<ConnectionGroupKey, string>> = {
-  reachable:
-    'These are the live services this app is wired to right now: the models it asks, the warehouse and catalogs it reads from, and the database and search it looks things up in.',
-  configuration:
-    'These are the settings that shape how the agent answers: which data it is allowed to use, how long an answer may run, and where its files and activity records are kept.',
-};
-
-/**
- * The sentence, on hover and on keyboard focus.
- *
- * THE TOOLTIP IS AN ELEMENT, NOT A `title` ATTRIBUTE, for the reason the
- * release chip carries the same shape: `title` is pointer-only, so there is no
- * keystroke that reaches the sentence at all, and on an element with its own
- * text content it is dropped from the accessibility tree. The trigger is a
- * button because a button is the one thing reliably focusable and reliably
- * named; the sentence is its description rather than its name, so a reader is
- * not made to hear the whole paragraph before being told what the control is.
- *
- * Hidden by opacity rather than by `display`, because `aria-describedby` must
- * still resolve while it is off screen.
- */
-export function GroupHint({ label, hint }: { label: string; hint: string }) {
-  // Two headers draw one of these each, so the id has to be per instance: two
-  // tooltips under one id is a description that resolves to whichever rendered
-  // first.
-  const hintId = `${useId()}hint`;
-  return (
-    <button
-      type="button"
-      className="connection-group-hint"
-      data-testid="connection-group-hint"
-      // The name is what the control IS. The sentence arrives as the
-      // description, below.
-      aria-label={`What ${label} means`}
-      aria-describedby={hintId}
-    >
-      <Info className="size-3.5" aria-hidden="true" />
-      <span className="connection-group-hint-tooltip" id={hintId} role="tooltip">
-        {hint}
-      </span>
-    </button>
-  );
-}
 
 /**
  * Which Databricks product each kind of connection belongs to.
@@ -1517,7 +1460,6 @@ export function ConfigurationList({
     <section className="connection-group">
       <h3 className="connection-group-title">
         {group.title}
-        {GROUP_HINTS.configuration ? <GroupHint label={group.title} hint={GROUP_HINTS.configuration} /> : null}
       </h3>
       <Card className="deployment-card">
         <div className="configuration-rows">
@@ -2118,7 +2060,6 @@ export function ConnectionsPage() {
                 verdict does not need. */}
             <h3 className="connection-group-title" data-tone={GROUP_TONE[group.key]}>
               {group.title}
-              {GROUP_HINTS[group.key] ? <GroupHint label={group.title} hint={GROUP_HINTS[group.key]!} /> : null}
               {group.aside ? <span className="connection-group-aside">{group.aside}</span> : null}
             </h3>
             <div className="connection-rows">

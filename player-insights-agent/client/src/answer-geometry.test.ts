@@ -557,14 +557,12 @@ describe('the advanced panel is a row and a code block, on the shared recipes', 
     // 500 label the row has never drawn -- and the 500 it named was not even
     // wrong, only unenforced, which is the version of this that survives a
     // palette pass unnoticed. The weight is declared where the size is now.
-    const label = ruleFor(BODY_CSS, '.advanced-row > div > p:first-child {');
+    const label = ruleFor(BODY_CSS, '.advanced-row > div > p {');
     expect(label).toContain('font-size: var(--ast-fs-13)');
     expect(label).toContain('font-weight: 500');
-    const caption = ruleFor(BODY_CSS, '.advanced-row > div > p:last-child {');
-    expect(caption).toContain('font-size: var(--ast-fs-12)');
-    expect(caption).toContain('color: var(--ast-text-secondary)');
+    expect(BODY_CSS).not.toContain('.advanced-row > div > p:last-child');
     expect(CARD).toContain('<p>Advanced trace details</p>');
-    expect(CARD).toContain('<p>Generated SQL and raw input and output of every stage</p>');
+    expect(CARD).not.toContain('Generated SQL and raw input and output of every stage');
   });
 
   it('chips the SQL panel’s read-only note on the one pill recipe, outlined', () => {
@@ -759,7 +757,8 @@ describe('the copy the reader asked us to drop stays dropped', () => {
     // tab that was the source list a second time -- same names, same links, same
     // governance line -- and the caption is the one place a stale promise would
     // survive the tab being deleted.
-    expect(CARD).toContain('Generated SQL and raw input and output of every stage');
+    expect(CARD).toContain('Advanced trace details');
+    expect(CARD).not.toContain('Generated SQL and raw input and output of every stage');
     expect(CARD).not.toContain('sanitized');
     const caption = CARD.replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ');
     expect(caption).not.toContain('all declared sources');

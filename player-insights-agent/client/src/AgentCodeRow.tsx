@@ -84,24 +84,12 @@ export function AgentCodeRow({ initialData }: { initialData?: unknown }) {
  * plainly knows the name of.
  */
 function note(state: 'loading' | 'ready' | 'failed', model: AgentModelReference): string {
-  if (state === 'loading') return 'Looking up which version of the agent is answering.';
+  if (state === 'loading') return 'Looking up the agent version.';
   if (state === 'failed') {
-    return 'The serving endpoint could not be asked which version of the agent is answering, so there is nothing to open.';
+    return 'The serving endpoint could not be asked which version is answering.';
   }
-  if (!model.model) {
-    return 'Not set. Nothing told this deployment which registered model answers its questions.';
-  }
-  if (!model.url) {
-    return `This deployment serves ${model.model}, but it was not told which workspace it is in, so there is no page to open.`;
-  }
-  if (!model.versioned) {
-    return (
-      `${model.model} is the registered agent model. The endpoint did not report which version is ` +
-      'serving, so this opens the model rather than one version; the code is under the Artifacts tab of a version.'
-    );
-  }
-  return (
-    `Version ${model.version} of ${model.model} is answering. This opens that version in Catalog Explorer, ` +
-    'where agent.py is under the Artifacts tab.'
-  );
+  if (!model.model) return 'Not set.';
+  if (!model.url) return `${model.model}. Workspace not reported.`;
+  if (!model.versioned) return `${model.model}. Version not reported.`;
+  return `Version ${model.version} of ${model.model}`;
 }

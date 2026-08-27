@@ -105,10 +105,6 @@ export function EgressPanel() {
     >
       <div className="settings-pane-heading">
         <h3>Egress controls</h3>
-        <p>
-          What can leave this deployment: downloads, copies, and outbound links. Enforced paths are blocked by the
-          server when off; Recorded only paths log each use.
-        </p>
       </div>
       <div className="egress-list">
         {controllablePaths().map((path) => (

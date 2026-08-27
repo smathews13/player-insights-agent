@@ -299,7 +299,6 @@ export function RuntimeSettingsPanel({
           <section className="runtime-section" id="answer-contract-settings">
             <div className="runtime-answer-header">
               <h4 className="runtime-section-label">Answer content</h4>
-              <span>Guidance goes to the agent with every ask.</span>
             </div>
             <AnswerRow
               label="Takeaway"
@@ -370,7 +369,7 @@ export function RuntimeSettingsPanel({
               onToggle={(value) => setAnswer('caveats', value)}
             >
               {number('Max caveats', settings.answer.maxCaveats, 0, 20, (value) => setAnswer('maxCaveats', value))}
-              <span className="runtime-inline-note">0 = all. Governance and outage warnings always remain.</span>
+              <span className="runtime-inline-note">0 = all</span>
             </AnswerRow>
           </section>
 
@@ -401,7 +400,6 @@ export function RuntimeSettingsPanel({
             <div className="settings-row appearance-theme-row">
               <div>
                 <p className="settings-row-label">Dark</p>
-                <p className="settings-row-note">Preview the app on dark surfaces. Save to keep this choice.</p>
               </div>
               <Switch
                 checked={settings.colorScheme === 'dark'}
@@ -421,7 +419,6 @@ export function RuntimeSettingsPanel({
           <section className="runtime-section appearance-type-section">
             <div className="appearance-section-heading">
               <h4 className="runtime-section-label">Type</h4>
-              <span>Colour, face, and size for questions and body text. Secondary is captions and timestamps.</span>
             </div>
             <div className="appearance-type-colors">
               {(
@@ -488,7 +485,6 @@ export function RuntimeSettingsPanel({
           <section className="runtime-section runtime-section-last appearance-palette-section">
             <div className="appearance-section-heading">
               <h4 className="runtime-section-label">Entity colors</h4>
-              <span>Hex colors are shared by entity labels everywhere they appear.</span>
             </div>
             <div className="appearance-grid" role="table" aria-label="Answer entity colors">
               <div className="appearance-grid-head" role="row">

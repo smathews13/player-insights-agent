@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { RunDetails } from './RunDetails';
 import { RunExplorer } from './RunExplorer';
-import { KPI_HINTS } from './run-explorer-state';
 import type { RunTrace } from './app-types';
 
 /**
@@ -288,15 +287,9 @@ describe('the trace summary', () => {
 });
 
 describe('what each figure on the Overview grid means', () => {
-  it('carries its own definition into the document, on every one of the five tiles', () => {
-    // Rendered rather than read, for the reason this file exists: the sentences
-    // are handed to a component from another package, and a source-text test
-    // would pass just as happily if that component dropped the attribute. Which
-    // it would, if the tiles were ever rebuilt out of plain divs.
+  it('does not print a definition on the Overview tiles', () => {
     const markup = pageMarkup();
-
-    for (const hint of Object.values(KPI_HINTS)) {
-      expect(markup).toContain(hint);
-    }
+    expect(markup).not.toContain('How long this run took from end to end');
+    expect(markup).not.toContain('How many tokens the model gateway metred');
   });
 });

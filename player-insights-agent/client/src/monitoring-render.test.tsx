@@ -149,7 +149,7 @@ describe('the summary strip', () => {
     expect(rendered).toContain('6');
     expect(rendered).toContain('11');
     expect(rendered).toContain('7');
-    expect(rendered).toContain('sum to questions asked');
+    expect(rendered).not.toContain('sum to questions asked');
     // 11 refused + 7 failed. The page must never show the two added up.
     expect(rendered).not.toMatch(/\b18\b/);
   });
@@ -529,7 +529,7 @@ describe('every state in the list', () => {
     );
 
     expect(rendered).toContain('Nothing matches "spending".');
-    expect(rendered).toContain('The other filters are narrowing this list too');
+    expect(rendered).not.toContain('The other filters are narrowing this list too');
     expect(rendered).toContain('Clear search');
     expect(rendered).toContain('Clear filters');
   });
@@ -1023,9 +1023,9 @@ describe('the per-user panel', () => {
     );
 
     expect(rendered).toContain('Refused for a missing grant');
-    expect(rendered).toContain('a grant somebody can make');
+    expect(rendered).not.toContain('a grant somebody can make');
     expect(rendered).toContain("Refused by the agent's own rules");
-    expect(rendered).toContain('a release or question change');
+    expect(rendered).not.toContain('a release or question change');
     // 2 + 1. Nothing on the panel is the two added together.
     expect(rendered).not.toMatch(/Refused[^.]{0,60}\b3\b/);
   });
@@ -1042,18 +1042,17 @@ describe('the per-user panel', () => {
       render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />)
     );
 
-    expect(rendered).toContain(
-      'Row filter applied. Two people with different group membership will see different totals from this table.'
-    );
+    expect(rendered).toContain('Row filter applied.');
+    expect(rendered).not.toContain('Two people with different group membership');
     // No claim about rows lost, which PIA cannot know.
     expect(rendered).not.toMatch(/rows (were )?(removed|hidden|lost|filtered out)/i);
     expect(rendered).toContain('Column mask on a_column.');
   });
 
-  it('closes with the live-versus-recorded caption', () => {
+  it('does not close with a live-versus-recorded lecture', () => {
     expect(
       text(render(<PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />))
-    ).toContain(LIVE_VERSUS_RECORDED);
+    ).not.toContain(LIVE_VERSUS_RECORDED);
   });
 
   /**

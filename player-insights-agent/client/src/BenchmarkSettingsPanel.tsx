@@ -32,8 +32,6 @@ export function BenchmarkSettingsPanel({
 }) {
   const [settings, setSettings] = useState<BenchmarkSettings>(DEFAULT_BENCHMARK_SETTINGS);
   const [experimentUrl, setExperimentUrl] = useState<string | null>(null);
-  const [currentAgentEndpoint, setCurrentAgentEndpoint] = useState('');
-  const [tracesAlwaysOnInAgent, setTracesAlwaysOnInAgent] = useState(true);
   const [lastTrace, setLastTrace] = useState<{ traceId: string; url: string | null } | null>(null);
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const [customDraft, setCustomDraft] = useState<CustomJudge>({ name: '', guidelines: '', prompt: '' });
@@ -45,8 +43,6 @@ export function BenchmarkSettingsPanel({
       const loaded = await benchmarkSettingsFromResponse(response, 'loaded');
       setSettings(loaded.settings);
       setExperimentUrl(loaded.experimentUrl);
-      setCurrentAgentEndpoint(loaded.currentAgentEndpoint);
-      setTracesAlwaysOnInAgent(loaded.tracesAlwaysOnInAgent);
       return { ok: true };
     } catch (caught) {
       const message = (caught as Error).message;
@@ -102,8 +98,6 @@ export function BenchmarkSettingsPanel({
       const saved = await benchmarkSettingsFromResponse(response, 'saved');
       setSettings(saved.settings);
       setExperimentUrl(saved.experimentUrl);
-      setCurrentAgentEndpoint(saved.currentAgentEndpoint);
-      setTracesAlwaysOnInAgent(saved.tracesAlwaysOnInAgent);
       onSaveState({ kind: 'saved' });
     } catch (caught) {
       setFailure({ operation: 'save', message: (caught as Error).message });
@@ -122,11 +116,9 @@ export function BenchmarkSettingsPanel({
     >
       <fieldset className="benchmark-settings-cluster" disabled={!enabled}>
         <legend className="runtime-section-label">Evaluation path</legend>
-        <p className="settings-row-note">
-          {enabled
-            ? 'On the Benchmarking tab: build a dataset, score a Genie space, then run agent judges into this experiment. Save the defaults here; do not edit them twice.'
-            : 'Turn Benchmarking on above to edit these. The values stay, but nothing here can be changed while the tab is hidden.'}
-        </p>
+        {!enabled ? (
+          <p className="settings-row-note">Turn Benchmarking on above to edit these.</p>
+        ) : null}
 
         <label className="runtime-field runtime-field-wide">
           <span className="runtime-field-label">MLflow experiment</span>
@@ -134,15 +126,9 @@ export function BenchmarkSettingsPanel({
             type="text"
             autoComplete="off"
             aria-label="MLflow experiment"
-            placeholder="The experiment id already configured for this app"
             value={settings.experimentId}
             onChange={(event) => setSettings((current) => ({ ...current, experimentId: event.target.value }))}
           />
-          <span className="runtime-control-note">
-            Traces go to the experiment already configured for this deployment. Type a different id only
-            when more than one exists and you mean to switch. The list cannot be browsed as you — Apps has
-            no MLflow scope.
-          </span>
           {experimentUrl ? (
             <a className="benchmark-settings-link" href={experimentUrl} target="_blank" rel="noreferrer">
               Open this experiment
@@ -153,11 +139,6 @@ export function BenchmarkSettingsPanel({
         <div className="settings-row">
           <div>
             <p className="settings-row-label">Always-on traces · {settings.alwaysOnTraces ? 'On' : 'Off'}</p>
-            <p className="settings-row-note">
-              {tracesAlwaysOnInAgent
-                ? 'Every Ask already writes a trace. Leave this on to keep the experiment and last-trace link in view. Turning it off does not stop the served agent from tracing.'
-                : 'When on, every Ask writes a trace to the experiment above.'}
-            </p>
           </div>
           <Switch
             checked={settings.alwaysOnTraces}
@@ -177,16 +158,9 @@ export function BenchmarkSettingsPanel({
                   Open the MLflow trace
                 </a>
               </>
-            ) : (
-              ' · Save an experiment id to link straight to it.'
-            )}
+            ) : null}
           </p>
         ) : null}
-
-        <p className="runtime-control-note">
-          The evaluation dataset lives on the Benchmarking tab. Each row is a question, optional
-          ground-truth SQL for Genie accuracy, and an optional expected answer for agent judges.
-        </p>
 
         <label className="runtime-field runtime-field-wide">
           <span className="runtime-field-label">Judge model</span>
@@ -194,14 +168,9 @@ export function BenchmarkSettingsPanel({
             type="text"
             autoComplete="off"
             aria-label="Judge model"
-            placeholder="Serving endpoint name, same as Connections"
             value={settings.judgeEndpoint}
             onChange={(event) => setSettings((current) => ({ ...current, judgeEndpoint: event.target.value }))}
           />
-          <span className="runtime-control-note">
-            The model that scores Phase B (built-in, multi-turn, and custom judges). Changing it here
-            updates the same setting Connections already uses.
-          </span>
         </label>
 
         {AGENT_JUDGE_IDS.map((judge) => (
@@ -211,13 +180,6 @@ export function BenchmarkSettingsPanel({
                 {judge === 'groundedness' ? 'Groundedness' : judge === 'relevance' ? 'Relevance' : 'Guidelines'}
                 {' · '}
                 {settings.enabledJudges.includes(judge) ? 'On' : 'Off'}
-              </p>
-              <p className="settings-row-note">
-                {judge === 'groundedness'
-                  ? 'Built-in MLflow judge: is the answer supported by what was retrieved?'
-                  : judge === 'relevance'
-                    ? 'Built-in MLflow judge: does the answer address the question?'
-                    : 'Built-in MLflow Guidelines judge. Uses the text below, or a row’s expected answer.'}
               </p>
             </div>
             <Switch
@@ -235,10 +197,6 @@ export function BenchmarkSettingsPanel({
         ))}
 
         <p className="runtime-section-label">Multi-turn judges</p>
-        <p className="settings-row-note">
-          Conversational judges from MLflow. Pick the ones you want. Each is{' '}
-          <code>Guidelines(name=…, guidelines=…)</code> over the question and answer as a conversation.
-        </p>
         {MULTI_TURN_JUDGES.map((judge) => (
           <div className="settings-row" key={judge.id}>
             <div>
@@ -247,7 +205,6 @@ export function BenchmarkSettingsPanel({
                 {' · '}
                 {settings.enabledMultiTurnJudges.includes(judge.id) ? 'On' : 'Off'}
               </p>
-              <p className="settings-row-note">{judge.note}</p>
             </div>
             <Switch
               checked={settings.enabledMultiTurnJudges.includes(judge.id)}
@@ -264,9 +221,6 @@ export function BenchmarkSettingsPanel({
         ))}
 
         <p className="runtime-section-label">Custom judges</p>
-        <p className="settings-row-note">
-          Your own <code>Guidelines(name=…, guidelines=…)</code> judges. Saved here, used on the next Phase B run.
-        </p>
         {settings.customJudges.map((judge, index) => (
           <div className="eval-custom-judge" key={`${judge.name}-${index}`}>
             <p className="settings-row-label">{judge.name}</p>
@@ -320,10 +274,6 @@ export function BenchmarkSettingsPanel({
             disabled={!enabled}
             onChange={(event) => setCustomDraft((current) => ({ ...current, prompt: event.target.value }))}
           />
-          <span className="runtime-control-note">
-            Beyond the guidelines box. A free-form prompt is sent as the judge. Leave blank to keep{' '}
-            <code>Guidelines(name=…)</code> only.
-          </span>
         </label>
         <button
           type="button"
@@ -351,10 +301,6 @@ export function BenchmarkSettingsPanel({
             value={settings.guidelinesText}
             onChange={(event) => setSettings((current) => ({ ...current, guidelinesText: event.target.value }))}
           />
-          <span className="runtime-control-note">
-            Passed to <code>Guidelines(name=…, guidelines=…, model=databricks:/…)</code> on the agent
-            evaluate path. A row with its own expected answer uses that instead.
-          </span>
         </label>
 
         <div className="benchmark-settings-compare">
@@ -380,13 +326,6 @@ export function BenchmarkSettingsPanel({
               onChange={(event) => setSettings((current) => ({ ...current, compareSideB: event.target.value }))}
             />
           </label>
-          <span className="runtime-control-note">
-            Phase B runs both on the same questions and shows the scores side by side. Promote the
-            winner on the Benchmarking tab so the next Ask uses it. Use <code>current</code> for this
-            deployment&apos;s agent
-            {currentAgentEndpoint ? ` (${currentAgentEndpoint})` : ''}. Leave candidate blank until you
-            have a second endpoint.
-          </span>
         </div>
       </fieldset>
     </form>

@@ -45,7 +45,7 @@ import { BrandIcon } from './BrandIcon';
 import { RefreshControl } from './RefreshControl';
 // The chain and the answer's shape, as data rather than as prose in this file.
 // See the note at the top of agent-chain.ts for why they moved out of here.
-import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUND_NOTE, CHAIN_BOUNDS } from './agent-chain';
+import { AGENT_CHAIN, ANSWER_CONTRACT, CHAIN_BOUND_LABEL, CHAIN_BOUNDS } from './agent-chain';
 import { refreshLiveRuntimeSettings, useLiveRuntimeSettings } from './runtime-settings-live';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import {
@@ -666,7 +666,6 @@ export function ChainBoundTiles({
             data-active={painted ? 'true' : undefined}
             className={painted ? 'arch-bound-selected' : undefined}
             key={bound}
-            title={CHAIN_BOUND_NOTE[bound]}
             onMouseEnter={() => onPreviewBoundChange?.(bound)}
             onMouseLeave={() => onPreviewBoundChange?.(null)}
           >
@@ -713,7 +712,7 @@ function RailRow({
   badge?: string;
   /** The bound that stops this stage, already formatted, or undefined. */
   boundNote?: string;
-  children: string;
+  children?: string;
   /** Whether the stage is skipped on a run that does not need it. */
   optional?: boolean;
   stage?: string;
@@ -734,7 +733,7 @@ function RailRow({
         ) : null}
         {stage ? <code className="arch-rail-stage">{stage}</code> : null}
       </p>
-      <p className="arch-rail-body">{children}</p>
+      {children ? <p className="arch-rail-body">{children}</p> : null}
       {boundNote ? <p className="arch-rail-bound">{boundNote}</p> : null}
     </li>
   );
@@ -957,9 +956,7 @@ export function ArchitecturePage() {
                   optional={stage.optional}
                   stage={stage.stage}
                   title={stage.title}
-                >
-                  {stage.body}
-                </RailRow>
+                />
                 {/* No arrow after the last row: it would point at the section's own
                     bottom edge and name something that is not below it. */}
                 {stage.passes && index < AGENT_CHAIN.length - 1 ? <RailStep label={stage.passes} /> : null}
@@ -1002,7 +999,6 @@ export function ArchitecturePage() {
                     </Link>
                   ) : null}
                 </p>
-                <p className="arch-rail-body">{section.body}</p>
               </li>
             ))}
           </ul>
@@ -1013,15 +1009,11 @@ export function ArchitecturePage() {
             Storage
           </h3>
           <ol className="arch-rail-rows">
-            <RailRow accent="kept" badge="Store" title="Databricks App to Lakebase (Postgres)">
-              Conversations and messages, written by the app as it serves. Never read to answer.
-            </RailRow>
+            <RailRow accent="kept" badge="Store" title="Databricks App to Lakebase (Postgres)" />
             {/* Two clauses rather than one sentence with an em-dashed aside in
                 the middle of it. §7 has no em dash in it, and the list this one
                 interrupted itself to give reads better as its own sentence. */}
-            <RailRow accent="kept" badge="Trace" title="Orchestrator to MLflow experiment">
-              The trace of each run lands here: tools called, SQL, timings. It is what the Run Explorer reads.
-            </RailRow>
+            <RailRow accent="kept" badge="Trace" title="Orchestrator to MLflow experiment" />
           </ol>
         </section>
       </div>

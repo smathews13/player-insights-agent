@@ -741,6 +741,7 @@ describe('the drawing is reachable and readable without seeing it', () => {
       // it: a reader holding this rail against a run in the Run Explorer is
       // comparing two strings, and a friendly paraphrase would not match.
       expect(rail, stage.stage).toContain(`data-stage="${stage.stage}"`);
+      expect(rail, `${stage.stage} lecture`).not.toContain(stage.body);
     }
     for (let index = 1; index < AGENT_CHAIN.length; index += 1) {
       expect(
@@ -766,6 +767,7 @@ describe('the drawing is reachable and readable without seeing it', () => {
     for (const section of ANSWER_CONTRACT) {
       expect(contract, section.field).toContain(section.field);
       expect(text(contract), section.label).toContain(section.label);
+      expect(text(contract), `${section.field} lecture`).not.toContain(section.body);
     }
     // `derivation` and `sources` carry no Optional badge, because there is no switch
     // for them: a figure without the source it came from is the one thing the

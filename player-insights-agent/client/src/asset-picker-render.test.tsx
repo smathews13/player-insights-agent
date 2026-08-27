@@ -327,10 +327,8 @@ describe('what an editor puts on screen for a field', () => {
     expect(field('max-output-tokens')).toBe('');
   });
 
-  it('says the denylist takes patterns, which no list of tables can offer', () => {
-    expect(text(field('catalog-denylist'))).toContain('may be a pattern');
-    // And says it nowhere else, because nowhere else is typing more than a
-    // fallback.
+  it('lets the denylist type box name a pattern', () => {
+    expect(text(field('catalog-denylist'))).toContain('Or type a table name or a pattern');
     expect(text(field('catalog-allowlist'))).not.toContain('may be a pattern');
   });
 

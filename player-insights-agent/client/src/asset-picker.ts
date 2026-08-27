@@ -137,9 +137,7 @@ const SPECS: readonly AssetPickerSpec[] = [
     multi: true,
     title: 'Tables your sign-in can see',
     typeLabel: 'Or type a table name or a pattern',
-    typeNote:
-      'An entry may be a pattern, and no list of tables that exist today can offer one. ' +
-      'Type it to exclude more than one table at a time.',
+    typeNote: '',
   },
   {
     field: 'genie-data',
@@ -193,9 +191,7 @@ const SPECS: readonly AssetPickerSpec[] = [
     multi: false,
     title: 'Lakebase databases your sign-in can see',
     typeLabel: 'Or type projects/.../branches/.../databases/...',
-    typeNote:
-      'The live row shows LAKEBASE_ENDPOINT (a hostname). An intended value here is the ' +
-      'full database resource name the next app release should bind.',
+    typeNote: '',
   },
   {
     field: 'assets-volume',
@@ -204,10 +200,7 @@ const SPECS: readonly AssetPickerSpec[] = [
     multi: false,
     title: 'Volumes your sign-in can see',
     typeLabel: 'Or type a volume name (var.volume is the leaf name)',
-    typeNote:
-      'Apps has no volumes browse scope of its own. This list rides the same catalog ' +
-      'permissions that open catalogs and schemas; if the workspace refuses the volume ' +
-      'list, type the leaf name used by var.volume.',
+    typeNote: '',
   },
   {
     field: 'semantic-index-endpoint',
@@ -234,9 +227,7 @@ const SPECS: readonly AssetPickerSpec[] = [
     multi: false,
     title: 'MLflow experiments',
     typeLabel: 'Type the experiment id',
-    typeNote:
-      'Databricks Apps has no MLflow scope to forward, so this list cannot be browsed as you. ' +
-      'The Connections check still reads the experiment as the application.',
+    typeNote: '',
   },
 ];
 
@@ -663,10 +654,7 @@ export const BROWSE_UNAVAILABLE_CHIP = 'Not carried';
  *
  * The first clause is the one that keeps the prompt from reading as a fault.
  */
-export const BROWSE_GRANT_ACTION =
-  'It stays optional: nothing a question needs is short. To turn browsing on, the app has to ask ' +
-  'for this permission in its user_api_scopes, and a sign-in taken before it did has to be taken ' +
-  'again in a private window.';
+export const BROWSE_GRANT_ACTION = '';
 
 /**
  * The fallback, said as a fallback and not as a verdict about the workspace.

@@ -165,7 +165,6 @@ export function ApplyDeclarationCard({
         <li>Approve the release request.</li>
         <li>Run the copied notebook cell.</li>
       </ol>
-      <p className="plane-card-note">Outcome: a new model version with these settings, ready for deployment.</p>
 
       {error ? <p className="plane-card-error">{error}</p> : null}
 

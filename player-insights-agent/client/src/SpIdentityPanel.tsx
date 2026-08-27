@@ -95,11 +95,9 @@ export function SpIdentityEditor({
   return (
     <fieldset className="sp-identity-cluster" disabled={!enabled} data-testid="sp-identity-pane">
       <legend className="runtime-section-label">Service principal personas</legend>
-      <p className="settings-row-note">
-        {enabled
-          ? 'Each named identity is a Databricks service principal this app may run as. Assign one per person. People without an assignment still use OAuth.'
-          : 'Turn SP identities on under Experimental to edit these. Until then, everyone still runs as themselves over OAuth.'}
-      </p>
+      {!enabled ? (
+        <p className="settings-row-note">Turn SP identities on under Experimental</p>
+      ) : null}
       <MintingNotice minting={payload.minting} />
       {error ? (
         <p className="settings-status settings-error" role="alert">
@@ -211,14 +209,7 @@ export function SpIdentityEditor({
 
 function MintingNotice({ minting }: { minting: SpMintingStatus }) {
   const detail = minting.detail.trim();
-  if (!detail || detail === SP_IDENTITY_MINTING_UNAVAILABLE) return null;
-  if (minting.available) {
-    return (
-      <p className="settings-row-note" data-testid="sp-identity-minting">
-        {detail}
-      </p>
-    );
-  }
+  if (!detail || minting.available || detail === SP_IDENTITY_MINTING_UNAVAILABLE) return null;
   return (
     <p className="settings-status settings-error" role="status" data-testid="sp-identity-minting">
       {detail}
@@ -240,11 +231,7 @@ function AssignmentRows({
   onAssign: (email: string, personaId: string | null) => void;
 }) {
   if (roster.length === 0) {
-    return (
-      <p className="settings-row-note">
-        Nobody is on the roster yet, so there is nobody to assign. Add people under Roles first.
-      </p>
-    );
+    return null;
   }
   const known = new Set(personas.map((persona) => persona.id));
   return (

@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ConfigurationList,
   ConnectionRow,
-  GroupHint,
   ConnectionsCounts,
   DataCatalogsValue,
   CatalogDenylistValue,
@@ -261,27 +260,12 @@ describe('the headers that say what a section is', () => {
     expect(groups[0]?.title).not.toMatch(/checked/i);
   });
 
-  /**
-   * THE SENTENCE IS AN ELEMENT, NOT A `title` ATTRIBUTE, which is the whole
-   * reason this is asserted at all: `title` is pointer-only, so there would be
-   * no keystroke that reaches the explanation, and the release chip spent a
-   * release proving that failure mode.
-   */
-  it('explains Configuration in one sentence a reader can reach by keyboard', () => {
+  it('does not lecture under Connected resources or Configuration', () => {
     const markup = configurationHeader();
-    expect(markup).toContain('data-testid="connection-group-hint"');
-    expect(markup).toContain('role="tooltip"');
-    expect(markup).toContain('aria-describedby');
-    const sentence = text(markup).match(/These are the settings[^.]*\./)?.[0] ?? '';
-    expect(sentence).toContain('how the agent answers');
-    // One sentence, and none of the machinery the rows already name.
-    expect(sentence).not.toMatch(/\.ts|Lakebase schema|MLflow experiment/);
-  });
-
-  it('gives the hint a name of its own rather than reading the sentence out as one', () => {
-    const markup = render(<GroupHint label="Connected resources" hint="The live services this app is wired to." />);
-    expect(markup).toContain('aria-label="What Connected resources means"');
-    expect(text(markup)).toContain('The live services this app is wired to.');
+    expect(markup).not.toContain('data-testid="connection-group-hint"');
+    expect(markup).not.toContain('These are the settings');
+    expect(markup).not.toContain('how the agent answers');
+    expect(markup).not.toContain('These are the live services this app is wired to');
   });
 });
 

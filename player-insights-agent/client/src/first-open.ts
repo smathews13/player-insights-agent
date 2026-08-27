@@ -112,22 +112,9 @@ export interface FirstOpenReport {
  * dialog takes its accessible name from it.
  */
 export const IDENTITY_LABEL = 'You are signing in as';
-export const IDENTITY_CAPTION = 'Questions run under this identity.';
 export const OAUTH_BADGE = 'OAuth verified';
 export const SCOPES_HEADING = 'Required scopes';
 export const OPTIONAL_SCOPES_HEADING = 'Optional scopes';
-
-/**
- * One caption under each heading, in the identity card's voice.
- *
- * Required scopes are load-bearing for every question. Optional scopes unlock
- * Connections browsing and Lakebase; a deployment can omit any of them, and
- * workspace read is used for notebook browsing.
- */
-export const REQUIRED_SCOPES_NOTE =
-  'The app cannot answer questions without these: they power serving, SQL, and Genie.';
-export const OPTIONAL_SCOPES_NOTE =
-  'Questions still work without these; they unlock Connections browsing (catalogs, tables, notebooks, Vector Search) and Lakebase, and a deployment can omit any of them.';
 export const CONTINUE_LABEL = 'Continue';
 
 /**

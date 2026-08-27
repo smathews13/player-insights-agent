@@ -670,7 +670,7 @@ describe('cost honesty and coverage copy', () => {
 
   it('reports warehouse auto-stop without claiming this app can change it', () => {
     expect(warehouseAutoStopLine({ minutes: 5, readable: true })).toContain('5 minutes');
-    expect(warehouseAutoStopLine({ minutes: 5, readable: true })).toContain('does not change');
+    expect(warehouseAutoStopLine({ minutes: 5, readable: true })).not.toContain('does not change');
   });
 
   it('names tracked cost components rather than treating every tagged product as a tile', () => {

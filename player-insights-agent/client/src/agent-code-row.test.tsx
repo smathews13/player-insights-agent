@@ -17,8 +17,8 @@ describe('the agent code row', () => {
 
     expect(markup).toContain(`href="${VERSION_URL}"`);
     expect(markup).toContain('Open agent.py');
-    expect(markup).toContain('Version 3 of a_catalog.a_schema.an_agent is answering');
-    expect(markup).toContain('Artifacts tab');
+    expect(markup).toContain('Version 3 of a_catalog.a_schema.an_agent');
+    expect(markup).not.toContain('Artifacts tab');
   });
 
   it('leaves the app, as an external destination must', () => {
@@ -42,8 +42,7 @@ describe('the agent code row', () => {
 
     expect(markup).toContain('Open the model');
     expect(markup).not.toContain('Open agent.py');
-    expect(markup).toContain('registered agent model');
-    expect(markup).toContain('did not report which version is serving');
+    expect(markup).toContain('Version not reported');
   });
 
   // A dead link teaches people the page is decorative, so a name with nowhere to
@@ -52,7 +51,7 @@ describe('the agent code row', () => {
     const markup = draw({ model: MODEL, version: '3', url: '', versioned: false });
 
     expect(markup).not.toContain('<a ');
-    expect(markup).toContain('was not told which workspace it is in');
+    expect(markup).toContain('Workspace not reported');
   });
 
   it('says not set rather than drawing an empty row', () => {

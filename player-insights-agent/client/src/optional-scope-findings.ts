@@ -138,8 +138,7 @@ export const OPTIONAL_SCOPES_CHIP = 'Refused';
  * alone. Nothing failing is counted in it.
  */
 export function optionalScopeNote(count: number): string {
-  const population = count === 1 ? 'one check on this page' : `${count} checks on this page`;
-  return `${population} stopped over these before reaching the object. Questions do not need them, ` +
-    'the catalog and table listings here stay empty without them, and a deployment can leave them ' +
-    'out entirely.';
+  return count === 1
+    ? 'One check stopped before reaching the object.'
+    : `${count} checks stopped before reaching the object.`;
 }

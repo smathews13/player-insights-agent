@@ -85,8 +85,8 @@ export function DeclaredConnectionsCard({
     .replace(/^Or type (an?|a) /i, '')
     .replace(/^./, (letter) => letter.toUpperCase());
   const emptyBrowseNote = ['tables', 'catalogs', 'volumes'].includes(chosenKind.browse)
-    ? 'No catalogs are visible to this sign-in, usually because it has no Unity Catalog grants. You can still enter the name manually.'
-    : `No ${chosenKind.label.toLowerCase()} are visible to this sign-in. You can still enter the identifier manually.`;
+    ? 'No catalogs are visible.'
+    : `No ${chosenKind.label.toLowerCase()} are visible.`;
   // Only workspace-minted hexadecimal ids need a second, human-facing name.
   // A table, catalog, volume, index or endpoint already carries a readable name
   // in its identifier, so showing another blank name box asks for the same fact

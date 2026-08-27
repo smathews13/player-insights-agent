@@ -125,12 +125,8 @@ export function storageBannerNotice(health: StorageHealth | null): BannerNotice 
     return {
       tone: 'neutral',
       heading: 'Nothing stored yet.',
-      detail:
-        'Lakebase is connected and answering, and holds no conversations, runs or benchmark results yet. ' +
-        'Ask a question and it starts filling.',
-      reasoning:
-        'The lists below are empty because there is nothing in them yet, which is what a fresh deployment ' +
-        'looks like.',
+      detail: 'Lakebase is connected and answering, and holds no conversations, runs or benchmark results yet.',
+      reasoning: null,
       remedy: null,
       remedyNote: null,
     };
