@@ -639,16 +639,23 @@ if [[ "$SKIP_LOG" != true ]]; then
   # API — do not retry blindly.
   LOG_STDOUT="$(mktemp "${TMPDIR:-/tmp}/pia-log-model.XXXXXX")"
   on_exit "rm -f '$LOG_STDOUT'"
+  set +e
   (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python log_model.py "${LOG_ARGS[@]+"${LOG_ARGS[@]}"}" > "$LOG_STDOUT")
+  LOG_STATUS=$?
+  set -e
   LOG_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/pia-log-summary.XXXXXX")"
   on_exit "rm -f '$LOG_SUMMARY'"
   if ! MODEL_VERSION="$(python3 "$BUNDLE_ROOT/bundle/read-log-summary.py" --write "$LOG_SUMMARY" "$LOG_STDOUT")"; then
-    die "Could not read model_version from log_model.py stdout.
+    die "Could not read model_version from log_model.py stdout (log_model.py exited ${LOG_STATUS}).
 
 The model may already have been registered. Check before retrying — a retry that
 logs again is how duplicate versions appear when the release had in fact worked:
 
   databricks api get \"/api/2.1/unity-catalog/models/${MODEL_NAME}/versions\" --profile '$PROFILE'"
+  fi
+  if [[ "$LOG_STATUS" -ne 0 ]]; then
+    note "log_model.py exited $LOG_STATUS after registering version $MODEL_VERSION.
+Continuing to deploy that version rather than logging again."
   fi
   note "logged version $MODEL_VERSION"
 fi

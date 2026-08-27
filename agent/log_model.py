@@ -427,9 +427,6 @@ if version is None:
         "'prod' alias, because the alias would then point at some earlier run's version."
     )
 version = str(version)
-client = MlflowClient(registry_uri="databricks-uc")
-client.set_registered_model_tag(model_name, "astrolabe", "true")
-client.set_registered_model_alias(model_name, "prod", version)
 print(
     json.dumps(
         {
@@ -445,3 +442,16 @@ print(
         }
     )
 )
+# Alias and tag are signposts. The version is already registered; a 401 here
+# used to look like a failed log, which is how a successful registration got
+# retried into duplicate versions. Deploy uses the version number, not the alias.
+client = MlflowClient(registry_uri="databricks-uc")
+try:
+    client.set_registered_model_tag(model_name, "astrolabe", "true")
+    client.set_registered_model_alias(model_name, "prod", version)
+except Exception as error:  # noqa: BLE001 - the version exists; the alias is a signpost
+    print(
+        f"WARNING: registered version {version} but could not set the prod alias "
+        f"({error}). Deploy by --model-version {version}; do not log again.",
+        file=sys.stderr,
+    )

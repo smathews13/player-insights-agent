@@ -125,3 +125,6 @@ def test_agent_release_tags_model_and_endpoint() -> None:
     assert "--endpoint-name or PLAYER_INSIGHTS_ENDPOINT is required" in deploy
     assert "splitlines()[-1]" not in release
     assert "read-log-summary.py" in release
+    assert "LOG_STATUS" in release
+    log = (ROOT / "agent" / "log_model.py").read_text()
+    assert log.index('"model_version": version') < log.index("set_registered_model_alias")
