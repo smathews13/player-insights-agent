@@ -159944,7 +159944,63 @@ var init_databricks_links = __esm({
 var REPRESENTATIVE_ANSWER_CAVEAT;
 var init_representative_answer = __esm({
   "shared/representative-answer.ts"() {
-    REPRESENTATIVE_ANSWER_CAVEAT = "No MLflow trace was recorded for this answer, so the figures, SQL, and stage timings shown here cannot be traced back to the run that produced them.";
+    REPRESENTATIVE_ANSWER_CAVEAT = "No MLflow trace was recorded for this answer, so it cannot be opened in MLflow.";
+  }
+});
+
+// shared/mlflow-trace-id.ts
+function isMlflowTraceId(value) {
+  return typeof value === "string" && MLFLOW_TRACE_ID.test(value.trim());
+}
+function servingMlflowTraceId(payload) {
+  for (const candidate of servingTraceCandidates(payload)) {
+    const text20 = typeof candidate === "string" ? candidate.trim() : "";
+    if (isMlflowTraceId(text20)) return text20;
+  }
+  return "";
+}
+function servingTraceCandidates(payload) {
+  if (!payload || typeof payload !== "object") return [];
+  const record2 = payload;
+  const buckets = [record2.databricks_output, record2];
+  for (const key2 of ["data", "response", "result", "body"]) {
+    const nested = record2[key2];
+    if (nested && typeof nested === "object") {
+      const inner = nested;
+      buckets.push(inner.databricks_output, inner);
+    }
+  }
+  const found = [];
+  for (const bucket of buckets) {
+    if (!bucket || typeof bucket !== "object") continue;
+    const row2 = bucket;
+    found.push(row2.databricks_request_id, row2.trace_id, row2.traceId, row2.mlflow_trace_id);
+  }
+  return found;
+}
+function bindServingMlflowTraceId(answer, platformTraceId) {
+  if (isMlflowTraceId(answer.trace.id) || !isMlflowTraceId(platformTraceId)) return answer;
+  return { ...answer, trace: { ...answer.trace, id: platformTraceId } };
+}
+function withoutUntracedProcess(answer) {
+  if (isMlflowTraceId(answer.trace.id)) return answer;
+  const stages = answer.trace.stages;
+  const hasProcess = Array.isArray(stages) && stages.length > 0 || Boolean(answer.trace.totalMs) || Boolean(answer.trace.toolCalls);
+  if (!hasProcess) return answer;
+  return {
+    ...answer,
+    trace: {
+      ...answer.trace,
+      stages: [],
+      totalMs: 0,
+      toolCalls: 0
+    }
+  };
+}
+var MLFLOW_TRACE_ID;
+var init_mlflow_trace_id = __esm({
+  "shared/mlflow-trace-id.ts"() {
+    MLFLOW_TRACE_ID = /^tr-[0-9a-f]+$/i;
   }
 });
 
@@ -160145,6 +160201,7 @@ function foldRecordedStages(stages) {
   };
 }
 function attachRecordedStages(answer, recorded2) {
+  if (!isMlflowTraceId(answer.trace.id)) return answer;
   if ((answer.trace.stages?.length ?? 0) > 0 || recorded2.length === 0) return answer;
   const folded = foldRecordedStages(recorded2);
   return {
@@ -160242,6 +160299,7 @@ function stageCount(trace2) {
 var PROSE_ONLY_ANSWER_CAVEAT, PROSE_ONLY_FALLBACK_TAKEAWAY, CANNED_FIRST_LINE, TAKEAWAY_LIMIT, PROSE_SECTIONS, CAVEAT_SECTIONS, LEAD_IN;
 var init_prose_only_answer = __esm({
   "shared/prose-only-answer.ts"() {
+    init_mlflow_trace_id();
     init_run_verdict();
     init_setup_remedies();
     PROSE_ONLY_ANSWER_CAVEAT = `${DEGRADED_ANSWER_MARKER} no structured result arrived and no tool steps were recorded.`;
@@ -169986,6 +170044,7 @@ async function* toChunks(body) {
 async function consumeServingStream(body, onStage) {
   const output = [];
   let customOutputs2 = null;
+  let databricksOutput = null;
   let stages = 0;
   let announced = 0;
   try {
@@ -170006,6 +170065,10 @@ async function consumeServingStream(body, onStage) {
       if (event.custom_outputs && typeof event.custom_outputs === "object") {
         customOutputs2 = event.custom_outputs;
       }
+      const platform = event.databricks_output;
+      if (platform && typeof platform === "object") {
+        databricksOutput = platform;
+      }
     }
   } catch (error48) {
     if (customOutputs2 === null && output.length === 0) {
@@ -170021,7 +170084,11 @@ async function consumeServingStream(body, onStage) {
   if (customOutputs2 === null && output.length === 0) {
     throw new TruncatedStreamError(stages, announced);
   }
-  return { output, custom_outputs: customOutputs2 ?? {} };
+  return {
+    output,
+    custom_outputs: customOutputs2 ?? {},
+    ...databricksOutput ? { databricks_output: databricksOutput } : {}
+  };
 }
 var TruncatedStreamError;
 var init_serving_stream = __esm({
@@ -170337,6 +170404,7 @@ __export(insights_routes_exports, {
   agentEndpointMetadataCheck: () => agentEndpointMetadataCheck,
   applySchema: () => applySchema,
   benchmarkRunTrace: () => benchmarkRunTrace,
+  bindServingMlflowTraceId: () => bindServingMlflowTraceId,
   bootMigrationMode: () => bootMigrationMode,
   buildAskServingBody: () => buildAskServingBody,
   buildServingHistory: () => buildServingHistory,
@@ -170356,6 +170424,7 @@ __export(insights_routes_exports, {
   identityPayload: () => identityPayload,
   invokeServing: () => invokeServing,
   invokeServingAsUser: () => invokeServingAsUser,
+  isMlflowTraceId: () => isMlflowTraceId,
   mlflowReference: () => mlflowReference,
   overallStatus: () => overallStatus,
   preflightFailure: () => preflightFailure,
@@ -170365,12 +170434,14 @@ __export(insights_routes_exports, {
   resolveSharedConversationRail: () => resolveSharedConversationRail,
   schemaStatements: () => schemaStatements,
   servingInvocationPath: () => servingInvocationPath,
+  servingMlflowTraceId: () => servingMlflowTraceId,
   setupInsightsRoutes: () => setupInsightsRoutes,
   sharedConversationRail: () => sharedConversationRail,
   undeclaredAnswerKeys: () => undeclaredAnswerKeys,
   undeclaredPlanKeys: () => undeclaredPlanKeys,
   userEmail: () => userEmail,
   withStorageCheck: () => withStorageCheck,
+  withoutUntracedProcess: () => withoutUntracedProcess,
   workspaceServingTransport: () => workspaceServingTransport
 });
 function keysOutsideShape(value, shape, prefix) {
@@ -170407,6 +170478,9 @@ function undeclaredPlanKeys(plan) {
 async function callerReadsEveryRun(store, email3) {
   const { role } = await resolveRole(store, email3);
   return opensAdminSurfaces(role);
+}
+function asServedAnswer(answer) {
+  return { ...answer, mode: "live" };
 }
 function describePayloadShape(value) {
   if (value === null || typeof value !== "object") return `the endpoint returned ${typeof value}`;
@@ -170445,21 +170519,21 @@ function appWarehouseId() {
   return (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
 }
 function mlflowReference(traceId, experimentId) {
-  if (!MLFLOW_TRACE_ID.test(traceId)) return null;
+  if (!isMlflowTraceId(traceId)) return null;
   const named = experimentId.trim();
   const host2 = workspaceHost();
   const url2 = named && host2 ? `${host2}/ml/experiments/${encodeURIComponent(named)}/traces?selectedEvaluationId=${encodeURIComponent(traceId)}` : null;
   return { traceId, experimentId: named || null, url: url2 };
 }
 function discloseAnswerProvenance(answer) {
-  if (MLFLOW_TRACE_ID.test(answer.trace.id)) return answer;
+  if (isMlflowTraceId(answer.trace.id)) return answer;
   if (!carriesEvidence(answer)) return answer;
   if (answer.caveats.includes(REPRESENTATIVE_ANSWER_CAVEAT)) return answer;
   return { ...answer, caveats: [REPRESENTATIVE_ANSWER_CAVEAT, ...answer.caveats] };
 }
 function discloseExecutingIdentity(answer, ranAsSignedInUser) {
   if (ranAsSignedInUser) return answer;
-  if (!MLFLOW_TRACE_ID.test(answer.trace.id)) return answer;
+  if (!isMlflowTraceId(answer.trace.id)) return answer;
   if (answer.caveats.includes(SERVICE_PRINCIPAL_FALLBACK_CAVEAT)) return answer;
   return { ...answer, caveats: [SERVICE_PRINCIPAL_FALLBACK_CAVEAT, ...answer.caveats] };
 }
@@ -170524,6 +170598,8 @@ function conversationRunTrace(row2, experimentId) {
     const clarification = ClarificationSchema.safeParse(record2.clarification);
     const asked = clarification.success ? TraceDetailSchema.safeParse(clarification.data.trace) : null;
     if (clarification.success && asked?.success) {
+      const recorded3 = isMlflowTraceId(asked.data.id);
+      const process4 = recorded3 ? asked.data : { ...asked.data, stages: [], totalMs: 0, toolCalls: 0 };
       return {
         ...identity,
         state: "trace",
@@ -170532,15 +170608,12 @@ function conversationRunTrace(row2, experimentId) {
         narrative: clarification.data.reason,
         sql: "",
         sources: [],
-        // A clarification carries no caveats and none are invented for it: the
-        // turn produced a question rather than a figure, so there is nothing here
-        // for a caveat to qualify.
         caveats: [],
-        trace: asked.data,
-        toolStages: toolStagesFromTrace(asked.data.stages),
-        mlflow: mlflowReference(asked.data.id, experimentId),
+        trace: process4,
+        toolStages: recorded3 ? toolStagesFromTrace(asked.data.stages) : [],
+        mlflow: recorded3 ? mlflowReference(asked.data.id, experimentId) : null,
         benchmark: null,
-        note: "This turn ended in a question back to the user rather than an answer, so the stages stop where it asked.",
+        note: recorded3 ? "This turn ended in a question back to the user rather than an answer, so the stages stop where it asked." : "No MLflow trace was recorded for this turn, so there is no run timeline to show.",
         undeclaredKeys: [],
         runtimeUsed
       };
@@ -170563,6 +170636,8 @@ function conversationRunTrace(row2, experimentId) {
       runtimeUsed
     );
   }
+  const recorded2 = isMlflowTraceId(trace2.data.id);
+  const process3 = recorded2 ? trace2.data : { ...trace2.data, stages: [], totalMs: 0, toolCalls: 0 };
   return {
     ...identity,
     state: "trace",
@@ -170582,11 +170657,11 @@ function conversationRunTrace(row2, experimentId) {
     // half-shaped one read straight off a drifted record would render as a
     // labelled fact with nothing beside the label.
     ...answer.success && answer.data.derivation.length > 0 ? { derivation: answer.data.derivation } : {},
-    trace: trace2.data,
-    toolStages: toolStagesFromTrace(trace2.data.stages),
-    mlflow: mlflowReference(trace2.data.id, experimentId),
+    trace: process3,
+    toolStages: recorded2 ? toolStagesFromTrace(trace2.data.stages) : [],
+    mlflow: recorded2 ? mlflowReference(trace2.data.id, experimentId) : null,
     benchmark: null,
-    note: mode === "representative" ? "This run was answered offline from the representative dataset, so these are reference stages rather than a live agent run." : "",
+    note: !recorded2 ? "No MLflow trace was recorded for this answer, so there is no run timeline to show." : mode === "representative" ? "This run was answered offline from the representative dataset, so these are reference stages rather than a live agent run." : "",
     undeclaredKeys: answer.success ? undeclaredAnswerKeys(answer.data) : [],
     runtimeUsed
   };
@@ -172154,10 +172229,13 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         }
         const clarification = extractClarification(endpointResult);
         if (clarification) {
+          const honestClarification = withoutUntracedProcess(
+            bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
+          );
           const clarificationResponse = {
             type: "clarification",
             mode: "live",
-            clarification
+            clarification: honestClarification
           };
           await safeQuery(
             appkit,
@@ -172172,13 +172250,13 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
               "assistant",
               clarification.question,
               JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
-              clarification.trace.id,
+              honestClarification.trace.id,
               ...executionIdentityColumns(email3, executionIdentityClaim(identity))
             ]
           );
           await settleRun(appkit, admission, {
             to: "CLARIFICATION_REQUIRED",
-            traceId: clarification.trace.id,
+            traceId: honestClarification.trace.id,
             messageId: `msg-${clarification.id}`
           });
           reply.json(clarificationResponse);
@@ -172186,14 +172264,27 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         }
         const structuredAnswer = extractStructuredAnswer(endpointResult);
         const liveText = extractLiveText(endpointResult);
+        const platformTraceId = servingMlflowTraceId(endpointResult);
         if (structuredAnswer) {
-          answer = attachRecordedStages({ ...structuredAnswer, mode: "live", provenance: "live" }, collectedStages);
+          const withPlatform = bindServingMlflowTraceId(
+            { ...structuredAnswer, mode: "live", provenance: "live" },
+            platformTraceId
+          );
+          answer = asServedAnswer(attachRecordedStages(withPlatform, collectedStages));
         } else if (liveText) {
-          answer = {
-            ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
-            mode: "live",
-            provenance: "live"
-          };
+          answer = asServedAnswer(
+            attachRecordedStages(
+              bindServingMlflowTraceId(
+                {
+                  ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
+                  mode: "live",
+                  provenance: "live"
+                },
+                platformTraceId
+              ),
+              collectedStages
+            )
+          );
         } else {
           const shape = describePayloadShape(endpointResult);
           console.error(
@@ -172320,7 +172411,10 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         );
         return;
       }
-      const disclosed = discloseExecutingIdentity(discloseAnswerProvenance(answer), ranAsSignedInUser);
+      const disclosed = discloseExecutingIdentity(
+        withoutUntracedProcess(discloseAnswerProvenance(answer)),
+        ranAsSignedInUser
+      );
       const persisted = await readStored(
         appkit,
         "POST /api/insights/ask (answer)",
@@ -172726,7 +172820,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, MLFLOW_TRACE_ID, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -172738,6 +172832,7 @@ var init_insights_routes = __esm({
     init_migrations();
     init_databricks_links();
     init_representative_answer();
+    init_mlflow_trace_id();
     init_conversation_title();
     init_repair_conversation_titles();
     init_prose_only_answer();
@@ -172787,6 +172882,7 @@ var init_insights_routes = __esm({
     init_execution_identity();
     init_access_verification();
     init_representative_answer();
+    init_mlflow_trace_id();
     schemaStatements = [
       `CREATE SCHEMA IF NOT EXISTS ${APP_SCHEMA}`,
       `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.conversations (id TEXT PRIMARY KEY, user_email TEXT NOT NULL, title TEXT NOT NULL,
@@ -173222,7 +173318,6 @@ var init_insights_routes = __esm({
         })
       }).nullable().default(null)
     });
-    MLFLOW_TRACE_ID = /^tr-[0-9a-f]+$/i;
     RUN_TRACE_MESSAGE_QUERY = `
   SELECT m.id, m.conversation_id, m.created_at, m.response_json, m.trace_id,
          c.user_email AS stakeholder,

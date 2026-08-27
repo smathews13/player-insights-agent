@@ -716,6 +716,16 @@ async function callerReadsEveryRun(store: InsightsAppKit['lakebase'], email: str
  */
 type ServedAnswer = LiveAnswer & { mode: 'live' };
 
+/**
+ * Pin `mode: 'live'` after spreading a parsed LiveAnswer.
+ *
+ * Zod infers `mode` as `string`, so `{ ...structuredAnswer, mode: 'live' }`
+ * still types as `mode: string` and cannot be assigned to ServedAnswer.
+ */
+function asServedAnswer(answer: LiveAnswer): ServedAnswer {
+  return { ...answer, mode: 'live' } as ServedAnswer;
+}
+
 /** The shape of a payload, for a log line and a caveat, without its contents. */
 function describePayloadShape(value: unknown): string {
   if (value === null || typeof value !== 'object') return `the endpoint returned ${typeof value}`;
@@ -4414,7 +4424,7 @@ export function setupInsightsRoutes(
             { ...structuredAnswer, mode: 'live', provenance: 'live' },
             platformTraceId
           );
-          answer = attachRecordedStages(withPlatform, collectedStages);
+          answer = asServedAnswer(attachRecordedStages(withPlatform, collectedStages));
         } else if (liveText) {
           // The endpoint replied in prose and sent no result contract. Its
           // words are kept and nothing is put under them -- except the steps
@@ -4434,16 +4444,18 @@ export function setupInsightsRoutes(
           // `provenance` is 'live' and that is not a downgrade of the claim: it
           // means every reader-facing part came from this run, which is now
           // true here because there are no parts that did not.
-          answer = attachRecordedStages(
-            bindServingMlflowTraceId(
-              {
-                ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
-                mode: 'live',
-                provenance: 'live',
-              },
-              platformTraceId
-            ),
-            collectedStages
+          answer = asServedAnswer(
+            attachRecordedStages(
+              bindServingMlflowTraceId(
+                {
+                  ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
+                  mode: 'live',
+                  provenance: 'live',
+                },
+                platformTraceId
+              ),
+              collectedStages
+            )
           );
         } else {
           // Not a warning. The app and the model version have drifted apart,
