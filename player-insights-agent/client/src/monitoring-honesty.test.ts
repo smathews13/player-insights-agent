@@ -284,7 +284,9 @@ describe('run outcomes remain separate', () => {
 
 describe('a percentile under twenty runs becomes the slowest run', () => {
   it('labels the slowest run instead of naming a percentile', () => {
-    const tile = answerTimeTile([3_000, 9_000, 41_000, 84_000, 120_000]);
+    const durations = [3_000, 9_000, 41_000, 84_000, 120_000];
+    expect(durations.length).toBeLessThan(PERCENTILE_FLOOR);
+    const tile = answerTimeTile(durations);
 
     expect(tile.value).toBe('41.0s');
     expect(tile.tail).toContain('was the slowest run');
@@ -295,7 +297,7 @@ describe('a percentile under twenty runs becomes the slowest run', () => {
   });
 
   it('reports a real percentile once there are enough runs', () => {
-    const many = Array.from({ length: 40 }, (_value, index) => (index + 1) * 1_000);
+    const many = Array.from({ length: PERCENTILE_FLOOR }, (_value, index) => (index + 1) * 1_000);
     const tile = answerTimeTile(many);
 
     expect(tile.tail).toContain('at the 95th percentile');

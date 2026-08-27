@@ -162353,7 +162353,7 @@ function pocContractView(input) {
     scorerSet: scorerLine,
     target: `${targetKind} \xB7 ${identifier}`,
     snapshotHref: configurationSnapshotHref(snapshotId),
-    snapshotDetail: snapshotId ? `${snapshotId} \xB7 ${version4} \xB7 ${input.counts.cases} cases \xB7 ${scorerLine} \xB7 baseline ${input.contract.baselineRunId || "not set"} \xB7 candidate ${input.contract.candidateRunId || "not set"}` : "No configuration snapshot is saved until a judge run starts. This link stays on the Lab.",
+    snapshotDetail: snapshotId ? `${snapshotId} \xB7 ${version4} \xB7 ${input.counts.cases} cases \xB7 ${scorerLine} \xB7 baseline ${input.contract.baselineRunId || "not set"} \xB7 candidate ${input.contract.candidateRunId || "not set"}` : "",
     heldOutLocked: input.counts.heldOut > 0
   };
 }
