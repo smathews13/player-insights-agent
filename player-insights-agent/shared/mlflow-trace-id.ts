@@ -12,9 +12,27 @@
  * An invented link is worse than no link.
  */
 const MLFLOW_TRACE_ID = /^tr-[0-9a-f]+$/i;
+const MLFLOW_HEX32 = /^[0-9a-f]{32}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isMlflowTraceId(value: unknown): boolean {
   return typeof value === 'string' && MLFLOW_TRACE_ID.test(value.trim());
+}
+
+/**
+ * `tr-<hex>` if `value` is a real MLflow id, else empty.
+ *
+ * Accepts the prefixed form and a bare 32-char hex (what a LiveSpan stores).
+ * Refuses a UUID request id, a minted `trace-<uuid>`, and anything else.
+ */
+export function asMlflowTraceId(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const text = value.trim();
+  if (!text || text.toLowerCase().startsWith('trace-') || /NO_OP/i.test(text)) return '';
+  if (UUID.test(text)) return '';
+  if (MLFLOW_TRACE_ID.test(text)) return `tr-${text.slice(3).toLowerCase()}`;
+  if (MLFLOW_HEX32.test(text)) return `tr-${text.toLowerCase()}`;
+  return '';
 }
 
 /**
@@ -23,14 +41,13 @@ export function isMlflowTraceId(value: unknown): boolean {
  * The agent stamps `answer.trace.id` from the span it opened. On a streamed
  * serving call that span's contextvars can be gone by the time the id is read,
  * so the payload falls back to a local id while the platform still recorded a
- * real trace and put its id on `databricks_output`. Reading that field is how
- * the connector comes back; inventing a Review App URL from some other id is
- * not.
+ * real trace and put its id on the stream. `databricks_request_id` is often a
+ * UUID, which is not that id. Stage events and `custom_outputs.trace_id` are.
  */
 export function servingMlflowTraceId(payload: unknown): string {
   for (const candidate of servingTraceCandidates(payload)) {
-    const text = typeof candidate === 'string' ? candidate.trim() : '';
-    if (isMlflowTraceId(text)) return text;
+    const recorded = asMlflowTraceId(candidate);
+    if (recorded) return recorded;
   }
   return '';
 }
@@ -38,12 +55,12 @@ export function servingMlflowTraceId(payload: unknown): string {
 function servingTraceCandidates(payload: unknown): unknown[] {
   if (!payload || typeof payload !== 'object') return [];
   const record = payload as Record<string, unknown>;
-  const buckets: unknown[] = [record.databricks_output, record];
+  const buckets: unknown[] = [record.custom_outputs, record.databricks_output, record];
   for (const key of ['data', 'response', 'result', 'body']) {
     const nested = record[key];
     if (nested && typeof nested === 'object') {
       const inner = nested as Record<string, unknown>;
-      buckets.push(inner.databricks_output, inner);
+      buckets.push(inner.custom_outputs, inner.databricks_output, inner);
     }
   }
   const found: unknown[] = [];
@@ -51,6 +68,13 @@ function servingTraceCandidates(payload: unknown): unknown[] {
     if (!bucket || typeof bucket !== 'object') continue;
     const row = bucket as Record<string, unknown>;
     found.push(row.databricks_request_id, row.trace_id, row.traceId, row.mlflow_trace_id);
+    const answer = row.answer;
+    if (answer && typeof answer === 'object') {
+      const trace = (answer as Record<string, unknown>).trace;
+      if (trace && typeof trace === 'object') {
+        found.push((trace as Record<string, unknown>).id);
+      }
+    }
   }
   return found;
 }
@@ -62,8 +86,9 @@ function servingTraceCandidates(payload: unknown): unknown[] {
  * a UUID request id cannot become a fake Open-in-MLflow link.
  */
 export function bindServingMlflowTraceId<T extends { trace: { id: string } }>(answer: T, platformTraceId: string): T {
-  if (isMlflowTraceId(answer.trace.id) || !isMlflowTraceId(platformTraceId)) return answer;
-  return { ...answer, trace: { ...answer.trace, id: platformTraceId } };
+  const recorded = asMlflowTraceId(platformTraceId);
+  if (isMlflowTraceId(answer.trace.id) || !recorded) return answer;
+  return { ...answer, trace: { ...answer.trace, id: recorded } };
 }
 
 /**

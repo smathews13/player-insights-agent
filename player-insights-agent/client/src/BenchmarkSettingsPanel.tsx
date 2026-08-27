@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   AGENT_JUDGE_IDS,
   MULTI_TURN_JUDGES,
@@ -7,12 +7,31 @@ import {
   type MultiTurnJudgeId,
 } from '../../shared/eval-dataset';
 import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
+import { ExperimentalStatus } from './ExperimentalBadge';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
 import { Input, Switch, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
 
 export const BENCHMARK_SETTINGS_FORM_ID = 'settings-benchmark-form';
+
+const AGENT_JUDGE_COPY: Record<AgentJudgeId, { label: string; help: string; aria: string }> = {
+  groundedness: {
+    label: 'Groundedness',
+    help: 'Stays in the tables it retrieved.',
+    aria: 'Groundedness judge',
+  },
+  relevance: {
+    label: 'Relevance',
+    help: 'Answers the question that was asked.',
+    aria: 'Relevance judge',
+  },
+  guidelines: {
+    label: 'Guidelines',
+    help: 'Follows the Guidelines text below.',
+    aria: 'Guidelines judge',
+  },
+};
 
 function toggleJudge(current: AgentJudgeId[], judge: AgentJudgeId, enabled: boolean): AgentJudgeId[] {
   const next = enabled ? [...new Set([...current, judge])] : current.filter((id) => id !== judge);
@@ -21,6 +40,59 @@ function toggleJudge(current: AgentJudgeId[], judge: AgentJudgeId, enabled: bool
 
 function toggleMultiTurn(current: MultiTurnJudgeId[], judge: MultiTurnJudgeId, enabled: boolean): MultiTurnJudgeId[] {
   return enabled ? [...new Set([...current, judge])] : current.filter((id) => id !== judge);
+}
+
+function SettingField({
+  label,
+  help,
+  helpId,
+  children,
+}: {
+  label: string;
+  help: string;
+  helpId: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="runtime-field runtime-field-wide">
+      <span className="runtime-field-label">{label}</span>
+      <span id={helpId} className="runtime-control-note">
+        {help}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function JudgeToggleRow({
+  name,
+  help,
+  on,
+  disabled,
+  ariaLabel,
+  onCheckedChange,
+}: {
+  name: string;
+  help: string;
+  on: boolean;
+  disabled: boolean;
+  ariaLabel: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <tr>
+      <td>
+        <span className="exp-feature-title">{name}</span>
+        <p className="runtime-control-note">{help}</p>
+      </td>
+      <td>
+        <ExperimentalStatus on={on} onLabel="On" offLabel="Off" />
+      </td>
+      <td className="exp-feature-control">
+        <Switch checked={on} disabled={disabled} onCheckedChange={onCheckedChange} aria-label={ariaLabel} />
+      </td>
+    </tr>
+  );
 }
 
 export function BenchmarkSettingsPanel({
@@ -120,12 +192,13 @@ export function BenchmarkSettingsPanel({
           <p className="settings-row-note">Turn Benchmarking on above to edit these.</p>
         ) : null}
 
-        <label className="runtime-field runtime-field-wide">
-          <span className="runtime-field-label">MLflow experiment</span>
+        <SettingField label="MLflow experiment" help="Experiment ID traces write to." helpId="bench-mlflow-help">
           <Input
             type="text"
             autoComplete="off"
             aria-label="MLflow experiment"
+            aria-describedby="bench-mlflow-help"
+            placeholder="1234567890123456"
             value={settings.experimentId}
             onChange={(event) => setSettings((current) => ({ ...current, experimentId: event.target.value }))}
           />
@@ -134,19 +207,55 @@ export function BenchmarkSettingsPanel({
               Open this experiment
             </a>
           ) : null}
-        </label>
+        </SettingField>
 
-        <div className="settings-row">
-          <div>
-            <p className="settings-row-label">Always-on traces · {settings.alwaysOnTraces ? 'On' : 'Off'}</p>
-          </div>
-          <Switch
-            checked={settings.alwaysOnTraces}
-            disabled={!enabled}
-            onCheckedChange={(checked) => setSettings((current) => ({ ...current, alwaysOnTraces: checked }))}
-            aria-label="Always-on traces"
+        <SettingField label="Judge model" help="Serving endpoint that scores answers." helpId="bench-judge-model-help">
+          <Input
+            type="text"
+            autoComplete="off"
+            aria-label="Judge model"
+            aria-describedby="bench-judge-model-help"
+            placeholder="databricks-claude-sonnet-4-5"
+            value={settings.judgeEndpoint}
+            onChange={(event) => setSettings((current) => ({ ...current, judgeEndpoint: event.target.value }))}
           />
-        </div>
+        </SettingField>
+
+        <table className="exp-feature-table">
+          <thead>
+            <tr>
+              <th scope="col">Setting</th>
+              <th scope="col">Status</th>
+              <th scope="col">Control</th>
+            </tr>
+          </thead>
+          <tbody>
+            <JudgeToggleRow
+              name="Always-on traces"
+              help="Write an MLflow trace for every Ask."
+              on={settings.alwaysOnTraces}
+              disabled={!enabled}
+              ariaLabel="Always-on traces"
+              onCheckedChange={(checked) => setSettings((current) => ({ ...current, alwaysOnTraces: checked }))}
+            />
+            {AGENT_JUDGE_IDS.map((judge) => (
+              <JudgeToggleRow
+                key={judge}
+                name={AGENT_JUDGE_COPY[judge].label}
+                help={AGENT_JUDGE_COPY[judge].help}
+                on={settings.enabledJudges.includes(judge)}
+                disabled={!enabled}
+                ariaLabel={AGENT_JUDGE_COPY[judge].aria}
+                onCheckedChange={(checked) =>
+                  setSettings((current) => ({
+                    ...current,
+                    enabledJudges: toggleJudge(current.enabledJudges, judge, checked),
+                  }))
+                }
+              />
+            ))}
+          </tbody>
+        </table>
 
         {settings.alwaysOnTraces && lastTrace ? (
           <p className="settings-row-note">
@@ -162,63 +271,34 @@ export function BenchmarkSettingsPanel({
           </p>
         ) : null}
 
-        <label className="runtime-field runtime-field-wide">
-          <span className="runtime-field-label">Judge model</span>
-          <Input
-            type="text"
-            autoComplete="off"
-            aria-label="Judge model"
-            value={settings.judgeEndpoint}
-            onChange={(event) => setSettings((current) => ({ ...current, judgeEndpoint: event.target.value }))}
-          />
-        </label>
-
-        {AGENT_JUDGE_IDS.map((judge) => (
-          <div className="settings-row" key={judge}>
-            <div>
-              <p className="settings-row-label">
-                {judge === 'groundedness' ? 'Groundedness' : judge === 'relevance' ? 'Relevance' : 'Guidelines'}
-                {' · '}
-                {settings.enabledJudges.includes(judge) ? 'On' : 'Off'}
-              </p>
-            </div>
-            <Switch
-              checked={settings.enabledJudges.includes(judge)}
-              disabled={!enabled}
-              onCheckedChange={(checked) =>
-                setSettings((current) => ({
-                  ...current,
-                  enabledJudges: toggleJudge(current.enabledJudges, judge, checked),
-                }))
-              }
-              aria-label={judge === 'groundedness' ? 'Groundedness judge' : judge === 'relevance' ? 'Relevance judge' : 'Guidelines judge'}
-            />
-          </div>
-        ))}
-
         <p className="runtime-section-label">Multi-turn judges</p>
-        {MULTI_TURN_JUDGES.map((judge) => (
-          <div className="settings-row" key={judge.id}>
-            <div>
-              <p className="settings-row-label">
-                {judge.label}
-                {' · '}
-                {settings.enabledMultiTurnJudges.includes(judge.id) ? 'On' : 'Off'}
-              </p>
-            </div>
-            <Switch
-              checked={settings.enabledMultiTurnJudges.includes(judge.id)}
-              disabled={!enabled}
-              onCheckedChange={(checked) =>
-                setSettings((current) => ({
-                  ...current,
-                  enabledMultiTurnJudges: toggleMultiTurn(current.enabledMultiTurnJudges, judge.id, checked),
-                }))
-              }
-              aria-label={judge.label}
-            />
-          </div>
-        ))}
+        <table className="exp-feature-table">
+          <thead>
+            <tr>
+              <th scope="col">Setting</th>
+              <th scope="col">Status</th>
+              <th scope="col">Control</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MULTI_TURN_JUDGES.map((judge) => (
+              <JudgeToggleRow
+                key={judge.id}
+                name={judge.label}
+                help={judge.note}
+                on={settings.enabledMultiTurnJudges.includes(judge.id)}
+                disabled={!enabled}
+                ariaLabel={judge.label}
+                onCheckedChange={(checked) =>
+                  setSettings((current) => ({
+                    ...current,
+                    enabledMultiTurnJudges: toggleMultiTurn(current.enabledMultiTurnJudges, judge.id, checked),
+                  }))
+                }
+              />
+            ))}
+          </tbody>
+        </table>
 
         <p className="runtime-section-label">Custom judges</p>
         {settings.customJudges.map((judge, index) => (
@@ -241,40 +321,48 @@ export function BenchmarkSettingsPanel({
             </button>
           </div>
         ))}
-        <label className="runtime-field runtime-field-wide">
-          <span className="runtime-field-label">Custom judge name</span>
+        <SettingField label="Custom judge name" help="Name shown in Lab." helpId="bench-custom-name-help">
           <Input
             type="text"
             autoComplete="off"
             aria-label="Custom judge name"
-            placeholder="e.g. english"
+            aria-describedby="bench-custom-name-help"
+            placeholder="english"
             value={customDraft.name}
             disabled={!enabled}
             onChange={(event) => setCustomDraft((current) => ({ ...current, name: event.target.value }))}
           />
-        </label>
-        <label className="runtime-field runtime-field-wide">
-          <span className="runtime-field-label">Custom judge guidelines</span>
+        </SettingField>
+        <SettingField
+          label="Custom judge guidelines"
+          help="Yes/no rule this judge scores."
+          helpId="bench-custom-guidelines-help"
+        >
           <Textarea
             aria-label="Custom judge guidelines"
+            aria-describedby="bench-custom-guidelines-help"
             rows={2}
-            placeholder="e.g. The response must be in English."
+            placeholder="The response must be in English."
             value={customDraft.guidelines}
             disabled={!enabled}
             onChange={(event) => setCustomDraft((current) => ({ ...current, guidelines: event.target.value }))}
           />
-        </label>
-        <label className="runtime-field runtime-field-wide">
-          <span className="runtime-field-label">Custom judge prompt</span>
+        </SettingField>
+        <SettingField
+          label="Custom judge prompt"
+          help="Optional. Use {{question}}, {{response}}, {{conversation}}."
+          helpId="bench-custom-prompt-help"
+        >
           <Textarea
             aria-label="Custom judge prompt"
+            aria-describedby="bench-custom-prompt-help"
             rows={3}
-            placeholder="Optional. What to score and how. Use {{question}}, {{response}}, {{conversation}}."
+            placeholder="Score whether the answer stays in English."
             value={customDraft.prompt}
             disabled={!enabled}
             onChange={(event) => setCustomDraft((current) => ({ ...current, prompt: event.target.value }))}
           />
-        </label>
+        </SettingField>
         <button
           type="button"
           className="tile-link"
@@ -293,39 +381,45 @@ export function BenchmarkSettingsPanel({
           Add this custom judge
         </button>
 
-        <label className="runtime-field runtime-field-wide">
-          <span className="runtime-field-label">Guidelines</span>
+        <SettingField
+          label="Guidelines"
+          help="Text the Guidelines judge scores against."
+          helpId="bench-guidelines-help"
+        >
           <Textarea
             aria-label="Guidelines"
+            aria-describedby="bench-guidelines-help"
             rows={3}
+            placeholder="Stay accurate, professional, and inside the governed data."
             value={settings.guidelinesText}
             onChange={(event) => setSettings((current) => ({ ...current, guidelinesText: event.target.value }))}
           />
-        </label>
+        </SettingField>
 
         <div className="benchmark-settings-compare">
           <p className="runtime-section-label">Baseline vs candidate</p>
-          <label className="runtime-field">
-            <span className="runtime-field-label">Baseline</span>
+          <SettingField label="Baseline" help="First serving endpoint Lab scores." helpId="bench-baseline-help">
             <Input
               type="text"
               autoComplete="off"
               aria-label="Compare side A"
+              aria-describedby="bench-baseline-help"
+              placeholder="current"
               value={settings.compareSideA}
               onChange={(event) => setSettings((current) => ({ ...current, compareSideA: event.target.value }))}
             />
-          </label>
-          <label className="runtime-field">
-            <span className="runtime-field-label">Candidate</span>
+          </SettingField>
+          <SettingField label="Candidate" help="Second endpoint to compare." helpId="bench-candidate-help">
             <Input
               type="text"
               autoComplete="off"
               aria-label="Compare side B"
-              placeholder="Optional second serving endpoint"
+              aria-describedby="bench-candidate-help"
+              placeholder="serving-endpoint-name"
               value={settings.compareSideB}
               onChange={(event) => setSettings((current) => ({ ...current, compareSideB: event.target.value }))}
             />
-          </label>
+          </SettingField>
         </div>
       </fieldset>
     </form>

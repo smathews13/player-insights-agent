@@ -3526,6 +3526,29 @@ describe('a canned answer discloses that no live query produced it', () => {
       await app.close();
     }
   });
+
+  it('binds a stream tr- id when the serving request id is a UUID', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const payload = JSON.parse(JSON.stringify(servingResponses.liveAnswerResponse)) as Record<string, unknown>;
+    const outputs = payload.custom_outputs as { answer: { trace: { id: string } }; trace_id?: string };
+    outputs.answer.trace.id = 'trace-local';
+    outputs.trace_id = 'tr-0123456789abcdef0123456789abcdef';
+    payload.databricks_output = { databricks_request_id: 'deadbeef-0000-4000-8000-000000000001' };
+    const app = await startInsightsApp(() => Promise.resolve(payload), memoryLakebase());
+
+    try {
+      const answered = await app.ask({
+        conversationId: 'conv-stream-trace',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+
+      expect((answered.trace as { id: string }).id).toBe('tr-0123456789abcdef0123456789abcdef');
+      expect((answered.trace as { stages: unknown[] }).stages.length).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 /**

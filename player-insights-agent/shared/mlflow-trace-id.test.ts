@@ -37,6 +37,27 @@ describe('servingMlflowTraceId', () => {
       })
     ).toBe('');
   });
+
+  it('binds a tr- from a stage event when the envelope request id is a UUID', () => {
+    expect(
+      servingMlflowTraceId({
+        custom_outputs: {
+          type: 'stage',
+          stage: { id: 'orchestrator' },
+          trace_id: 'tr-0123456789abcdef0123456789abcdef',
+        },
+        databricks_output: { databricks_request_id: 'deadbeef-0000-4000-8000-000000000001' },
+      })
+    ).toBe('tr-0123456789abcdef0123456789abcdef');
+  });
+
+  it('prefixes a bare 32-char hex from the envelope', () => {
+    expect(
+      servingMlflowTraceId({
+        databricks_output: { trace_id: '0123456789abcdef0123456789abcdef' },
+      })
+    ).toBe('tr-0123456789abcdef0123456789abcdef');
+  });
 });
 
 describe('bindServingMlflowTraceId', () => {

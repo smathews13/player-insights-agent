@@ -159,6 +159,39 @@ describe('consumeServingStream', () => {
     expect(result.databricks_output).toEqual({ databricks_request_id: 'tr-0123456789abcdef0123456789abcdef' });
   });
 
+  it('keeps a tr- id from a stage event when the final envelope request id is a UUID', async () => {
+    const body = bodyOf([
+      `data: ${JSON.stringify({
+        type: 'response.output_item.done',
+        item: { id: 'stage-step-1', type: 'message', role: 'assistant' },
+        custom_outputs: {
+          type: 'stage',
+          stage: {
+            id: 'step-1',
+            name: 'Chose the next step',
+            kind: 'tool',
+            status: 'complete',
+            start: 0,
+            duration: 12,
+            calls: 1,
+          },
+          trace_id: 'tr-0123456789abcdef0123456789abcdef',
+        },
+      })}\n\n`,
+      `data: ${JSON.stringify({
+        type: 'response.output_item.done',
+        item: { id: 'response-msg-1', type: 'message', content: [{ type: 'output_text', text: 'Done.' }] },
+        custom_outputs: { type: 'answer', answer: { takeaway: 'VLH Online led.', trace: { id: 'trace-local' } } },
+        databricks_output: { databricks_request_id: 'deadbeef-0000-4000-8000-000000000001' },
+      })}\n\n`,
+    ]);
+
+    const result = await consumeServingStream(body, () => {});
+
+    expect(result.trace_id).toBe('tr-0123456789abcdef0123456789abcdef');
+    expect(result.databricks_output).toEqual({ databricks_request_id: 'deadbeef-0000-4000-8000-000000000001' });
+  });
+
   it('drops the flush events the agent writes to push each stage out', async () => {
     const stages: string[] = [];
     const body = bodyOf([

@@ -3,6 +3,8 @@
  * Events instead of one JSON body.
  */
 
+import { servingMlflowTraceId } from '../../shared/mlflow-trace-id';
+
 /** One `data:` payload, already parsed. Shapes beyond this are the caller's. */
 interface StreamEvent {
   type?: unknown;
@@ -16,6 +18,8 @@ export interface AssembledResponse {
   output: unknown[];
   custom_outputs: Record<string, unknown>;
   databricks_output?: Record<string, unknown>;
+  /** Harvested from any stream event that carried a real `tr-` id. */
+  trace_id?: string;
 }
 
 export type StageSink = (stage: Record<string, unknown>) => void;
@@ -185,12 +189,17 @@ export async function consumeServingStream(body: unknown,
   const output: unknown[] = [];
   let customOutputs: Record<string, unknown> | null = null;
   let databricksOutput: Record<string, unknown> | null = null;
+  let streamTraceId = '';
   let stages = 0;
   let announced = 0;
 
   try {
     for await (const event of sseEvents(body)) {
       if (isFlush(event)) continue;
+      // Stage events used to `continue` before this read, so a `tr-` that
+      // serving put on an early event (and a UUID on the final envelope) was
+      // dropped. Bind the first real id; a UUID request id is not one.
+      if (!streamTraceId) streamTraceId = servingMlflowTraceId(event);
       const stage = stageOf(event);
       if (stage) {
         // Both halves of the pair are forwarded: the live rail draws its row
@@ -239,5 +248,6 @@ export async function consumeServingStream(body: unknown,
     output,
     custom_outputs: customOutputs ?? {},
     ...(databricksOutput ? { databricks_output: databricksOutput } : {}),
+    ...(streamTraceId ? { trace_id: streamTraceId } : {}),
   };
 }
