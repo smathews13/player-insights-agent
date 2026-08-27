@@ -6,7 +6,7 @@ import {
   MATCHING_POLICY_REFERENCE,
 } from '../../shared/benchmark-lab-v3';
 import type { GenieAccuracyRunView } from '../../shared/eval-genie-run';
-import { GenieAccuracyResult, GenieStageControls } from './GenieAccuracyDiagnostics';
+import { GenieAccuracyDiagnostics, GenieAccuracyResult, GenieStageControls } from './GenieAccuracyDiagnostics';
 import type { EvaluationLabModel } from './use-evaluation-lab';
 import { EMPTY_LAB_STATE, labWorkspacePayload } from '../../shared/benchmark-lab-v3';
 
@@ -70,13 +70,13 @@ const RUN: GenieAccuracyRunView = {
 };
 
 describe('Genie accuracy diagnostics', () => {
-  it('names the run, matching policy, and per-case Pass Fail Excluded', () => {
+  it('names the run and per-case Pass Fail Excluded', () => {
     const markup = renderToStaticMarkup(<GenieAccuracyResult run={RUN} accuracyGateMinimum={0.9} />);
     const prose = readable(markup);
     expect(prose).toContain('run_lab1');
     expect(prose).toContain('ds_v001');
     expect(prose).toContain('complete suite');
-    expect(prose).toContain('executed-result equivalence');
+    expect(prose).not.toContain('executed-result equivalence');
     expect(prose).toContain('1 of 2 · below gate');
     expect(prose).toContain('Excluded');
     expect(prose).toContain('Pass');
@@ -88,7 +88,8 @@ describe('Genie accuracy diagnostics', () => {
     expect(prose).toContain('SELECT sessions');
     expect(prose).toContain('Wrong measure column');
     expect(markup).toContain('href="/runs?trace=conv-1"');
-    expect(prose).toContain('warehouse startup is not Genie-wrong');
+    expect(prose).not.toContain('warehouse startup is not Genie-wrong');
+    expect(prose).not.toContain('n of m + gate');
   });
 
   it('keeps complete suite as the primary action and states the missing-SQL gate', () => {
@@ -115,8 +116,39 @@ describe('Genie accuracy diagnostics', () => {
     const prose = readable(renderToStaticMarkup(<GenieStageControls lab={model} />));
     expect(prose).toContain('Run complete suite');
     expect(prose).toContain('Run partial suite');
-    expect(prose).toContain('matching · executed-result equivalence');
+    expect(prose).not.toContain('matching · executed-result equivalence');
     expect(prose).toContain('1 of 2 selected cases are missing SQL');
     expect(prose).not.toContain('Re-run last suite');
+    expect(prose).not.toContain('Complete suite is the customer-facing default');
+  });
+
+  it('keeps a quiet empty pane: tiles saying not set, no lecture, no empty table', () => {
+    const lab = labWorkspacePayload({ rows: [], state: EMPTY_LAB_STATE, enabledJudges: [] });
+    const model = {
+      lab,
+      lastGenieRun: null,
+      lastSuiteKind: 'complete',
+      spaces: [],
+      spaceId: '',
+      setSpaceId: () => {},
+      selectedIds: [],
+      notice: '24 matching turn(s). Ground-truth SQL stays blank until you write it.',
+      error: null,
+      busy: null,
+      runSuite: async () => {},
+      rerunLast: async () => {},
+    } as unknown as EvaluationLabModel;
+    const markup = renderToStaticMarkup(<GenieAccuracyDiagnostics lab={model} />);
+    const prose = readable(markup);
+    expect(prose).toContain('Genie accuracy diagnostics');
+    expect(prose).toContain('Matching policy reference');
+    expect(prose).toContain('not set');
+    expect(prose).not.toContain('No run id yet');
+    expect(prose).not.toContain('n of m + gate');
+    expect(prose).not.toContain('warehouse startup is not Genie-wrong');
+    expect(prose).not.toContain('Per-case pass');
+    expect(prose).not.toContain('Matching policy: executed-result equivalence');
+    expect(prose).not.toContain('24 matching turn');
+    expect(markup).not.toContain('<th>Case</th>');
   });
 });

@@ -44,10 +44,8 @@ import {
 } from '../../shared/benchmark-bakeoff';
 import {
   GOVERNANCE_FACT,
-  PARTIAL_RESULTS_FACT,
   RETRY_FAILED_NOTE,
   SPAN_KINDS,
-  STAGE_04_CAPTIONS,
   THIS_RUN_NEEDS,
   applyPreviewLine,
   tuningCellsFromCaseScores,
@@ -87,11 +85,11 @@ function LaneBlock({ title, metrics, extras }: { title: string; metrics: LaneMet
                   ? 'not set'
                   : `${displayValue(metric.baseline, metric.unit)} → ${displayValue(metric.candidate, metric.unit)}`}
               </strong>
-              <small className={`ast-num ${deltaClass}`}>
-                {missing || formatDelta(metric.baseline, metric.candidate, metric.unit) === '–'
-                  ? 'No comparison yet'
-                  : formatDelta(metric.baseline, metric.candidate, metric.unit)}
-              </small>
+              {!missing && formatDelta(metric.baseline, metric.candidate, metric.unit) !== '–' ? (
+                <small className={`ast-num ${deltaClass}`}>
+                  {formatDelta(metric.baseline, metric.candidate, metric.unit)}
+                </small>
+              ) : null}
             </div>
           );
         })}
@@ -186,7 +184,6 @@ export function BenchmarkJudgesStage({
           Retry failed cases
         </BenchButton>
       </div>
-      <p className="bench-gate">{PARTIAL_RESULTS_FACT}</p>
       {threadNote ? <p className="bench-caption">{threadNote}</p> : null}
     </>
   );
@@ -200,7 +197,6 @@ export function BenchmarkApplyStage({
   promptName,
   onPromptName,
   gateLabel,
-  caption,
   rollback,
   applying,
   applyNote,
@@ -220,7 +216,6 @@ export function BenchmarkApplyStage({
   promptName: string;
   onPromptName: (next: string) => void;
   gateLabel: string;
-  caption: string;
   rollback: string;
   applying: boolean;
   applyNote: string | null;
@@ -265,10 +260,6 @@ export function BenchmarkApplyStage({
         </div>
         <span className={astPill('neutral-outline', 'bench-chip ast-num')}>{gateLabel}</span>
       </div>
-      <p className="bench-gate">
-        {caption}
-        {target === 'rag_config' ? ' Hand off to the owning configuration.' : ''}
-      </p>
       {target === 'prompt_registry' ? (
         <label className="bench-caption">
           Prompt Registry name
@@ -310,7 +301,6 @@ export function BenchmarkApplyStage({
         </BenchButton>
       </div>
       {!canApply && applyBlockedReason ? <p className="bench-gate">{applyBlockedReason}</p> : null}
-      <p className="bench-gate">Connections unchanged.</p>
       <p className="bench-gate">{rollback}</p>
       {applyNote ? <p className="bench-caption">{applyNote}</p> : null}
     </>
@@ -342,7 +332,7 @@ export function BenchmarkBakeOffSurface({
     <LabSurface
       id="lab-run-comparison"
       title="Run comparison"
-      fact={`${comparison.changed}. No composite score.`}
+      fact={comparison.changed || undefined}
       actions={
         <div className="bench-btn-row">
           <BenchButton onClick={onExport}>Export evidence pack</BenchButton>
@@ -362,9 +352,6 @@ export function BenchmarkBakeOffSurface({
         <LaneBlock title="Trace lane" metrics={comparison.trace} />
       </div>
       <p className="bench-footnote">
-        {comparison.newlyFixed.length === 0 && comparison.newlyBroken.length === 0
-          ? 'Newly fixed and newly broken case chips land after a baseline and a candidate share a dataset version. Open the changed cases before applying.'
-          : null}
         {comparison.newlyFixed.map((entry) => (
           <button type="button" className="bench-chip-fixed ast-num" key={`fix-${entry.caseId}`} onClick={() => onInspect(entry.caseId)}>
             Newly fixed {entry.caseId}
@@ -380,7 +367,7 @@ export function BenchmarkBakeOffSurface({
       <div className="bench-compare-history">
         <p className="ast-eyebrow">Bake-off history</p>
         {history.length === 0 ? (
-          <p className="bench-caption">No bake-off history yet. Run a baseline and a candidate.</p>
+          <p className="bench-caption">No bake-off history yet</p>
         ) : (
           <ul>
             {history.map((line) => (
@@ -403,11 +390,7 @@ function spanDotClass(status: LabSpan['status']): string {
 
 export function SpanTree({ spans }: { spans: LabSpan[] }) {
   if (spans.length === 0) {
-    return (
-      <p className="bench-empty-row">
-        This case recorded no span durations. A benchmark suite is per-case runs, not one suite-wide tree.
-      </p>
-    );
+    return <p className="bench-empty-row">No span durations recorded</p>;
   }
   return (
     <ul className="bench-span-tree">
@@ -452,7 +435,6 @@ export function BenchmarkFailurePane({
     <LabSurface
       id="lab-failure"
       title="Failure investigation"
-      fact="every failed, provisional, skipped, or slow case opens its trace. Traces are governed evidence, not a debug dump."
       actions={<span className="bench-governance">{GOVERNANCE_FACT}</span>}
     >
       <div className={`bench-failure${selected ? ' is-open' : ''}`}>
@@ -509,11 +491,7 @@ export function BenchmarkFailurePane({
             ) : (
               <p className="bench-empty-row">Open MLflow when a trace id is recorded.</p>
             )}
-            <p className="bench-caption">
-              {selected.rationale
-                ? selected.rationale
-                : 'Judge rationale ends in the concrete fix once a case with a scored rationale is picked.'}
-            </p>
+            {selected.rationale ? <p className="bench-caption">{selected.rationale}</p> : null}
             <div className="bench-btn-row">
               <BenchButton variant="primary" onClick={onAddEdge}>
                 Add to dataset as edge case
@@ -524,9 +502,6 @@ export function BenchmarkFailurePane({
           </div>
         ) : (
           <div className="bench-failure-pane">
-            <header className="bench-failure-head">
-              <p className="bench-caption">Pick a failed, provisional, skipped, or slow case.</p>
-            </header>
             <div className="bench-span-legend">
               {SPAN_KINDS.map((kind) => (
                 <span className="bench-type-tag" key={kind}>
@@ -534,8 +509,6 @@ export function BenchmarkFailurePane({
                 </span>
               ))}
             </div>
-            <p className="bench-empty-row">Span tree, tokens, and cost land with the picked case.</p>
-            <p className="bench-caption">Judge rationale ends in the concrete fix.</p>
             <div className="bench-btn-row">
               <BenchButton variant="primary" disabled>
                 Add to dataset as edge case
@@ -684,7 +657,6 @@ export function useBenchmarkOps(input: {
     flywheel.labelingSession?.sessionId || ''
   );
   const askEndpoint = resolvePromoteEndpoint(candidateSide || sides[1] || '', input.currentAgentEndpoint);
-  const caption = STAGE_04_CAPTIONS[target];
   const applyPreview = applyPreviewLine({
     candidateRunId: candidate.runId || input.lastRunId || '',
     datasetVersionId: lab?.currentVersionId || '',
@@ -804,10 +776,7 @@ export function useBenchmarkOps(input: {
         },
       });
       input.setLab(result.lab);
-      const bits = [result.note || caption];
-      if (target === 'genie_space') bits.push('This app does not write space instructions.');
-      bits.push('Connections unchanged.');
-      setApplyNote(bits.join(' '));
+      setApplyNote([result.note, 'Connections unchanged.'].filter(Boolean).join(' '));
       setFlywheel(await loadFlywheel());
     } catch (error) {
       setApplyNote((error as Error).message);
@@ -929,7 +898,6 @@ export function useBenchmarkOps(input: {
     promptName,
     setPromptName,
     gateLabel: gateChip(candidate.runId || input.lastRunId, gates.passed, gates.total),
-    caption,
     rollback: rollbackCaption(flywheel.rollback),
     applying,
     applyNote,

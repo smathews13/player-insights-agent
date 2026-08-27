@@ -337,7 +337,7 @@ describe('POC contract and cancel honesty', () => {
     expect(view.dataset).toContain('1 held out');
     expect(view.snapshotHref).toBe('#lab-snapshot');
     expect(view.heldOutLocked).toBe(true);
-    expect(view.snapshotDetail).toContain('No configuration snapshot');
+    expect(view.snapshotDetail).toBe('');
     expect(view.passGates).toContain('Regressions are always shown');
     expect(view.passGates).toContain('No numeric thresholds set');
   });

@@ -136,8 +136,7 @@ export function traceLaneFromMetrics(metrics: LooseMetrics): TraceLaneInput {
   };
 }
 
-const ONE_GENIE_NOTE =
-  'One Genie suite is recorded. Run another after changing the space or instructions to compare.';
+const ONE_GENIE_NOTE = '';
 
 function emptyGenieLane(note: string): GenieLaneInput {
   return {

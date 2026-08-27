@@ -20,12 +20,12 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
   );
   const prose = readable(markup);
 
-  it('opens as Benchmark Lab with the in-tab jump the screenshot shows', () => {
+  it('opens as Benchmark Lab with the in-tab jump', () => {
     expect(markup).toContain('>Benchmark Lab<');
-    expect(prose).toContain('guided evaluation workspace');
-    expect(prose).toContain('judges and scorers picked in Settings');
     expect(markup).toContain('href="#lab-evaluation-set"');
     expect(prose).toContain('Dataset, diagnostics, comparison, and traces below');
+    expect(prose).not.toContain('guided evaluation workspace');
+    expect(prose).not.toContain('judges and scorers picked in Settings');
   });
 
   it('keeps the POC contract strip always visible with the six spec cells', () => {
@@ -33,7 +33,8 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
       expect(markup).toContain(`>${eyebrow}<`);
     }
     expect(prose).toContain('Genie accuracy + agent judges');
-    expect(prose).toContain('two lanes, one dataset');
+    expect(prose).not.toContain('two lanes, one dataset');
+    expect(prose).not.toContain('same cases, same scorers');
     expect(prose).toContain('3 active');
     expect(prose).not.toContain('run_057');
     expect(prose).not.toContain('v3');
@@ -67,7 +68,7 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
     expect(prose).toContain('Genie lane');
     expect(prose).toContain('Agent lane');
     expect(prose).toContain('Trace lane');
-    expect(prose).toContain('No composite score');
+    expect(prose).not.toContain('No composite score');
     expect(prose).not.toContain('composite score:');
   });
 
@@ -91,7 +92,7 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
       scorerSet: 'ss-1 · 0 active · 0 not applicable',
       target: 'Prompt Registry · not set',
       snapshotHref: '#lab-snapshot',
-      snapshotDetail: 'No configuration snapshot is saved until a judge run starts. This link stays on the Lab.',
+      snapshotDetail: '',
       heldOutLocked: false,
     });
     expect(cells).toHaveLength(6);
@@ -111,11 +112,17 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
     expect(prose).toContain('Add to dataset as edge case');
     expect(prose).toContain('Cancel');
     expect(prose).toContain('Retry failed cases');
-    expect(prose).toContain('Connections unchanged');
-    expect(prose).toContain('Prompt Registry moves the production alias');
+    expect(prose).not.toContain('Connections unchanged');
+    expect(prose).not.toContain('Prompt Registry moves the production alias');
     expect(markup).toContain('href="#lab-snapshot"');
     expect(prose).not.toContain('Rollback');
-    expect(prose).toContain('This control runs once the Lab workspace is connected.');
+    expect(markup).toContain('This control runs once the Lab workspace is connected.');
+    expect(prose).not.toContain('This control runs once the Lab workspace is connected.');
+    expect(prose).not.toContain('No configuration snapshot is saved');
+    expect(prose).not.toContain('No run id yet');
+    expect(prose).not.toContain('n of m + gate');
+    expect(prose).not.toContain('Per-case pass');
+    expect(prose).toContain('Matching policy reference');
   });
 });
 
@@ -161,10 +168,10 @@ describe('copy and glass rules that hold across the six surfaces', () => {
     expect(CHROME).not.toMatch(/—/);
   });
 
-  it('imports the v3 contract and keeps Apply honest', () => {
+  it('imports the v3 contract without rendering Apply lecture', () => {
     expect(CHROME).toContain("from '../../shared/benchmark-lab-v3'");
-    expect(CHROME).toContain('STAGE_04_CAPTIONS');
-    expect(CHROME).toContain('Connections unchanged');
+    expect(CHROME).not.toContain('STAGE_04_CAPTIONS');
+    expect(CHROME).not.toContain('Connections unchanged');
     expect(STAGE_04_CAPTIONS.prompt_registry).toContain('production');
     expect(STAGE_04_CAPTIONS.genie_space).toContain('does not write space instructions');
     expect(STAGE_04_CAPTIONS.rag_config).toBe('Not configured for this target.');

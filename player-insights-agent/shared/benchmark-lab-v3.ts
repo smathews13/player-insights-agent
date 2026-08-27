@@ -1083,7 +1083,7 @@ export function pocContractView(input: {
     snapshotHref: configurationSnapshotHref(snapshotId),
     snapshotDetail: snapshotId
       ? `${snapshotId} · ${version} · ${input.counts.cases} cases · ${scorerLine} · baseline ${input.contract.baselineRunId || 'not set'} · candidate ${input.contract.candidateRunId || 'not set'}`
-      : 'No configuration snapshot is saved until a judge run starts. This link stays on the Lab.',
+      : '',
     heldOutLocked: input.counts.heldOut > 0,
   };
 }

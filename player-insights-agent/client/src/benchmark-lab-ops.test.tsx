@@ -13,7 +13,7 @@ import {
 } from './BenchmarkLabOps';
 import { applyDisabledReason, gateChip, genieLanePair, humanReviewedCaption, investigationCases, spanTreeFromCase, suiteIsLive } from './benchmark-lab-ops';
 import { compareBakeOff, gatesSummary, judgeNeedTags } from '../../shared/benchmark-bakeoff';
-import { MATCHING_POLICY_FACT, MATCHING_POLICY_ID, MATCHING_POLICY_REFERENCE, STAGE_04_CAPTIONS } from '../../shared/benchmark-lab-v3';
+import { MATCHING_POLICY_FACT, MATCHING_POLICY_ID, MATCHING_POLICY_REFERENCE } from '../../shared/benchmark-lab-v3';
 
 const OPS = readFileSync(new URL('./BenchmarkLabOps.tsx', import.meta.url), 'utf8');
 const HELPERS = readFileSync(new URL('./benchmark-lab-ops.ts', import.meta.url), 'utf8');
@@ -81,7 +81,6 @@ describe('apply captions stay honest', () => {
           promptName=""
           onPromptName={() => undefined}
           gateLabel="run_057 passed 2 of 2 gates"
-          caption={STAGE_04_CAPTIONS[target]}
           rollback="No earlier promote to roll back to."
           applying={false}
           applyNote={null}
@@ -98,12 +97,13 @@ describe('apply captions stay honest', () => {
     );
   }
 
-  it('names production alias, Genie handoff, and RAG not configured', () => {
-    expect(apply('prompt_registry')).toContain('Prompt Registry moves the production alias after approval.');
-    expect(apply('genie_space')).toContain('This app does not write space instructions.');
-    expect(apply('rag_config')).toContain('Not configured for this target.');
-    expect(apply('rag_config')).toContain('Hand off to the owning configuration.');
-    expect(apply('prompt_registry')).toContain('Connections unchanged.');
+  it('shows why Apply is blocked and does not lecture about how apply works', () => {
+    expect(apply('prompt_registry')).toContain('Name the approver before applying the candidate.');
+    expect(apply('prompt_registry')).toContain('Candidate run_057 · dataset ds_v003');
+    expect(apply('prompt_registry')).not.toContain('Prompt Registry moves the production alias after approval.');
+    expect(apply('genie_space')).not.toContain('This app does not write space instructions.');
+    expect(apply('rag_config')).not.toContain('Hand off to the owning configuration.');
+    expect(apply('prompt_registry')).not.toContain('Connections unchanged.');
   });
 
   it('states gate counts exactly', () => {
@@ -137,7 +137,7 @@ describe('run comparison', () => {
       <BenchmarkBakeOffSurface
         comparison={comparison}
         history={[]}
-        genieNote="One Genie suite is recorded. Run another after changing the space or instructions to compare."
+        genieNote={null}
         coverageNote="0 human-reviewed"
         onExport={() => undefined}
         onCopyPermalink={() => undefined}
@@ -148,8 +148,8 @@ describe('run comparison', () => {
     expect(prose).toContain('Genie lane');
     expect(prose).toContain('Agent lane');
     expect(prose).toContain('Trace lane');
-    expect(prose).toContain('No composite score');
-    expect(prose).toContain('One Genie suite is recorded');
+    expect(prose).not.toContain('No composite score');
+    expect(prose).not.toContain('One Genie suite is recorded');
     expect(prose).not.toContain('same on both sides');
     expect(html).not.toMatch(/—/);
     expect(JSON.stringify(comparison)).not.toMatch(/composite/i);
@@ -273,10 +273,10 @@ describe('Genie lane pairing', () => {
     });
     expect(one?.candidate.accuracy).toBe(0.8);
     expect(one?.baseline.accuracy).toBeNull();
-    expect(one?.candidate.note).toContain('One Genie suite is recorded');
+    expect(one?.candidate.note).toBe('');
 
     const two = genieLanePair({
-      lastRun: one!.candidate.note ? {
+      lastRun: {
         id: 'run_g2',
         spaceId: 'space-a',
         spaceLabel: 'Player data',
@@ -289,7 +289,7 @@ describe('Genie lane pairing', () => {
         matchingPolicyHref: MATCHING_POLICY_REFERENCE,
         score: { passed: 9, total: 10, percent: 90, label: '9/10', excluded: 0 },
         cases: [],
-      } : null,
+      },
       history: [{ at: '2026-08-25T12:00:00.000Z', spaceId: 'space-a', percent: 80, passed: 8, scored: 10 }],
     });
     expect(two?.baseline.accuracy).toBe(0.8);

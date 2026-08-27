@@ -40,7 +40,6 @@ import {
   FlaskConical,
   Info,
   Loader2,
-  Lock,
   Star,
   TriangleAlert,
   User,
@@ -72,7 +71,6 @@ import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { compareSides, DEFAULT_BENCHMARK_SETTINGS } from '../../shared/benchmark-settings';
 import { OPERATOR_EVAL_SUITE_ID } from '../../shared/eval-dataset';
 import {
-  HELD_OUT_LOCK_FACT,
   heldOutScorerRows,
   liveRunProgressLine,
   type HeldOutAuditEntry,
@@ -321,16 +319,7 @@ export function HeldOutEvaluation({
     .filter(Boolean)
     .join(' · ');
   return (
-    <LabSurface
-      id="lab-held-out"
-      title="Held-out evaluation"
-      fact={
-        <>
-          {HELD_OUT_LOCK_FACT} <Lock className="bench-lock" aria-hidden="true" />
-        </>
-      }
-      actions={<span className="bench-caption">Values open the cases behind them.</span>}
-    >
+    <LabSurface id="lab-held-out" title="Held-out evaluation">
       <p className="bench-caption ast-num">{splitLine}</p>
       {heldOutAudit.length > 0 ? (
         <p className="bench-audit-banner" role="status">
@@ -364,13 +353,7 @@ export function HeldOutEvaluation({
             </tr>
           </thead>
           <tbody>
-            {view.rows.length === 0 ? (
-              <tr>
-                <td className="bench-empty-row" colSpan={5}>
-                  Scorer rows land with a published evaluation. Non-applicable scorers stay hidden until Show them.
-                </td>
-              </tr>
-            ) : (
+            {view.rows.length === 0 ? null : (
               view.rows.map((row) => {
                 const definition = byId.get(row.id);
                 return (
@@ -714,7 +697,6 @@ export function BenchmarkLab() {
               promptName={ops.promptName}
               onPromptName={ops.setPromptName}
               gateLabel={ops.gateLabel}
-              caption={ops.caption}
               rollback={ops.rollback}
               applying={ops.applying}
               applyNote={ops.applyNote}

@@ -79,11 +79,12 @@ function markup(state: ScorecardState, revealNonApplicable = false) {
 }
 
 describe('the copy above the scorers', () => {
-  it('is only the title and a short subtitle, published or not', () => {
+  it('is only the title, published or not', () => {
     for (const state of [evalScorecard(), { published: true, scorecard: PUBLISHED } as ScorecardState]) {
       const html = markup(state);
       expect(html).toContain('Held-out evaluation');
-      expect(html).toContain('held-out cases are frozen, edits create an audit entry');
+      expect(html).not.toContain('held-out cases are frozen, edits create an audit entry');
+      expect(html).not.toContain('Values open the cases behind them');
       expect(html).not.toContain('None of these scorers gates a release');
       expect(html).not.toContain('Read before comparing these scores');
       expect(html).not.toContain('These labels have not been reviewed by anyone who knows this data.');
@@ -95,12 +96,11 @@ describe('the copy above the scorers', () => {
   it('puts the scorer table immediately under that heading', () => {
     const html = markup({ published: true, scorecard: PUBLISHED });
     const title = html.indexOf('Held-out evaluation');
-    const subtitle = html.indexOf('held-out cases are frozen, edits create an audit entry');
     const table = html.indexOf('bench-scorers');
     expect(title).toBeGreaterThanOrEqual(0);
-    expect(subtitle).toBeGreaterThan(title);
-    expect(table).toBeGreaterThan(subtitle);
-    expect(html.slice(subtitle, table)).not.toContain('data-slot="alert"');
+    expect(table).toBeGreaterThan(title);
+    expect(html.slice(title, table)).not.toContain('data-slot="alert"');
+    expect(html.slice(title, table)).not.toContain('held-out cases are frozen');
   });
 
   it('paints a salmon audit banner when a held-out case was edited after the split', () => {

@@ -1,4 +1,4 @@
-import { Lock } from 'lucide-react';
+import { Lock, Table2 } from 'lucide-react';
 import {
   CASE_REVIEWS,
   CASE_TAGS,
@@ -78,7 +78,7 @@ export function EvaluationSetTable({
             <td className="bench-empty-row" colSpan={8}>
               {reviewerOnly
                 ? 'No open reviewer items.'
-                : 'No cases yet. Import from Ask and Monitoring traces, or add the sample questions below.'}
+                : 'No cases yet'}
             </td>
           </tr>
         ) : (
@@ -118,7 +118,7 @@ function CaseRow({
         <td>
           <label className="bench-case-id-cell">
             <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Select ${row.id}`} />
-            <button type="button" className="bench-text-link ast-num" onClick={onExpand}>
+            <button type="button" className="bench-text-link ast-num" onClick={onExpand} aria-expanded={expanded}>
               {row.id}
             </button>
           </label>
@@ -149,13 +149,6 @@ function CaseRow({
           )}
         </td>
       </tr>
-      {expanded ? (
-        <tr>
-          <td className="bench-case-edit" colSpan={8}>
-            Expanded for edit. Held-out edits create an audit entry.
-          </td>
-        </tr>
-      ) : null}
     </>
   );
 }
@@ -169,7 +162,6 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
     <LabSurface
       id="lab-evaluation-set"
       title="Evaluation set"
-      fact="versioned and immutable. New edits create the next version. Held-out edits create an audit entry."
       actions={
         <div className="bench-btn-row">
           <BenchButton variant="primary" onClick={() => void lab.loadImportCandidates()} disabled={lab.busy === 'import'}>
@@ -189,9 +181,6 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
     >
       <p className="bench-count-line ast-num">{lab.lab.headerLine}</p>
       <p className="bench-caption ast-num">{lab.lab.laneLine}</p>
-      <p className="bench-caption">
-        Import filters: {lab.lab.importFilters.map((entry) => entry.label).join(', ')}.
-      </p>
       {lab.lab.currentVersionId ? (
         <p className="bench-caption ast-num">
           Dataset {lab.lab.currentVersionId}
@@ -212,7 +201,6 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
 
       {lab.lab.cases.length === 0 ? (
         <div className="bench-empty-samples">
-          <p className="bench-caption">Sample questions for an empty set. They are not a scored result.</p>
           <ul className="bench-sample-list">
             {POC_STARTER_QUESTIONS.map((question) => (
               <li key={question}>{question}</li>
@@ -227,10 +215,6 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
       {lab.candidates.length > 0 ? <ImportPane lab={lab} /> : null}
       {lab.alignDraft ? <AlignPreview lab={lab} /> : null}
 
-      <p className="bench-footnote">
-        Guideline alignment shows a preview and saves only after review. Retired cases keep their
-        run history. A case can carry facts, a full response, or per-case guidelines.
-      </p>
       {lab.notice ? <p className="bench-caption bench-pad">{lab.notice}</p> : null}
       {lab.error ? <p className="bench-caption bench-pad">{lab.error}</p> : null}
     </LabSurface>
@@ -240,7 +224,6 @@ export function EvaluationSet({ lab }: { lab: EvaluationLabModel }) {
 function ImportPane({ lab }: { lab: EvaluationLabModel }) {
   return (
     <div className="bench-import-pane">
-      <p className="bench-caption">Pick the matching turns to add. Filters already applied.</p>
       <fieldset className="bench-filter-set">
         <legend className="bench-inline-label">Keep turns with</legend>
         {lab.lab.importFilters.map((entry) => (
@@ -258,26 +241,30 @@ function ImportPane({ lab }: { lab: EvaluationLabModel }) {
           </label>
         ))}
       </fieldset>
-      <ul className="eval-curate-list bench-pad">
-        {lab.candidates.map((entry) => (
-          <li key={entry.question}>
-            <label>
-              <input
-                type="checkbox"
-                checked={lab.picked.includes(entry.question)}
-                onChange={(event) =>
-                  lab.setPicked(
-                    event.target.checked
-                      ? [...lab.picked, entry.question]
-                      : lab.picked.filter((question) => question !== entry.question)
-                  )
-                }
-              />
-              {entry.question}
-              <span className="bench-caption"> {entry.reasons.map((reason) => IMPORT_FILTER_LABELS[reason]).join(', ')}</span>
-            </label>
-          </li>
-        ))}
+      <ul className="bench-turn-grid">
+        {lab.candidates.map((entry) => {
+          const checked = lab.picked.includes(entry.question);
+          return (
+            <li key={entry.question}>
+              <label className={checked ? 'bench-turn-card is-picked' : 'bench-turn-card'}>
+                <Table2 className="bench-turn-icon" aria-hidden="true" strokeWidth={1.75} />
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) =>
+                    lab.setPicked(
+                      event.target.checked
+                        ? [...lab.picked, entry.question]
+                        : lab.picked.filter((question) => question !== entry.question)
+                    )
+                  }
+                  aria-label={entry.question}
+                />
+                <span className="bench-turn-question">{entry.question}</span>
+              </label>
+            </li>
+          );
+        })}
       </ul>
       <div className="bench-btn-row bench-pad">
         <BenchButton variant="primary" onClick={() => void lab.importPicked()} disabled={lab.picked.length === 0}>
@@ -291,7 +278,6 @@ function ImportPane({ lab }: { lab: EvaluationLabModel }) {
 function AlignPreview({ lab }: { lab: EvaluationLabModel }) {
   return (
     <div className="bench-align-preview bench-pad">
-      <p className="bench-caption">Guideline alignment preview. Saves only after review.</p>
       <textarea
         className="bench-align-text"
         aria-label="Aligned guidelines preview"

@@ -11,19 +11,44 @@ import { astPill } from './astrolabe-pill';
 import { Lock } from 'lucide-react';
 import {
   GOVERNANCE_FACT,
-  HELD_OUT_LOCK_FACT,
-  IMPORT_FILTER_LABELS,
-  MATCHING_POLICY_FACT,
   MATCHING_POLICY_REFERENCE,
-  PARTIAL_RESULTS_FACT,
   SPAN_KINDS,
-  STAGE_04_CAPTIONS,
   THIS_RUN_NEEDS,
-  applyPreviewLine,
   type ApplyTargetKind,
   type LabWorkspace,
   type PocContractView,
 } from '../../shared/benchmark-lab-v3';
+
+export function GenieStatTiles({
+  accuracy,
+  executionErrors,
+  suiteDuration,
+  excluded,
+  policyAnchor = false,
+}: {
+  accuracy: string;
+  executionErrors: string;
+  suiteDuration: string;
+  excluded: string;
+  policyAnchor?: boolean;
+}) {
+  const tiles = [
+    { label: 'Accuracy', value: accuracy },
+    { label: 'Execution errors', value: executionErrors },
+    { label: 'Suite duration', value: suiteDuration },
+    { label: 'Excluded', value: excluded },
+  ];
+  return (
+    <div className="bench-stat-strip" id={policyAnchor ? 'lab-matching-policy' : undefined}>
+      {tiles.map((tile) => (
+        <div key={tile.label}>
+          <span className="ast-eyebrow">{tile.label}</span>
+          <strong className={`ast-num${tile.value === 'not set' ? ' tile-absent' : ''}`}>{tile.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export type LabContractCell = {
   eyebrow: string;
@@ -62,18 +87,15 @@ export function labContractCells(input: {
     {
       eyebrow: 'Goal',
       value: 'Genie accuracy + agent judges',
-      detail: 'two lanes, one dataset',
     },
     {
       eyebrow: 'Dataset',
       value: input.datasetValue?.trim() || 'No dataset version yet',
-      detail: input.datasetDetail?.trim() || 'case count lands when the set is saved',
       extra: input.heldOutLocked ? <Lock className="bench-lock" aria-hidden="true" /> : null,
     },
     {
       eyebrow: 'Baseline / candidate',
       value: `${baseline} / ${candidate}`,
-      detail: 'same cases, same scorers',
     },
     {
       eyebrow: 'Pass gates',
@@ -85,12 +107,10 @@ export function labContractCells(input: {
         typeof input.scorerActive === 'number'
           ? `${input.scorerActive} active`
           : 'No scorer set yet',
-      detail: input.scorerDetail?.trim() || 'non-applicable count lands with the run',
     },
     {
       eyebrow: 'Target',
       value: input.targetValue?.trim() || 'No target selected',
-      detail: input.targetDetail?.trim() || 'kind and identifier land with apply',
       extra: (
         <a className="bench-text-link" href={input.snapshotHref || '#lab-snapshot'}>
           Configuration snapshot
@@ -103,7 +123,7 @@ export function labContractCells(input: {
 /** Map the types sibling's contract view onto the six strip cells. */
 export function cellsFromPocContract(view: PocContractView): LabContractCell[] {
   return [
-    { eyebrow: 'Goal', value: view.goal, detail: 'two lanes, one dataset' },
+    { eyebrow: 'Goal', value: view.goal },
     {
       eyebrow: 'Dataset',
       value: view.dataset,
@@ -112,7 +132,6 @@ export function cellsFromPocContract(view: PocContractView): LabContractCell[] {
     {
       eyebrow: 'Baseline / candidate',
       value: `${view.baseline} / ${view.candidate}`,
-      detail: 'same cases, same scorers',
     },
     { eyebrow: 'Pass gates', value: view.passGates },
     { eyebrow: 'Scorer set', value: view.scorerSet },
@@ -167,7 +186,7 @@ export function LabSurface({
 }: {
   id: string;
   title: string;
-  fact: ReactNode;
+  fact?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -178,7 +197,7 @@ export function LabSurface({
           <h3 className="bench-region-title" id={`${id}-title`}>
             {title}
           </h3>
-          <p className="bench-region-fact">{fact}</p>
+          {fact ? <p className="bench-region-fact">{fact}</p> : null}
         </div>
         {actions ? <div className="bench-region-actions">{actions}</div> : null}
       </header>
@@ -205,12 +224,10 @@ function PocContractStrip({ cells }: { cells: LabContractCell[] }) {
 function PipelineStage({
   n,
   title,
-  fact,
   children,
 }: {
   n: string;
   title: string;
-  fact: string;
   children: ReactNode;
 }) {
   return (
@@ -221,7 +238,6 @@ function PipelineStage({
       <div className="bench-stage-body">
         <header className="bench-stage-head">
           <h4 className="bench-stage-title">{title}</h4>
-          <p className="bench-stage-fact">{fact}</p>
         </header>
         {children}
       </div>
@@ -243,7 +259,6 @@ function DefaultCurateStage({ workspace }: { workspace?: LabWorkspace | null }) 
         <UnwiredButton>Open reviewer queue</UnwiredButton>
         <UnwiredButton>Duplicate as edge case</UnwiredButton>
       </div>
-      <p className="bench-caption">{UNWIRED_TITLE}</p>
     </>
   );
 }
@@ -259,12 +274,8 @@ function DefaultGenieStage({ workspace }: { workspace?: LabWorkspace | null }) {
         </select>
         <UnwiredButton variant="primary">Run complete suite</UnwiredButton>
         <UnwiredButton>Run partial suite</UnwiredButton>
-        <span className={astPill('neutral-outline', 'bench-chip')}>matching · executed-result equivalence</span>
       </div>
-      <p className="bench-gate">
-        {workspace?.geniePlan.gateCopy ||
-          'No SQL-complete cases yet. Fix them in 01 or run partial: the excluded cases and the denominator are shown on the result.'}
-      </p>
+      {workspace?.geniePlan.gateCopy ? <p className="bench-gate">{workspace.geniePlan.gateCopy}</p> : null}
     </>
   );
 }
@@ -332,7 +343,6 @@ function DefaultJudgesStage({
         </BenchButton>
         <UnwiredButton>Retry failed cases</UnwiredButton>
       </div>
-      <p className="bench-gate">{PARTIAL_RESULTS_FACT}</p>
     </>
   );
 }
@@ -371,22 +381,11 @@ function DefaultApplyStage() {
         </div>
         <span className={astPill('neutral-outline', 'bench-chip ast-num')}>No gate status yet</span>
       </div>
-      <p className="bench-gate">{STAGE_04_CAPTIONS[target]}</p>
-      <p className="bench-gate">Connections unchanged.</p>
-      <p className="bench-gate ast-num">
-        {applyPreviewLine({
-          candidateRunId: '',
-          datasetVersionId: '',
-          target: { kind: target, identifier: '', snapshotId: '' },
-        })}
-      </p>
       <div className="bench-btn-row">
         <input className="bench-approver ast-num" aria-label="Named approver" placeholder="Named approver" />
         <UnwiredButton variant="primary">Apply candidate</UnwiredButton>
         <UnwiredButton>View rollback path</UnwiredButton>
       </div>
-      <p className="bench-gate">Apply is available once a candidate has passed its gates and a named approver is set.</p>
-      <p className="bench-caption">{UNWIRED_TITLE}</p>
     </>
   );
 }
@@ -396,7 +395,6 @@ function DefaultEvaluationSet() {
     <LabSurface
       id="lab-evaluation-set"
       title="Evaluation set"
-      fact="versioned and immutable. New edits create the next version. Held-out edits create an audit entry."
       actions={
         <div className="bench-btn-row">
           <UnwiredButton variant="primary">Import from traces</UnwiredButton>
@@ -407,10 +405,6 @@ function DefaultEvaluationSet() {
       }
     >
       <p className="bench-count-line ast-num">No cases yet</p>
-      <p className="bench-caption">Lane readiness lands with the set.</p>
-      <p className="bench-caption">
-        Import filters: {Object.values(IMPORT_FILTER_LABELS).join(', ')}.
-      </p>
       <table className="bench-sheet">
         <thead>
           <tr>
@@ -427,15 +421,11 @@ function DefaultEvaluationSet() {
         <tbody>
           <tr>
             <td className="bench-empty-row" colSpan={8}>
-              No cases yet. Import from Ask and Monitoring traces.
+              No cases yet
             </td>
           </tr>
         </tbody>
       </table>
-      <p className="bench-footnote">
-        Guideline alignment shows a preview and saves only after review. Retired cases keep their
-        run history. A case can carry facts, a full response, or per-case guidelines.
-      </p>
     </LabSurface>
   );
 }
@@ -445,56 +435,19 @@ function DefaultGenieDiagnostics() {
     <LabSurface
       id="lab-genie-accuracy"
       title="Genie accuracy diagnostics"
-      fact={MATCHING_POLICY_FACT}
       actions={
         <a className="bench-text-link" href={MATCHING_POLICY_REFERENCE}>
           Matching policy reference
         </a>
       }
     >
-      <p className="bench-caption" id="lab-matching-policy">
-        No run id yet · no dataset version · suite kind lands with the result.
-      </p>
-      <div className="bench-stat-strip">
-        <div>
-          <span className="ast-eyebrow">Accuracy</span>
-          <strong className="ast-num tile-absent">not set</strong>
-          <small>n of m + gate</small>
-        </div>
-        <div>
-          <span className="ast-eyebrow">Execution errors</span>
-          <strong className="ast-num tile-absent">not set</strong>
-          <small>warehouse startup is not Genie-wrong</small>
-        </div>
-        <div>
-          <span className="ast-eyebrow">Suite duration</span>
-          <strong className="ast-num tile-absent">not set</strong>
-          <small>whole suite, not per case</small>
-        </div>
-        <div>
-          <span className="ast-eyebrow">Excluded</span>
-          <strong className="ast-num tile-absent">not set</strong>
-          <small>missing SQL, out of denominator</small>
-        </div>
-      </div>
-      <table className="bench-sheet">
-        <thead>
-          <tr>
-            <th>Case</th>
-            <th>Question</th>
-            <th>Result</th>
-            <th>Reason</th>
-            <th>Trace</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="bench-empty-row" colSpan={5}>
-              Per-case pass, fail, and excluded rows land after a suite run.
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <GenieStatTiles
+        accuracy="not set"
+        executionErrors="not set"
+        suiteDuration="not set"
+        excluded="not set"
+        policyAnchor
+      />
     </LabSurface>
   );
 }
@@ -521,7 +474,6 @@ function DefaultRunComparison({ extras }: { extras?: ReactNode }) {
     <LabSurface
       id="lab-run-comparison"
       title="Run comparison"
-      fact="baseline vs candidate on the same dataset version and scorer set. No composite score."
       actions={
         <div className="bench-btn-row">
           <UnwiredButton>Export evidence pack</UnwiredButton>
@@ -538,18 +490,13 @@ function DefaultRunComparison({ extras }: { extras?: ReactNode }) {
               {lane.metrics.map((metric) => (
                 <div className="bench-metric" key={metric}>
                   <span>{metric}</span>
-                  <strong className="ast-num tile-absent">not set → not set</strong>
-                  <small>No comparison yet</small>
+                  <strong className="ast-num tile-absent">not set</strong>
                 </div>
               ))}
             </div>
           </div>
         ))}
       </div>
-      <p className="bench-footnote">
-        Newly fixed and newly broken case chips land after a baseline and a candidate share a
-        dataset version. Open the changed cases before applying.
-      </p>
     </LabSurface>
   );
 }
@@ -563,7 +510,6 @@ function DefaultFailureInvestigation({
     <LabSurface
       id="lab-failure"
       title="Failure investigation"
-      fact="every failed, provisional, skipped, or slow case opens its trace. Traces are governed evidence, not a debug dump."
       actions={<span className="bench-governance">{GOVERNANCE_FACT}</span>}
     >
       <div className="bench-failure">
@@ -583,9 +529,6 @@ function DefaultFailureInvestigation({
           )}
         </aside>
         <div className="bench-failure-pane">
-          <header className="bench-failure-head">
-            <p className="bench-caption">Pick a failed, provisional, skipped, or slow case.</p>
-          </header>
           <div className="bench-span-legend">
             {SPAN_KINDS.map((kind) => (
               <span className="bench-type-tag" key={kind}>
@@ -593,8 +536,6 @@ function DefaultFailureInvestigation({
               </span>
             ))}
           </div>
-          <p className="bench-empty-row">Span tree, tokens, and cost land with the trace.</p>
-          <p className="bench-caption">Judge rationale ends in the concrete fix.</p>
           <div className="bench-btn-row">
             <UnwiredButton variant="primary">Add to dataset as edge case</UnwiredButton>
             <UnwiredButton>Mark as known failure</UnwiredButton>
@@ -607,22 +548,7 @@ function DefaultFailureInvestigation({
 
 function DefaultHeldOut() {
   return (
-    <LabSurface
-      id="lab-held-out"
-      title="Held-out evaluation"
-      fact={
-        <>
-          {HELD_OUT_LOCK_FACT}{' '}
-          <Lock className="bench-lock" aria-hidden="true" />
-        </>
-      }
-      actions={
-        <span className="bench-caption">
-          Values open the cases behind them.
-        </span>
-      }
-    >
-      <p className="bench-caption">No dataset version yet · split counts land with the set.</p>
+    <LabSurface id="lab-held-out" title="Held-out evaluation">
       <table className="bench-sheet">
         <thead>
           <tr>
@@ -633,14 +559,7 @@ function DefaultHeldOut() {
             <th> </th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td className="bench-empty-row" colSpan={5}>
-              Scorer rows land with a published evaluation. Non-applicable scorers stay hidden until
-              Show them.
-            </td>
-          </tr>
-        </tbody>
+        <tbody />
       </table>
     </LabSurface>
   );
@@ -678,11 +597,6 @@ export function BenchmarkLabChrome({
       <div className="page-heading bench-heading">
         <div>
           <h2>Benchmark Lab</h2>
-          <p className="bench-heading-fact">
-            guided evaluation workspace
-            <span className="ast-sep" />
-            judges and scorers picked in Settings → Experimental
-          </p>
         </div>
         <nav className="bench-jump" aria-label="On this tab">
           <a href="#lab-evaluation-set">Dataset, diagnostics, comparison, and traces below ↓</a>
@@ -696,30 +610,21 @@ export function BenchmarkLabChrome({
           Pipeline
         </h3>
         <PocContractStrip cells={contract} />
-        <p className="bench-caption bench-snapshot ast-num" id="lab-snapshot">
-          {workspace?.contractView.snapshotDetail ||
-            'No configuration snapshot is saved until a judge run starts. This link stays on the Lab.'}
-        </p>
+        {workspace?.contractView.snapshotDetail ? (
+          <p className="bench-caption bench-snapshot ast-num" id="lab-snapshot">
+            {workspace.contractView.snapshotDetail}
+          </p>
+        ) : (
+          <span id="lab-snapshot" hidden />
+        )}
         <div className="bench-pipeline">
-          <PipelineStage
-            n="01"
-            title="Curate the evaluation set"
-            fact="versioned and immutable per version. Cases carry provenance, split, and review status."
-          >
+          <PipelineStage n="01" title="Curate the evaluation set">
             {slots.stageCurate ?? <DefaultCurateStage workspace={workspace} />}
           </PipelineStage>
-          <PipelineStage
-            n="02"
-            title="Genie accuracy"
-            fact="uses the SQL-complete cases from 01. Matching tolerates reordering and extra columns, rejects under-selection."
-          >
+          <PipelineStage n="02" title="Genie accuracy">
             {slots.stageGenie ?? <DefaultGenieStage workspace={workspace} />}
           </PipelineStage>
-          <PipelineStage
-            n="03"
-            title="Agent judges"
-            fact="scores the same cases from 01. Each run records dataset version, scorer set, configuration snapshot, and trace coverage."
-          >
+          <PipelineStage n="03" title="Agent judges">
             {slots.stageJudges ?? (
               <DefaultJudgesStage
                 judges={judges}
@@ -731,11 +636,7 @@ export function BenchmarkLabChrome({
               />
             )}
           </PipelineStage>
-          <PipelineStage
-            n="04"
-            title="Apply the candidate"
-            fact="target-specific. Nothing moves without a passing gate, a named approver, and a rollback path."
-          >
+          <PipelineStage n="04" title="Apply the candidate">
             {slots.stageApply ?? <DefaultApplyStage />}
           </PipelineStage>
         </div>

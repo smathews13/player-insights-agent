@@ -108,12 +108,43 @@ describe('Evaluation set', () => {
     expect(source).not.toMatch(/demo-data/i);
     const markup = renderToStaticMarkup(<EvaluationSet lab={model(workspace([]))} />);
     const prose = readable(markup);
-    expect(prose).toContain('Sample questions for an empty set');
-    expect(prose).toContain('Add these sample questions');
     expect(prose).toContain(POC_STARTER_QUESTIONS[0]);
+    expect(prose).toContain('Add these sample questions');
+    expect(prose).not.toContain('Sample questions for an empty set');
+    expect(prose).not.toContain('They are not a scored result');
     expect(prose).toContain('Import from traces');
-    expect(prose).toContain('Import filters');
-    expect(prose).toContain('low judge score');
+    expect(prose).not.toContain('Import filters:');
+  });
+
+  it('lays matching turns as a four-across card grid without reason tags', () => {
+    const questions = [
+      'how many users used either a northwind game or a 2k game this year?',
+      'show me VLH player trends',
+    ];
+    const markup = renderToStaticMarkup(
+      <EvaluationSet
+        lab={model(workspace([]), {
+          candidates: questions.map((question) => ({
+            question,
+            sourceTraceId: question,
+            reasons: ['latency' as const],
+          })),
+          picked: questions,
+        })}
+      />
+    );
+    const prose = readable(markup);
+    expect(markup).toContain('bench-turn-grid');
+    expect(markup).toContain('bench-turn-card');
+    expect(markup).toContain('bench-turn-icon');
+    expect(prose).toContain('Keep turns with');
+    expect(prose).toContain('Add 2 to the dataset');
+    expect(prose).toContain(questions[0]);
+    expect(markup).not.toContain('eval-curate-list');
+    expect(prose).not.toContain('Pick the matching turns to add');
+    const cards = markup.match(/bench-turn-question[^>]*>([^<]*)</g)?.join(' ') ?? '';
+    expect(cards).toContain(questions[0]);
+    expect(cards).not.toContain('latency');
   });
 
   it('names stage 01 actions the spec uses', () => {
