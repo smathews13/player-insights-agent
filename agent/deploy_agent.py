@@ -17,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-version", default=os.getenv("PLAYER_INSIGHTS_MODEL_VERSION"))
     parser.add_argument(
         "--endpoint-name",
-        default=os.getenv("PLAYER_INSIGHTS_ENDPOINT", "player-insights-agent"),
+        default=os.getenv("PLAYER_INSIGHTS_ENDPOINT"),
     )
     parser.add_argument(
         "--environment",
@@ -33,6 +33,8 @@ def main() -> None:
         raise ValueError("--model-name or PLAYER_INSIGHTS_MODEL_NAME is required")
     if not args.model_version:
         raise ValueError("--model-version or PLAYER_INSIGHTS_MODEL_VERSION is required")
+    if not args.endpoint_name:
+        raise ValueError("--endpoint-name or PLAYER_INSIGHTS_ENDPOINT is required")
     mlflow.set_tracking_uri("databricks")
     mlflow.set_registry_uri("databricks-uc")
     mlflow.set_experiment(

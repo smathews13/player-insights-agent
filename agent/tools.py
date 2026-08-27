@@ -131,13 +131,10 @@ GENIE_WAREHOUSE_START_SECONDS = 150.0
 
 #: What one warehouse wait must LEAVE BEHIND for the rest of the turn.
 #:
-#: The cap above is the ceiling; this is the constraint that usually binds. On the
-#: default ninety-second turn there is no version of waiting two and a half
-#: minutes, and waiting until the budget is gone is worse than not waiting: the
-#: finder has other tools that do not need the dictionary space, and a turn that
-#: spent all of itself on one wait cannot call them. So the wait stops with this
-#: much left, reports the warehouse as still starting, and lets the finder carry
-#: on with `search_tagged_assets` and `list_data_assets`.
+#: Named at the compiled 150s default. The live wait uses
+#: `runtime_settings.answer_reserve_seconds()` so a 30s minimum budget is not
+#: blocked by a 25s flat hold-back. Tests pin this constant as the default-budget
+#: share both tiers agree on.
 GENIE_BUDGET_RESERVE_SECONDS = 25.0
 
 #: The LONGEST gap between two checks. The wait starts at
@@ -424,22 +421,25 @@ def dictionary_scope_note(dropped: Sequence[str]) -> str:
 SQL_WAIT_CEILING_SECONDS = 50
 SQL_WAIT_FLOOR_SECONDS = 5
 
-#: How long the warehouse may hold one statement before it is cancelled. The
-#: answer query used to cancel at 30s, which is a Databricks docs example, not
-#: the max. Lookup already waited the ceiling; the query that answers the
-#: question now does too. Paired with `on_wait_timeout=CANCEL` so that reaching
-#: it means "too slow", which the model can act on, rather than leaving a
-#: statement running whose response says RUNNING and used to be reported as a
-#: failure.
-SQL_WAIT_SECONDS = SQL_WAIT_CEILING_SECONDS
-SQL_WAIT_TIMEOUT = f"{SQL_WAIT_SECONDS}s"
+#: Total wait for a statement that ANSWERS the question. 50s is the platform
+#: ceiling for a synchronous wait, so 110s is a different call, not a larger
+#: constant: wait 50s with CONTINUE, poll until the deadline, then cancel so
+#: the model reads CANCELED ("too slow, narrow it") rather than RUNNING, which
+#: used to be reported as a failure. A COUNT(DISTINCT) over hundreds of millions
+#: of ids on a Small warehouse lands in 15–30s warm and can sit past 50s cold.
+ANSWER_SQL_WAIT_SECONDS = 110
+SQL_WAIT_SECONDS = ANSWER_SQL_WAIT_SECONDS
+SQL_WAIT_TIMEOUT = f"{SQL_WAIT_CEILING_SECONDS}s"
 
-#: What a DISCOVERY read waits. Same ceiling as the answer query: the first
-#: statement of a turn pays for the warehouse to start, and in a customer
-#: workspace that is routinely more than thirty seconds where our own demo
-#: warehouse is already warm and answers in two. Named separately so the
-#: discovery call site still says why it spends the whole allowance.
+#: What a DISCOVERY read waits. Stays at the sync ceiling and never polls: a
+#: tag listing or DESCRIBE is the result the turn can most afford to lose, and
+#: polling it would spend the write-up's share on metadata.
 DISCOVERY_WAIT_SECONDS = SQL_WAIT_CEILING_SECONDS
+
+#: Gaps between get_statement checks while an answering read is past the sync
+#: ceiling. Same shape as the Genie waiter: start small, double up to this.
+SQL_POLL_SECONDS = 2.0
+SQL_FIRST_POLL_SECONDS = 0.5
 
 #: A statement cancelled for slowness is retried ONCE, and only while the turn
 #: could still do something with the answer. The first attempt is usually what
@@ -453,6 +453,8 @@ SQL_RETRY_RESERVE_SECONDS = 20
 #: REJECTED. Only these are worth running a second time: a rejected statement is
 #: rejected identically on the retry, and a denial is about who is asking.
 _SQL_TOO_SLOW_STATES = frozenset({"CANCELED", "PENDING", "RUNNING"})
+#: After CONTINUE, these mean keep polling. CANCELED is a result, not a wait.
+_SQL_STILL_RUNNING = frozenset({"PENDING", "RUNNING"})
 
 #: What each non-success state means for the model's next move.
 #:
@@ -1023,7 +1025,10 @@ class PlayerInsightTools:
         # would make a cold start fail sooner than it used to.
         starting_budget = max(
             answering_budget,
-            min(GENIE_WAREHOUSE_START_SECONDS, max(0.0, turn - GENIE_BUDGET_RESERVE_SECONDS)),
+            min(
+                GENIE_WAREHOUSE_START_SECONDS,
+                max(0.0, turn - runtime_settings.answer_reserve_seconds()),
+            ),
         )
         wait = self.workspace.genie.start_conversation(space_id, question)
         status: Any = None
@@ -1517,6 +1522,39 @@ class PlayerInsightTools:
         wanted = min(wait_seconds, SQL_WAIT_CEILING_SECONDS, max(affordable, 0))
         return f"{max(SQL_WAIT_FLOOR_SECONDS, wanted)}s"
 
+    def _polls_past_ceiling(self, wait_seconds: int) -> bool:
+        """Answering reads past 50s poll; discovery stays on the sync ceiling."""
+
+        return (
+            wait_seconds > SQL_WAIT_CEILING_SECONDS
+            and runtime_settings.remaining_seconds() > SQL_WAIT_CEILING_SECONDS
+        )
+
+    def _poll_until_deadline(self, response: Any, started: float, wait_seconds: int) -> Any:
+        """After a CONTINUE, wait out the rest of the allowance, then cancel.
+
+        Past the sync ceiling the statement is still RUNNING. Leaving it that
+        way used to be reported as a failure. Cancelling on the deadline makes
+        the model read CANCELED — "too slow, narrow it".
+        """
+
+        statement_id = getattr(response, "statement_id", None)
+        execution = self.workspace.statement_execution
+        if not statement_id or not hasattr(execution, "get_statement"):
+            return response
+        poll = SQL_FIRST_POLL_SECONDS
+        while statement_state(response) in _SQL_STILL_RUNNING:
+            elapsed = time.perf_counter() - started
+            affordable = min(float(wait_seconds), runtime_settings.remaining_seconds())
+            if elapsed >= affordable:
+                if hasattr(execution, "cancel_execution"):
+                    execution.cancel_execution(statement_id)
+                return execution.get_statement(statement_id)
+            time.sleep(min(poll, max(0.0, affordable - elapsed)))
+            poll = min(poll * 2, SQL_POLL_SECONDS)
+            response = execution.get_statement(statement_id)
+        return response
+
     def _execute(
         self,
         sql: str,
@@ -1537,8 +1575,9 @@ class PlayerInsightTools:
         failed, and the model is instructed to report failures rather than work
         around them, so a slow query became a wrong answer about the data.
 
-        `CANCEL` makes the timeout mean what it says: the statement is stopped and
-        the model is told it was too slow, which it can act on by narrowing.
+        Discovery stays on CANCEL at the 50s ceiling and never polls. Answering
+        reads CONTINUE at that ceiling, poll until 110s, then cancel so the
+        model still reads CANCELED rather than RUNNING.
 
         `retry_when_slow` runs the statement a SECOND time when the first was
         cancelled or never started, and only then: a rejected statement is
@@ -1553,12 +1592,21 @@ class PlayerInsightTools:
             span.set_inputs({"sql": sql, "wait_seconds": wait_seconds})
             retried = False
             while True:
+                polls = self._polls_past_ceiling(wait_seconds)
+                on_wait = (
+                    ExecuteStatementRequestOnWaitTimeout.CONTINUE
+                    if polls
+                    else ExecuteStatementRequestOnWaitTimeout.CANCEL
+                )
+                started = time.perf_counter()
                 response = self.workspace.statement_execution.execute_statement(
                     warehouse_id=self.settings.warehouse_id,
                     statement=sql,
                     wait_timeout=self._wait_timeout(wait_seconds),
-                    on_wait_timeout=ExecuteStatementRequestOnWaitTimeout.CANCEL,
+                    on_wait_timeout=on_wait,
                 )
+                if polls and statement_state(response) in _SQL_STILL_RUNNING:
+                    response = self._poll_until_deadline(response, started, wait_seconds)
                 failure = statement_failure(response)
                 if not failure:
                     break
@@ -1697,7 +1745,7 @@ class PlayerInsightTools:
         declared = self.settings.readable_tables
         catalog = catalog.strip().strip("`")
         schema = schema.strip().strip("`")
-        tags = dict(getattr(self.settings, "franchise_tags", ()) or ())
+        tags = dict(self.settings.franchise_tags)
 
         if not declared:
             return ToolResult(text="(no tables were declared with this model)")
@@ -1961,6 +2009,7 @@ class PlayerInsightTools:
             f"DESCRIBE TABLE EXTENDED {_quoted(name)}",
             "orchestrator.describe_table",
             ENUMERATION_BUDGET,
+            wait_seconds=DISCOVERY_WAIT_SECONDS,
         )
         # The table's own COMMENT is lifted out of the extended section and put
         # first. It is the only place a deployment says what a table is FOR in

@@ -121,3 +121,7 @@ def test_agent_release_tags_model_and_endpoint() -> None:
     assert 'set_registered_model_tag(model_name, "astrolabe", "true")' in log
     assert '--registered-model "$MODEL_NAME"' in release
     assert '--serving-endpoint "$ENDPOINT"' in release
+    assert 'default=os.getenv("PLAYER_INSIGHTS_ENDPOINT", "player-insights-agent")' not in deploy
+    assert "--endpoint-name or PLAYER_INSIGHTS_ENDPOINT is required" in deploy
+    assert "splitlines()[-1]" not in release
+    assert "read-log-summary.py" in release

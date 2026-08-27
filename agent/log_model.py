@@ -31,6 +31,7 @@ from preflight import (
     newly_granted_tables,
     resolve_build_stamp,
     resolve_declared_manifest,
+    resolve_franchise_tags,
     widening_refusal,
 )
 from semantic_retrieval import MODEL_CONFIG_KEY as SEMANTIC_INDEX_KEY
@@ -173,7 +174,15 @@ if no_longer_granted:
 # granted. The build stamp is resolved here because log time is the last moment
 # anything knows what this artifact was built from.
 build_sha = resolve_build_stamp()
-settings = dataclasses.replace(settings, declared_manifest=manifest, build_sha=build_sha)
+franchise_tags, tag_notes = resolve_franchise_tags(settings, workspace, manifest)
+settings = dataclasses.replace(
+    settings,
+    declared_manifest=manifest,
+    build_sha=build_sha,
+    franchise_tags=franchise_tags,
+)
+for note in tag_notes:
+    print(note)
 if not build_sha:
     print(
         "WARNING: no build stamp could be resolved (no git repository and no "

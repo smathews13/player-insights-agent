@@ -36,6 +36,7 @@ from preflight import (
     newly_granted_tables,
     resolve_build_stamp,
     resolve_declared_manifest,
+    resolve_franchise_tags,
     widening_refusal,
 )
 from tools import (
@@ -1403,9 +1404,11 @@ def test_log_model_declares_and_bakes_the_same_manifest():
 
     assert "manifest, manifest_notes = resolve_declared_manifest(" in source
     assert "DatabricksTable(table_name=table) for table in manifest" in source
-    # Not anchored on the closing paren: the same call carries other log-time
-    # values (the build stamp), and this trip-wire is about the manifest.
-    assert "dataclasses.replace(settings, declared_manifest=manifest" in source
+    # Not anchored on one line: the same call carries other log-time values
+    # (the build stamp, franchise tags), and this trip-wire is about the manifest.
+    assert "dataclasses.replace(" in source
+    assert "declared_manifest=manifest" in source
+    assert "franchise_tags=franchise_tags" in source
     # Spread rather than passed whole, because the execution identity travels in
     # the same config without being a `Settings` field. The property this guards
     # is unchanged and is why it is anchored on the call rather than on the whole
@@ -1645,6 +1648,7 @@ def test_the_release_script_writes_the_denylist_down_and_clears_what_it_cannot()
         "declared_manifest",
         "data_genie_space_title",
         "dictionary_genie_space_title",
+        "franchise_tags",
     }
     #: THE REPOSITORY ANSWERS IT BETTER THAN ANY CONFIGURATION COULD. Neither
     #: exported nor cleared: a build stamp in the bundle goes stale, and clearing
@@ -1878,4 +1882,53 @@ def test_the_environment_supplies_the_stamp_where_there_is_no_repository():
 
 def test_no_git_and_no_variable_is_empty_rather_than_a_guess():
     assert resolve_build_stamp(env={}, git=fake_git(head=None)) == ""
+
+
+def test_franchise_tag_bake_reads_every_chunk_not_just_the_first():
+    """The first page used to be treated as the whole bake."""
+
+    rows = [
+        ["test_catalog", "test_schema", "t1", "Northwind"],
+        ["test_catalog", "test_schema", "t2", "Contoso"],
+    ]
+    fetched: list[int] = []
+
+    class PagedTags:
+        def __init__(self):
+            self.statement_execution = SimpleNamespace(
+                execute_statement=self._execute,
+                get_statement_result_chunk_n=self._chunk,
+            )
+
+        def _execute(self, warehouse_id, statement, wait_timeout, on_wait_timeout=None):
+            assert "lower(tag_name)" in statement
+            return SimpleNamespace(
+                statement_id="s1",
+                status=SimpleNamespace(state=SimpleNamespace(value="SUCCEEDED")),
+                result=SimpleNamespace(data_array=[rows[0]], next_chunk_index=1),
+            )
+
+        def _chunk(self, statement_id, chunk_index):
+            fetched.append(chunk_index)
+            nxt = chunk_index + 1 if chunk_index + 1 < len(rows) else None
+            return SimpleNamespace(data_array=[rows[chunk_index]], next_chunk_index=nxt)
+
+    manifest = (
+        "test_catalog.test_schema.t1",
+        "test_catalog.test_schema.t2",
+    )
+    tags, notes = resolve_franchise_tags(
+        settings(declared_manifest=manifest), PagedTags(), manifest
+    )
+    assert tags == (
+        ("test_catalog.test_schema.t1", "Northwind"),
+        ("test_catalog.test_schema.t2", "Contoso"),
+    )
+    assert fetched == [1]
+    assert any("2 of 2" in note for note in notes)
+
+
+def test_the_bundle_default_for_max_output_tokens_is_four_thousand():
+    bundle = yaml.safe_load((Path(__file__).resolve().parents[2] / "databricks.yml").read_text())
+    assert bundle["variables"]["max_output_tokens"]["default"] == "4000"
 

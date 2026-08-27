@@ -619,6 +619,118 @@ def governance_notes(settings: Settings, manifest: Sequence[str]) -> list[str]:
     ]
 
 
+#: Unity Catalog tag name for a table's franchise, matched case-insensitively.
+#: The catalog today mixes `Franchise` and `franchise`; lowercasing both sides
+#: is why that does not matter.
+FRANCHISE_TAG_NAME = "franchise"
+
+
+def _quoted_name(full_name: str) -> str:
+    return ".".join("`" + part.replace("`", "``") + "`" for part in full_name.split("."))
+
+
+def _sql_string(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'"
+
+
+def _franchise_tag_sql(catalogs: Sequence[str], schemas: Sequence[str]) -> str:
+    """One statement over every declared catalog's table_tags view."""
+
+    schema_list = ", ".join(_sql_string(name) for name in schemas)
+    selects = []
+    for catalog in catalogs:
+        prefix = _quoted_name(catalog)
+        selects.append(
+            "SELECT catalog_name, schema_name, table_name, tag_value "
+            f"FROM {prefix}.information_schema.table_tags "
+            f"WHERE schema_name IN ({schema_list}) "
+            f"AND lower(tag_name) = '{FRANCHISE_TAG_NAME}'"
+        )
+    return " UNION ALL ".join(selects)
+
+
+def _all_result_chunks(workspace: Any, response: Any) -> list[list[Any]]:
+    """Every page of a statement result, not just the first chunk.
+
+    The first page used to be treated as the whole bake, so a paged tag listing
+    labelled only the tables that happened to sit in chunk zero.
+    """
+
+    result = getattr(response, "result", None)
+    rows = list(getattr(result, "data_array", None) or [])
+    statement_id = getattr(response, "statement_id", None)
+    next_chunk = getattr(result, "next_chunk_index", None)
+    execution = getattr(workspace, "statement_execution", None)
+    while next_chunk is not None and statement_id and execution is not None:
+        chunk = execution.get_statement_result_chunk_n(statement_id, next_chunk)
+        rows.extend(list(getattr(chunk, "data_array", None) or []))
+        next_chunk = getattr(chunk, "next_chunk_index", None)
+    return rows
+
+
+def resolve_franchise_tags(
+    settings: Settings, workspace: Any, manifest: Sequence[str]
+) -> tuple[tuple[tuple[str, str], ...], list[str]]:
+    """Bake each declared table's franchise tag, or empty when the views cannot be read.
+
+    Beside the manifest and for the same reason: a live warehouse round trip to
+    re-learn something that only changes when somebody edits the catalog is a
+    cold-start risk on every listing. Untagged is a missing label, not "no such
+    data"; the listing says so.
+    """
+
+    declared = [name for name in manifest if name.count(".") == 2]
+    if not declared:
+        return (), []
+    catalogs = sorted({name.split(".")[0] for name in declared})
+    schemas = sorted({name.split(".")[1] for name in declared})
+    execution = getattr(workspace, "statement_execution", None)
+    if execution is None:
+        return (), [
+            "WARNING: franchise tags could not be baked (no statement execution "
+            "on this workspace client). list_data_assets will label every table untagged."
+        ]
+    try:
+        from databricks.sdk.service.sql import ExecuteStatementRequestOnWaitTimeout
+
+        response = execution.execute_statement(
+            warehouse_id=settings.warehouse_id,
+            statement=_franchise_tag_sql(catalogs, schemas),
+            wait_timeout="50s",
+            on_wait_timeout=ExecuteStatementRequestOnWaitTimeout.CANCEL,
+        )
+    except Exception as error:  # noqa: BLE001 - a missed bake is untagged, not a failed log
+        return (), [
+            f"WARNING: franchise tags could not be read ({error}). "
+            "list_data_assets will label every table untagged."
+        ]
+    state = getattr(getattr(getattr(response, "status", None), "state", None), "value", None)
+    if state and state != "SUCCEEDED":
+        return (), [
+            f"WARNING: franchise tag bake ended {state}. "
+            "list_data_assets will label every table untagged."
+        ]
+    readable = {name.lower(): name for name in declared}
+    baked: dict[str, str] = {}
+    for row in _all_result_chunks(workspace, response):
+        values = [str(item) if item is not None else "" for item in row]
+        if len(values) < 4:
+            continue
+        catalog, schema, table, tag = values[0], values[1], values[2], values[3].strip()
+        full_name = f"{catalog}.{schema}.{table}"
+        declared_name = readable.get(full_name.lower())
+        if declared_name and tag and declared_name not in baked:
+            baked[declared_name] = tag
+    pairs = tuple(sorted(baked.items()))
+    untagged = len(declared) - len(pairs)
+    notes = [
+        f"Franchise tags: {len(pairs)} of {len(declared)} declared table(s) labelled"
+        + (f", {untagged} untagged" if untagged else "")
+        + "."
+    ]
+    return pairs, notes
+
+
 def resolve_declared_manifest(
     settings: Settings, workspace: Any
 ) -> tuple[tuple[str, ...], list[str]]:

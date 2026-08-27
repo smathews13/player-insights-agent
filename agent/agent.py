@@ -403,7 +403,8 @@ MAX_TOOL_CALLS = 12
 #: its own this bounds the gaps. What holds the turn inside the request timeout
 #: is this plus a real per-call deadline, GENIE_TIMEOUT_SECONDS and the
 #: warehouse's wait timeout in tools.py, each sized so one call cannot outlast
-#: this budget.
+#: this budget. The loop stops short of this by `answer_reserve_seconds` so the
+#: write-up still has a turn.
 MAX_RUN_SECONDS = 150.0
 
 #: Per-field ceiling on what a stage records. High enough to keep the SQL a
@@ -575,6 +576,53 @@ REQUEST_CLARIFICATION_TOOL = {
     },
 }
 
+def system_text(content: Any) -> str:
+    """The system prompt as plain text, whether or not it is a cacheable block.
+
+    Tests and the fake client read what the model was *told* through this, so a
+    wire-format change cannot break every assertion that looks at the prompt.
+    """
+
+    if isinstance(content, str) or content is None:
+        return content or ""
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                parts.append(str(block.get("text") or ""))
+            else:
+                parts.append(str(block))
+        return "".join(parts)
+    return str(content)
+
+
+def _cacheable(text: str) -> list[dict[str, Any]]:
+    """System message as one cacheable content block.
+
+    The undocumented case is the valuable one: a content-block system message
+    with cache_control reads back thousands of cached tokens; the tools array
+    is cheaper; no marker is zero. Built to degrade: an endpoint that stopped
+    honouring cache_control ignores an unknown field and answers uncached.
+    """
+
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+
+
+def _cacheable_tools(tools: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Copy the tool list and put one breakpoint on the last definition.
+
+    Copied, not mutated: DATA_SOURCE_FINDER_TOOLS is what tests read to reason
+    about what the model was offered, and it should keep describing the tools,
+    not the transport.
+    """
+
+    if not tools:
+        return []
+    cached = [dict(tool) for tool in tools]
+    cached[-1] = {**cached[-1], "cache_control": {"type": "ephemeral"}}
+    return cached
+
+
 #: The tools the finder sees, in ladder order. Load-bearing, not cosmetic: the
 #: model reaches for what it meets first. Genie is fourth rung and fallback.
 #: list_data_assets is browsing only — it recites every declared table.
@@ -593,6 +641,7 @@ DATA_SOURCE_FINDER_TOOLS = [
     LIST_DATA_ASSETS_TOOL,
     REQUEST_CLARIFICATION_TOOL,
 ]
+CACHED_FINDER_TOOLS = _cacheable_tools(DATA_SOURCE_FINDER_TOOLS)
 
 # The orchestrator plans, delegates, and synthesizes. It has no governed-data
 # tools of its own; those belong exclusively to the in-process finder above.
@@ -619,8 +668,10 @@ memory, and never rounded or estimated.
    asked. Do not crawl for a half-named table and do not assume a region.
 
 A table named without its catalog and schema is a lookup, not a question for the user.
-Call resolve_table on it: one call, against the declared set. If it RESOLVES, carry on at
-step 2 with the full name. If it is AMBIGUOUS the same name is declared in more than one
+Call resolve_table on it: one call, against the declared set. If it RESOLVES, carry on
+on the DIRECT path with the full name: describe_table, then query_named_table or
+run_sql. Step 2 is Genie, and only when that path cannot produce the figure. If it is
+AMBIGUOUS the same name is declared in more than one
 schema, and those are different tables that will give different figures, so ask the user
 which one and list what resolve_table returned rather than picking one. If it is NOT
 FOUND, the table is out of scope; say so and do not go looking. Asking the user to retype
@@ -651,10 +702,12 @@ from the deployment rather than from the shape of a name.
 - Two tables can hold the same events at different grains, or apply a different window or
   population, and then answer the same question with different figures. That is worse than
   a missing answer: a stakeholder who asks twice and gets two figures stops trusting all of
-  them. So establish what a table is before you answer from it, using describe_table and
-  dictionary_genie, and name in the answer which table the figure came from.
-- A table whose purpose you have not established is not a source. Ask dictionary_genie
-  what it holds before answering from it.
+  them. So establish what a table is before you answer from it, using describe_table
+  (and dictionary_genie only if the metadata genuinely lacks a meaning), and name in the
+  answer which table the figure came from.
+- A table whose purpose you have not established is not a source. Read describe_table
+  before answering from it. dictionary_genie is only for a meaning the metadata genuinely
+  lacks.
 - Where two tables could both answer and you cannot establish which is authoritative here,
   say which one you used and that another may give a different figure.
 
@@ -2470,7 +2523,7 @@ class RunLog:
         )
 
     def expired(self) -> bool:
-        return self.elapsed >= runtime_settings.current().loop.max_run_seconds
+        return self.remaining <= runtime_settings.answer_reserve_seconds()
 
     @property
     def remaining(self) -> float:
@@ -3242,7 +3295,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"
 
-        messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
+        messages: list[dict[str, Any]] = [{"role": "system", "content": _cacheable(system)}]
         # The notebook's finder gets exactly one self-contained user message. The
         # component always calls this loop with no role-bearing history and no
         # separately injected attachment message.
@@ -3321,7 +3374,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         messages=messages,
                         temperature=0.1,
                         max_tokens=self.settings.max_output_tokens,
-                        tools=DATA_SOURCE_FINDER_TOOLS,
+                        tools=CACHED_FINDER_TOOLS,
                         tool_choice="auto",
                         timeout=max(1.0, log.remaining),
                     )
@@ -3899,7 +3952,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         # "stop" row took 36.75s because it did exactly that). A deterministic
         # handoff preserves the evidence already gathered without replaying it
         # through another expensive step.
-        if log.remaining < 5.0:
+        if log.remaining <= runtime_settings.answer_reserve_seconds():
             evidence = log.plot_evidence() or log.evidence
             if evidence:
                 heading = "## DATA PACKAGE" if log.readings else "## DATA OVERVIEW"
@@ -4087,7 +4140,7 @@ Tables actually read this run:
             kwargs = {
                 "model": self.settings.llm_endpoint,
                 "messages": [
-                    {"role": "system", "content": system},
+                    {"role": "system", "content": _cacheable(system)},
                     {"role": "user", "content": user},
                 ],
                 "temperature": 0.1,
@@ -4233,12 +4286,12 @@ Statements run, for column names and grain:
                 response = client.chat.completions.create(
                     model=self.settings.llm_endpoint,
                     messages=[
-                        {"role": "system", "content": plot_instructions},
+                        {"role": "system", "content": _cacheable(plot_instructions)},
                         {"role": "user", "content": user},
                     ],
                     temperature=0.0,
                     max_tokens=self.settings.max_output_tokens,
-                    tools=[NEW_PLOT_TOOL],
+                    tools=_cacheable_tools([NEW_PLOT_TOOL]),
                     tool_choice="auto",
                     timeout=max(1.0, log.remaining),
                 )
@@ -4474,7 +4527,9 @@ Statements run, for column names and grain:
                 messages=[
                     {
                         "role": "system",
-                        "content": PLAN_SELECTION_INSTRUCTIONS.format(limit=PLAN_MAX_TABLES),
+                        "content": _cacheable(
+                            PLAN_SELECTION_INSTRUCTIONS.format(limit=PLAN_MAX_TABLES)
+                        ),
                     },
                     {
                         "role": "user",
@@ -4522,8 +4577,10 @@ Tables available to this analysis, with their columns:
                 messages=[
                     {
                         "role": "system",
-                        "content": knowledge.add_packaged_knowledge(
-                            PLAN_FACTS_INSTRUCTIONS, COUNTING_USERS
+                        "content": _cacheable(
+                            knowledge.add_packaged_knowledge(
+                                PLAN_FACTS_INSTRUCTIONS, COUNTING_USERS
+                            )
                         ),
                     },
                     {"role": "user", "content": user},

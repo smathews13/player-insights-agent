@@ -54,11 +54,22 @@ def usage_from_response(response: Any) -> dict[str, int] | None:
         completion = completion or 0
         if total is None:
             total = prompt + completion
-        return {
+        usage_block: dict[str, int] = {
             "prompt_tokens": prompt,
             "completion_tokens": completion,
             "total_tokens": total,
         }
+        # Cache counters are a separate meter from prompt_tokens. A working cache
+        # still reports the full prompt size, so these are the only signal that
+        # caching fired. Written only when the endpoint reports them: a silent
+        # zero would look like a measured miss.
+        cache_read = _count("cache_read_input_tokens", "cached_tokens")
+        cache_write = _count("cache_creation_input_tokens", "cache_write_input_tokens")
+        if cache_read is not None:
+            usage_block["cache_read_input_tokens"] = cache_read
+        if cache_write is not None:
+            usage_block["cache_creation_input_tokens"] = cache_write
+        return usage_block
     except (TypeError, ValueError, AttributeError):
         return None
 
@@ -88,6 +99,9 @@ def record_llm_usage(span: Any, response: Any) -> dict[str, int] | None:
                 "total_tokens": usage["total_tokens"],
             },
         )
+        # Cache counters stay on span outputs, not in mlflow.chat.tokenUsage.
+        # prompt_tokens counts cached tokens too, so the Tokens column cannot
+        # tell a working cache from a dead one; cache_read_input_tokens can.
         current = dict(getattr(span, "outputs", None) or {})
         current.update(usage)
         span.set_outputs(current)

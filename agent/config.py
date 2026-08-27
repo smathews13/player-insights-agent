@@ -57,6 +57,7 @@ ENV_VARS = {
     "tables": "PLAYER_INSIGHTS_TABLES",
     "declared_manifest": "PLAYER_INSIGHTS_DECLARED_MANIFEST",
     "manifest_source": "PLAYER_INSIGHTS_MANIFEST_SOURCE",
+    "franchise_tags": "PLAYER_INSIGHTS_FRANCHISE_TAGS",
     "build_sha": BUILD_SHA_VAR,
 }
 
@@ -87,6 +88,7 @@ BAKED_KEYS = (
     # knob on the running agent: a served entity must never claim `genie` while
     # holding a manifest that was enumerated, or the reverse.
     "manifest_source",
+    "franchise_tags",
     "build_sha",
 )
 
@@ -183,6 +185,35 @@ def _tuple(value: Any) -> tuple[str, ...]:
     if isinstance(value, str):
         return tuple(item.strip() for item in value.split(",") if item.strip())
     return tuple(str(item).strip() for item in value if str(item).strip())
+
+
+def _tag_pairs(value: Any) -> tuple[tuple[str, str], ...]:
+    """Baked franchise tags: `(full_name, value)` pairs, or empty.
+
+    Logged as a YAML list of two-item lists. An older artifact without the key
+    loads as empty rather than failing the model, so every table lists as
+    untagged until the next re-log.
+    """
+
+    if not value:
+        return ()
+    if isinstance(value, str):
+        pairs: list[tuple[str, str]] = []
+        for item in value.split(","):
+            if "=" not in item:
+                continue
+            name, tag = item.split("=", 1)
+            name, tag = name.strip(), tag.strip()
+            if name and tag:
+                pairs.append((name, tag))
+        return tuple(pairs)
+    pairs = []
+    for item in value:
+        if isinstance(item, (list, tuple)) and len(item) >= 2:
+            name, tag = str(item[0]).strip(), str(item[1]).strip()
+            if name:
+                pairs.append((name, tag))
+    return tuple(pairs)
 
 
 def baked_config() -> dict[str, Any]:
@@ -343,6 +374,11 @@ class Settings:
     #: curate and nothing else, which is what a customer whose warehouse does not
     #: project onto our contract names needs.
     manifest_source: str = MANIFEST_FROM_SCHEMA
+    #: Table -> franchise tag, baked at log time beside the manifest. Reading
+    #: tags live is a warehouse round trip to re-learn something that only
+    #: changes when somebody edits the catalog. Empty on versions logged before
+    #: this field existed; `list_data_assets` then labels every table untagged.
+    franchise_tags: tuple[tuple[str, str], ...] = ()
     # THERE IS NO FIELD HERE DESCRIBING THE NATURE OF THE DATA, deliberately.
     # `synthetic_data` used to sit at this position and gate a sentence stating
     # that the figures were generated. It is gone rather than defaulted off: no
@@ -501,6 +537,7 @@ class Settings:
             tables=_tuple(resolved["tables"] or DECLARED_TABLES),
             declared_manifest=_tuple(resolved["declared_manifest"] or ()),
             manifest_source=manifest_source,
+            franchise_tags=_tag_pairs(resolved.get("franchise_tags") or ()),
             build_sha=str(resolved["build_sha"] or ""),
             sources=tuple(sorted(origins.items())),
         )

@@ -53,6 +53,36 @@ def test_record_llm_usage_sets_span_attribute_and_outputs():
         assert span.outputs["total_tokens"] == 25
 
 
+def test_cache_counters_land_on_span_outputs_not_the_tokens_column():
+    """prompt_tokens counts cached tokens too, so the Tokens column cannot tell."""
+
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            prompt_tokens=20,
+            completion_tokens=5,
+            total_tokens=25,
+            cache_read_input_tokens=12,
+            cache_creation_input_tokens=8,
+        )
+    )
+
+    with mlflow.start_span(name="test.llm.cache", span_type="LLM") as span:
+        span.set_outputs({"text": "hello"})
+        recorded = record_llm_usage(span, response)
+
+        assert recorded["cache_read_input_tokens"] == 12
+        assert recorded["cache_creation_input_tokens"] == 8
+        assert span.outputs["cache_read_input_tokens"] == 12
+        assert span.outputs["cache_creation_input_tokens"] == 8
+        assert span.attributes[TOKEN_USAGE_ATTR] == {
+            "input_tokens": 20,
+            "output_tokens": 5,
+            "total_tokens": 25,
+        }
+        assert "cache_read_input_tokens" not in span.attributes[TOKEN_USAGE_ATTR]
+        assert "cache_creation_input_tokens" not in span.attributes[TOKEN_USAGE_ATTR]
+
+
 def test_record_llm_usage_noop_without_usage():
     with mlflow.start_span(name="test.llm.empty", span_type="LLM") as span:
         span.set_outputs({"text": "hello"})

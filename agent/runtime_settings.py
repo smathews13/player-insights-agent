@@ -15,11 +15,24 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
+#: Compiled run budget, and the floor/ceiling `_integer` accepts for an override.
+#: 150s is Acme's measured default; 200s is the highest that still leaves
+#: synthesis and the trip home inside the app's 240s abandon.
+DEFAULT_MAX_RUN_SECONDS = 150
+MIN_RUN_SECONDS = 30
+MAX_RUN_SECONDS_CEILING = 200
+
+#: Seconds held back from tools so the write-up can still run, at the compiled
+#: 150s default. Scales with the budget: a flat 35s hold-back against the 30s
+#: minimum left the loop unable to run a single step.
+ANSWER_RESERVE_AT_DEFAULT = 25
+
+
 @dataclass(frozen=True)
 class LoopSettings:
     max_steps: int = 12
     max_tool_calls: int = 12
-    max_run_seconds: int = 150
+    max_run_seconds: int = DEFAULT_MAX_RUN_SECONDS
 
 
 @dataclass(frozen=True)
@@ -108,7 +121,12 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
         loop=LoopSettings(
             max_steps=_integer(loop.get("maxSteps"), 12, 1, 20),
             max_tool_calls=_integer(loop.get("maxToolCalls"), 12, 1, 40),
-            max_run_seconds=_integer(loop.get("maxRunSeconds"), 150, 30, 200),
+            max_run_seconds=_integer(
+                loop.get("maxRunSeconds"),
+                DEFAULT_MAX_RUN_SECONDS,
+                MIN_RUN_SECONDS,
+                MAX_RUN_SECONDS_CEILING,
+            ),
         ),
         answer=AnswerSettings(
             takeaway=_boolean(answer.get("takeaway"), True),
@@ -170,6 +188,23 @@ def remaining_seconds() -> float:
     if not deadline:
         return float(current().loop.max_run_seconds)
     return max(0.0, deadline - time.perf_counter())
+
+
+def answer_reserve_seconds(max_run_seconds: int | None = None) -> float:
+    """Time both the finder loop and the write-up must agree to leave.
+
+    Scales with the budget. A flat 35s hold-back against the 30s minimum left
+    the loop with nothing; at the floor the reserve is zero so a step can still
+    run. At the 150s default it is `ANSWER_RESERVE_AT_DEFAULT` seconds.
+    """
+
+    budget = float(
+        max_run_seconds if max_run_seconds is not None else current().loop.max_run_seconds
+    )
+    share = budget * (ANSWER_RESERVE_AT_DEFAULT / DEFAULT_MAX_RUN_SECONDS)
+    if budget <= MIN_RUN_SECONDS:
+        return 0.0
+    return max(0.0, min(share, budget - MIN_RUN_SECONDS))
 
 
 def today_line(timezone: str = "", *, now: datetime | None = None) -> str:

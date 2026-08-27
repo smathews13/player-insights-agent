@@ -17,6 +17,7 @@ from tests.test_agent import (
     ScriptedLlm,
     app_request,
     build,
+    system_text,
 )
 from tools import ToolResult
 
@@ -71,8 +72,10 @@ def test_finder_invocation_gets_no_role_bearing_conversation_history():
 
     first_finder_call = llm.loop_calls[0]
     messages = first_finder_call["messages"]
-    assert messages[0]["role"] == "system"
-    assert messages[0]["content"].startswith("# Role\nYou are the Data Source Finder")
+    assert llm.loop_calls[0]["messages"][0]["role"] == "system"
+    assert system_text(llm.loop_calls[0]["messages"][0]["content"]).startswith(
+        "# Role\nYou are the Data Source Finder"
+    )
     # The finder has one user request. Earlier turns are inert JSON inside that
     # request, never messages the model can treat as its own conversation.
     user_messages = [message for message in messages if message["role"] == "user"]
@@ -139,7 +142,7 @@ def test_finder_system_prompt_receives_todays_date():
     llm = ScriptedLlm("## DATA PACKAGE\n- **Findings / data:** none.", charts=False)
     execute(build(llm, FakeTools()), "Active players in the last 30 days.")
 
-    system = llm.loop_calls[0]["messages"][0]["content"]
+    system = system_text(llm.loop_calls[0]["messages"][0]["content"])
     assert "Today's date is " in system
     assert "last 30 days" in system
 
@@ -154,7 +157,7 @@ def test_finder_system_prompt_uses_the_request_timezone():
         },
     )
 
-    system = llm.loop_calls[0]["messages"][0]["content"]
+    system = system_text(llm.loop_calls[0]["messages"][0]["content"])
     assert "America/Los_Angeles" in system
 
 
@@ -172,7 +175,7 @@ def test_a_simple_data_question_still_invokes_the_finder():
     assert trace[0]["name"] == "Orchestrator"
     assert trace[1]["id"] == "data_source_finder"
     assert trace[1]["parent_id"] == "orchestrator"
-    assert llm.loop_calls[0]["messages"][0]["content"].startswith(
+    assert system_text(llm.loop_calls[0]["messages"][0]["content"]).startswith(
         "# Role\nYou are the Data Source Finder"
     )
 

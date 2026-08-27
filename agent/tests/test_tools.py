@@ -78,9 +78,13 @@ class FakeWarehouse:
         self.statements: list[str] = []
         self.wait_timeouts: list[tuple[str, Any]] = []
         self.chunks_fetched: list[int] = []
+        self.get_statement_calls: list[str] = []
+        self.cancelled: list[str] = []
         self.statement_execution = SimpleNamespace(
             execute_statement=self._execute,
             get_statement_result_chunk_n=self._chunk,
+            get_statement=self._get_statement,
+            cancel_execution=self._cancel,
         )
 
     def _page(self, index: int):
@@ -93,10 +97,7 @@ class FakeWarehouse:
             next_chunk_index=index + 1 if has_more else None,
         )
 
-    def _execute(self, warehouse_id: str, statement: str, wait_timeout: str, on_wait_timeout=None):
-        self.statements.append(statement)
-        self.wait_timeouts.append((wait_timeout, on_wait_timeout))
-        state = self.states.pop(0) if len(self.states) > 1 else self.states[0]
+    def _response(self, state: str):
         return SimpleNamespace(
             statement_id="statement-1",
             status=SimpleNamespace(
@@ -113,6 +114,23 @@ class FakeWarehouse:
                 ),
             ),
         )
+
+    def _next_state(self) -> str:
+        return self.states.pop(0) if len(self.states) > 1 else self.states[0]
+
+    def _execute(self, warehouse_id: str, statement: str, wait_timeout: str, on_wait_timeout=None):
+        self.statements.append(statement)
+        self.wait_timeouts.append((wait_timeout, on_wait_timeout))
+        return self._response(self._next_state())
+
+    def _get_statement(self, statement_id: str):
+        self.get_statement_calls.append(statement_id)
+        if self.cancelled:
+            return self._response("CANCELED")
+        return self._response(self._next_state())
+
+    def _cancel(self, statement_id: str):
+        self.cancelled.append(statement_id)
 
     def _chunk(self, statement_id: str, chunk_index: int):
         self.chunks_fetched.append(chunk_index)
@@ -166,6 +184,27 @@ def test_listing_returns_the_declared_set_in_one_call():
     filtered = tools.list_data_assets("test_catalog", "test_schema").text
     assert PROFILES in filtered
     assert OTHER_SCHEMA_TABLE not in filtered, "a schema listing shows that schema only"
+
+
+def test_listing_uses_baked_franchise_tags_when_they_were_logged():
+    """A live warehouse round trip to re-learn tags is a cold-start risk."""
+
+    tagged = Settings(
+        llm_endpoint="fake",
+        warehouse_id="test-warehouse",
+        data_genie_space_id="data",
+        dictionary_genie_space_id="dictionary",
+        catalog="test_catalog",
+        schema="test_schema",
+        catalog_allowlist=("test_catalog",),
+        max_output_tokens=1000,
+        declared_manifest=MANIFEST,
+        franchise_tags=((PROFILES, "Northwind"),),
+    )
+    text = PlayerInsightTools(tagged, FakeWarehouse(["a"], [["1"]])).list_data_assets().text
+    assert f"{PROFILES}  [franchise: Northwind]" in text
+    assert f"{ACTIVITY}  [franchise: untagged]" in text
+    assert "untagged, not that the table cannot answer" in text
 
 
 def test_listing_never_touches_unity_catalog_or_the_warehouse():
@@ -2952,16 +2991,16 @@ def test_the_statement_is_cancelled_at_the_wait_timeout_rather_than_left_running
     build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
 
     assert warehouse.wait_timeouts == [
-        (tools_module.SQL_WAIT_TIMEOUT, ExecuteStatementRequestOnWaitTimeout.CANCEL)
+        (tools_module.SQL_WAIT_TIMEOUT, ExecuteStatementRequestOnWaitTimeout.CONTINUE)
     ]
 
 
 def test_answer_sql_waits_the_api_ceiling_not_thirty_seconds():
     """The query that answers the question used to cancel at 30s.
 
-    50s is the Statement Execution API's max for a synchronous wait. Lookup
-    already used it; `query_named_table` now does too. 30s is only a docs
-    example for CANCEL mode, not a platform limit.
+    50s is the Statement Execution API's max for a synchronous wait. Past that
+    the statement is polled until 110s. 30s is only a docs example for CANCEL
+    mode, not a platform limit.
     """
 
     warehouse = FakeWarehouse(["n"], [["1"]])
@@ -2969,10 +3008,11 @@ def test_answer_sql_waits_the_api_ceiling_not_thirty_seconds():
     build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
 
     assert warehouse.wait_timeouts == [
-        (f"{tools_module.SQL_WAIT_CEILING_SECONDS}s", ExecuteStatementRequestOnWaitTimeout.CANCEL)
+        (f"{tools_module.SQL_WAIT_CEILING_SECONDS}s", ExecuteStatementRequestOnWaitTimeout.CONTINUE)
     ]
     assert warehouse.wait_timeouts[0][0] != "30s"
-    assert tools_module.SQL_WAIT_SECONDS == tools_module.SQL_WAIT_CEILING_SECONDS
+    assert tools_module.ANSWER_SQL_WAIT_SECONDS == 110
+    assert tools_module.SQL_WAIT_SECONDS == tools_module.ANSWER_SQL_WAIT_SECONDS
 
 
 def test_answer_sql_still_stops_when_the_run_budget_is_gone(monkeypatch):
@@ -2986,6 +3026,60 @@ def test_answer_sql_still_stops_when_the_run_budget_is_gone(monkeypatch):
     assert warehouse.wait_timeouts == [
         ("40s", ExecuteStatementRequestOnWaitTimeout.CANCEL)
     ]
+
+
+def test_answering_sql_polls_past_the_sync_ceiling_until_it_succeeds(monkeypatch):
+    """CONTINUE at 50s, then get_statement until SUCCEEDED, never cancel."""
+
+    monkeypatch.setattr(tools_module.time, "sleep", lambda _: None)
+    warehouse = FakeWarehouse(["n"], [["1"]], state=["RUNNING", "SUCCEEDED"])
+
+    text = build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}").text
+
+    assert "1" in text
+    assert warehouse.get_statement_calls
+    assert warehouse.cancelled == []
+    assert warehouse.wait_timeouts[0][1] == ExecuteStatementRequestOnWaitTimeout.CONTINUE
+
+
+def test_answering_sql_cancels_on_the_deadline_so_the_model_sees_canceled(monkeypatch):
+    """Leaving the statement RUNNING used to be reported as a failure."""
+
+    monkeypatch.setattr(tools_module.time, "sleep", lambda _: None)
+    clock = {"t": 0.0}
+    monkeypatch.setattr(tools_module.time, "perf_counter", lambda: clock["t"])
+    budget(monkeypatch, 150)
+    warehouse = FakeWarehouse(["n"], [["1"]], state="RUNNING")
+    real_execute = warehouse.statement_execution.execute_statement
+
+    def execute(*args, **kwargs):
+        result = real_execute(*args, **kwargs)
+        clock["t"] = 200.0
+        return result
+
+    warehouse.statement_execution.execute_statement = execute
+
+    with pytest.raises(RuntimeError) as failure:
+        build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
+
+    assert "did not fail" in str(failure.value)
+    assert warehouse.cancelled
+    assert warehouse.get_statement_calls
+    assert warehouse.wait_timeouts[0][1] == ExecuteStatementRequestOnWaitTimeout.CONTINUE
+
+
+def test_discovery_sql_never_polls():
+    """A DESCRIBE stays on CANCEL at the sync ceiling and does not get_statement."""
+
+    warehouse = FakeWarehouse(["col_name", "data_type", "comment"], [], state="RUNNING")
+
+    with pytest.raises(RuntimeError) as failure:
+        build(warehouse).describe_table(ACTIVITY)
+
+    assert warehouse.get_statement_calls == []
+    assert warehouse.cancelled == []
+    assert warehouse.wait_timeouts[0][1] == ExecuteStatementRequestOnWaitTimeout.CANCEL
+    assert "still running" in str(failure.value).lower()
 
 
 def test_a_paged_result_is_not_read_as_a_complete_one():

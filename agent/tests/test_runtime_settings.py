@@ -93,3 +93,19 @@ def test_invalid_direct_caller_values_fall_back_safely():
     assert settings.answer.takeaway_guidance == ""
     assert settings.answer.figures_order == "as-ranked"
     assert settings.answer.charts_types == "auto"
+
+
+def test_the_answer_reserve_scales_and_is_zero_at_the_floor():
+    """A flat 35s hold-back against a 30s minimum left the loop unable to run."""
+
+    from runtime_settings import (
+        ANSWER_RESERVE_AT_DEFAULT,
+        answer_reserve_seconds,
+    )
+
+    activate({})
+    assert answer_reserve_seconds() == ANSWER_RESERVE_AT_DEFAULT
+    activate({"runtime_settings": {"loop": {"maxRunSeconds": 30}}})
+    assert answer_reserve_seconds() == 0
+    activate({"runtime_settings": {"loop": {"maxRunSeconds": 150}}})
+    assert answer_reserve_seconds() == 25

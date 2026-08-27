@@ -8,6 +8,7 @@
 # Usage:
 #   TARGET=<your-target> bundle/agent-release.sh            # dry run
 #   TARGET=<your-target> bundle/agent-release.sh --apply
+#   TARGET=<your-target> bundle/agent-release.sh --served   # list served entities
 #   ... --apply --skip-log --model-version 8    # deploy an already-logged version
 #
 # TARGET has no default. PROFILE is optional for a target that names its profile in
@@ -18,6 +19,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/decisions-gate.sh"
 
 APPLY=false; SKIP_LOG=false; MODEL_VERSION=""; ALLOW_WIDENING=false; IGNORE_APP_INTENTIONS=false
+SHOW_SERVED=false
+# Databricks serving allows three entities on one endpoint. Adding a fourth
+# fails the deploy; versions 5 and 6 of a sibling release were the other half of
+# that class of defect (retrying a success). We prune idle entities first when
+# already at the ceiling, then refuse if there is still no slot.
+MAX_SERVED_ENTITIES=3
 # Remove superseded served entities after the traffic switch. Registered model
 # versions remain available for rollback.
 PRUNE=true
@@ -42,6 +49,8 @@ while [[ $# -gt 0 ]]; do
     # hand afterwards. The run still REPORTS what it would have removed, so
     # skipping the prune cannot look the same as having nothing to prune.
     --no-prune) PRUNE=false ;;
+    # List the endpoint's served entities and exit. Does not log or deploy.
+    --served) SHOW_SERVED=true ;;
     # Accepted and does nothing: user authorization is now unconditional. Kept so
     # an older command line, or a transcript somebody is following, still runs.
     --user-authorization) ;;
@@ -130,6 +139,62 @@ genie_origin() {
   else printf 'existing space from the bundle variable'; fi
 }
 
+served_entity_count() {
+  databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json | python3 -c '
+import json, sys
+body = json.load(sys.stdin)
+print(len((body.get("config") or {}).get("served_entities") or []))
+'
+}
+
+print_served_entities() {
+  databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json | python3 -c '
+import json, sys
+ceiling = sys.argv[1]
+body = json.load(sys.stdin)
+cfg = body.get("config") or {}
+routes = ((cfg.get("traffic_config") or {}).get("routes")) or []
+traffic = {
+    r.get("served_entity_name") or r.get("served_model_name"): r.get("traffic_percentage") or 0
+    for r in routes
+}
+entities = cfg.get("served_entities") or []
+print(f"endpoint: {body.get(\"name\") or \"\"}")
+print(f"served_entities: {len(entities)} (ceiling {ceiling})")
+for entity in entities:
+    name = entity.get("name") or ""
+    version = entity.get("entity_version") or ""
+    print(f"  {name}  version={version}  traffic={traffic.get(name, 0)}%")
+' "$MAX_SERVED_ENTITIES"
+}
+
+wait_until_endpoint_settled() {
+  local deadline=$(( $(date +%s) + 600 ))
+  while :; do
+    local update
+    update=$(databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json | python3 -c '
+import json, sys
+body = json.load(sys.stdin)
+print(((body.get("state") or {}).get("config_update")) or "NONE")
+')
+    [[ "$update" == "NOT_UPDATING" || "$update" == "NONE" ]] && return 0
+    if (( $(date +%s) >= deadline )); then
+      return 1
+    fi
+    echo "  endpoint update=$update; waiting to settle"
+    sleep 15
+  done
+}
+
+prune_idle() {
+  local keep="$1"
+  "$BUNDLE_ROOT/bundle/prune-served-entities.py" \
+    --endpoint "$ENDPOINT" --profile "$PROFILE" \
+    --keep-rollbacks "$keep" --apply
+  wait_until_endpoint_settled || die "Endpoint $ENDPOINT did not settle after pruning idle entities.
+Wait for it to finish updating, then re-run this release."
+}
+
 step "Agent release configuration (target: $TARGET)"
 note "app catalog.schema    $CATALOG.$SCHEMA"
 note "model                 $MODEL_NAME"
@@ -141,6 +206,12 @@ note "warehouse             $WAREHOUSE_ID"
 note "data genie space      $DATA_GENIE_ID  ($(genie_origin "${PLAYER_INSIGHTS_DATA_GENIE_ID:-}" "$DATA_GENIE_ADOPTED"))"
 note "dictionary genie      $DICT_GENIE_ID  ($(genie_origin "${PLAYER_INSIGHTS_DICTIONARY_GENIE_ID:-}" "$DICT_GENIE_ADOPTED"))"
 note "data catalogs         $ALLOWLIST"
+
+if [[ "$SHOW_SERVED" == true ]]; then
+  step "Served entities on $ENDPOINT"
+  print_served_entities
+  exit 0
+fi
 # Printed even when empty, and labelled, so "(none)" is a statement the operator
 # read rather than a line they never saw. The failure this closes was invisible
 # precisely because an absent denylist looked like every other run.
@@ -259,6 +330,9 @@ export PLAYER_INSIGHTS_SEMANTIC_INDEX="$SEMANTIC_INDEX"
 #   PLAYER_INSIGHTS_*_GENIE_TITLE       resolved at log time from get_space.
 #                                       Cleared so a laptop cannot invent a
 #                                       title that disagrees with the space.
+#   PLAYER_INSIGHTS_FRANCHISE_TAGS      baked at log time from information_schema
+#                                       beside the manifest. A shell value here
+#                                       would label tables a laptop invented.
 #
 # Not cleared: the two Genie space ids above, which are documented overrides for
 # the pre-deploy case.
@@ -266,6 +340,7 @@ unset PLAYER_INSIGHTS_TABLES
 unset PLAYER_INSIGHTS_DECLARED_MANIFEST
 unset PLAYER_INSIGHTS_DATA_GENIE_TITLE
 unset PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE
+unset PLAYER_INSIGHTS_FRANCHISE_TAGS
 
 # --- Does this release agree with what somebody saved in the app? ------------
 #
@@ -556,18 +631,25 @@ if [[ "$SKIP_LOG" != true ]]; then
   step "Logging model"
   LOG_ARGS=()
   [[ "$ALLOW_WIDENING" == true ]] && LOG_ARGS+=(--allow-widening)
-  # KEPT, rather than consumed by a pipeline. log_model.py's last stdout line is the
-  # release summary, and until now everything in it except model_version was thrown
-  # away -- including api_scopes, which is the only record of what the new version
-  # actually baked. The scope check below reads it. Same output reaches the
-  # operator as before: this was already not displayed.
+  # KEPT, rather than consumed by a pipeline. log_model.py's last JSON object
+  # with model_version is the release summary. A warning printed after it used
+  # to make a last-line JSON parse fail, so a release that had in fact worked looked
+  # like a failure and was retried (duplicate versions). When the object is
+  # missing, say the model may already be registered and print the UC versions
+  # API — do not retry blindly.
   LOG_STDOUT="$(mktemp "${TMPDIR:-/tmp}/pia-log-model.XXXXXX")"
   on_exit "rm -f '$LOG_STDOUT'"
   (cd "$BUNDLE_ROOT/agent" && uv run --python 3.13 python log_model.py "${LOG_ARGS[@]+"${LOG_ARGS[@]}"}" > "$LOG_STDOUT")
-  MODEL_VERSION="$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).read().strip().splitlines()[-1])["model_version"])' "$LOG_STDOUT")"
   LOG_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/pia-log-summary.XXXXXX")"
   on_exit "rm -f '$LOG_SUMMARY'"
-  tail -n 1 "$LOG_STDOUT" > "$LOG_SUMMARY"
+  if ! MODEL_VERSION="$(python3 "$BUNDLE_ROOT/bundle/read-log-summary.py" --write "$LOG_SUMMARY" "$LOG_STDOUT")"; then
+    die "Could not read model_version from log_model.py stdout.
+
+The model may already have been registered. Check before retrying — a retry that
+logs again is how duplicate versions appear when the release had in fact worked:
+
+  databricks api get \"/api/2.1/unity-catalog/models/${MODEL_NAME}/versions\" --profile '$PROFILE'"
+  fi
   note "logged version $MODEL_VERSION"
 fi
 [[ -n "$MODEL_VERSION" ]] || die "--model-version is required when --skip-log is set"
@@ -648,6 +730,33 @@ meaning for. Treat version $MODEL_VERSION's scopes as unknown and read the outpu
 above before deploying it to $ENDPOINT."
     ;;
 esac
+fi
+
+# Three served entities is the platform ceiling. Adding a fourth fails the
+# deploy, so idle ones are pruned first when we are already at it. Traffic-
+# bearing entities are never removed; if all three still carry traffic, stop.
+SERVED_COUNT="$(served_entity_count)"
+if (( SERVED_COUNT >= MAX_SERVED_ENTITIES )); then
+  if [[ "$PRUNE" == true ]]; then
+    step "Endpoint is at $SERVED_COUNT served entities (ceiling $MAX_SERVED_ENTITIES); pruning idle ones so version $MODEL_VERSION can be added"
+    prune_idle "$ROLLBACKS_KEPT"
+    SERVED_COUNT="$(served_entity_count)"
+    if (( SERVED_COUNT >= MAX_SERVED_ENTITIES )); then
+      note "still at the ceiling; dropping idle rollbacks for this add"
+      prune_idle 0
+      SERVED_COUNT="$(served_entity_count)"
+    fi
+  fi
+  if (( SERVED_COUNT >= MAX_SERVED_ENTITIES )); then
+    die "Endpoint $ENDPOINT already has $SERVED_COUNT served entities (ceiling $MAX_SERVED_ENTITIES),
+so this release cannot add version $MODEL_VERSION.
+
+List what is up:
+  TARGET=$TARGET bundle/agent-release.sh --served
+Prune idle entities, then re-run:
+  bundle/prune-served-entities.py --endpoint $ENDPOINT --profile '$PROFILE' --keep-rollbacks $ROLLBACKS_KEPT --apply
+  TARGET=$TARGET bundle/agent-release.sh --apply --skip-log --model-version $MODEL_VERSION"
+  fi
 fi
 
 step "Deploying version $MODEL_VERSION to $ENDPOINT"
