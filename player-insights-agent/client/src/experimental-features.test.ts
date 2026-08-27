@@ -6,9 +6,9 @@ import {
   readExperimentalFeatures,
   showsBenchmarkLab,
   showsEgressControls,
-  showsSpIdentities,
   type PreferenceStore,
 } from './experimental-features';
+import { LEGACY_SP_IDENTITIES_BROWSER_KEY } from './sp-identity-mode';
 
 /**
  * The preference behind the Benchmark Lab, and the ways a browser can refuse to
@@ -170,25 +170,25 @@ describe('deciding whether to draw the egress panel', () => {
     const features = readExperimentalFeatures(store);
     expect(features.egressControls).toBe(true);
     expect(features.benchmarkLab).toBe(false);
-    expect(features.spIdentities).toBe(false);
   });
 });
 
-describe('deciding whether the Identity pane is live', () => {
-  it('is off for a browser that has not opted in', () => {
-    expect(NO_EXPERIMENTS.spIdentities).toBe(false);
-    expect(showsSpIdentities(readExperimentalFeatures(fakeStore()))).toBe(false);
+/**
+ * SP identities used to live here as a third browser key. The Experimental
+ * switch still sits on Settings, but the real pivot is deployment-wide. A
+ * leftover localStorage value must not turn anything on.
+ */
+describe('a leftover SP-identities browser key does not opt anyone in', () => {
+  it('is ignored when reading experiments', () => {
+    const store = fakeStore({ [LEGACY_SP_IDENTITIES_BROWSER_KEY]: 'true' });
+    expect(readExperimentalFeatures(store)).toEqual(NO_EXPERIMENTS);
   });
 
-  it('is on once its own key says so', () => {
-    const store = fakeStore({ [EXPERIMENTAL_FEATURE_KEYS.spIdentities]: 'true' });
-    expect(showsSpIdentities(readExperimentalFeatures(store))).toBe(true);
-  });
-
-  it('does not turn on because another experiment did', () => {
-    const store = fakeStore({ [EXPERIMENTAL_FEATURE_KEYS.benchmarkLab]: 'true' });
-    const features = readExperimentalFeatures(store);
-    expect(features.benchmarkLab).toBe(true);
-    expect(features.spIdentities).toBe(false);
+  it('is not written when another experiment is persisted', () => {
+    const store = fakeStore({ [LEGACY_SP_IDENTITIES_BROWSER_KEY]: 'true' });
+    persistExperimentalFeatures({ ...NO_EXPERIMENTS, egressControls: true }, store);
+    expect(store.written.get(LEGACY_SP_IDENTITIES_BROWSER_KEY)).toBe('true');
+    expect(readExperimentalFeatures(store).egressControls).toBe(true);
+    expect(Object.keys(EXPERIMENTAL_FEATURE_KEYS)).not.toContain('spIdentities');
   });
 });

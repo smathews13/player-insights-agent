@@ -50,7 +50,7 @@ function settingsMarkup(egressControls: boolean): string {
           element={
             <Outlet
               context={{
-                features: { benchmarkLab: false, egressControls, spIdentities: false },
+                features: { benchmarkLab: false, egressControls },
                 setFeature: () => {},
                 role: { state: 'admin', addedAdminsReadable: true },
               }}
@@ -62,7 +62,7 @@ function settingsMarkup(egressControls: boolean): string {
             element={
               <SettingsPage
                 initialSection="experimental"
-                features={{ benchmarkLab: false, egressControls, spIdentities: false }}
+                features={{ benchmarkLab: false, egressControls }}
                 setFeature={() => {}}
                 role={{ state: 'admin', addedAdminsReadable: true }}
               />

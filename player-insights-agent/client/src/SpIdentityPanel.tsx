@@ -36,6 +36,11 @@ export async function persistSpIdentityMode(enabled: boolean): Promise<SpIdentit
   return readPayload(response, 'saved the experimental pivot');
 }
 
+export async function loadSpIdentityAdmin(): Promise<SpIdentityAdminPayload> {
+  const response = await fetch('/api/admin/sp-identity');
+  return readPayload(response, 'loaded');
+}
+
 async function readPayload(response: Response, operation: string): Promise<SpIdentityAdminPayload> {
   let body: unknown;
   try {
@@ -273,8 +278,7 @@ export function SpIdentityPanel({ enabled }: { enabled: boolean }) {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const response = await fetch('/api/admin/sp-identity');
-      setPayload(await readPayload(response, 'loaded'));
+      setPayload(await loadSpIdentityAdmin());
     } catch (caught) {
       setError((caught as Error).message);
     }

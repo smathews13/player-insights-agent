@@ -3,15 +3,11 @@ import { X } from 'lucide-react';
 import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
-import {
-  showsBenchmarkLab,
-  showsEgressControls,
-  showsSpIdentities,
-  type ExperimentalFeatures,
-} from './experimental-features';
+import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
-import { persistSpIdentityMode, SpIdentityPanel } from './SpIdentityPanel';
+import { loadSpIdentityAdmin, persistSpIdentityMode, SpIdentityPanel } from './SpIdentityPanel';
+import { spIdentityEnabledFromPayload } from './sp-identity-mode';
 import { showsUserRoster, type RoleResolution } from './role';
 import {
   SAVE_PRESS_MS,
@@ -43,7 +39,6 @@ const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
 const DEFAULT_FEATURES: ExperimentalFeatures = {
   benchmarkLab: false,
   egressControls: false,
-  spIdentities: false,
 };
 const DEFAULT_ROLE: RoleResolution = { state: 'failed', addedAdminsReadable: false };
 
@@ -97,12 +92,19 @@ export function SettingsPage({
   features: featuresProp,
   setFeature: setFeatureProp,
   role: roleProp,
+  spIdentityEnabled: spIdentityEnabledProp,
 }: {
   onClose?: () => void;
   initialSection?: SettingsSection;
   features?: ExperimentalFeatures | null;
   setFeature?: (name: keyof ExperimentalFeatures, enabled: boolean) => void;
   role?: RoleResolution | null;
+  /**
+   * The deployment-wide pivot (`sp-identity-enabled`). Live Settings loads this
+   * from the admin API. Passing it seeds the first paint — tests, and never a
+   * browser preference.
+   */
+  spIdentityEnabled?: boolean;
 }) {
   const [active, setActive] = useState<SettingsSection>(initialSection);
   // Held here rather than in the panel because the footer is what stays on
@@ -112,8 +114,10 @@ export function SettingsPage({
   // The press paint, held for a beat so the click is visible before the modal
   // goes. See SAVE_PRESS_MS.
   const [pressed, setPressed] = useState(false);
+  const seededSpMode = spIdentityEnabledProp !== undefined;
+  const [spIdentityEnabled, setSpIdentityEnabled] = useState(spIdentityEnabledProp ?? false);
   const [spModeError, setSpModeError] = useState<string | null>(null);
-  const [spModeBusy, setSpModeBusy] = useState(false);
+  const [spModeBusy, setSpModeBusy] = useState(!seededSpMode);
   const close = onClose ?? noopClose;
   // `?? ` rather than a default parameter, because a default parameter only
   // covers `undefined`. A caller handing down a value it fetched can hand down
@@ -132,6 +136,30 @@ export function SettingsPage({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [close]);
+
+  /**
+   * The Experimental switch and the Identity pane both follow the server flag.
+   *
+   * A seed skips the read so a test can paint On without waiting for fetch.
+   * Failure stays off: OAuth remains the default until the server says otherwise.
+   */
+  useEffect(() => {
+    if (seededSpMode) return;
+    let live = true;
+    void loadSpIdentityAdmin()
+      .then((payload) => {
+        if (live) setSpIdentityEnabled(spIdentityEnabledFromPayload(payload));
+      })
+      .catch(() => {
+        /* Keep OAuth. A failed read must not flip the pivot on. */
+      })
+      .finally(() => {
+        if (live) setSpModeBusy(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [seededSpMode]);
 
   /** Let go of the press paint whether or not the save ever comes back. */
   useEffect(() => {
@@ -225,7 +253,7 @@ export function SettingsPage({
                     <h3>Identity</h3>
                     <p>Who questions run as. Changes save immediately.</p>
                   </div>
-                  <SpIdentityPanel enabled={showsSpIdentities(features)} />
+                  <SpIdentityPanel enabled={spIdentityEnabled} />
                 </div>
               ) : null}
               {active === 'runtime' || active === 'appearance' ? (
@@ -274,10 +302,11 @@ export function SettingsPage({
                   </div>
                   <div className="settings-row">
                     <div>
-                      <p className="settings-row-label">SP identities · {showsSpIdentities(features) ? 'On' : 'Off'}</p>
+                      <p className="settings-row-label">SP identities · {spIdentityEnabled ? 'On' : 'Off'}</p>
                       <p className="settings-row-note">
                         Assigned people run warehouse, Genie, and agent calls as the service principal an administrator
-                        named for them. People without an assignment still use OAuth.
+                        named for them. People without an assignment still use OAuth. This is for the whole deployment,
+                        not this browser.
                       </p>
                       {spModeError ? (
                         <p className="settings-status settings-error" role="alert">
@@ -286,15 +315,17 @@ export function SettingsPage({
                       ) : null}
                     </div>
                     <Switch
-                      checked={showsSpIdentities(features)}
+                      checked={spIdentityEnabled}
                       disabled={spModeBusy}
                       onCheckedChange={(enabled) => {
+                        const previous = spIdentityEnabled;
                         setSpModeError(null);
-                        setFeature('spIdentities', enabled);
+                        setSpIdentityEnabled(enabled);
                         setSpModeBusy(true);
                         void persistSpIdentityMode(enabled)
+                          .then((payload) => setSpIdentityEnabled(spIdentityEnabledFromPayload(payload)))
                           .catch((caught: unknown) => {
-                            setFeature('spIdentities', !enabled);
+                            setSpIdentityEnabled(previous);
                             setSpModeError(
                               caught instanceof Error
                                 ? caught.message

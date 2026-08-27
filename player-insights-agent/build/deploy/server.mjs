@@ -2365,7 +2365,7 @@ function createDebug(namespace, options) {
   let prevTime;
   let enableOverride;
   let namespacesCache;
-  let enabledCache;
+  let enabledCache2;
   const debug = (...args) => {
     if (!debug.enabled) return;
     const curr = Date.now();
@@ -2409,9 +2409,9 @@ function createDebug(namespace, options) {
       if (enableOverride != null) return enableOverride;
       if (namespacesCache !== globalNamespaces) {
         namespacesCache = globalNamespaces;
-        enabledCache = enabled(namespace);
+        enabledCache2 = enabled(namespace);
       }
-      return enabledCache;
+      return enabledCache2;
     },
     set: (v) => {
       enableOverride = v;
@@ -3740,7 +3740,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached3 = cache7.get(memoKey);
+        const cached3 = cache8.get(memoKey);
         if (cached3) {
           return cached3;
         }
@@ -3774,7 +3774,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache7.set(memoKey, result);
+        cache8.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -3813,7 +3813,7 @@ var require_range = __commonJS({
     };
     module2.exports = Range;
     var LRU = require_lrucache();
-    var cache7 = new LRU();
+    var cache8 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -5898,12 +5898,12 @@ var require_utils_legacy = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text19) {
-      return nodeCrypto.createHash("sha256").update(text19).digest();
+    function sha2562(text20) {
+      return nodeCrypto.createHash("sha256").update(text20).digest();
     }
-    function hashByName(hashName, text19) {
+    function hashByName(hashName, text20) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text19).digest();
+      return nodeCrypto.createHash(hashName).update(text20).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -5956,11 +5956,11 @@ var require_utils_webcrypto = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text19) {
-      return await subtleCrypto.digest("SHA-256", text19);
+    async function sha2562(text20) {
+      return await subtleCrypto.digest("SHA-256", text20);
     }
-    async function hashByName(hashName, text19) {
-      return await subtleCrypto.digest(hashName, text19);
+    async function hashByName(hashName, text20) {
+      return await subtleCrypto.digest(hashName, text20);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -6181,21 +6181,21 @@ var require_sasl = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text19) {
-      if (typeof text19 !== "string") {
+    function isPrintableChars(text20) {
+      if (typeof text20 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text19.split("").map((_, i) => text19.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text20.split("").map((_, i) => text20.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text19) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text19);
+    function isBase64(text20) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text20);
     }
-    function parseAttributePairs(text19) {
-      if (typeof text19 !== "string") {
+    function parseAttributePairs(text20) {
+      if (typeof text20 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text19.split(",").map((attrValue) => {
+        text20.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -7054,9 +7054,9 @@ var require_messages = __commonJS({
     };
     exports2.ReadyForQueryMessage = ReadyForQueryMessage;
     var CommandCompleteMessage = class {
-      constructor(length, text19) {
+      constructor(length, text20) {
         this.length = length;
-        this.text = text19;
+        this.text = text20;
         this.name = "commandComplete";
       }
     };
@@ -7205,8 +7205,8 @@ var require_serializer = __commonJS({
         /* code.startup */
       );
     };
-    var query = (text19) => {
-      return writer.addCString(text19).flush(
+    var query = (text20) => {
+      return writer.addCString(text20).flush(
         81
         /* code.query */
       );
@@ -7326,8 +7326,8 @@ var require_serializer = __commonJS({
       return msg.name ? cstringMessage(68, `${msg.type}${msg.name || ""}`) : msg.type === "P" ? emptyDescribePortal : emptyDescribeStatement;
     };
     var close = (msg) => {
-      const text19 = `${msg.type}${msg.name || ""}`;
-      return cstringMessage(67, text19);
+      const text20 = `${msg.type}${msg.name || ""}`;
+      return cstringMessage(67, text20);
     };
     var copyData = (chunk) => {
       return writer.add(chunk).flush(
@@ -7599,8 +7599,8 @@ var require_parser = __commonJS({
       return new messages_1.ReadyForQueryMessage(LATEINIT_LENGTH, status);
     };
     var parseCommandCompleteMessage = (reader) => {
-      const text19 = reader.cstring();
-      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text19);
+      const text20 = reader.cstring();
+      return new messages_1.CommandCompleteMessage(LATEINIT_LENGTH, text20);
     };
     var parseCopyData = (reader, length) => {
       const chunk = reader.bytes(length - 4);
@@ -7967,8 +7967,8 @@ var require_connection = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text19) {
-        this._send(serialize.query(text19));
+      query(text20) {
+        this._send(serialize.query(text20));
       }
       // send parse message
       parse(query) {
@@ -9164,12 +9164,12 @@ var require_utils_legacy2 = __commonJS({
       const outer = md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    function sha2562(text19) {
-      return nodeCrypto.createHash("sha256").update(text19).digest();
+    function sha2562(text20) {
+      return nodeCrypto.createHash("sha256").update(text20).digest();
     }
-    function hashByName(hashName, text19) {
+    function hashByName(hashName, text20) {
       hashName = hashName.replace(/(\D)-/, "$1");
-      return nodeCrypto.createHash(hashName).update(text19).digest();
+      return nodeCrypto.createHash(hashName).update(text20).digest();
     }
     function hmacSha256(key2, msg) {
       return nodeCrypto.createHmac("sha256", key2).update(msg).digest();
@@ -9222,11 +9222,11 @@ var require_utils_webcrypto2 = __commonJS({
       const outer = await md52(Buffer.concat([Buffer.from(inner), salt]));
       return "md5" + outer;
     }
-    async function sha2562(text19) {
-      return await subtleCrypto.digest("SHA-256", text19);
+    async function sha2562(text20) {
+      return await subtleCrypto.digest("SHA-256", text20);
     }
-    async function hashByName(hashName, text19) {
-      return await subtleCrypto.digest(hashName, text19);
+    async function hashByName(hashName, text20) {
+      return await subtleCrypto.digest(hashName, text20);
     }
     async function hmacSha256(keyBuffer, msg) {
       const key2 = await subtleCrypto.importKey("raw", keyBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -9447,21 +9447,21 @@ var require_sasl2 = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
-    function isPrintableChars(text19) {
-      if (typeof text19 !== "string") {
+    function isPrintableChars(text20) {
+      if (typeof text20 !== "string") {
         throw new TypeError("SASL: text must be a string");
       }
-      return text19.split("").map((_, i) => text19.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
+      return text20.split("").map((_, i) => text20.charCodeAt(i)).every((c) => c >= 33 && c <= 43 || c >= 45 && c <= 126);
     }
-    function isBase64(text19) {
-      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text19);
+    function isBase64(text20) {
+      return /^(?:[a-zA-Z0-9+/]{4})*(?:[a-zA-Z0-9+/]{2}==|[a-zA-Z0-9+/]{3}=)?$/.test(text20);
     }
-    function parseAttributePairs(text19) {
-      if (typeof text19 !== "string") {
+    function parseAttributePairs(text20) {
+      if (typeof text20 !== "string") {
         throw new TypeError("SASL: attribute pairs text must be a string");
       }
       return new Map(
-        text19.split(",").map((attrValue) => {
+        text20.split(",").map((attrValue) => {
           if (!/^.=/.test(attrValue)) {
             throw new Error("SASL: Invalid attribute pair entry");
           }
@@ -10186,8 +10186,8 @@ var require_connection2 = __commonJS({
         }
         return this.stream.write(buffer);
       }
-      query(text19) {
-        this._send(serialize.query(text19));
+      query(text20) {
+        this._send(serialize.query(text20));
       }
       // send parse message
       parse(query) {
@@ -11652,9 +11652,9 @@ var require_pg_pool = __commonJS({
         this._idle.push(new IdleItem(client, idleListener, tid));
         this._pulseQueue();
       }
-      query(text19, values, cb) {
-        if (typeof text19 === "function") {
-          const response2 = promisify2(this.Promise, text19);
+      query(text20, values, cb) {
+        if (typeof text20 === "function") {
+          const response2 = promisify2(this.Promise, text20);
           setImmediate(function() {
             return response2.callback(new Error("Passing a function as the first parameter to pool.query is not supported"));
           });
@@ -11682,7 +11682,7 @@ var require_pg_pool = __commonJS({
           client.once("error", onError);
           this.log("dispatching query");
           try {
-            client.query(text19, values, (err2, res) => {
+            client.query(text20, values, (err2, res) => {
               this.log("query dispatched");
               client.removeListener("error", onError);
               if (clientReleased) {
@@ -16694,7 +16694,7 @@ var require_common = __commonJS({
         let prevTime;
         let enableOverride = null;
         let namespacesCache;
-        let enabledCache;
+        let enabledCache2;
         function debug(...args) {
           if (!debug.enabled) {
             return;
@@ -16743,9 +16743,9 @@ var require_common = __commonJS({
             }
             if (namespacesCache !== createDebug3.namespaces) {
               namespacesCache = createDebug3.namespaces;
-              enabledCache = createDebug3.enabled(namespace);
+              enabledCache2 = createDebug3.enabled(namespace);
             }
-            return enabledCache;
+            return enabledCache2;
           },
           set: (v) => {
             enableOverride = v;
@@ -32752,11 +32752,11 @@ var require_utils19 = __commonJS({
       return repeatChar(" ", i);
     }
     function repeatChar(char, to) {
-      let text19 = "";
+      let text20 = "";
       for (let i = 0; i < to; i++) {
-        text19 += char;
+        text20 += char;
       }
-      return text19;
+      return text20;
     }
     var KindsToBeRemoved = [
       enum_1.TokenKind.FLOAT,
@@ -49920,8 +49920,8 @@ var require_common2 = __commonJS({
       }
       function redactString(obj, key2) {
         if (typeof obj === "object" && obj !== null && typeof obj[key2] === "string") {
-          const text19 = obj[key2];
-          if (/grant_type=/i.test(text19) || /assertion=/i.test(text19) || /secret/i.test(text19)) {
+          const text20 = obj[key2];
+          if (/grant_type=/i.test(text20) || /assertion=/i.test(text20) || /secret/i.test(text20)) {
             obj[key2] = REDACT;
           }
         }
@@ -52895,18 +52895,18 @@ var require_parse2 = __commonJS({
         n: "\n",
         r: "\r",
         t: "	"
-      }, text19, error48 = function(m) {
+      }, text20, error48 = function(m) {
         throw {
           name: "SyntaxError",
           message: m,
           at,
-          text: text19
+          text: text20
         };
       }, next = function(c) {
         if (c && c !== ch) {
           error48("Expected '" + c + "' instead of '" + ch + "'");
         }
-        ch = text19.charAt(at);
+        ch = text20.charAt(at);
         at += 1;
         return ch;
       }, number4 = function() {
@@ -52953,12 +52953,12 @@ var require_parse2 = __commonJS({
           var startAt = at;
           while (next()) {
             if (ch === '"') {
-              if (at - 1 > startAt) string5 += text19.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text20.substring(startAt, at - 1);
               next();
               return string5;
             }
             if (ch === "\\") {
-              if (at - 1 > startAt) string5 += text19.substring(startAt, at - 1);
+              if (at - 1 > startAt) string5 += text20.substring(startAt, at - 1);
               next();
               if (ch === "u") {
                 uffff = 0;
@@ -53091,7 +53091,7 @@ var require_parse2 = __commonJS({
       };
       return function(source, reviver) {
         var result;
-        text19 = source + "";
+        text20 = source + "";
         at = 0;
         ch = " ";
         result = value();
@@ -84020,9 +84020,9 @@ var require_logging = __commonJS({
       }
     }
     var allEnabled = enabledTracers.has("all");
-    function trace2(severity, tracer, text19) {
+    function trace2(severity, tracer, text20) {
       if (isTracerEnabled(tracer)) {
-        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text19);
+        (0, exports2.log)(severity, (/* @__PURE__ */ new Date()).toISOString() + " | v" + clientVersion + " " + process_1.pid + " | " + tracer + " | " + text20);
       }
     }
     function isTracerEnabled(tracer) {
@@ -85560,8 +85560,8 @@ var require_backoff_timeout = __commonJS({
       static getNextId() {
         return this.nextId++;
       }
-      trace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text19);
+      trace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "{" + this.id + "} " + text20);
       }
       runTimer(delay) {
         var _a2, _b;
@@ -85804,8 +85804,8 @@ var require_resolving_load_balancer = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var load_balancer_child_handler_1 = require_load_balancer_child_handler();
     var TRACER_NAME = "resolving_load_balancer";
-    function trace2(text19) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var NAME_MATCH_LEVEL_ORDER = [
       "SERVICE_AND_METHOD",
@@ -95301,24 +95301,24 @@ var require_umd = __commonJS({
         var INT_CACHE = {};
         var UINT_CACHE = {};
         function fromInt(value, unsigned) {
-          var obj, cachedObj, cache7;
+          var obj, cachedObj, cache8;
           if (unsigned) {
             value >>>= 0;
-            if (cache7 = 0 <= value && value < 256) {
+            if (cache8 = 0 <= value && value < 256) {
               cachedObj = UINT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, 0, true);
-            if (cache7) UINT_CACHE[value] = obj;
+            if (cache8) UINT_CACHE[value] = obj;
             return obj;
           } else {
             value |= 0;
-            if (cache7 = -128 <= value && value < 128) {
+            if (cache8 = -128 <= value && value < 128) {
               cachedObj = INT_CACHE[value];
               if (cachedObj) return cachedObj;
             }
             obj = fromBits(value, value < 0 ? -1 : 0, false);
-            if (cache7) INT_CACHE[value] = obj;
+            if (cache8) INT_CACHE[value] = obj;
             return obj;
           }
         }
@@ -97458,11 +97458,11 @@ var require_subchannel = __commonJS({
           target: this.subchannelAddressString
         };
       }
-      trace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
+      trace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text20);
       }
-      refTrace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
+      refTrace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "subchannel_refcount", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text20);
       }
       handleBackoffTimer() {
         if (this.continueConnecting) {
@@ -97740,8 +97740,8 @@ var require_resolver_dns = __commonJS({
     var backoff_timeout_1 = require_backoff_timeout();
     var environment_1 = require_environment13();
     var TRACER_NAME = "dns_resolver";
-    function trace2(text19) {
-      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     exports2.DEFAULT_PORT = 443;
     var DEFAULT_MIN_TIME_BETWEEN_RESOLUTIONS_MS = 3e4;
@@ -98026,8 +98026,8 @@ var require_http_proxy = __commonJS({
     var url_1 = __require("url");
     var resolver_dns_1 = require_resolver_dns();
     var TRACER_NAME = "proxy";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     function getProxyInfo() {
       let proxyEnv = "";
@@ -98542,8 +98542,8 @@ var require_subchannel_call = __commonJS({
           this.http2Stream.resume();
         }
       }
-      trace(text19) {
-        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text19);
+      trace(text20) {
+        logging.trace(constants_2.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callId + "] " + text20);
       }
       /**
        * On first call, emits a 'status' event with the given StatusObject.
@@ -98866,17 +98866,17 @@ var require_transport = __commonJS({
         };
         return socketInfo;
       }
-      trace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
+      trace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text20);
       }
-      keepaliveTrace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
+      keepaliveTrace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text20);
       }
-      flowControlTrace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
+      flowControlTrace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, FLOW_CONTROL_TRACER_NAME, "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text20);
       }
-      internalsTrace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text19);
+      internalsTrace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, "transport_internals", "(" + this.channelzRef.id + ") " + this.subchannelAddressString + " " + text20);
       }
       /**
        * Indicate to the owner of this object that this transport should no longer
@@ -99100,8 +99100,8 @@ var require_transport = __commonJS({
         this.session = null;
         this.isShutdown = false;
       }
-      trace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text19);
+      trace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, (0, uri_parser_1.uriToString)(this.channelTarget) + " " + text20);
       }
       createSession(secureConnectResult, address, options) {
         if (this.isShutdown) {
@@ -99407,8 +99407,8 @@ var require_load_balancing_call = __commonJS({
         }
         return deadlineInfo;
       }
-      trace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text19);
+      trace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text20);
       }
       outputStatus(status, progress) {
         var _a2, _b;
@@ -99639,8 +99639,8 @@ var require_resolving_call = __commonJS({
         this.trace("Created");
         this.runDeadlineTimer();
       }
-      trace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text19);
+      trace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text20);
       }
       runDeadlineTimer() {
         clearTimeout(this.deadlineTimer);
@@ -100005,8 +100005,8 @@ var require_retrying_call = __commonJS({
       getCallNumber() {
         return this.callNumber;
       }
-      trace(text19) {
-        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text19);
+      trace(text20) {
+        logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "[" + this.callNumber + "] " + text20);
       }
       reportStatus(statusObject) {
         this.trace("ended with status: code=" + statusObject.code + ' details="' + statusObject.details + '" start time=' + this.startTime.toISOString());
@@ -100842,8 +100842,8 @@ var require_internal_channel = __commonJS({
         }
         this.lastActivityTimestamp = /* @__PURE__ */ new Date();
       }
-      trace(text19, verbosityOverride) {
-        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text19);
+      trace(text20, verbosityOverride) {
+        (0, logging_1.trace)(verbosityOverride !== null && verbosityOverride !== void 0 ? verbosityOverride : constants_1.LogVerbosity.DEBUG, "channel", "(" + this.channelzRef.id + ") " + (0, uri_parser_1.uriToString)(this.target) + " " + text20);
       }
       callRefTimerRef() {
         var _a2, _b, _c, _d;
@@ -102040,8 +102040,8 @@ var require_server_interceptors = __commonJS({
     var tls_1 = __require("tls");
     var orca_1 = require_orca();
     var TRACER_NAME = "server_call";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var ServerListenerBuilder = class {
       constructor() {
@@ -102833,8 +102833,8 @@ var require_server = __commonJS({
     var { HTTP2_HEADER_PATH } = http2.constants;
     var TRACER_NAME = "server";
     var kMaxAge = Buffer.from("max_age");
-    function serverCallTrace(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text19);
+    function serverCallTrace(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, "server_call", text20);
     }
     function noop() {
     }
@@ -102973,11 +102973,11 @@ var require_server = __commonJS({
           };
           return socketInfo;
         }
-        trace(text19) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text19);
+        trace(text20) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, "(" + this.channelzRef.id + ") " + text20);
         }
-        keepaliveTrace(text19) {
-          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text19);
+        keepaliveTrace(text20) {
+          logging.trace(constants_1.LogVerbosity.DEBUG, "keepalive", "(" + this.channelzRef.id + ") " + text20);
         }
         addProtoService() {
           throw new Error("Not implemented. Use addService() instead");
@@ -104288,8 +104288,8 @@ var require_load_balancer_pick_first = __commonJS({
     var net_1 = __require("net");
     var call_interface_1 = require_call_interface();
     var TRACER_NAME = "pick_first";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var TYPE_NAME = "pick_first";
     var CONNECTION_DELAY_INTERVAL_MS = 250;
@@ -104700,8 +104700,8 @@ var require_certificate_provider = __commonJS({
     var constants_1 = require_constants20();
     var util_1 = __require("util");
     var TRACER_NAME = "certificate_provider";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var readFilePromise = (0, util_1.promisify)(fs16.readFile);
     var FileWatcherCertificateProvider = class {
@@ -105000,8 +105000,8 @@ var require_resolver_ip = __commonJS({
     var uri_parser_1 = require_uri_parser();
     var logging = require_logging();
     var TRACER_NAME = "ip_resolver";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var IPV4_SCHEME = "ipv4";
     var IPV6_SCHEME = "ipv6";
@@ -105091,8 +105091,8 @@ var require_load_balancer_round_robin = __commonJS({
     var subchannel_address_1 = require_subchannel_address();
     var load_balancer_pick_first_1 = require_load_balancer_pick_first();
     var TRACER_NAME = "round_robin";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var TYPE_NAME = "round_robin";
     var RoundRobinLoadBalancingConfig = class _RoundRobinLoadBalancingConfig {
@@ -105270,8 +105270,8 @@ var require_load_balancer_outlier_detection = __commonJS({
     var subchannel_interface_1 = require_subchannel_interface();
     var logging = require_logging();
     var TRACER_NAME = "outlier_detection";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var TYPE_NAME = "outlier_detection";
     var OUTLIER_DETECTION_ENABLED = ((_a2 = process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION) !== null && _a2 !== void 0 ? _a2 : "true") === "true";
@@ -105870,8 +105870,8 @@ var require_load_balancer_weighted_round_robin = __commonJS({
     var priority_queue_1 = require_priority_queue();
     var subchannel_address_1 = require_subchannel_address();
     var TRACER_NAME = "weighted_round_robin";
-    function trace2(text19) {
-      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text19);
+    function trace2(text20) {
+      logging.trace(constants_1.LogVerbosity.DEBUG, TRACER_NAME, text20);
     }
     var TYPE_NAME = "weighted_round_robin";
     var DEFAULT_OOB_REPORTING_PERIOD_MS = 1e4;
@@ -122584,8 +122584,8 @@ var capitalizeFirstCharacter, error26;
 var init_lt = __esm({
   "node_modules/zod/v4/locales/lt.js"() {
     init_util2();
-    capitalizeFirstCharacter = (text19) => {
-      return text19.charAt(0).toUpperCase() + text19.slice(1);
+    capitalizeFirstCharacter = (text20) => {
+      return text20.charAt(0).toUpperCase() + text20.slice(1);
     };
     error26 = () => {
       const Sizable = {
@@ -139569,12 +139569,12 @@ var require_on_finished = __commonJS({
       }
     }
     function attachListener(msg, listener) {
-      var attached = msg.__onFinished;
-      if (!attached || !attached.queue) {
-        attached = msg.__onFinished = createListener(msg);
-        attachFinishedListener(msg, attached);
+      var attached2 = msg.__onFinished;
+      if (!attached2 || !attached2.queue) {
+        attached2 = msg.__onFinished = createListener(msg);
+        attachFinishedListener(msg, attached2);
       }
-      attached.queue.push(listener);
+      attached2.queue.push(listener);
     }
     function createListener(msg) {
       function listener(err) {
@@ -148794,8 +148794,8 @@ var require_text = __commonJS({
     var debug = require_src100()("body-parser:text");
     var read2 = require_read();
     var typeis = require_type_is();
-    module2.exports = text19;
-    function text19(options) {
+    module2.exports = text20;
+    function text20(options) {
       var opts = options || {};
       var defaultCharset = opts.defaultCharset || "utf-8";
       var inflate = opts.inflate !== false;
@@ -156333,7 +156333,7 @@ var require_application = __commonJS({
     };
     app.del = deprecate.function(app.delete, "app.del: Use app.delete instead");
     app.render = function render(name2, options, callback) {
-      var cache7 = this.cache;
+      var cache8 = this.cache;
       var done = callback;
       var engines = this.engines;
       var opts = options;
@@ -156352,7 +156352,7 @@ var require_application = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view = cache7[name2];
+        view = cache8[name2];
       }
       if (!view) {
         var View2 = this.get("view");
@@ -156368,7 +156368,7 @@ var require_application = __commonJS({
           return done(err);
         }
         if (renderOptions.cache) {
-          cache7[name2] = view;
+          cache8[name2] = view;
         }
       }
       tryRender(view, renderOptions, done);
@@ -158242,8 +158242,8 @@ async function extractPdfText(input, options = {}) {
       enableXfa: false
     });
     try {
-      const { text: text20 } = await extractText(pdf, { mergePages: false });
-      return text20;
+      const { text: text21 } = await extractText(pdf, { mergePages: false });
+      return text21;
     } finally {
       await pdf.loadingTask?.destroy();
     }
@@ -158266,14 +158266,14 @@ async function extractPdfText(input, options = {}) {
   } finally {
     clearTimeout(timer);
   }
-  const text19 = normalizeText(pages);
-  if (!text19) {
+  const text20 = normalizeText(pages);
+  if (!text20) {
     throw new PdfTextError(
       "no-text",
       "No readable text was found in this report. Scanned or image-only PDFs are not supported."
     );
   }
-  return text19.slice(0, maxChars);
+  return text20.slice(0, maxChars);
 }
 var MAX_PDF_TEXT_CHARS, PDF_EXTRACTION_TIMEOUT_MS, PDF_EXTENSIONS, PdfTextError;
 var init_pdf_text = __esm({
@@ -159480,6 +159480,63 @@ var init_migrations = __esm({
        )`
         ],
         down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.benchmark_lab`]
+      },
+      {
+        version: 16,
+        name: "cost budgets",
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.cost_budgets (
+         id TEXT PRIMARY KEY,
+         settings JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.cost_budgets`]
+      },
+      {
+        version: 17,
+        name: "service principal personas",
+        statements: [
+          /**
+           * Admin-defined identities the experimental SP-identity pivot may run as.
+           *
+           * A NEW TABLE rather than JSON on deployment_settings: there are many
+           * rows, they are named by administrators, and a settings row is one
+           * value per known resource. `secret_scope` and `secret_key` are
+           * references into Databricks Secrets. There is no secret-value column
+           * and none may be added — a credential in this table would be copied
+           * to every replica and would be a leak the public mirror must never
+           * see.
+           */
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.sp_personas (
+         id TEXT PRIMARY KEY,
+         display_name TEXT NOT NULL,
+         client_id TEXT NOT NULL,
+         secret_scope TEXT NOT NULL,
+         secret_key TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+          /**
+           * One persona per signed-in address. Unassigned people stay on OAuth
+           * when the pivot is on, which is why a missing row is a valid state
+           * rather than a default persona.
+           */
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.sp_assignments (
+         email TEXT PRIMARY KEY,
+         persona_id TEXT NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+          `CREATE INDEX IF NOT EXISTS sp_assignments_persona_idx
+         ON ${APP_SCHEMA}.sp_assignments (persona_id)`
+        ],
+        down: [
+          `DROP INDEX IF EXISTS ${APP_SCHEMA}.sp_assignments_persona_idx`,
+          `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_assignments`,
+          `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_personas`
+        ]
       }
     ];
   }
@@ -159968,8 +160025,8 @@ var init_repair_conversation_titles = __esm({
 
 // shared/run-verdict.ts
 function takeawayWhenTablesLanded(output, evidence) {
-  const text19 = output.trim();
-  if (!UNANSWERED_LINE.test(text19)) return output;
+  const text20 = output.trim();
+  if (!UNANSWERED_LINE.test(text20)) return output;
   const held = [evidence, output].filter(Boolean).join("\n");
   if (/\|.+\|/.test(held)) return TIME_LIMIT_TAKEAWAY;
   return output;
@@ -160100,8 +160157,8 @@ function attachRecordedStages(answer, recorded2) {
     }
   };
 }
-function isCannedFirstLine(text19) {
-  const value = text19.trim();
+function isCannedFirstLine(text20) {
+  const value = text20.trim();
   return !value || CANNED_FIRST_LINE.some((pattern) => pattern.test(value));
 }
 function readerFacingFindings(findings) {
@@ -162498,12 +162555,12 @@ function humanVerdictFromRow(row2) {
   if (row2.sqlCorrect === "no") return "no";
   return null;
 }
-function stripAppendedHumanLabels(text19) {
-  const cut = text19.search(/\nHuman labels:\s*\n/);
-  return (cut >= 0 ? text19.slice(0, cut) : text19).trim();
+function stripAppendedHumanLabels(text20) {
+  const cut = text20.search(/\nHuman labels:\s*\n/);
+  return (cut >= 0 ? text20.slice(0, cut) : text20).trim();
 }
-function firstGuidelineSentence(text19) {
-  const stem = stripAppendedHumanLabels(text19);
+function firstGuidelineSentence(text20) {
+  const stem = stripAppendedHumanLabels(text20);
   const line = stem.split(/\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0);
   return line || "";
 }
@@ -162647,10 +162704,10 @@ function extraJudgesFromSettings(settings) {
   for (const id of settings.enabledMultiTurnJudges) {
     const definition = MULTI_TURN_JUDGES.find((entry) => entry.id === id);
     if (!definition) continue;
-    const text19 = id === "conversational_guidelines" ? fallback : definition.guidelines.trim();
+    const text20 = id === "conversational_guidelines" ? fallback : definition.guidelines.trim();
     extras.push({
       name: id,
-      guidelines: text19 ? [text19] : [],
+      guidelines: text20 ? [text20] : [],
       kind: "multi-turn"
     });
   }
@@ -162911,11 +162968,11 @@ function labelingIdsFromBody(body) {
   if (!body || typeof body !== "object") return { sessionId: "", runId: "", name: "" };
   const record2 = body;
   const nested = record2.session && typeof record2.session === "object" ? record2.session : record2;
-  const text19 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
+  const text20 = (value) => typeof value === "string" ? value.trim() : value != null ? String(value) : "";
   return {
-    sessionId: text19(nested.labeling_session_id ?? nested.session_id ?? nested.id),
-    runId: text19(nested.mlflow_run_id ?? nested.run_id),
-    name: text19(nested.name)
+    sessionId: text20(nested.labeling_session_id ?? nested.session_id ?? nested.id),
+    runId: text20(nested.mlflow_run_id ?? nested.run_id),
+    name: text20(nested.name)
   };
 }
 var REVIEW_LABEL_SCHEMA, LabelingSessionSchema;
@@ -162940,14 +162997,14 @@ var init_eval_review_app = __esm({
 
 // shared/eval-flywheel.ts
 function classifyGenieMiss(note) {
-  const text19 = note.toLowerCase();
-  if (/warehouse/.test(text19) && /start|starting|pending|warming|not running|stopped|resuming/.test(text19)) {
+  const text20 = note.toLowerCase();
+  if (/warehouse/.test(text20) && /start|starting|pending|warming|not running|stopped|resuming/.test(text20)) {
     return "warehouse";
   }
-  if (/warehouse still starting|compute is starting|cluster is starting/.test(text19)) {
+  if (/warehouse still starting|compute is starting|cluster is starting/.test(text20)) {
     return "warehouse";
   }
-  if (/cancel|cancelled|canceled|timed out|timeout|wait ran out|50\s*s|deadline/.test(text19)) {
+  if (/cancel|cancelled|canceled|timed out|timeout|wait ran out|50\s*s|deadline/.test(text20)) {
     return "timeout";
   }
   return "error";
@@ -162975,8 +163032,8 @@ function sqlHasFqn(sql3) {
   return /\b[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\.[a-zA-Z_][\w]*\b/.test(sql3);
 }
 function sqlLooksRefused(sql3, note) {
-  const text19 = `${sql3} ${note}`.toLowerCase();
-  return /refused|sql refused|identity_required|restricted column|not read-only/.test(text19);
+  const text20 = `${sql3} ${note}`.toLowerCase();
+  return /refused|sql refused|identity_required|restricted column|not read-only/.test(text20);
 }
 function latencyWithinBudget(durationMs, budgetMs = WAREHOUSE_BUDGET_MS) {
   if (typeof durationMs !== "number" || !Number.isFinite(durationMs)) return null;
@@ -163320,9 +163377,9 @@ ${answer.sql}`);
   for (const source of answer.sources) {
     parts.push(`[source] ${source.name} (${source.freshness})`);
   }
-  const text19 = parts.join("\n\n");
-  if (text19.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text19, truncated: false };
-  return { text: text19.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
+  const text20 = parts.join("\n\n");
+  if (text20.length <= MAX_JUDGE_CONTEXT_CHARS) return { text: text20, truncated: false };
+  return { text: text20.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
 }
 function answerText(answer) {
   return `${answer.takeaway}
@@ -165951,12 +166008,12 @@ async function workspaceLinksAllowed(client) {
   return egressAllowed(controls, "workspace-link");
 }
 function clamp(raw2, max) {
-  const text19 = typeof raw2 === "string" ? raw2.trim() : "";
-  return text19.length > max ? text19.slice(0, max) : text19;
+  const text20 = typeof raw2 === "string" ? raw2.trim() : "";
+  return text20.length > max ? text20.slice(0, max) : text20;
 }
 function pointer(raw2) {
-  const text19 = clamp(raw2, IDENTIFIER_MAX);
-  return text19 === "" ? null : text19;
+  const text20 = clamp(raw2, IDENTIFIER_MAX);
+  return text20 === "" ? null : text20;
 }
 function count2(raw2) {
   if (typeof raw2 !== "number" || !Number.isFinite(raw2)) return null;
@@ -168387,8 +168444,8 @@ function diagnoseUserToken(req, isDevelopmentIdentity) {
   };
 }
 function looksLikeMissingScope(message) {
-  const text19 = message.toLowerCase();
-  return text19.includes("does not have required scopes") || text19.includes("insufficient_scope") || text19.includes("scope") && (text19.includes("oauth") || text19.includes("token"));
+  const text20 = message.toLowerCase();
+  return text20.includes("does not have required scopes") || text20.includes("insufficient_scope") || text20.includes("scope") && (text20.includes("oauth") || text20.includes("token"));
 }
 function scopesFromToken(token) {
   const segments = token.split(".");
@@ -168487,12 +168544,12 @@ function statusForOutcome(outcome) {
 function probeStatement(table) {
   return `SELECT 1 FROM ${table} WHERE 1=0`;
 }
-function matches(text19, markers) {
-  return markers.some((marker) => text19.includes(marker));
+function matches(text20, markers) {
+  return markers.some((marker) => text20.includes(marker));
 }
 function classifyDenial(message, table) {
-  const text19 = message.toLowerCase();
-  if (matches(text19, PERMISSION_MARKERS)) {
+  const text20 = message.toLowerCase();
+  if (matches(text20, PERMISSION_MARKERS)) {
     const catalog = CATALOG_REFUSED.exec(message);
     if (catalog) {
       return { kind: "no-grant", object: catalog[1], objectKind: "catalog", permission: "USE CATALOG" };
@@ -168503,7 +168560,7 @@ function classifyDenial(message, table) {
     }
     return { kind: "no-grant", object: table, objectKind: "table", permission: "SELECT" };
   }
-  if (matches(text19, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
+  if (matches(text20, ABSENCE_MARKERS)) return { kind: "hidden-or-absent" };
   return { kind: "unrecognised" };
 }
 function classify(message, table, principal) {
@@ -169360,14 +169417,496 @@ function authorizationFailureFor(status) {
   if (status === 403) return "USER_NOT_AUTHORIZED";
   return null;
 }
-var SIGNED_IN_USER, APP_SERVICE_PRINCIPAL;
+var SIGNED_IN_USER, ASSIGNED_SERVICE_PRINCIPAL, APP_SERVICE_PRINCIPAL;
 var init_identity_binding = __esm({
   "server/lib/identity-binding.ts"() {
     init_correlation();
     init_access_verification();
     init_identity_subject();
     SIGNED_IN_USER = "signed_in_user";
+    ASSIGNED_SERVICE_PRINCIPAL = "assigned_service_principal";
     APP_SERVICE_PRINCIPAL = "app_service_principal";
+  }
+});
+
+// shared/sp-identity.ts
+var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, NAME_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
+var init_sp_identity = __esm({
+  "shared/sp-identity.ts"() {
+    init_zod();
+    SP_IDENTITY_ENABLED_SETTING = "sp-identity-enabled";
+    SP_EXECUTION_OAUTH = "oauth";
+    SP_EXECUTION_SERVICE_PRINCIPAL = "service_principal";
+    ASSIGNED_SERVICE_PRINCIPAL2 = "assigned_service_principal";
+    SP_IDENTITY_MINTING_UNAVAILABLE = "Databricks Apps cannot mint a token for another service principal from the signed-in user's OAuth scopes. This app can only obtain one by reading that principal's OAuth secret from Databricks Secrets (the scope and key you name on the persona) using the app's own identity, then exchanging it. If the app cannot read that secret, questions stay on OAuth.";
+    NAME_MAX = 120;
+    SECRET_REF_MAX = 128;
+    CLIENT_ID_MAX = 64;
+    SpPersonaWriteSchema = external_exports.object({
+      displayName: external_exports.string().trim().min(1).max(NAME_MAX),
+      clientId: external_exports.string().trim().min(8).max(CLIENT_ID_MAX).regex(/^[0-9a-fA-F-]{8,}$/, "That does not look like a service principal application id."),
+      secretScope: external_exports.string().trim().min(1).max(SECRET_REF_MAX),
+      secretKey: external_exports.string().trim().min(1).max(SECRET_REF_MAX)
+    });
+    SpPersonaPatchSchema = SpPersonaWriteSchema.partial().refine((value) => Object.keys(value).length > 0, {
+      message: "Nothing to update."
+    });
+    SpIdentityModeSchema = external_exports.object({
+      enabled: external_exports.boolean()
+    });
+    SpAssignmentWriteSchema = external_exports.object({
+      email: external_exports.string().trim().min(3).max(320),
+      personaId: external_exports.string().trim().min(1).max(80).nullable()
+    });
+  }
+});
+
+// server/lib/sp-identity-store.ts
+import { randomUUID as randomUUID5 } from "node:crypto";
+function missingTable(error48) {
+  const code = error48.code;
+  if (code === UNDEFINED_TABLE2) return true;
+  const message = error48?.message ?? "";
+  return /does not exist|undefined table|relation .* does not exist/i.test(message);
+}
+function text6(value) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+function iso(value) {
+  if (value instanceof Date) return value.toISOString();
+  return text6(value);
+}
+function personaFromRow(row2) {
+  return {
+    id: text6(row2.id),
+    displayName: text6(row2.display_name),
+    clientId: text6(row2.client_id),
+    secretScope: text6(row2.secret_scope),
+    secretKey: text6(row2.secret_key),
+    updatedAt: iso(row2.updated_at),
+    updatedBy: text6(row2.updated_by)
+  };
+}
+function assignmentFromRow(row2) {
+  return {
+    email: normalizeAdminEmail(text6(row2.email)),
+    personaId: text6(row2.persona_id),
+    updatedAt: iso(row2.updated_at),
+    updatedBy: text6(row2.updated_by)
+  };
+}
+function forgetSpIdentityEnabled() {
+  enabledCache = /* @__PURE__ */ new WeakMap();
+}
+async function isSpIdentityEnabled(client, options = {}) {
+  const maxAge = options.maxAgeMs ?? SP_IDENTITY_ENABLED_TTL_MS;
+  const now = options.now ?? Date.now();
+  const cached3 = enabledCache.get(client);
+  if (cached3 && now - cached3.at < maxAge) return cached3.enabled;
+  const settings = await readStoredSettings(client, { maxAgeMs: maxAge, now });
+  const enabled2 = settings.get(SP_IDENTITY_ENABLED_SETTING)?.value === "true";
+  enabledCache.set(client, { at: now, enabled: enabled2 });
+  return enabled2;
+}
+async function writeSpIdentityEnabled(client, enabled2, updatedBy) {
+  await writeStoredSetting(client, {
+    resourceId: SP_IDENTITY_ENABLED_SETTING,
+    value: enabled2 ? "true" : "false",
+    intent: "active",
+    note: enabled2 ? "Assigned users run warehouse, Genie, and agent calls as their service-principal persona." : "Questions run as the signed-in OAuth user.",
+    updatedBy
+  });
+  forgetSpIdentityEnabled();
+  return enabled2;
+}
+async function listSpPersonas(client) {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by
+         FROM ${SP_PERSONAS_TABLE}
+        ORDER BY display_name, id`
+    );
+    return (result?.rows ?? []).map(personaFromRow);
+  } catch (error48) {
+    if (missingTable(error48)) return [];
+    throw error48;
+  }
+}
+async function readSpPersona(client, id) {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by
+         FROM ${SP_PERSONAS_TABLE}
+        WHERE id = $1`,
+      [id]
+    );
+    const row2 = result?.rows?.[0];
+    return row2 ? personaFromRow(row2) : null;
+  } catch (error48) {
+    if (missingTable(error48)) return null;
+    throw error48;
+  }
+}
+async function insertSpPersona(client, write2, updatedBy) {
+  const id = randomUUID5();
+  const result = await client.lakebase.query(
+    `INSERT INTO ${SP_PERSONAS_TABLE}
+       (id, display_name, client_id, secret_scope, secret_key, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now())
+     RETURNING id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by`,
+    [id, write2.displayName, write2.clientId, write2.secretScope, write2.secretKey, updatedBy]
+  );
+  return personaFromRow(result.rows[0]);
+}
+async function updateSpPersona(client, id, write2, updatedBy) {
+  const current = await readSpPersona(client, id);
+  if (!current) return null;
+  const next = {
+    displayName: write2.displayName ?? current.displayName,
+    clientId: write2.clientId ?? current.clientId,
+    secretScope: write2.secretScope ?? current.secretScope,
+    secretKey: write2.secretKey ?? current.secretKey
+  };
+  const result = await client.lakebase.query(
+    `UPDATE ${SP_PERSONAS_TABLE}
+        SET display_name = $2,
+            client_id = $3,
+            secret_scope = $4,
+            secret_key = $5,
+            updated_by = $6,
+            updated_at = now()
+      WHERE id = $1
+      RETURNING id, display_name, client_id, secret_scope, secret_key, updated_at, updated_by`,
+    [id, next.displayName, next.clientId, next.secretScope, next.secretKey, updatedBy]
+  );
+  const row2 = result?.rows?.[0];
+  return row2 ? personaFromRow(row2) : null;
+}
+async function deleteSpPersona(client, id) {
+  try {
+    await client.lakebase.query(`DELETE FROM ${SP_ASSIGNMENTS_TABLE} WHERE persona_id = $1`, [id]);
+    const result = await client.lakebase.query(`DELETE FROM ${SP_PERSONAS_TABLE} WHERE id = $1 RETURNING id`, [id]);
+    return (result?.rows?.length ?? 0) > 0;
+  } catch (error48) {
+    if (missingTable(error48)) return false;
+    throw error48;
+  }
+}
+async function listSpAssignments(client) {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT email, persona_id, updated_at, updated_by
+         FROM ${SP_ASSIGNMENTS_TABLE}
+        ORDER BY email`
+    );
+    return (result?.rows ?? []).map(assignmentFromRow);
+  } catch (error48) {
+    if (missingTable(error48)) return [];
+    throw error48;
+  }
+}
+async function assignmentForEmail(client, email3) {
+  const normalised = normalizeAdminEmail(email3);
+  if (!normalised) return null;
+  try {
+    const result = await client.lakebase.query(
+      `SELECT email, persona_id, updated_at, updated_by
+         FROM ${SP_ASSIGNMENTS_TABLE}
+        WHERE email = $1`,
+      [normalised]
+    );
+    const row2 = result?.rows?.[0];
+    return row2 ? assignmentFromRow(row2) : null;
+  } catch (error48) {
+    if (missingTable(error48)) return null;
+    throw error48;
+  }
+}
+async function writeSpAssignment(client, email3, personaId, updatedBy) {
+  const normalised = normalizeAdminEmail(email3);
+  if (!normalised) return null;
+  if (!personaId) {
+    await client.lakebase.query(`DELETE FROM ${SP_ASSIGNMENTS_TABLE} WHERE email = $1`, [normalised]);
+    return null;
+  }
+  const persona = await readSpPersona(client, personaId);
+  if (!persona) return null;
+  const result = await client.lakebase.query(
+    `INSERT INTO ${SP_ASSIGNMENTS_TABLE} (email, persona_id, updated_by, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (email) DO UPDATE
+        SET persona_id = EXCLUDED.persona_id,
+            updated_by = EXCLUDED.updated_by,
+            updated_at = now()
+     RETURNING email, persona_id, updated_at, updated_by`,
+    [normalised, personaId, updatedBy]
+  );
+  return assignmentFromRow(result.rows[0]);
+}
+var SP_PERSONAS_TABLE, SP_ASSIGNMENTS_TABLE, UNDEFINED_TABLE2, enabledCache, SP_IDENTITY_ENABLED_TTL_MS;
+var init_sp_identity_store = __esm({
+  "server/lib/sp-identity-store.ts"() {
+    init_app_schema();
+    init_sp_identity();
+    init_admin_identity();
+    init_app_settings();
+    SP_PERSONAS_TABLE = appTable("sp_personas");
+    SP_ASSIGNMENTS_TABLE = appTable("sp_assignments");
+    UNDEFINED_TABLE2 = "42P01";
+    enabledCache = /* @__PURE__ */ new WeakMap();
+    SP_IDENTITY_ENABLED_TTL_MS = 15e3;
+  }
+});
+
+// server/lib/sp-token.ts
+function describeSpTokenMinting(env = process.env) {
+  const host2 = normalizeWorkspaceHost(env.DATABRICKS_HOST);
+  const clientId = (env.DATABRICKS_CLIENT_ID ?? "").trim();
+  const clientSecret = (env.DATABRICKS_CLIENT_SECRET ?? "").trim();
+  if (!host2) {
+    return {
+      available: false,
+      detail: "This app does not know its workspace URL, so it cannot exchange a service-principal secret for a token. Questions stay on OAuth."
+    };
+  }
+  if (!clientId || !clientSecret) {
+    return {
+      available: false,
+      detail: "This app has no service-principal credentials of its own, so it cannot read a persona secret from Databricks Secrets. " + SP_IDENTITY_MINTING_UNAVAILABLE
+    };
+  }
+  return {
+    available: true,
+    detail: SP_IDENTITY_MINTING_UNAVAILABLE
+  };
+}
+async function defaultReadSecret(scope, key2) {
+  const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+  const client = new WorkspaceClient6({});
+  const secret = await client.secrets.getSecret({ scope, key: key2 });
+  const raw2 = secret.value;
+  if (typeof raw2 === "string" && raw2.trim()) return raw2.trim();
+  if (raw2 && typeof raw2 === "object" && "toString" in raw2) {
+    const decoded = String(raw2).trim();
+    return decoded || null;
+  }
+  return null;
+}
+async function defaultExchange(input) {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const url2 = `${input.host.replace(/\/$/, "")}/oidc/v1/token`;
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: input.clientId,
+    client_secret: input.clientSecret,
+    scope: "all-apis"
+  });
+  const response = await fetchImpl(url2, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body
+  });
+  const text20 = await response.text();
+  if (!response.ok) {
+    throw new Error(`The workspace refused a service-principal token (${response.status}).`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text20);
+  } catch {
+    throw new Error("The workspace returned an unreadable token response.");
+  }
+  const token = typeof parsed.access_token === "string" ? parsed.access_token.trim() : "";
+  if (!token) throw new Error("The workspace returned no access token for this service principal.");
+  const expiresIn = typeof parsed.expires_in === "number" && Number.isFinite(parsed.expires_in) ? parsed.expires_in : DEFAULT_EXPIRES_IN;
+  return { token, expiresInSeconds: expiresIn };
+}
+async function mintPersonaToken(persona, deps = {}) {
+  const env = deps.env ?? process.env;
+  const minting = describeSpTokenMinting(env);
+  if (!minting.available) return { ok: false, reason: minting.detail };
+  const now = deps.now ?? Date.now;
+  const cached3 = tokenCache.get(persona.id);
+  if (cached3 && cached3.expiresAtMs - EXPIRY_SKEW_MS > now()) {
+    return { ok: true, token: cached3.token };
+  }
+  const host2 = normalizeWorkspaceHost(env.DATABRICKS_HOST);
+  const readSecret = deps.readSecret ?? defaultReadSecret;
+  const exchange = deps.exchange ?? ((input) => defaultExchange({ ...input, fetchImpl: deps.fetchImpl }));
+  try {
+    const secret = await readSecret(persona.secretScope, persona.secretKey);
+    if (!secret) {
+      return {
+        ok: false,
+        reason: `The app could not read the secret ${persona.secretScope}/${persona.secretKey} for ${persona.displayName}. Questions for this person stay on OAuth until the app identity can GET that secret.`
+      };
+    }
+    const minted = await exchange({ host: host2, clientId: persona.clientId, clientSecret: secret });
+    tokenCache.set(persona.id, {
+      token: minted.token,
+      expiresAtMs: now() + Math.max(minted.expiresInSeconds, 60) * 1e3
+    });
+    return { ok: true, token: minted.token };
+  } catch (error48) {
+    const message = error48.message || "The token exchange failed.";
+    if (/scope|insufficient|permission|403|401/i.test(message)) {
+      return {
+        ok: false,
+        reason: `The app could not mint a token for ${persona.displayName}: ${message} ` + SP_IDENTITY_MINTING_UNAVAILABLE
+      };
+    }
+    return {
+      ok: false,
+      reason: `The app could not mint a token for ${persona.displayName}: ${message} Questions stay on OAuth.`
+    };
+  }
+}
+var tokenCache, EXPIRY_SKEW_MS, DEFAULT_EXPIRES_IN;
+var init_sp_token = __esm({
+  "server/lib/sp-token.ts"() {
+    init_sp_identity();
+    init_databricks_links();
+    tokenCache = /* @__PURE__ */ new Map();
+    EXPIRY_SKEW_MS = 6e4;
+    DEFAULT_EXPIRES_IN = 3600;
+  }
+});
+
+// server/lib/execution-credential.ts
+function executionToken(req) {
+  const credential = attached.get(req);
+  if (credential) return credential.token;
+  return forwardedUserToken(req);
+}
+function signedInEmail(req) {
+  return normalizeAdminEmail(req.header("x-forwarded-email") ?? "");
+}
+function publicPersona(persona) {
+  return { id: persona.id, displayName: persona.displayName, clientId: persona.clientId };
+}
+async function resolveExecutionCredential(req, store, deps = {}) {
+  const userToken = forwardedUserToken(req);
+  const enabled2 = await isSpIdentityEnabled(store);
+  if (!enabled2) return { kind: "oauth", token: userToken };
+  const email3 = signedInEmail(req);
+  if (!email3) return { kind: "oauth", token: userToken };
+  const assignment = await assignmentForEmail(store, email3);
+  if (!assignment) return { kind: "oauth", token: userToken };
+  const persona = await readSpPersona(store, assignment.personaId);
+  if (!persona) {
+    return {
+      kind: "oauth-fallback",
+      token: userToken,
+      persona: null,
+      reason: "This person is assigned a persona that is no longer defined, so questions stay on OAuth."
+    };
+  }
+  const minted = await mintPersonaToken(persona, deps);
+  if (!minted.ok) {
+    return {
+      kind: "oauth-fallback",
+      token: userToken,
+      persona: publicPersona(persona),
+      reason: minted.reason
+    };
+  }
+  return {
+    kind: "assigned_service_principal",
+    token: minted.token,
+    persona: publicPersona(persona)
+  };
+}
+async function attachExecutionCredential(req, store, deps = {}) {
+  const credential = await resolveExecutionCredential(req, store, deps);
+  attached.set(req, credential);
+  return credential;
+}
+function executionCredentialMiddleware(store, deps = {}) {
+  return function attach(req, _res, next) {
+    if (!req.path.startsWith("/api/")) {
+      next();
+      return;
+    }
+    attachExecutionCredential(req, store, deps).then(() => next()).catch((error48) => {
+      console.warn(`[sp-identity] Execution credential fell back to OAuth: ${error48.message}`);
+      attached.set(req, { kind: "oauth", token: forwardedUserToken(req) });
+      next();
+    });
+  };
+}
+function overlayAssignedPersona(decision, req) {
+  if (!decision.ok) return decision;
+  const credential = attached.get(req);
+  if (credential?.kind !== "assigned_service_principal") return decision;
+  return {
+    ...decision,
+    token: credential.token,
+    mode: ASSIGNED_SERVICE_PRINCIPAL,
+    verified: true,
+    persona: credential.persona
+  };
+}
+function servingIdentityFields(identity) {
+  if (identity.mode === ASSIGNED_SERVICE_PRINCIPAL && identity.persona) {
+    return { expectedUser: identity.persona.clientId, identityMode: ASSIGNED_SERVICE_PRINCIPAL2 };
+  }
+  return {
+    expectedUser: identity.token ? identity.email : "",
+    identityMode: identity.mode
+  };
+}
+async function describeSpIdentity(req, store, deps = {}) {
+  const env = deps.env ?? process.env;
+  const minting = describeSpTokenMinting(env);
+  const enabled2 = await isSpIdentityEnabled(store);
+  const email3 = signedInEmail(req);
+  let assigned = null;
+  if (email3) {
+    const assignment = await assignmentForEmail(store, email3);
+    if (assignment) {
+      const persona = await readSpPersona(store, assignment.personaId);
+      if (persona) assigned = publicPersona(persona);
+    }
+  }
+  const credential = attached.get(req);
+  if (credential?.kind === "assigned_service_principal") {
+    return {
+      enabled: enabled2,
+      minting,
+      assigned: credential.persona,
+      executingAs: SP_EXECUTION_SERVICE_PRINCIPAL,
+      fallbackReason: null
+    };
+  }
+  if (credential?.kind === "oauth-fallback") {
+    return {
+      enabled: enabled2,
+      minting,
+      assigned: credential.persona ?? assigned,
+      executingAs: SP_EXECUTION_OAUTH,
+      fallbackReason: credential.reason
+    };
+  }
+  return {
+    enabled: enabled2,
+    minting: enabled2 ? minting : { available: minting.available, detail: minting.detail },
+    assigned,
+    executingAs: SP_EXECUTION_OAUTH,
+    fallbackReason: enabled2 && assigned && !minting.available ? minting.detail : null
+  };
+}
+var attached;
+var init_execution_credential = __esm({
+  "server/lib/execution-credential.ts"() {
+    init_sp_identity();
+    init_admin_identity();
+    init_identity_binding();
+    init_access_verification();
+    init_sp_identity_store();
+    init_sp_token();
+    attached = /* @__PURE__ */ new WeakMap();
   }
 });
 
@@ -169615,13 +170154,13 @@ var init_optional_user_api_scopes = __esm({
 });
 
 // server/lib/app-user-api-scopes.ts
-function text6(value) {
+function text7(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function messageFrom(body, fallback) {
   if (!body || typeof body !== "object") return fallback;
   const record2 = body;
-  return text6(record2.message) || text6(record2.error) || text6(record2.error_code) || fallback;
+  return text7(record2.message) || text7(record2.error) || text7(record2.error_code) || fallback;
 }
 function scopesFrom(body) {
   const raw2 = body && typeof body === "object" ? body.user_api_scopes : void 0;
@@ -169872,7 +170411,7 @@ function timestamp(value) {
   if (value instanceof Date) return value.toISOString();
   return typeof value === "string" ? value : (/* @__PURE__ */ new Date()).toISOString();
 }
-function text7(value) {
+function text8(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return null;
@@ -169947,10 +170486,10 @@ function conversationRunTrace(row2, experimentId) {
   const identity = {
     runId: String(row2.id),
     kind: "conversation",
-    conversationId: text7(row2.conversation_id),
+    conversationId: text8(row2.conversation_id),
     createdAt: timestamp(row2.created_at),
-    prompt: text7(row2.prompt),
-    stakeholder: text7(row2.stakeholder)
+    prompt: text8(row2.prompt),
+    stakeholder: text8(row2.stakeholder)
   };
   const payload = parseStoredJson(row2.response_json);
   if (!payload || typeof payload !== "object") {
@@ -170045,8 +170584,8 @@ function benchmarkRunTrace(row2) {
     kind: "benchmark",
     conversationId: null,
     createdAt: timestamp(row2.created_at),
-    prompt: text7(metrics2.prompt) ?? `Benchmark suite: ${text7(row2.suite_id) ?? "unknown"}`,
-    stakeholder: text7(row2.user_email)
+    prompt: text8(metrics2.prompt) ?? `Benchmark suite: ${text8(row2.suite_id) ?? "unknown"}`,
+    stakeholder: text8(row2.user_email)
   };
   return {
     ...runWithoutTrace(
@@ -170060,7 +170599,7 @@ function benchmarkRunTrace(row2) {
       // six below are then read defensively because they are the ones the panes
       // depend on.
       ...metrics2,
-      suiteId: text7(metrics2.suiteId) ?? text7(row2.suite_id),
+      suiteId: text8(metrics2.suiteId) ?? text8(row2.suite_id),
       passed: numberOrNull(metrics2.passed),
       total: numberOrNull(metrics2.total),
       groundedness: numberOrNull(metrics2.groundedness),
@@ -170332,15 +170871,15 @@ function extractLiveText(value) {
     const items = record2[key2];
     if (Array.isArray(items)) {
       for (const item of items) {
-        const text19 = extractLiveText(item);
-        if (text19) return text19;
+        const text20 = extractLiveText(item);
+        if (text20) return text20;
       }
     }
   }
   for (const key2 of ["message", "data", "response", "result", "body"]) {
     if (record2[key2]) {
-      const text19 = extractLiveText(record2[key2]);
-      if (text19) return text19;
+      const text20 = extractLiveText(record2[key2]);
+      if (text20) return text20;
     }
   }
   return null;
@@ -170529,7 +171068,7 @@ function identityPayload(req) {
   };
 }
 function analyticalExecution(req, signedInAs) {
-  const decision = decideIdentity(req, { signedInAs, required: isDeployed() });
+  const decision = overlayAssignedPersona(decideIdentity(req, { signedInAs, required: isDeployed() }), req);
   return decision.ok ? executionIdentityClaim(decision) : refusedIdentityClaim();
 }
 function servingInvocationPath(endpointName) {
@@ -170574,7 +171113,7 @@ function warmWarehouseForArrival(warmup) {
   });
 }
 function warmGenieWarehousesForArrival(req) {
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   const host2 = workspaceHost();
   if (!token || !host2) return;
   const { genieSpaces } = accessDependenciesFrom({ env: process.env });
@@ -170623,9 +171162,7 @@ function createServingTransport(resolveClient) {
         console.warn(`[serving] ${error48.message} Keeping the partial run; no second invocation will be started.`);
         throw error48;
       }
-      console.warn(
-        `[serving] ${error48.message} No stage reported work; asking once without streaming.`
-      );
+      console.warn(`[serving] ${error48.message} No stage reported work; asking once without streaming.`);
       const blocking = { ...payload, stream: false };
       return client.request({
         path: path19,
@@ -170650,7 +171187,8 @@ function buildAskServingBody({
   expectedUser,
   deadlineAt,
   runtimeSettings,
-  evalGuidance
+  evalGuidance,
+  identityMode
 }) {
   const custom_inputs = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -170662,7 +171200,7 @@ function buildAskServingBody({
   if (runtimeSettings) custom_inputs.runtime_settings = runtimeSettings;
   if (evalGuidance?.trim()) custom_inputs.eval_guidance = evalGuidance.trim();
   if (expectedUser) {
-    custom_inputs.identity_mode = SIGNED_IN_USER;
+    custom_inputs.identity_mode = identityMode || SIGNED_IN_USER;
     custom_inputs.expected_user = expectedUser;
   }
   const input = history.length > 0 ? history : [{ role: "user", content: prompt }];
@@ -170703,7 +171241,7 @@ function agentEndpointEvidence(error48, context2) {
 function rejectionStatus(error48) {
   const carried = error48?.statusCode ?? error48?.status;
   if (typeof carried === "number") return carried;
-  const message = error48 instanceof Error ? error48.message : text7(error48) ?? "";
+  const message = error48 instanceof Error ? error48.message : text8(error48) ?? "";
   if (/\b403\b|permission denied|not authorized|forbidden/i.test(message)) return 403;
   if (/\b401\b|unauthenticated|unauthorized|invalid access token|expired/i.test(message)) return 401;
   return null;
@@ -170801,6 +171339,7 @@ function setupInsightsRoutes(appkit, options = {}) {
   appkit.server.extend((app) => {
     answerRatherThanExit(app);
     app.use(requireIdentity);
+    app.use(executionCredentialMiddleware(appkit));
     if (options.rolesReady) {
       app.use((req, _res, next) => {
         if (!isAdminRoute(req.path)) {
@@ -170820,7 +171359,8 @@ function setupInsightsRoutes(appkit, options = {}) {
     });
     app.get("/api/identity", async (req, res) => {
       const role = await rolePayload(appkit.lakebase, userEmail(req));
-      res.json({ ...identityPayload(req), ...role });
+      const spIdentity = await describeSpIdentity(req, appkit);
+      res.json({ ...identityPayload(req), ...role, spIdentity });
     });
     app.post("/api/app-user-api-scopes", async (req, res) => {
       const requestedScope = req.body?.scope;
@@ -170947,7 +171487,7 @@ function setupInsightsRoutes(appkit, options = {}) {
         });
         return;
       }
-      const userToken = forwardedUserToken(req);
+      const userToken = executionToken(req);
       const statementOptions = { host: host2, token: userToken, warehouseId: warehouseId2 };
       const outcome = await verifyAccess(
         {
@@ -171313,7 +171853,7 @@ function setupInsightsRoutes(appkit, options = {}) {
       }
       const { conversationId, prompt, approvedPlanId, executePlan } = parsed.data;
       const email3 = userEmail(req);
-      const identity = decideIdentity(req, { signedInAs: email3, required: isDeployed() });
+      const identity = overlayAssignedPersona(decideIdentity(req, { signedInAs: email3, required: isDeployed() }), req);
       if (!identity.ok) {
         console.error(describeRefusal(identity));
         reply.status(unavailableHttpStatus(identity.code)).json(
@@ -171519,7 +172059,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           stream: reply.wantsStream,
           requestId: identity.correlationId,
           runId: identity.requestId,
-          expectedUser: identity.token ? email3 : "",
+          ...servingIdentityFields(identity),
           deadlineAt: new Date(Date.now() + SERVING_INVOKE_TIMEOUT_MS).toISOString(),
           runtimeSettings: askRuntime,
           evalGuidance
@@ -171633,10 +172173,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
         const structuredAnswer = extractStructuredAnswer(endpointResult);
         const liveText = extractLiveText(endpointResult);
         if (structuredAnswer) {
-          answer = attachRecordedStages(
-            { ...structuredAnswer, mode: "live", provenance: "live" },
-            collectedStages
-          );
+          answer = attachRecordedStages({ ...structuredAnswer, mode: "live", provenance: "live" }, collectedStages);
         } else if (liveText) {
           answer = {
             ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
@@ -171848,11 +172385,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
     app.get("/api/runs", async (req, res) => {
       const email3 = userEmail(req);
       const everyRun = await callerReadsEveryRun(appkit.lakebase, email3);
-      await respondWithStored(appkit, res, "GET /api/runs", RUNS_QUERY, [
-        PLAN_APPROVAL_MESSAGE,
-        email3,
-        everyRun
-      ]);
+      await respondWithStored(appkit, res, "GET /api/runs", RUNS_QUERY, [PLAN_APPROVAL_MESSAGE, email3, everyRun]);
     });
     app.get("/api/storage", (_req, res) => {
       const health2 = lakebaseHealth();
@@ -172019,7 +172552,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
       const caseIds = parsed.success ? parsed.data.caseIds : void 0;
       const bakeOffSide = parsed.success ? parsed.data.bakeOffSide : void 0;
       const email3 = userEmail(req);
-      const identity = decideIdentity(req, { signedInAs: email3, required: isDeployed() });
+      const identity = overlayAssignedPersona(decideIdentity(req, { signedInAs: email3, required: isDeployed() }), req);
       if (!identity.ok) {
         console.error(describeRefusal(identity));
         res.status(unavailableHttpStatus(identity.code)).json(
@@ -172075,10 +172608,10 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
             attachmentText: "",
             requestId: identity.correlationId,
             runId: identity.requestId,
-            // The same expression the ask route uses, so a benchmark turn and a
+            // The same helper the ask route uses, so a benchmark turn and a
             // real turn declare the same identity contract to the agent. Empty
             // on a laptop, where there is no proxy and so no user to assert.
-            expectedUser: identity.token ? email3 : "",
+            ...servingIdentityFields(identity),
             runtimeSettings: await readRuntimeSettings(appkit),
             evalGuidance: await resolveAskGuidance(appkit)
           });
@@ -172091,14 +172624,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
               void 0,
               SERVING_INVOKE_TIMEOUT_MS,
               agentEndpoint
-            ) : await invokeServing(
-              appkit,
-              payload,
-              void 0,
-              SERVING_INVOKE_TIMEOUT_MS,
-              void 0,
-              agentEndpoint
-            );
+            ) : await invokeServing(appkit, payload, void 0, SERVING_INVOKE_TIMEOUT_MS, void 0, agentEndpoint);
           } catch (error48) {
             if (!(error48 instanceof AuthorizationRefused)) throw error48;
             return {
@@ -172239,6 +172765,7 @@ var init_insights_routes = __esm({
     init_agent_refusal();
     init_session_freshness();
     init_identity_binding();
+    init_execution_credential();
     init_serving_stream();
     init_ask_responder();
     init_app_user_api_scopes();
@@ -173095,7 +173622,7 @@ var init_notebook_declaration = __esm({
 });
 
 // shared/apply-declaration.ts
-function text8(value) {
+function text9(value) {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
   return "";
@@ -173104,7 +173631,7 @@ function intendedFromResources(resources) {
   const out = {};
   for (const entry of resources ?? []) {
     const key2 = entry.resource?.agentKey;
-    const intended = text8(entry.intended);
+    const intended = text9(entry.intended);
     if (!key2 || !intended || !APPLYABLE_KEYS.has(key2)) continue;
     out[key2] = intended;
   }
@@ -173114,8 +173641,8 @@ function settingsFromDeclaration(declaration) {
   const out = {};
   if (!declaration) return out;
   for (const setting of declaration.settings) {
-    const key2 = text8(setting.key);
-    const value = text8(setting.value);
+    const key2 = text9(setting.key);
+    const value = text9(setting.value);
     if (!key2 || !value) continue;
     if (NOTEBOOK_REFUSED_KEYS.has(key2)) continue;
     if (!APPLYABLE_KEYS.has(key2)) continue;
@@ -173162,7 +173689,7 @@ function resolveApplyPlan(input) {
       "Values come from the notebook declaration. Intended settings on Connections override the notebook when both name the same key."
     );
   }
-  const target = text8(input.target) || "<your-target>";
+  const target = text9(input.target) || "<your-target>";
   return {
     knobs,
     notes,
@@ -173202,15 +173729,15 @@ var init_apply_declaration = __esm({
 function splitList(raw2) {
   return raw2.split(",").map((item) => item.trim()).filter(Boolean);
 }
-function text9(env, name2) {
+function text10(env, name2) {
   return (env[name2] ?? "").trim();
 }
 function configurationFromRelease(env = process.env) {
   const mapping = { ...APPLY_ENV_VARS, ...EXTRA_ENV };
   const entries = [];
   for (const [key2, envVar] of Object.entries(mapping)) {
-    let raw2 = text9(env, envVar);
-    if (!raw2 && key2 === "warehouse_id") raw2 = text9(env, "DATABRICKS_SQL_WAREHOUSE_ID");
+    let raw2 = text10(env, envVar);
+    if (!raw2 && key2 === "warehouse_id") raw2 = text10(env, "DATABRICKS_SQL_WAREHOUSE_ID");
     if (!raw2) continue;
     entries.push({
       key: key2,
@@ -173226,7 +173753,7 @@ function configurationFromRelease(env = process.env) {
     (entry) => entry.key === "declared_manifest" && Array.isArray(entry.value) && entry.value.length > 0
   );
   if (!hasManifest) {
-    const qualified = qualifyDataContractTables(text9(env, "PLAYER_INSIGHTS_CATALOG"), text9(env, "PLAYER_INSIGHTS_SCHEMA"));
+    const qualified = qualifyDataContractTables(text10(env, "PLAYER_INSIGHTS_CATALOG"), text10(env, "PLAYER_INSIGHTS_SCHEMA"));
     if (qualified.length > 0) {
       entries.push({
         key: "declared_manifest",
@@ -173911,7 +174438,7 @@ function scopeForPath(path19) {
   }
   return best;
 }
-function text10(value) {
+function text11(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function sql2(statement, guidance = "") {
@@ -173936,11 +174463,11 @@ function connectionSubjects(input) {
       path: `/api/2.0/sql/warehouses/${encodeURIComponent(warehouse)}`,
       proves: "It does not prove a statement would run: CAN_USE on the warehouse and SELECT on the tables are separate grants, and a stopped warehouse still answers this call.",
       observe: (body) => {
-        const state = text10(body.state);
-        const name2 = text10(body.name);
+        const state = text11(body.state);
+        const name2 = text11(body.name);
         return [name2 && `named \u201C${name2}\u201D`, state && `state ${state}`].filter(Boolean).join(", ");
       },
-      displayName: (body) => text10(body.name),
+      displayName: (body) => text11(body.name),
       grant: (principal) => (
         // No guidance. What stood here said a warehouse is a workspace object
         // rather than a Unity Catalog one, which is why the fix is an API call
@@ -173967,10 +174494,10 @@ function connectionSubjects(input) {
       path: `/api/2.0/genie/spaces/${encodeURIComponent(space)}`,
       proves: "It does not prove a question would be answered: a space someone can open can still be backed by tables they cannot read, and CAN RUN is a separate grant from CAN VIEW.",
       observe: (body) => {
-        const title = text10(body.title);
+        const title = text11(body.title);
         return title ? `titled \u201C${title}\u201D` : "";
       },
-      displayName: (body) => text10(body.title),
+      displayName: (body) => text11(body.title),
       grant: (principal) => (
         // No guidance. The dropped sentence said the tables behind a space are
         // granted separately in Unity Catalog, which is a real fact and one this
@@ -173993,7 +174520,7 @@ function connectionSubjects(input) {
       path: `/api/2.1/unity-catalog/catalogs/${encodeURIComponent(catalog)}`,
       proves: "Every schema and table inside it is granted separately, so this covers the container only.",
       observe: (body) => {
-        const owner = text10(body.owner);
+        const owner = text11(body.owner);
         return owner ? `owned by ${owner}` : "";
       },
       grant: (principal) => (
@@ -174014,7 +174541,7 @@ function connectionSubjects(input) {
       path: `/api/2.1/unity-catalog/schemas/${encodeURIComponent(full)}`,
       proves: "Each table inside it is granted separately, so this covers the container only.",
       observe: (body) => {
-        const owner = text10(body.owner);
+        const owner = text11(body.owner);
         return owner ? `owned by ${owner}` : "";
       },
       grant: (principal) => (
@@ -174064,11 +174591,11 @@ function connectionSubjects(input) {
       path: `/api/2.0/vector-search/indexes/${encodeURIComponent(index)}`,
       proves: "It does not prove a search would return anything: an index that exists can still be empty or behind on its sync.",
       observe: (body) => {
-        const endpoint = text10(body.endpoint_name);
-        const state = text10(body.status?.detailed_state);
+        const endpoint = text11(body.endpoint_name);
+        const state = text11(body.status?.detailed_state);
         return [endpoint && `served by ${endpoint}`, state && `state ${state}`].filter(Boolean).join(", ");
       },
-      displayName: (body) => text10(body.name),
+      displayName: (body) => text11(body.name),
       contentAt: (body) => indexContentAt(body),
       // NOW A GRANT, which is what this row always claimed to be offering. What
       // stood here was a `databricks api get` against the index -- the same call
@@ -174097,7 +174624,7 @@ function connectionSubjects(input) {
 function indexContentAt(body) {
   const status = body.status ?? {};
   for (const key2 of ["triggered_update_status", "continuous_update_status"]) {
-    const stamp2 = text10(status[key2]?.last_processed_commit_timestamp);
+    const stamp2 = text11(status[key2]?.last_processed_commit_timestamp);
     if (stamp2 && !Number.isNaN(new Date(stamp2).getTime())) return stamp2;
   }
   return "";
@@ -174112,7 +174639,7 @@ function servingEndpointSubject(id, label, name2, note) {
     proves: `${note} Seeing an endpoint is not being allowed to call it: CAN_VIEW and CAN_QUERY are separate grants, and this call needs only the first.`,
     observe: (body) => {
       const state = body.state ?? {};
-      const ready = text10(state.ready);
+      const ready = text11(state.ready);
       return ready ? `state ${ready}` : "";
     },
     // No guidance. The dropped sentence classified the object to explain why the
@@ -174123,9 +174650,9 @@ function servingEndpointSubject(id, label, name2, note) {
   };
 }
 function vectorEndpointSubject(indexBody) {
-  const endpoint = text10(indexBody.endpoint_name);
+  const endpoint = text11(indexBody.endpoint_name);
   if (!endpoint) return null;
-  const endpointId = text10(indexBody.endpoint_id);
+  const endpointId = text11(indexBody.endpoint_id);
   return {
     id: "semantic-index-endpoint",
     kind: "vector-endpoint",
@@ -174135,7 +174662,7 @@ function vectorEndpointSubject(indexBody) {
     proves: "It does not prove a search would return anything; it says the endpoint serving the index exists.",
     observe: (body) => {
       const status = body.endpoint_status ?? {};
-      const state = text10(status.state);
+      const state = text11(status.state);
       return state ? `state ${state}` : "";
     },
     grant: endpointId ? (principal) => cli(
@@ -174233,8 +174760,8 @@ function probeVerdict(input) {
     });
   }
   const { status, body } = outcome;
-  const code = text10(body.error_code);
-  const message = text10(body.message);
+  const code = text11(body.error_code);
+  const message = text11(body.message);
   if (status >= 200 && status < 300) {
     const observed = subject.observe?.(body) ?? "";
     const contentAt = subject.contentAt ? subject.contentAt(body) : "";
@@ -174625,7 +175152,7 @@ function scopeForBrowsePath(path19) {
   if (path19.startsWith("/api/2.0/postgres/")) return "postgres";
   return scopeForPath(path19.endsWith("/") ? path19 : `${path19}/`);
 }
-function text11(value) {
+function text12(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function unavailable3(kind, scope) {
@@ -174709,8 +175236,8 @@ function interpretBrowseAnswer(input) {
     const parsed = input.itemsFromBody(body);
     return ok(kind, parsed.items, parsed.next_page_token, input.path ?? "");
   }
-  const code = text11(body.error_code);
-  const message = text11(body.message);
+  const code = text12(body.error_code);
+  const message = text12(body.message);
   const scope = scopeForBrowsePath(apiPath);
   const named = scopesFromRefusal(message);
   const looksScope = named.length > 0 || looksLikeMissingScope(message);
@@ -174782,11 +175309,11 @@ function catalogItems(body) {
   const items = [];
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
-    const name2 = text11(row2.name);
+    const name2 = text12(row2.name);
     if (!name2) continue;
     items.push({ id: name2, label: name2, secondary: "", expandable: false });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function schemaItems(body) {
   const rows = Array.isArray(body.schemas) ? body.schemas : [];
@@ -174794,8 +175321,8 @@ function schemaItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text11(record2.full_name);
-    const name2 = text11(record2.name);
+    const fullName = text12(record2.full_name);
+    const name2 = text12(record2.name);
     const schemaName = name2.includes(".") ? name2.slice(name2.indexOf(".") + 1) : name2 || (fullName.includes(".") ? fullName.slice(fullName.indexOf(".") + 1) : fullName);
     if (!schemaName) continue;
     items.push({
@@ -174809,7 +175336,7 @@ function schemaItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function tableItems(body) {
   const rows = Array.isArray(body.tables) ? body.tables : [];
@@ -174817,17 +175344,17 @@ function tableItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text11(record2.full_name) || text11(record2.name);
+    const fullName = text12(record2.full_name) || text12(record2.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: fullName,
       label: short,
-      secondary: text11(record2.table_type),
+      secondary: text12(record2.table_type),
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function warehouseItems(body) {
   const rows = Array.isArray(body.warehouses) ? body.warehouses : [];
@@ -174835,16 +175362,16 @@ function warehouseItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const id = text11(record2.id);
+    const id = text12(record2.id);
     if (!id) continue;
     items.push({
       id,
-      label: text11(record2.name) || id,
-      secondary: text11(record2.state),
+      label: text12(record2.name) || id,
+      secondary: text12(record2.state),
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function genieItems(body) {
   const rows = Array.isArray(body.spaces) ? body.spaces : [];
@@ -174852,16 +175379,16 @@ function genieItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const id = text11(record2.space_id) || text11(record2.id);
+    const id = text12(record2.space_id) || text12(record2.id);
     if (!id) continue;
     items.push({
       id,
-      label: text11(record2.title) || id,
+      label: text12(record2.title) || id,
       secondary: "",
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function servingEndpointItems(body) {
   const rows = Array.isArray(body.endpoints) ? body.endpoints : [];
@@ -174869,18 +175396,18 @@ function servingEndpointItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text11(record2.name);
+    const name2 = text12(record2.name);
     if (!name2) continue;
     const state = record2.state;
-    const ready = state && typeof state === "object" ? text11(state.ready) : "";
+    const ready = state && typeof state === "object" ? text12(state.ready) : "";
     items.push({
       id: name2,
       label: name2,
-      secondary: text11(record2.task) || ready,
+      secondary: text12(record2.task) || ready,
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function notebookItems(body) {
   const rows = Array.isArray(body.objects) ? body.objects : [];
@@ -174888,15 +175415,15 @@ function notebookItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const path19 = text11(record2.path);
+    const path19 = text12(record2.path);
     if (!path19) continue;
-    const objectType = text11(record2.object_type).toUpperCase();
+    const objectType = text12(record2.object_type).toUpperCase();
     if (objectType !== "DIRECTORY" && objectType !== "NOTEBOOK") continue;
     const label = path19.includes("/") ? path19.slice(path19.lastIndexOf("/") + 1) : path19;
     items.push({
       id: path19,
       label: label || path19,
-      secondary: objectType === "NOTEBOOK" ? text11(record2.language) : "Directory",
+      secondary: objectType === "NOTEBOOK" ? text12(record2.language) : "Directory",
       expandable: objectType === "DIRECTORY"
     });
   }
@@ -175001,7 +175528,7 @@ async function validateNotebookPath(pathInput, options) {
         detail: answer.kind === "timeout" ? "The workspace did not answer before notebook validation timed out." : "The workspace could not be reached to validate this notebook."
       };
     }
-    if (answer.status === 404 || text11(answer.body.error_code) === "RESOURCE_DOES_NOT_EXIST") {
+    if (answer.status === 404 || text12(answer.body.error_code) === "RESOURCE_DOES_NOT_EXIST") {
       return { ok: false, status: 404, detail: "No workspace notebook exists at that path." };
     }
     if (answer.status === 401 || answer.status === 403) {
@@ -175018,7 +175545,7 @@ async function validateNotebookPath(pathInput, options) {
         detail: `The workspace refused notebook validation with HTTP ${answer.status}.`
       };
     }
-    if (apiPath.endsWith("/get-status") && text11(answer.body.object_type).toUpperCase() !== "NOTEBOOK") {
+    if (apiPath.endsWith("/get-status") && text12(answer.body.object_type).toUpperCase() !== "NOTEBOOK") {
       return { ok: false, status: 400, detail: "Choose a notebook, not a workspace folder." };
     }
   }
@@ -175030,17 +175557,17 @@ function volumeItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const fullName = text11(record2.full_name) || text11(record2.name);
+    const fullName = text12(record2.full_name) || text12(record2.name);
     if (!fullName) continue;
     const short = fullName.includes(".") ? fullName.split(".").pop() : fullName;
     items.push({
       id: short,
       label: short,
-      secondary: text11(record2.volume_type) || fullName,
+      secondary: text12(record2.volume_type) || fullName,
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 async function listVolumes(options) {
   const catalog = options.catalog.trim();
@@ -175083,10 +175610,10 @@ function vectorSearchEndpointItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text11(record2.name);
+    const name2 = text12(record2.name);
     if (!name2) continue;
     const status = record2.endpoint_status;
-    const state = status && typeof status === "object" ? text11(status.state) : "";
+    const state = status && typeof status === "object" ? text12(status.state) : "";
     const count4 = typeof record2.num_indexes === "number" ? `${record2.num_indexes} indexes` : "";
     items.push({
       id: name2,
@@ -175095,7 +175622,7 @@ function vectorSearchEndpointItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function vectorSearchIndexItems(body) {
   const rows = Array.isArray(body.vector_indexes) ? body.vector_indexes : Array.isArray(body.indexes) ? body.indexes : [];
@@ -175103,17 +175630,17 @@ function vectorSearchIndexItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text11(record2.name);
+    const name2 = text12(record2.name);
     if (!name2) continue;
     const short = name2.includes(".") ? name2.split(".").pop() : name2;
     items.push({
       id: name2,
       label: short,
-      secondary: text11(record2.index_type) || text11(record2.endpoint_name),
+      secondary: text12(record2.index_type) || text12(record2.endpoint_name),
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 async function listVectorSearchEndpoints(options) {
   const apiPath = "/api/2.0/vector-search/endpoints";
@@ -175153,10 +175680,10 @@ function lakebaseProjectItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text11(record2.name);
+    const name2 = text12(record2.name);
     if (!name2) continue;
     const status = record2.status;
-    const display = status && typeof status === "object" ? text11(status.display_name) : "";
+    const display = status && typeof status === "object" ? text12(status.display_name) : "";
     const short = name2.startsWith("projects/") ? name2.slice("projects/".length) : name2;
     items.push({
       id: name2,
@@ -175165,7 +175692,7 @@ function lakebaseProjectItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function lakebaseBranchItems(body) {
   const rows = Array.isArray(body.branches) ? body.branches : [];
@@ -175173,11 +175700,11 @@ function lakebaseBranchItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text11(record2.name);
+    const name2 = text12(record2.name);
     if (!name2) continue;
     const short = name2.includes("/branches/") ? name2.slice(name2.lastIndexOf("/branches/") + "/branches/".length) : name2;
     const status = record2.status;
-    const state = status && typeof status === "object" ? text11(status.state) : "";
+    const state = status && typeof status === "object" ? text12(status.state) : "";
     items.push({
       id: name2,
       label: short,
@@ -175185,7 +175712,7 @@ function lakebaseBranchItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function lakebaseDatabaseItems(body) {
   const rows = Array.isArray(body.databases) ? body.databases : [];
@@ -175193,7 +175720,7 @@ function lakebaseDatabaseItems(body) {
   for (const row2 of rows) {
     if (!row2 || typeof row2 !== "object") continue;
     const record2 = row2;
-    const name2 = text11(record2.name);
+    const name2 = text12(record2.name);
     if (!name2) continue;
     const short = name2.includes("/databases/") ? name2.slice(name2.lastIndexOf("/databases/") + "/databases/".length) : name2;
     items.push({
@@ -175203,7 +175730,7 @@ function lakebaseDatabaseItems(body) {
       expandable: false
     });
   }
-  return { items, next_page_token: text11(body.next_page_token) };
+  return { items, next_page_token: text12(body.next_page_token) };
 }
 function lakebaseProjectParent(project) {
   const trimmed = project.trim();
@@ -175405,32 +175932,32 @@ var init_notebook_declaration_read = __esm({
 });
 
 // server/lib/declared-connections.ts
-function text12(value) {
+function text13(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return "";
 }
 function timestamp2(value) {
   if (value instanceof Date) return value.toISOString();
-  return text12(value);
+  return text13(value);
 }
 function storedFromRow2(row2) {
-  const kind = text12(row2.kind);
+  const kind = text13(row2.kind);
   return {
-    id: text12(row2.id),
-    label: text12(row2.label),
+    id: text13(row2.id),
+    label: text13(row2.label),
     // Read through the allowlist rather than cast. A kind that is no longer one
     // this build declares would otherwise reach the client as an icon lookup that
     // silently renders nothing.
     kind: DECLARABLE_KINDS.includes(kind) ? kind : "unity-catalog",
-    value: text12(row2.value),
-    note: text12(row2.note),
+    value: text13(row2.value),
+    note: text13(row2.note),
     state: row2.state === "withdrawn" ? "withdrawn" : "declared",
     origin: row2.origin === "notebook" ? "notebook" : "app",
     createdAt: timestamp2(row2.created_at),
-    createdBy: text12(row2.created_by),
+    createdBy: text13(row2.created_by),
     changedAt: timestamp2(row2.changed_at),
-    changedBy: text12(row2.changed_by)
+    changedBy: text13(row2.changed_by)
   };
 }
 async function readDeclaredConnections(client) {
@@ -175553,14 +176080,14 @@ var init_declared_connections = __esm({
 });
 
 // server/lib/model-release-store.ts
-function text13(value) {
+function text14(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
   return "";
 }
 function instant(value) {
   if (value == null) return null;
-  return value instanceof Date ? value.toISOString() : text13(value) || null;
+  return value instanceof Date ? value.toISOString() : text14(value) || null;
 }
 function jsonValue(value) {
   if (value == null) return null;
@@ -175575,24 +176102,24 @@ function jsonValue(value) {
 }
 function modelReleaseFromRow(row2) {
   return {
-    id: text13(row2.id),
-    status: text13(row2.status),
-    requestedBy: text13(row2.requested_by),
+    id: text14(row2.id),
+    status: text14(row2.status),
+    requestedBy: text14(row2.requested_by),
     requestedAt: instant(row2.requested_at) ?? "",
     declaration: jsonValue(row2.declaration),
-    declarationRevision: text13(row2.declaration_revision),
-    target: text13(row2.target),
-    endpointName: text13(row2.endpoint_name),
-    modelName: text13(row2.model_name),
-    vFrom: text13(row2.v_from) || null,
-    vTo: text13(row2.v_to) || null,
+    declarationRevision: text14(row2.declaration_revision),
+    target: text14(row2.target),
+    endpointName: text14(row2.endpoint_name),
+    modelName: text14(row2.model_name),
+    vFrom: text14(row2.v_from) || null,
+    vTo: text14(row2.v_to) || null,
     preflightAtRequest: jsonValue(row2.preflight_at_request),
     preflightResult: jsonValue(row2.preflight_result),
     startedAt: instant(row2.started_at),
     completedAt: instant(row2.completed_at),
-    claimedBy: text13(row2.claimed_by) || null,
-    completedBy: text13(row2.completed_by) || null,
-    errorSummary: text13(row2.error_summary) || null
+    claimedBy: text14(row2.claimed_by) || null,
+    completedBy: text14(row2.completed_by) || null,
+    errorSummary: text14(row2.error_summary) || null
   };
 }
 async function createModelRelease(store, input) {
@@ -175717,18 +176244,18 @@ function configurationValue(report, key2) {
   const value = report?.configuration.find((entry) => entry.key === key2)?.value;
   return typeof value === "string" ? value.trim() : "";
 }
-function text14(value) {
+function text15(value) {
   return (value ?? "").trim();
 }
 function resourceTagInventory(input = {}) {
   const environment = input.environment ?? process.env;
   const report = input.report ?? null;
   const targets = [];
-  const appName = text14(environment.DATABRICKS_APP_NAME);
+  const appName = text15(environment.DATABRICKS_APP_NAME);
   if (appName) {
     targets.push({ kind: "app", name: appName, label: `App \xB7 ${appName}`, action: "tag" });
   }
-  const modelName = configurationValue(report, "model_name") || text14(environment.PLAYER_INSIGHTS_MODEL_NAME);
+  const modelName = configurationValue(report, "model_name") || text15(environment.PLAYER_INSIGHTS_MODEL_NAME);
   const modelVersion = configurationValue(report, "model_version");
   if (modelName) {
     targets.push({
@@ -175747,7 +176274,7 @@ function resourceTagInventory(input = {}) {
       });
     }
   }
-  const serving2 = text14(environment.DATABRICKS_SERVING_ENDPOINT_NAME);
+  const serving2 = text15(environment.DATABRICKS_SERVING_ENDPOINT_NAME);
   if (serving2) {
     targets.push({
       kind: "serving-endpoint",
@@ -175779,7 +176306,7 @@ function resourceTagInventory(input = {}) {
       reason: "Genie space tags are organizational only and do not propagate to billing by space id. SQL issued by this space is billed through its associated SQL warehouse."
     });
   }
-  const experimentId = text14(environment.PLAYER_INSIGHTS_EXPERIMENT_ID);
+  const experimentId = text15(environment.PLAYER_INSIGHTS_EXPERIMENT_ID);
   if (experimentId) {
     targets.push({
       kind: "mlflow-experiment",
@@ -175798,7 +176325,7 @@ function resourceTagInventory(input = {}) {
       reason: "Databricks does not expose custom tags for Vector Search indexes. Nothing needs to be fixed on this index; Astrolabe tags its endpoint instead."
     });
   }
-  const warehouse = text14(environment.DATABRICKS_SQL_WAREHOUSE_ID);
+  const warehouse = text15(environment.DATABRICKS_SQL_WAREHOUSE_ID);
   if (warehouse) {
     targets.push({
       kind: "sql-warehouse",
@@ -175807,7 +176334,7 @@ function resourceTagInventory(input = {}) {
       action: "tag"
     });
   }
-  const lakebaseBinding = text14(environment.LAKEBASE_ENDPOINT);
+  const lakebaseBinding = text15(environment.LAKEBASE_ENDPOINT);
   const projectId = /^projects\/([^/]+)/.exec(lakebaseBinding)?.[1] ?? "";
   if (projectId) {
     targets.push({
@@ -175859,7 +176386,7 @@ function technicalDetail(error48) {
 }
 function principalId(error48, fallback) {
   const fromError = errorText(error48).match(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i)?.[0];
-  return fromError ?? (text14(fallback) || "the Astrolabe app service principal");
+  return fromError ?? (text15(fallback) || "the Astrolabe app service principal");
 }
 function permissionRequired(target, error48, servicePrincipalId) {
   const principal = principalId(error48, servicePrincipalId);
@@ -176215,7 +176742,7 @@ __export(settings_routes_exports, {
   setupSettingsRoutes: () => setupSettingsRoutes,
   validateAndStoreNotebookPath: () => validateAndStoreNotebookPath
 });
-import { createHash as createHash6, randomUUID as randomUUID5 } from "node:crypto";
+import { createHash as createHash6, randomUUID as randomUUID6 } from "node:crypto";
 async function validateAndStoreNotebookPath(input) {
   const validate2 = input.validate ?? validateNotebookPath;
   const validation = await validate2(input.path, {
@@ -176336,7 +176863,7 @@ function setupSettingsRoutes(appkit) {
           appkit,
           path: parsed.data.path,
           host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
-          token: forwardedUserToken(req) ?? "",
+          token: executionToken(req) ?? "",
           updatedBy: userEmail(req)
         });
         if (!savedResult.ok) {
@@ -176546,7 +177073,7 @@ function setupSettingsRoutes(appkit) {
         }
         const declaration = releaseDeclaration(current.plan);
         const release = await createModelRelease(appkit, {
-          id: randomUUID5(),
+          id: randomUUID6(),
           requestedBy: userEmail(req),
           declaration,
           target: current.target,
@@ -176711,7 +177238,7 @@ async function readNotebook(req, appkit, report, storedInput) {
       host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
       // Absent reads as "nobody to read as", which the reader is told. It is never
       // replaced by the app's own credential.
-      token: forwardedUserToken(req) ?? ""
+      token: executionToken(req) ?? ""
     });
     return {
       location,
@@ -176767,7 +177294,7 @@ async function readReachability(req, input) {
         env: process.env
       }).tables,
       host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
-      token: forwardedUserToken(req),
+      token: executionToken(req),
       principal: req.header("x-forwarded-email")?.trim() ?? ""
     });
     const experiment = await checkExperimentAsApp(configured["experiment-id"] ?? "");
@@ -176802,7 +177329,7 @@ var init_settings_routes = __esm({
     init_access_verification();
     init_browse_assets();
     init_experiment_probe();
-    init_access_verification();
+    init_execution_credential();
     init_databricks_links();
     init_notebook_declaration_read();
     init_notebook_declaration();
@@ -176859,7 +177386,7 @@ function defaultNotebookPath(req) {
   return email3 ? `/Users/${email3}` : "/";
 }
 async function sendBrowse(req, res, run2) {
-  const ctx = browseRequestContext({ token: forwardedUserToken(req) });
+  const ctx = browseRequestContext({ token: executionToken(req) });
   const payload = await run2(ctx);
   res.status(200).json(payload);
 }
@@ -176996,7 +177523,7 @@ function setupBrowseRoutes(appkit) {
 }
 var init_browse_routes = __esm({
   "server/routes/browse-routes.ts"() {
-    init_access_verification();
+    init_execution_credential();
     init_browse_assets();
   }
 });
@@ -177227,7 +177754,7 @@ async function readAdded(store) {
 function runnerFor(req) {
   const host2 = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   const warehouseId2 = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   if (!host2) {
     return {
       run: null,
@@ -177353,7 +177880,7 @@ var init_admin_routes = __esm({
     init_databricks_links();
     init_admin_access();
     init_admin_roles();
-    init_access_verification();
+    init_execution_credential();
     init_insights_routes();
     AddBody = external_exports.object({ email: external_exports.string().trim().max(320) });
   }
@@ -177807,7 +178334,7 @@ function manifestTables() {
 function queryString2(value) {
   return typeof value === "string" ? value : "";
 }
-function text15(value) {
+function text16(value) {
   return typeof value === "string" ? value : "";
 }
 function integer2(value) {
@@ -177818,7 +178345,7 @@ function integer2(value) {
 }
 function stamp(value) {
   if (value instanceof Date) return value.toISOString();
-  const raw2 = text15(value);
+  const raw2 = text16(value);
   const parsed = Date.parse(raw2);
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : "";
 }
@@ -177826,13 +178353,13 @@ function tableList(value) {
   if (!Array.isArray(value)) return [];
   const seen = /* @__PURE__ */ new Set();
   for (const entry of value) {
-    const name2 = text15(entry).trim();
+    const name2 = text16(entry).trim();
     if (name2.split(".").filter((part) => part.length > 0).length === 3) seen.add(name2);
   }
   return [...seen];
 }
 function sentiment(value, usefulness) {
-  const word = text15(value).trim().toLowerCase();
+  const word = text16(value).trim().toLowerCase();
   if (word === "up" || word === "down") return word;
   if (usefulness === null) return null;
   if (usefulness >= 4) return "up";
@@ -177853,12 +178380,12 @@ function tokensOf(response) {
   return { prompt, completion, total };
 }
 function questionRows2(rows) {
-  return rows.filter((row2) => text15(row2.question_id) !== "");
+  return rows.filter((row2) => text16(row2.question_id) !== "");
 }
 function rangeTotalsFrom(row2, page) {
   const asked = integer2(row2?.asked_total);
   const people = integer2(row2?.people_total);
-  const listed = Array.isArray(row2?.people_list) ? row2.people_list.map((entry) => text15(entry)).filter((email3) => email3 !== "") : null;
+  const listed = Array.isArray(row2?.people_list) ? row2.people_list.map((entry) => text16(entry)).filter((email3) => email3 !== "") : null;
   const fromPage = [...new Set(page.map((question) => question.askedBy).filter((email3) => email3 !== ""))].sort();
   return {
     asked: asked !== null && asked >= page.length ? asked : page.length,
@@ -177867,7 +178394,7 @@ function rangeTotalsFrom(row2, page) {
   };
 }
 function questionFromRow(row2, ledger) {
-  const answerId = text15(row2.answer_id);
+  const answerId = text16(row2.answer_id);
   const verdict = answerId ? ledger.get(answerId) : void 0;
   const outcome = applyAdminOutcome(
     classifyOutcome({
@@ -177879,13 +178406,13 @@ function questionFromRow(row2, ledger) {
       synthesisIncomplete: row2.synthesis_incomplete === true,
       proseOnlyDegraded: row2.prose_only_degraded === true
     }),
-    text15(row2.overlay_status)
+    text16(row2.overlay_status)
   );
   return {
-    id: text15(row2.question_id),
-    conversationId: text15(row2.conversation_id),
-    question: text15(row2.question),
-    askedBy: text15(row2.user_email),
+    id: text16(row2.question_id),
+    conversationId: text16(row2.conversation_id),
+    question: text16(row2.question),
+    askedBy: text16(row2.user_email),
     askedAt: stamp(row2.asked_at),
     outcome,
     // The taxonomy's own sentence, and only where a code was recorded. A run
@@ -177894,7 +178421,7 @@ function questionFromRow(row2, ledger) {
     outcomeDetail: refusalSentence(verdict?.code),
     durationMs: integer2(row2.total_ms),
     toolCalls: integer2(row2.tool_calls),
-    rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text15(row2.overlay_rating)),
+    rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text16(row2.overlay_rating)),
     tables: tableList(row2.sources)
   };
 }
@@ -177941,9 +178468,9 @@ async function readLedger(appkit, answerIds) {
   try {
     const result = await appkit.lakebase.query(MONITORING_LEDGER_QUERY, [answerIds]);
     for (const row2 of result.rows) {
-      const id = text15(row2.answer_id);
+      const id = text16(row2.answer_id);
       if (!id) continue;
-      verdicts.set(id, { state: text15(row2.state), code: text15(row2.terminal_code) || null });
+      verdicts.set(id, { state: text16(row2.state), code: text16(row2.terminal_code) || null });
     }
   } catch (error48) {
     console.warn(
@@ -177955,7 +178482,7 @@ async function readLedger(appkit, answerIds) {
 function probeForAdmin(req) {
   const host2 = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   const warehouseId2 = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   if (!host2 || !warehouseId2 || !token) return null;
   return statementRunnerFor({ host: host2, token, warehouseId: warehouseId2 });
 }
@@ -178023,7 +178550,7 @@ function setupMonitoringRoutes(appkit, deps) {
         });
         return;
       }
-      const answerIds = rows.map((row2) => text15(row2.answer_id)).filter((id) => id !== "");
+      const answerIds = rows.map((row2) => text16(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
       const all = rows.map((row2) => questionFromRow(row2, ledger));
       const totals = rangeTotalsFrom(stored.rows[0], all);
@@ -178072,7 +178599,7 @@ function setupMonitoringRoutes(appkit, deps) {
         res.status(404).json({ error: "question_not_found" });
         return;
       }
-      const answerId = text15(row2.answer_id);
+      const answerId = text16(row2.answer_id);
       const ledger = await readLedger(appkit, answerId ? [answerId] : []);
       const verdict = answerId ? ledger.get(answerId) : void 0;
       const tables = tableList(row2.sources);
@@ -178085,14 +178612,14 @@ function setupMonitoringRoutes(appkit, deps) {
         now: clock()
       });
       const conditioning = conditioningFor(tables, grants);
-      const traceId = text15(row2.trace_id);
+      const traceId = text16(row2.trace_id);
       const mlflow = traceId ? mlflowReference(traceId, await resolveExperimentId(appkit)) : null;
-      const executionMode = text15(row2.execution_mode);
+      const executionMode = text16(row2.execution_mode);
       const detail = {
-        id: text15(row2.question_id),
-        conversationId: text15(row2.conversation_id),
-        question: text15(row2.question),
-        askedBy: text15(row2.user_email),
+        id: text16(row2.question_id),
+        conversationId: text16(row2.conversation_id),
+        question: text16(row2.question),
+        askedBy: text16(row2.user_email),
         askedAt: stamp(row2.asked_at),
         outcome: applyAdminOutcome(
           classifyOutcome({
@@ -178104,7 +178631,7 @@ function setupMonitoringRoutes(appkit, deps) {
             synthesisIncomplete: row2.synthesis_incomplete === true,
             proseOnlyDegraded: row2.prose_only_degraded === true
           }),
-          text15(row2.overlay_status)
+          text16(row2.overlay_status)
         ),
         outcomeDetail: refusalSentence(verdict?.code),
         outcomeCode: verdict?.code ?? null,
@@ -178120,9 +178647,9 @@ function setupMonitoringRoutes(appkit, deps) {
         // a half-written claim, and the footer's absent sentence is the truthful
         // reading of one. See normalizeExecutionIdentity in answer-shape.ts.
         execution: executionMode && typeof row2.execution_identity_verified === "boolean" ? { mode: executionMode, verified: row2.execution_identity_verified } : null,
-        rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text15(row2.overlay_rating)),
+        rating: applyAdminRating(sentiment(row2.sentiment, integer2(row2.usefulness)), text16(row2.overlay_rating)),
         usefulness: integer2(row2.usefulness),
-        comment: text15(row2.comment) || null,
+        comment: text16(row2.comment) || null,
         // Absent rather than dead. `mlflowReference` answers null for a trace id
         // that is not MLflow's and for a deployment with no host or experiment,
         // and now also for a deployment whose administrator has turned the
@@ -178158,9 +178685,9 @@ function setupMonitoringRoutes(appkit, deps) {
         return;
       }
       const mine = questionRows2(stored.rows).filter(
-        (row2) => text15(row2.user_email).toLowerCase() === person.toLowerCase()
+        (row2) => text16(row2.user_email).toLowerCase() === person.toLowerCase()
       );
-      const answerIds = mine.map((row2) => text15(row2.answer_id)).filter((id) => id !== "");
+      const answerIds = mine.map((row2) => text16(row2.answer_id)).filter((id) => id !== "");
       const ledger = await readLedger(appkit, answerIds);
       const questions = mine.map((row2) => questionFromRow(row2, ledger));
       let tokenTotal = 0;
@@ -178175,7 +178702,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const executionSplit = { asThemselves: 0, asApplication: 0, unrecorded: 0 };
       const subjectSplit = { verified: 0, confirmedByEndpoint: 0, unrecorded: 0 };
       for (const row2 of mine) {
-        const mode = text15(row2.execution_mode);
+        const mode = text16(row2.execution_mode);
         if (mode === "signed_in_user") executionSplit.asThemselves += 1;
         else if (mode === "app_service_principal") executionSplit.asApplication += 1;
         else executionSplit.unrecorded += 1;
@@ -178269,6 +178796,7 @@ var init_monitoring_routes = __esm({
     init_egress_store();
     init_monitoring_grants();
     init_access_verification();
+    init_execution_credential();
     init_insights_routes();
     init_app_settings();
     init_databricks_links();
@@ -178853,6 +179381,88 @@ var init_ops_billing = __esm({
   }
 });
 
+// shared/cost-budgets.ts
+function parseCostBudgets(raw2) {
+  const parsed = CostBudgetsSchema.safeParse(raw2);
+  return parsed.success ? parsed.data : null;
+}
+var COST_BUDGET_MAX, AmountSchema, CostBudgetsSchema, EMPTY_COST_BUDGETS;
+var init_cost_budgets = __esm({
+  "shared/cost-budgets.ts"() {
+    init_zod();
+    COST_BUDGET_MAX = 1e12;
+    AmountSchema = external_exports.number().finite().nonnegative().max(COST_BUDGET_MAX).nullable();
+    CostBudgetsSchema = external_exports.strictObject({
+      /** App-wide cap. Null means unset, which is not zero. */
+      total: AmountSchema,
+      /**
+       * Per-tile amounts, keyed by the Cost tile id (`app-compute`, `genie:<space>`).
+       * Null on a key is an explicit clear. A missing key is also unset.
+       */
+      resources: external_exports.record(external_exports.string().min(1).max(200), AmountSchema)
+    });
+    EMPTY_COST_BUDGETS = { total: null, resources: {} };
+  }
+});
+
+// server/lib/cost-budgets-store.ts
+function forgetCostBudgets() {
+  cache6 = /* @__PURE__ */ new WeakMap();
+}
+async function readCostBudgets(client, options = {}) {
+  const now = options.now ?? Date.now();
+  const cached3 = cache6.get(client);
+  if (cached3 && now - cached3.at < (options.maxAgeMs ?? COST_BUDGETS_TTL_MS)) {
+    return { budgets: cached3.value, readable: true };
+  }
+  try {
+    const result = await client.lakebase.query(`SELECT settings FROM ${COST_BUDGETS_TABLE} WHERE id = $1`, [KEY5]);
+    const raw2 = result?.rows?.[0]?.settings;
+    if (raw2 === void 0) {
+      cache6.set(client, { value: EMPTY_COST_BUDGETS, at: now, readable: true });
+      return { budgets: EMPTY_COST_BUDGETS, readable: true };
+    }
+    const parsed = parseCostBudgets(raw2);
+    if (!parsed) {
+      console.warn("[cost-budgets] Stored budgets were unreadable; leaving them unset rather than guessing.");
+      return { budgets: EMPTY_COST_BUDGETS, readable: false };
+    }
+    cache6.set(client, { value: parsed, at: now, readable: true });
+    return { budgets: parsed, readable: true };
+  } catch (error48) {
+    console.warn("[cost-budgets] Stored budgets could not be read:", error48.message);
+    return { budgets: EMPTY_COST_BUDGETS, readable: false };
+  }
+}
+async function writeCostBudgets(client, budgets, updatedBy) {
+  await client.lakebase.query(
+    `INSERT INTO ${COST_BUDGETS_TABLE} (id, settings, updated_by, updated_at)
+     VALUES ($1, $2::jsonb, $3, now())
+     ON CONFLICT (id) DO UPDATE SET
+       settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+    [KEY5, JSON.stringify(budgets), updatedBy]
+  );
+  forgetCostBudgets();
+  return budgets;
+}
+var KEY5, COST_BUDGETS_TABLE, COST_BUDGETS_DDL, cache6, COST_BUDGETS_TTL_MS;
+var init_cost_budgets_store = __esm({
+  "server/lib/cost-budgets-store.ts"() {
+    init_app_schema();
+    init_cost_budgets();
+    KEY5 = "effective";
+    COST_BUDGETS_TABLE = appTable("cost_budgets");
+    COST_BUDGETS_DDL = `CREATE TABLE IF NOT EXISTS ${COST_BUDGETS_TABLE} (
+  id TEXT PRIMARY KEY,
+  settings JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by TEXT NOT NULL
+)`;
+    cache6 = /* @__PURE__ */ new WeakMap();
+    COST_BUDGETS_TTL_MS = 15e3;
+  }
+});
+
 // server/routes/ops-routes.ts
 var ops_routes_exports = {};
 __export(ops_routes_exports, {
@@ -178874,14 +179484,14 @@ function queryText(req, name2) {
   const value = req.query[name2];
   return typeof value === "string" ? value.trim() : "";
 }
-function text16(value) {
+function text17(value) {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (value instanceof Date) return value.toISOString();
   return "";
 }
 function count3(value) {
-  const parsed = typeof value === "number" ? value : Number(text16(value));
+  const parsed = typeof value === "number" ? value : Number(text17(value));
   return Number.isFinite(parsed) ? parsed : 0;
 }
 function noteWorkspaceId(response) {
@@ -178965,7 +179575,7 @@ async function costIdentifiersFor(appkit, req, extras) {
   if (!vectorEndpoint && vectorIndex) {
     vectorEndpoint = await lookupVectorEndpoint({
       host: host(),
-      token: forwardedUserToken(req) ?? "",
+      token: executionToken(req) ?? "",
       index: vectorIndex,
       fetchImpl: extras.fetchImpl
     });
@@ -179015,15 +179625,15 @@ async function runStatement2(input) {
       ok: false,
       rows: null,
       status: response.status,
-      message: text16(body.message) || `Databricks answered HTTP ${response.status} with no message body.`
+      message: text17(body.message) || `Databricks answered HTTP ${response.status} with no message body.`
     };
   }
-  const state = text16(body.status?.state);
+  const state = text17(body.status?.state);
   if (state !== "SUCCEEDED") {
     return {
       ok: false,
       rows: null,
-      message: text16(body.status?.error?.message) || `The statement ended in ${state || "an unknown state"}.`
+      message: text17(body.status?.error?.message) || `The statement ended in ${state || "an unknown state"}.`
     };
   }
   return { ok: true, rows: body.result?.data_array ?? [], message: "" };
@@ -179090,7 +179700,7 @@ async function readAppMeasurement(req, insightsHref) {
   const base = offMeasurement(insightsHref);
   const workspace2 = host();
   const warehouse = warehouseId();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   const principal = userEmail(req) || UNKNOWN_PRINCIPAL;
   if (!workspace2 || !warehouse || !token) {
     return uncheckedMeasurement(
@@ -179150,7 +179760,7 @@ async function readDependencies(appkit, req) {
         env: process.env
       }).tables,
       host: host(),
-      token: forwardedUserToken(req),
+      token: executionToken(req),
       principal: userEmail(req) || ""
     });
     const checkedAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -179200,14 +179810,14 @@ function toBars(counts) {
 }
 function questionRun(row2) {
   const nullableNumber = (value) => {
-    const parsed = Number(text16(value));
-    return text16(value) !== "" && Number.isFinite(parsed) ? parsed : null;
+    const parsed = Number(text17(value));
+    return text17(value) !== "" && Number.isFinite(parsed) ? parsed : null;
   };
   return {
-    runId: text16(row2.run_id),
-    correlationId: text16(row2.correlation_id),
-    traceId: text16(row2.trace_id),
-    completedAt: text16(row2.completed_at),
+    runId: text17(row2.run_id),
+    correlationId: text17(row2.correlation_id),
+    traceId: text17(row2.trace_id),
+    completedAt: text17(row2.completed_at),
     totalTokens: nullableNumber(row2.total_tokens),
     runsInRange: count3(row2.runs_in_range),
     tokenCoveredRuns: count3(row2.token_covered_runs),
@@ -179238,7 +179848,7 @@ function setupOpsRoutes(appkit, deps) {
   appkit.server.extend((app) => {
     app.get("/api/ops/health", async (req, res) => {
       const workspace2 = host();
-      const appsToken = forwardedUserToken(req);
+      const appsToken = executionToken(req);
       const appsWorkspaceId = appsToken ? await resolveWorkspaceId({ host: workspace2, token: appsToken }).catch(() => "") : "";
       const insightsHref = workspaceAppsUrl(workspace2, appsWorkspaceId);
       try {
@@ -179276,7 +179886,7 @@ function setupOpsRoutes(appkit, deps) {
       const range = opsDayRange(queryText(req, "from"), queryText(req, "to"), clock());
       const workspace2 = host();
       const warehouse = warehouseId();
-      const token = forwardedUserToken(req);
+      const token = executionToken(req);
       const workspaceId = token ? await resolveWorkspaceId({ host: workspace2, token, fetchImpl: deps.fetchImpl }) : "";
       const ids = await costIdentifiersFor(appkit, req, {
         workspaceId,
@@ -179284,6 +179894,7 @@ function setupOpsRoutes(appkit, deps) {
         fetchImpl: deps.fetchImpl,
         readAppBillingTag: deps.readAppBillingTag
       });
+      const storedBudgets = await readCostBudgets(appkit);
       const empty = {
         grant: null,
         reason: "",
@@ -179299,7 +179910,9 @@ function setupOpsRoutes(appkit, deps) {
           totalRecordedTokens: 0,
           limited: false,
           reason: ""
-        }
+        },
+        budgets: storedBudgets.budgets,
+        budgetsReadable: storedBudgets.readable
       };
       if (!workspace2 || !warehouse || !token) {
         res.json({
@@ -179404,14 +180017,14 @@ function setupOpsRoutes(appkit, deps) {
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY)
         ]);
-        const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text16(row2.day), count: count3(row2.count) })) : [];
+        const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text17(row2.day), count: count3(row2.count) })) : [];
         const failures = /* @__PURE__ */ new Map();
         const refusals = /* @__PURE__ */ new Map();
         let runsInRange = 0;
         if (outcomes.status === "fulfilled") {
           for (const row2 of outcomes.value.rows) {
-            const state = text16(row2.state);
-            const code = text16(row2.terminal_code);
+            const state = text17(row2.state);
+            const code = text17(row2.terminal_code);
             const runs = count3(row2.count);
             runsInRange += runs;
             if (state === "REFUSED") {
@@ -179422,8 +180035,8 @@ function setupOpsRoutes(appkit, deps) {
           }
         }
         const toolCalls = tools.status === "fulfilled" ? tools.value.rows.map((row2) => ({
-          key: text16(row2.tool),
-          label: text16(row2.tool),
+          key: text17(row2.tool),
+          label: text17(row2.tool),
           count: count3(row2.count)
         })) : [];
         const outstanding = [
@@ -179434,10 +180047,10 @@ function setupOpsRoutes(appkit, deps) {
         const rejected = outstanding.map((read2) => read2.done);
         const payload = {
           readAt,
-          reason: rejected.length === 3 ? `Nothing about traffic could be read: ${text16(rejected[0].reason?.message) || "the store did not answer"}` : "",
+          reason: rejected.length === 3 ? `Nothing about traffic could be read: ${text17(rejected[0].reason?.message) || "the store did not answer"}` : "",
           unread: rejected.length > 0 && rejected.length < 3 ? unreadNote(
             outstanding.map((read2) => read2.charts),
-            text16(rejected[0].reason?.message)
+            text17(rejected[0].reason?.message)
           ) : "",
           questionsPerDay,
           failuresByCause: toBars(failures),
@@ -179510,6 +180123,7 @@ var init_ops_routes = __esm({
     init_ops_billing();
     init_ops_telemetry();
     init_access_verification();
+    init_execution_credential();
     init_dependency_probes();
     init_app_settings();
     init_declared_connections();
@@ -179517,6 +180131,7 @@ var init_ops_routes = __esm({
     init_resource_tagging();
     init_settings_routes();
     init_run_failure_codes();
+    init_cost_budgets_store();
     init_insights_routes();
     init_request_latency();
     init_ops_contract();
@@ -179732,7 +180347,7 @@ __export(egress_routes_exports, {
 function readerRunner(req) {
   const host2 = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
   const warehouseId2 = (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
-  const token = forwardedUserToken(req);
+  const token = executionToken(req);
   if (!host2 || !warehouseId2) return { run: null, unavailable: NO_WAREHOUSE_REASON2 };
   if (!token) return { run: null, unavailable: NO_TOKEN_REASON2 };
   return { run: accessRunner({ host: host2, token, warehouseId: warehouseId2 }), unavailable: "" };
@@ -179859,6 +180474,7 @@ var init_egress_routes = __esm({
     init_egress_classification();
     init_admin_access();
     init_access_verification();
+    init_execution_credential();
     init_insights_routes();
     init_databricks_links();
     EGRESS_ADMIN_ROUTES = [
@@ -179920,6 +180536,51 @@ var init_runtime_settings_routes = __esm({
     init_runtime_settings();
     init_admin_roles();
     init_runtime_settings_store();
+    init_insights_routes();
+  }
+});
+
+// server/routes/cost-budgets-routes.ts
+var cost_budgets_routes_exports = {};
+__export(cost_budgets_routes_exports, {
+  setupCostBudgetsRoutes: () => setupCostBudgetsRoutes
+});
+function setupCostBudgetsRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/admin/cost-budgets", async (_req, res) => {
+      const stored = await readCostBudgets(appkit, { maxAgeMs: 0 });
+      res.json({ budgets: stored.budgets, readable: stored.readable });
+    });
+    app.put("/api/admin/cost-budgets", async (req, res) => {
+      const parsed = CostBudgetsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_cost_budgets", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const budgets = await writeCostBudgets(appkit, parsed.data, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "cost-budgets-updated",
+          subject: "cost-budgets",
+          detail: "Updated nominal Cost budgets for the app total and resource tiles."
+        });
+        res.json({ budgets, readable: true });
+      } catch (error48) {
+        res.status(503).json({
+          error: "cost_budgets_store_unavailable",
+          detail: `The budgets were not saved: ${error48.message}`
+        });
+      }
+    });
+  });
+}
+var init_cost_budgets_routes = __esm({
+  "server/routes/cost-budgets-routes.ts"() {
+    init_cost_budgets();
+    init_admin_roles();
+    init_cost_budgets_store();
     init_insights_routes();
   }
 });
@@ -180332,7 +180993,7 @@ var init_review_app = __esm({
 });
 
 // server/lib/genie-result-execute.ts
-function text17(value) {
+function text18(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function asRecord2(value) {
@@ -180345,7 +181006,7 @@ function columnNames(payload) {
   if (Array.isArray(columns)) {
     return columns.map((entry, index) => {
       const column = asRecord2(entry);
-      return text17(column?.name) || text17(column?.display_name) || `col_${index}`;
+      return text18(column?.name) || text18(column?.display_name) || `col_${index}`;
     });
   }
   return [];
@@ -180399,14 +181060,14 @@ function createSqlExecutor(options) {
       });
       const payload = await response.json().catch(() => ({})) ?? {};
       if (!response.ok) {
-        const note = text17(payload.message) || text17(payload.error) || `warehouse returned HTTP ${response.status}`;
+        const note = text18(payload.message) || text18(payload.error) || `warehouse returned HTTP ${response.status}`;
         return { ok: false, note };
       }
       const status = asRecord2(payload.status);
-      const state = text17(status?.state).toUpperCase();
+      const state = text18(status?.state).toUpperCase();
       if (state && state !== "SUCCEEDED") {
         const error48 = asRecord2(status?.error);
-        const note = text17(error48?.message) || `statement ended in ${state}`;
+        const note = text18(error48?.message) || `statement ended in ${state}`;
         return { ok: false, note };
       }
       const table = tableFromStatementPayload(payload);
@@ -180440,7 +181101,7 @@ function messageOf4(error48) {
 function asRecord3(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
-function text18(value) {
+function text19(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 function numberish(value) {
@@ -180458,11 +181119,11 @@ function extractGenieSql(payload) {
       const attachment = asRecord3(entry);
       if (!attachment) continue;
       const query = asRecord3(attachment.query) ?? attachment;
-      const sql3 = text18(query.query) || text18(query.sql) || text18(attachment.query) || text18(attachment.sql);
+      const sql3 = text19(query.query) || text19(query.sql) || text19(attachment.query) || text19(attachment.sql);
       if (sql3) return sql3;
     }
   }
-  return text18(message.query) || text18(root.query) || text18(root.sql);
+  return text19(message.query) || text19(root.query) || text19(root.sql);
 }
 function extractGenieResultTable(payload) {
   const root = asRecord3(payload);
@@ -180479,7 +181140,7 @@ function extractGenieResultTable(payload) {
     const names2 = columnsRaw.map((columnEntry, index) => {
       if (typeof columnEntry === "string") return columnEntry;
       const column = asRecord3(columnEntry);
-      return text18(column?.name) || text18(column?.display_name) || `col_${index}`;
+      return text19(column?.name) || text19(column?.display_name) || `col_${index}`;
     });
     const values = names2.map(() => []);
     for (const row2 of rowsRaw) {
@@ -180497,15 +181158,15 @@ function extractGenieResultTable(payload) {
 function messageStatus(payload) {
   const root = asRecord3(payload);
   const message = asRecord3(root?.message) ?? root;
-  return text18(message?.status).toUpperCase();
+  return text19(message?.status).toUpperCase();
 }
 function conversationIds(payload) {
   const root = asRecord3(payload) ?? {};
   const conversation = asRecord3(root.conversation);
   const message = asRecord3(root.message);
   return {
-    conversationId: text18(conversation?.id) || text18(root.conversation_id),
-    messageId: text18(message?.id) || text18(root.message_id)
+    conversationId: text19(conversation?.id) || text19(root.conversation_id),
+    messageId: text19(message?.id) || text19(root.message_id)
   };
 }
 async function jsonRequest2(call, url2, token, method, body) {
@@ -180521,7 +181182,7 @@ async function jsonRequest2(call, url2, token, method, body) {
   });
   const payload = await response.json().catch(() => ({})) ?? {};
   if (!response.ok) {
-    const detail = text18(payload.message) || text18(payload.error) || `workspace returned HTTP ${response.status}`;
+    const detail = text19(payload.message) || text19(payload.error) || `workspace returned HTTP ${response.status}`;
     throw new Error(detail);
   }
   return payload;
@@ -180853,17 +181514,17 @@ var init_live_monitoring = __esm({
 
 // server/lib/benchmark-lab-store.ts
 function forgetLabState() {
-  cache6 = /* @__PURE__ */ new WeakMap();
+  cache7 = /* @__PURE__ */ new WeakMap();
 }
 async function readLabState(client, options = {}) {
   const now = options.now ?? Date.now();
-  const cached3 = cache6.get(client);
+  const cached3 = cache7.get(client);
   if (cached3 && now - cached3.at < (options.maxAgeMs ?? BENCHMARK_LAB_TTL_MS)) return cached3.value;
   try {
-    const result = await client.lakebase.query(`SELECT state FROM ${BENCHMARK_LAB_TABLE} WHERE id = $1`, [KEY5]);
+    const result = await client.lakebase.query(`SELECT state FROM ${BENCHMARK_LAB_TABLE} WHERE id = $1`, [KEY6]);
     const raw2 = result?.rows?.[0]?.state;
     const parsed = raw2 === void 0 ? EMPTY_LAB_STATE : parseLabState(raw2);
-    cache6.set(client, { value: parsed, at: now });
+    cache7.set(client, { value: parsed, at: now });
     return parsed;
   } catch (error48) {
     console.warn("[benchmark-lab] Falling back to empty lab state:", error48.message);
@@ -180877,7 +181538,7 @@ async function writeLabState(client, state, updatedBy) {
      VALUES ($1, $2::jsonb, $3, now())
      ON CONFLICT (id) DO UPDATE SET
        state = EXCLUDED.state, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-    [KEY5, JSON.stringify(parsed), updatedBy]
+    [KEY6, JSON.stringify(parsed), updatedBy]
   );
   forgetLabState();
   return parsed;
@@ -180886,12 +181547,12 @@ async function patchLabState(client, patch, updatedBy) {
   const current = await readLabState(client, { maxAgeMs: 0 });
   return writeLabState(client, { ...current, ...patch }, updatedBy);
 }
-var KEY5, BENCHMARK_LAB_TABLE, BENCHMARK_LAB_DDL, cache6, BENCHMARK_LAB_TTL_MS;
+var KEY6, BENCHMARK_LAB_TABLE, BENCHMARK_LAB_DDL, cache7, BENCHMARK_LAB_TTL_MS;
 var init_benchmark_lab_store = __esm({
   "server/lib/benchmark-lab-store.ts"() {
     init_app_schema();
     init_benchmark_lab_v3();
-    KEY5 = "effective";
+    KEY6 = "effective";
     BENCHMARK_LAB_TABLE = appTable("benchmark_lab");
     BENCHMARK_LAB_DDL = `CREATE TABLE IF NOT EXISTS ${BENCHMARK_LAB_TABLE} (
   id TEXT PRIMARY KEY,
@@ -180899,7 +181560,7 @@ var init_benchmark_lab_store = __esm({
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_by TEXT NOT NULL
 )`;
-    cache6 = /* @__PURE__ */ new WeakMap();
+    cache7 = /* @__PURE__ */ new WeakMap();
     BENCHMARK_LAB_TTL_MS = 5e3;
   }
 });
@@ -181079,7 +181740,11 @@ function setupEvalDatasetRoutes(appkit) {
           });
           return;
         }
-        const saved = await writeBenchmarkSettings(appkit, { ...settings, guidelinesText: aligned.guidelinesText }, actor);
+        const saved = await writeBenchmarkSettings(
+          appkit,
+          { ...settings, guidelinesText: aligned.guidelinesText },
+          actor
+        );
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "eval-guidelines-aligned",
@@ -181450,7 +182115,7 @@ function setupEvalDatasetRoutes(appkit) {
         return;
       }
       const host2 = workspaceHost2();
-      const token = forwardedUserToken(req);
+      const token = executionToken(req);
       if (!host2 || !token) {
         res.status(503).json({
           error: "genie_accuracy_unavailable",
@@ -181549,7 +182214,7 @@ var init_eval_dataset_routes = __esm({
     init_genie_accuracy();
     init_genie_result_execute();
     init_live_monitoring();
-    init_access_verification();
+    init_execution_credential();
     init_insights_routes();
     init_benchmark_lab_v3();
     init_benchmark_lab_store();
@@ -182355,6 +183020,200 @@ var init_run_label_routes = __esm({
   }
 });
 
+// server/routes/sp-identity-routes.ts
+var sp_identity_routes_exports = {};
+__export(sp_identity_routes_exports, {
+  setupSpIdentityRoutes: () => setupSpIdentityRoutes
+});
+async function adminPayload(appkit) {
+  const [enabled2, personas, assignments, rosterRead] = await Promise.all([
+    isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
+    listSpPersonas(appkit),
+    listSpAssignments(appkit),
+    readRoster(appkit.lakebase).catch(() => ({ rows: [] }))
+  ]);
+  const assignedByEmail = new Map(assignments.map((row2) => [row2.email, row2.personaId]));
+  const roster = rosterRead.rows.map((row2) => ({
+    email: row2.email,
+    role: row2.role,
+    personaId: assignedByEmail.get(row2.email) ?? null
+  }));
+  for (const assignment of assignments) {
+    if (roster.some((row2) => row2.email === assignment.email)) continue;
+    roster.push({ email: assignment.email, role: "", personaId: assignment.personaId });
+  }
+  roster.sort((left, right) => left.email.localeCompare(right.email));
+  return {
+    enabled: enabled2,
+    minting: describeSpTokenMinting(),
+    personas,
+    assignments,
+    roster
+  };
+}
+function setupSpIdentityRoutes(appkit) {
+  appkit.server.extend((app) => {
+    app.get("/api/admin/sp-identity", async (_req, res) => {
+      try {
+        res.json(await adminPayload(appkit));
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_unreadable",
+          detail: `Service-principal personas could not be read: ${error48.message}`
+        });
+      }
+    });
+    app.put("/api/admin/sp-identity/mode", async (req, res) => {
+      const parsed = SpIdentityModeSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_identity_mode", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        await writeSpIdentityEnabled(appkit, parsed.data.enabled, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: parsed.data.enabled ? "sp-identity-enabled" : "sp-identity-disabled",
+          subject: "sp-identity",
+          detail: parsed.data.enabled ? "Assigned users now run warehouse, Genie, and agent calls as their service-principal persona." : "Questions again run as the signed-in OAuth user."
+        });
+        res.json(await adminPayload(appkit));
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The pivot was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/sp-identity/personas", async (req, res) => {
+      const parsed = SpPersonaWriteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const persona = await insertSpPersona(appkit, parsed.data, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-created",
+          subject: persona.id,
+          detail: `Created service-principal persona ${persona.displayName}.`
+        });
+        res.status(201).json(persona);
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.patch("/api/admin/sp-identity/personas/:id", async (req, res) => {
+      const parsed = SpPersonaPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: parsed.error.message });
+        return;
+      }
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const persona = await updateSpPersona(appkit, id.data, parsed.data, actor);
+        if (!persona) {
+          res.status(404).json({ error: "sp_persona_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-updated",
+          subject: persona.id,
+          detail: `Updated service-principal persona ${persona.displayName}.`
+        });
+        res.json(persona);
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.delete("/api/admin/sp-identity/personas/:id", async (req, res) => {
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const removed = await deleteSpPersona(appkit, id.data);
+        if (!removed) {
+          res.status(404).json({ error: "sp_persona_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-removed",
+          subject: id.data,
+          detail: "Removed a service-principal persona and its assignments."
+        });
+        res.status(204).end();
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona was not removed: ${error48.message}`
+        });
+      }
+    });
+    app.put("/api/admin/sp-identity/assignments", async (req, res) => {
+      const parsed = SpAssignmentWriteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_assignment", detail: parsed.error.message });
+        return;
+      }
+      const emailFault = invalidAdminEmail(parsed.data.email);
+      if (emailFault) {
+        res.status(400).json({ error: "invalid_sp_assignment", detail: emailFault });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const assignment = await writeSpAssignment(appkit, parsed.data.email, parsed.data.personaId, actor);
+        if (parsed.data.personaId && !assignment) {
+          res.status(404).json({ error: "sp_persona_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: parsed.data.personaId ? "sp-persona-assigned" : "sp-persona-unassigned",
+          subject: parsed.data.email,
+          detail: parsed.data.personaId ? "Assigned a service-principal persona to this person." : "This person again runs as themselves over OAuth."
+        });
+        res.json({ assignment, payload: await adminPayload(appkit) });
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The assignment was not saved: ${error48.message}`
+        });
+      }
+    });
+  });
+}
+var init_sp_identity_routes = __esm({
+  "server/routes/sp-identity-routes.ts"() {
+    init_zod();
+    init_sp_identity();
+    init_admin_roles();
+    init_sp_token();
+    init_sp_identity_store();
+    init_user_roster();
+    init_insights_routes();
+  }
+});
+
 // node_modules/@databricks/appkit/dist/shared/src/sql/helpers.js
 var NUMERIC_LITERAL_RE = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 var INTEGER_LITERAL_RE = /^-?\d+$/;
@@ -183133,8 +183992,8 @@ var RoutingPool = class {
     const userCtx = getUserContext();
     return userCtx ? this.resolveUserPool(userCtx) : this.spPool;
   }
-  query(text19, values) {
-    return this.activePool().query(text19, values);
+  query(text20, values) {
+    return this.activePool().query(text20, values);
   }
   connect() {
     return this.activePool().connect();
@@ -187428,9 +188287,9 @@ var FilesConnector = class {
       await client.config.authenticate(headers);
       const res = await fetch(url2.toString(), fetchOptions);
       if (!res.ok) {
-        const text19 = await res.text();
-        logger16.error(`Upload failed (${res.status}): ${text19}`);
-        throw new ApiError2(`Upload failed: ${text19.length > 200 ? `${text19.slice(0, 200)}\u2026` : text19}`, "UPLOAD_FAILED", res.status, void 0, []);
+        const text20 = await res.text();
+        logger16.error(`Upload failed (${res.status}): ${text20}`);
+        throw new ApiError2(`Upload failed: ${text20.length > 200 ? `${text20.slice(0, 200)}\u2026` : text20}`, "UPLOAD_FAILED", res.status, void 0, []);
       }
     });
   }
@@ -189026,7 +189885,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     return true;
   }
   _readSettings(cacheKey2, authMode) {
-    const cache7 = authMode === "on-behalf-of-user" ? {
+    const cache8 = authMode === "on-behalf-of-user" ? {
       ...FILES_READ_DEFAULTS.cache,
       enabled: false,
       cacheKey: cacheKey2
@@ -189036,7 +189895,7 @@ var FilesPlugin = class FilesPlugin2 extends Plugin {
     };
     return { default: {
       ...FILES_READ_DEFAULTS,
-      cache: cache7,
+      cache: cache8,
       telemetryInterceptor: { attributes: this._authModeAttributes(authMode) }
     } };
   }
@@ -190923,8 +191782,8 @@ var LakebasePlugin = class extends Plugin {
   * );
   * ```
   */
-  async query(text19, values) {
-    return this.pool.query(text19, values);
+  async query(text20, values) {
+    return this.pool.query(text20, values);
   }
   /**
   * Execute a single statement inside a `BEGIN READ ONLY … ROLLBACK`
@@ -190940,11 +191799,11 @@ var LakebasePlugin = class extends Plugin {
   * statement may attempt (writes, writable-function side effects) are
   * rejected by PostgreSQL under the read-only transaction posture.
   */
-  async runReadOnlyStatement(text19, values) {
+  async runReadOnlyStatement(text20, values) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN READ ONLY");
-      return (await client.query(text19, values)).rows;
+      return (await client.query(text20, values)).rows;
     } finally {
       try {
         await client.query("ROLLBACK");
@@ -191211,8 +192070,8 @@ async function isAutoMigrateDisabled(projectRoot) {
     return false;
   }
 }
-function stripJsonComments(text19) {
-  return text19.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
+function stripJsonComments(text20) {
+  return text20.replace(/"(?:[^"\\]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/.*/g, (match) => match.startsWith('"') ? match : "");
 }
 async function migrateTsconfigClient(projectRoot) {
   const results = [];
@@ -191324,8 +192183,8 @@ async function loadCache() {
   try {
     await fs5.mkdir(CACHE_DIR, { recursive: true });
     const raw2 = await fs5.readFile(cachePath, "utf8");
-    const cache7 = JSON.parse(raw2);
-    if (cache7.version === CACHE_VERSION) return cache7;
+    const cache8 = JSON.parse(raw2);
+    if (cache8.version === CACHE_VERSION) return cache8;
   } catch (err) {
     if (err.code !== "ENOENT") logger28.warn("Cache file is corrupted, flushing cache completely.");
   }
@@ -191334,9 +192193,9 @@ async function loadCache() {
     queries: {}
   };
 }
-async function saveCache(cache7) {
+async function saveCache(cache8) {
   const cachePath = path5.join(CACHE_DIR, CACHE_FILE);
-  await fs5.writeFile(cachePath, JSON.stringify(cache7, null, 2), "utf8");
+  await fs5.writeFile(cachePath, JSON.stringify(cache8, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/spinner.js
@@ -191350,8 +192209,8 @@ var Spinner = class {
   current = 0;
   interval = null;
   text = "";
-  start(text19) {
-    this.text = text19;
+  start(text20) {
+    this.text = text20;
     this.current = 0;
     process.stdout.write(`  ${this.text}${this.frames[0]}`);
     this.interval = setInterval(() => {
@@ -191359,8 +192218,8 @@ var Spinner = class {
       process.stdout.write(`\r  ${this.text}${this.frames[this.current]}`);
     }, 300);
   }
-  update(text19) {
-    this.text = text19;
+  update(text20) {
+    this.text = text20;
   }
   stop(finalText) {
     if (this.interval) {
@@ -191370,8 +192229,8 @@ var Spinner = class {
     process.stdout.write(`\x1B[Contoso\r  ${finalText || this.text}
 `);
   }
-  printDetail(text19) {
-    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text19}\x1B[0m
+  printDetail(text20) {
+    process.stdout.write(`\x1B[Contoso\r\x1B[2m    ${text20}\x1B[0m
 `);
     if (this.interval) process.stdout.write(`  ${this.text}${this.frames[this.current]}`);
   }
@@ -191546,7 +192405,7 @@ function inferParameterTypes(sql3, ranges) {
 async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = {}) {
   const { noCache = false, concurrency: rawConcurrency = 10 } = options;
   const concurrency = typeof rawConcurrency === "number" && Number.isFinite(rawConcurrency) ? Math.max(1, Math.floor(rawConcurrency)) : 10;
-  const [allFiles, cache7] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
+  const [allFiles, cache8] = await Promise.all([fs6.readdir(queryFolder), noCache ? {
     version: CACHE_VERSION,
     queries: {}
   } : loadCache()]);
@@ -191564,7 +192423,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     const queryName = normalizeQueryName(path6.basename(file2, ".sql"));
     const sql3 = sqlContents[i];
     const sqlHash = hashSQL(sql3);
-    const cached3 = cache7.queries[queryName];
+    const cached3 = cache8.queries[queryName];
     if (cached3 && cached3.hash === sqlHash && !cached3.retry) {
       cachedResults.push({
         index: i,
@@ -191661,7 +192520,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
             index: res.index,
             schema: res.schema
           });
-          cache7.queries[queryName] = res.cacheEntry;
+          cache8.queries[queryName] = res.cacheEntry;
           logEntries.push({
             queryName,
             status: "MISS",
@@ -191680,7 +192539,7 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
               type
             }
           });
-          cache7.queries[queryName] = {
+          cache8.queries[queryName] = {
             hash: sqlHash,
             type,
             retry: true
@@ -191697,11 +192556,11 @@ async function generateQueriesFromDescribe(queryFolder, warehouseId2, options = 
     if (uncachedQueries.length > concurrency) for (let b = 0; b < uncachedQueries.length; b += concurrency) {
       const batch = uncachedQueries.slice(b, b + concurrency);
       processBatchResults(await Promise.allSettled(batch.map(describeOne)), b);
-      await saveCache(cache7);
+      await saveCache(cache8);
     }
     else {
       processBatchResults(await Promise.allSettled(uncachedQueries.map(describeOne)), 0);
-      await saveCache(cache7);
+      await saveCache(cache8);
     }
     spinner.stop("");
   }
@@ -191782,8 +192641,8 @@ async function loadServingCache() {
   try {
     await fs7.mkdir(CACHE_DIR2, { recursive: true });
     const raw2 = await fs7.readFile(cachePath, "utf8");
-    const cache7 = JSON.parse(raw2);
-    if (cache7.version === CACHE_VERSION2) return cache7;
+    const cache8 = JSON.parse(raw2);
+    if (cache8.version === CACHE_VERSION2) return cache8;
     logger30.debug("Cache version mismatch, starting fresh");
   } catch (err) {
     if (err.code !== "ENOENT") logger30.warn("Cache file is corrupted, flushing cache completely.");
@@ -191793,10 +192652,10 @@ async function loadServingCache() {
     endpoints: {}
   };
 }
-async function saveServingCache(cache7) {
+async function saveServingCache(cache8) {
   const cachePath = path7.join(CACHE_DIR2, CACHE_FILE2);
   await fs7.mkdir(CACHE_DIR2, { recursive: true });
-  await fs7.writeFile(cachePath, JSON.stringify(cache7, null, 2), "utf8");
+  await fs7.writeFile(cachePath, JSON.stringify(cache8, null, 2), "utf8");
 }
 
 // node_modules/@databricks/appkit/dist/type-generator/serving/converter.js
@@ -191902,8 +192761,8 @@ async function fetchOpenApiSchema(client, endpointName, servedModel) {
       logger31.warn("Empty OpenAPI response for '%s', skipping type generation", endpointName);
       return null;
     }
-    const text19 = await new Response(response.contents).text();
-    const rawSpec = JSON.parse(text19);
+    const text20 = await new Response(response.contents).text();
+    const rawSpec = JSON.parse(text20);
     if (typeof rawSpec !== "object" || rawSpec === null || !("paths" in rawSpec) || typeof rawSpec.paths !== "object") {
       logger31.warn("Invalid OpenAPI schema structure for '%s', skipping", endpointName);
       return null;
@@ -191955,7 +192814,7 @@ async function generateServingTypes(options) {
     return;
   }
   const startTime = performance.now();
-  const cache7 = noCache ? {
+  const cache8 = noCache ? {
     version: CACHE_VERSION2,
     endpoints: {}
   } : await loadServingCache();
@@ -191965,7 +192824,7 @@ async function generateServingTypes(options) {
   const logEntries = [];
   for (const [alias, config2] of Object.entries(endpoints)) {
     client ??= new WorkspaceClient5({});
-    const result = await processEndpoint(alias, config2, client, cache7);
+    const result = await processEndpoint(alias, config2, client, cache8);
     if (result.cacheUpdated) updated = true;
     registryEntries.push(result.entry);
     logEntries.push(result.log);
@@ -191978,12 +192837,12 @@ async function generateServingTypes(options) {
   await migrateProjectConfig(projectRoot);
   if (registryEntries.length === 0) logger32.debug("Wrote empty serving types to %s (no endpoints resolved)", outFile);
   else logger32.debug("Wrote serving types to %s", outFile);
-  if (updated) await saveServingCache(cache7);
+  if (updated) await saveServingCache(cache8);
 }
 function genericEntry(alias) {
   return buildRegistryEntry(alias, GENERIC_REQUEST, GENERIC_RESPONSE, GENERIC_CHUNK);
 }
-async function processEndpoint(alias, config2, client, cache7) {
+async function processEndpoint(alias, config2, client, cache8) {
   const endpointName = process.env[config2.env];
   if (!endpointName) return {
     entry: genericEntry(alias),
@@ -192006,7 +192865,7 @@ async function processEndpoint(alias, config2, client, cache7) {
   };
   const { spec, pathKey } = result;
   const hash2 = hashSchema(JSON.stringify(spec));
-  const cached3 = cache7.endpoints[alias];
+  const cached3 = cache8.endpoints[alias];
   if (cached3 && cached3.hash === hash2) return {
     entry: buildRegistryEntry(alias, cached3.requestType, cached3.responseType, cached3.chunkType),
     log: {
@@ -192030,7 +192889,7 @@ async function processEndpoint(alias, config2, client, cache7) {
     const responseType = convertResponseSchema(operation);
     const chunkType = deriveChunkType(operation);
     const requestKeys = extractRequestKeys(operation);
-    cache7.endpoints[alias] = {
+    cache8.endpoints[alias] = {
       hash: hash2,
       requestType,
       responseType,
@@ -194430,8 +195289,8 @@ async function loadEndpointSchemas(cacheFile) {
       logger42.warn("Serving types cache has invalid structure, skipping");
       return allowlists;
     }
-    const cache7 = parsed;
-    for (const [alias, entry] of Object.entries(cache7.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
+    const cache8 = parsed;
+    for (const [alias, entry] of Object.entries(cache8.endpoints)) if (entry.requestKeys && entry.requestKeys.length > 0) allowlists.set(alias, new Set(entry.requestKeys));
   } catch (err) {
     if (err.code !== "ENOENT") logger42.warn("Failed to load serving types cache: %s", err.message);
   }
@@ -194711,12 +195570,14 @@ createApp({
       { setupOpsRoutes: setupOpsRoutes2 },
       { setupEgressRoutes: setupEgressRoutes2 },
       { setupRuntimeSettingsRoutes: setupRuntimeSettingsRoutes2 },
+      { setupCostBudgetsRoutes: setupCostBudgetsRoutes2 },
       { setupBenchmarkSettingsRoutes: setupBenchmarkSettingsRoutes2 },
       { setupEvalDatasetRoutes: setupEvalDatasetRoutes2 },
       { setupBenchmarkLabRoutes: setupBenchmarkLabRoutes2 },
       { setupEnvironmentRoutes: setupEnvironmentRoutes2 },
       { setupAccountRoutes: setupAccountRoutes2 },
       { setupRunLabelRoutes: setupRunLabelRoutes2 },
+      { setupSpIdentityRoutes: setupSpIdentityRoutes2 },
       { bootstrapSeedRoles: bootstrapSeedRoles2, isAdminRoute: isAdminRoute2 },
       { respondToHandlerFailures: respondToHandlerFailures2 }
     ] = await Promise.all([
@@ -194730,12 +195591,14 @@ createApp({
       Promise.resolve().then(() => (init_ops_routes(), ops_routes_exports)),
       Promise.resolve().then(() => (init_egress_routes(), egress_routes_exports)),
       Promise.resolve().then(() => (init_runtime_settings_routes(), runtime_settings_routes_exports)),
+      Promise.resolve().then(() => (init_cost_budgets_routes(), cost_budgets_routes_exports)),
       Promise.resolve().then(() => (init_benchmark_settings_routes(), benchmark_settings_routes_exports)),
       Promise.resolve().then(() => (init_eval_dataset_routes(), eval_dataset_routes_exports)),
       Promise.resolve().then(() => (init_benchmark_lab_routes(), benchmark_lab_routes_exports)),
       Promise.resolve().then(() => (init_environment_routes(), environment_routes_exports)),
       Promise.resolve().then(() => (init_account_routes(), account_routes_exports)),
       Promise.resolve().then(() => (init_run_label_routes(), run_label_routes_exports)),
+      Promise.resolve().then(() => (init_sp_identity_routes(), sp_identity_routes_exports)),
       Promise.resolve().then(() => (init_admin_roles(), admin_roles_exports)),
       Promise.resolve().then(() => (init_handler_failures(), handler_failures_exports))
     ]);
@@ -194748,7 +195611,9 @@ createApp({
     });
     setupSettingsRoutes2(appkit);
     setupRuntimeSettingsRoutes2(appkit);
+    setupCostBudgetsRoutes2(appkit);
     setupBenchmarkSettingsRoutes2(appkit);
+    setupSpIdentityRoutes2(appkit);
     setupEvalDatasetRoutes2(appkit);
     setupBenchmarkLabRoutes2(appkit);
     setupEnvironmentRoutes2(appkit);

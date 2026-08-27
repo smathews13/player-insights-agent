@@ -64,7 +64,7 @@ function inApp(page: React.ReactElement): string {
           element={
             <Outlet
               context={{
-                features: { benchmarkLab: false, egressControls: true, spIdentities: false },
+                features: { benchmarkLab: false, egressControls: true },
                 setFeature: () => {},
                 role: { state: 'admin', addedAdminsReadable: true },
               }}

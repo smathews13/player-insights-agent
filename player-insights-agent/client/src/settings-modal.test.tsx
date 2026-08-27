@@ -8,7 +8,7 @@ import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
-const FEATURES = { benchmarkLab: false, egressControls: true, spIdentities: false };
+const FEATURES = { benchmarkLab: false, egressControls: true };
 
 function render(
   section: 'roles' | 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
@@ -67,7 +67,7 @@ describe('Settings modal', () => {
     expect(render('experimental')).not.toContain('>Apply Astrolabe tags</button>');
   });
 
-  it('puts personas on Identity, grayed until Experimental SP identities is on', () => {
+  it('puts personas on Identity, grayed until the deployment-wide SP identities pivot is on', () => {
     const off = render('identity');
     expect(off).toContain('data-testid="sp-identity-pane"');
     expect(off).toContain('Turn SP identities on under Experimental');
@@ -79,13 +79,72 @@ describe('Settings modal', () => {
     const on = renderToStaticMarkup(
       <SettingsPage
         initialSection="identity"
-        features={{ benchmarkLab: false, egressControls: true, spIdentities: true }}
+        features={FEATURES}
         setFeature={() => {}}
         role={roleFrom(NORMAL_IDENTITY)}
+        spIdentityEnabled={true}
       />
     );
     expect(on).toContain('Each named identity is a Databricks service principal');
     expect(on).toContain('People using the app do not pick a persona on Ask');
+  });
+
+  /**
+   * THE MISMATCH Bugbot filed. The Experimental switch used to follow this
+   * browser's localStorage while warehouse/Genie/agent calls followed
+   * `sp-identity-enabled`. Clearing storage, or another admin turning it on,
+   * left the switch Off and the Identity pane grayed while assigned people
+   * already ran as service principals.
+   */
+  it('shows Off and a grayed Identity pane when this browser would have opted in but the server flag is off', () => {
+    const experimental = renderToStaticMarkup(
+      <SettingsPage
+        initialSection="experimental"
+        features={FEATURES}
+        setFeature={() => {}}
+        role={roleFrom(NORMAL_IDENTITY)}
+        spIdentityEnabled={false}
+      />
+    );
+    expect(experimental).toContain('SP identities · Off');
+    expect(experimental).toContain('the whole deployment');
+
+    const identity = renderToStaticMarkup(
+      <SettingsPage
+        initialSection="identity"
+        features={FEATURES}
+        setFeature={() => {}}
+        role={roleFrom(NORMAL_IDENTITY)}
+        spIdentityEnabled={false}
+      />
+    );
+    expect(identity).toContain('Turn SP identities on under Experimental');
+    expect(identity).toContain('disabled=""');
+  });
+
+  it('shows On and a live Identity pane from the server flag, even when this browser never opted in', () => {
+    const experimental = renderToStaticMarkup(
+      <SettingsPage
+        initialSection="experimental"
+        features={FEATURES}
+        setFeature={() => {}}
+        role={roleFrom(NORMAL_IDENTITY)}
+        spIdentityEnabled={true}
+      />
+    );
+    expect(experimental).toContain('SP identities · On');
+
+    const identity = renderToStaticMarkup(
+      <SettingsPage
+        initialSection="identity"
+        features={FEATURES}
+        setFeature={() => {}}
+        role={roleFrom(NORMAL_IDENTITY)}
+        spIdentityEnabled={true}
+      />
+    );
+    expect(identity).toContain('Each named identity is a Databricks service principal');
+    expect(identity).not.toContain('Turn SP identities on under Experimental');
   });
 
   it('puts the SP-identities switch on Experimental next to the others', () => {
@@ -107,7 +166,7 @@ describe('Settings modal', () => {
     const on = renderToStaticMarkup(
       <SettingsPage
         initialSection="experimental"
-        features={{ benchmarkLab: true, egressControls: true, spIdentities: false }}
+        features={{ benchmarkLab: true, egressControls: true }}
         setFeature={() => {}}
         role={roleFrom(NORMAL_IDENTITY)}
       />
