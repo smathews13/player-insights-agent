@@ -29,17 +29,17 @@ export type StarSurface = 'ask' | 'working';
 /** Shared by the login gate and the app shell so both mount the same sky. */
 export const SKY_PAGE_ID = 'app-sky';
 
-/** Seconds between new connectors starting to draw. Half the e0e254a9 2.5s cadence. */
-export const SKY_APPEAR_STEP = 5;
+/** Seconds between new connectors starting to draw. Half the prior 5s cadence. */
+export const SKY_APPEAR_STEP = 10;
 
 /** Fraction of a cycle spent inking (matches ast-sky-draw 0–12%). Spawn cadence is not this. */
 export const SKY_DRAW_INK_UNTIL = 0.12;
 
-/** Fraction of a cycle before retract starts (matches ast-sky-draw 12–50% hold). */
-export const SKY_DRAW_HOLD_UNTIL = 0.5;
+/** Fraction of a cycle before retract starts (matches ast-sky-draw 12–60% hold). */
+export const SKY_DRAW_HOLD_UNTIL = 0.6;
 
 /** Fraction of a connector cycle that the line is on screen (matches ast-sky-draw). */
-export const SKY_DRAW_LIVE_UNTIL = 0.75;
+export const SKY_DRAW_LIVE_UNTIL = 0.8;
 
 interface Timing {
   duration: number;
@@ -74,13 +74,13 @@ export const SKY_ANCHOR_MIN_SECONDS = 24;
 export const SKY_FAINT_MIN_SECONDS = 28;
 const ANCHOR_SPREAD = 12;
 const FAINT_SPREAD = 12;
-/** Connector cycle floor. Half the e0e254a9 retract rate (was 22s). */
-export const SKY_DRAW_MIN_SECONDS = 44;
+/** Connector cycle floor. Slower than the prior 44s retract rate. */
+export const SKY_DRAW_MIN_SECONDS = 72;
 const DRAW_SPREAD = 8;
 const DRIFT_ANCHOR_SECONDS = 90;
 const DRIFT_FAINT_SECONDS = 70;
 const JITTER_PX = 6;
-const EARLY_SHIFT = 8.8;
+const EARLY_SHIFT = 17.6;
 const EXTRA_HOPS = 6;
 const DROP_HOPS_MIN = 2;
 const DROP_HOPS_SPREAD = 3;
