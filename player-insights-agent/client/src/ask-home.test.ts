@@ -708,10 +708,13 @@ describe('the inspector while a run is still going', () => {
       HOME_PAGE.indexOf('The rail, in one round trip rather than two')
     );
     const statusRead = reconnect.indexOf('readConversationRun(');
+    const admissionGap = reconnect.indexOf('if (!live || !status) return;');
     const workingCheck = reconnect.indexOf('isWorkingConversationRun(status)');
     const transcriptRead = reconnect.indexOf('/messages');
 
     expect(statusRead).toBeGreaterThan(-1);
+    expect(admissionGap).toBeGreaterThan(statusRead);
+    expect(admissionGap).toBeLessThan(workingCheck);
     expect(workingCheck).toBeGreaterThan(statusRead);
     expect(transcriptRead).toBeGreaterThan(workingCheck);
     expect(reconnect.match(/\/messages/g)).toHaveLength(1);

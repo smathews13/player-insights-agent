@@ -907,7 +907,11 @@ export function HomePage() {
     const pollOne = async (runConversationId: string) => {
       try {
         const status = await readConversationRun(runConversationId);
-        if (!live) return;
+        // The browser knows this request started before the ledger row is
+        // guaranteed to be readable. Null in that admission gap is not a
+        // terminal state: settling here exposes the previous turn's Complete
+        // or Failed summary until somebody clicks back and forces another read.
+        if (!live || !status) return;
         if (isWorkingConversationRun(status)) {
           setActiveConversationRuns((current) => trackActiveConversationRun(current, runConversationId, status));
           // The steps the run has taken since the last poll. This is what makes a
