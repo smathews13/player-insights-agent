@@ -8,6 +8,7 @@ import {
   forgetLabState,
   patchLabState,
   readLabState,
+  snapshotWorkingCopy,
   writeLabState,
 } from './benchmark-lab-store';
 
@@ -65,5 +66,17 @@ describe('benchmark lab persistence', () => {
       'admin@example.com'
     );
     expect(patched.currentVersionId).toBe('ds_v001');
+  });
+
+  it('snapshots the working copy as the next dataset version', async () => {
+    forgetLabState();
+    const writer = client([{ state: EMPTY_LAB_STATE }]);
+    const saved = await snapshotWorkingCopy(
+      writer as never,
+      [{ id: 'c-1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' }],
+      'admin@example.com'
+    );
+    expect(saved.currentVersionId).toMatch(/^ds_v/);
+    expect(saved.versions[0]?.caseCount).toBe(1);
   });
 });

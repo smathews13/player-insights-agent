@@ -2,7 +2,9 @@ import { appTable } from '../../shared/app-schema';
 import {
   EMPTY_LAB_STATE,
   LabStateSchema,
+  commitDatasetVersion,
   parseLabState,
+  type EvalRowLike,
   type LabState,
 } from '../../shared/benchmark-lab-v3';
 import type { LakebaseReader } from './lakebase-store';
@@ -66,4 +68,20 @@ export async function patchLabState(
 ): Promise<LabState> {
   const current = await readLabState(client, { maxAgeMs: 0 });
   return writeLabState(client, { ...current, ...patch }, updatedBy);
+}
+
+/** Snapshot the working copy as the next immutable dataset version. */
+export async function snapshotWorkingCopy(
+  client: LakebaseReader,
+  rows: readonly EvalRowLike[],
+  actor: string,
+  extra: Partial<LabState> = {}
+): Promise<LabState> {
+  const current = await readLabState(client, { maxAgeMs: 0 });
+  const committed = commitDatasetVersion({
+    state: { ...current, ...extra },
+    rows,
+    actor,
+  });
+  return writeLabState(client, committed.state, actor);
 }

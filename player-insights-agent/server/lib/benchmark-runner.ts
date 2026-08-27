@@ -296,6 +296,17 @@ export function buildRetrievalContext(answer: BenchmarkAnswer): { text: string; 
   return { text: text.slice(0, MAX_JUDGE_CONTEXT_CHARS), truncated: true };
 }
 
+export function compactAnswerStages(
+  answer: BenchmarkAnswer
+): { id: string; name: string; kind: string; status: string }[] {
+  return answer.trace.stages.map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    kind: stage.kind,
+    status: stage.status,
+  }));
+}
+
 export function answerText(answer: BenchmarkAnswer): string {
   return `${answer.takeaway}\n\n${answer.narrative}`.trim();
 }
@@ -995,6 +1006,8 @@ async function runCase(deps: BenchmarkRunnerDeps,
       turns,
       mlflowTraceId: answer.trace.id,
       answerId: answer.id,
+      tokens: typeof answer.trace.total_tokens === 'number' ? answer.trace.total_tokens : null,
+      stages: compactAnswerStages(answer),
       structuralChecks,
       judgements,
       // Recorded beside the verdict, never folded into it. `decideOutcome` above

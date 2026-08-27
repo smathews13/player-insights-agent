@@ -75,6 +75,7 @@ import {
   HELD_OUT_LOCK_FACT,
   heldOutScorerRows,
   liveRunProgressLine,
+  type HeldOutAuditEntry,
   type HeldOutStatus,
   type LabWorkspace,
 } from '../../shared/benchmark-lab-v3';
@@ -273,6 +274,14 @@ const HELD_OUT_STATUS_LABEL: Record<HeldOutStatus, string> = {
   errored: 'Errored',
 };
 
+const HELD_OUT_STATUS_FAMILY: Record<HeldOutStatus, 'pos' | 'warn' | 'neg' | 'neutral-outline'> = {
+  evaluated: 'pos',
+  provisional: 'warn',
+  not_evaluated: 'neutral-outline',
+  skipped: 'neutral-outline',
+  errored: 'neg',
+};
+
 /**
  * Held-out evaluation: a control table over the frozen split, not a live suite.
  *
@@ -285,12 +294,16 @@ export function HeldOutEvaluation({
   tuningCount,
   heldOutCount,
   revealNonApplicable = false,
+  heldOutAudit = [],
+  tuningById,
 }: {
   state: ScorecardState;
   versionLabel?: string;
   tuningCount?: number | null;
   heldOutCount?: number | null;
   revealNonApplicable?: boolean;
+  heldOutAudit?: HeldOutAuditEntry[];
+  tuningById?: Record<string, string>;
 }) {
   const [showNonApplicable, setShowNonApplicable] = useState(revealNonApplicable);
   const scorecard: Scorecard | null = state.published ? state.scorecard : null;
@@ -298,6 +311,7 @@ export function HeldOutEvaluation({
     scorecard,
     labelsReviewed: Boolean(scorecard?.provenance.labelsReviewed),
     hideNonApplicable: !showNonApplicable,
+    tuningById,
   });
   const byId = new Map(SCORER_CATALOG.map((definition) => [definition.id, definition]));
   const splitLine = [
@@ -319,6 +333,12 @@ export function HeldOutEvaluation({
       actions={<span className="bench-caption">Values open the cases behind them.</span>}
     >
       <p className="bench-caption ast-num">{splitLine}</p>
+      {heldOutAudit.length > 0 ? (
+        <p className="bench-audit-banner" role="status">
+          {heldOutAudit.length} held-out {heldOutAudit.length === 1 ? 'case was' : 'cases were'} edited after the
+          split. {heldOutAudit[0]?.note}
+        </p>
+      ) : null}
       {!scorecard ? (
         <Alert>
           <TriangleAlert />
@@ -366,7 +386,7 @@ export function HeldOutEvaluation({
                     <td className="ast-num">{row.tuning}</td>
                     <td className="ast-num">{row.heldOut}</td>
                     <td>
-                      <span className={row.status === 'provisional' ? 'bench-unreviewed-note' : undefined}>
+                      <span className={astPill(HELD_OUT_STATUS_FAMILY[row.status], 'bench-chip')}>
                         {HELD_OUT_STATUS_LABEL[row.status]}
                       </span>
                     </td>
@@ -695,16 +715,13 @@ export function BenchmarkLab() {
               rollback={ops.rollback}
               applying={ops.applying}
               applyNote={ops.applyNote}
+              applyPreview={ops.applyPreview}
               canApply={ops.canApply}
-              canRollback={ops.canRollback}
               onApply={() => {
                 void ops.applyCandidate();
               }}
               onViewRollback={() => {
                 ops.viewRollback();
-              }}
-              onRollback={() => {
-                void ops.rollbackAsk();
               }}
             />
           ),
@@ -742,6 +759,8 @@ export function BenchmarkLab() {
               versionLabel={evalLab.lab.currentVersionId}
               tuningCount={Math.max(0, evalLab.lab.counts.active - evalLab.lab.counts.heldOut)}
               heldOutCount={evalLab.lab.counts.heldOut}
+              heldOutAudit={evalLab.lab.heldOutAudit}
+              tuningById={ops.tuningById}
             />
           ),
         }}

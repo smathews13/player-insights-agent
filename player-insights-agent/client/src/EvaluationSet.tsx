@@ -124,7 +124,7 @@ function CaseRow({
           </label>
         </td>
         <td>{row.question || row.conversation || 'Empty case'}</td>
-        <td>{row.tag ? TAG_LABEL[row.tag] : '–'}</td>
+        <td>{row.tag ? <span className="bench-tag-capsule">{TAG_LABEL[row.tag]}</span> : '–'}</td>
         <td className="ast-num">{mark(caseHasSql(row))}</td>
         <td className="ast-num">{mark(caseHasAgentLabel(row))}</td>
         <td>
@@ -339,6 +339,15 @@ function CaseEditor({ lab, row }: { lab: EvaluationLabModel; row: LabCase | unde
           onBlur={(event) => void lab.saveCase(row.id, { expectedFacts: event.target.value })}
         />
       </label>
+      <label className="runtime-field">
+        <span className="runtime-field-label">Per-case guidelines</span>
+        <textarea
+          aria-label="Per-case guidelines"
+          rows={2}
+          defaultValue={row.perCaseGuidelines}
+          onBlur={(event) => void lab.saveCase(row.id, { perCaseGuidelines: event.target.value })}
+        />
+      </label>
       <div className="bench-btn-row">
         <label className="bench-inline-label">
           Tag
@@ -379,6 +388,7 @@ export function CurateStageControls({ lab }: { lab: EvaluationLabModel }) {
   return (
     <>
       <p className="bench-stage-counts ast-num">{lab.lab.stage01Fact}</p>
+      <span className={astPill('neutral-outline', 'bench-chip ast-num')}>{lab.lab.reviewerQueue}</span>
       <div className="bench-btn-row">
         <BenchButton variant="primary" onClick={() => void lab.loadImportCandidates()} disabled={lab.busy === 'import'}>
           Import from Ask and Monitoring traces
@@ -389,9 +399,7 @@ export function CurateStageControls({ lab }: { lab: EvaluationLabModel }) {
         <BenchButton onClick={() => void lab.assignSplit('held_out')} disabled={lab.busy === 'split'}>
           Assign tuning / held-out split
         </BenchButton>
-        <BenchButton onClick={() => lab.setReviewerOnly(true)}>
-          {lab.lab.reviewerQueue.replace('Reviewer queue', 'Open reviewer queue')}
-        </BenchButton>
+        <BenchButton onClick={() => lab.setReviewerOnly(true)}>Open reviewer queue</BenchButton>
         <BenchButton onClick={() => void lab.duplicateSelected()} disabled={lab.busy === 'duplicate'}>
           Duplicate as edge case
         </BenchButton>

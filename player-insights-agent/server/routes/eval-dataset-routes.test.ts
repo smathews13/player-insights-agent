@@ -24,6 +24,7 @@ describe('evaluation dataset route permissions', () => {
     const source = fs.readFileSync(path.join(__dirname, 'eval-dataset-routes.ts'), 'utf8');
     expect(source).toContain("app.get('/api/benchmarks/dataset'");
     expect(source).toContain("app.put('/api/admin/benchmarks/dataset'");
+    expect(source).toContain('snapshotWorkingCopy');
     expect(source).toContain("app.post('/api/benchmarks/genie-accuracy'");
     expect(source).toContain("app.post('/api/admin/benchmarks/promote'");
     expect(source).toContain("app.post('/api/admin/benchmarks/last-suite'");

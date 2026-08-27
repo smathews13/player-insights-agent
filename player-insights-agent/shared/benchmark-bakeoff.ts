@@ -278,17 +278,16 @@ export function gatesSummary(comparison: BakeOffComparison): { passed: number; t
   return { passed, total, label: `Passed ${passed} of ${total} gates` };
 }
 
-export function judgeNeedTags(input: {
+export function judgeNeedTags(_input: {
   enabledJudges: readonly string[];
   multiTurn: readonly string[];
   customCount: number;
 }): { id: string; label: string }[] {
-  const tags = [
+  return [
     { id: 'response', label: 'Response per case' },
     { id: 'trace', label: 'Trace for step scorers' },
+    { id: 'session', label: 'Session id for multi-turn' },
   ];
-  if (input.multiTurn.length > 0) tags.push({ id: 'session', label: 'Session id for multi-turn' });
-  return tags;
 }
 
 export function liveRunProgress(input: {
@@ -299,11 +298,10 @@ export function liveRunProgress(input: {
   inProgress: boolean;
 }): string | null {
   if (!input.inProgress || !input.runId) return null;
-  const shortId = input.runId.slice(0, 8);
   const total = input.total ?? 0;
   const index = typeof input.currentCaseIndex === 'number' ? input.currentCaseIndex + 1 : 0;
-  if (total <= 0) return `${shortId} ${input.side} in progress`;
-  return `${shortId} ${input.side} in progress · case ${index} of ${total}`;
+  if (total <= 0) return `${input.runId} ${input.side} in progress`;
+  return `${input.runId} ${input.side} in progress · case ${index} of ${total}`;
 }
 
 export function promoteTargetCaption(kind: PromoteTargetKind): string {
@@ -323,15 +321,21 @@ export function rollbackCaption(previous: { endpoint: string; side: string } | n
 
 export function serializeEvidencePack(input: {
   datasetSuiteId: string;
+  datasetVersionId?: string;
+  configurationSnapshot?: unknown;
   changed: string;
   comparison: BakeOffComparison;
   baseline: AgentSideInput;
   candidate: AgentSideInput;
   failedCases: CaseOutcomePair[];
+  traceLinks?: { caseId: string; href: string }[];
+  reviewerStatus?: string;
 }): string {
   return JSON.stringify(
     {
       datasetSuiteId: input.datasetSuiteId,
+      datasetVersionId: input.datasetVersionId || '',
+      configurationSnapshot: input.configurationSnapshot ?? null,
       changed: input.changed,
       baselineRunId: input.baseline.runId,
       candidateRunId: input.candidate.runId,
@@ -342,6 +346,8 @@ export function serializeEvidencePack(input: {
       newlyFixed: input.comparison.newlyFixed.map((entry) => entry.caseId),
       newlyBroken: input.comparison.newlyBroken.map((entry) => entry.caseId),
       failedCases: input.failedCases,
+      traceLinks: input.traceLinks ?? [],
+      reviewerStatus: input.reviewerStatus || '',
     },
     null,
     2

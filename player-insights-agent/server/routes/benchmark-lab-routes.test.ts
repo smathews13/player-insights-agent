@@ -18,6 +18,7 @@ describe('benchmark lab v3 routes', () => {
     expect(source).toContain("app.post('/api/admin/benchmarks/lab/align-preview'");
     expect(source).toContain("app.post('/api/admin/benchmarks/lab/align-commit'");
     expect(source).toContain("app.post('/api/admin/benchmarks/lab/cancel-run'");
+    expect(source).toContain('snapshotWorkingCopy');
     expect(source).toContain('promotePromptAlias');
     expect(source).toContain('wroteGenieInstructions: false');
     expect(source).toContain('connectionsChanged: false');

@@ -71,6 +71,41 @@ export type HeldOutStatus = (typeof HELD_OUT_STATUSES)[number];
 export const SPAN_KINDS = ['AGENT', 'LLM', 'DISCOVERY', 'SQL'] as const;
 export type SpanKind = (typeof SPAN_KINDS)[number];
 
+/** Amber "slow" on a span when wall time reaches ten seconds. */
+export const SPAN_SLOW_MS = 10_000;
+
+export type SpanStatus = 'ok' | 'slow' | 'error';
+
+export interface LabSpan {
+  id: string;
+  name: string;
+  kind: SpanKind;
+  durationMs: number | null;
+  status: SpanStatus;
+  tokens: number | null;
+  cost: number | null;
+}
+
+export function classifySpanKind(name: string, kind: string): SpanKind {
+  const blob = `${name} ${kind}`.toLowerCase();
+  if (/\bsql\b|warehouse|query/.test(blob)) return 'SQL';
+  if (/discover|catalog|schema|search|retriev|index/.test(blob)) return 'DISCOVERY';
+  if (/llm|judge|chat|completion|model|generation/.test(blob)) return 'LLM';
+  return 'AGENT';
+}
+
+export function spanStatus(input: {
+  outcome?: string | null;
+  durationMs?: number | null;
+  failed?: boolean;
+}): SpanStatus {
+  if (input.failed) return 'error';
+  const outcome = (input.outcome || '').toLowerCase();
+  if (outcome === 'failed' || outcome === 'errored' || outcome === 'error') return 'error';
+  if (typeof input.durationMs === 'number' && input.durationMs >= SPAN_SLOW_MS) return 'slow';
+  return 'ok';
+}
+
 export const RUN_SIDES = ['baseline', 'candidate'] as const;
 export type RunSide = (typeof RUN_SIDES)[number];
 
@@ -551,7 +586,7 @@ export function scorerSetSummary(input: {
 
 export function configurationSnapshotHref(snapshotId: string): string {
   const id = snapshotId.trim();
-  return id ? `/benchmarking?snapshot=${encodeURIComponent(id)}` : '/benchmarking';
+  return id ? `/benchmarking?snapshot=${encodeURIComponent(id)}#lab-snapshot` : '#lab-snapshot';
 }
 
 export function runPermalink(input: { datasetVersionId?: string; baselineRunId?: string; candidateRunId?: string }): string {
@@ -925,11 +960,45 @@ export function formatHeldOutCell(score: ScorecardValue | null): string {
   return `${formatLabNumber(score.value, 'rate')} · ${applied}/${total}`;
 }
 
+/** Tuning cells from a live agent run's per-case scores, never invented zeroes. */
+export function tuningCellsFromCaseScores(
+  cases: { caseId?: string | null; scores?: ScorecardValue[] | null }[],
+  tuningIds: ReadonlySet<string>
+): Record<string, string> {
+  const byScorer = new Map<string, ScorecardValue[]>();
+  for (const row of cases) {
+    const id = row.caseId?.trim();
+    if (!id || !tuningIds.has(id) || !row.scores) continue;
+    for (const score of row.scores) {
+      const list = byScorer.get(score.scorerId) ?? [];
+      list.push(score);
+      byScorer.set(score.scorerId, list);
+    }
+  }
+  const cells: Record<string, string> = {};
+  for (const [scorerId, list] of byScorer) {
+    const scored = list.filter((entry) => entry.state === 'scored' && entry.value != null);
+    if (scored.length === 0) continue;
+    const value = scored.reduce((sum, entry) => sum + (entry.value ?? 0), 0) / scored.length;
+    cells[scorerId] = formatHeldOutCell({
+      scorerId,
+      state: 'scored',
+      value,
+      scored: scored.length,
+      notApplicable: list.filter((entry) => entry.state === 'not-applicable').length,
+      errored: list.filter((entry) => entry.state === 'errored').length,
+      reason: '',
+    });
+  }
+  return cells;
+}
+
 export function heldOutScorerRows(input: {
   scorecard: Scorecard | null;
   labelsReviewed: boolean;
   catalog?: readonly ScorerDefinition[];
   hideNonApplicable?: boolean;
+  tuningById?: Record<string, string>;
 }): { rows: HeldOutScorerRow[]; hiddenNonApplicable: number } {
   const catalog = input.catalog ?? SCORER_CATALOG;
   const byId = new Map((input.scorecard?.aggregates ?? []).map((entry) => [entry.scorerId, entry]));
@@ -947,7 +1016,7 @@ export function heldOutScorerRows(input: {
     rows.push({
       id: definition.id,
       label: definition.label,
-      tuning: '-',
+      tuning: input.tuningById?.[definition.id] ?? '-',
       heldOut: applicable ? formatHeldOutCell(score) : '-',
       status: applicable ? heldOutStatusFor(score, judgedUnreviewed) : 'skipped',
       applicable,
@@ -978,13 +1047,15 @@ export interface PocContractView {
   scorerSet: string;
   target: string;
   snapshotHref: string;
+  snapshotDetail: string;
+  heldOutLocked: boolean;
 }
 
 export function pocContractView(input: {
   counts: LabDatasetCounts;
   versionId: string;
   contract: LabContract;
-  scorerSet: { version: string; activeCount: number; nonApplicableCount: number };
+  scorerSet: { version: string; activeCount: number; nonApplicableCount: number; line?: string };
 }): PocContractView {
   const version = input.versionId || 'working copy';
   const targetKind =
@@ -994,16 +1065,46 @@ export function pocContractView(input: {
         ? 'Genie space'
         : 'RAG config';
   const identifier = input.contract.target.identifier.trim() || 'not set';
+  const snapshotId =
+    input.contract.target.snapshotId.trim() ||
+    input.contract.candidateRunId.trim() ||
+    input.contract.baselineRunId.trim();
+  const scorerLine =
+    input.scorerSet.line ||
+    `${input.scorerSet.version} · ${input.scorerSet.activeCount} active · ${input.scorerSet.nonApplicableCount} not applicable`;
   return {
     goal: input.contract.goalLanes.join(' · '),
     dataset: `${version} · ${input.counts.cases} cases · ${input.counts.heldOut} held out`,
     baseline: input.contract.baselineRunId || '-',
     candidate: input.contract.candidateRunId || '-',
     passGates: passGatesStripLine(input.contract.gates),
-    scorerSet: `${input.scorerSet.version} · ${input.scorerSet.activeCount} active · ${input.scorerSet.nonApplicableCount} not applicable`,
+    scorerSet: scorerLine,
     target: `${targetKind} · ${identifier}`,
-    snapshotHref: configurationSnapshotHref(input.contract.target.snapshotId),
+    snapshotHref: configurationSnapshotHref(snapshotId),
+    snapshotDetail: snapshotId
+      ? `${snapshotId} · ${version} · ${input.counts.cases} cases · ${scorerLine} · baseline ${input.contract.baselineRunId || 'not set'} · candidate ${input.contract.candidateRunId || 'not set'}`
+      : 'No configuration snapshot is saved until a judge run starts. This link stays on the Lab.',
+    heldOutLocked: input.counts.heldOut > 0,
   };
+}
+
+export function applyPreviewLine(input: {
+  candidateRunId: string;
+  datasetVersionId: string;
+  target: ApplyTarget;
+}): string {
+  const candidate = input.candidateRunId.trim() || 'not set';
+  const version = input.datasetVersionId.trim() || 'working copy';
+  let artifacts = 'changed artifacts land once a target is named';
+  if (input.target.kind === 'prompt_registry') {
+    const name = input.target.identifier.trim();
+    artifacts = name ? `prompts:/${name}@${LAB_PRODUCTION_ALIAS}` : 'Prompt Registry name not set';
+  } else if (input.target.kind === 'genie_space') {
+    artifacts = 'Genie space instructions (handoff, not written here)';
+  } else {
+    artifacts = 'RAG config (not configured)';
+  }
+  return `Candidate ${candidate} · dataset ${version} · ${artifacts}`;
 }
 
 export const STAGE_04_CAPTIONS: Record<ApplyTargetKind, string> = {

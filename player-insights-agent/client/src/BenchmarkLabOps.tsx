@@ -16,8 +16,7 @@ import {
   casesFromTrace,
   failedCaseIds,
   gateChip,
-  genieLaneFromHistory,
-  genieLaneFromRun,
+  genieLanePair,
   humanReviewedCaption,
   investigationCases,
   pairCaseOutcomes,
@@ -49,7 +48,10 @@ import {
   SPAN_KINDS,
   STAGE_04_CAPTIONS,
   THIS_RUN_NEEDS,
+  applyPreviewLine,
+  tuningCellsFromCaseScores,
   type ApplyTargetKind,
+  type LabSpan,
   type LabWorkspace,
 } from '../../shared/benchmark-lab-v3';
 import { extraJudgesFromSettings, OPERATOR_EVAL_SUITE_ID } from '../../shared/eval-dataset';
@@ -100,7 +102,6 @@ function LaneBlock({ title, metrics, extras }: { title: string; metrics: LaneMet
 
 export function BenchmarkJudgesStage({
   judges,
-  needTags,
   running,
   progress,
   hasCandidate,
@@ -124,8 +125,6 @@ export function BenchmarkJudgesStage({
   onRetryFailed: () => void;
 }) {
   const names = judges.length > 0 ? judges : ['groundedness', 'relevance', 'guidelines'];
-  const sessionOn = needTags.some((tag) => tag.id === 'session');
-  const needs = THIS_RUN_NEEDS.filter((need) => need !== 'SESSION ID FOR MULTI-TURN' || sessionOn);
   return (
     <>
       <div className="bench-judge-line">
@@ -138,7 +137,7 @@ export function BenchmarkJudgesStage({
       </div>
       <p className="bench-needs">
         <span className="bench-inline-label">This run needs</span>
-        {needs.map((need) => (
+        {THIS_RUN_NEEDS.map((need) => (
           <span className="bench-type-tag" key={need}>
             {need}
           </span>
@@ -148,7 +147,7 @@ export function BenchmarkJudgesStage({
         <BenchButton variant="primary" onClick={onRunBaseline} disabled={running}>
           {running ? 'Run in progress' : 'Run baseline'}
         </BenchButton>
-        <BenchButton variant="primary" onClick={onRunCandidate} disabled={running || !hasCandidate}>
+        <BenchButton onClick={onRunCandidate} disabled={running || !hasCandidate}>
           {running ? 'Run in progress' : 'Run candidate'}
         </BenchButton>
         <BenchButton title="Scores every turn in the picked session" onClick={onScoreSession} disabled={running}>
@@ -158,8 +157,8 @@ export function BenchmarkJudgesStage({
       {!hasCandidate ? (
         <p className="bench-gate">Add a candidate endpoint in Settings → Experimental to run a bake-off.</p>
       ) : null}
-      {progress ? <p className="bench-run-progress ast-num">{progress}</p> : null}
       <div className="bench-btn-row">
+        {progress ? <p className="bench-run-progress ast-num">{progress}</p> : null}
         <BenchButton onClick={onCancel} disabled={!running}>
           Cancel
         </BenchButton>
@@ -185,11 +184,10 @@ export function BenchmarkApplyStage({
   rollback,
   applying,
   applyNote,
+  applyPreview,
   canApply,
-  canRollback,
   onApply,
   onViewRollback,
-  onRollback,
 }: {
   target: ApplyTargetKind;
   onTarget: (next: ApplyTargetKind) => void;
@@ -202,11 +200,10 @@ export function BenchmarkApplyStage({
   rollback: string;
   applying: boolean;
   applyNote: string | null;
+  applyPreview: string;
   canApply: boolean;
-  canRollback: boolean;
   onApply: () => void;
   onViewRollback: () => void;
-  onRollback: () => void;
 }) {
   return (
     <>
@@ -256,6 +253,7 @@ export function BenchmarkApplyStage({
           />
         </label>
       ) : null}
+      <p className="bench-gate ast-num">{applyPreview}</p>
       <div className="bench-btn-row">
         <input
           className="bench-approver ast-num"
@@ -268,9 +266,6 @@ export function BenchmarkApplyStage({
           {applying ? 'Applying…' : 'Apply candidate'}
         </BenchButton>
         <BenchButton onClick={onViewRollback}>View rollback path</BenchButton>
-        <BenchButton onClick={onRollback} disabled={!canRollback || applying}>
-          Rollback
-        </BenchButton>
       </div>
       <p className="bench-gate">Connections unchanged.</p>
       <p className="bench-gate">{rollback}</p>
@@ -325,12 +320,12 @@ export function BenchmarkBakeOffSurface({
           ? 'Newly fixed and newly broken case chips land after a baseline and a candidate share a dataset version. Open the changed cases before applying.'
           : null}
         {comparison.newlyFixed.map((entry) => (
-          <button type="button" className="bench-text-link ast-num" key={`fix-${entry.caseId}`} onClick={() => onInspect(entry.caseId)}>
+          <button type="button" className="bench-chip-fixed ast-num" key={`fix-${entry.caseId}`} onClick={() => onInspect(entry.caseId)}>
             Newly fixed {entry.caseId}
           </button>
         ))}
         {comparison.newlyBroken.map((entry) => (
-          <button type="button" className="bench-text-link ast-num" key={`break-${entry.caseId}`} onClick={() => onInspect(entry.caseId)}>
+          <button type="button" className="bench-chip-broken ast-num" key={`break-${entry.caseId}`} onClick={() => onInspect(entry.caseId)}>
             Newly broken {entry.caseId}
           </button>
         ))}
@@ -351,6 +346,43 @@ export function BenchmarkBakeOffSurface({
         )}
       </div>
     </LabSurface>
+  );
+}
+
+function spanDotClass(status: LabSpan['status']): string {
+  if (status === 'error') return 'bench-span-dot is-error';
+  if (status === 'slow') return 'bench-span-dot is-slow';
+  return 'bench-span-dot is-ok';
+}
+
+export function SpanTree({ spans }: { spans: LabSpan[] }) {
+  if (spans.length === 0) {
+    return (
+      <p className="bench-empty-row">
+        This case recorded no span durations. A benchmark suite is per-case runs, not one suite-wide tree.
+      </p>
+    );
+  }
+  return (
+    <ul className="bench-span-tree">
+      {spans.map((span) => (
+        <li key={span.id}>
+          <span className={spanDotClass(span.status)} aria-hidden="true" />
+          <span className="bench-span-name">{span.name}</span>
+          <span className="bench-type-tag">{span.kind}</span>
+          <span className="ast-num">
+            {typeof span.durationMs === 'number' ? `${Math.round(span.durationMs)} ms` : 'duration not recorded'}
+          </span>
+          {span.kind === 'LLM' ? (
+            <span className="ast-num">
+              {typeof span.tokens === 'number' ? `${Math.round(span.tokens)} tokens` : 'tokens not set'}
+              {' · '}
+              {typeof span.cost === 'number' ? span.cost.toFixed(2) : 'cost not set'}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -377,7 +409,7 @@ export function BenchmarkFailurePane({
       fact="every failed, provisional, skipped, or slow case opens its trace. Traces are governed evidence, not a debug dump."
       actions={<span className="bench-governance">{GOVERNANCE_FACT}</span>}
     >
-      <div className="bench-failure">
+      <div className={`bench-failure${selected ? ' is-open' : ''}`}>
         <aside className="bench-failure-list" aria-label="Cases">
           {cases.length === 0 ? (
             <p className="bench-empty-row">No failed cases in this run.</p>
@@ -395,9 +427,9 @@ export function BenchmarkFailurePane({
             </ul>
           )}
         </aside>
-        <div className="bench-failure-pane">
-          <header className="bench-failure-head">
-            {selected ? (
+        {selected ? (
+          <div className="bench-failure-drawer" role="dialog" aria-label={`Trace for ${selected.id}`}>
+            <header className="bench-failure-head">
               <p className="bench-caption">
                 <strong className="ast-num">{selected.id}</strong>
                 {' · '}
@@ -409,51 +441,63 @@ export function BenchmarkFailurePane({
                   </>
                 ) : null}
               </p>
-            ) : (
-              <p className="bench-caption">Pick a failed, provisional, skipped, or slow case.</p>
-            )}
-          </header>
-          {selected ? (
+            </header>
             <p className="bench-caption ast-num">
               Trace {selected.mlflowHref ? selected.mlflowHref.replace('/runs?trace=', '') : 'not recorded'}
               {selected.sessionId ? ` · session ${selected.sessionId}` : ''}
             </p>
-          ) : null}
-          <div className="bench-span-legend">
-            {SPAN_KINDS.map((kind) => (
-              <span className="bench-type-tag" key={kind}>
-                {kind}
-              </span>
-            ))}
-          </div>
-          <p className="bench-empty-row">
-            This suite run has no single span tree. Each case is its own agent run.
-            {selected?.mlflowHref ? (
-              <>
-                {' '}
+            <div className="bench-span-legend">
+              {SPAN_KINDS.map((kind) => (
+                <span className="bench-type-tag" key={kind}>
+                  {kind}
+                </span>
+              ))}
+            </div>
+            <SpanTree spans={selected.spans} />
+            {selected.mlflowHref ? (
+              <p className="bench-caption">
                 <a className="bench-text-link" href={selected.mlflowHref}>
                   Open MLflow trace
                 </a>
-              </>
+              </p>
             ) : (
-              ' Open MLflow when a trace id is recorded.'
+              <p className="bench-empty-row">Open MLflow when a trace id is recorded.</p>
             )}
-          </p>
-          <p className="bench-caption">
-            {selected?.rationale
-              ? selected.rationale
-              : 'Judge rationale ends in the concrete fix once a case with a scored rationale is picked.'}
-          </p>
-          <div className="bench-btn-row">
-            <BenchButton variant="primary" onClick={onAddEdge} disabled={!selected}>
-              Add to dataset as edge case
-            </BenchButton>
-            <BenchButton onClick={onMarkKnown} disabled={!selected}>
-              Mark as known failure
-            </BenchButton>
+            <p className="bench-caption">
+              {selected.rationale
+                ? selected.rationale
+                : 'Judge rationale ends in the concrete fix once a case with a scored rationale is picked.'}
+            </p>
+            <div className="bench-btn-row">
+              <BenchButton variant="primary" onClick={onAddEdge}>
+                Add to dataset as edge case
+              </BenchButton>
+              <BenchButton onClick={onMarkKnown}>Mark as known failure</BenchButton>
+            </div>
+            {note ? <p className="bench-caption">{note}</p> : null}
           </div>
-          {note ? <p className="bench-caption">{note}</p> : null}
-        </div>
+        ) : (
+          <div className="bench-failure-pane">
+            <header className="bench-failure-head">
+              <p className="bench-caption">Pick a failed, provisional, skipped, or slow case.</p>
+            </header>
+            <div className="bench-span-legend">
+              {SPAN_KINDS.map((kind) => (
+                <span className="bench-type-tag" key={kind}>
+                  {kind}
+                </span>
+              ))}
+            </div>
+            <p className="bench-empty-row">Span tree, tokens, and cost land with the picked case.</p>
+            <p className="bench-caption">Judge rationale ends in the concrete fix.</p>
+            <div className="bench-btn-row">
+              <BenchButton variant="primary" disabled>
+                Add to dataset as edge case
+              </BenchButton>
+              <BenchButton disabled>Mark as known failure</BenchButton>
+            </div>
+          </div>
+        )}
       </div>
     </LabSurface>
   );
@@ -546,7 +590,7 @@ export function useBenchmarkOps(input: {
   const candidateSide = flywheel.lastAgentSides[1] || sides[1] || '';
   const baseline = agentSideFromTrace(baselineSide, baselineTrace);
   const candidate = agentSideFromTrace(candidateSide || baselineSide, candidateTrace);
-  const genie = genieLaneFromRun(input.lastGenieRun ?? null) ?? genieLaneFromHistory(flywheel.history);
+  const genie = genieLanePair({ lastRun: input.lastGenieRun ?? null, history: flywheel.history });
   const comparison = compareBakeOff({
     baseline,
     candidate,
@@ -588,9 +632,21 @@ export function useBenchmarkOps(input: {
     inProgress: input.inProgress || input.running,
   });
 
-  const inspectCases = investigationCases(casesFromTrace(candidateTrace) || casesFromTrace(baselineTrace));
+  const inspectCases = investigationCases(
+    casesFromTrace(candidateTrace) || casesFromTrace(baselineTrace),
+    flywheel.labelingSession?.sessionId || ''
+  );
   const askEndpoint = resolvePromoteEndpoint(candidateSide || sides[1] || '', input.currentAgentEndpoint);
   const caption = STAGE_04_CAPTIONS[target];
+  const applyPreview = applyPreviewLine({
+    candidateRunId: candidate.runId || input.lastRunId || '',
+    datasetVersionId: lab?.currentVersionId || '',
+    target: {
+      kind: target,
+      identifier: promptName,
+      snapshotId: lab?.contract.target.snapshotId || '',
+    },
+  });
   const canApply =
     Boolean(approver.trim()) &&
     (target !== 'prompt_registry' || (gates.total > 0 && gates.passed === gates.total && Boolean(askEndpoint)));
@@ -705,17 +761,29 @@ export function useBenchmarkOps(input: {
       setApplyNote((error as Error).message);
     }
   };
+  void rollbackAsk;
 
   const exportPack = () => {
+    const failed = pairCaseOutcomes(casesFromTrace(baselineTrace), casesFromTrace(candidateTrace)).filter(
+      (entry) => entry.candidate && entry.candidate !== 'passed'
+    );
     const json = serializeEvidencePack({
       datasetSuiteId: OPERATOR_EVAL_SUITE_ID,
+      datasetVersionId: lab?.currentVersionId || '',
+      configurationSnapshot:
+        candidateTrace?.benchmark?.configurationSnapshot ||
+        baselineTrace?.benchmark?.configurationSnapshot ||
+        lab?.contractView.snapshotDetail ||
+        null,
       changed: comparison.changed,
       comparison,
       baseline,
       candidate,
-      failedCases: pairCaseOutcomes(casesFromTrace(baselineTrace), casesFromTrace(candidateTrace)).filter(
-        (entry) => entry.candidate && entry.candidate !== 'passed'
-      ),
+      failedCases: failed,
+      traceLinks: inspectCases
+        .filter((row) => row.mlflowHref)
+        .map((row) => ({ caseId: row.id, href: row.mlflowHref })),
+      reviewerStatus: lab?.reviewerQueue || '',
     });
     const blob = new Blob([json], { type: 'application/json' });
     const href = URL.createObjectURL(blob);
@@ -780,14 +848,19 @@ export function useBenchmarkOps(input: {
     rollback: rollbackCaption(flywheel.rollback),
     applying,
     applyNote,
+    applyPreview,
     canApply,
-    canRollback: Boolean(flywheel.rollback?.endpoint),
     applyCandidate,
     viewRollback,
-    rollbackAsk,
     comparison,
     history: flywheel.compareHistory.map((entry) => bakeOffHistoryLine(entry)),
-    genieNote: genie?.baseline.note ?? null,
+    genieNote: genie
+      ? genie.baseline.accuracy == null || genie.candidate.accuracy == null
+        ? genie.candidate.note || genie.baseline.note
+        : genie.baseline.note === genie.candidate.note
+          ? genie.candidate.note
+          : `Baseline ${genie.baseline.note}. Candidate ${genie.candidate.note}.`
+      : null,
     coverageNote: humanReviewedCaption(input.labelsReviewed, candidate.coverage ?? null),
     exportPack,
     copyPermalink,
@@ -801,5 +874,9 @@ export function useBenchmarkOps(input: {
     candidateRunId: candidate.runId,
     gates,
     lab,
+    tuningById: tuningCellsFromCaseScores(
+      casesFromTrace(candidateTrace).length ? casesFromTrace(candidateTrace) : casesFromTrace(baselineTrace),
+      new Set((lab?.cases ?? []).filter((row) => row.split === 'tuning' && !row.retired).map((row) => row.id))
+    ),
   };
 }

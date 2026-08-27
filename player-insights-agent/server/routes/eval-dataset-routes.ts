@@ -26,8 +26,12 @@ import { createSqlExecutor } from '../lib/genie-result-execute';
 import { probeWorkspaceMonitoring } from '../lib/live-monitoring';
 import { executionToken } from '../lib/execution-credential';
 import { servingInvocationPath, userEmail, type InsightsAppKit } from './insights-routes';
-import { SUITE_KINDS } from '../../shared/benchmark-lab-v3';
-import { readLabState } from '../lib/benchmark-lab-store';
+import {
+  auditHeldOutEdits,
+  labCaseFromRow,
+  SUITE_KINDS,
+} from '../../shared/benchmark-lab-v3';
+import { readLabState, snapshotWorkingCopy } from '../lib/benchmark-lab-store';
 
 const GenieAccuracyBody = z.object({
   spaceId: z.string().trim().min(1).max(200),
@@ -145,7 +149,19 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
       }
       const actor = userEmail(req);
       try {
+        const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
+        const state = await readLabState(appkit, { maxAgeMs: 0 });
         const dataset = await writeEvalDataset(appkit, parsed.data, actor);
+        const heldOutAudit = [
+          ...auditHeldOutEdits({
+            prior: current.rows.map(labCaseFromRow),
+            next: dataset.rows.map(labCaseFromRow),
+            actor,
+            versionId: state.currentVersionId,
+          }),
+          ...state.heldOutAudit,
+        ].slice(0, 200);
+        await snapshotWorkingCopy(appkit, dataset.rows, actor, { heldOutAudit });
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-dataset-updated',
@@ -172,6 +188,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
         const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
         const added = uniqueQuestionsToAdd(current.rows, parsed.data.questions);
         const dataset = await writeEvalDataset(appkit, { rows: [...current.rows, ...added] }, actor);
+        await snapshotWorkingCopy(appkit, dataset.rows, actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-dataset-curated',

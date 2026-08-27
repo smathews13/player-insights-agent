@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { PRODUCTION_PROMPT_ALIAS } from './eval-flywheel';
 import {
   applyCandidateDecision,
+  applyPreviewLine,
   auditHeldOutEdits,
   CANCEL_RUN_NOTE,
   compareExecutedResults,
   commitDatasetVersion,
+  configurationSnapshotHref,
   DEFAULT_PASS_GATES,
   duplicateAsEdgeCase,
   EMPTY_LAB_STATE,
@@ -28,6 +30,7 @@ import {
   runPermalink,
   signedDelta,
   STAGE_04_CAPTIONS,
+  tuningCellsFromCaseScores,
   type EvalRowLike,
 } from './benchmark-lab-v3';
 import type { Scorecard } from './scorecard-contract';
@@ -332,7 +335,9 @@ describe('POC contract and cancel honesty', () => {
     });
     expect(view.dataset).toContain('ds_v003');
     expect(view.dataset).toContain('1 held out');
-    expect(view.snapshotHref).toBe('/benchmarking');
+    expect(view.snapshotHref).toBe('#lab-snapshot');
+    expect(view.heldOutLocked).toBe(true);
+    expect(view.snapshotDetail).toContain('No configuration snapshot');
     expect(view.passGates).toContain('Regressions are always shown');
     expect(view.passGates).toContain('No numeric thresholds set');
   });
@@ -363,5 +368,36 @@ describe('POC contract and cancel honesty', () => {
   it('does not claim the serving call can be aborted', () => {
     expect(CANCEL_RUN_NOTE).toContain('not aborted');
     expect(CANCEL_RUN_NOTE).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('apply preview and tuning cells', () => {
+  it('names candidate, dataset version, and target artifacts before apply', () => {
+    expect(
+      applyPreviewLine({
+        candidateRunId: 'run_057',
+        datasetVersionId: 'ds_v003',
+        target: { kind: 'prompt_registry', identifier: 'ask', snapshotId: '' },
+      })
+    ).toBe('Candidate run_057 · dataset ds_v003 · prompts:/ask@production');
+    expect(configurationSnapshotHref('snap-9')).toBe('/benchmarking?snapshot=snap-9#lab-snapshot');
+    expect(configurationSnapshotHref('')).toBe('#lab-snapshot');
+  });
+
+  it('fills TUNING from live per-case scores and leaves missing scorers as a dash', () => {
+    const cells = tuningCellsFromCaseScores(
+      [
+        {
+          caseId: 't-1',
+          scores: [
+            { scorerId: 'sql_validity', state: 'scored', value: 1, scored: 1, notApplicable: 0, errored: 0, reason: '' },
+          ],
+        },
+      ],
+      new Set(['t-1'])
+    );
+    expect(cells.sql_validity).toMatch(/1/);
+    const view = heldOutScorerRows({ scorecard: null, labelsReviewed: false, tuningById: cells });
+    expect(view.rows.find((row) => row.id === 'sql_validity')?.tuning).toBe(cells.sql_validity);
   });
 });

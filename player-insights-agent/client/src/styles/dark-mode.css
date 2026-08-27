@@ -431,6 +431,10 @@ html[data-theme='dark'] .bench-surface {
   backdrop-filter: blur(2px);
   border-color: rgba(255, 255, 255, 0.22);
 }
+html[data-theme='dark'] .bench-failure-drawer {
+  background: rgba(12, 18, 28, 0.92);
+  border-color: rgba(255, 255, 255, 0.22);
+}
 html[data-theme='dark'] .bench-stage-node {
   background: rgba(255, 255, 255, 0.04);
   color: var(--ast-ice-accent);

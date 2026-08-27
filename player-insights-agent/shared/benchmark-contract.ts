@@ -169,6 +169,10 @@ export interface BenchmarkCaseResult {
   answerId: string | null;
   structuralChecks: BenchmarkStructuralCheck[];
   judgements: BenchmarkJudgement[];
+  /** Tokens from the agent trace when it recorded them. Never invented. */
+  tokens?: number | null;
+  /** Compact per-stage kinds. No input or output (PII). Duration lives on the case. */
+  stages?: { id: string; name: string; kind: string; status: string }[];
   /** Plain-language statement of why this case ended where it did. */
   note: string;
 }

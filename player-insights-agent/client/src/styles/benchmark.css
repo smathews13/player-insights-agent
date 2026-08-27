@@ -976,7 +976,11 @@
 .bench-failure {
   display: grid;
   grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-  min-height: 240px;
+  min-height: 480px;
+  position: relative;
+}
+.bench-failure.is-open .bench-failure-list {
+  opacity: 0.4;
 }
 .bench-failure-list {
   padding: 12px 0;
@@ -1000,6 +1004,20 @@
 }
 .bench-failure-pane {
   padding: 12px 16px 16px;
+}
+.bench-failure-drawer {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: 36%;
+  z-index: 2;
+  padding: 12px 16px 16px;
+  overflow: auto;
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--db-ink-deep) 28%, transparent);
 }
 .bench-failure-head {
   display: flex;
@@ -1030,11 +1048,23 @@
  * Evaluation set (35b) and Genie accuracy diagnostics (35c). Tables grow with
  * the cases. Numerals and ids stay on DM Mono via .ast-num in the markup.
  */
+#lab-pipeline {
+  min-height: 740px;
+}
 #lab-evaluation-set {
   min-height: 600px;
 }
 #lab-genie-accuracy {
   min-height: 560px;
+}
+#lab-run-comparison {
+  min-height: 560px;
+}
+#lab-failure {
+  min-height: 480px;
+}
+#lab-held-out {
+  min-height: 520px;
 }
 .bench-count-line {
   margin: 0;
@@ -1063,14 +1093,105 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
 }
+.bench-sql-triple {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
 .bench-sql-pair pre {
   margin: 6px 0 0;
   padding: 8px 10px;
-  overflow: auto;
+  overflow: visible;
+  white-space: pre-wrap;
   font-size: var(--ast-fs-11);
   background: var(--ast-fill-band);
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-sm);
+}
+.bench-sql-triple pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow: visible;
+  white-space: pre-wrap;
+  font-size: var(--ast-fs-11);
+  background: var(--ast-fill-band);
+  border: 1px solid var(--ast-hairline);
+  border-radius: var(--radius-sm);
+}
+.bench-sql-reason {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+}
+.bench-tag-capsule {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(143, 193, 232, 0.16);
+  border: 1px solid rgba(143, 193, 232, 0.35);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.bench-audit-banner {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: rgba(232, 168, 152, 0.28);
+  border: 1px solid rgba(232, 168, 152, 0.55);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-size: var(--text-sm);
+}
+.bench-chip-fixed {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 8px 0 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(154, 214, 206, 0.55);
+  border-radius: 999px;
+  background: rgba(154, 214, 206, 0.22);
+  color: #9ad6ce;
+  cursor: pointer;
+  font: 500 var(--ast-fs-13) var(--font-mono);
+}
+.bench-chip-broken {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 8px 0 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(232, 169, 184, 0.55);
+  border-radius: 999px;
+  background: rgba(232, 169, 184, 0.22);
+  color: #e8a9b8;
+  cursor: pointer;
+  font: 500 var(--ast-fs-13) var(--font-mono);
+}
+.bench-span-tree {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.bench-span-tree li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.bench-span-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ad6ce;
+}
+.bench-span-dot.is-slow {
+  background: #e0c07a;
+}
+.bench-span-dot.is-error {
+  background: #e8a9b8;
+}
+.bench-snapshot {
+  padding: 8px 16px 0;
 }
 .bench-filter-set {
   display: flex;

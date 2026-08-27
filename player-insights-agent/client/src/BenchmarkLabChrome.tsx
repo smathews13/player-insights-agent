@@ -19,6 +19,7 @@ import {
   SPAN_KINDS,
   STAGE_04_CAPTIONS,
   THIS_RUN_NEEDS,
+  applyPreviewLine,
   type ApplyTargetKind,
   type LabWorkspace,
   type PocContractView,
@@ -53,6 +54,7 @@ export function labContractCells(input: {
   targetValue?: string;
   targetDetail?: string;
   snapshotHref?: string;
+  heldOutLocked?: boolean;
 }): LabContractCell[] {
   const baseline = input.baselineId?.trim() || '-';
   const candidate = input.candidateId?.trim() || '-';
@@ -66,6 +68,7 @@ export function labContractCells(input: {
       eyebrow: 'Dataset',
       value: input.datasetValue?.trim() || 'No dataset version yet',
       detail: input.datasetDetail?.trim() || 'case count lands when the set is saved',
+      extra: input.heldOutLocked ? <Lock className="bench-lock" aria-hidden="true" /> : null,
     },
     {
       eyebrow: 'Baseline / candidate',
@@ -89,7 +92,7 @@ export function labContractCells(input: {
       value: input.targetValue?.trim() || 'No target selected',
       detail: input.targetDetail?.trim() || 'kind and identifier land with apply',
       extra: (
-        <a className="bench-text-link" href={input.snapshotHref || '#lab-pipeline'}>
+        <a className="bench-text-link" href={input.snapshotHref || '#lab-snapshot'}>
           Configuration snapshot
         </a>
       ),
@@ -101,7 +104,11 @@ export function labContractCells(input: {
 export function cellsFromPocContract(view: PocContractView): LabContractCell[] {
   return [
     { eyebrow: 'Goal', value: view.goal, detail: 'two lanes, one dataset' },
-    { eyebrow: 'Dataset', value: view.dataset },
+    {
+      eyebrow: 'Dataset',
+      value: view.dataset,
+      extra: view.heldOutLocked ? <Lock className="bench-lock" aria-hidden="true" /> : null,
+    },
     {
       eyebrow: 'Baseline / candidate',
       value: `${view.baseline} / ${view.candidate}`,
@@ -113,7 +120,7 @@ export function cellsFromPocContract(view: PocContractView): LabContractCell[] {
       eyebrow: 'Target',
       value: view.target,
       extra: (
-        <a className="bench-text-link" href={view.snapshotHref || '#lab-pipeline'}>
+        <a className="bench-text-link" href={view.snapshotHref || '#lab-snapshot'}>
           Configuration snapshot
         </a>
       ),
@@ -283,13 +290,13 @@ function DefaultJudgesStage({
         <BenchButton variant="primary" onClick={onRunBaseline} disabled={running}>
           {running ? 'Run in progress' : 'Run baseline'}
         </BenchButton>
-        <BenchButton variant="primary" onClick={onRunCandidate} disabled={running}>
+        <BenchButton onClick={onRunCandidate} disabled={running}>
           {running ? 'Run in progress' : 'Run candidate'}
         </BenchButton>
         <BenchButton title="Scores every turn in the picked session">Score one Ask session</BenchButton>
       </div>
-      {runProgress ? <p className="bench-run-progress ast-num">{runProgress}</p> : null}
       <div className="bench-btn-row">
+        {runProgress ? <p className="bench-run-progress ast-num">{runProgress}</p> : null}
         <BenchButton disabled={!running} onClick={onCancel}>
           Cancel
         </BenchButton>
@@ -336,6 +343,13 @@ function DefaultApplyStage() {
       </div>
       <p className="bench-gate">{STAGE_04_CAPTIONS[target]}</p>
       <p className="bench-gate">Connections unchanged.</p>
+      <p className="bench-gate ast-num">
+        {applyPreviewLine({
+          candidateRunId: '',
+          datasetVersionId: '',
+          target: { kind: target, identifier: '', snapshotId: '' },
+        })}
+      </p>
       <div className="bench-btn-row">
         <input className="bench-approver ast-num" aria-label="Named approver" placeholder="Named approver" />
         <BenchButton variant="primary">Apply candidate</BenchButton>
@@ -651,6 +665,10 @@ export function BenchmarkLabChrome({
           Pipeline
         </h3>
         <PocContractStrip cells={contract} />
+        <p className="bench-caption bench-snapshot ast-num" id="lab-snapshot">
+          {workspace?.contractView.snapshotDetail ||
+            'No configuration snapshot is saved until a judge run starts. This link stays on the Lab.'}
+        </p>
         <div className="bench-pipeline">
           <PipelineStage
             n="01"

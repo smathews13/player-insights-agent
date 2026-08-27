@@ -158,4 +158,24 @@ describe('the v3 Lab chrome', () => {
     expect(rule('.bench-delta-pos')).toMatch(/#9ad6ce/i);
     expect(rule('.bench-delta-neg')).toMatch(/#e8a9b8/i);
   });
+
+  it('sets the six region min-heights from the 1080px reference', () => {
+    expect(rule('#lab-pipeline')).toMatch(/min-height:\s*740px/);
+    expect(rule('#lab-evaluation-set')).toMatch(/min-height:\s*600px/);
+    expect(rule('#lab-genie-accuracy')).toMatch(/min-height:\s*560px/);
+    expect(rule('#lab-run-comparison')).toMatch(/min-height:\s*560px/);
+    expect(rule('#lab-failure')).toMatch(/min-height:\s*480px/);
+    expect(rule('#lab-held-out')).toMatch(/min-height:\s*520px/);
+  });
+
+  it('draws the overlay drawer, tag capsules, three-cell SQL, and salmon audit banner', () => {
+    expect(rule('.bench-failure-drawer')).toMatch(/position:\s*absolute/);
+    expect(rule('.bench-failure.is-open .bench-failure-list')).toMatch(/opacity:\s*0\.4/);
+    expect(rule('.bench-tag-capsule')).toMatch(/border-radius:\s*999px/);
+    expect(rule('.bench-sql-triple')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(0,\s*1fr\) minmax\(0,\s*1fr\)/);
+    expect(rule('.bench-sql-triple pre')).toMatch(/overflow:\s*visible/);
+    expect(rule('.bench-audit-banner')).toMatch(/rgba\(232,\s*168,\s*152/);
+    expect(rule('.bench-chip-fixed')).toMatch(/#9ad6ce/i);
+    expect(rule('.bench-chip-broken')).toMatch(/#e8a9b8/i);
+  });
 });

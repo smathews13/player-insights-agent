@@ -102,6 +102,25 @@ describe('the copy above the scorers', () => {
     expect(table).toBeGreaterThan(subtitle);
     expect(html.slice(subtitle, table)).not.toContain('data-slot="alert"');
   });
+
+  it('paints a salmon audit banner when a held-out case was edited after the split', () => {
+    const html = renderToStaticMarkup(
+      <HeldOutEvaluation
+        state={{ published: true, scorecard: PUBLISHED }}
+        heldOutAudit={[
+          {
+            at: '2026-08-26T00:00:00.000Z',
+            actor: 'admin@example.com',
+            caseId: 'h-1',
+            versionId: 'ds_v001',
+            note: 'Held-out case h-1 was edited after the split.',
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain('bench-audit-banner');
+    expect(html).toContain('1 held-out case was edited after the split');
+  });
 });
 
 describe('gating stays a catalog fact, not a screen claim', () => {
@@ -263,7 +282,7 @@ describe('the unreviewed labels', () => {
 
   it('still qualify the judged scorers at the number', () => {
     const rendered = html();
-    const notes = rendered.split('bench-unreviewed-note').length - 1;
+    const notes = rendered.split('>Provisional<').length - 1;
     const judgedCount = SCORER_CATALOG.filter(
       (definition) => definition.kind === 'judged' && definition.availability !== 'unimplementable'
     ).length;

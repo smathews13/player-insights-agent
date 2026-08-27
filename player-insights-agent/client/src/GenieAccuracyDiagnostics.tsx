@@ -117,7 +117,7 @@ function GenieCaseRows({ entry }: { entry: GenieAccuracyCaseView }) {
       {failed ? (
         <tr>
           <td className="bench-sql-compare" colSpan={5}>
-            <div className="bench-sql-pair">
+            <div className="bench-sql-triple">
               <div>
                 <span className="ast-eyebrow">Generated SQL</span>
                 <pre className="ast-num">{entry.predictedSql || 'None returned'}</pre>
@@ -126,10 +126,11 @@ function GenieCaseRows({ entry }: { entry: GenieAccuracyCaseView }) {
                 <span className="ast-eyebrow">Ground truth</span>
                 <pre className="ast-num">{entry.groundTruthSql || 'None recorded'}</pre>
               </div>
+              <div>
+                <span className="ast-eyebrow">Result comparison</span>
+                <p className="bench-sql-reason">{entry.comparisonReason || entry.note}</p>
+              </div>
             </div>
-            <p className="bench-caption">
-              Result comparison: {entry.comparisonReason || entry.note}
-            </p>
           </td>
         </tr>
       ) : null}
@@ -145,14 +146,9 @@ export function GenieAccuracyDiagnostics({ lab }: { lab: EvaluationLabModel }) {
       title="Genie accuracy diagnostics"
       fact={MATCHING_POLICY_FACT}
       actions={
-        <div className="bench-btn-row">
-          <a className="bench-text-link" href="#lab-matching-policy">
-            Matching policy reference
-          </a>
-          <BenchButton onClick={() => void lab.rerunLast()} disabled={lab.busy === 'genie' || !lab.lastGenieRun}>
-            Re-run last suite
-          </BenchButton>
-        </div>
+        <a className="bench-text-link" href="#lab-matching-policy">
+          Matching policy reference
+        </a>
       }
     >
       {run ? (
@@ -244,9 +240,6 @@ export function GenieStageControls({ lab }: { lab: EvaluationLabModel }) {
           Run partial suite
         </BenchButton>
         <span className={astPill('neutral-outline', 'bench-chip')}>matching · executed-result equivalence</span>
-        <BenchButton onClick={() => void lab.rerunLast()} disabled={lab.busy === 'genie' || !lab.lastGenieRun}>
-          Re-run last suite
-        </BenchButton>
       </div>
       <p className="bench-gate">
         {gate ||

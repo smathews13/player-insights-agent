@@ -83,6 +83,8 @@ describe('Genie accuracy diagnostics', () => {
     expect(prose).toContain('Fail');
     expect(prose).toContain('Generated SQL');
     expect(prose).toContain('Ground truth');
+    expect(prose).toContain('Result comparison');
+    expect(markup).toContain('bench-sql-triple');
     expect(prose).toContain('SELECT sessions');
     expect(prose).toContain('Wrong measure column');
     expect(markup).toContain('href="/runs?trace=conv-1"');
@@ -115,6 +117,6 @@ describe('Genie accuracy diagnostics', () => {
     expect(prose).toContain('Run partial suite');
     expect(prose).toContain('matching · executed-result equivalence');
     expect(prose).toContain('1 of 2 selected cases are missing SQL');
-    expect(prose).toContain('Re-run last suite');
+    expect(prose).not.toContain('Re-run last suite');
   });
 });

@@ -11,9 +11,9 @@ import {
   BenchmarkFailurePane,
   BenchmarkJudgesStage,
 } from './BenchmarkLabOps';
-import { gateChip, humanReviewedCaption, investigationCases } from './benchmark-lab-ops';
+import { gateChip, genieLanePair, humanReviewedCaption, investigationCases, spanTreeFromCase } from './benchmark-lab-ops';
 import { compareBakeOff, gatesSummary, judgeNeedTags } from '../../shared/benchmark-bakeoff';
-import { STAGE_04_CAPTIONS } from '../../shared/benchmark-lab-v3';
+import { MATCHING_POLICY_FACT, MATCHING_POLICY_ID, MATCHING_POLICY_REFERENCE, STAGE_04_CAPTIONS } from '../../shared/benchmark-lab-v3';
 
 const OPS = readFileSync(new URL('./BenchmarkLabOps.tsx', import.meta.url), 'utf8');
 const HELPERS = readFileSync(new URL('./benchmark-lab-ops.ts', import.meta.url), 'utf8');
@@ -45,19 +45,14 @@ describe('copy rules on the filled surfaces', () => {
 });
 
 describe('agent judges', () => {
-  it('omits the session tag unless multi-turn judges are on', () => {
+  it('always names the session-id tag on This run needs', () => {
     const off = judgeNeedTags({ enabledJudges: ['groundedness'], multiTurn: [], customCount: 0 });
-    const on = judgeNeedTags({
-      enabledJudges: ['groundedness'],
-      multiTurn: ['conversation_completeness'],
-      customCount: 0,
-    });
-    const without = renderToStaticMarkup(
+    const markup = renderToStaticMarkup(
       <BenchmarkJudgesStage
         judges={['groundedness']}
         needTags={off}
         running={false}
-        progress={null}
+        progress="run_058 candidate in progress · case 12 of 20"
         hasCandidate
         threadNote={null}
         onRunBaseline={() => undefined}
@@ -67,23 +62,10 @@ describe('agent judges', () => {
         onRetryFailed={() => undefined}
       />,
     );
-    const withSession = renderToStaticMarkup(
-      <BenchmarkJudgesStage
-        judges={['groundedness']}
-        needTags={on}
-        running={false}
-        progress={null}
-        hasCandidate
-        threadNote={null}
-        onRunBaseline={() => undefined}
-        onRunCandidate={() => undefined}
-        onScoreSession={() => undefined}
-        onCancel={() => undefined}
-        onRetryFailed={() => undefined}
-      />,
-    );
-    expect(readable(without)).not.toContain('SESSION ID FOR MULTI-TURN');
-    expect(readable(withSession)).toContain('SESSION ID FOR MULTI-TURN');
+    const prose = readable(markup);
+    expect(prose).toContain('SESSION ID FOR MULTI-TURN');
+    expect(prose).toContain('run_058 candidate in progress · case 12 of 20');
+    expect(markup).toMatch(/bench-run-progress[\s\S]*Cancel/);
   });
 });
 
@@ -103,11 +85,10 @@ describe('apply captions stay honest', () => {
           rollback="No earlier promote to roll back to."
           applying={false}
           applyNote={null}
+          applyPreview="Candidate run_057 · dataset ds_v003 · prompts:/ask@production"
           canApply={false}
-          canRollback={false}
           onApply={() => undefined}
           onViewRollback={() => undefined}
-          onRollback={() => undefined}
         />,
       ),
     );
@@ -126,10 +107,11 @@ describe('apply captions stay honest', () => {
     expect(gateChip(null, 0, 0)).toContain('no numeric gates set');
   });
 
-  it('keeps View rollback path as inspection and Rollback as the destructive control', () => {
+  it('keeps View rollback path as inspection and does not mount a Rollback button', () => {
     const prose = apply('prompt_registry');
     expect(prose).toContain('View rollback path');
-    expect(prose).toContain('Rollback');
+    expect(prose).toContain('Candidate run_057 · dataset ds_v003');
+    expect(prose).not.toMatch(/\bRollback\b/);
     const viewHandler = OPS.slice(OPS.indexOf('const viewRollback'), OPS.indexOf('const rollbackAsk'));
     expect(viewHandler).not.toContain('rollbackPromotedAsk');
     expect(viewHandler).toContain('rollbackCaption');
@@ -148,7 +130,7 @@ describe('run comparison', () => {
       <BenchmarkBakeOffSurface
         comparison={comparison}
         history={[]}
-        genieNote="Last space snapshot, same on both sides. Not a per-side Genie score."
+        genieNote="One Genie suite is recorded. Run another after changing the space or instructions to compare."
         coverageNote="0 human-reviewed"
         onExport={() => undefined}
         onCopyPermalink={() => undefined}
@@ -160,7 +142,8 @@ describe('run comparison', () => {
     expect(prose).toContain('Agent lane');
     expect(prose).toContain('Trace lane');
     expect(prose).toContain('No composite score');
-    expect(prose).toContain('Last space snapshot, same on both sides');
+    expect(prose).toContain('One Genie suite is recorded');
+    expect(prose).not.toContain('same on both sides');
     expect(html).not.toMatch(/—/);
     expect(JSON.stringify(comparison)).not.toMatch(/composite/i);
     expect(gatesSummary(comparison).label).toMatch(/gates/i);
@@ -176,7 +159,7 @@ describe('run comparison', () => {
 
   it('refetches flywheel after a Genie suite, not only after agent runs', () => {
     expect(OPS).toContain('input.lastGenieRun?.id');
-    expect(OPS).toContain('genieLaneFromRun(input.lastGenieRun ?? null)');
+    expect(OPS).toContain('genieLanePair');
   });
 });
 
@@ -194,6 +177,8 @@ describe('failure investigation', () => {
             sessionId: '',
             rationale: 'Fix the semantic index entry for game_mode.',
             provisional: true,
+            answerId: '',
+            spans: [],
           },
         ]}
         selectedId="case_1"
@@ -215,6 +200,8 @@ describe('failure investigation', () => {
             sessionId: 'sess-1',
             rationale: 'Fix the semantic index entry for game_mode.',
             provisional: false,
+            answerId: 'ans-9',
+            spans: [],
           },
         ]}
         selectedId="case_1"
@@ -239,5 +226,66 @@ describe('failure investigation', () => {
       { caseId: 'd', question: 'D', outcome: 'passed', note: 'provisional' },
     ]);
     expect(cases.map((row) => row.id)).toEqual(['a', 'c', 'd']);
+  });
+
+  it('builds a per-case span tree from duration and stages, never a fake suite DAG', () => {
+    const spans = spanTreeFromCase({
+      caseId: 'case_9',
+      durationMs: 1200,
+      tokens: 40,
+      outcome: 'failed',
+      stages: [{ id: 's1', name: 'warehouse', kind: 'SQL', status: 'ok' }],
+      judgements: [{ name: 'groundedness', durationMs: 80, rationale: 'Fix the index.' }],
+    });
+    expect(spans.some((span) => span.kind === 'AGENT' && span.durationMs === 1200)).toBe(true);
+    expect(spans.some((span) => span.kind === 'SQL')).toBe(true);
+    expect(spans.some((span) => span.kind === 'LLM' && span.durationMs === 80)).toBe(true);
+    expect(spans.every((span) => span.cost == null)).toBe(true);
+    expect(spanTreeFromCase({ caseId: 'empty' })).toEqual([]);
+  });
+});
+
+describe('Genie lane pairing', () => {
+  it('does not copy one snapshot onto both sides', () => {
+    const one = genieLanePair({
+      lastRun: {
+        id: 'run_g1',
+        spaceId: 'space-a',
+        spaceLabel: 'Player data',
+        startedAt: '2026-08-26T18:00:00.000Z',
+        finishedAt: '2026-08-26T18:00:12.500Z',
+        suiteKind: 'complete',
+        datasetVersion: 'ds_v001',
+        matchingPolicyId: MATCHING_POLICY_ID,
+        matchingPolicyFact: MATCHING_POLICY_FACT,
+        matchingPolicyHref: MATCHING_POLICY_REFERENCE,
+        score: { passed: 8, total: 10, percent: 80, label: '8/10', excluded: 0 },
+        cases: [],
+      },
+      history: [],
+    });
+    expect(one?.candidate.accuracy).toBe(0.8);
+    expect(one?.baseline.accuracy).toBeNull();
+    expect(one?.candidate.note).toContain('One Genie suite is recorded');
+
+    const two = genieLanePair({
+      lastRun: one!.candidate.note ? {
+        id: 'run_g2',
+        spaceId: 'space-a',
+        spaceLabel: 'Player data',
+        startedAt: '2026-08-26T19:00:00.000Z',
+        finishedAt: '2026-08-26T19:00:10.000Z',
+        suiteKind: 'complete',
+        datasetVersion: 'ds_v001',
+        matchingPolicyId: MATCHING_POLICY_ID,
+        matchingPolicyFact: MATCHING_POLICY_FACT,
+        matchingPolicyHref: MATCHING_POLICY_REFERENCE,
+        score: { passed: 9, total: 10, percent: 90, label: '9/10', excluded: 0 },
+        cases: [],
+      } : null,
+      history: [{ at: '2026-08-25T12:00:00.000Z', spaceId: 'space-a', percent: 80, passed: 8, scored: 10 }],
+    });
+    expect(two?.baseline.accuracy).toBe(0.8);
+    expect(two?.candidate.accuracy).toBe(0.9);
   });
 });

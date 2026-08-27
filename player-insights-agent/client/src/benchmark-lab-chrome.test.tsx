@@ -90,7 +90,9 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
       passGates: 'No numeric thresholds set. Regressions are always shown.',
       scorerSet: 'ss-1 · 0 active · 0 not applicable',
       target: 'Prompt Registry · not set',
-      snapshotHref: '/benchmarking',
+      snapshotHref: '#lab-snapshot',
+      snapshotDetail: 'No configuration snapshot is saved until a judge run starts. This link stays on the Lab.',
+      heldOutLocked: false,
     });
     expect(cells).toHaveLength(6);
     expect(cells[2]?.value).toBe('- / -');
@@ -111,6 +113,8 @@ describe('Benchmark Lab v3 chrome, rendered', () => {
     expect(prose).toContain('Retry failed cases');
     expect(prose).toContain('Connections unchanged');
     expect(prose).toContain('Prompt Registry moves the production alias');
+    expect(markup).toContain('href="#lab-snapshot"');
+    expect(prose).not.toContain('Rollback');
   });
 });
 

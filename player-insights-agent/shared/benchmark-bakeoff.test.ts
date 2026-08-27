@@ -92,18 +92,6 @@ describe('promote target captions', () => {
 });
 
 describe('judge needs and live progress', () => {
-  it('asks for a session id only when a multi-turn judge is on', () => {
-    expect(judgeNeedTags({ enabledJudges: ['groundedness'], multiTurn: [], customCount: 0 }).map((tag) => tag.id)).toEqual([
-      'response',
-      'trace',
-    ]);
-    expect(
-      judgeNeedTags({ enabledJudges: ['groundedness'], multiTurn: ['user_frustration'], customCount: 0 }).map(
-        (tag) => tag.id
-      )
-    ).toContain('session');
-  });
-
   it('states case n of m while a run is going', () => {
     expect(
       liveRunProgress({
@@ -113,7 +101,15 @@ describe('judge needs and live progress', () => {
         total: 20,
         inProgress: true,
       })
-    ).toBe('run_058a candidate in progress · case 12 of 20');
+    ).toBe('run_058abcdef candidate in progress · case 12 of 20');
+  });
+
+  it('always names the session-id tag, even when multi-turn judges are off', () => {
+    expect(judgeNeedTags({ enabledJudges: ['groundedness'], multiTurn: [], customCount: 0 }).map((tag) => tag.id)).toEqual([
+      'response',
+      'trace',
+      'session',
+    ]);
   });
 });
 

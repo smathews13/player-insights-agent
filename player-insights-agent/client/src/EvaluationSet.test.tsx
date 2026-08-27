@@ -116,11 +116,21 @@ describe('Evaluation set', () => {
   });
 
   it('names stage 01 actions the spec uses', () => {
-    const prose = readable(renderToStaticMarkup(<CurateStageControls lab={model(workspace([]))} />));
+    const markup = renderToStaticMarkup(<CurateStageControls lab={model(workspace([]))} />);
+    const prose = readable(markup);
     expect(prose).toContain('Import from Ask and Monitoring traces');
     expect(prose).toContain('New dataset version');
     expect(prose).toContain('Assign tuning / held-out split');
     expect(prose).toContain('Open reviewer queue');
     expect(prose).toContain('Duplicate as edge case');
+    expect(markup).toContain('bench-chip');
+  });
+
+  it('renders tags as capsules and per-case guidelines in the editor', () => {
+    const markup = renderToStaticMarkup(
+      <EvaluationSet lab={model(workspace([row({ id: 'case_001', question: 'How many active players?' })]), { expandedId: 'case_001' })} />
+    );
+    expect(markup).toContain('bench-tag-capsule');
+    expect(readable(markup)).toContain('Per-case guidelines');
   });
 });

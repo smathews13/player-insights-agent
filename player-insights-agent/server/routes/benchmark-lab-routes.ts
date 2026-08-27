@@ -20,7 +20,7 @@ import {
 import { EvalRowSchema, extraJudgesFromSettings, labeledRowCount, newEvalRowId, uniqueQuestionsToAdd } from '../../shared/eval-dataset';
 import { recordAdminAction } from '../lib/admin-roles';
 import { readBenchmarkSettings, writeBenchmarkSettings } from '../lib/benchmark-settings-store';
-import { patchLabState, readLabState } from '../lib/benchmark-lab-store';
+import { patchLabState, readLabState, snapshotWorkingCopy } from '../lib/benchmark-lab-store';
 import { readEvalDataset, readEvalDatasetEnvelope, writeEvalDataset } from '../lib/eval-dataset-store';
 import { patchFlywheelState, readFlywheelState } from '../lib/eval-flywheel-store';
 import { alignGuidelinesToHumans, loadCasesForAlignment } from '../lib/judge-alignment';
@@ -171,7 +171,7 @@ async function writeCases(
     ].slice(0, 200);
   }
   const dataset = await writeEvalDataset(appkit, { rows: next.map(asEvalRow) }, actor);
-  const saved = heldOutAudit !== state.heldOutAudit ? await patchLabState(appkit, { heldOutAudit }, actor) : state;
+  const saved = await snapshotWorkingCopy(appkit, dataset.rows, actor, { heldOutAudit });
   return { dataset, state: saved };
 }
 
@@ -335,7 +335,8 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
             tag: 'edge_case',
           })
         );
-        const dataset = await writeEvalDataset(appkit, { rows: [...current.rows, ...added] }, actor);
+        const next = [...current.rows.map(labCaseFromRow), ...added.map(labCaseFromRow)];
+        const { dataset } = await writeCases(appkit, next, actor, { audit: false });
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-dataset-curated',
