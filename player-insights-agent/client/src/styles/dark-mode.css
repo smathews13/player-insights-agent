@@ -351,6 +351,7 @@ html[data-theme='dark'] .monitoring-tile,
 html[data-theme='dark'] .monitoring-filters .monitoring-search input,
 html[data-theme='dark'] .monitoring-list-pane,
 html[data-theme='dark'] .ops-block,
+html[data-theme='dark'] .ops-stop-all,
 html[data-theme='dark'] .ops-block-failed,
 html[data-theme='dark'] .ops-absence,
 html[data-theme='dark'] .arch-flow,
@@ -1017,23 +1018,6 @@ html[data-theme='dark'] .monitoring-search-clear:hover {
 }
 
 /*
- * The roster's role chips, which were written as literals rather than as tokens
- * and so could not follow the palette anywhere.
- *
- * #46596B is the astrolabe neutral ink and #DDEAF4/#0E538B the info pair, all
- * three typed by hand into settings.css. On the dark modal the neutral chip is
- * ink on ink, and the super-admin chip is the one bright object in a dark pane --
- * the same loudness the header's own Super admin pill was corrected for, so it is
- * corrected the same way and for the same reason.
- */
-html[data-theme='dark'] .roster-role-chip,
-html[data-theme='dark'] .roster-role-chip-super-admin {
-  background: var(--card);
-  border-color: var(--ast-border-input);
-  color: var(--foreground);
-}
-
-/*
  * ============================================================================
  * THE MARKS IN AN ANSWER, ON THE NIGHT SKY.
  * ============================================================================
@@ -1201,6 +1185,7 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive']:hover:n
   html[data-theme='dark'] .monitoring-filters .monitoring-search input,
   html[data-theme='dark'] .monitoring-list-pane,
   html[data-theme='dark'] .ops-block,
+  html[data-theme='dark'] .ops-stop-all,
   html[data-theme='dark'] .ops-block-failed,
   html[data-theme='dark'] .ops-absence,
   html[data-theme='dark'] .trace-dag.map .dag-detail,

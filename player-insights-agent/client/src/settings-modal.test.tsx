@@ -9,6 +9,7 @@ import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
 const FEATURES = { benchmarkLab: false, egressControls: true };
+const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 
 function render(
   section: 'roles' | 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental' = 'runtime',
@@ -106,6 +107,18 @@ describe('Settings modal', () => {
     expect(markup).not.toContain('PII egress judge ·');
     expect(markup).not.toContain('SP identities ·');
     expect(markup).not.toContain('Benchmarking ·');
+  });
+
+  it('aligns every Experimental row through table cells and one control wrapper', () => {
+    const markup = render('experimental');
+    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(4);
+    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(4);
+    expect(SETTINGS_STYLES).toMatch(
+      /\.exp-feature-table th,\s*\.exp-feature-table td \{[^}]*border-bottom:\s*1px solid var\(--border\)/
+    );
+    expect(SETTINGS_STYLES).toMatch(/\.exp-feature-control-inner \{[^}]*display:\s*flex/);
+    expect(SETTINGS_STYLES).toMatch(/\.exp-feature-control \{[^}]*text-align:\s*right/);
+    expect(SETTINGS_STYLES).not.toMatch(/\.exp-feature-control \{[^}]*display:\s*(?:inline-)?flex/);
   });
 
   it('puts a small Experimental badge on each Experimental feature row, not the word in the title', () => {

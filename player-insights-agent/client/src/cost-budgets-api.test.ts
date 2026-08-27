@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
-import { costBudgetNotice } from './CostBudgets';
+import { CostBudgetApplyButton, costBudgetNotice } from './CostBudgets';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad } from './settings-save-state';
 
 function json(body: unknown, status = 200): Response {
@@ -43,25 +45,39 @@ describe('cost budget API responses', () => {
   });
 });
 
-describe('Cost budget Save copy', () => {
+describe('Cost budget Apply copy', () => {
   it('confirms a save without claiming the next ask uses it', () => {
     expect(costBudgetNotice(SETTINGS_SAVE_IDLE)).toBeNull();
-    expect(costBudgetNotice({ kind: 'saved' })).toEqual({ tone: 'ok', text: 'Saved.' });
+    expect(costBudgetNotice({ kind: 'saved' })).toEqual({ tone: 'ok', text: 'Applied.' });
     expect(costBudgetNotice({ kind: 'failed', message: 'The endpoint answered 503.' })).toEqual({
       tone: 'error',
       text: 'The endpoint answered 503.',
     });
   });
+
+  it('shows truthful per-button states and the Astrolabe flicker only while applying', () => {
+    const markup = (state: Parameters<typeof CostBudgetApplyButton>[0]['state']) =>
+      renderToStaticMarkup(createElement(CostBudgetApplyButton, { state }));
+    expect(markup(SETTINGS_SAVE_IDLE)).toContain('>Apply</button>');
+    expect(markup({ kind: 'saving' })).toContain('Applying');
+    expect(markup({ kind: 'saving' })).toContain('ast-flick-slot--button');
+    expect(markup({ kind: 'saving' })).toContain('disabled');
+    expect(markup({ kind: 'saved' })).toContain('Applied');
+    expect(markup({ kind: 'failed', message: 'no' })).toContain('Failed');
+    expect(markup({ kind: 'failed', message: 'no' })).not.toContain('ast-flick-slot--button');
+  });
 });
 
-describe('Cost budget Save-retry', () => {
+describe('Cost budget Apply-retry', () => {
   const source = readFileSync(new URL('CostBudgets.tsx', import.meta.url), 'utf8');
 
   it('uses the reload result after Save retries a failed load, not the stale failure', () => {
     expect(source).toContain('const result = await loadCostBudgets()');
-    expect(source).toContain('setSaveState(saveRetryAfterLoad(result))');
+    expect(source).toContain('saveRetryAfterLoad(result)');
     expect(source).not.toContain("state === 'failed'");
     expect(source).not.toContain('type="number"');
     expect(source).toContain('inputMode="decimal"');
+    expect(source).toContain('withResourceBudget(base, control.tileId');
+    expect(source).toContain('withTotalBudget(base, budgets.total)');
   });
 });

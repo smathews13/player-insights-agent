@@ -73,6 +73,11 @@ import { readOrchestratorReport } from './settings-routes';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { readCostBudgets } from '../lib/cost-budgets-store';
 import { sqlQueryTags } from '../lib/sql-query-tags';
+import {
+  isDataContractFallback,
+  listDeclarableTablesInSchema,
+  unionTableNames,
+} from '../lib/declared-tables';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import type {
@@ -649,7 +654,8 @@ async function readAppMeasurement(req: Request, insightsHref: string): Promise<A
  */
 async function readDependencies(
   appkit: InsightsAppKit,
-  req: Request
+  req: Request,
+  fetchImpl?: typeof fetch
 ): Promise<{ rows: HealthDependency[]; reason: string; checkedAt: string }> {
   try {
     const [{ report }, stored] = await Promise.all([
@@ -658,12 +664,31 @@ async function readDependencies(
     ]);
     const states = resourceStates({ report, environment: appEnvironment(), stored });
     const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured]));
+    const configuration = report?.configuration ?? [];
+    let tables = accessDependenciesFrom({ configuration, env: process.env }).tables;
+    const catalog = configured.catalog ?? '';
+    const schema = configured.schema ?? '';
+    const manifest = configuration.find((entry) => entry.key === 'declared_manifest');
+    if (manifest?.source === 'data-contract' || isDataContractFallback(tables, catalog, schema)) {
+      const denylistEntry = configuration.find((entry) => entry.key === 'catalog_denylist');
+      const denylist = Array.isArray(denylistEntry?.value)
+        ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean)
+        : typeof denylistEntry?.value === 'string'
+          ? denylistEntry.value.split(',').map((item) => item.trim()).filter(Boolean)
+          : [];
+      const listed = await listDeclarableTablesInSchema({
+        catalog,
+        schema,
+        host: host(),
+        token: executionToken(req) ?? '',
+        denylist,
+        fetchImpl,
+      });
+      if (listed.length > tables.length) tables = unionTableNames(tables, listed);
+    }
     const checks = await probeConnections({
       configured,
-      tables: accessDependenciesFrom({
-        configuration: report?.configuration,
-        env: process.env,
-      }).tables,
+      tables,
       host: host(),
       token: executionToken(req),
       principal: userEmail(req) || '',
@@ -946,7 +971,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // Independent of each other as well as of the other blocks: a telemetry
         // grant nobody has made must not stop the dependency rows rendering.
         const [dependencies, appMeasurement, lakebase] = await Promise.all([
-          readDependencies(appkit, req),
+          readDependencies(appkit, req, deps.fetchImpl),
           readAppMeasurement(req, insightsHref).catch((error: Error) =>
             uncheckedMeasurement(insightsHref, `reading it threw: ${error.message}.`)
           ),

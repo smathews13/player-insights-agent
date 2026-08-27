@@ -71,13 +71,7 @@ export function ResourceTagResults({ summary }: { summary: TagSummary }) {
   );
 }
 
-export function ResourceTagsApplyButton({
-  running,
-  onClick,
-}: {
-  running: boolean;
-  onClick?: () => void;
-}) {
+export function ResourceTagsApplyButton({ running, onClick }: { running: boolean; onClick?: () => void }) {
   return (
     <Button variant="outline" type="button" disabled={running} aria-busy={running} onClick={onClick}>
       {running ? <ConceptFlicker seat="button" /> : null}
@@ -114,7 +108,7 @@ export function ResourceTagsPanel() {
 
   return (
     <tr className="settings-resource-tags">
-      <td>
+      <td className="exp-feature-status">
         <ExperimentalFeatureName>Astrolabe resource tags</ExperimentalFeatureName>
         <p className="settings-row-note">
           <code>system_billing=astrolabe</code>
@@ -136,7 +130,9 @@ export function ResourceTagsPanel() {
         </span>
       </td>
       <td className="exp-feature-control">
-        <ResourceTagsApplyButton running={running} onClick={() => void apply()} />
+        <div className="exp-feature-control-inner">
+          <ResourceTagsApplyButton running={running} onClick={() => void apply()} />
+        </div>
       </td>
     </tr>
   );

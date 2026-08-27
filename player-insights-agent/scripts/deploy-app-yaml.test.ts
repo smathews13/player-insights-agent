@@ -6,6 +6,8 @@ import { envNames, renderDeployAppYaml } from './deploy-app-yaml.mjs';
 
 const repoRoot = path.resolve(__dirname, '..');
 const authored = readFileSync(path.join(repoRoot, 'app.yaml'), 'utf8');
+const bundleServer = readFileSync(path.join(repoRoot, 'scripts', 'bundle-server.mjs'), 'utf8');
+const appRelease = readFileSync(path.join(repoRoot, '..', 'bundle', 'app-release.sh'), 'utf8');
 
 /** The deviations bundle-server.mjs applies. Kept here so the tests exercise the real shape. */
 const DEPLOY_OVERRIDES = {
@@ -194,6 +196,7 @@ describe('every authored variable reaches the deploy target', () => {
       'PLAYER_INSIGHTS_SCHEMA',
       'PLAYER_INSIGHTS_DATA_GENIE_ID',
       'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
+      'PLAYER_INSIGHTS_LLM_ENDPOINT',
     ]) {
       expect(envNames(authored)).toContain(name);
       const authoredValue = new RegExp(`- name: ${name}\\n\\s+value: '?([^'\\n]*)'?`).exec(authored)?.[1] ?? 'MISSING';
@@ -210,13 +213,24 @@ describe('every authored variable reaches the deploy target', () => {
         { name: 'PLAYER_INSIGHTS_SCHEMA', value: "'example_schema'" },
         { name: 'PLAYER_INSIGHTS_DATA_GENIE_ID', value: "'space-data'" },
         { name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: "'space-dict'" },
+        { name: 'PLAYER_INSIGHTS_LLM_ENDPOINT', value: "'databricks-claude-sonnet-4-6'" },
       ],
     });
     expect(generated).toContain("name: PLAYER_INSIGHTS_CATALOG\n    value: 'example_catalog'");
     expect(generated).toContain("name: PLAYER_INSIGHTS_SCHEMA\n    value: 'example_schema'");
     expect(generated).toContain("name: PLAYER_INSIGHTS_DATA_GENIE_ID\n    value: 'space-data'");
     expect(generated).toContain("name: PLAYER_INSIGHTS_DICTIONARY_GENIE_ID\n    value: 'space-dict'");
+    expect(generated).toContain(
+      "name: PLAYER_INSIGHTS_LLM_ENDPOINT\n    value: 'databricks-claude-sonnet-4-6'"
+    );
     expect(generated.match(/name: PLAYER_INSIGHTS_CATALOG/g)).toHaveLength(1);
+  });
+
+  it('carries the bundle foundation model into a target release without baking it into public source', () => {
+    expect(bundleServer).toContain("process.env.PLAYER_INSIGHTS_LLM_ENDPOINT");
+    expect(bundleServer).toContain("name: 'PLAYER_INSIGHTS_LLM_ENDPOINT'");
+    expect(appRelease).toContain('LLM_ENDPOINT="$(bundle_var llm_endpoint)"');
+    expect(appRelease).toContain('PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT"');
   });
 
   it('carries no administrator address in the authored file', () => {

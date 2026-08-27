@@ -20,20 +20,11 @@
  * to billing is a separate request to a metastore admin, and it is not a condition
  * of the role, so it is no longer on this screen.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Lock, Trash2, UserPlus } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from './ui';
 import { CopyableCommand } from './AdminListEditor';
-import {
-  canSubmit,
-  originLabel,
-  roleWord,
-  rosterSummary,
-  rowLocked,
-  setOn,
-  stepsDownFrom,
-  type RosterEntry,
-} from './user-roster';
+import { canSubmit, roleWord, rosterSummary, rowLocked, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
 import { type Role, type RosterPayload } from '../../shared/user-roster-contract';
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
@@ -55,23 +46,15 @@ const ADDABLE_ROLES: readonly Role[] = ['admin', 'consumer'];
  */
 function RoleControl({
   entry,
-  payload,
   busy,
   onChange,
 }: {
   entry: RosterEntry;
-  payload: RosterPayload;
   busy: boolean;
   onChange: (entry: RosterEntry, role: Role) => void;
 }) {
-  const locked = rowLocked(entry, payload);
   if (entry.assignable.length === 0) {
-    return (
-      <p className="roster-row-locked">
-        {roleWord(entry.role)}
-        {locked ? <span className="roster-row-locked-why">{locked}</span> : null}
-      </p>
-    );
+    return <span className="ast-pill ast-pill--neutral-outline roster-role-status">{roleWord(entry.role)}</span>;
   }
   return (
     <AppSelect
@@ -100,15 +83,17 @@ export function RosterRows({
   busy,
   onChange,
   onRemove,
+  footer,
 }: {
   payload: RosterPayload;
   busy: boolean;
   onChange: (entry: RosterEntry, role: Role) => void;
   onRemove: (entry: RosterEntry) => void;
+  footer?: ReactNode;
 }) {
   return (
     <>
-      <p className="admin-list-note">{rosterSummary(payload)}</p>
+      <p className="admin-list-note roles-roster-summary">{rosterSummary(payload)}</p>
 
       {/* The way back into a deployment nobody can administer. Present only when
           nobody can act at all, which is the one state where there is nobody to
@@ -121,65 +106,65 @@ export function RosterRows({
         <CopyableCommand command={payload.pendingSchemaStatement} label="Add the role column" />
       ) : null}
 
-      <ul className="admin-list">
-        {payload.entries.map((entry) => (
-          <li key={entry.email} className="admin-row">
-            <div className="roster-grid">
-              <div className="admin-row-who">
-                <p className="admin-row-email">
-                  {entry.email}
-                  {entry.isYou ? <span className="admin-row-you">you</span> : null}
-                </p>
-                {entry.seedFloor !== 'consumer' ? (
-                  <span
-                    className="admin-row-origin admin-row-seed"
-                    title="Set at deployment. Edit the bundle variable to change it."
-                  >
-                    Seed
-                  </span>
-                ) : originLabel(entry) ? (
-                  <span className="admin-row-origin">
-                    {originLabel(entry)}
-                    {setOn(entry) ? ` on ${setOn(entry)}` : ''}
-                  </span>
-                ) : null}
-              </div>
-              <div className="roster-role">
-                {entry.assignable.length === 0 ? (
-                  <>
-                    <span
-                      className={`roster-control roster-role-chip roster-role-chip-${entry.role.replace('_', '-')}`}
-                    >
-                      {roleWord(entry.role)}
+      <div className="roster-frame">
+        <table className="settings-data-table roles-table">
+          <thead>
+            <tr>
+              <th scope="col">Email</th>
+              <th scope="col">Set by</th>
+              <th scope="col">Role</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payload.entries.map((entry) => {
+              const locked = rowLocked(entry, payload);
+              const setDate = setOn(entry);
+              return (
+                <tr key={entry.email} className="admin-row">
+                  <td className="roster-email">
+                    <span className="admin-row-email">
+                      {entry.email}
+                      {entry.isYou ? <span className="admin-row-you">you</span> : null}
                     </span>
-                    <Lock
-                      className="roster-row-lock"
-                      aria-label={rowLocked(entry, payload) || 'This row is immutable'}
-                    />
-                  </>
-                ) : (
-                  <RoleControl entry={entry} payload={payload} busy={busy} onChange={onChange} />
-                )}
-              </div>
-              <div className="roster-action">
-                {entry.canRemove ? (
-                  <Button
-                    variant="destructive"
-                    data-variant="destructive"
-                    className="roster-control settings-destructive"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => onRemove(entry)}
-                    aria-label={`Remove ${entry.email}`}
-                  >
-                    <Trash2 className="size-3.5" /> Remove
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+                  </td>
+                  <td className="roster-set-by">
+                    {entry.seedFloor !== 'consumer' ? (
+                      <span title="Set at deployment. Edit the bundle variable to change it.">Deployment</span>
+                    ) : (
+                      <>
+                        <span>{entry.setBy || '—'}</span>
+                        {setDate ? <time dateTime={entry.setAt}>{setDate}</time> : null}
+                      </>
+                    )}
+                  </td>
+                  <td className="roster-role">
+                    <RoleControl entry={entry} busy={busy} onChange={onChange} />
+                  </td>
+                  <td className="roster-action">
+                    {entry.canRemove ? (
+                      <Button
+                        variant="destructive"
+                        data-variant="destructive"
+                        className="roster-control settings-destructive"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => onRemove(entry)}
+                        aria-label={`Remove ${entry.email}`}
+                      >
+                        <Trash2 className="size-3.5" /> Remove
+                      </Button>
+                    ) : locked ? (
+                      <Lock className="roster-row-lock" aria-label={locked} />
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          {footer ? <tfoot>{footer}</tfoot> : null}
+        </table>
+      </div>
     </>
   );
 }
@@ -271,61 +256,67 @@ export function UserRoleEditor() {
           </p>
         ) : null}
 
-        <div className="roster-frame">
-          {payload ? (
-            <RosterRows
-              payload={payload}
-              busy={busy}
-              onChange={(entry, role) =>
-                void write({
-                  url: `/api/users/${encodeURIComponent(entry.email)}`,
-                  method: 'PATCH',
-                  body: { role },
-                  // The warning goes in the outcome line, before the panel this reader
-                  // is standing on disappears from under them.
-                  said: [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
-                    .filter(Boolean)
-                    .join(' '),
-                })
-              }
-              onRemove={(entry) =>
-                void write({
-                  url: `/api/users/${encodeURIComponent(entry.email)}`,
-                  method: 'DELETE',
-                  body: {},
-                  said: `${entry.email} is off the roster.`,
-                })
-              }
-            />
-          ) : null}
-
-          <div className="admin-add roster-grid">
-            <Input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="name@example.com"
-              aria-label="Email address to put on the roster"
-            />
-            <AppSelect
-              label="Role"
-              ariaLabel="Role to give them"
-              value={draftRole}
-              disabled={busy}
-              onValueChange={setDraftRole}
-              options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
-              className="roster-control roster-role-select"
-            />
-            <Button
-              variant="outline"
-              data-variant="outline"
-              className="roster-control"
-              disabled={!canSubmit(draft, busy)}
-              onClick={() => void add()}
-            >
-              <UserPlus className="size-3.5" /> Add
-            </Button>
-          </div>
-        </div>
+        {payload ? (
+          <RosterRows
+            payload={payload}
+            busy={busy}
+            onChange={(entry, role) =>
+              void write({
+                url: `/api/users/${encodeURIComponent(entry.email)}`,
+                method: 'PATCH',
+                body: { role },
+                // The warning goes in the outcome line, before the panel this reader
+                // is standing on disappears from under them.
+                said: [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
+                  .filter(Boolean)
+                  .join(' '),
+              })
+            }
+            onRemove={(entry) =>
+              void write({
+                url: `/api/users/${encodeURIComponent(entry.email)}`,
+                method: 'DELETE',
+                body: {},
+                said: `${entry.email} is off the roster.`,
+              })
+            }
+            footer={
+              <tr className="roster-add-row">
+                <td>
+                  <Input
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder="name@example.com"
+                    aria-label="Email address to put on the roster"
+                  />
+                </td>
+                <td className="roster-add-help">Added by you</td>
+                <td>
+                  <AppSelect
+                    label="Role"
+                    ariaLabel="Role to give them"
+                    value={draftRole}
+                    disabled={busy}
+                    onValueChange={setDraftRole}
+                    options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
+                    className="roster-control roster-role-select"
+                  />
+                </td>
+                <td className="roster-action">
+                  <Button
+                    variant="outline"
+                    data-variant="outline"
+                    className="roster-control"
+                    disabled={!canSubmit(draft, busy)}
+                    onClick={() => void add()}
+                  >
+                    <UserPlus className="size-3.5" /> Add
+                  </Button>
+                </td>
+              </tr>
+            }
+          />
+        ) : null}
 
         {/* One live region for both, because they are the same slot on screen and two
             regions would be two announcements for one action. */}

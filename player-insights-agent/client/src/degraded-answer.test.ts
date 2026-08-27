@@ -269,12 +269,12 @@ describe('an answer carrying prose and nothing else', () => {
     expect(notice.badge).not.toBe(ANSWER_FALLBACK_NOTICES['degraded-data'].badge);
   });
 
-  it('is still the agent reporting a fallback when one section survived', () => {
-    // A Genie space that refused half the question leaves real figures on the
-    // card. That is the agent's own report and must keep its own wording.
-    expect(answerFallback({ ...proseOnly, figures: [{ label: 'Active', value: 1 }] })).toBe('degraded-data');
-    expect(answerFallback({ ...proseOnly, sources: [{ name: 'main.player_insights.x' }] })).toBe('degraded-data');
-    expect(answerFallback({ ...proseOnly, sql: 'SELECT 1' })).toBe('degraded-data');
+  it('does not relabel successful live evidence as fallback data when another step failed', () => {
+    // Partial and Keep in mind already disclose the failed step. These sections
+    // came from this run and retain their own SQL/source provenance.
+    expect(answerFallback({ ...proseOnly, figures: [{ label: 'Active', value: 1 }] })).toBeNull();
+    expect(answerFallback({ ...proseOnly, sources: [{ name: 'main.player_insights.x' }] })).toBeNull();
+    expect(answerFallback({ ...proseOnly, sql: 'SELECT 1' })).toBeNull();
   });
 
   it('names a run that took steps and still produced no result, rather than claiming nothing ran', () => {

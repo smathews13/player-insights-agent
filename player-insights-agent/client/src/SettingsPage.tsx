@@ -279,21 +279,19 @@ export function SettingsPage({
                         <td>
                           <ExperimentalFeatureName>PII egress judge</ExperimentalFeatureName>
                         </td>
-                        <td>
-                          <ExperimentalStatus
-                            on={showsEgressControls(features)}
-                            onLabel="Shown"
-                            offLabel="Hidden"
-                          />
+                        <td className="exp-feature-status">
+                          <ExperimentalStatus on={showsEgressControls(features)} onLabel="Shown" offLabel="Hidden" />
                         </td>
                         <td className="exp-feature-control">
-                          <Switch
-                            checked={showsEgressControls(features)}
-                            onCheckedChange={(enabled) => {
-                              setFeature('egressControls', enabled);
-                            }}
-                            aria-label="Show the egress controls on this page"
-                          />
+                          <div className="exp-feature-control-inner">
+                            <Switch
+                              checked={showsEgressControls(features)}
+                              onCheckedChange={(enabled) => {
+                                setFeature('egressControls', enabled);
+                              }}
+                              aria-label="Show the egress controls on this page"
+                            />
+                          </div>
                         </td>
                       </tr>
                       <tr>
@@ -305,45 +303,47 @@ export function SettingsPage({
                             </p>
                           ) : null}
                         </td>
-                        <td>
+                        <td className="exp-feature-status">
                           <ExperimentalStatus on={spIdentityEnabled} onLabel="On" offLabel="Off" />
                         </td>
                         <td className="exp-feature-control">
-                          {spIdentityEnabled ? (
-                            <button
-                              type="button"
-                              className="settings-identity-link"
-                              data-testid="sp-identity-settings-link"
-                              onClick={() => {
-                                setActive('identity');
-                                setSaveState(SETTINGS_SAVE_IDLE);
+                          <div className="exp-feature-control-inner">
+                            {spIdentityEnabled ? (
+                              <button
+                                type="button"
+                                className="settings-identity-link"
+                                data-testid="sp-identity-settings-link"
+                                onClick={() => {
+                                  setActive('identity');
+                                  setSaveState(SETTINGS_SAVE_IDLE);
+                                }}
+                              >
+                                Identity
+                              </button>
+                            ) : null}
+                            <Switch
+                              checked={spIdentityEnabled}
+                              disabled={spModeBusy}
+                              onCheckedChange={(enabled) => {
+                                const previous = spIdentityEnabled;
+                                setSpModeError(null);
+                                setSpIdentityEnabled(enabled);
+                                setSpModeBusy(true);
+                                void persistSpIdentityMode(enabled)
+                                  .then((payload) => setSpIdentityEnabled(spIdentityEnabledFromPayload(payload)))
+                                  .catch((caught: unknown) => {
+                                    setSpIdentityEnabled(previous);
+                                    setSpModeError(
+                                      caught instanceof Error
+                                        ? caught.message
+                                        : 'The experimental pivot could not be saved. Questions still use OAuth.'
+                                    );
+                                  })
+                                  .finally(() => setSpModeBusy(false));
                               }}
-                            >
-                              Identity
-                            </button>
-                          ) : null}
-                          <Switch
-                            checked={spIdentityEnabled}
-                            disabled={spModeBusy}
-                            onCheckedChange={(enabled) => {
-                              const previous = spIdentityEnabled;
-                              setSpModeError(null);
-                              setSpIdentityEnabled(enabled);
-                              setSpModeBusy(true);
-                              void persistSpIdentityMode(enabled)
-                                .then((payload) => setSpIdentityEnabled(spIdentityEnabledFromPayload(payload)))
-                                .catch((caught: unknown) => {
-                                  setSpIdentityEnabled(previous);
-                                  setSpModeError(
-                                    caught instanceof Error
-                                      ? caught.message
-                                      : 'The experimental pivot could not be saved. Questions still use OAuth.'
-                                  );
-                                })
-                                .finally(() => setSpModeBusy(false));
-                            }}
-                            aria-label="Run assigned people as their service principal"
-                          />
+                              aria-label="Run assigned people as their service principal"
+                            />
+                          </div>
                         </td>
                       </tr>
                       <ResourceTagsPanel />
@@ -351,19 +351,17 @@ export function SettingsPage({
                         <td>
                           <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
                         </td>
-                        <td>
-                          <ExperimentalStatus
-                            on={showsBenchmarkLab(features)}
-                            onLabel="Shown"
-                            offLabel="Hidden"
-                          />
+                        <td className="exp-feature-status">
+                          <ExperimentalStatus on={showsBenchmarkLab(features)} onLabel="Shown" offLabel="Hidden" />
                         </td>
                         <td className="exp-feature-control">
-                          <Switch
-                            checked={showsBenchmarkLab(features)}
-                            onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
-                            aria-label="Show Benchmarking tab"
-                          />
+                          <div className="exp-feature-control-inner">
+                            <Switch
+                              checked={showsBenchmarkLab(features)}
+                              onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
+                              aria-label="Show Benchmarking tab"
+                            />
+                          </div>
                         </td>
                       </tr>
                     </tbody>

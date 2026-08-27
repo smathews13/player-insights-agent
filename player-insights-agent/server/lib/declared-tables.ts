@@ -21,9 +21,6 @@ export const PAYLOAD_TABLE_SIGNATURE = new Set([
 
 export const UNDECLARABLE_SCHEMAS = new Set(['information_schema']);
 
-/** The Vector Search index object, which has its own Connections row. */
-export const SEMANTIC_LAYER_INDEX_TABLE = 'semantic_layer_index';
-
 export interface ListedTable {
   fullName: string;
   schemaName: string;
@@ -82,9 +79,6 @@ export function exclusionReason(
 ): string | null {
   if (UNDECLARABLE_SCHEMAS.has(table.schemaName)) {
     return `schema ${table.schemaName} is not declarable`;
-  }
-  if (table.shortName === SEMANTIC_LAYER_INDEX_TABLE) {
-    return 'Vector Search index, listed on its own row';
   }
   const pattern = denylistMatch(table.fullName, table.shortName, denylist);
   if (pattern) return `catalog_denylist pattern ${pattern}`;

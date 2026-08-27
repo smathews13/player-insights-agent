@@ -71,10 +71,15 @@ describe('Settings → Identity', () => {
       expect(markup).toContain(`placeholder="${field.placeholder}"`);
       expect(field.help.length).toBeLessThan(80);
     }
-    expect(markup).toContain('placeholder="Northwind warehouse"');
+    expect(markup).toContain('Name users will see for this persona.');
+    expect(markup).toContain('Application ID of the Databricks service principal.');
+    expect(markup).toContain('Secret scope containing its OAuth client secret.');
+    expect(markup).toContain('Key holding the OAuth client secret.');
+    expect(markup).toContain('placeholder="Analytics service principal"');
     expect(markup).toContain('placeholder="00000000-0000-4000-a000-000000000000"');
-    expect(markup).toContain('placeholder="astrolabe-sp"');
-    expect(markup).toContain('placeholder="oauth-client-secret"');
+    expect(markup).toContain('placeholder="my-app-secrets"');
+    expect(markup).toContain('placeholder="client-secret"');
+    expect(markup).not.toContain('Northwind warehouse');
     expect(markup).not.toContain('secrets stay in Databricks');
     expect(markup).not.toContain('Databricks Apps cannot mint a token');
     expect(markup).not.toMatch(/example|example-workspace|<app-service-principal-client-id>/i);
@@ -87,6 +92,9 @@ describe('Settings → Identity', () => {
     expect(markup).toContain('OAuth (signed-in user)');
     expect(markup).toContain(`aria-label="Persona for ada@example.com: Finance analyst"`);
     expect(markup).toContain(`aria-label="Persona for ben@example.com: OAuth (signed-in user)"`);
+    expect(markup).toContain('<th scope="col">Email</th>');
+    expect(markup).toContain('<th scope="col">Role</th>');
+    expect(markup).toContain('<th scope="col">Persona</th>');
     expect(UNASSIGNED_PERSONA).toBe('oauth');
     expect(UNASSIGNED_PERSONA).not.toBe('');
   });

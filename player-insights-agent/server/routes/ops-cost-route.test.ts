@@ -120,7 +120,7 @@ describe('the ranged cost route', () => {
         isAdminRoute: () => true,
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
-        readAppBillingTag: async () => 'matched',
+        readAppBillingTag: () => Promise.resolve('matched'),
       }
     );
 
@@ -243,7 +243,7 @@ describe('the ranged cost route', () => {
         isAdminRoute: () => true,
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
-        readAppBillingTag: async () => 'matched',
+        readAppBillingTag: () => Promise.resolve('matched'),
       }
     );
 
@@ -270,8 +270,9 @@ describe('the ranged cost route', () => {
       unavailable: 'No billing rows',
     });
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
-      unavailable: 'Billing tag matched',
-      remedy: 'system_billing=astrolabe is on this app.',
+      unavailable: 'No Apps billing rows matched this app in this range.',
+      note: 'system_billing=astrolabe is on this app; Apps billing is matched by app name.',
+      remedy: '',
     });
     expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
     expect(payload.budgets).toEqual({ total: 250, resources: { 'app-compute': 40 } });

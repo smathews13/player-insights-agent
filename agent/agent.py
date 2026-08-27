@@ -4255,7 +4255,12 @@ Tables actually read this run:
                     return _incomplete_synthesis(
                         findings,
                         has_readings=bool(log.readings),
-                        reason=f"The model that writes the answer was not reachable: {reason}.",
+                        reason=(
+                            "The final write-up could not finish after live data was retrieved: "
+                            f"{reason.rstrip('.')}. The partial results above come only from successful queries."
+                            if log.readings
+                            else f"The final write-up could not finish: {reason.rstrip('.')}."
+                        ),
                     )
             text = response.choices[0].message.content or ""
             span.set_outputs({"text": text[:6000], "structured_output": structured})

@@ -694,7 +694,7 @@ export const RUNS_QUERY = `
   SELECT r.run_id AS id, 'conversation' AS kind, r.conversation_id,
          q.content AS prompt,
          r.user_email AS stakeholder,
-         ${overlayStatusSql("'cancelled'")} AS status,
+         ${overlayStatusSql("'stopped'")} AS status,
          TRUE AS truncated,
          NULL::jsonb AS genie_spaces,
          GREATEST(0, ROUND(EXTRACT(EPOCH FROM (COALESCE(r.completed_at, r.updated_at) - r.created_at)) * 1000))::int

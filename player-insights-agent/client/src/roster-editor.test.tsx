@@ -118,11 +118,10 @@ describe('the #24a roster row', () => {
         }),
       ],
     });
-    expect(text(markup)).toContain(`${LEAD} you Seed Super admin`);
+    expect(text(markup)).toContain(`${LEAD} you Deployment Super admin`);
     expect(markup).toContain('title="Set at deployment. Edit the bundle variable to change it."');
-    expect(markup).toContain('roster-role-chip-super-admin');
-    expect(markup).toContain('roster-control');
-    expect(markup).toContain('roster-grid');
+    expect(markup).toContain('roster-role-status');
+    expect(markup).toContain('ast-pill--neutral-outline');
     expect(markup).toContain('roster-row-lock');
   });
 
@@ -158,13 +157,14 @@ describe('the #24a roster row', () => {
 describe('the #24a Roles geometry', () => {
   const css = partial('settings.css');
 
-  it('uses the 820px settings column and the pane-wide ruled row treatment', () => {
+  it('uses the 820px settings column and the pane-wide table treatment', () => {
     expect(css).toMatch(/\.settings-page \{[^}]*max-width:\s*820px/);
     expect(css).toMatch(/\.settings-page \{[^}]*padding:\s*24px 32px/);
     expect(css).toMatch(/\.settings-page \[data-slot='card'\] \{[^}]*border-radius:\s*8px/);
-    expect(css).toMatch(/\.admin-row \{[^}]*padding:\s*10px 0/);
-    expect(css).toMatch(/\.admin-row \+ \.admin-row \{[^}]*border-top:\s*1px solid var\(--border\)/);
-    expect(css).not.toMatch(/\.admin-row \{[^}]*(?:border|border-radius):/);
+    expect(css).toMatch(/\.settings-data-table th,\s*\.settings-data-table td \{[^}]*padding:\s*8px 10px/);
+    expect(css).toMatch(
+      /\.settings-data-table th,\s*\.settings-data-table td \{[^}]*border-bottom:\s*1px solid var\(--border\)/
+    );
     expect(css).toMatch(/\.admin-row-email \{[^}]*font-family:\s*var\(--font-mono\)/);
   });
 
@@ -173,9 +173,9 @@ describe('the #24a Roles geometry', () => {
     expect(css).not.toContain('.admin-access');
   });
 
-  it('keeps the add controls at 32px', () => {
-    expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*height:\s*32px/);
-    expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*height:\s*32px/);
+  it('keeps the add controls compact', () => {
+    expect(css).toMatch(/\.roster-add-row \[data-slot='input'\] \{[^}]*height:\s*30px/);
+    expect(css).toMatch(/\.roster-add-row \[data-slot='button'\] \{[^}]*height:\s*30px/);
   });
 
   /**
@@ -184,26 +184,27 @@ describe('the #24a Roles geometry', () => {
    * leftover flex gap sat between the name and the actions. One three-column
    * grid for every row and the Add line is the whole of the geometry.
    */
-  it('puts identity, role and action on one shared grid, including Add', () => {
-    expect(css).toMatch(
-      /\.roster-grid \{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(10\.5rem, max-content\) 5\.75rem/
-    );
-    expect(rows({ entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })] })).toContain(
-      'roster-grid'
-    );
+  it('puts email, setter, role and actions in a real table', () => {
+    const markup = rows({
+      entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
+    });
+    for (const heading of ['Email', 'Set by', 'Role', 'Actions']) {
+      expect(markup).toContain(`<th scope="col">${heading}</th>`);
+    }
 
     const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
-    expect(editor).toMatch(/className="admin-add roster-grid"/);
+    expect(editor).toContain('<tfoot>{footer}</tfoot>');
+    expect(editor).toContain('className="roster-add-row"');
     expect(editor).toContain('roster-frame');
   });
 
-  it('gives the address field the shrinking column and keeps role and action whole', () => {
+  it('keeps role and action controls compact within their columns', () => {
     expect(css).toMatch(/\.roster-role-select \{[^}]*flex:\s*0 0 auto/);
-    expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*15rem/);
+    expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*12rem/);
     expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*flex:\s*none/);
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
-    expect(css).toMatch(/\.admin-add \{[^}]*gap:\s*8px/);
-    expect(css).toMatch(/\.settings-page \[data-slot='card-content'\] \{[^}]*padding-inline:\s*16px/);
+    expect(css).toMatch(/\.roles-table th:last-child \{[^}]*text-align:\s*right/);
+    expect(css).toMatch(/\.roster-action \{[^}]*text-align:\s*right/);
   });
 
   /** The value in the trigger, so the closed control reads "Role · Admin" whole. */
@@ -428,8 +429,11 @@ describe("the controls are the app's own", () => {
     expect(base).toMatch(/\.app-select-trigger \{[^}]*border: 1px solid var\(--ast-border-input\)/);
   });
 
-  it('holds the locked line in the column the select would occupy', () => {
-    expect(css).toMatch(/\.roster-row-locked \{[^}]*text-align: left/);
+  it('puts the immutable-row lock in Actions', () => {
+    const markup = rows({ entries: [entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' })] });
+    const role = markup.indexOf('roster-role-status');
+    const lock = markup.indexOf('roster-row-lock');
+    expect(lock).toBeGreaterThan(role);
   });
 
   /**
@@ -439,9 +443,9 @@ describe("the controls are the app's own", () => {
    * Remove stays destructive by ink, not by a filled slab.
    */
   it('shares one quiet control language across the roster, with Remove as an outline', () => {
-    expect(css).toMatch(/\.roster-control,\s*\.roster-role-chip \{[^}]*height:\s*32px/);
-    expect(css).toMatch(/\.roster-control,\s*\.roster-role-chip \{[^}]*border:\s*1px solid var\(--ast-border-input\)/);
-    expect(css).toMatch(/\.roster-control,\s*\.roster-role-chip \{[^}]*background:\s*var\(--card\)/);
+    expect(css).toMatch(/\.roster-control \{[^}]*height:\s*30px/);
+    expect(css).toMatch(/\.roster-control \{[^}]*border:\s*1px solid var\(--ast-border-input\)/);
+    expect(css).toMatch(/\.roster-control \{[^}]*background:\s*var\(--card\)/);
     expect(css).toMatch(
       /\.settings-page \[data-slot='button'\]\.settings-destructive \{[^}]*background:\s*transparent/
     );

@@ -31,34 +31,57 @@
   gap: 16px;
 }
 
-.ops-stop-all {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+.ops-page-controls {
+  display: flex;
   align-items: center;
-  gap: 8px 16px;
-  padding: 12px 16px;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ops-stop-all {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding: 6px 8px 6px 10px;
   border: 1px solid var(--border);
-  border-radius: var(--ast-radius-card);
+  border-radius: var(--ast-radius-control);
   background: var(--card);
 }
 
-.ops-stop-all h2,
+.ops-stop-all strong,
+.ops-stop-all span,
 .ops-stop-all p {
   margin: 0;
 }
 
-.ops-stop-all h2 {
-  font-size: var(--text-sm);
+.ops-stop-all strong {
+  color: var(--ast-negative);
+  font-size: var(--text-xs);
   font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
+.ops-stop-all span,
 .ops-stop-all p {
   color: var(--ast-text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 
 .ops-stop-all > p {
-  grid-column: 1 / -1;
+  max-width: 30ch;
+}
+
+.ops-stop-all .ops-stop-all-button {
+  border-color: var(--db-red-700);
+  background: var(--db-red-700);
+  color: var(--destructive-foreground);
+}
+
+.ops-stop-all .ops-stop-all-button:hover {
+  border-color: color-mix(in srgb, var(--db-red-700) 82%, white);
+  background: color-mix(in srgb, var(--db-red-700) 82%, white);
+  color: var(--destructive-foreground);
 }
 
 /* ── A block ─────────────────────────────────────────────────────────────── */
@@ -318,6 +341,18 @@
   border-bottom: 1px solid var(--border);
 }
 
+.ops-health-table {
+  font-size: var(--text-base);
+}
+
+.ops-health-table th,
+.ops-health-table td {
+  vertical-align: middle;
+  padding: 10px 16px;
+  font-size: var(--text-base);
+  line-height: 1.4;
+}
+
 .ops-table tbody tr:last-child th,
 .ops-table tbody tr:last-child td {
   border-bottom: 0;
@@ -527,6 +562,23 @@ a.ops-dependency-name:hover {
   gap: 12px;
 }
 
+.ops-cost-budget-ceiling {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--ast-border-input);
+  border-radius: var(--ast-radius-card);
+}
+
+.ops-cost-budget-ceiling > legend {
+  padding: 0 6px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ast-text-secondary);
+}
+
 /*
  * Label, figure, foot: three rows, and the middle one takes the slack, so the
  * badges sit on one line across a row however tall the figure above them turned
@@ -712,6 +764,13 @@ a.ops-dependency-name:hover {
   overflow-wrap: anywhere;
 }
 
+.ops-tile-coverage {
+  flex: 1 0 100%;
+  font-size: var(--text-xs);
+  color: var(--ast-text-secondary);
+  overflow-wrap: anywhere;
+}
+
 /*
  * Nominal budgets: the app total above the grid, and one field on each resource
  * tile. The period is the Cost window already on the tiles (`in range` / `per
@@ -723,9 +782,8 @@ a.ops-dependency-name:hover {
   align-items: flex-end;
   gap: 8px 16px;
   margin: 0 0 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--ast-radius-card);
+  padding: 0 2px 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 .ops-cost-total-note {
@@ -735,14 +793,15 @@ a.ops-dependency-name:hover {
   color: var(--ast-text-secondary);
 }
 
-.ops-cost-total-save {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.ops-budget-field {
+  display: grid;
+  grid-template-columns: minmax(0, auto) auto;
+  align-items: end;
+  gap: 4px 8px;
+  min-width: 0;
 }
 
-.ops-budget-field {
+.ops-budget-field > label {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -797,8 +856,13 @@ a.ops-dependency-name:hover {
 }
 
 .ops-budget-save-error {
+  grid-column: 1 / -1;
   font-size: var(--text-xs);
   color: var(--ast-neg-text);
+}
+
+.ops-budget-apply {
+  min-width: 74px;
 }
 
 .ops-tile-note {
@@ -807,37 +871,6 @@ a.ops-dependency-name:hover {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.ops-cost-coverage {
-  margin: 8px 0 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--ast-radius-card);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ops-cost-coverage h4 {
-  margin: 0;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ast-text-secondary);
-}
-
-.ops-cost-coverage p,
-.ops-cost-coverage li {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--ast-text-secondary);
-}
-
-.ops-cost-coverage ul {
-  margin: 0;
-  padding-left: 1.1rem;
 }
 
 /*

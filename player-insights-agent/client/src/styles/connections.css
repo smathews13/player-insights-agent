@@ -1254,7 +1254,9 @@ html:has(.connections-page) body[data-scroll-locked] {
   grid-template-columns: 20px 220px 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 10px 16px;
+  font-size: var(--text-base);
+  line-height: 1.4;
 }
 /* Geometry only, for the reason `.connection-row-product` carries no colour. */
 .configuration-row-product {

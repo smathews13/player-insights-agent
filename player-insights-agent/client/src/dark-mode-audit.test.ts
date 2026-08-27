@@ -566,18 +566,18 @@ describe('dark mode covers the shipped surfaces', () => {
      * relying on the light palette accidentally surviving a theme switch.
      */
     const settingsRules = SETTINGS.replace(/\/\*[\s\S]*?\*\//g, ' ');
-    for (const selector of ['.admin-row-seed', '.roster-role-chip']) {
-      const base = bodyFor(settingsRules, selector);
-      expect(base, `${selector} has no neutral Settings treatment`).toMatch(/background:\s*var\(--card\)/);
-      expect(base).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
-      expect(base).toMatch(/color:\s*var\(--foreground\)/);
-    }
+    const seed = bodyFor(settingsRules, '.admin-row-seed');
+    expect(seed, '.admin-row-seed has no neutral Settings treatment').toMatch(/background:\s*var\(--card\)/);
+    expect(seed).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(seed).toMatch(/color:\s*var\(--foreground\)/);
+    // Immutable roles now use the shared neutral-outline status pill rather
+    // than a private plaque with a second dark-mode recipe.
+    expect(source('UserRoleEditor.tsx')).toContain(
+      'className="ast-pill ast-pill--neutral-outline roster-role-status"'
+    );
+    expect(SETTINGS).not.toMatch(/\.roster-role-chip\s*\{/);
     expect(SETTINGS).not.toMatch(/\.roster-role-chip-super-admin\s*\{/);
-
-    const darkChip = bodyFor(DARK, "html[data-theme='dark'] .roster-role-chip");
-    expect(darkChip).toMatch(/background:\s*var\(--card\)/);
-    expect(darkChip).toMatch(/border-color:\s*var\(--ast-border-input\)/);
-    expect(darkChip).toMatch(/color:\s*var\(--foreground\)/);
+    expect(DARK).not.toContain("html[data-theme='dark'] .roster-role-chip");
 
     const remove = bodyFor(
       settingsRules,

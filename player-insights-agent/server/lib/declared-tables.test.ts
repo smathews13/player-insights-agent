@@ -32,7 +32,7 @@ describe('recognising an inference payload table', () => {
 });
 
 describe('what the Connections matrix may list', () => {
-  it('drops payload tables, information_schema, and the Vector Search index object', () => {
+  it('drops payload tables and information_schema, but keeps the index backing table', () => {
     const listed = tablesFromListing([
       table({ fullName: 'cat.sch.gold_player_180d_summary' }),
       table({
@@ -43,7 +43,11 @@ describe('what the Connections matrix may list', () => {
       table({ fullName: 'cat.sch.semantic_layer_index', shortName: 'semantic_layer_index' }),
       table({ fullName: 'cat.sch.silver_purchases' }),
     ]);
-    expect(listed).toEqual(['cat.sch.gold_player_180d_summary', 'cat.sch.silver_purchases']);
+    expect(listed).toEqual([
+      'cat.sch.gold_player_180d_summary',
+      'cat.sch.semantic_layer_index',
+      'cat.sch.silver_purchases',
+    ]);
   });
 
   it('honours a denylist glob without inventing names', () => {

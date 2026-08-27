@@ -46,7 +46,8 @@ import {
   trafficCaption,
   costHonestyLine,
   warehouseAutoStopLine,
-  costCoverageSummary,
+  costCoverageLinesForTile,
+  costCoverageProductForTile,
 } from './ops-view';
 import { databricksLink } from '../../shared/databricks-links';
 import {
@@ -673,29 +674,34 @@ describe('cost honesty and coverage copy', () => {
     expect(warehouseAutoStopLine({ minutes: 5, readable: true })).not.toContain('does not change');
   });
 
-  it('names tracked cost components rather than treating every tagged product as a tile', () => {
-    const summary = costCoverageSummary({
+  it('maps coverage by product contract, never by prose or a nearby tile', () => {
+    const coverage = {
       inventoryCount: 11,
       costModelCount: 5,
       products: [
         {
-          product: 'JOBS',
+          product: 'APPS',
           taggedRows: 4,
           taggedQuantity: 4,
           pricedRows: 4,
           unpricedRows: 0,
-          tiled: false,
-          reason: 'Tagged usage with no Cost tile.',
+          tiled: true,
+          reason: 'Matched by app name.',
         },
       ],
       propagation: [
-        { product: 'APPS', status: 'unsupported', detail: 'App tags are organizational.' },
+        { product: 'APPS', status: 'unsupported' as const, detail: 'App tags are organizational.' },
       ],
-    });
-    expect(summary?.heading).toBe('Tracked cost components');
-    expect(summary?.inventory).toContain('11 tagged resources');
-    expect(summary?.inventory).toContain('5 tracked cost components');
-    expect(summary?.products[0].line).toContain('not a Cost tile');
+    };
+    expect(costCoverageProductForTile('serving-endpoint')).toBe('MODEL_SERVING');
+    expect(costCoverageProductForTile('genie:space-1')).toBe('GENIE');
+    expect(costCoverageProductForTile('app-compute')).toBe('APPS');
+    expect(costCoverageProductForTile('unknown')).toBeNull();
+    expect(costCoverageLinesForTile('app-compute', coverage)).toEqual([
+      'Matched by app name.',
+      'App tags are organizational.',
+    ]);
+    expect(costCoverageLinesForTile('sql-warehouse', coverage)).toEqual([]);
   });
 });
 

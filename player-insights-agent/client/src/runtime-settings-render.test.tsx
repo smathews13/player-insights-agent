@@ -60,6 +60,15 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('Lead with the count.');
   });
 
+  it('badges only the three Loop structure number labels', () => {
+    expect(source.match(/labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline'/g) ?? []).toHaveLength(
+      3
+    );
+    expect(source).toContain('labelClassName={extra.labelClassName}');
+    expect(styles).toMatch(/\.runtime-loop-label \{[^}]*justify-self:\s*start/);
+    expect(source).not.toMatch(/guidance\([^)]*runtime-loop-label/s);
+  });
+
   it('gives the Architecture answer-contract links a stable destination', () => {
     expect(source).toContain('id="answer-contract-settings"');
   });

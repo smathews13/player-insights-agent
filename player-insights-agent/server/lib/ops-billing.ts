@@ -1053,27 +1053,31 @@ function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
 }
 
 /**
- * App compute with no billed rows is a tag-state card, not "$0.00".
+ * App compute availability is decided by the app-name billing join.
  *
- * The spend query filters `system.billing.usage` by the Astrolabe tag. Apps
- * tags often never appear on those rows, so missing spend used to be labelled
- * "unverified" and asked a person to go and look. The Cost route now reads the
- * app's own tag assignment; this copy reports that reading.
+ * The organizational tag is useful inventory context, but it is not evidence
+ * that any Apps billing row matched this app and must never replace that state.
  */
-function appComputeTagAbsence(state: AppBillingTagState): { unavailable: string; remedy: string } {
+function appComputeAbsence(state: AppBillingTagState): { unavailable: string; remedy: string; note: string } {
   const pair = billingTagPair();
   if (state === 'matched') {
-    return { unavailable: 'Billing tag matched', remedy: `${pair} is on this app.` };
+    return {
+      unavailable: 'No Apps billing rows matched this app in this range.',
+      remedy: '',
+      note: `${pair} is on this app; Apps billing is matched by app name.`,
+    };
   }
   if (state === 'missing') {
     return {
-      unavailable: 'Billing tag missing',
-      remedy: `Apply ${pair} in Settings → Environment.`,
+      unavailable: 'No Apps billing rows matched this app in this range.',
+      remedy: '',
+      note: `${pair} is not on this app; Apps billing is still matched by app name.`,
     };
   }
   return {
-    unavailable: 'Billing tag match unverified',
-    remedy: `The app tag ${pair} could not be read.`,
+    unavailable: 'No Apps billing rows matched this app in this range.',
+    remedy: '',
+    note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`,
   };
 }
 
@@ -1155,12 +1159,12 @@ function componentTile(
   const amount = spendAmountFor(row, description.basis);
   if (amount === null) {
     if (component === 'app-compute' && pricing.match === 'none') {
-      const absence = appComputeTagAbsence(ids.appBillingTag);
+      const absence = appComputeAbsence(ids.appBillingTag);
       return withMeta({
         ...base,
         amount: null,
         pricing,
-        note: '',
+        note: absence.note,
         unavailable: absence.unavailable,
         remedy: absence.remedy,
       });

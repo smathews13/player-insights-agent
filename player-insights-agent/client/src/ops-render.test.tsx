@@ -37,6 +37,8 @@ import {
 import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
+const OPS_STYLES = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
+
 function text(markup: string): string {
   return markup
     .replace(/<[^>]+>/g, ' ')
@@ -60,13 +62,22 @@ function block<T>(data: T | null, overrides: Partial<Block<T>> = {}): Block<T> {
   return { data, busy: false, failed: '', refresh: () => {}, ...overrides };
 }
 
+it('keeps Health rows at the Connected-resources size', () => {
+  expect(OPS_STYLES).toMatch(/\.ops-health-table\s*\{[^}]*font-size:\s*var\(--text-base\)/);
+  expect(OPS_STYLES).toMatch(
+    /\.ops-health-table th,\s*\n\.ops-health-table td\s*\{[^}]*padding:\s*10px 16px[^}]*line-height:\s*1\.4/
+  );
+});
+
 describe('the admin cancellation control', () => {
-  it('states its one-shot and non-destructive scope beside the button', () => {
-    const markup = render(<StopAllActiveRuns />);
-    expect(markup).toContain('Stop all active runs');
-    expect(markup).toContain('One-time snapshot only');
-    expect(markup).toContain('Future Asks continue');
-    expect(markup).toContain('no data or history is deleted');
+  it('labels the compact admin-only control and says only what it preserves', () => {
+    const visible = render(<StopAllActiveRuns />);
+    expect(visible).toContain('ADMIN');
+    expect(visible).toContain('Stop all active runs');
+    expect(visible).toContain('No data or history is deleted.');
+    expect(visible).not.toContain('One-time snapshot only');
+    expect(visible).not.toContain('Future Asks continue');
+    expect(markupOf(<StopAllActiveRuns />)).toContain('ops-stop-all-button');
   });
 
   it('is gated by the resolved admin role on Ops', () => {
@@ -909,7 +920,7 @@ describe('the cost block', () => {
 
   it('keeps one model-serving average without inventing a combined per-question total', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('Approx. Average Cost Per Question');
+    expect(markup).toContain('AVG. COST / QUESTION');
     expect(markup).toContain('serving endpoint spend ÷ questions with recorded tokens');
     expect(markup).not.toContain('Average model serving per question');
     expect(markup).not.toContain('token-apportions model-serving spend only');
@@ -1030,7 +1041,7 @@ describe('the cost block', () => {
     expect(markup).toContain('Genie');
     expect(markup).toContain('Vector search');
     expect(markup).toContain('App compute');
-    expect(markup).toContain('Approx. Average Cost Per Question');
+    expect(markup).toContain('AVG. COST / QUESTION');
     expect(markup).not.toContain('Index rebuild');
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched the Astrolabe tag');
@@ -1169,14 +1180,18 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toContain('App budget');
+    expect(markup).toContain('App budget ceiling');
+    expect(markup).toContain('Total budget in range');
     expect(markup).toContain('Budget in range');
     expect(markup).toContain('Budget per day');
     expect(markup).not.toContain('Same window as the tiles');
     expect(markup).not.toMatch(/month|monthly|PagerDuty|forecast/i);
     expect(markup).toContain('400');
     expect(markup).toContain('40');
-    expect(markup).toContain('>Save</button>');
+    expect([...markup.matchAll(/>Apply<\/button>/g)]).toHaveLength(payload.tiles.length + 1);
+    expect(markup).toMatch(
+      /<fieldset class="ops-cost-budget-ceiling"><legend>App budget ceiling<\/legend>[\s\S]*?AVG\. COST \/ QUESTION[\s\S]*?<\/fieldset>/
+    );
   });
 
   it('compares spend to a tile budget when both exist, and still offers a budget when spend is missing', () => {
@@ -1253,12 +1268,21 @@ describe('the cost block', () => {
     expect(markup).not.toContain('0.00');
   });
 
-  it('names tracked cost components under the grid', () => {
+  it('puts mapped coverage inside its product tile and removes the report below', () => {
     const payload = cost({
       coverage: {
         inventoryCount: 11,
         costModelCount: 5,
         products: [
+          {
+            product: 'APPS',
+            taggedRows: 4,
+            taggedQuantity: 4,
+            pricedRows: 4,
+            unpricedRows: 0,
+            tiled: true,
+            reason: 'Matched by app name. App tags are organizational.',
+          },
           {
             product: 'JOBS',
             taggedRows: 4,
@@ -1271,16 +1295,19 @@ describe('the cost block', () => {
         ],
         propagation: [{ product: 'APPS', status: 'unsupported', detail: 'App tags are organizational.' }],
       },
+      tiles: [{ ...cost().tiles[0], id: 'app-compute', label: 'App compute' }],
     });
-    const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Tracked cost components');
-    expect(markup).toContain('11 tagged resources');
-    expect(markup).toContain('not a Cost tile');
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    expect(markup).toMatch(/App compute[\s\S]*?ops-tile-coverage[^>]*>Matched by app name/);
+    expect(markup).toContain('App tags are organizational.');
+    expect(markup).not.toContain('Tracked cost components');
+    expect(markup).not.toContain('11 tagged resources');
+    expect(markup).not.toContain('semantic rebuild job');
   });
 
   it('keeps budget fields when billing has no rows and when the grant is missing', () => {
     const empty = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
-    expect(empty).toContain('App budget');
+    expect(empty).toContain('App budget ceiling');
     expect(empty).toContain('Budget in range');
     const denied = render(
       <CostBody
@@ -1297,7 +1324,7 @@ describe('the cost block', () => {
         )}
       />
     );
-    expect(denied).toContain('App budget');
+    expect(denied).toContain('App budget ceiling');
     expect(denied).toContain('GRANT SELECT ON SCHEMA system.billing');
     expect(denied).toContain('Serving endpoint');
   });

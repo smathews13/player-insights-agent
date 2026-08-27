@@ -173857,7 +173857,7 @@ var init_insights_routes = __esm({
   SELECT r.run_id AS id, 'conversation' AS kind, r.conversation_id,
          q.content AS prompt,
          r.user_email AS stakeholder,
-         ${overlayStatusSql("'cancelled'")} AS status,
+         ${overlayStatusSql("'stopped'")} AS status,
          TRUE AS truncated,
          NULL::jsonb AS genie_spaces,
          GREATEST(0, ROUND(EXTRACT(EPOCH FROM (COALESCE(r.completed_at, r.updated_at) - r.created_at)) * 1000))::int
@@ -174541,9 +174541,6 @@ function exclusionReason(table, denylist = []) {
   if (UNDECLARABLE_SCHEMAS.has(table.schemaName)) {
     return `schema ${table.schemaName} is not declarable`;
   }
-  if (table.shortName === SEMANTIC_LAYER_INDEX_TABLE) {
-    return "Vector Search index, listed on its own row";
-  }
   const pattern = denylistMatch(table.fullName, table.shortName, denylist);
   if (pattern) return `catalog_denylist pattern ${pattern}`;
   if (isInferencePayloadTable(table.columns) === true) {
@@ -174626,7 +174623,7 @@ async function listDeclarableTablesInSchema(input) {
   }
   return tablesFromListing(found, input.denylist);
 }
-var PAYLOAD_TABLE_SIGNATURE, UNDECLARABLE_SCHEMAS, SEMANTIC_LAYER_INDEX_TABLE, TABLES_PATH;
+var PAYLOAD_TABLE_SIGNATURE, UNDECLARABLE_SCHEMAS, TABLES_PATH;
 var init_declared_tables = __esm({
   "server/lib/declared-tables.ts"() {
     init_data_contract();
@@ -174637,7 +174634,6 @@ var init_declared_tables = __esm({
       "served_entity_id"
     ]);
     UNDECLARABLE_SCHEMAS = /* @__PURE__ */ new Set(["information_schema"]);
-    SEMANTIC_LAYER_INDEX_TABLE = "semantic_layer_index";
     TABLES_PATH = "/api/2.1/unity-catalog/tables";
   }
 });
@@ -180948,20 +180944,26 @@ function genieSpaceTiles(ids) {
     note: GENIE_SQL_NOT_COMPLETE
   }));
 }
-function appComputeTagAbsence(state) {
+function appComputeAbsence(state) {
   const pair = billingTagPair();
   if (state === "matched") {
-    return { unavailable: "Billing tag matched", remedy: `${pair} is on this app.` };
+    return {
+      unavailable: "No Apps billing rows matched this app in this range.",
+      remedy: "",
+      note: `${pair} is on this app; Apps billing is matched by app name.`
+    };
   }
   if (state === "missing") {
     return {
-      unavailable: "Billing tag missing",
-      remedy: `Apply ${pair} in Settings \u2192 Environment.`
+      unavailable: "No Apps billing rows matched this app in this range.",
+      remedy: "",
+      note: `${pair} is not on this app; Apps billing is still matched by app name.`
     };
   }
   return {
-    unavailable: "Billing tag match unverified",
-    remedy: `The app tag ${pair} could not be read.`
+    unavailable: "No Apps billing rows matched this app in this range.",
+    remedy: "",
+    note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`
   };
 }
 function componentTile(component, ids, byComponent) {
@@ -181030,12 +181032,12 @@ function componentTile(component, ids, byComponent) {
   const amount = spendAmountFor(row2, description.basis);
   if (amount === null) {
     if (component === "app-compute" && pricing.match === "none") {
-      const absence = appComputeTagAbsence(ids.appBillingTag);
+      const absence = appComputeAbsence(ids.appBillingTag);
       return withMeta({
         ...base,
         amount: null,
         pricing,
-        note: "",
+        note: absence.note,
         unavailable: absence.unavailable,
         remedy: absence.remedy
       });
@@ -181660,7 +181662,7 @@ async function readAppMeasurement(req, insightsHref) {
   }
   return { ...base, ...figures, telemetry: "reading", table, reason: "" };
 }
-async function readDependencies(appkit, req) {
+async function readDependencies(appkit, req, fetchImpl) {
   try {
     const [{ report }, stored] = await Promise.all([
       readOrchestratorReport(),
@@ -181668,12 +181670,27 @@ async function readDependencies(appkit, req) {
     ]);
     const states = resourceStates({ report, environment: appEnvironment(), stored });
     const configured = Object.fromEntries(states.map((state) => [state.resource.id, state.configured]));
+    const configuration = report?.configuration ?? [];
+    let tables = accessDependenciesFrom({ configuration, env: process.env }).tables;
+    const catalog = configured.catalog ?? "";
+    const schema = configured.schema ?? "";
+    const manifest = configuration.find((entry) => entry.key === "declared_manifest");
+    if (manifest?.source === "data-contract" || isDataContractFallback(tables, catalog, schema)) {
+      const denylistEntry = configuration.find((entry) => entry.key === "catalog_denylist");
+      const denylist = Array.isArray(denylistEntry?.value) ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean) : typeof denylistEntry?.value === "string" ? denylistEntry.value.split(",").map((item) => item.trim()).filter(Boolean) : [];
+      const listed = await listDeclarableTablesInSchema({
+        catalog,
+        schema,
+        host: host(),
+        token: executionToken(req) ?? "",
+        denylist,
+        fetchImpl
+      });
+      if (listed.length > tables.length) tables = unionTableNames(tables, listed);
+    }
     const checks = await probeConnections({
       configured,
-      tables: accessDependenciesFrom({
-        configuration: report?.configuration,
-        env: process.env
-      }).tables,
+      tables,
       host: host(),
       token: executionToken(req),
       principal: userEmail(req) || ""
@@ -181768,7 +181785,7 @@ function setupOpsRoutes(appkit, deps) {
       const insightsHref = workspaceAppsUrl(workspace2, appsWorkspaceId);
       try {
         const [dependencies, appMeasurement, lakebase2] = await Promise.all([
-          readDependencies(appkit, req),
+          readDependencies(appkit, req, deps.fetchImpl),
           readAppMeasurement(req, insightsHref).catch(
             (error48) => uncheckedMeasurement(insightsHref, `reading it threw: ${error48.message}.`)
           ),
@@ -182074,6 +182091,7 @@ var init_ops_routes = __esm({
     init_run_failure_codes();
     init_cost_budgets_store();
     init_sql_query_tags();
+    init_declared_tables();
     init_insights_routes();
     init_request_latency();
     init_ops_contract();

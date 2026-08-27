@@ -68,6 +68,7 @@ function NumberField({
   max,
   onCommit,
   className = '',
+  labelClassName = '',
   help,
   helpId,
   placeholder,
@@ -78,6 +79,7 @@ function NumberField({
   max: number;
   onCommit: (value: number) => void;
   className?: string;
+  labelClassName?: string;
   help?: string;
   helpId?: string;
   placeholder?: string;
@@ -85,7 +87,7 @@ function NumberField({
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <label className={`runtime-field ${className}`}>
-      <span className="runtime-field-label">{label}</span>
+      <span className={`runtime-field-label ${labelClassName}`.trim()}>{label}</span>
       {help ? (
         <span id={helpId} className="runtime-control-note">
           {help}
@@ -271,7 +273,7 @@ export function RuntimeSettingsPanel({
     min: number,
     max: number,
     update: (value: number) => void,
-    extra: { className?: string; help: string; helpId: string; placeholder: string }
+    extra: { className?: string; labelClassName?: string; help: string; helpId: string; placeholder: string }
   ) => (
     <NumberField
       key={label}
@@ -281,6 +283,7 @@ export function RuntimeSettingsPanel({
       max={max}
       onCommit={update}
       className={extra.className}
+      labelClassName={extra.labelClassName}
       help={extra.help}
       helpId={extra.helpId}
       placeholder={extra.placeholder}
@@ -328,11 +331,13 @@ export function RuntimeSettingsPanel({
             <h4 className="runtime-section-label">Loop structure</h4>
             <div className="runtime-loop-row">
               {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value), {
+                labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline',
                 help: 'Reasoning steps in one Ask.',
                 helpId: 'runtime-max-steps-help',
                 placeholder: '10',
               })}
               {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value), {
+                labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline',
                 help: 'Tools it may call in one Ask.',
                 helpId: 'runtime-max-tool-calls-help',
                 placeholder: '15',
@@ -344,6 +349,7 @@ export function RuntimeSettingsPanel({
                 200,
                 (value) => setLoop('maxRunSeconds', value),
                 {
+                  labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline',
                   help: 'Seconds before the run stops.',
                   helpId: 'runtime-run-budget-help',
                   placeholder: '150',

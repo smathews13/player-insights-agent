@@ -242,6 +242,8 @@ LAKEBASE_APP_SCHEMA="$(bundle_var lakebase_app_schema)"
 # release.
 JUDGE_ENDPOINT="$(bundle_var_or_empty judge_endpoint)"
 note "benchmark judge      ${JUDGE_ENDPOINT:-(app default)}"
+LLM_ENDPOINT="$(bundle_var llm_endpoint)"
+note "foundation model     $LLM_ENDPOINT"
 
 # Catalog, schema and Genie ids this release may read. Connections and the
 # access gate used to ping the live agent for this list, which created ~1ms
@@ -423,6 +425,7 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID="$INDEX_REBUILD_JOB_ID" \
      PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL="$SHARED_RAIL" \
      PLAYER_INSIGHTS_JUDGE_ENDPOINT="$JUDGE_ENDPOINT" \
+     PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT" \
      PLAYER_INSIGHTS_CATALOG="$CATALOG" \
      PLAYER_INSIGHTS_SCHEMA="$SCHEMA" \
      PLAYER_INSIGHTS_DATA_GENIE_ID="$DATA_GENIE_ID" \

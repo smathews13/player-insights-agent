@@ -13,6 +13,7 @@ import {
   type SpMintingStatus,
   type SpPersona,
 } from '../../shared/sp-identity';
+import { ROLE_WORD, type Role } from '../../shared/user-roster-contract';
 import { AppSelect } from './AppSelect';
 import { Button, Input } from './ui';
 
@@ -27,35 +28,39 @@ export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
 /** Radix Select refuses an empty string; this is "no persona, stay on OAuth". */
 export const UNASSIGNED_PERSONA = 'oauth';
 
+function rosterRoleLabel(role: string): string {
+  return role in ROLE_WORD ? ROLE_WORD[role as Role] : role;
+}
+
 /** Field-help and ghost examples on Add persona. Invented values, never a live id. */
 export const SP_PERSONA_FIELDS = [
   {
     key: 'displayName',
     label: 'Display name',
     ariaLabel: 'Persona display name',
-    help: 'Name shown when you assign this persona.',
-    placeholder: 'Northwind warehouse',
+    help: 'Name users will see for this persona.',
+    placeholder: 'Analytics service principal',
   },
   {
     key: 'clientId',
     label: 'Application / client id',
     ariaLabel: 'Service principal application id',
-    help: 'The service principal application ID.',
+    help: 'Application ID of the Databricks service principal.',
     placeholder: '00000000-0000-4000-a000-000000000000',
   },
   {
     key: 'secretScope',
     label: 'Secret scope',
     ariaLabel: 'Databricks secret scope',
-    help: 'Databricks secret scope name.',
-    placeholder: 'astrolabe-sp',
+    help: 'Secret scope containing its OAuth client secret.',
+    placeholder: 'my-app-secrets',
   },
   {
     key: 'secretKey',
     label: 'Secret key',
     ariaLabel: 'Databricks secret key',
-    help: 'Key name in that scope.',
-    placeholder: 'oauth-client-secret',
+    help: 'Key holding the OAuth client secret.',
+    placeholder: 'client-secret',
   },
 ] as const;
 
@@ -200,32 +205,45 @@ export function SpIdentityEditor({
       </div>
 
       {payload.personas.length > 0 ? (
-        <ul className="sp-identity-list">
-          {payload.personas.map((persona) => (
-            <li key={persona.id} className="sp-identity-persona">
-              <div>
-                <p className="sp-identity-persona-name">{persona.displayName}</p>
-                <p className="sp-identity-persona-id">
-                  <code>{persona.clientId}</code>
-                  <span>
-                    {' '}
-                    · secret {persona.secretScope}/{persona.secretKey}
-                  </span>
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                data-variant="outline"
-                disabled={!enabled || busy}
-                aria-label={`Remove ${persona.displayName}`}
-                onClick={() => onRemove(persona.id)}
-              >
-                Remove
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <div className="sp-identity-table-frame">
+          <table className="settings-data-table sp-identity-personas">
+            <thead>
+              <tr>
+                <th scope="col">Display name</th>
+                <th scope="col">Application / client ID</th>
+                <th scope="col">Secret reference</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payload.personas.map((persona) => (
+                <tr key={persona.id}>
+                  <td className="sp-identity-persona-name">{persona.displayName}</td>
+                  <td className="sp-identity-persona-id">
+                    <code>{persona.clientId}</code>
+                  </td>
+                  <td className="sp-identity-secret-reference">
+                    <code>
+                      {persona.secretScope}/{persona.secretKey}
+                    </code>
+                  </td>
+                  <td className="sp-identity-actions">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      data-variant="outline"
+                      disabled={!enabled || busy}
+                      aria-label={`Remove ${persona.displayName}`}
+                      onClick={() => onRemove(persona.id)}
+                    >
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
 
       <AssignmentRows
@@ -267,22 +285,38 @@ function AssignmentRows({
   }
   const known = new Set(personas.map((persona) => persona.id));
   return (
-    <ul className="sp-identity-assignments">
-      {roster.map((row) => (
-        <li key={row.email} className="sp-identity-assignment">
-          <span className="sp-identity-assignment-email">{row.email}</span>
-          <AppSelect
-            label="Persona"
-            ariaLabel={`Persona for ${row.email}`}
-            value={row.personaId && known.has(row.personaId) ? row.personaId : UNASSIGNED_PERSONA}
-            disabled={busy}
-            onValueChange={(value) => onAssign(row.email, value === UNASSIGNED_PERSONA ? null : value)}
-            options={options}
-            className="sp-identity-assign-select"
-          />
-        </li>
-      ))}
-    </ul>
+    <div className="sp-identity-table-frame sp-identity-assignments">
+      <table className="settings-data-table">
+        <thead>
+          <tr>
+            <th scope="col">Email</th>
+            <th scope="col">Role</th>
+            <th scope="col">Persona</th>
+          </tr>
+        </thead>
+        <tbody>
+          {roster.map((row) => (
+            <tr key={row.email}>
+              <td className="sp-identity-assignment-email">{row.email}</td>
+              <td>
+                <span className="ast-pill ast-pill--neutral-outline">{rosterRoleLabel(row.role)}</span>
+              </td>
+              <td className="sp-identity-assignment-control">
+                <AppSelect
+                  label="Persona"
+                  ariaLabel={`Persona for ${row.email}`}
+                  value={row.personaId && known.has(row.personaId) ? row.personaId : UNASSIGNED_PERSONA}
+                  disabled={busy}
+                  onValueChange={(value) => onAssign(row.email, value === UNASSIGNED_PERSONA ? null : value)}
+                  options={options}
+                  className="sp-identity-assign-select"
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

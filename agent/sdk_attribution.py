@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from databricks.sdk import useragent
-from databricks.sdk.service.sql import QueryTag
+from typing import TYPE_CHECKING
 
 import correlation
+
+if TYPE_CHECKING:
+    from databricks.sdk.service.sql import QueryTag
 
 PRODUCT_NAME = "Astrolabe"
 PRODUCT_VERSION = "0.1.0"
@@ -15,11 +17,15 @@ QUERY_TAG_LIMIT = 128
 def register_sdk_product() -> None:
     """Identify this product before any ``WorkspaceClient`` is constructed."""
 
+    from databricks.sdk import useragent
+
     useragent.with_product(PRODUCT_NAME, PRODUCT_VERSION)
 
 
 def query_tags(surface: str, tool: str) -> list[QueryTag]:
     """Safe statement-level attribution, with scoped request ids when present."""
+
+    from databricks.sdk.service.sql import QueryTag
 
     values = {
         "application": PRODUCT_NAME,

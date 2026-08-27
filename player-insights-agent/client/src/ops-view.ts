@@ -720,6 +720,50 @@ const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
 };
 
 /**
+ * Coverage belongs to the product tile it describes, never to a prose match.
+ *
+ * The product names are the billing contract's stable identifiers. Genie may
+ * have one tile per space, while Jobs is only eligible for the rebuild tile if
+ * that tile is ever displayed. Products without a displayed owner deliberately
+ * map to nothing instead of borrowing a nearby tile.
+ */
+const COST_COVERAGE_TILE: Readonly<Record<string, string>> = {
+  MODEL_SERVING: 'serving-endpoint',
+  SQL: 'sql-warehouse',
+  VECTOR_SEARCH: 'vector-search',
+  APPS: 'app-compute',
+  GENIE: 'genie',
+  JOBS: 'index-rebuild-job',
+};
+
+export function costCoverageProductForTile(tileId: string): string | null {
+  if (tileId === 'genie' || tileId.startsWith('genie:')) return 'GENIE';
+  const match = Object.entries(COST_COVERAGE_TILE).find(([, owner]) => owner === tileId);
+  return match?.[0] ?? null;
+}
+
+/** Concise coverage and propagation facts for one displayed tile. */
+export function costCoverageLinesForTile(
+  tileId: string,
+  coverage: CostCoverage | null | undefined
+): string[] {
+  if (!coverage) return [];
+  const product = costCoverageProductForTile(tileId);
+  if (!product) return [];
+
+  const lines: string[] = [];
+  const productCoverage = coverage.products.find((row) => row.product === product);
+  if (productCoverage?.reason.trim()) lines.push(productCoverage.reason.trim());
+
+  for (const propagation of coverage.propagation) {
+    if (propagation.product !== product || propagation.status === 'unused') continue;
+    const detail = propagation.detail.trim();
+    if (detail && !lines.includes(detail)) lines.push(detail);
+  }
+  return lines;
+}
+
+/**
  * Model-serving spend in range, divided by the questions that recorded tokens.
  *
  * That is the only per-question dollar figure this block can defend. Averaging
@@ -766,31 +810,6 @@ export function warehouseAutoStopLine(autoStop: WarehouseAutoStop | null | undef
   if (autoStop.minutes === null) return 'Warehouse auto-stop could not be read.';
   const noun = autoStop.minutes === 1 ? 'minute' : 'minutes';
   return `Warehouse auto-stop is ${autoStop.minutes} ${noun}.`;
-}
-
-export function costCoverageSummary(coverage: CostCoverage | null | undefined): {
-  heading: string;
-  inventory: string;
-  products: Array<{ line: string; tiled: boolean }>;
-  propagation: string[];
-} | null {
-  if (!coverage) return null;
-  const excluded = coverage.products.filter((product) => !product.tiled && product.taggedRows > 0);
-  const inventory =
-    `${coverage.inventoryCount} tagged resources · ${coverage.costModelCount} tracked cost components` +
-    (excluded.length > 0 ? ` · ${excluded.length} tagged products with no Cost tile` : '');
-  return {
-    heading: 'Tracked cost components',
-    inventory,
-    products: coverage.products.map((product) => ({
-      tiled: product.tiled,
-      line:
-        `${product.product}: ${product.taggedRows} tagged rows` +
-        (product.unpricedRows > 0 ? `, ${product.unpricedRows} unpriced` : '') +
-        ` · ${product.tiled ? 'on the grid' : 'not a Cost tile'} · ${product.reason}`,
-    })),
-    propagation: coverage.propagation.map((row) => `${row.product}: ${row.status} · ${row.detail}`),
-  };
 }
 
 /*

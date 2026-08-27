@@ -221,11 +221,11 @@ export function answerFallback(answer: AnswerEvidenceSections & {
   // itself. That is the agent's report, not the route's, and the marker above
   // does not describe it.
   if (splitCaveats(answer.caveats).degraded.length === 0) return null;
-  // Which of the two it is turns on what is actually on the card, not on the
-  // wording of the caveat. A renderer that read the sentence would be back to
-  // reading prose for a fact the payload already carries.
+  // A structured result on a live payload is still live evidence. Its Partial
+  // verdict and Keep in mind lines explain which calls did not finish; calling
+  // those successful figures "fallback data" contradicts their sources and SQL.
   if (!statesItsEvidence(answer)) return 'degraded-data';
-  if (hasStructuredResult(answer)) return 'degraded-data';
+  if (hasStructuredResult(answer)) return null;
   // Stages without figures are a run that worked and then failed to answer,
   // not "nothing ran". The empty-run Failed badge is only for a truly empty
   // trace. Counting stages as evidence here used to paint "Degraded, fallback

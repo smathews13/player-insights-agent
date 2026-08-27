@@ -92,11 +92,13 @@
 .exp-feature-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .exp-feature-table th,
 .exp-feature-table td {
-  padding: 10px 0 10px 12px;
+  height: 52px;
+  padding: 9px 12px;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid var(--border);
@@ -113,6 +115,12 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ast-text-secondary);
+}
+
+.exp-feature-status,
+.exp-feature-control {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .exp-feature-table td:last-child {
@@ -132,11 +140,20 @@
 }
 
 .exp-feature-control {
-  display: inline-flex;
+  text-align: right;
+}
+
+.exp-feature-control-inner {
+  min-height: 32px;
+  display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
   white-space: nowrap;
+}
+
+.exp-feature-control-inner [data-slot='button'] {
+  min-height: 30px;
 }
 
 .exp-feature-table .settings-row-note {
@@ -518,14 +535,14 @@
   display: grid;
 }
 
-.admin-row {
+.admin-list .admin-row {
   padding: 10px 0;
   display: grid;
   gap: 8px;
   min-width: 0;
 }
 
-.admin-row + .admin-row {
+.admin-list .admin-row + .admin-row {
   border-top: 1px solid var(--border);
 }
 
@@ -581,46 +598,74 @@
   white-space: nowrap;
 }
 
-/*
- * Identity | role | action. One template for every roster row and the Add row,
- * so the email field occupies the same column the addresses do and the quiet
- * controls stack. AdminListEditor (no role column) keeps the older flex add
- * line below; `.admin-add:not(.roster-grid)` is that path.
- */
-.roster-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(10.5rem, max-content) 5.75rem;
-  gap: 8px 10px;
-  align-items: center;
-}
-
-/*
- * Same framed browser Appearance and Environment use: one edge, quiet header,
- * ruled rows. The add line is the last row of this frame, not a second toolbar.
- */
-.roster-frame {
+/* Shared Settings table language: real headers, compact rows and one continuous
+   divider. Roles and Identity both use this rather than card-like list rows. */
+.roster-frame,
+.sp-identity-table-frame {
   min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--card);
 }
 
-.roster-frame > .admin-list-note:first-child {
+.settings-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.settings-data-table th,
+.settings-data-table td {
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.settings-data-table th {
   background: var(--muted);
-  max-width: none;
-  font-size: 12px;
+  color: var(--ast-text-secondary);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.roster-frame .admin-row {
-  padding: 10px;
+.settings-data-table tbody:last-child tr:last-child td {
+  border-bottom: 0;
 }
 
-.roster-frame .admin-add {
-  padding: 10px;
-  margin: 0;
+.roles-roster-summary {
+  margin-bottom: 8px;
+}
+
+.roles-table {
+  min-width: 520px;
+}
+
+.roles-table th:first-child {
+  width: 34%;
+}
+
+.roles-table th:nth-child(2) {
+  width: 25%;
+}
+
+.roles-table th:nth-child(3) {
+  width: 25%;
+}
+
+.roles-table th:last-child {
+  width: 16%;
+  text-align: right;
+}
+
+.roles-table tfoot td {
+  border-bottom: 0;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
 }
 
 .admin-add {
@@ -633,20 +678,16 @@
   border-top: 1px solid var(--border);
 }
 
-.admin-add.roster-grid {
-  display: grid;
-  flex-wrap: unset;
-}
-
 .admin-add > [data-slot='input'] {
   flex: 1 1 14rem;
   min-width: 0;
   max-width: none;
-  height: 32px;
+  height: 30px;
 }
 
-.admin-add.roster-grid > [data-slot='input'] {
-  flex: none;
+.roles-table .roster-add-row [data-slot='input'] {
+  min-width: 0;
+  height: 30px;
   width: 100%;
 }
 
@@ -658,30 +699,25 @@
 .roster-role-select {
   flex: 0 0 auto;
   min-width: 0;
-  max-width: 15rem;
+  max-width: 12rem;
   width: 100%;
 }
 
 .roster-role {
-  display: flex;
-  align-items: center;
-  justify-self: stretch;
-  gap: 6px;
   min-width: 0;
 }
 
 .roster-role .roster-role-select {
-  flex: 1 1 auto;
+  width: 100%;
 }
 
 .roster-action {
-  display: flex;
-  justify-content: stretch;
   min-width: 0;
+  text-align: right;
 }
 
 .roster-action > [data-slot='button'] {
-  width: 100%;
+  width: auto;
 }
 
 .roster-row-controls {
@@ -697,10 +733,9 @@
  * rest of Settings. Remove stays clearly destructive by ink, not by a solid
  * fill that outshouts the pane.
  */
-.roster-control,
-.roster-role-chip {
-  height: 32px;
-  padding: 0 10px;
+.roster-control {
+  height: 30px;
+  padding: 0 9px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -714,9 +749,8 @@
   white-space: nowrap;
 }
 
-.roster-role-chip {
-  justify-content: flex-start;
-  font-weight: 500;
+.roster-role-status {
+  white-space: nowrap;
 }
 
 /*
@@ -752,11 +786,11 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
 
 .admin-add [data-slot='button'] {
   flex: none;
-  height: 32px;
+  height: 30px;
 }
 
-.admin-add.roster-grid [data-slot='button'] {
-  width: 100%;
+.roster-add-row [data-slot='button'] {
+  height: 30px;
 }
 
 .roster-row-lock {
@@ -766,20 +800,20 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   color: var(--muted-foreground);
 }
 
-/* A row whose role cannot be changed here prints the role as text, with the reason
-   beside it. It occupies the same column the select would, so the rows do not
-   shift as roles change. */
-.roster-row-locked {
-  margin: 0;
-  font-size: var(--text-sm);
-  text-align: left;
-  display: grid;
-  gap: 2px;
+.roster-set-by {
+  min-width: 0;
+  color: var(--ast-text-long);
+  font-size: 11.5px;
 }
 
-.roster-row-locked-why {
-  font-size: var(--text-xs);
+.roster-set-by > * {
+  display: block;
+}
+
+.roster-set-by time,
+.roster-add-help {
   color: var(--muted-foreground);
+  font-size: 11px;
 }
 
 /* Settings is a modal over the current route. The shell is fixed; only the
@@ -796,7 +830,7 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
 
 .settings-page.settings-modal {
   display: grid;
-  grid-template-rows: auto minmax(380px, 1fr) auto;
+  grid-template-rows: auto minmax(0, auto) auto;
   gap: 0;
   width: min(780px, calc(100vw - 48px));
   max-width: 780px;
@@ -904,7 +938,8 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 }
 
 .settings-modal-body {
-  min-height: 380px;
+  min-height: 0;
+  max-height: calc(100vh - 164px);
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr);
   overflow: hidden;
@@ -1060,6 +1095,11 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .runtime-loop-row .runtime-field {
   min-width: 0;
+}
+
+.runtime-loop-label {
+  justify-self: start;
+  line-height: 1.25;
 }
 
 .runtime-field {
@@ -1696,42 +1736,88 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .sp-identity-add {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
 }
 
-.sp-identity-list,
-.sp-identity-assignments {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 8px;
+.sp-identity-add > [data-slot='button'] {
+  grid-column: 1 / -1;
+  justify-self: end;
+  min-height: 30px;
 }
 
-.sp-identity-persona,
-.sp-identity-assignment {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.sp-identity-personas {
+  min-width: 650px;
+}
+
+.sp-identity-personas th:first-child {
+  width: 24%;
+}
+
+.sp-identity-personas th:nth-child(2) {
+  width: 31%;
+}
+
+.sp-identity-personas th:nth-child(3) {
+  width: 29%;
+}
+
+.sp-identity-personas th:last-child {
+  width: 16%;
+  text-align: right;
 }
 
 .sp-identity-persona-name {
-  margin: 0;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.sp-identity-persona-id {
-  margin: 0;
+.sp-identity-persona-id,
+.sp-identity-secret-reference {
   color: var(--muted-foreground);
-  font-size: var(--text-sm);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.sp-identity-actions {
+  text-align: right;
+}
+
+.sp-identity-actions [data-slot='button'] {
+  min-height: 30px;
+}
+
+.sp-identity-assignments {
+  margin-top: 2px;
+}
+
+.sp-identity-assignments table {
+  min-width: 480px;
+}
+
+.sp-identity-assignments th:first-child {
+  width: 44%;
+}
+
+.sp-identity-assignments th:nth-child(2) {
+  width: 20%;
+}
+
+.sp-identity-assignments th:last-child {
+  width: 36%;
 }
 
 .sp-identity-assignment-email {
   min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
+.sp-identity-assignment-control {
+  text-align: right;
+}
+
 .sp-identity-assign-select {
-  flex: none;
+  width: 100%;
+  max-width: 14rem;
 }

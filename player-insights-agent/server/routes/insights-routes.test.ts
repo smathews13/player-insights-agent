@@ -2341,7 +2341,7 @@ describe('an answered conversation is a run', () => {
     expect(sql).toContain('FROM player_insights.messages m');
     expect(sql).toContain('FROM player_insights.runs r');
     expect(sql).toContain("WHERE r.state = 'CANCELLED'");
-    expect(sql).toContain("COALESCE(label_overlay.status, 'cancelled') AS status");
+    expect(sql).toContain("COALESCE(label_overlay.status, 'stopped') AS status");
     expect(sql).toContain('FROM player_insights.benchmark_runs b');
     expect(sql).toContain('UNION ALL');
     // A plan proposal carries no trace, so it is a pending approval, not a run.

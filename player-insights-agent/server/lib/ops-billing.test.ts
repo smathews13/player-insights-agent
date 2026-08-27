@@ -71,23 +71,25 @@ describe('billing attribution', () => {
   it('does not turn a missing app-tag match into zero app-compute spend', () => {
     const app = buildTiles(IDS, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
-    expect(app?.unavailable).toContain('unverified');
-    expect(app?.remedy).toContain('could not be read');
+    expect(app?.unavailable).toBe('No Apps billing rows matched this app in this range.');
+    expect(app?.note).toContain('tag');
+    expect(app?.note).toContain('matched by app name');
   });
 
-  it('reports a verified app tag as matched instead of asking someone to look', () => {
+  it('keeps a verified organizational tag separate from app-name billing availability', () => {
     const app = buildTiles({ ...IDS, appBillingTag: 'matched' }, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
-    expect(app?.unavailable).toBe('Billing tag matched');
-    expect(app?.remedy).toContain('system_billing=astrolabe is on this app');
-    expect(app?.unavailable).not.toContain('unverified');
+    expect(app?.unavailable).toBe('No Apps billing rows matched this app in this range.');
+    expect(app?.note).toContain('system_billing=astrolabe is on this app');
+    expect(app?.unavailable).not.toContain('tag');
   });
 
-  it('points a missing app tag at Settings → Environment', () => {
+  it('does not claim applying a missing organizational tag would create a billing join', () => {
     const app = buildTiles({ ...IDS, appBillingTag: 'missing' }, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
-    expect(app?.unavailable).toBe('Billing tag missing');
-    expect(app?.remedy).toContain('Settings → Environment');
+    expect(app?.unavailable).toBe('No Apps billing rows matched this app in this range.');
+    expect(app?.remedy).toBe('');
+    expect(app?.note).toContain('still matched by app name');
   });
 
   it('reports Genie SQL through the warehouse instead of claiming space-level spend', () => {

@@ -3398,7 +3398,8 @@ class TestTheInternalPackageIsNotShownAsAnAnswer:
         source = inspect.getsource(agent.PlayerInsightsResponsesAgent._synthesize)
         assert source.count("_incomplete_synthesis(") == 3
         assert "CANNED_COMPLETED_TAKEAWAY" not in source
-        assert "The model that writes the answer was not reachable" in source
+        assert "The final write-up could not finish after live data was retrieved" in source
+        assert "The partial results above come only from successful queries" in source
         assert 'update={"takeaway": UNREACHABLE_TAKEAWAY}' not in source
         assert "This question was not answered" not in source
 

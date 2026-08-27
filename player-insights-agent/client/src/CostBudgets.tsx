@@ -8,7 +8,7 @@
  *
  * Empty is unset, not zero. Save retries a failed load the way Settings does.
  */
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 
 import {
   budgetsForVisibleTiles,
@@ -25,26 +25,28 @@ import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cos
 import { BASIS_LABEL, spendVersusBudget, totalBudgetView } from './ops-view';
 import {
   SETTINGS_SAVE_IDLE,
-  saveButtonLabel,
-  saveInFlight,
   saveRetryAfterLoad,
   type SettingsSaveState,
 } from './settings-save-state';
 import { Button, Input } from './ui';
+import { ConceptFlicker } from './ConceptFlicker';
 
 export function costBudgetNotice(state: SettingsSaveState): { tone: 'ok' | 'error'; text: string } | null {
-  if (state.kind === 'saved') return { tone: 'ok', text: 'Saved.' };
+  if (state.kind === 'saved') return { tone: 'ok', text: 'Applied.' };
   if (state.kind === 'failed') return { tone: 'error', text: state.message };
   return null;
 }
+
+type BudgetControl = { kind: 'total' } | { kind: 'resource'; tileId: string };
 
 interface CostBudgetApi {
   budgets: CostBudgets;
   currency: string;
   setTotal: (amount: number | null) => void;
   setResource: (tileId: string, amount: number | null) => void;
-  save: () => void;
-  saveState: SettingsSaveState;
+  apply: (control: BudgetControl) => void;
+  stateFor: (control: BudgetControl) => SettingsSaveState;
+  applying: boolean;
   readable: boolean;
 }
 
@@ -67,10 +69,12 @@ export function CostBudgetProvider({
 }) {
   const [draft, setDraft] = useState<CostBudgets | null>(null);
   const [loaded, setLoaded] = useState<CostBudgets | null>(null);
-  const [saveState, setSaveState] = useState<SettingsSaveState>(SETTINGS_SAVE_IDLE);
+  const [saveStates, setSaveStates] = useState<Record<string, SettingsSaveState>>({});
+  const inFlight = useRef(new Set<string>());
   const stored = loaded ?? payload.budgets ?? EMPTY_COST_BUDGETS;
   const budgets = draft ?? stored;
   const readable = loaded !== null || payload.budgetsReadable;
+  const applying = Object.values(saveStates).some((state) => state.kind === 'saving');
 
   const setTotal = useCallback((amount: number | null) => {
     setDraft((current) => withTotalBudget(current ?? stored, amount));
@@ -83,29 +87,55 @@ export function CostBudgetProvider({
     [stored]
   );
 
-  const save = useCallback(() => {
+  const keyFor = useCallback(
+    (control: BudgetControl) => (control.kind === 'total' ? 'total' : `resource:${control.tileId}`),
+    []
+  );
+  const stateFor = useCallback(
+    (control: BudgetControl) => saveStates[keyFor(control)] ?? SETTINGS_SAVE_IDLE,
+    [keyFor, saveStates]
+  );
+  const apply = useCallback((control: BudgetControl) => {
+    const key = keyFor(control);
+    if (inFlight.current.size > 0) return;
+    inFlight.current.add(key);
+    setSaveStates((current) => ({ ...current, [key]: { kind: 'saving' } }));
     void (async () => {
-      if (!readable) {
-        setSaveState({ kind: 'saving' });
-        const result = await loadCostBudgets();
-        setSaveState(saveRetryAfterLoad(result));
-        if (result.ok && result.budgets) {
-          setLoaded(result.budgets);
-          setDraft(null);
-        }
-        return;
-      }
-      setSaveState({ kind: 'saving' });
       try {
-        const saved = await saveCostBudgets(budgetsForVisibleTiles(budgets, tileIds));
+        let base = stored;
+        if (!readable) {
+          const result = await loadCostBudgets();
+          if (!result.ok || !result.budgets) {
+            setSaveStates((current) => ({ ...current, [key]: saveRetryAfterLoad(result) }));
+            return;
+          }
+          base = result.budgets;
+          setLoaded(base);
+        }
+
+        const changed =
+          control.kind === 'total'
+            ? withTotalBudget(base, budgets.total)
+            : withResourceBudget(base, control.tileId, resourceBudget(budgets, control.tileId));
+        const saved = await saveCostBudgets(budgetsForVisibleTiles(changed, tileIds));
         setLoaded(saved);
-        setDraft(null);
-        setSaveState({ kind: 'saved' });
+        setDraft((current) => {
+          if (!current) return null;
+          return control.kind === 'total'
+            ? withTotalBudget(current, saved.total)
+            : withResourceBudget(current, control.tileId, resourceBudget(saved, control.tileId));
+        });
+        setSaveStates((current) => ({ ...current, [key]: { kind: 'saved' } }));
       } catch (error) {
-        setSaveState({ kind: 'failed', message: (error as Error).message });
+        setSaveStates((current) => ({
+          ...current,
+          [key]: { kind: 'failed', message: (error as Error).message },
+        }));
+      } finally {
+        inFlight.current.delete(key);
       }
     })();
-  }, [budgets, readable, tileIds]);
+  }, [budgets, keyFor, readable, stored, tileIds]);
 
   return (
     <CostBudgetContext.Provider
@@ -114,8 +144,9 @@ export function CostBudgetProvider({
         currency: payload.currency,
         setTotal,
         setResource,
-        save,
-        saveState,
+        apply,
+        stateFor,
+        applying,
         readable,
       }}
     >
@@ -126,45 +157,35 @@ export function CostBudgetProvider({
 
 export function CostTotalBudget() {
   const api = useCostBudgets();
-  const notice = costBudgetNotice(api.saveState);
+  const control: BudgetControl = { kind: 'total' };
+  const saveState = api.stateFor(control);
   const view = totalBudgetView(api.budgets.total, api.currency);
   return (
     <div className="ops-cost-total">
       <CostBudgetField
-        label="App budget"
+        label="Total budget"
         basisLabel={BASIS_LABEL['total-in-range']}
         amount={api.budgets.total}
         currency={api.currency}
         onCommit={api.setTotal}
+        saveState={saveState}
+        applying={api.applying}
+        readable={api.readable}
+        onApply={() => api.apply(control)}
       />
       {view.kind === 'budget-only' ? (
         <p className="ops-budget-compare">
           <span className="ast-num">{view.budgetLabel}</span> app budget
         </p>
       ) : null}
-      <div className="ops-cost-total-save">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={saveInFlight(api.saveState)}
-          onClick={api.save}
-        >
-          {saveButtonLabel(api.saveState)}
-        </Button>
-        {notice ? (
-          <span className={notice.tone === 'error' ? 'ops-budget-save-error' : 'ops-budget-save-ok'} role={notice.tone === 'error' ? 'alert' : 'status'}>
-            {notice.text}
-          </span>
-        ) : null}
-        {api.readable ? null : <span className="ops-budget-save-error">{COST_BUDGETS_UNREADABLE}</span>}
-      </div>
     </div>
   );
 }
 
 export function CostTileBudget({ tile }: { tile: CostTile }) {
   const api = useCostBudgets();
+  const control: BudgetControl = { kind: 'resource', tileId: tile.id };
+  const saveState = api.stateFor(control);
   const amount = resourceBudget(api.budgets, tile.id);
   const compared = spendVersusBudget(tile, amount, api.currency);
   return (
@@ -175,6 +196,10 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
         amount={amount}
         currency={api.currency}
         onCommit={(value) => api.setResource(tile.id, value)}
+        saveState={saveState}
+        applying={api.applying}
+        readable={api.readable}
+        onApply={() => api.apply(control)}
       />
       {compared.kind === 'compared' ? (
         <p className="ops-budget-compare">
@@ -206,34 +231,87 @@ function CostBudgetField({
   amount,
   currency,
   onCommit,
+  saveState,
+  applying,
+  readable,
+  onApply,
 }: {
   label: string;
   basisLabel: string;
   amount: number | null;
   currency: string;
   onCommit: (amount: number | null) => void;
+  saveState: SettingsSaveState;
+  applying: boolean;
+  readable: boolean;
+  onApply: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const caption = `${label} ${basisLabel}`;
+  const notice = costBudgetNotice(saveState);
   return (
-    <label className="ops-budget-field">
-      <span className="ops-budget-label">{caption}</span>
-      <span className="ops-budget-input-row">
-        <Input
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          aria-label={caption}
-          value={draft ?? budgetFieldText(amount)}
-          onChange={(event) => {
-            const typed = event.target.value.replace(/[^0-9.]/g, '');
-            setDraft(typed);
-            onCommit(moneyAmountFrom(typed, amount));
-          }}
-          onBlur={() => setDraft(null)}
-        />
-        {currency ? <span className="ops-budget-currency">{currency}</span> : null}
-      </span>
-    </label>
+    <div className="ops-budget-field">
+      <label>
+        <span className="ops-budget-label">{caption}</span>
+        <span className="ops-budget-input-row">
+          <Input
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            aria-label={caption}
+            value={draft ?? budgetFieldText(amount)}
+            onChange={(event) => {
+              const typed = event.target.value.replace(/[^0-9.]/g, '');
+              setDraft(typed);
+              onCommit(moneyAmountFrom(typed, amount));
+            }}
+          />
+          {currency ? <span className="ops-budget-currency">{currency}</span> : null}
+        </span>
+      </label>
+      <CostBudgetApplyButton
+        state={saveState}
+        disabled={applying}
+        onClick={onApply}
+      />
+      {notice?.tone === 'error' ? (
+        <span
+          className="ops-budget-save-error"
+          role="alert"
+        >
+          {notice.text}
+        </span>
+      ) : null}
+      {!readable && saveState.kind !== 'failed' ? (
+        <span className="ops-budget-save-error">{COST_BUDGETS_UNREADABLE}</span>
+      ) : null}
+    </div>
+  );
+}
+
+export function CostBudgetApplyButton({
+  state,
+  disabled = false,
+  onClick,
+}: {
+  state: SettingsSaveState;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  const saving = state.kind === 'saving';
+  const label = saving ? 'Applying' : state.kind === 'saved' ? 'Applied' : state.kind === 'failed' ? 'Failed' : 'Apply';
+  return (
+    <Button
+      type="button"
+      variant="default"
+      size="sm"
+      className="ops-budget-apply"
+      disabled={disabled || saving}
+      aria-busy={saving || undefined}
+      onClick={onClick}
+    >
+      {saving ? <ConceptFlicker seat="button" /> : null}
+      {label}
+    </Button>
   );
 }

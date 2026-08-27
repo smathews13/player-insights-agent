@@ -55,7 +55,7 @@ import {
   bars,
   costAbsence,
   costAbsenceReplacesGrid,
-  costCoverageSummary,
+  costCoverageLinesForTile,
   costHonestyLine,
   costTilesForDisplay,
   costTileWorkspaceObject,
@@ -379,7 +379,7 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                 Replacing the whole table with the sentence threw away the two
                 rows that were established. */}
             {rows.length > 0 ? (
-              <table className="ops-table">
+              <table className="ops-table ops-health-table">
                 <caption className="sr-only">
                   Every resource this deployment runs on, and the state each was in when it was last checked.
                 </caption>
@@ -571,53 +571,61 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
           <Skeleton className="ops-skeleton" />
         ) : payload ? (
           <CostBudgetProvider payload={payload} tileIds={displayed.map((tile) => tile.id)}>
-            <CostTotalBudget />
             {replaceGrid && absent ? (
               <Absence notice={absent}>{payload.grant ? <Grant grant={payload.grant} /> : null}</Absence>
             ) : null}
-            <div className="ops-tiles">
-              {displayed.map((tile) => {
-                const view = tileView(tile, payload.currency);
-                const product = productForCostTile(tile.id);
-                const object = costTileWorkspaceObject(tile);
-                const href = object ? databricksLink(host, object) : null;
-                return (
-                  <div key={tile.id} className="ops-tile">
-                    <div className="ops-tile-head">
-                      <p className="ops-tile-label">
-                        {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
-                        <CostTileTitle label={view.label} href={href} />
-                      </p>
-                      <ExperimentalBadge />
+            <fieldset className="ops-cost-budget-ceiling">
+              <legend>App budget ceiling</legend>
+              <CostTotalBudget />
+              <div className="ops-tiles">
+                {displayed.map((tile) => {
+                  const view = tileView(tile, payload.currency);
+                  const product = productForCostTile(tile.id);
+                  const object = costTileWorkspaceObject(tile);
+                  const href = object ? databricksLink(host, object) : null;
+                  const coverage = costCoverageLinesForTile(tile.id, payload.coverage);
+                  return (
+                    <div key={tile.id} className="ops-tile">
+                      <div className="ops-tile-head">
+                        <p className="ops-tile-label">
+                          {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
+                          <CostTileTitle label={view.label} href={href} />
+                        </p>
+                        <ExperimentalBadge />
+                      </div>
+                      {view.figure ? (
+                        <p className="ops-tile-figure">
+                          <span className="ast-num">{view.figure}</span>{' '}
+                          <span className="ops-tile-basis">{view.basisLabel}</span>
+                        </p>
+                      ) : (
+                        <p className="ops-tile-absent">{view.absence}</p>
+                      )}
+                      <CostTileBudget tile={tile} />
+                      {view.estimate || view.sharedScope || view.remedy || view.note || coverage.length > 0 ? (
+                        <div className="ops-tile-foot">
+                          {view.estimate ? (
+                            <span className={astPill('warn', 'ops-pill')}>{view.qualityLabel}</span>
+                          ) : null}
+                          {view.sharedScope ? (
+                            <span className={astPill('neutral-outline', 'ops-pill')}>{view.population}</span>
+                          ) : null}
+                          {view.note ? <span className="ops-tile-note">{view.note}</span> : null}
+                          {view.remedy ? <span className="ops-tile-remedy">{view.remedy}</span> : null}
+                          {coverage.map((line) => (
+                            <span key={line} className="ops-tile-coverage">
+                              {line}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                    {view.figure ? (
-                      <p className="ops-tile-figure">
-                        <span className="ast-num">{view.figure}</span>{' '}
-                        <span className="ops-tile-basis">{view.basisLabel}</span>
-                      </p>
-                    ) : (
-                      <p className="ops-tile-absent">{view.absence}</p>
-                    )}
-                    <CostTileBudget tile={tile} />
-                    {view.estimate || view.sharedScope || view.remedy || view.note ? (
-                      <p className="ops-tile-foot">
-                        {view.estimate ? (
-                          <span className={astPill('warn', 'ops-pill')}>{view.qualityLabel}</span>
-                        ) : null}
-                        {view.sharedScope ? (
-                          <span className={astPill('neutral-outline', 'ops-pill')}>{view.population}</span>
-                        ) : null}
-                        {view.note ? <span className="ops-tile-note">{view.note}</span> : null}
-                        {view.remedy ? <span className="ops-tile-remedy">{view.remedy}</span> : null}
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
-              <QuestionCostAverage payload={payload} />
-            </div>
+                  );
+                })}
+                <QuestionCostAverage payload={payload} />
+              </div>
+            </fieldset>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
-            <CostCoveragePanel payload={payload} />
             <p className="ops-cost-honesty">{costHonestyLine(payload.honesty)}</p>
             {warehouseAutoStopLine(payload.warehouseAutoStop) ? (
               <p className="ops-cost-honesty">{warehouseAutoStopLine(payload.warehouseAutoStop)}</p>
@@ -673,36 +681,6 @@ export function CostTileTitle({ label, href }: { label: string; href: string | n
   );
 }
 
-/**
- * The one per-question KPI this block can defend: endpoint spend in range
- * divided by the questions that recorded tokens. Same size as the resource
- * tiles, in the same grid.
- */
-function CostCoveragePanel({ payload }: { payload: OpsCostPayload }) {
-  const summary = costCoverageSummary(payload.coverage);
-  if (!summary) return null;
-  return (
-    <div className="ops-cost-coverage">
-      <h4>{summary.heading}</h4>
-      <p>{summary.inventory}</p>
-      {summary.products.length > 0 ? (
-        <ul>
-          {summary.products.map((product) => (
-            <li key={product.line}>{product.line}</li>
-          ))}
-        </ul>
-      ) : null}
-      {summary.propagation.length > 0 ? (
-        <ul>
-          {summary.propagation.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
-
 function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
   const amount = questionServingAverage(payload);
   const reason = payload.perQuestion.reason || 'No token-covered endpoint spend in this range';
@@ -711,8 +689,8 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
     <div className="ops-tile">
       <div className="ops-tile-head">
         <p className="ops-tile-label">
-          <span className="ops-tile-label-text" title="Approx. Average Cost Per Question">
-            Approx. Average Cost Per Question
+          <span className="ops-tile-label-text" title="AVG. COST / QUESTION">
+            AVG. COST / QUESTION
           </span>
         </p>
         <ExperimentalBadge />
@@ -1407,9 +1385,7 @@ export function StopAllActiveRuns() {
   const [error, setError] = useState('');
 
   const stop = async () => {
-    const confirmed = window.confirm(
-      'Stop the current snapshot of active Astrolabe runs? This does not pause future Asks and deletes no data or history.'
-    );
+    const confirmed = window.confirm('Stop all active Astrolabe runs? No data or history is deleted.');
     if (!confirmed) return;
     setBusy(true);
     setError('');
@@ -1436,11 +1412,9 @@ export function StopAllActiveRuns() {
 
   return (
     <section className="ops-stop-all" aria-labelledby="ops-stop-all-heading">
-      <div>
-        <h2 id="ops-stop-all-heading">Active runs</h2>
-        <p>One-time snapshot only. Future Asks continue, and no data or history is deleted.</p>
-      </div>
-      <Button type="button" variant="outline" disabled={busy} onClick={() => void stop()}>
+      <strong id="ops-stop-all-heading">ADMIN</strong>
+      <span>No data or history is deleted.</span>
+      <Button className="ops-stop-all-button" type="button" disabled={busy} onClick={() => void stop()}>
         {busy ? 'Stopping…' : 'Stop all active runs'}
       </Button>
       {result ? (
@@ -1489,8 +1463,10 @@ export function OpsPage() {
   return (
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
-      <TimeRangeControl page="Ops cost" />
-      {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
+      <div className="ops-page-controls">
+        <TimeRangeControl page="Ops cost" />
+        {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
+      </div>
 
       {/* Each block reads itself. Three read times on one page rather than one,
           because they were read at three different moments. */}

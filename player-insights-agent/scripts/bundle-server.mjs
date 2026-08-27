@@ -369,6 +369,7 @@ async function main() {
   const schema = (process.env.PLAYER_INSIGHTS_SCHEMA ?? '').trim();
   const dataGenieId = (process.env.PLAYER_INSIGHTS_DATA_GENIE_ID ?? '').trim();
   const dictionaryGenieId = (process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID ?? '').trim();
+  const llmEndpoint = (process.env.PLAYER_INSIGHTS_LLM_ENDPOINT ?? '').trim();
 
   const experimentId = (process.env.PLAYER_INSIGHTS_EXPERIMENT_ID ?? '').trim();
   if (!experimentId) {
@@ -414,6 +415,7 @@ async function main() {
       ...(dictionaryGenieId
         ? [{ name: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID', value: `'${dictionaryGenieId}'` }]
         : []),
+      ...(llmEndpoint ? [{ name: 'PLAYER_INSIGHTS_LLM_ENDPOINT', value: `'${llmEndpoint}'` }] : []),
       ...(judgeEndpoint ? [{ name: 'PLAYER_INSIGHTS_JUDGE_ENDPOINT', value: `'${judgeEndpoint}'` }] : []),
       // Whether the rail is shared is per-deployment, so app.yaml authors the
       // safe default and the release states the target's answer. Absent here

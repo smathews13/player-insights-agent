@@ -110,11 +110,22 @@ def load(name: str, path: Path):
         raise Unreadable(f"{path.name} could not be loaded")
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
+    sibling_path = str(path.parent)
+    added_sibling_path = sibling_path not in sys.path
+    if added_sibling_path:
+        # A module loaded by filename does not gain its own directory on
+        # sys.path. Runtime modules import sibling files (for example SDK
+        # attribution), so the release check must load them the same way Python
+        # loads agent.py inside the packaged model.
+        sys.path.insert(0, sibling_path)
     try:
         spec.loader.exec_module(module)
     except Exception as exc:  # noqa: BLE001 - reported as 'could not run'
         del sys.modules[name]
         raise Unreadable(f"{path} could not be imported: {exc}") from exc
+    finally:
+        if added_sibling_path:
+            sys.path.remove(sibling_path)
     return module
 
 

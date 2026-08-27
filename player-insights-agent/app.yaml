@@ -10,6 +10,11 @@ env:
     valueFrom: postgres
   - name: DATABRICKS_SERVING_ENDPOINT_NAME
     valueFrom: serving-endpoint
+  # Foundation model baked into the served agent. Empty in public source;
+  # bundle/app-release.sh fills the target value so Connections can still name
+  # it when the app principal cannot read the registered model artifact.
+  - name: PLAYER_INSIGHTS_LLM_ENDPOINT
+    value: ''
   # The warehouse the access gate probes as the signed-in user. This is the app's
   # own warehouse, not the orchestrator's, which takes its warehouse from the
   # model artifact. The two can differ, so a gate verdict covers the warehouse
