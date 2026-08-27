@@ -159,12 +159,12 @@ traffic = {
     for r in routes
 }
 entities = cfg.get("served_entities") or []
-print(f"endpoint: {body.get(\"name\") or \"\"}")
-print(f"served_entities: {len(entities)} (ceiling {ceiling})")
+print("endpoint:", body.get("name") or "")
+print("served_entities: %s (ceiling %s)" % (len(entities), ceiling))
 for entity in entities:
     name = entity.get("name") or ""
     version = entity.get("entity_version") or ""
-    print(f"  {name}  version={version}  traffic={traffic.get(name, 0)}%")
+    print("  %s  version=%s  traffic=%s%%" % (name, version, traffic.get(name, 0)))
 ' "$MAX_SERVED_ENTITIES"
 }
 
