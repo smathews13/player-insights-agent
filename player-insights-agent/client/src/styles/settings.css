@@ -89,6 +89,60 @@
   flex: none;
 }
 
+.exp-feature-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.exp-feature-table th,
+.exp-feature-table td {
+  padding: 10px 0 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.exp-feature-table th:first-child,
+.exp-feature-table td:first-child {
+  padding-left: 0;
+}
+
+.exp-feature-table th {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ast-text-secondary);
+}
+
+.exp-feature-table td:last-child {
+  padding-right: 0;
+  text-align: right;
+}
+
+.exp-feature-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.exp-feature-title {
+  font-weight: 500;
+}
+
+.exp-feature-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.exp-feature-table .settings-row-note {
+  margin-top: 4px;
+}
+
 /* Quiet jump from Experimental SP On to the existing Identity pane. A
    button, not a new page, and not a sentence telling the reader to go there. */
 .settings-identity-link {
@@ -251,16 +305,16 @@
 
 .runtime-answer-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
-.runtime-answer-head > span:first-child {
+.runtime-answer-head > :first-child {
   min-width: 0;
 }
 
-/* The name carries the row; 500 weight, base rung, no description beside it. */
+/* The name carries the row; 500 weight, base rung, with a one-line note under it. */
 .runtime-answer-name {
   font-size: var(--text-base);
   font-weight: 500;
@@ -1540,12 +1594,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   color: var(--destructive);
 }
 
-.settings-resource-tags {
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.settings-resource-tags > [data-slot='button'] {
+.settings-resource-tags > .exp-feature-control [data-slot='button'] {
   flex: none;
   display: inline-flex;
   align-items: center;

@@ -69,7 +69,7 @@ describe('Settings modal', () => {
     expect(runtime).toContain('<h3>Runtime</h3>');
     expect(appearance).toContain('<h3>Appearance</h3>');
     expect(experimental).toContain('<h3>Experimental</h3>');
-    expect(experimental).toContain('Benchmarking ·');
+    expect(experimental).toContain('Benchmarking');
     for (const markup of [roles, identity, runtime, appearance, experimental]) {
       expect(markup).not.toContain('Who questions run as. Changes save immediately.');
       expect(markup).not.toContain('Identity and deployment roles. Changes save immediately.');
@@ -95,6 +95,19 @@ describe('Settings modal', () => {
     expect(experimental).not.toContain('retired');
   });
 
+  it('lays Experimental features in a live Feature / Status / Control table', () => {
+    const markup = render('experimental');
+    expect(markup).toContain('>Feature</th>');
+    expect(markup).toContain('>Status</th>');
+    expect(markup).toContain('>Control</th>');
+    expect(markup).toContain('PII egress judge');
+    expect(markup).toContain('Shown');
+    expect(markup).toContain('Idle');
+    expect(markup).not.toContain('PII egress judge ·');
+    expect(markup).not.toContain('SP identities ·');
+    expect(markup).not.toContain('Benchmarking ·');
+  });
+
   it('puts a small Experimental badge on each Experimental feature row, not the word in the title', () => {
     const markup = render('experimental');
     const badges = markup.split('experimental-pane-badge').length - 1;
@@ -102,7 +115,7 @@ describe('Settings modal', () => {
     expect(markup).toContain('PII egress judge');
     expect(markup).toContain('SP identities');
     expect(markup).toContain('Astrolabe resource tags');
-    expect(markup).toContain('Benchmarking ·');
+    expect(markup).toContain('Benchmarking');
     expect(markup).not.toContain('Astrolabe resource tags · Experimental');
   });
 
@@ -150,7 +163,8 @@ describe('Settings modal', () => {
         spIdentityEnabled={false}
       />
     );
-    expect(experimental).toContain('SP identities · Off');
+    expect(experimental).toContain('SP identities');
+    expect(experimental).toContain('Off');
     expect(experimental).not.toContain('data-testid="sp-identity-settings-link"');
     expect(experimental).not.toContain('the whole deployment');
     expect(experimental).not.toContain('go to Identity to assign');
@@ -178,7 +192,8 @@ describe('Settings modal', () => {
         spIdentityEnabled={true}
       />
     );
-    expect(experimental).toContain('SP identities · On');
+    expect(experimental).toContain('SP identities');
+    expect(experimental).toContain('On');
     expect(experimental).toContain('data-testid="sp-identity-settings-link"');
     expect(experimental).not.toContain('once enabled');
     expect(experimental).not.toContain('go to Identity to assign');
@@ -215,7 +230,7 @@ describe('Settings modal', () => {
     const pii = markup.indexOf('PII egress judge');
     const identities = markup.indexOf('SP identities');
     const tags = markup.indexOf('Astrolabe resource tags');
-    const benchmarking = markup.indexOf('Benchmarking ·');
+    const benchmarking = markup.indexOf('>Benchmarking<');
     const candidate = markup.indexOf('>Candidate<');
     expect(pii).toBeGreaterThan(-1);
     expect(identities).toBeGreaterThan(pii);

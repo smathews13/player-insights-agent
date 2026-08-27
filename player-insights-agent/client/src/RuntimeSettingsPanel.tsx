@@ -68,6 +68,9 @@ function NumberField({
   max,
   onCommit,
   className = '',
+  help,
+  helpId,
+  placeholder,
 }: {
   label: string;
   value: number;
@@ -75,16 +78,26 @@ function NumberField({
   max: number;
   onCommit: (value: number) => void;
   className?: string;
+  help?: string;
+  helpId?: string;
+  placeholder?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <label className={`runtime-field ${className}`}>
       <span className="runtime-field-label">{label}</span>
+      {help ? (
+        <span id={helpId} className="runtime-control-note">
+          {help}
+        </span>
+      ) : null}
       <Input
         type="text"
         inputMode="numeric"
         autoComplete="off"
         aria-label={label}
+        aria-describedby={helpId}
+        placeholder={placeholder}
         value={draft ?? String(value)}
         onChange={(event) => {
           const typed = event.target.value.replace(/[^0-9]/g, '');
@@ -101,11 +114,13 @@ function NumberField({
 
 function AnswerRow({
   label,
+  help,
   checked,
   onToggle,
   children,
 }: {
   label: string;
+  help: string;
   checked: boolean;
   onToggle: (checked: boolean) => void;
   children?: ReactNode;
@@ -113,7 +128,10 @@ function AnswerRow({
   return (
     <div className="runtime-answer-row">
       <div className="runtime-answer-head">
-        <span className="runtime-answer-name">{label}</span>
+        <div>
+          <span className="runtime-answer-name">{label}</span>
+          <p className="runtime-control-note">{help}</p>
+        </div>
         <Switch checked={checked} onCheckedChange={onToggle} aria-label={label} />
       </div>
       {checked && children ? <div className="runtime-answer-body">{children}</div> : null}
@@ -253,17 +271,38 @@ export function RuntimeSettingsPanel({
     min: number,
     max: number,
     update: (value: number) => void,
-    className = ''
+    extra: { className?: string; help: string; helpId: string; placeholder: string }
   ) => (
-    <NumberField key={label} label={label} value={value} min={min} max={max} onCommit={update} className={className} />
+    <NumberField
+      key={label}
+      label={label}
+      value={value}
+      min={min}
+      max={max}
+      onCommit={update}
+      className={extra.className}
+      help={extra.help}
+      helpId={extra.helpId}
+      placeholder={extra.placeholder}
+    />
   );
 
-  const guidance = (label: string, value: string, update: (value: string) => void) => (
+  const guidance = (
+    label: string,
+    value: string,
+    update: (value: string) => void,
+    extra: { help: string; helpId: string; placeholder: string }
+  ) => (
     <label className="runtime-field runtime-field-wide">
       <span className="runtime-field-label">{label}</span>
+      <span id={extra.helpId} className="runtime-control-note">
+        {extra.help}
+      </span>
       <textarea
         className="runtime-guidance"
         aria-label={label}
+        aria-describedby={extra.helpId}
+        placeholder={extra.placeholder}
         value={value}
         onChange={(event) => update(event.target.value)}
       />
@@ -288,10 +327,27 @@ export function RuntimeSettingsPanel({
           <section className="runtime-section">
             <h4 className="runtime-section-label">Loop structure</h4>
             <div className="runtime-loop-row">
-              {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value))}
-              {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value))}
-              {number('Run budget (s)', settings.loop.maxRunSeconds, 30, 200, (value) =>
-                setLoop('maxRunSeconds', value)
+              {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value), {
+                help: 'Reasoning steps in one Ask.',
+                helpId: 'runtime-max-steps-help',
+                placeholder: '10',
+              })}
+              {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value), {
+                help: 'Tools it may call in one Ask.',
+                helpId: 'runtime-max-tool-calls-help',
+                placeholder: '15',
+              })}
+              {number(
+                'Run budget (s)',
+                settings.loop.maxRunSeconds,
+                30,
+                200,
+                (value) => setLoop('maxRunSeconds', value),
+                {
+                  help: 'Seconds before the run stops.',
+                  helpId: 'runtime-run-budget-help',
+                  placeholder: '150',
+                }
               )}
             </div>
           </section>
@@ -302,18 +358,31 @@ export function RuntimeSettingsPanel({
             </div>
             <AnswerRow
               label="Takeaway"
+              help="Opening line of the answer."
               checked={settings.answer.takeaway}
               onToggle={(value) => setAnswer('takeaway', value)}
             >
-              {guidance('Guidance', settings.answer.takeawayGuidance, (value) => setAnswer('takeawayGuidance', value))}
+              {guidance('Guidance', settings.answer.takeawayGuidance, (value) => setAnswer('takeawayGuidance', value), {
+                help: 'Tone for that line.',
+                helpId: 'runtime-takeaway-guidance-help',
+                placeholder: 'Lead with the count.',
+              })}
             </AnswerRow>
             <AnswerRow
               label="Narrative"
+              help="Prose under the takeaway."
               checked={settings.answer.narrative}
               onToggle={(value) => setAnswer('narrative', value)}
             >
-              {guidance('Guidance', settings.answer.narrativeGuidance, (value) =>
-                setAnswer('narrativeGuidance', value)
+              {guidance(
+                'Guidance',
+                settings.answer.narrativeGuidance,
+                (value) => setAnswer('narrativeGuidance', value),
+                {
+                  help: 'How that prose should read.',
+                  helpId: 'runtime-narrative-guidance-help',
+                  placeholder: 'Explain the result in plain language.',
+                }
               )}
               {number(
                 'Character cap',
@@ -321,18 +390,29 @@ export function RuntimeSettingsPanel({
                 0,
                 12_000,
                 (value) => setAnswer('narrativeMaxCharacters', value),
-                'runtime-field-short'
+                {
+                  className: 'runtime-field-short',
+                  help: 'Max length. 0 means none.',
+                  helpId: 'runtime-character-cap-help',
+                  placeholder: '0',
+                }
               )}
               <span className="runtime-inline-note">0 = uncapped</span>
             </AnswerRow>
             <AnswerRow
               label="Figures"
+              help="Tables in the answer."
               checked={settings.answer.figures}
               onToggle={(value) => setAnswer('figures', value)}
             >
-              {number('Max figures', settings.answer.maxFigures, 0, 12, (value) => setAnswer('maxFigures', value))}
+              {number('Max figures', settings.answer.maxFigures, 0, 12, (value) => setAnswer('maxFigures', value), {
+                help: 'How many tables.',
+                helpId: 'runtime-max-figures-help',
+                placeholder: '6',
+              })}
               <label className="runtime-field">
                 <span className="runtime-field-label">Order</span>
+                <span className="runtime-control-note">Which table comes first.</span>
                 <AppSelect
                   label="Order"
                   ariaLabel="Order"
@@ -346,10 +426,20 @@ export function RuntimeSettingsPanel({
                 />
               </label>
             </AnswerRow>
-            <AnswerRow label="Charts" checked={settings.answer.charts} onToggle={(value) => setAnswer('charts', value)}>
-              {number('Max charts', settings.answer.maxCharts, 0, 6, (value) => setAnswer('maxCharts', value))}
+            <AnswerRow
+              label="Charts"
+              help="Charts in the answer."
+              checked={settings.answer.charts}
+              onToggle={(value) => setAnswer('charts', value)}
+            >
+              {number('Max charts', settings.answer.maxCharts, 0, 6, (value) => setAnswer('maxCharts', value), {
+                help: 'How many charts.',
+                helpId: 'runtime-max-charts-help',
+                placeholder: '3',
+              })}
               <label className="runtime-field">
                 <span className="runtime-field-label">Types</span>
+                <span className="runtime-control-note">Which chart kinds.</span>
                 <AppSelect
                   label="Types"
                   ariaLabel="Types"
@@ -365,10 +455,15 @@ export function RuntimeSettingsPanel({
             </AnswerRow>
             <AnswerRow
               label="Analyst caveats"
+              help="Keep-in-mind notes."
               checked={settings.answer.caveats}
               onToggle={(value) => setAnswer('caveats', value)}
             >
-              {number('Max caveats', settings.answer.maxCaveats, 0, 20, (value) => setAnswer('maxCaveats', value))}
+              {number('Max caveats', settings.answer.maxCaveats, 0, 20, (value) => setAnswer('maxCaveats', value), {
+                help: 'How many. 0 means all.',
+                helpId: 'runtime-max-caveats-help',
+                placeholder: '0',
+              })}
               <span className="runtime-inline-note">0 = all</span>
             </AnswerRow>
           </section>
@@ -376,9 +471,14 @@ export function RuntimeSettingsPanel({
           <section className="runtime-section runtime-section-last">
             <label className="runtime-field runtime-timezone-field">
               <span className="runtime-section-label">Timezone (IANA name)</span>
+              <span id="runtime-timezone-help" className="runtime-control-note">
+                Zone for dates in answers.
+              </span>
               <Input
                 className="runtime-timezone"
                 aria-label="Timezone (IANA name)"
+                aria-describedby="runtime-timezone-help"
+                placeholder="America/New_York"
                 value={settings.behavior.timezone}
                 onChange={(event) =>
                   setSettings((current) => ({

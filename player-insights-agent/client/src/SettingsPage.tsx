@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
-import { ExperimentalRowLabel } from './ExperimentalBadge';
+import { ExperimentalFeatureName, ExperimentalStatus } from './ExperimentalBadge';
 import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
@@ -266,27 +266,50 @@ export function SettingsPage({
                   <div className="settings-pane-heading">
                     <h3>Experimental</h3>
                   </div>
-                  <div className="settings-row">
-                    <div>
-                      <ExperimentalRowLabel>
-                        PII egress judge · {showsEgressControls(features) ? 'Shown' : 'Hidden'}
-                      </ExperimentalRowLabel>
-                    </div>
-                    <Switch
-                      checked={showsEgressControls(features)}
-                      onCheckedChange={(enabled) => {
-                        setFeature('egressControls', enabled);
-                      }}
-                      aria-label="Show the egress controls on this page"
-                    />
-                  </div>
-                  <div className="settings-row">
-                    <div>
-                      <ExperimentalRowLabel>
-                        SP identities · {spIdentityEnabled ? 'On' : 'Off'}
-                        {spIdentityEnabled ? (
-                          <>
-                            {' · '}
+                  <table className="exp-feature-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Feature</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Control</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>
+                          <ExperimentalFeatureName>PII egress judge</ExperimentalFeatureName>
+                        </td>
+                        <td>
+                          <ExperimentalStatus
+                            on={showsEgressControls(features)}
+                            onLabel="Shown"
+                            offLabel="Hidden"
+                          />
+                        </td>
+                        <td className="exp-feature-control">
+                          <Switch
+                            checked={showsEgressControls(features)}
+                            onCheckedChange={(enabled) => {
+                              setFeature('egressControls', enabled);
+                            }}
+                            aria-label="Show the egress controls on this page"
+                          />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <ExperimentalFeatureName>SP identities</ExperimentalFeatureName>
+                          {spModeError ? (
+                            <p className="settings-status settings-error" role="alert">
+                              {spModeError}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td>
+                          <ExperimentalStatus on={spIdentityEnabled} onLabel="On" offLabel="Off" />
+                        </td>
+                        <td className="exp-feature-control">
+                          {spIdentityEnabled ? (
                             <button
                               type="button"
                               className="settings-identity-link"
@@ -298,51 +321,53 @@ export function SettingsPage({
                             >
                               Identity
                             </button>
-                          </>
-                        ) : null}
-                      </ExperimentalRowLabel>
-                      {spModeError ? (
-                        <p className="settings-status settings-error" role="alert">
-                          {spModeError}
-                        </p>
-                      ) : null}
-                    </div>
-                    <Switch
-                      checked={spIdentityEnabled}
-                      disabled={spModeBusy}
-                      onCheckedChange={(enabled) => {
-                        const previous = spIdentityEnabled;
-                        setSpModeError(null);
-                        setSpIdentityEnabled(enabled);
-                        setSpModeBusy(true);
-                        void persistSpIdentityMode(enabled)
-                          .then((payload) => setSpIdentityEnabled(spIdentityEnabledFromPayload(payload)))
-                          .catch((caught: unknown) => {
-                            setSpIdentityEnabled(previous);
-                            setSpModeError(
-                              caught instanceof Error
-                                ? caught.message
-                                : 'The experimental pivot could not be saved. Questions still use OAuth.'
-                            );
-                          })
-                          .finally(() => setSpModeBusy(false));
-                      }}
-                      aria-label="Run assigned people as their service principal"
-                    />
-                  </div>
-                  <ResourceTagsPanel />
-                  <div className="settings-row">
-                    <div>
-                      <ExperimentalRowLabel>
-                        Benchmarking · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
-                      </ExperimentalRowLabel>
-                    </div>
-                    <Switch
-                      checked={showsBenchmarkLab(features)}
-                      onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
-                      aria-label="Show Benchmarking tab"
-                    />
-                  </div>
+                          ) : null}
+                          <Switch
+                            checked={spIdentityEnabled}
+                            disabled={spModeBusy}
+                            onCheckedChange={(enabled) => {
+                              const previous = spIdentityEnabled;
+                              setSpModeError(null);
+                              setSpIdentityEnabled(enabled);
+                              setSpModeBusy(true);
+                              void persistSpIdentityMode(enabled)
+                                .then((payload) => setSpIdentityEnabled(spIdentityEnabledFromPayload(payload)))
+                                .catch((caught: unknown) => {
+                                  setSpIdentityEnabled(previous);
+                                  setSpModeError(
+                                    caught instanceof Error
+                                      ? caught.message
+                                      : 'The experimental pivot could not be saved. Questions still use OAuth.'
+                                  );
+                                })
+                                .finally(() => setSpModeBusy(false));
+                            }}
+                            aria-label="Run assigned people as their service principal"
+                          />
+                        </td>
+                      </tr>
+                      <ResourceTagsPanel />
+                      <tr>
+                        <td>
+                          <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
+                        </td>
+                        <td>
+                          <ExperimentalStatus
+                            on={showsBenchmarkLab(features)}
+                            onLabel="Shown"
+                            offLabel="Hidden"
+                          />
+                        </td>
+                        <td className="exp-feature-control">
+                          <Switch
+                            checked={showsBenchmarkLab(features)}
+                            onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
+                            aria-label="Show Benchmarking tab"
+                          />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                   <BenchmarkSettingsPanel enabled={showsBenchmarkLab(features)} onSaveState={setSaveState} />
                 </div>
               ) : null}

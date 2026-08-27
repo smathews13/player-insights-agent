@@ -16,12 +16,28 @@ export function ExperimentalBadge() {
   );
 }
 
-/** Settings → Experimental row title plus the small pill. No “· Experimental” text. */
-export function ExperimentalRowLabel({ children }: { children: ReactNode }) {
+/** Feature name plus the small pill. Status lives in its own table cell. */
+export function ExperimentalFeatureName({ children }: { children: ReactNode }) {
   return (
-    <p className="settings-row-label">
-      <span className="settings-row-label-text">{children}</span>
+    <span className="exp-feature-name">
+      <span className="exp-feature-title">{children}</span>
       <ExperimentalBadge />
-    </p>
+    </span>
+  );
+}
+
+export function ExperimentalStatus({
+  on,
+  onLabel,
+  offLabel,
+}: {
+  on: boolean;
+  onLabel: string;
+  offLabel: string;
+}) {
+  return (
+    <span className={`ast-pill ${on ? 'ast-pill--pos' : 'ast-pill--neutral'}`}>
+      {on ? onLabel : offLabel}
+    </span>
   );
 }

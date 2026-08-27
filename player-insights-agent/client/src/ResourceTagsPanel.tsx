@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ConceptFlicker } from './ConceptFlicker';
-import { ExperimentalRowLabel } from './ExperimentalBadge';
+import { ExperimentalFeatureName } from './ExperimentalBadge';
 import { Button } from './ui';
 
 export type TagResult = {
@@ -113,9 +113,9 @@ export function ResourceTagsPanel() {
   };
 
   return (
-    <div className="settings-row settings-resource-tags">
-      <div>
-        <ExperimentalRowLabel>Astrolabe resource tags</ExperimentalRowLabel>
+    <tr className="settings-resource-tags">
+      <td>
+        <ExperimentalFeatureName>Astrolabe resource tags</ExperimentalFeatureName>
         <p className="settings-row-note">
           <code>system_billing=astrolabe</code>
         </p>
@@ -125,8 +125,19 @@ export function ResourceTagsPanel() {
             {error}
           </p>
         ) : null}
-      </div>
-      <ResourceTagsApplyButton running={running} onClick={() => void apply()} />
-    </div>
+      </td>
+      <td>
+        <span
+          className={`ast-pill ${
+            running ? 'ast-pill--warn' : error ? 'ast-pill--neg' : summary ? 'ast-pill--pos' : 'ast-pill--neutral'
+          }`}
+        >
+          {running ? 'Applying' : error ? 'Failed' : summary ? 'Applied' : 'Idle'}
+        </span>
+      </td>
+      <td className="exp-feature-control">
+        <ResourceTagsApplyButton running={running} onClick={() => void apply()} />
+      </td>
+    </tr>
   );
 }
