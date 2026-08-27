@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { ConceptFlicker } from './ConceptFlicker';
+import { ExperimentalRowLabel } from './ExperimentalBadge';
 import { Button } from './ui';
 
 export type TagResult = {
@@ -69,6 +71,21 @@ export function ResourceTagResults({ summary }: { summary: TagSummary }) {
   );
 }
 
+export function ResourceTagsApplyButton({
+  running,
+  onClick,
+}: {
+  running: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Button variant="outline" type="button" disabled={running} aria-busy={running} onClick={onClick}>
+      {running ? <ConceptFlicker seat="button" /> : null}
+      Apply Astrolabe tags
+    </Button>
+  );
+}
+
 export function ResourceTagsPanel() {
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<TagSummary | null>(null);
@@ -98,7 +115,7 @@ export function ResourceTagsPanel() {
   return (
     <div className="settings-row settings-resource-tags">
       <div>
-        <p className="settings-row-label">Astrolabe resource tags · Experimental</p>
+        <ExperimentalRowLabel>Astrolabe resource tags</ExperimentalRowLabel>
         <p className="settings-row-note">
           <code>system_billing=astrolabe</code>
         </p>
@@ -109,9 +126,7 @@ export function ResourceTagsPanel() {
           </p>
         ) : null}
       </div>
-      <Button variant="outline" type="button" disabled={running} onClick={() => void apply()}>
-        {running ? 'Applying…' : 'Apply Astrolabe tags'}
-      </Button>
+      <ResourceTagsApplyButton running={running} onClick={() => void apply()} />
     </div>
   );
 }

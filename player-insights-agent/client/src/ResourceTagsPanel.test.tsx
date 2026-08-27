@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ResourceTagResults, type TagSummary } from './ResourceTagsPanel';
+import { ResourceTagResults, ResourceTagsApplyButton, type TagSummary } from './ResourceTagsPanel';
 
 describe('Astrolabe resource tag results', () => {
   it('leads with actionable counts and keeps raw Databricks JSON behind disclosure', () => {
@@ -45,5 +45,15 @@ describe('Astrolabe resource tag results', () => {
     expect(markup).toContain('<details>');
     expect(markup).toContain('<summary>Technical details</summary>');
     expect(markup.indexOf('CAN_MANAGE on app')).toBeLessThan(markup.indexOf('PERMISSION_DENIED'));
+  });
+
+  it('puts the in-button Astrolabe flicker left of Apply while the repair is running', () => {
+    const idle = renderToStaticMarkup(<ResourceTagsApplyButton running={false} />);
+    const busy = renderToStaticMarkup(<ResourceTagsApplyButton running={true} />);
+    expect(idle).toContain('Apply Astrolabe tags');
+    expect(idle).not.toContain('ast-flick-slot--button');
+    expect(busy).toContain('ast-flick-slot--button');
+    expect(busy).toContain('Apply Astrolabe tags');
+    expect(busy.indexOf('ast-flick-slot--button')).toBeLessThan(busy.indexOf('Apply Astrolabe tags'));
   });
 });

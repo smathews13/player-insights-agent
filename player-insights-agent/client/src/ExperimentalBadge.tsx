@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 export const EXPERIMENTAL_PANE_HINT =
   'Experimental: this pane may be unstable or may not work as expected.';
 
@@ -11,5 +13,15 @@ export function ExperimentalBadge() {
     >
       Experimental
     </span>
+  );
+}
+
+/** Settings → Experimental row title plus the small pill. No “· Experimental” text. */
+export function ExperimentalRowLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="settings-row-label">
+      <span className="settings-row-label-text">{children}</span>
+      <ExperimentalBadge />
+    </p>
   );
 }

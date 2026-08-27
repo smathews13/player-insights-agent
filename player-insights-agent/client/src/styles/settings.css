@@ -72,9 +72,21 @@
 }
 
 .settings-row-label {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 0;
   font-size: var(--text-base);
   font-weight: 500;
+}
+
+.settings-row-label-text {
+  min-width: 0;
+}
+
+.settings-row-label .experimental-pane-badge {
+  flex: none;
 }
 
 /* Quiet jump from Experimental SP On to the existing Identity pane. A
@@ -1535,6 +1547,9 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .settings-resource-tags > [data-slot='button'] {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .resource-tag-result {

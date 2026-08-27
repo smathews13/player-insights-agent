@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
+import { ExperimentalRowLabel } from './ExperimentalBadge';
 import { ResourceTagsPanel } from './ResourceTagsPanel';
 import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
@@ -267,9 +268,9 @@ export function SettingsPage({
                   </div>
                   <div className="settings-row">
                     <div>
-                      <p className="settings-row-label">
+                      <ExperimentalRowLabel>
                         PII egress judge · {showsEgressControls(features) ? 'Shown' : 'Hidden'}
-                      </p>
+                      </ExperimentalRowLabel>
                     </div>
                     <Switch
                       checked={showsEgressControls(features)}
@@ -281,7 +282,7 @@ export function SettingsPage({
                   </div>
                   <div className="settings-row">
                     <div>
-                      <p className="settings-row-label">
+                      <ExperimentalRowLabel>
                         SP identities · {spIdentityEnabled ? 'On' : 'Off'}
                         {spIdentityEnabled ? (
                           <>
@@ -299,7 +300,7 @@ export function SettingsPage({
                             </button>
                           </>
                         ) : null}
-                      </p>
+                      </ExperimentalRowLabel>
                       {spModeError ? (
                         <p className="settings-status settings-error" role="alert">
                           {spModeError}
@@ -332,9 +333,9 @@ export function SettingsPage({
                   <ResourceTagsPanel />
                   <div className="settings-row">
                     <div>
-                      <p className="settings-row-label">
+                      <ExperimentalRowLabel>
                         Benchmarking · {showsBenchmarkLab(features) ? 'Shown' : 'Hidden'}
-                      </p>
+                      </ExperimentalRowLabel>
                     </div>
                     <Switch
                       checked={showsBenchmarkLab(features)}

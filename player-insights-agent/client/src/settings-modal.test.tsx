@@ -85,13 +85,25 @@ describe('Settings modal', () => {
   it('puts the legacy-deployment tag repair on Experimental, not Environment', () => {
     const environment = render('environment');
     expect(environment).not.toContain('Astrolabe resource tags');
-    expect(environment).not.toContain('>Apply Astrolabe tags</button>');
+    expect(environment).not.toContain('Apply Astrolabe tags');
 
     const experimental = render('experimental');
-    expect(experimental).toContain('Astrolabe resource tags · Experimental');
+    expect(experimental).toContain('Astrolabe resource tags');
     expect(experimental).toContain('system_billing=astrolabe');
-    expect(experimental).toContain('>Apply Astrolabe tags</button>');
+    expect(experimental).toContain('Apply Astrolabe tags');
+    expect(experimental).not.toContain('Astrolabe resource tags · Experimental');
     expect(experimental).not.toContain('retired');
+  });
+
+  it('puts a small Experimental badge on each Experimental feature row, not the word in the title', () => {
+    const markup = render('experimental');
+    const badges = markup.split('experimental-pane-badge').length - 1;
+    expect(badges).toBe(4);
+    expect(markup).toContain('PII egress judge');
+    expect(markup).toContain('SP identities');
+    expect(markup).toContain('Astrolabe resource tags');
+    expect(markup).toContain('Benchmarking ·');
+    expect(markup).not.toContain('Astrolabe resource tags · Experimental');
   });
 
   it('puts personas on Identity, grayed until the deployment-wide SP identities pivot is on', () => {
