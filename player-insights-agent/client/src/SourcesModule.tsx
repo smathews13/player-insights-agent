@@ -1,15 +1,16 @@
 import { OpenInDatabricks, SourceEntityName } from './DataEntityLinks';
 import { KeepInMind } from './KeepInMind';
 import { sourceRows } from './source-rows';
+import type { SourceTone } from './source-rows';
 import type { Derivation, SourceRef } from './answer-shape';
 
 /**
  * The one place an answer says where it came from and what to watch for.
  *
- * It replaces the old multi-row Sources card with one wrapping provenance
- * sentence, followed by the compact Keep in mind box. The table names remain
- * links and every recorded role/derivation fact remains present; only repeated
- * chrome and repeated sentences are removed.
+ * Sources is a vertical list, one leftover table per bullet, matching Keep in
+ * mind's `answer-list` (same blue dots, gap, and type). Filter, metric and
+ * window sit inside that source's bullet so they cannot collapse into a wrapping
+ * sentence of middle-dot separators.
  *
  * THE ROLE FOLLOWS EACH NAME. That is the fact that differs between sources;
  * repeating a generic governance sentence around every source would bury it.
@@ -18,18 +19,55 @@ import type { Derivation, SourceRef } from './answer-shape';
  * `sources[0]`, so an answer that read four tables named one of them, and the
  * one it named was whichever the run read first -- a dictionary lookup, in the
  * report that started this. Deduplication, ordering and the chip vocabulary are
- * source-rows.ts's; the caveats are KeepInMind.tsx's; this file owns the line.
+ * source-rows.ts's; the caveats are KeepInMind.tsx's; this file owns the list.
  */
+
+type DerivationFact = {
+  label: string;
+  value: string;
+  source: boolean;
+  tone: SourceTone;
+};
+
+type DerivedEntry = {
+  key: string;
+  source: string;
+  facts: DerivationFact[];
+};
+
+function sourceKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function DerivationFacts({ facts }: { facts: readonly DerivationFact[] }) {
+  const shown = facts.filter((fact) => fact.value);
+  if (shown.length === 0) return null;
+  return (
+    <ul className="answer-list source-list-derivation">
+      {shown.map((fact) => (
+        <li className="derivation-fact" key={fact.label}>
+          <span className="derivation-label">{fact.label} </span>
+          <code
+            className={`derivation-value${fact.source ? ' derivation-source source-name-pill' : ''}`}
+            data-tone={fact.source ? fact.tone : undefined}
+          >
+            {fact.source ? <SourceEntityName name={fact.value} /> : fact.value}
+          </code>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function SourcesModule({
   sources,
   caveats,
   derivation = [],
-  layout = 'line',
   hideWorkspaceLinks = [],
 }: {
   sources: readonly SourceRef[];
   /**
-   * The answer's caveats, drawn immediately after the provenance line.
+   * The answer's caveats, drawn immediately after the provenance list.
    *
    * Passed in rather than fetched, because Ask PIA lifts a degradation out into
    * a banner above the figures and hands this only the rest, while the Run
@@ -45,17 +83,8 @@ export function SourcesModule({
    */
   derivation?: readonly Derivation[];
   /**
-   * How the names are arranged.
-   *
-   * `line` is Ask PIA's compact provenance sentence. `list` is the Run Explorer
-   * Overview: one row per source (path, role, Open link) and one labeled row
-   * per derivation fact, so metric/filter/source cannot collapse into a
-   * wrapping paragraph.
-   */
-  layout?: 'line' | 'list';
-  /**
    * Source names that already carry an Open-in-workspace control on a table or
-   * chart header. Those drop out of this leftover line so the same table is not
+   * chart header. Those drop out of this leftover list so the same table is not
    * named twice; Keep in mind still sees the full list, so a caveat can tag it.
    */
   hideWorkspaceLinks?: readonly string[];
@@ -64,19 +93,19 @@ export function SourcesModule({
   const workspaceLink = (name: string) =>
     hidden.has(name.trim().toLowerCase()) ? null : <OpenInDatabricks name={name} />;
   const rows = sourceRows(sources);
-  const leftover = rows.filter((row) => !hidden.has(row.name.trim().toLowerCase()));
-  const derived = derivation
+  const derived: DerivedEntry[] = derivation
     .map((entry) => ({
       key: `${entry.source}-${entry.metric}-${entry.window}-${entry.filter}`,
+      source: entry.source,
       facts: [
-        { label: 'Metric', value: entry.metric, source: false, tone: 'neutral' },
-        { label: 'Window', value: entry.window, source: false, tone: 'neutral' },
-        { label: 'Filter', value: entry.filter, source: false, tone: 'neutral' },
+        { label: 'Metric', value: entry.metric, source: false, tone: 'neutral' as const },
+        { label: 'Window', value: entry.window, source: false, tone: 'neutral' as const },
+        { label: 'Filter', value: entry.filter, source: false, tone: 'neutral' as const },
         // The table is repeated here only when the run read more than one, which
         // is the one case where "which of these did this figure come from" is a
-        // real question. On a single-source answer the row above answers it, and
-        // this file's whole argument is that a fact true of every row belongs in
-        // one place.
+        // real question. Nested under a leftover bullet the name is already on
+        // the row, so the leftover map strips this fact; unmatched bullets keep
+        // it so a header-linked table's filter is still attributed.
         {
           label: 'Source',
           value: rows.length > 1 ? entry.source : '',
@@ -86,91 +115,84 @@ export function SourcesModule({
       ].filter((fact) => fact.value),
     }))
     .filter((entry) => entry.facts.length > 0);
+  const leftover = rows.filter((row) => {
+    const key = sourceKey(row.name);
+    if (!hidden.has(key)) return true;
+    // A table already named on a chart or table header drops out of this list
+    // unless derivation still has something to say about it — filter, metric,
+    // window — so those facts have a named bullet instead of an unlabeled one.
+    return derived.some((entry) => sourceKey(entry.source) === key);
+  });
+  const leftoverKeys = new Set(leftover.map((row) => sourceKey(row.name)));
+  const unmatched = derived.filter((entry) => !leftoverKeys.has(sourceKey(entry.source)));
 
   if (rows.length === 0 && derived.length === 0 && !caveats.some((caveat) => caveat.trim()))
     return null;
   const provenance =
-    leftover.length > 0 || derived.length > 0 ? (
-      layout === 'list' ? (
-        <section className="sources-module sources-module--list" aria-label="Sources and provenance">
-          <p className="source-list-heading">Sources</p>
-          <ul className="source-list">
-            {leftover.map((row) => (
-              <li className="source-list-row" key={row.name}>
-                <span
-                  className="source-list-path"
-                  title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}
-                >
-                  <SourceEntityName name={row.name} />
-                </span>
-                <span className="source-list-role" title={row.note}>
-                  {row.chip}
-                </span>
-                {workspaceLink(row.name)}
-              </li>
-            ))}
-          </ul>
-          {derived.map((entry) => (
-            <dl className="source-list-derivation" key={entry.key}>
-              {entry.facts.map((fact) => (
-                <div className="derivation-row" key={fact.label}>
-                  <dt className="derivation-label">{fact.label}</dt>
-                  <dd>
-                    <code
-                      className={`derivation-value${fact.source ? ' derivation-source source-name-pill' : ''}`}
-                      data-tone={fact.source ? fact.tone : undefined}
-                    >
-                      {fact.source ? <SourceEntityName name={fact.value} /> : fact.value}
-                    </code>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ))}
-        </section>
-      ) : (
-        <section className="sources-module" aria-label="Sources and provenance">
-          <p className="source-line">
-            <strong className="source-line-label">Sources</strong>{' '}
-            {leftover.map((row, index) => (<span className="source-line-entry" key={row.name}>
-                {index > 0 ? <span aria-hidden="true"> · </span> : null}
-                <span
-                  className="source-line-name source-name-pill"
-                  data-tone={row.tone}
-                  title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}
-                >
-                  <SourceEntityName name={row.name} />
-                </span>{' '}
-                {/* The chip names the role; the title says what the role MEANS for
-                    the numbers on screen -- "Its data is not in the numbers shown"
-                    is the distinction a reader is actually checking, and the
-                    three-word chip cannot carry it. It had a line of its own on the
-                    old Sources card and lost its seating when the card became one
-                    compact line; source-rows.ts never stopped stating it. */}
-                <span className="source-line-role" title={row.note}>({row.chip})</span>{' '}
-                {workspaceLink(row.name)}
-              </span>
-            ))}
-            {derived.map((entry) => (<span className="source-line-derivation" key={entry.key}>
-                {' · '}
-                {entry.facts.map((fact, index) => (<span className="derivation-fact" key={fact.label}>
-                    {index > 0 ? ', ' : null}
-                    <span className="derivation-label">{fact.label.toLowerCase()} </span>
-                    <code
-                      className={`derivation-value${fact.source ? ' derivation-source source-name-pill' : ''}`}
-                      data-tone={fact.source ? fact.tone : undefined}
-                    >
-                      {fact.source ? <SourceEntityName name={fact.value} /> : fact.value}
-                    </code>
-                  </span>
+    leftover.length > 0 || unmatched.length > 0 ? (
+      <section className="sources-module" aria-label="Sources and provenance">
+        <p className="source-list-heading">Sources</p>
+        <ul className="answer-list source-list">
+          {leftover.map((row) => (
+            <li className="source-list-row" key={row.name}>
+              <span
+                className="source-list-name source-name-pill"
+                data-tone={row.tone}
+                title={row.freshness ? `${row.name} · ${row.freshness}` : row.name}
+              >
+                <SourceEntityName name={row.name} />
+              </span>{' '}
+              {/* The chip names the role; the title says what the role MEANS for
+                  the numbers on screen -- "Its data is not in the numbers shown"
+                  is the distinction a reader is actually checking, and the
+                  three-word chip cannot carry it. It had a line of its own on the
+                  old Sources card and lost its seating when the card became one
+                  compact line; source-rows.ts never stopped stating it. */}
+              <span className="source-list-role" title={row.note}>
+                ({row.chip})
+              </span>{' '}
+              {workspaceLink(row.name)}
+              {derived
+                .filter((entry) => sourceKey(entry.source) === sourceKey(row.name))
+                .map((entry) => (
+                  <DerivationFacts key={entry.key} facts={entry.facts.filter((fact) => !fact.source)} />
                 ))}
-              </span>
-            ))}
-          </p>
-        </section>
-      )
+            </li>
+          ))}
+          {unmatched.map((entry) => {
+            const rest = entry.facts.filter((fact) => !fact.source);
+            const row = rows.find((item) => sourceKey(item.name) === sourceKey(entry.source));
+            const name = entry.source.trim();
+            return (
+              <li className="source-list-row" key={entry.key}>
+                {name ? (
+                  <>
+                    <span
+                      className="source-list-name source-name-pill"
+                      data-tone={row?.tone ?? 'neutral'}
+                      title={row?.freshness ? `${name} · ${row.freshness}` : name}
+                    >
+                      <SourceEntityName name={name} />
+                    </span>
+                    {row ? (
+                      <>
+                        {' '}
+                        <span className="source-list-role" title={row.note}>
+                          ({row.chip})
+                        </span>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+                <DerivationFacts facts={rest} />
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     ) : null;
-  return (<>
+  return (
+    <>
       {provenance}
       <KeepInMind caveats={caveats} sources={rows} />
     </>

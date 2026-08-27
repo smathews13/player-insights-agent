@@ -140,20 +140,21 @@ describe('the Overview Final Answer module', () => {
     expect(html).not.toMatch(/platform \| total_distinct_players/);
   });
 
-  it('lists each source as a path with one Open control, not a wrapping tangle', () => {
+  it('lists each source as a bullet with one Open control, not a wrapping tangle', () => {
     const html = markup();
     expect(html).toContain('source-list');
+    expect(html).toContain('source-list-row');
     expect(html).toContain('silver_gameplay_activity');
     expect(html).not.toContain('source-line');
   });
 
-  it('draws metric, window and filter as labeled rows, not one wrapping paragraph', () => {
+  it('draws metric, window and filter as nested bullets, not one wrapping paragraph', () => {
     const html = markup();
     expect(html).toContain('source-list-derivation');
-    expect(html).toContain('derivation-row');
-    expect(html).toMatch(/<dt class="derivation-label">Metric<\/dt>/);
-    expect(html).toMatch(/<dt class="derivation-label">Window<\/dt>/);
-    expect(html).toMatch(/<dt class="derivation-label">Filter<\/dt>/);
+    expect(html).toContain('derivation-fact');
+    expect(html).toMatch(/<span class="derivation-label">Metric /);
+    expect(html).toMatch(/<span class="derivation-label">Window /);
+    expect(html).toMatch(/<span class="derivation-label">Filter /);
     expect(html).toContain('unique_players');
     expect(html).not.toMatch(/<p class="source-list-derivation"/);
   });

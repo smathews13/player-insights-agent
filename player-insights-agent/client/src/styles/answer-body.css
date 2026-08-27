@@ -110,16 +110,14 @@
  * The Sources module: the tables an answer read, then what to keep in mind
  * about the numbers they produced.
  *
- * ONE WRAPPING LINE, NOT A CARD. It was a bordered card of ruled rows — a head
- * with a product mark and a count, one row per source with its chip and its
- * link, a derivation strip and an amber caveats footer — and the rules for all
- * of that were still in this file after the markup became `.source-line`. They
- * are gone; what is left below is the line, the name pill and the derivation
- * facts that line actually holds.
+ * ONE BULLET PER TABLE, NOT A SENTENCE AND NOT A CARD. It was a bordered card
+ * of ruled rows, then a wrapping provenance sentence that ran every name into
+ * one paragraph. Both hid the thing a reader is checking: which tables, and
+ * which of them the numbers came from. The list below is the same blue middot
+ * Keep in mind uses, so the card is one list language.
  *
- * The pill families stay because the pill is what survived the card: a source's
- * role is carried by the colour of its own name rather than by a chip in a
- * column, since there is no column any more to line chips up in.
+ * The pill families stay: a source's role is carried by the colour of its own
+ * name, and the words in parentheses after the name say what that colour means.
  */
 .sources-module {
   min-width: 0;
@@ -600,53 +598,65 @@
   min-width: 0;
 }
 
-/* Compact source and derivation sentence. It wraps, but remains one paragraph. */
-.source-line {
-  margin: 0;
+/*
+ * Sources list: one leftover table per bullet. Filter, metric and window sit
+ * inside that bullet. Same `.answer-list` middot and 6px gap as Keep in mind.
+ * Name first, role after, Open last — wrapping inside the bullet, never a
+ * three-column row or a middle-dot paragraph.
+ */
+.source-list-heading {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
   color: var(--ast-text-secondary);
-  /* Same rung as `.answer-prose`: Source through the following paragraphs
-     are one reading block, and 11px made the line the hardest part of it. */
+}
+.source-list {
+  margin: 0;
+  color: var(--ast-text-long);
+  /* Same middot, 6px gap and 1.5 rhythm as Keep in mind; 14px so Sources
+     stays on the prose rung rather than shrinking to the caveat footer. */
+  gap: 6px;
   font-size: var(--ast-fs-14);
   line-height: 1.5;
 }
-.source-line-label {
-  color: var(--ast-text-secondary);
-  font-weight: 700;
+.source-list-derivation {
+  margin: 4px 0 0;
+  color: var(--ast-text-long);
+  font-size: var(--ast-fs-14);
+  line-height: 1.5;
 }
-.source-line-entry,
-.source-line-derivation {
-  display: inline;
-}
-.source-line-name,
-.source-line-name a,
-.source-line .derivation-source,
-.source-line .derivation-source a {
+.source-list-name,
+.source-list-name a,
+.source-list-derivation .derivation-source,
+.source-list-derivation .derivation-source a {
   color: var(--ast-pos-text);
   font-family: var(--font-mono);
   font-size: var(--ast-fs-14);
   font-weight: 500;
 }
-.source-line-name .source-name-short,
-.source-line .derivation-source .source-name-short {
+.source-list-name .source-name-short,
+.source-list-derivation .derivation-source .source-name-short {
   padding: 0;
   background: transparent;
 }
-.source-line-role {
+.source-list-role {
   color: var(--ast-text-secondary);
 }
-.source-line .derivation-fact {
-  display: inline;
+.source-list-derivation .derivation-fact {
+  display: block;
 }
-.source-line .derivation-label {
+.source-list-derivation .derivation-label {
   color: var(--ast-text-secondary);
   font-size: var(--ast-fs-14);
   font-weight: 400;
 }
-.source-line .derivation-value {
+.source-list-derivation .derivation-value {
   color: var(--ast-pos-text);
   font-size: var(--ast-fs-14);
 }
-.source-line a {
+.source-list a,
+.source-list-derivation a {
   vertical-align: baseline;
 }
 

@@ -96,7 +96,6 @@ export function FinalAnswer({
         <AnswerProse text={story} sources={sources} columns={columns} blocks="prose" />
         <AnswerEvidence narrative={story} charts={charts} sources={sources} />
         <SourcesModule
-          layout="list"
           sources={sources}
           caveats={restCaveats}
           derivation={derivation}

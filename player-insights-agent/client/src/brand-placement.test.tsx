@@ -210,14 +210,15 @@ describe('every outbound MLflow action carries the MLflow mark inside its anchor
   });
 });
 
-describe('the Sources module keeps provenance on one compact line', () => {
+describe('the Sources module lists each source as its own bullet', () => {
   const sources: SourceRef[] = [{ name: 'main.gold.title_daily_summary' } as SourceRef];
 
   it('names the source without restoring the retired Sources card chrome', () => {
     const markup = renderToStaticMarkup(<SourcesModule sources={sources} caveats={[]} />);
 
-    expect(markup).toContain('<p class="source-line">');
+    expect(markup).toContain('source-list');
     expect(markup).toContain('title_daily_summary');
+    expect(markup).not.toContain('source-line');
     expect(markup).not.toContain('brand-icon');
     expect(markup).not.toContain('lucide-database');
   });

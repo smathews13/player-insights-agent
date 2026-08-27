@@ -202,8 +202,8 @@ describe('table story metadata', () => {
   });
 });
 
-describe('compact provenance and caveats', () => {
-  it('uses one source paragraph and includes recorded roles and derivation facts', () => {
+describe('bullet provenance and caveats', () => {
+  it('lists each source as its own bullet and includes recorded roles and derivation facts', () => {
     const markup = renderToStaticMarkup(
       <SourcesModule
         sources={[{ name: 'main.game.daily', freshness: '', role: 'reading' }]}
@@ -211,7 +211,9 @@ describe('compact provenance and caveats', () => {
         derivation={[{ source: 'main.game.daily', metric: 'sessions', window: '7 days', filter: 'title = A' }]}
       />
     );
-    expect(markup.match(/<p class="source-line">/g)).toHaveLength(1);
+    expect(markup.match(/<ul class="answer-list source-list">/g)).toHaveLength(1);
+    expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(1);
+    expect(markup).not.toContain('source-line');
     expect(markup).toContain('Queried for the figures');
     expect(markup).toContain('sessions');
     expect(markup).toContain('7 days');

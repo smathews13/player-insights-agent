@@ -52,11 +52,11 @@ function text(markup: string): string {
 
 /** A label and the value drawn beside it, as the markup pairs them. */
 function fact(label: string, value: string): string {
-  return `<span class="derivation-label">${label.toLowerCase()} </span><code class="derivation-value">${value}</code>`;
+  return `<span class="derivation-label">${label} </span><code class="derivation-value">${value}</code>`;
 }
 
 /**
- * Only the provenance strips, so a claim about what they do not say is about them.
+ * Only the provenance bullets, so a claim about what they do not say is about them.
  *
  * The rest of the card has its own vocabulary and some of it collides: the source
  * row wears a "Role not recorded" chip for a table whose role the run did not
@@ -64,8 +64,8 @@ function fact(label: string, value: string): string {
  * card-wide search for a hedge.
  */
 function strips(markup: string): string {
-  const at = markup.indexOf('class="source-line-derivation"');
-  return at < 0 ? '' : markup.slice(at, markup.indexOf('</p>', at));
+  const at = markup.indexOf('source-list-derivation');
+  return at < 0 ? '' : markup.slice(at);
 }
 
 function renderModule(entries: Derivation[], sources: string[] = [TABLE], caveats: string[] = []): string {
@@ -116,8 +116,8 @@ describe('the facts the block states', () => {
       derivation({ metric: 'net_bookings', window: '≥ 2025-01-01', filter: 'platform = xbox' }),
     ]);
 
-    expect(markup.indexOf('metric ')).toBeLessThan(markup.indexOf('window '));
-    expect(markup.indexOf('window ')).toBeLessThan(markup.indexOf('filter '));
+    expect(markup.indexOf('Metric ')).toBeLessThan(markup.indexOf('Window '));
+    expect(markup.indexOf('Window ')).toBeLessThan(markup.indexOf('Filter '));
   });
 
   it('says nothing about a field the statement did not carry', () => {
@@ -128,8 +128,8 @@ describe('the facts the block states', () => {
     const markup = renderModule([derivation({ metric: 'active_players' })]);
 
     expect(markup).toContain(fact('Metric', 'active_players'));
-    expect(markup).not.toContain('class="derivation-label">window </span>');
-    expect(markup).not.toContain('class="derivation-label">filter </span>');
+    expect(markup).not.toContain('class="derivation-label">Window </span>');
+    expect(markup).not.toContain('class="derivation-label">Filter </span>');
     expect(text(strips(markup))).not.toMatch(/all time|no filter|unknown|not recorded/i);
   });
 
@@ -139,7 +139,7 @@ describe('the facts the block states', () => {
       derivation({ metric: 'active_players', window: '≥ 2025-01-01' }),
     ]);
 
-    expect(markup.match(/class="source-line-derivation"/g)).toHaveLength(2);
+    expect(markup.match(/source-list-derivation/g)).toHaveLength(2);
     expect(markup).toContain(fact('Metric', 'net_bookings'));
     expect(markup).toContain(fact('Metric', 'active_players'));
   });
@@ -162,7 +162,7 @@ describe('what it refuses to draw', () => {
     // already names it. A strip with no facts in it is a bordered empty line.
     const markup = renderModule([{ source: TABLE, metric: '', window: '', filter: '' }]);
 
-    expect(markup).not.toContain('source-line-derivation');
+    expect(markup).not.toContain('source-list-derivation');
     // And the module still draws, because the source row is real.
     expect(text(markup)).toContain(TABLE);
   });
@@ -178,36 +178,31 @@ describe('what it refuses to draw', () => {
     const markup = renderModule([derivation({ metric: 'net_bookings' })], [TABLE]);
 
     expect(text(markup).match(new RegExp(TABLE.replace(/\./g, '\\.'), 'g'))).toHaveLength(1);
-    expect(markup).not.toContain('class="derivation-label">source </span>');
+    expect(markup).not.toContain('class="derivation-label">Source </span>');
   });
 
-  it('names the table on an answer that read several, where the question is real', () => {
+  it('names each table once on its leftover bullet rather than repeating it as a source fact', () => {
     const markup = renderModule([derivation({ metric: 'net_bookings', source: SECOND })], [TABLE, SECOND]);
 
-    expect(markup).toContain('class="derivation-label">source </span>');
-    // Linked through the same component the row above uses, so the name in the
-    // strip is the name a reader can paste into a query and a link to this app's
-    // own entry for the table.
-    expect(text(markup).match(new RegExp(SECOND.replace(/\./g, '\\.'), 'g'))).toHaveLength(2);
-    expect(markup).toContain('derivation-source');
+    expect(markup).not.toContain('class="derivation-label">Source </span>');
+    expect(text(markup).match(new RegExp(SECOND.replace(/\./g, '\\.'), 'g'))).toHaveLength(1);
+    expect(text(markup)).toContain(TABLE);
+    expect(text(markup)).toContain(SECOND);
   });
 
-  it('uses the same table-name pill treatment in source rows and provenance rows', () => {
+  it('uses the same table-name pill treatment on every leftover source row', () => {
     const markup = renderModule(
       [derivation({ metric: 'net_bookings', source: SECOND, filter: 'platform = xbox' })],
       [TABLE, SECOND],
     );
 
-    expect(markup.match(/class="source-line-name source-name-pill"/g)).toHaveLength(2);
-    expect(markup).toContain(
-      'class="derivation-value derivation-source source-name-pill" data-tone="neutral"',
-    );
+    expect(markup.match(/class="source-list-name source-name-pill"/g)).toHaveLength(2);
     expect(markup).toContain('class="source-name-short">gold_title_daily_summary</span>');
     expect(markup).toContain(
-      '<span class="derivation-label">filter </span><code class="derivation-value">platform = xbox</code>',
+      '<span class="derivation-label">Filter </span><code class="derivation-value">platform = xbox</code>',
     );
-    expect(markup).toContain('class="derivation-label">metric </span>');
-    expect(markup).toContain('class="derivation-label">source </span>');
+    expect(markup).toContain('class="derivation-label">Metric </span>');
+    expect(markup).not.toContain('class="derivation-label">Source </span>');
   });
 
   it('explains itself nowhere: no sentence, no heading of its own', () => {
@@ -239,8 +234,8 @@ describe('where it sits in the card', () => {
       ['Totals are cumulative player-days.']
     );
 
-    expect(markup.indexOf('source-line-entry')).toBeLessThan(markup.indexOf('source-line-derivation'));
-    expect(markup.indexOf('source-line-derivation')).toBeLessThan(markup.indexOf('Keep in mind'));
+    expect(markup.indexOf('source-list-row')).toBeLessThan(markup.indexOf('source-list-derivation'));
+    expect(markup.indexOf('source-list-derivation')).toBeLessThan(markup.indexOf('Keep in mind'));
     // And the caveat is still there, in its own footer.
     expect(text(markup)).toContain('Totals are cumulative player-days.');
   });
@@ -281,7 +276,7 @@ describe('where it sits in the card', () => {
       sql: 'SELECT sum(spend) FROM gold_spend_daily',
     } as WireAnswer);
 
-    expect(rendered).not.toContain('source-line-derivation');
+    expect(rendered).not.toContain('source-list-derivation');
     expect(text(rendered)).toContain(TABLE);
   });
 });

@@ -928,69 +928,6 @@ html[data-theme='dark'] .final-answer .entity-catalog {
   color: var(--ast-ice-accent);
   background: rgba(143, 193, 232, 0.12);
 }
-.final-answer .source-list-heading {
-  margin: 0 0 8px;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-.final-answer .source-list {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.final-answer .source-list-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px 12px;
-  align-items: baseline;
-  min-width: 0;
-}
-.final-answer .source-list-path {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--ast-text);
-}
-.final-answer .source-list-path .source-name-qualifier {
-  opacity: 0.7;
-}
-.final-answer .source-list-path .source-name-short {
-  padding: 0;
-  background: transparent;
-  color: inherit;
-}
-.final-answer .source-list-path a {
-  color: inherit;
-}
-.final-answer .source-list-role {
-  color: var(--muted-foreground);
-  font-size: var(--ast-fs-11);
-  white-space: nowrap;
-}
-.final-answer .source-list-derivation {
-  display: grid;
-  gap: 6px;
-  margin: 10px 0 0;
-  color: var(--muted-foreground);
-  font-size: var(--ast-fs-11);
-}
-.final-answer .derivation-row {
-  display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr);
-  gap: 4px 12px;
-  align-items: baseline;
-}
-.final-answer .derivation-row dt,
-.final-answer .derivation-row dd {
-  margin: 0;
-  min-width: 0;
-}
 .final-answer .keep-in-mind {
   background: color-mix(in srgb, var(--ast-ice) 70%, transparent);
 }

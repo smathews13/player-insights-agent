@@ -47,26 +47,26 @@ function withoutComments(source: string) {
 }
 
 /**
- * The markup of one source row. Scoped rather than searched for across the file
+ * The markup of one source bullet. Scoped rather than searched for across the file
  * because a chip is legitimate on the row: the module gives every row one, and
  * what must never come back is a SECOND chip making a claim about the data
  * inside the table rather than about what the run read it for.
  */
-function sourceLine(source: string) {
-  const line = /<p className="source-line">([\s\S]*?)<\/p>/.exec(withoutComments(source));
-  if (!line) throw new Error('The source provenance is no longer rendered as .source-line');
-  return line[1];
+function sourceBullet(source: string) {
+  const line = /<li className="source-list-row"[\s\S]*?<\/li>/.exec(withoutComments(source));
+  if (!line) throw new Error('The source provenance is no longer rendered as a source-list bullet');
+  return line[0];
 }
 
-describe('the source line under an answer', () => {
+describe('the source list under an answer', () => {
   it('carries exactly one recorded role after each table name', () => {
     // The row's own qualifier and nothing else. A "Synthetic data" chip sat at
     // the end of this row and was switched on in the browser by pattern-matching
     // the wording of the answer's caveats; the shape that let it exist was a row
     // that could carry any number of labels.
-    const line = sourceLine(MODULE);
-    expect(line.match(/source-line-role/g)).toHaveLength(1);
-    expect(line.indexOf('SourceEntityName')).toBeLessThan(line.indexOf('source-line-role'));
+    const line = sourceBullet(MODULE);
+    expect(line.match(/source-list-role/g)).toHaveLength(1);
+    expect(line.indexOf('SourceEntityName')).toBeLessThan(line.indexOf('source-list-role'));
     expect(line).not.toContain('<Badge');
   });
 
@@ -103,7 +103,7 @@ describe('the source line under an answer', () => {
     // heading the card carries it, and a sentence restating it is the interface
     // explaining its own design. Nothing was lost with it that the row was the
     // only record of, which is what this assertion is really guarding.
-    const line = sourceLine(MODULE);
+    const line = sourceBullet(MODULE);
     expect(line).toContain('<SourceEntityName name={row.name} />');
     expect(line).toContain('row.freshness');
     expect(withoutComments(ROWS)).not.toMatch(/governed/i);

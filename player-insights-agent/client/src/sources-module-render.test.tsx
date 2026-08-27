@@ -81,17 +81,19 @@ function renderCard(raw: WireAnswer): string {
   );
 }
 
-describe('the compact source line', () => {
-  it('names the module and source in one paragraph', () => {
+describe('the source list', () => {
+  it('names the module and source as a heading plus one bullet', () => {
     const markup = renderToStaticMarkup(<SourcesModule sources={[{ name: NAME, freshness: FRESHNESS }]} caveats={[]} />);
     const rendered = text(markup);
 
     expect(rendered).toContain('Sources');
     expect(rendered).toContain(NAME);
-    expect(markup.match(/<p class="source-line">/g)).toHaveLength(1);
+    expect(markup.match(/<ul class="answer-list source-list">/g)).toHaveLength(1);
+    expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(1);
+    expect(markup).not.toContain('source-line');
   });
 
-  it('keeps multiple sources in the same paragraph', () => {
+  it('gives each source its own bullet instead of one wrapping paragraph', () => {
     const markup = renderToStaticMarkup(<SourcesModule
           sources={QUERIED.map((name) => ({ name, freshness: FRESHNESS }))}
           caveats={[]}
@@ -101,7 +103,23 @@ describe('the compact source line', () => {
 
     expect(rendered).toContain(QUERIED[0]);
     expect(rendered).toContain(QUERIED[1]);
-    expect(markup.match(/<p class="source-line">/g)).toHaveLength(1);
+    expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(2);
+    expect(markup).not.toContain('source-line');
+    expect(markup).not.toContain('aria-hidden="true"> · ');
+  });
+
+  it('keeps Keep in mind as its own list under Sources', () => {
+    const markup = renderToStaticMarkup(
+      <SourcesModule
+        sources={QUERIED.map((name) => ({ name, freshness: FRESHNESS }))}
+        caveats={['Watch the window.']}
+      />
+    );
+    expect(markup.match(/<ul class="answer-list source-list">/g)).toHaveLength(1);
+    expect(markup.match(/<ul class="answer-list keep-in-mind-list">/g)).toHaveLength(1);
+    expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(2);
+    expect(markup.indexOf('source-list')).toBeLessThan(markup.indexOf('keep-in-mind'));
+    expect(text(markup)).toContain('Watch the window.');
   });
 
   it('says the governance line nowhere, however many tables the run read', () => {
@@ -263,7 +281,7 @@ describe('the row that names a source', () => {
     expect(rendered).toContain(sentence);
   });
 
-  it('omits a table already named on a chart or table header from the leftover Sources line', () => {
+  it('omits a table already named on a chart or table header from the leftover Sources list', () => {
     const markup = renderToStaticMarkup(
       <SourcesModule
         sources={[
@@ -274,11 +292,26 @@ describe('the row that names a source', () => {
         hideWorkspaceLinks={[QUERIED[0]]}
       />
     );
-    const line = /<p class="source-line">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? '';
-    expect(line).not.toContain(QUERIED[0]);
-    expect(line).toContain(NAME);
+    const list = /<ul class="answer-list source-list">([\s\S]*?)<\/ul>/.exec(markup)?.[1] ?? '';
+    expect(list).not.toContain(QUERIED[0]);
+    expect(list).toContain(NAME);
     expect(text(markup)).toContain('Keep in mind');
     expect(text(markup)).toContain(QUERIED[0]);
+  });
+
+  it('keeps a header-linked table as a named Sources bullet when it still has metric facts', () => {
+    const markup = renderToStaticMarkup(
+      <SourcesModule
+        sources={[{ name: QUERIED[0], freshness: FRESHNESS, role: 'reading' }]}
+        caveats={[]}
+        derivation={[{ source: QUERIED[0], metric: 'total_rows', window: '', filter: '' }]}
+        hideWorkspaceLinks={[QUERIED[0]]}
+      />
+    );
+    expect(markup.match(/<li class="source-list-row"/g)).toHaveLength(1);
+    expect(markup).toContain(QUERIED[0]);
+    expect(markup).toContain('total_rows');
+    expect(markup).not.toContain('aria-hidden="true"> · ');
   });
 });
 

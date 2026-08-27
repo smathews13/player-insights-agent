@@ -111,7 +111,7 @@ describe('the answer and plan cards sit on the design’s scale, not the library
     // two sizes too small for the unused measure. One type step to 14px; the
     // takeaway and the figure rail stay on the rungs already pinned above.
     expect(ruleFor(ANSWER_CSS, '.answer-prose {')).toContain('font-size: var(--ast-fs-14)');
-    expect(ruleFor(BODY_CSS, '.source-line {')).toContain('font-size: var(--ast-fs-14)');
+    expect(ruleFor(BODY_CSS, '.source-list {')).toContain('font-size: var(--ast-fs-14)');
     expect(ruleFor(ANSWER_CSS, '.answer-takeaway {')).toContain(
       'font-size: calc(var(--ast-fs-16) + 0.5px)'
     );
@@ -706,29 +706,30 @@ describe('the card holds text it did not write', () => {
     expect(module).toContain('row.freshness ? `${row.name} · ${row.freshness}` : row.name');
   });
 
-  it('keeps sources as one compact line rather than a nested card', () => {
-    // The deliberate reversal: the old bordered card had a head, ruled source
-    // rows and a derivation strip. Provenance now reads as one wrapping sentence;
-    // caveats keep their own compact surface immediately after it.
+  it('keeps sources as one bullet list rather than a nested card', () => {
+    // The old bordered card had a head, ruled source rows and a derivation strip.
+    // Provenance now reads as one bullet per table, using the same middot Keep in
+    // mind uses; caveats keep their own compact surface immediately after it.
     const rule = ruleFor(BODY_CSS, '.sources-module {');
     expect(rule).toContain('min-width: 0');
     expect(readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8')).toContain(
-      '<p className="source-line">'
+      'className="answer-list source-list"'
     );
-    expect(ruleFor(BODY_CSS, '.source-line {')).toContain('font-size: var(--ast-fs-14)');
+    expect(ruleFor(BODY_CSS, '.source-list {')).toContain('font-size: var(--ast-fs-14)');
   });
 
   it('places each recorded role after its source name', () => {
-    // The retired source rows carried a separate role chip. In the compact line,
-    // the role follows its source in words and the source-name colour carries the
-    // same family distinction without introducing another chip recipe.
+    // The retired source rows carried a separate role chip. In the list, the
+    // role follows its source in parentheses and the source-name colour carries
+    // the same family distinction without introducing another chip recipe.
     const module = readFileSync(new URL('./SourcesModule.tsx', import.meta.url), 'utf8');
     // `title` carries what the role MEANS for the numbers -- "Its data is not in the
     // numbers shown" -- which had a line of its own on the retired Sources card and
     // no seating at all once provenance became one compact line.
-    expect(module).toContain('<span className="source-line-role" title={row.note}>({row.chip})</span>');
-    expect(ruleFor(BODY_CSS, '.source-line-name,')).toContain('font-family: var(--font-mono)');
-    expect(ruleFor(BODY_CSS, '.source-line-name,')).toContain('color: var(--ast-pos-text)');
+    expect(module).toContain('<span className="source-list-role" title={row.note}>');
+    expect(module).toContain('({row.chip})');
+    expect(ruleFor(BODY_CSS, '.source-list-name,')).toContain('font-family: var(--font-mono)');
+    expect(ruleFor(BODY_CSS, '.source-list-name,')).toContain('color: var(--ast-pos-text)');
   });
 });
 
