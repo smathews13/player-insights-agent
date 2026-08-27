@@ -19,6 +19,7 @@ import pytest
 from databricks.sdk.service.dashboards import MessageStatus
 from databricks.sdk.service.sql import ExecuteStatementRequestOnWaitTimeout
 
+import correlation
 import failures
 import tools as tools_module
 from config import Settings
@@ -77,6 +78,7 @@ class FakeWarehouse:
         self.total_row_count = total_row_count
         self.statements: list[str] = []
         self.wait_timeouts: list[tuple[str, Any]] = []
+        self.query_tag_calls: list[list[Any]] = []
         self.chunks_fetched: list[int] = []
         self.get_statement_calls: list[str] = []
         self.cancelled: list[str] = []
@@ -118,9 +120,17 @@ class FakeWarehouse:
     def _next_state(self) -> str:
         return self.states.pop(0) if len(self.states) > 1 else self.states[0]
 
-    def _execute(self, warehouse_id: str, statement: str, wait_timeout: str, on_wait_timeout=None):
+    def _execute(
+        self,
+        warehouse_id: str,
+        statement: str,
+        wait_timeout: str,
+        on_wait_timeout=None,
+        query_tags=None,
+    ):
         self.statements.append(statement)
         self.wait_timeouts.append((wait_timeout, on_wait_timeout))
+        self.query_tag_calls.append(list(query_tags or []))
         return self._response(self._next_state())
 
     def _get_statement(self, statement_id: str):
@@ -512,9 +522,7 @@ def test_unreadable_tag_views_degrade_to_guidance_rather_than_failing_the_turn()
 def budget(monkeypatch, seconds: float) -> None:
     """Pin what the turn has left, which is what gates the retry."""
 
-    monkeypatch.setattr(
-        tools_module.runtime_settings, "remaining_seconds", lambda: float(seconds)
-    )
+    monkeypatch.setattr(tools_module.runtime_settings, "remaining_seconds", lambda: float(seconds))
 
 
 def test_the_tag_read_waits_the_apis_full_allowance_rather_than_thirty_seconds():
@@ -539,9 +547,7 @@ def test_a_cancelled_tag_read_is_tried_once_more_and_the_second_attempt_can_succ
     """The first statement is what starts the warehouse; the second finds it warm."""
 
     budget(monkeypatch, 90)
-    tools, warehouse = tagged(
-        [tag_row(PROFILES, "pii", "true")], state=["CANCELED", "SUCCEEDED"]
-    )
+    tools, warehouse = tagged([tag_row(PROFILES, "pii", "true")], state=["CANCELED", "SUCCEEDED"])
 
     text = tools.search_tagged_assets().text
 
@@ -705,8 +711,7 @@ def test_describing_a_declared_table_returns_its_columns_and_comments():
     result = build(warehouse).describe_table(PROFILES)
 
     assert warehouse.statements == [
-        "DESCRIBE TABLE EXTENDED `test_catalog`.`test_schema`"
-        ".`silver_player_profiles`"
+        "DESCRIBE TABLE EXTENDED `test_catalog`.`test_schema`.`silver_player_profiles`"
     ]
     assert "- platformid_accountid: string (Stable cross-platform player key)" in result.text
     assert "- profile_label: string (Publishing label)" in result.text
@@ -826,9 +831,7 @@ def test_a_wide_tables_whole_column_list_comes_back_rather_than_the_first_fifty(
     """The enumeration the sampling budget used to cut, silently."""
 
     columns = describe_rows(1_753)
-    warehouse = FakeWarehouse(
-        ["col_name", "data_type", "comment"], columns, chunk_size=100
-    )
+    warehouse = FakeWarehouse(["col_name", "data_type", "comment"], columns, chunk_size=100)
 
     text = build(warehouse).describe_table(PROFILES).text
 
@@ -847,9 +850,7 @@ def test_a_description_too_large_even_for_the_enumeration_budget_says_so():
     """
 
     columns = describe_rows(tools_module.ENUMERATION_BUDGET.max_rows * 2)
-    warehouse = FakeWarehouse(
-        ["col_name", "data_type", "comment"], columns, chunk_size=500
-    )
+    warehouse = FakeWarehouse(["col_name", "data_type", "comment"], columns, chunk_size=500)
 
     text = build(warehouse).describe_table(PROFILES).text
 
@@ -1499,8 +1500,7 @@ def test_an_identifier_that_escapes_a_cte_is_refused_however_it_is_dressed():
         f"WITH ids AS (SELECT platformid_accountid AS pid FROM {PROFILES}) SELECT pid FROM ids",
         f"WITH ids AS (SELECT platformid_accountid AS pid FROM {PROFILES}) SELECT * FROM ids",
         f"WITH ids AS (SELECT platformid_accountid AS pid FROM {PROFILES}) SELECT s.* FROM ids s",
-        f"WITH ids AS (SELECT email AS e FROM {PROFILES}) "
-        f"SELECT upper(e) AS shouted FROM ids",
+        f"WITH ids AS (SELECT email AS e FROM {PROFILES}) SELECT upper(e) AS shouted FROM ids",
         f"WITH ids AS (SELECT max(email) AS e FROM {PROFILES}) SELECT e FROM ids",
         # Two CTEs deep, and renamed at every hop.
         f"WITH a AS (SELECT platformid_accountid AS x FROM {PROFILES}), "
@@ -2512,7 +2512,7 @@ def test_the_data_genie_tool_description_names_the_space_when_titled():
     assert "metadata only" in dictionary
 
     untitled = data_genie_tool()["function"]["description"]
-    assert 'Ask the curated Genie Space that holds' in untitled
+    assert "Ask the curated Genie Space that holds" in untitled
 
 
 def test_a_genie_result_preamble_names_the_space():
@@ -2530,7 +2530,7 @@ def test_a_genie_result_preamble_names_the_space():
 
     result = tools.data_genie("active players by title")
 
-    assert result.text.startswith('Asking Genie space Player Insights Data (data).')
+    assert result.text.startswith("Asking Genie space Player Insights Data (data).")
     assert "VLHO leads." in result.text
 
 
@@ -2573,9 +2573,7 @@ def test_a_null_ratio_through_genie_is_still_allowed():
 
     genie = FakeGenie(
         MessageStatus.COMPLETED,
-        sql=(
-            f"SELECT sum(CASE WHEN email IS NULL THEN 1 ELSE 0 END) AS missing FROM {PROFILES}"
-        ),
+        sql=(f"SELECT sum(CASE WHEN email IS NULL THEN 1 ELSE 0 END) AS missing FROM {PROFILES}"),
     )
 
     result = build(genie).data_genie("how many players have no email")
@@ -2951,9 +2949,7 @@ def test_genie_cannot_widen_the_logged_manifest_after_release():
     declares it.
     """
 
-    outside = FakeGenie(
-        MessageStatus.COMPLETED, sql=f"SELECT count(*) FROM {SECRET}"
-    )
+    outside = FakeGenie(MessageStatus.COMPLETED, sql=f"SELECT count(*) FROM {SECRET}")
 
     with pytest.raises(tools_module.EvidenceRefused) as refusal:
         build(outside).data_genie("q")
@@ -2967,6 +2963,52 @@ def test_genie_cannot_widen_the_logged_manifest_after_release():
 # ---------------------------------------------------------------------------
 # A statement that is still running has not failed
 # ---------------------------------------------------------------------------
+
+
+def test_runtime_sql_tags_identify_the_surface_tool_and_scoped_run():
+    request_id = "req-7f3c1a20-1111-1111-1111-111111111111"
+    run_id = "req-00000000-2222-2222-2222-222222222222"
+    correlation.activate_query_ids(SimpleNamespace(request_id=request_id, run_id=run_id))
+    try:
+        query_warehouse = FakeWarehouse(["n"], [["1"]])
+        build(query_warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
+        describe_warehouse = FakeWarehouse(["col_name"], [["player_id"]])
+        build(describe_warehouse).describe_table(ACTIVITY)
+        search_warehouse = FakeWarehouse(["tag"], [])
+        build(search_warehouse).search_tagged_assets()
+    finally:
+        correlation.clear_query_ids()
+
+    tagged = [
+        {tag.key: tag.value for tag in warehouse.query_tag_calls[0]}
+        for warehouse in (query_warehouse, describe_warehouse, search_warehouse)
+    ]
+    assert tagged == [
+        {
+            "application": "Astrolabe",
+            "surface": "ask",
+            "tool": "query_named_table",
+            "correlation_id": request_id,
+            "run_id": run_id,
+        },
+        {
+            "application": "Astrolabe",
+            "surface": "ask",
+            "tool": "describe_table",
+            "correlation_id": request_id,
+            "run_id": run_id,
+        },
+        {
+            "application": "Astrolabe",
+            "surface": "ask",
+            "tool": "search_tagged_assets",
+            "correlation_id": request_id,
+            "run_id": run_id,
+        },
+    ]
+    rendered = repr(tagged)
+    assert "SELECT count" not in rendered
+    assert "@example.com" not in rendered
 
 
 def test_a_slow_statement_is_cancelled_and_reported_as_slow_rather_than_failed():
@@ -2999,8 +3041,8 @@ def test_answer_sql_waits_the_api_ceiling_not_thirty_seconds():
     """The query that answers the question used to cancel at 30s.
 
     50s is the Statement Execution API's max for a synchronous wait. Past that
-    the statement is polled until 110s. 30s is only a docs example for CANCEL
-    mode, not a platform limit.
+    the statement has up to 300s of allowance, bounded separately by the turn.
+    30s is only a docs example for CANCEL mode, not a platform limit.
     """
 
     warehouse = FakeWarehouse(["n"], [["1"]])
@@ -3011,21 +3053,19 @@ def test_answer_sql_waits_the_api_ceiling_not_thirty_seconds():
         (f"{tools_module.SQL_WAIT_CEILING_SECONDS}s", ExecuteStatementRequestOnWaitTimeout.CONTINUE)
     ]
     assert warehouse.wait_timeouts[0][0] != "30s"
-    assert tools_module.ANSWER_SQL_WAIT_SECONDS == 110
+    assert tools_module.ANSWER_SQL_WAIT_SECONDS == 300
     assert tools_module.SQL_WAIT_SECONDS == tools_module.ANSWER_SQL_WAIT_SECONDS
 
 
-def test_answer_sql_still_stops_when_the_run_budget_is_gone(monkeypatch):
-    """The 50s wait cannot outlast what the run has left."""
+def test_answer_sql_still_leaves_the_answer_reserve_intact(monkeypatch):
+    """The 300s allowance cannot consume the turn's 25s write-up reserve."""
 
     budget(monkeypatch, 40)
     warehouse = FakeWarehouse(["n"], [["1"]])
 
     build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
 
-    assert warehouse.wait_timeouts == [
-        ("40s", ExecuteStatementRequestOnWaitTimeout.CANCEL)
-    ]
+    assert warehouse.wait_timeouts == [("15s", ExecuteStatementRequestOnWaitTimeout.CANCEL)]
 
 
 def test_answering_sql_polls_past_the_sync_ceiling_until_it_succeeds(monkeypatch):
@@ -3066,6 +3106,70 @@ def test_answering_sql_cancels_on_the_deadline_so_the_model_sees_canceled(monkey
     assert warehouse.cancelled
     assert warehouse.get_statement_calls
     assert warehouse.wait_timeouts[0][1] == ExecuteStatementRequestOnWaitTimeout.CONTINUE
+
+
+def test_a_statement_that_succeeds_during_cancel_settlement_is_consumed(monkeypatch):
+    clock = {"t": 0.0}
+    monkeypatch.setattr(tools_module.time, "perf_counter", lambda: clock["t"])
+    monkeypatch.setattr(
+        tools_module.time,
+        "sleep",
+        lambda seconds: clock.__setitem__("t", clock["t"] + seconds),
+    )
+    budget(monkeypatch, 150)
+    warehouse = FakeWarehouse(["n"], [["1"]], state="RUNNING")
+    real_execute = warehouse.statement_execution.execute_statement
+    settled = iter(["RUNNING", "SUCCEEDED"])
+
+    def execute(*args, **kwargs):
+        response = real_execute(*args, **kwargs)
+        clock["t"] = 126.0
+        return response
+
+    def get_statement(statement_id):
+        warehouse.get_statement_calls.append(statement_id)
+        return warehouse._response(next(settled))
+
+    warehouse.statement_execution.execute_statement = execute
+    warehouse.statement_execution.get_statement = get_statement
+
+    result = build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
+
+    assert "1" in result.text
+    assert warehouse.cancelled == ["statement-1"]
+    assert len(warehouse.get_statement_calls) == 2
+
+
+def test_cancel_settlement_does_not_treat_the_first_running_state_as_final(monkeypatch):
+    clock = {"t": 0.0}
+    monkeypatch.setattr(tools_module.time, "perf_counter", lambda: clock["t"])
+    monkeypatch.setattr(
+        tools_module.time,
+        "sleep",
+        lambda seconds: clock.__setitem__("t", clock["t"] + seconds),
+    )
+    budget(monkeypatch, 150)
+    warehouse = FakeWarehouse(["n"], [["1"]], state="RUNNING")
+    real_execute = warehouse.statement_execution.execute_statement
+    settled = iter(["RUNNING", "CANCELED"])
+
+    def execute(*args, **kwargs):
+        response = real_execute(*args, **kwargs)
+        clock["t"] = 126.0
+        return response
+
+    def get_statement(statement_id):
+        warehouse.get_statement_calls.append(statement_id)
+        return warehouse._response(next(settled))
+
+    warehouse.statement_execution.execute_statement = execute
+    warehouse.statement_execution.get_statement = get_statement
+
+    with pytest.raises(RuntimeError, match="did not fail"):
+        build(warehouse).query_named_table(f"SELECT count(*) AS n FROM {ACTIVITY}")
+
+    assert warehouse.cancelled == ["statement-1"]
+    assert len(warehouse.get_statement_calls) == 2
 
 
 def test_discovery_sql_never_polls():

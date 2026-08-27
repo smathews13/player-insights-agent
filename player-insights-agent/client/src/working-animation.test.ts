@@ -35,6 +35,7 @@ const LOADERS = partial('astrolabe-loaders.css');
 const RESPONSIVE = partial('responsive.css');
 const HOME = readFileSync(new URL('HomePage.tsx', HERE), 'utf8');
 const INLINE_ROW = readFileSync(new URL('WorkingInlineRow.tsx', HERE), 'utf8');
+const RESOURCE_TAGS = readFileSync(new URL('ResourceTagsPanel.tsx', HERE), 'utf8');
 
 function withoutComments(source: string) {
   return source.replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -90,14 +91,14 @@ describe('which seating the loader takes', () => {
 
   it('seats every one of the flicker seatings somewhere in the app', () => {
     // `loading-suite.md` gives four (72px splash, 20px inline row, 14px in-button,
-    // 18-24px on a dark strip) and the agent path's foot is a fifth; the suite is
-    // not implemented until each one is on a real surface. Two of them sat in
-    // FLICKER_SIZES unreferenced for a while, which is the failure this test is
-    // for: a seating that exists only as a number in a record is a seating nobody
-    // has drawn.
+    // 18-24px on a dark strip) and the agent path's foot is a fifth. The Ask
+    // button intentionally became Stop while cancellable work is active; the
+    // in-button seat remains on the non-cancellable resource-tag operation.
+    // A seating that exists only as a number in a record is still unsupported.
     const seated = [
       HOME,
       INLINE_ROW,
+      RESOURCE_TAGS,
       readFileSync(new URL('WorkingConstellation.tsx', HERE), 'utf8'),
       readFileSync(new URL('AgentConstellation.tsx', HERE), 'utf8'),
     ].join('\n');

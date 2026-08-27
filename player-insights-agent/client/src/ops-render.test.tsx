@@ -24,7 +24,16 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { CostBody, CostTileTitle, HealthBody, LatencyBody, OpsPage, TrafficBody, type Block } from './OpsPage';
+import {
+  CostBody,
+  CostTileTitle,
+  HealthBody,
+  LatencyBody,
+  OpsPage,
+  StopAllActiveRuns,
+  TrafficBody,
+  type Block,
+} from './OpsPage';
 import { REFRESH_LABEL } from './refresh-state';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
@@ -50,6 +59,22 @@ function markupOf(node: React.ReactElement): string {
 function block<T>(data: T | null, overrides: Partial<Block<T>> = {}): Block<T> {
   return { data, busy: false, failed: '', refresh: () => {}, ...overrides };
 }
+
+describe('the admin cancellation control', () => {
+  it('states its one-shot and non-destructive scope beside the button', () => {
+    const markup = render(<StopAllActiveRuns />);
+    expect(markup).toContain('Stop all active runs');
+    expect(markup).toContain('One-time snapshot only');
+    expect(markup).toContain('Future Asks continue');
+    expect(markup).toContain('no data or history is deleted');
+  });
+
+  it('is gated by the resolved admin role on Ops', () => {
+    const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null');
+    expect(source).toContain("fetch('/api/admin/runs/cancel-all'");
+  });
+});
 
 /* ── Fixtures ────────────────────────────────────────────────────────────── */
 

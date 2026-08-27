@@ -76,11 +76,21 @@ import {
   subscribeRunLabelOverrides,
 } from './run-header-labels';
 import { slowestStageName } from './progress-labels';
-import { AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
+import { AskCancelled, AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
+import { forgetActiveAsk, readActiveAsk, registerActiveAsk, stopActiveAsk } from './ask-cancellation';
 import { LiveProgress } from './LiveProgress';
 import { railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
-import { beginLiveAsk, endLiveAsk, hydrateLiveAsk, openLiveAsk, recordLiveStage, useLiveAsk } from './live-ask';
+import {
+  beginLiveAsk,
+  endLiveAsk,
+  hydrateLiveAsk,
+  openLiveAsk,
+  readLiveAsk,
+  recordLiveStage,
+  stopLiveAsk,
+  useLiveAsk,
+} from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
 import { answerRunVerdict, withDisplayedStageStatus } from '../../shared/run-verdict';
@@ -310,7 +320,7 @@ export function HomePage() {
    */
   const [attaching, setAttaching] = useState(false);
   const [clearingDocs, setClearingDocs] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [stopping, setStopping] = useState(false);
   /**
    * A run discovered from Lakebase after this view was reopened.
    *
@@ -364,6 +374,7 @@ export function HomePage() {
    * a spinner up. Cleared when the next question starts.
    */
   const [runStopped, setRunStopped] = useState<{ steps: number } | null>(null);
+  const [stopNotice, setStopNotice] = useState<string | null>(null);
   /**
    * The panel shown when a question produced no answer.
    *
@@ -444,6 +455,20 @@ export function HomePage() {
   const liveAsk = useLiveAsk(conversationId);
   const liveStages = liveAsk?.stages ?? NO_LIVE_STAGES;
   /**
+   * Busy belongs to the conversation on screen, not to this mounted page.
+   *
+   * The session registry follows streams across conversation and top-level
+   * navigation; the durable row covers reloads and other browser tabs.
+   */
+  const loading = Boolean(
+    liveAsk?.inFlight ||
+      (activeConversationRun?.conversationId === conversationId && isWorkingConversationRun(activeConversationRun))
+  );
+  const displayedStopNotice = stopNotice ?? liveAsk?.stopNotice ?? null;
+  const displayedRunStopped =
+    runStopped ??
+    (liveAsk?.stopNotice ? { steps: liveStages.filter((stage) => stage.status !== 'running').length } : null);
+  /**
    * When the step in progress was announced, on this machine's clock.
    *
    * The reader's counter cannot be derived from the stage's own `start`: that is
@@ -519,7 +544,7 @@ export function HomePage() {
   const railStages = withDisplayedStageStatus(
     railStagesFor({
       loading,
-      runStopped: Boolean(runStopped),
+      runStopped: Boolean(displayedRunStopped),
       liveStages,
       answeredStages: answer?.trace.stages ?? [],
       clarificationStages: asked?.trace.stages ?? [],
@@ -574,7 +599,8 @@ export function HomePage() {
    * made the path pop; AgentPathConstellation uses the absent clock to stop every
    * beat while retaining the final observed step.
    */
-  const railActiveIndex = (loading || Boolean(runStopped)) && liveStages.length > 0 ? railStages.length - 1 : -1;
+  const railActiveIndex =
+    (loading || Boolean(displayedRunStopped)) && liveStages.length > 0 ? railStages.length - 1 : -1;
   /**
    * How long the step in progress has been going, for the one row that ticks.
    *
@@ -649,7 +675,7 @@ export function HomePage() {
     loading,
     liveSteps: liveStages.length,
     runningStep,
-    runStopped: !!runStopped,
+    runStopped: !!displayedRunStopped,
     awaitingApproval: latestResponse?.type === 'plan',
     asked: !!asked,
     answered: !!answer,
@@ -688,9 +714,9 @@ export function HomePage() {
     setConversationId(id);
     activeConversationRef.current = id;
     setConversationLoading(true);
-    setLoading(false);
     setActiveConversationRun(null);
     setError(null);
+    setStopNotice(null);
     setFeedback({});
     // The run that stopped belongs to the conversation it stopped in. Left
     // standing, its badge narrates whichever conversation is opened next, which
@@ -708,6 +734,7 @@ export function HomePage() {
         fetch(`/api/conversations/${encodeURIComponent(id)}/attachments`),
         readConversationRun(id).catch(() => null),
       ]);
+      if (activeConversationRef.current !== id) return;
       if (!messageResponse.ok) throw new Error('Conversation unavailable');
       const stored = (await messageResponse.json()) as ConversationMessage[];
       setMessages(stored);
@@ -735,7 +762,6 @@ export function HomePage() {
       const replayed = replayedStages(durableRun);
       if (isWorkingConversationRun(durableRun)) {
         setActiveConversationRun({ ...durableRun, conversationId: id });
-        setLoading(true);
         const started = Date.parse(durableRun.created_at);
         setAskStartedAt(Number.isFinite(started) ? started : Date.now());
         // Only as the fallback. A run this browser is still streaming reports its
@@ -757,6 +783,18 @@ export function HomePage() {
           question,
           startedAt: Number.isFinite(started) ? started : Date.now(),
         });
+      } else if (durableRun?.state === 'CANCELLED') {
+        const question = [...stored].reverse().find((message) => message.role === 'user')?.content ?? '';
+        const started = Date.parse(durableRun.created_at);
+        hydrateLiveAsk({
+          conversationId: id,
+          stages: replayed,
+          question,
+          startedAt: Number.isFinite(started) ? started : Date.now(),
+        });
+        endLiveAsk(id);
+        setRunStopped({ steps: replayed.filter((stage) => stage.status !== 'running').length });
+        setStopNotice(readLiveAsk(id)?.stopNotice ?? 'Stopped');
       } else if (durableRun && replayed.length > 0) {
         // A settled run whose stored answer wiped its trace (the prose-only
         // path) still has the steps in the ledger. Restore them so a hard
@@ -778,6 +816,7 @@ export function HomePage() {
         }
       }
     } catch {
+      if (activeConversationRef.current !== id) return;
       setDraft('');
       setMessages([]);
       setAttachments([]);
@@ -785,7 +824,7 @@ export function HomePage() {
       setAttachmentsUnreadable(false);
       setError('This conversation could not be loaded. Start a new conversation or try again.');
     } finally {
-      setConversationLoading(false);
+      if (activeConversationRef.current === id) setConversationLoading(false);
     }
   }, []);
 
@@ -890,8 +929,14 @@ export function HomePage() {
           setMessages(stored);
           setFeedback(feedbackFromStored(stored));
         }
+        if (status?.state === 'CANCELLED') {
+          setRunStopped({
+            steps: replayedStages(status).filter((stage) => stage.status !== 'running').length,
+          });
+          setStopNotice(readLiveAsk(activeConversationRun.conversationId)?.stopNotice ?? 'Stopped');
+        }
         setActiveConversationRun(null);
-        setLoading(false);
+        endLiveAsk(activeConversationRun.conversationId);
         loadRunSummaries();
       } catch {
         // A transient status-read failure is not evidence that the server work
@@ -1016,8 +1061,46 @@ export function HomePage() {
     return () => window.clearInterval(timer);
   }, [parsing, loading]);
 
+  async function stopCurrentAsk() {
+    const streamed = readActiveAsk(conversationId);
+    const current =
+      streamed ??
+      (activeConversationRun
+        ? {
+            conversationId: activeConversationRun.conversationId,
+            correlationId: activeConversationRun.run_id,
+            controller: new AbortController(),
+            stopRequested: false,
+          }
+        : null);
+    if (!loading || stopping || current?.conversationId !== conversationId || !current.correlationId) return;
+    setStopping(true);
+    setError(null);
+    current.stopRequested = true;
+    try {
+      await stopActiveAsk(current);
+      setAskUnavailable(null);
+      setStopNotice('Stopped by you');
+      if (!streamed) {
+        const completed = liveStages.filter((stage) => stage.status !== 'running').length;
+        setRunStopped({ steps: completed });
+        setActiveConversationRun(null);
+        endLiveAsk(current.conversationId);
+      }
+    } catch (stopError) {
+      current.stopRequested = false;
+      setError(
+        stopError instanceof Error
+          ? `The local stream was left open. ${stopError.message}`
+          : 'The local stream was left open because the stop request did not complete.'
+      );
+    } finally {
+      setStopping(false);
+    }
+  }
+
   async function ask(question = draft, approval?: { planId: string; label: string }) {
-    if (!question.trim() || loading) return;
+    if (!question.trim() || readLiveAsk(conversationId)?.inFlight || readActiveAsk(conversationId)) return;
     // Everything below writes into the conversation this run started in. Once
     // the user is somewhere else, none of it is theirs to write: an answer, a
     // step, an error banner or a URL change landing in the conversation they
@@ -1051,7 +1134,6 @@ export function HomePage() {
       })
     );
     setDraft('');
-    setLoading(true);
     setAskStartedAt(Date.now());
     setDurableRunOpenedAt(null);
     // Filed under the conversation rather than held here, so the run survives
@@ -1060,8 +1142,17 @@ export function HomePage() {
     beginLiveAsk({ conversationId: runConversationId, question });
     setAskedQuestion(question);
     setRunStopped(null);
+    setStopNotice(null);
     setError(null);
     setAskUnavailable(null);
+    const controller = new AbortController();
+    const currentAsk = {
+      conversationId: runConversationId,
+      correlationId: '',
+      controller,
+      stopRequested: false,
+    };
+    registerActiveAsk(currentAsk);
     try {
       const { body } = await askStreaming(
         {
@@ -1090,6 +1181,9 @@ export function HomePage() {
           onStage: (stage) => {
             recordLiveStage(runConversationId, stage);
           },
+          onStart: (correlationId) => {
+            currentAsk.correlationId = correlationId;
+          },
           // The run is under way and the request passed every check. Recorded
           // as an instant because the panel says so on screen, and because the
           // interval between this and the first step is the wait this whole
@@ -1097,7 +1191,9 @@ export function HomePage() {
           onOpen: () => {
             openLiveAsk(runConversationId);
           },
-        }
+        },
+        fetch,
+        controller.signal
       );
       if (!stillInThisConversation()) return;
       setActiveConversationRun(null);
@@ -1158,6 +1254,9 @@ export function HomePage() {
       loadedConversationRef.current = runConversationId;
       setSearchParams({ c: runConversationId }, { replace: true });
     } catch (askError) {
+      if (askError instanceof AskCancelled) {
+        stopLiveAsk(runConversationId, currentAsk.stopRequested ? 'Stopped by you' : 'Stopped by an administrator');
+      }
       if (!stillInThisConversation()) return;
       // A run that reached the agent and then stopped is a different event from
       // an endpoint that was never reachable, and the difference is visible on
@@ -1168,6 +1267,12 @@ export function HomePage() {
       // code, the sentence and the correlation id, and re-deriving any of them
       // here would show a reader "the endpoint is unavailable" over a denial
       // that says precisely which of their permissions was the problem.
+      if (askError instanceof AskCancelled) {
+        setRunStopped({ steps: askError.completed });
+        setAskUnavailable(null);
+        setStopNotice(currentAsk.stopRequested ? 'Stopped by you' : 'Stopped by an administrator');
+        return;
+      }
       if (askError instanceof AskRefused) {
         // The stages are kept when the refusal arrived mid-run. It used to clear
         // them unconditionally, which was right while a refusal could only reach
@@ -1239,8 +1344,8 @@ export function HomePage() {
       // state switched off by the abandoned run finishing behind it.
       if (stillInThisConversation()) {
         setActiveConversationRun(null);
-        setLoading(false);
       }
+      forgetActiveAsk(runConversationId, currentAsk);
     }
   }
 
@@ -1263,9 +1368,11 @@ export function HomePage() {
     setDraft('');
     setMessages([]);
     setAttachments([]);
+    setActiveConversationRun(null);
     setError(null);
     setFeedback({});
     setRunStopped(null);
+    setStopNotice(null);
     setDurableRunOpenedAt(null);
     // Nothing to clear: a conversation this new has no run on record, and the one
     // it was started from keeps its own under its own id.
@@ -1312,11 +1419,7 @@ export function HomePage() {
    * between them: the negative one leaves the box open afterwards so a reader
    * who wants to say why still can, against a rating that is already recorded.
    */
-  async function saveFeedback(
-    messageId: string,
-    usefulness: number,
-    options: { keepCommentOpen?: boolean } = {}
-  ) {
+  async function saveFeedback(messageId: string, usefulness: number, options: { keepCommentOpen?: boolean } = {}) {
     const entry = feedback[messageId] ?? emptyFeedback;
     const patch = (changes: Partial<FeedbackEntry>) =>
       setFeedback((current) => ({ ...current, [messageId]: { ...(current[messageId] ?? emptyFeedback), ...changes } }));
@@ -1593,7 +1696,6 @@ export function HomePage() {
           startNewConversation();
           focusQuestionInput();
         }}
-        disabled={loading}
       >
         <Plus /> New conversation
       </Button>
@@ -1700,13 +1802,13 @@ export function HomePage() {
             // carries the reader's own rating, which the rail list cannot know.
             // The rail list answers for every OTHER row, which is every row
             // somebody else owns -- those used to draw no badge at all.
-            const summary =
-              runSummaries.get(conversation.id) ?? conversationRunSummary(conversation);
+            const summary = runSummaries.get(conversation.id) ?? conversationRunSummary(conversation);
             const duration = summary ? railDuration(summary.durationMs) : null;
             // A run in flight belongs to the open conversation. Seat the same
             // live pill as the agent-steps pane here, including its breathing
             // dot, instead of leaving the row badged with its previous turn.
-            const runningConversation = loading && conversation.id === conversationId;
+            const runningConversation =
+              Boolean(readLiveAsk(conversation.id)?.inFlight) || (loading && conversation.id === conversationId);
             return (
               // Drawn from the entry rather than from the conversation, so the
               // watermark below is the same answer to "whose is this" that the
@@ -1755,7 +1857,7 @@ export function HomePage() {
                     type="button"
                     className="conversation-item"
                     aria-pressed={conversation.id === conversationId}
-                    disabled={loading || conversationLoading}
+                    disabled={conversationLoading}
                     // Pushes a history entry rather than loading directly, so Back
                     // returns to the conversation the user came from. The effect
                     // watching the URL does the loading.
@@ -1839,7 +1941,7 @@ export function HomePage() {
                     aria-label="Delete conversation"
                     aria-describedby={railTitleId(conversation.id, scope)}
                     title="Delete this conversation"
-                    disabled={loading || conversationLoading}
+                    disabled={runningConversation || conversationLoading}
                     onClick={() => setPendingDelete(conversation.id)}
                   >
                     <Trash2 aria-hidden="true" />
@@ -2072,6 +2174,11 @@ export function HomePage() {
         )}
 
         {askUnavailable && <UnavailablePanel notice={askUnavailable} />}
+        {displayedStopNotice && (
+          <Alert>
+            <AlertDescription>{displayedStopNotice}</AlertDescription>
+          </Alert>
+        )}
         {error && (
           <Alert>
             <CircleAlert />
@@ -2089,7 +2196,8 @@ export function HomePage() {
           {...PASSWORD_MANAGER_OPT_OUT}
           onSubmit={(event) => {
             event.preventDefault();
-            void ask();
+            if (loading) void stopCurrentAsk();
+            else void ask();
           }}
         >
           {/* The inspector's two load-bearing parts, for the widths where there is
@@ -2231,18 +2339,19 @@ export function HomePage() {
               <AstrolabeMark size={13} />
               astrolabe can make mistakes. Sources and caveats are included.
             </span>
-            {/* "Ask Astrolabe" is the composer button's name (§0 naming), and
-                while a run is in flight the button becomes the in-button loader:
-                the 14px mark, all white on the blue fill, and the label
-                "Running" (loading-suite.md, Seatings). The lucide sparkle it
-                carried is gone with the rest of the glyphs that stood in for the
-                agent -- the mark is the agent. */}
-            <Button type="submit" disabled={!canAsk}>
+            {/* One control for one current action. While a question is active it
+                becomes Stop and remains pressable; Stop first records durable
+                cancellation and only then aborts this browser's stream. */}
+            <Button type="submit" disabled={loading ? stopping : !canAsk}>
               {loading ? (
-                <>
-                  <ConceptFlicker seat="button" />
-                  Running
-                </>
+                stopping ? (
+                  <>
+                    <Loader2 className="animate-spin" />
+                    Stopping…
+                  </>
+                ) : (
+                  'Stop'
+                )
               ) : parsing ? (
                 'Reading files…'
               ) : (
@@ -2436,11 +2545,7 @@ const MessageItem = memo(function MessageItem({
   showFeedback: boolean;
   onAsk: (question: string, approval?: { planId: string; label: string }) => void;
   onFeedbackChange: (answerId: string, changes: Partial<FeedbackEntry>) => void;
-  onSaveFeedback: (
-    answerId: string,
-    rating: number,
-    options?: { keepCommentOpen?: boolean }
-  ) => Promise<void>;
+  onSaveFeedback: (answerId: string, rating: number, options?: { keepCommentOpen?: boolean }) => Promise<void>;
   processStages?: TraceStage[];
 }) {
   if (message.role === 'user') {

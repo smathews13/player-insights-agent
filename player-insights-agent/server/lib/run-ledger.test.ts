@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { lakebaseHealth, resetLakebaseHealth, stopLakebaseWatchdog } from './lakebase-store';
 import {
   acquireLease,
+  cancelAllExecutingRuns,
+  cancelOwnedRun,
   completeAttempt,
   createOrGetRun,
   heartbeat,
@@ -13,6 +15,7 @@ import {
   type NewRun,
 } from './run-ledger';
 import { FakeStore, type Row } from './__fixtures__/fake-run-store';
+import { EXECUTING_STATES, TERMINAL_STATES } from './run-state';
 
 function newRun(overrides: Partial<NewRun> = {}): NewRun {
   return {
@@ -485,6 +488,107 @@ describe('the attempt record', () => {
 
     expect(store.attempts[0].outcome).toBe('FAILED');
     expect(store.attempts[0].failure_code).toBe('DEPENDENCY_UNAVAILABLE');
+  });
+});
+
+describe('explicit cancellation', () => {
+  async function storedRun(runId: string, state: string, userEmail = 'reader@example.com') {
+    await createOrGetRun(
+      store,
+      newRun({
+        runId,
+        userEmail,
+        conversationId: `conv-${runId}`,
+        turnId: `turn-${runId}`,
+        requestHash: `hash-${runId}`,
+        correlationId: `req-${runId}`,
+      })
+    );
+    const run = store.runs.find((row) => row.run_id === runId);
+    if (!run) throw new Error(`Run ${runId} was not stored.`);
+    run.state = state;
+    run.fencing_token = 7;
+    run.lease_owner = 'executor-a';
+    run.lease_expires_at = store.now + 30_000;
+    return run;
+  }
+
+  it.each(EXECUTING_STATES)('atomically cancels an owned run in %s', async (state) => {
+    const run = await storedRun(`run-${state}`, state);
+
+    const result = value(await cancelOwnedRun(store, run.user_email, run.run_id));
+
+    expect(result.kind).toBe('cancelled');
+    expect(run.state).toBe('CANCELLED');
+    expect(run.fencing_token).toBe(8);
+    expect(run.lease_owner).toBeNull();
+    expect(run.lease_expires_at).toBeNull();
+    expect(run.completed_at).toBe(store.now);
+    expect(run.updated_at).toBe(store.now);
+  });
+
+  it.each(TERMINAL_STATES)('leaves a terminal %s run unchanged', async (state) => {
+    const run = await storedRun(`terminal-${state}`, state);
+    const before = { ...run };
+
+    const result = value(await cancelOwnedRun(store, run.user_email, run.run_id));
+
+    expect(result).toMatchObject({ kind: 'not-active', run: { state } });
+    expect(run).toEqual(before);
+  });
+
+  it('accepts the browser correlation id and returns the durable run id', async () => {
+    const run = await storedRun('run-by-correlation', 'RUNNING');
+
+    const result = value(await cancelOwnedRun(store, run.user_email, String(run.correlation_id)));
+
+    expect(result).toMatchObject({
+      kind: 'cancelled',
+      runs: [{ runId: 'run-by-correlation', correlationId: 'req-run-by-correlation' }],
+    });
+  });
+
+  it('does not reveal or change another owner run', async () => {
+    const run = await storedRun('run-private', 'RUNNING', 'owner@example.com');
+
+    const result = value(await cancelOwnedRun(store, 'other@example.com', run.run_id));
+
+    expect(result).toEqual({ kind: 'not-found' });
+    expect(run.state).toBe('RUNNING');
+    expect(run.fencing_token).toBe(7);
+  });
+
+  it('returns not-found for an identifier that does not exist', async () => {
+    expect(value(await cancelOwnedRun(store, 'reader@example.com', 'missing'))).toEqual({ kind: 'not-found' });
+  });
+
+  it('cancels one admin snapshot across every executing state and no terminal state', async () => {
+    for (const state of EXECUTING_STATES) await storedRun(`active-${state}`, state);
+    for (const state of TERMINAL_STATES) await storedRun(`done-${state}`, state);
+
+    const cancelled = value(await cancelAllExecutingRuns(store));
+    const future = await storedRun('future-run', 'RUNNING');
+
+    expect(cancelled.map((run) => run.runId).sort()).toEqual(
+      EXECUTING_STATES.map((state) => `active-${state}`).sort()
+    );
+    expect(store.runs.filter((run) => run.run_id.startsWith('active-')).every((run) => run.state === 'CANCELLED')).toBe(
+      true
+    );
+    expect(store.runs.filter((run) => run.run_id.startsWith('done-')).map((run) => run.state)).toEqual([
+      ...TERMINAL_STATES,
+    ]);
+    expect(future.state).toBe('RUNNING');
+  });
+
+  it('never deletes a run or its history', async () => {
+    const run = await storedRun('run-kept', 'SYNTHESIZING');
+    const before = store.runs.length;
+
+    value(await cancelOwnedRun(store, run.user_email, run.run_id));
+
+    expect(store.runs).toHaveLength(before);
+    expect(store.statements.every((statement) => !/\bDELETE\b/i.test(statement))).toBe(true);
   });
 });
 

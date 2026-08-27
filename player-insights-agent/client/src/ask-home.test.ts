@@ -771,13 +771,22 @@ describe('the inspector while a run is still going', () => {
      * the first event to the last. The frontier is the newest announcement, and it
      * is the only one of the two readings that moves.
      *
-     * The `liveStages` guard is unchanged and still load-bearing: with no live
-     * steps yet the rail falls back to the PREVIOUS answer's trace, so a mark
-     * keyed on `loading` alone would light a card of a run that ended.
+     * Busy is now derived from the conversation-keyed live registry (or a
+     * durable run explicitly matching the open conversation), so another
+     * conversation can keep running without locking navigation or lighting this
+     * rail. The `liveStages` guard remains load-bearing: with no live steps yet
+     * the rail falls back to the previous answer's trace.
      */
+    expect(HOME_PAGE).toMatch(/const liveAsk = useLiveAsk\(conversationId\);/);
     expect(HOME_PAGE).toMatch(
-      /\(loading \|\| Boolean\(runStopped\)\) && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
+      /liveAsk\?\.inFlight \|\|\s*\(activeConversationRun\?\.conversationId === conversationId && isWorkingConversationRun\(activeConversationRun\)\)/
     );
+    expect(HOME_PAGE).toMatch(
+      /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? railStages\.length - 1 : -1;/
+    );
+    expect(HOME_PAGE).toMatch(/const stillInThisConversation = \(\) => activeConversationRef\.current === runConversationId;/);
+    expect(HOME_PAGE).toMatch(/if \(!stillInThisConversation\(\)\) return;/);
+    expect(HOME_PAGE).toMatch(/setRunStopped\(null\);[\s\S]{0,240}setDurableRunOpenedAt\(null\);/);
     expect(HOME_PAGE).not.toMatch(/\(runningStep \|\| railStages\.length\) - 1/);
     // Still read, and still the number the pill's failure label needs: the step a
     // run DIED inside is a different claim from how far it got.

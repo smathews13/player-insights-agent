@@ -6,6 +6,8 @@ import { CORRELATION_HEADER, mintCorrelationId } from '../../shared/correlation'
 import { isUnavailableResult, type UnavailableResult } from '../../shared/terminal-response';
 
 export interface AskStreamHandlers {
+  /** The browser-minted id, synchronously before the request is sent. */
+  onStart?(correlationId: string): void;
   /**
    * One stage, as the agent announced it or as it finished.
    *
@@ -122,14 +124,35 @@ export class AskRunFailed extends Error {
   }
 }
 
+/** Thrown only for an explicit Stop, never for navigation or a dropped socket. */
+export class AskCancelled extends Error {
+  readonly completed: number;
+  readonly correlationId: string;
+
+  constructor(correlationId: string, completed = 0) {
+    super('Stopped by you');
+    this.name = 'AskCancelled';
+    this.correlationId = correlationId;
+    this.completed = completed;
+  }
+}
+
 /** Splits an SSE stream into `{ event, data }` pairs across chunk boundaries. */
-async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string; data: string }> {
+async function* readEvents(
+  body: ReadableStream<Uint8Array>,
+  signal?: AbortSignal
+): AsyncGenerator<{ event: string; data: string }> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  const abort = () => {
+    void reader.cancel(signal?.reason).catch(() => undefined);
+  };
+  signal?.addEventListener('abort', abort, { once: true });
   try {
     for (;;) {
       const { done, value } = await reader.read();
+      if (signal?.aborted) throw signal.reason;
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       let boundary = buffer.search(/\r?\n\r?\n/);
@@ -150,6 +173,7 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<{ e
       }
     }
   } finally {
+    signal?.removeEventListener('abort', abort);
     reader.releaseLock();
   }
 }
@@ -166,12 +190,14 @@ async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<{ e
 export async function askStreaming(
   request: unknown,
   handlers: AskStreamHandlers,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  signal?: AbortSignal
 ): Promise<AskStreamResult> {
   // Minted per attempt rather than per question. A retry is a different run, gets
   // a different ledger row and a different trace, and giving it the id of the
   // attempt that failed would join a reader's complaint to the wrong one.
   const correlationId = mintCorrelationId();
+  handlers.onStart?.(correlationId);
   let response: Response;
   try {
     response = await fetchImpl('/api/insights/ask', {
@@ -182,8 +208,10 @@ export async function askStreaming(
         [CORRELATION_HEADER]: correlationId,
       },
       body: JSON.stringify(request),
+      signal,
     });
   } catch (error) {
+    if (signal?.aborted) throw new AskCancelled(correlationId);
     // A `fetch` rejection is the one failure with no server side to it, so it is
     // caught here rather than left to the caller's generic branch, which had no
     // way to tell it apart from an endpoint that answered badly.
@@ -193,6 +221,13 @@ export async function askStreaming(
   const isStream = (response.headers.get('content-type') ?? '').includes('text/event-stream');
   if (!isStream) {
     const body: unknown = response.ok ? await response.json() : await readTerminal(response);
+    if (
+      body &&
+      typeof body === 'object' &&
+      ((body as { type?: unknown }).type === 'cancelled' || (body as { state?: unknown }).state === 'CANCELLED')
+    ) {
+      throw new AskCancelled(correlationId);
+    }
     // A refusal the server described is not the same event as a server that
     // could not be reached, and flattening the two is how an authorization
     // denial came to be shown as "the endpoint is unavailable". The caller is
@@ -211,28 +246,29 @@ export async function askStreaming(
   handlers.onOpen?.();
 
   let completed = 0;
-  for await (const { event, data } of readEvents(response.body)) {
-    if (event === 'stage') {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(data);
-      } catch {
-        // Progress, not the answer. A stage that cannot be read is one row
-        // missing from a live view that is about to be replaced by the
-        // authoritative trace anyway.
+  try {
+    for await (const { event, data } of readEvents(response.body, signal)) {
+      if (event === 'stage') {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(data);
+        } catch {
+          // Progress, not the answer. A stage that cannot be read is one row
+          // missing from a live view that is about to be replaced by the
+          // authoritative trace anyway.
+          continue;
+        }
+        const stage = normalizeStage(parsed, completed);
+        handlers.onStage(stage);
+        // Announcements do not count. `completed` is what "it stopped after four
+        // steps" means on the panel below and on the error thrown at the bottom of
+        // this function, and a step that has been announced and has not returned
+        // is precisely the one that did not finish.
+        if (stage.status !== 'running') completed += 1;
         continue;
       }
-      const stage = normalizeStage(parsed, completed);
-      handlers.onStage(stage);
-      // Announcements do not count. `completed` is what "it stopped after four
-      // steps" means on the panel below and on the error thrown at the bottom of
-      // this function, and a step that has been announced and has not returned
-      // is precisely the one that did not finish.
-      if (stage.status !== 'running') completed += 1;
-      continue;
-    }
-    if (event === 'result') return { body: JSON.parse(data), streamed: true, correlationId };
-    if (event === 'error') {
+      if (event === 'result') return { body: JSON.parse(data), streamed: true, correlationId };
+      if (event === 'error') {
       /**
        * THE BUG THIS BRANCH USED TO BE. `AskResponder.json` writes the terminal
        * payload as `event: error` whenever the status is 4xx or 5xx and the
@@ -250,17 +286,30 @@ export async function askStreaming(
        * this line. Streaming is what the browser asks for, so this was the
        * normal path and the non-streaming one below was the one that worked.
        */
-      let parsed: unknown = null;
-      try {
-        parsed = JSON.parse(data);
-      } catch {
-        // A frame that is not JSON carries no code to honour; the prose path
-        // below is the right home for it.
+        let parsed: unknown = null;
+        try {
+          parsed = JSON.parse(data);
+        } catch {
+          // A frame that is not JSON carries no code to honour; the prose path
+          // below is the right home for it.
+        }
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          ((parsed as { type?: unknown }).type === 'cancelled' ||
+            (parsed as { state?: unknown }).state === 'CANCELLED')
+        ) {
+          throw new AskCancelled(correlationId, completed);
+        }
+        if (isUnavailableResult(parsed)) throw new AskRefused(parsed, completed);
+        const detail = readMessage(data);
+        throw new AskRunFailed(detail ?? 'The agent stopped before it finished this question.', completed);
       }
-      if (isUnavailableResult(parsed)) throw new AskRefused(parsed, completed);
-      const detail = readMessage(data);
-      throw new AskRunFailed(detail ?? 'The agent stopped before it finished this question.', completed);
     }
+  } catch (error) {
+    if (error instanceof AskCancelled) throw error;
+    if (signal?.aborted) throw new AskCancelled(correlationId, completed);
+    throw error;
   }
 
   // The connection closed without a terminal event: the endpoint dropped, the

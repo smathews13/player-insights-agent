@@ -25,7 +25,9 @@ function render(document_snippets: unknown): string {
     caveats: [],
     sql: '',
     trace: {
-      id: 'trace-1',
+      // Attachment use is evidence from the recorded process. A local/fallback
+      // id deliberately has its untraced stages stripped before rendering.
+      id: 'tr-1',
       totalMs: 100,
       toolCalls: 1,
       stages: [{ id: 'attachment', name: 'Included conversation attachment', status: 'complete' }],

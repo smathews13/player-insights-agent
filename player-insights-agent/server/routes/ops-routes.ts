@@ -72,6 +72,7 @@ import { readAppBillingTag } from '../lib/resource-tagging';
 import { readOrchestratorReport } from './settings-routes';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { readCostBudgets } from '../lib/cost-budgets-store';
+import { sqlQueryTags } from '../lib/sql-query-tags';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import type {
@@ -346,6 +347,11 @@ async function runStatement(input: {
       body: JSON.stringify({
         warehouse_id: input.warehouseId,
         statement: input.statement,
+        query_tags: sqlQueryTags({
+          surface: 'ops',
+          tool: 'ops_query',
+          operation: 'diagnostics',
+        }),
         ...(input.parameters?.length ? { parameters: input.parameters } : {}),
         wait_timeout: '30s',
         on_wait_timeout: 'CANCEL',

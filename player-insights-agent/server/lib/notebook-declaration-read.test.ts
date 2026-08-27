@@ -107,6 +107,15 @@ describe('reading it as the person looking at the page', () => {
     });
     const [, init] = (call as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0];
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer forwarded-user-token');
+    const body = JSON.parse(typeof init.body === 'string' ? init.body : '') as Record<string, unknown>;
+    expect(body.query_tags).toEqual([
+      { key: 'application', value: 'Astrolabe' },
+      { key: 'surface', value: 'declaration' },
+      { key: 'tool', value: 'notebook_declaration' },
+      { key: 'operation', value: 'read' },
+    ]);
+    expect(JSON.stringify(body.query_tags)).not.toContain(LOCATION);
+    expect(JSON.stringify(body.query_tags)).not.toContain('analyst@example.invalid');
   });
 
   /**

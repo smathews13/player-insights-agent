@@ -4,6 +4,7 @@
  */
 
 import { servingMlflowTraceId } from '../../shared/mlflow-trace-id';
+import { isRunCancelledError, throwIfRunCancelled } from './run-cancellation';
 
 /** One `data:` payload, already parsed. Shapes beyond this are the caller's. */
 interface StreamEvent {
@@ -114,11 +115,11 @@ function isAnnouncement(stage: Record<string, unknown>): boolean {
  * (a stage carries its tool's whole output) that one routinely spans several
  * chunks, and parsing per-chunk would drop most of them.
  */
-export async function* sseEvents(body: unknown): AsyncGenerator<StreamEvent> {
+export async function* sseEvents(body: unknown, signal?: AbortSignal): AsyncGenerator<StreamEvent> {
   const decoder = new TextDecoder();
   let buffer = '';
 
-  for await (const chunk of toChunks(body)) {
+  for await (const chunk of toChunks(body, signal)) {
     buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
     // SSE separates events with a blank line. \r\n\r\n is tolerated because the
     // spec permits it and a proxy is free to rewrite line endings.
@@ -161,30 +162,53 @@ function parseBlock(block: string): StreamEvent | null {
 }
 
 /** Accepts a web ReadableStream or a Node readable; the SDK returns the former. */
-async function* toChunks(body: unknown): AsyncGenerator<Uint8Array | string> {
+async function* toChunks(body: unknown, signal?: AbortSignal): AsyncGenerator<Uint8Array | string> {
   if (!body) throw new Error('The endpoint returned a streaming response with no body.');
-  if (typeof (body as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function') {
-    yield* body as AsyncIterable<Uint8Array | string>;
-    return;
-  }
-  const reader = (body as ReadableStream<Uint8Array>).getReader();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) return;
-      if (value) yield value;
+  throwIfRunCancelled(signal);
+  if (typeof (body as ReadableStream<Uint8Array>).getReader === 'function') {
+    const reader = (body as ReadableStream<Uint8Array>).getReader();
+    const abort = () => {
+      void reader.cancel(signal?.reason).catch(() => undefined);
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        throwIfRunCancelled(signal);
+        if (done) return;
+        if (value) yield value;
+      }
+    } finally {
+      signal?.removeEventListener('abort', abort);
+      reader.releaseLock();
     }
-  } finally {
-    reader.releaseLock();
   }
+  if (typeof (body as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function') {
+    const nodeBody = body as AsyncIterable<Uint8Array | string> & { destroy?: (error?: Error) => void };
+    const abort = () => nodeBody.destroy?.(signal?.reason instanceof Error ? signal.reason : undefined);
+    signal?.addEventListener('abort', abort, { once: true });
+    try {
+      for await (const chunk of nodeBody) {
+        throwIfRunCancelled(signal);
+        yield chunk;
+      }
+      throwIfRunCancelled(signal);
+      return;
+    } finally {
+      signal?.removeEventListener('abort', abort);
+    }
+  }
+  throw new Error('The endpoint returned a streaming response body that cannot be read.');
 }
 
 /**
  * Drains a streamed invocation, reporting stages to `onStage` as they arrive
  * and returning the finished response in the blocking call's shape.
  */
-export async function consumeServingStream(body: unknown,
-  onStage: StageSink
+export async function consumeServingStream(
+  body: unknown,
+  onStage: StageSink,
+  signal?: AbortSignal
 ): Promise<AssembledResponse> {
   const output: unknown[] = [];
   let customOutputs: Record<string, unknown> | null = null;
@@ -194,7 +218,7 @@ export async function consumeServingStream(body: unknown,
   let announced = 0;
 
   try {
-    for await (const event of sseEvents(body)) {
+    for await (const event of sseEvents(body, signal)) {
       if (isFlush(event)) continue;
       // Stage events used to `continue` before this read, so a `tr-` that
       // serving put on an early event (and a UUID on the final envelope) was
@@ -226,6 +250,10 @@ export async function consumeServingStream(body: unknown,
       }
     }
   } catch (error) {
+    if (isRunCancelledError(error) || signal?.aborted) {
+      throwIfRunCancelled(signal);
+      throw error;
+    }
     // The socket died part-way through. undici reports this as a bare
     // `aborted`, which is indistinguishable by message from an endpoint that
     // was never reachable, and the route's catch treats the latter as grounds
@@ -233,14 +261,15 @@ export async function consumeServingStream(body: unknown,
     // positive evidence the endpoint was not only reachable but working, so it
     // is reclassified rather than rethrown; an answer already in hand is kept.
     if (customOutputs === null && output.length === 0) {
-      console.warn(`[serving] Stream died after ${stages} stage(s) and ${announced} announcement(s): ${(error as Error).message}`
+      console.warn(
+        `[serving] Stream died after ${stages} stage(s) and ${announced} announcement(s): ${(error as Error).message}`
       );
       throw new TruncatedStreamError(stages, announced);
     }
-    console.warn(`[serving] Stream died after the answer arrived (${(error as Error).message}); keeping it.`
-    );
+    console.warn(`[serving] Stream died after the answer arrived (${(error as Error).message}); keeping it.`);
   }
 
+  throwIfRunCancelled(signal);
   if (customOutputs === null && output.length === 0) {
     throw new TruncatedStreamError(stages, announced);
   }

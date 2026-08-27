@@ -180,7 +180,7 @@ describe('flipping it is wired to something', () => {
     expect(readExperimentalFeatures(store)).toEqual(off);
   });
 
-  it('draws the Benchmarking switch beside the egress switch', () => {
+  it('draws the Benchmarking switch in the Experimental table’s current order', () => {
     const source = readFileSync(new URL('SettingsPage.tsx', import.meta.url), 'utf8').replace(
       /\/\*[\s\S]*?\*\/|\{\/\*[\s\S]*?\*\/\}/g,
       ' '
@@ -192,6 +192,10 @@ describe('flipping it is wired to something', () => {
     expect(source).toMatch(/persistSpIdentityMode/);
     expect(source).toMatch(/loadSpIdentityAdmin/);
     expect(source).toMatch(/spIdentityEnabledFromPayload/);
-    expect(source.indexOf("setFeature('benchmarkLab'")).toBeLessThan(source.indexOf("setFeature('egressControls'"));
+    const rows = ['PII egress judge', 'SP identities', '<ResourceTagsPanel />', 'Benchmarking'];
+    const positions = rows.map((row) => source.indexOf(row));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((left, right) => left - right));
+    expect(source.indexOf("setFeature('egressControls'")).toBeLessThan(source.indexOf("setFeature('benchmarkLab'"));
   });
 });

@@ -70,8 +70,14 @@ export class FakeStore implements LakebaseReader {
    * seq)` is what turns a repeated append into a no-op rather than a second row
    * numbered the same, and what makes `ORDER BY seq` the order the run went in.
    */
-  stageEvents: { run_id: string; seq: number; event_id: string; event_type: string; stage: string | null; payload: unknown }[] =
-    [];
+  stageEvents: {
+    run_id: string;
+    seq: number;
+    event_id: string;
+    event_type: string;
+    stage: string | null;
+    payload: unknown;
+  }[] = [];
   now = 1_000_000;
   /** Rows committed after the current statement's snapshot, see the note below. */
   private hidden: Row[] = [];
@@ -103,8 +109,13 @@ export class FakeStore implements LakebaseReader {
     // second boot against a real database finds too. Accepted rather than
     // recognised: nothing here depends on the DDL, and a route test that boots
     // the app runs it before reaching anything that does.
-    if (/^\s*CREATE (TABLE|UNIQUE INDEX|INDEX)/i.test(text)) return { rows: [] };
+    if (/^\s*(CREATE (TABLE|UNIQUE INDEX|INDEX)|ALTER TABLE)/i.test(text)) return { rows: [] };
     if (/INSERT INTO player_insights\.runs/i.test(text)) return { rows: this.createOrGet(params) };
+    if (/UPDATE player_insights\.runs[\s\S]*SET state = 'CANCELLED'/i.test(text)) {
+      return {
+        rows: /WHERE user_email = \$1/i.test(text) ? this.cancelOwned(params) : this.cancelAll(params),
+      };
+    }
     if (/UPDATE player_insights\.runs[\s\S]*fencing_token = fencing_token \+ 1/i.test(text)) {
       return { rows: this.acquire(params) };
     }
@@ -114,6 +125,11 @@ export class FakeStore implements LakebaseReader {
     }
     if (/FROM player_insights\.runs[\s\S]*WHERE conversation_id = \$1 AND user_email = \$2/i.test(text)) {
       return { rows: this.latestConversationRun(params) };
+    }
+    if (
+      /FROM player_insights\.runs[\s\S]*WHERE user_email = \$1 AND \(run_id = \$2 OR correlation_id = \$2\)/i.test(text)
+    ) {
+      return { rows: this.readCancellationTarget(params) };
     }
     if (/SELECT[\s\S]*FROM player_insights\.runs WHERE run_id/i.test(text)) return { rows: this.read(params) };
     if (/FROM player_insights\.messages m/i.test(text)) return { rows: this.readMessage(params) };
@@ -189,6 +205,33 @@ export class FakeStore implements LakebaseReader {
     return [{ ...run }];
   }
 
+  private cancelRows(predicate: (row: Row) => boolean): Record<string, unknown>[] {
+    const cancelled = this.runs.filter(
+      (run) => predicate(run) && (EXECUTING_STATES as readonly string[]).includes(run.state)
+    );
+    for (const run of cancelled) {
+      run.state = 'CANCELLED';
+      run.terminal_code = null;
+      run.fencing_token += 1;
+      run.lease_owner = null;
+      run.lease_expires_at = null;
+      run.completed_at = this.now;
+      run.updated_at = this.now;
+    }
+    return cancelled.map((run) => ({ ...run }));
+  }
+
+  private cancelOwned(params: unknown[]): Record<string, unknown>[] {
+    const [email, identifier] = params as [string, string, string[]];
+    return this.cancelRows(
+      (run) => run.user_email === email && (run.run_id === identifier || run.correlation_id === identifier)
+    );
+  }
+
+  private cancelAll(_params: unknown[]): Record<string, unknown>[] {
+    return this.cancelRows(() => true);
+  }
+
   private transition(params: unknown[]): Record<string, unknown>[] {
     const [runId, fence, to, code, messageId, traceId, effective, verified, fingerprint, finishing, from, releasing] =
       params as [
@@ -231,6 +274,18 @@ export class FakeStore implements LakebaseReader {
   private read(params: unknown[]): Record<string, unknown>[] {
     const [runId, email] = params as string[];
     const run = this.runs.find((row) => row.run_id === runId && row.user_email === email);
+    return run ? [{ ...run }] : [];
+  }
+
+  private readCancellationTarget(params: unknown[]): Record<string, unknown>[] {
+    const [email, identifier] = params as [string, string];
+    const run = this.runs
+      .filter((row) => row.user_email === email && (row.run_id === identifier || row.correlation_id === identifier))
+      .sort((left, right) => {
+        const leftExact = left.run_id === identifier ? 0 : 1;
+        const rightExact = right.run_id === identifier ? 0 : 1;
+        return leftExact - rightExact || right.created_at - left.created_at;
+      })[0];
     return run ? [{ ...run }] : [];
   }
 

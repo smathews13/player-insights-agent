@@ -29,6 +29,7 @@
  */
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-roles';
 import { ADMIN_GRANTS_TABLE } from './admin-roles-schema';
+import { sqlQueryTags } from './sql-query-tags';
 
 /** The parts of a Unity Catalog privilege, in the form a statement takes. */
 type SecurableKind = 'CATALOG' | 'SCHEMA' | 'TABLE';
@@ -295,6 +296,11 @@ export function accessRunner(options: {
         body: JSON.stringify({
           warehouse_id: options.warehouseId,
           statement,
+          query_tags: sqlQueryTags({
+            surface: 'admin',
+            tool: 'admin_access',
+            operation: 'revoke',
+          }),
           wait_timeout: '30s',
           on_wait_timeout: 'CANCEL',
         }),

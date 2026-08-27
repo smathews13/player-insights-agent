@@ -148,7 +148,7 @@ describe('a conversation with a run in flight', () => {
     // with a second live chip written in its own hand.
     const row = HOME.slice(HOME.indexOf('<span className="conversation-item-head">'));
     expect(row.slice(0, row.indexOf('</span>'))).toContain('<RunStatusPill status={runStatus} />');
-    expect(HOME).toMatch(/const runningConversation = loading && conversation\.id === conversationId/);
+    expect(HOME).toContain('Boolean(readLiveAsk(conversation.id)?.inFlight)');
   });
 
   it('breathes with the one animation the app has for this, not a second one', () => {
@@ -285,7 +285,7 @@ describe('the settings pane, frosted like the account menu', () => {
     // rule here would lose on order alone. The overlay is the modal's own
     // wrapper, which is one class and no `!important`.
     expect(partialNames().indexOf('settings.css')).toBeLessThan(partialNames().indexOf('dark-mode.css'));
-    expect(SETTINGS).toContain(".settings-overlay .settings-page.settings-modal");
+    expect(SETTINGS).toContain('.settings-overlay .settings-page.settings-modal');
     expect(SETTINGS).not.toContain('!important');
   });
 });
@@ -338,7 +338,10 @@ describe('a thumb is the rating, on both sides', () => {
   });
 
   it('keeps the comment box open only for the click that opened it', () => {
-    const save = HOME.slice(HOME.indexOf('async function saveFeedback'), HOME.indexOf('async function uploadAttachments'));
+    const save = HOME.slice(
+      HOME.indexOf('async function saveFeedback'),
+      HOME.indexOf('async function uploadAttachments')
+    );
 
     expect(save).toContain('open: options.keepCommentOpen === true');
     // A blank box is not a comment. `''` would be stored and then rendered as an

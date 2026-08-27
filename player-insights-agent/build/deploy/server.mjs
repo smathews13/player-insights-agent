@@ -132651,7 +132651,7 @@ var require_websocket = __commonJS({
     var http = __require("http");
     var net2 = __require("net");
     var tls = __require("tls");
-    var { randomBytes, createHash: createHash7 } = __require("crypto");
+    var { randomBytes, createHash: createHash8 } = __require("crypto");
     var { Duplex, Readable: Readable4 } = __require("stream");
     var { URL: URL3 } = __require("url");
     var PerMessageDeflate = require_permessage_deflate();
@@ -133308,7 +133308,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash7("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash8("sha1").update(key2 + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -133675,7 +133675,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = __require("events");
     var http = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash7 } = __require("crypto");
+    var { createHash: createHash8 } = __require("crypto");
     var extension = require_extension();
     var PerMessageDeflate = require_permessage_deflate();
     var subprotocol = require_subprotocol();
@@ -133972,7 +133972,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash7("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash8("sha1").update(key2 + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -167597,6 +167597,75 @@ async function completeAttempt(store, input) {
   if (!read2.available) return unavailable2(read2);
   return { ok: true, value: read2.rows.length > 0 };
 }
+async function cancelOwnedRun(store, userEmail2, identifier) {
+  const cancelled = await ledgerQuery(
+    store,
+    "run ledger cancel owned run",
+    `UPDATE ${APP_SCHEMA}.runs
+        SET state = 'CANCELLED',
+            terminal_code = NULL,
+            fencing_token = fencing_token + 1,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            completed_at = NOW(),
+            updated_at = NOW()
+      WHERE user_email = $1
+        AND (run_id = $2 OR correlation_id = $2)
+        AND state = ANY($3::text[])
+     RETURNING ${RUN_COLUMNS}`,
+    [userEmail2, identifier, [...EXECUTING_STATES]]
+  );
+  if (!cancelled.available) return unavailable2(cancelled);
+  if (cancelled.rows.length > 0) {
+    return { ok: true, value: { kind: "cancelled", runs: cancelled.rows.map(toRun) } };
+  }
+  const existing = await ledgerQuery(
+    store,
+    "run ledger read owned cancellation target",
+    `SELECT ${RUN_COLUMNS}
+       FROM ${APP_SCHEMA}.runs
+      WHERE user_email = $1 AND (run_id = $2 OR correlation_id = $2)
+      ORDER BY CASE WHEN run_id = $2 THEN 0 ELSE 1 END, created_at DESC
+      LIMIT 1`,
+    [userEmail2, identifier]
+  );
+  if (!existing.available) return unavailable2(existing);
+  const found = row(existing);
+  return {
+    ok: true,
+    value: found ? { kind: "not-active", run: toRun(found) } : { kind: "not-found" }
+  };
+}
+async function cancelAllExecutingRuns(store) {
+  const cancelled = await ledgerQuery(
+    store,
+    "run ledger cancel all executing runs",
+    `UPDATE ${APP_SCHEMA}.runs
+        SET state = 'CANCELLED',
+            terminal_code = NULL,
+            fencing_token = fencing_token + 1,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            completed_at = NOW(),
+            updated_at = NOW()
+      WHERE state = ANY($1::text[])
+     RETURNING ${RUN_COLUMNS}`,
+    [[...EXECUTING_STATES]]
+  );
+  if (!cancelled.available) return unavailable2(cancelled);
+  return { ok: true, value: cancelled.rows.map(toRun) };
+}
+async function readRun(store, runId, userEmail2) {
+  const read2 = await ledgerQuery(
+    store,
+    "run ledger read run",
+    `SELECT ${RUN_COLUMNS} FROM ${APP_SCHEMA}.runs WHERE run_id = $1 AND user_email = $2`,
+    [runId, userEmail2]
+  );
+  if (!read2.available) return unavailable2(read2);
+  const found = row(read2);
+  return { ok: true, value: found ? toRun(found) : null };
+}
 var EXECUTING_SQL_LIST, LEASE_MS, RACE_ATTEMPTS, RETRYABLE_LEDGER_CODES, RUN_COLUMNS;
 var init_run_ledger = __esm({
   "server/lib/run-ledger.ts"() {
@@ -168107,6 +168176,224 @@ var init_warehouse_warmup = __esm({
   }
 });
 
+// server/lib/warehouse-cancellation.ts
+function stringValue(value) {
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function parseQueryTags(value) {
+  const tags = /* @__PURE__ */ new Map();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (!item || typeof item !== "object") continue;
+      const record2 = item;
+      const key2 = stringValue(record2.key);
+      const tagValue = stringValue(record2.value);
+      if (!key2 || !tagValue) continue;
+      const existing = tags.get(key2);
+      if (existing !== void 0 && existing !== tagValue) return /* @__PURE__ */ new Map();
+      tags.set(key2, tagValue);
+    }
+    return tags;
+  }
+  if (!value || typeof value !== "object") return tags;
+  for (const [key2, candidate] of Object.entries(value)) {
+    const tagValue = stringValue(candidate);
+    if (tagValue !== void 0) tags.set(key2, tagValue);
+  }
+  return tags;
+}
+function sameEmail(left, right) {
+  return left?.trim().toLocaleLowerCase("en-US") === right.trim().toLocaleLowerCase("en-US");
+}
+function matchesScope(row2, scope) {
+  const tags = parseQueryTags(row2.query_tags);
+  if (tags.get("application") !== "Astrolabe") return false;
+  if (scope.mode === "admin") return true;
+  const executionUser = stringValue(row2.executed_as_user_name) ?? stringValue(row2.user_name);
+  if (!sameEmail(executionUser, scope.signedInEmail)) return false;
+  return scope.runId !== void 0 && tags.get("run_id") === scope.runId || scope.correlationId !== void 0 && tags.get("correlation_id") === scope.correlationId;
+}
+function returnedActiveStatus(row2, requested) {
+  const status = stringValue(row2.status);
+  if (status === void 0) return requested;
+  return ACTIVE_STATUS_SET.has(status) ? status : void 0;
+}
+function errorStatus(error48) {
+  if (!error48 || typeof error48 !== "object") return void 0;
+  const record2 = error48;
+  const direct = record2.statusCode ?? record2.status;
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
+  const response = record2.response;
+  if (response && typeof response === "object") {
+    const nested = response.status;
+    if (typeof nested === "number" && Number.isFinite(nested)) return nested;
+  }
+  return void 0;
+}
+function errorWording(error48) {
+  if (typeof error48 === "string") return error48;
+  if (!error48 || typeof error48 !== "object") return "";
+  const record2 = error48;
+  const pieces = [record2.message, record2.error_code, record2.errorCode];
+  const response = record2.response;
+  if (response && typeof response === "object") {
+    const nested = response;
+    pieces.push(nested.message, nested.error_code, nested.errorCode);
+  }
+  return pieces.filter((piece) => typeof piece === "string").join(" ");
+}
+function classifyCancellationError(error48) {
+  const providerStatus = errorStatus(error48);
+  const wording = errorWording(error48);
+  const alreadyFinished = providerStatus === 409 || /\bnot(?: currently)? running\b|\bnot in (?:an? )?(?:running|active) state\b|\bno longer (?:running|active)\b|\balready (?:finished|completed|canceled|cancelled)\b/i.test(
+    wording
+  );
+  if (alreadyFinished) return { outcome: "already_finished_or_raced", providerStatus };
+  if (providerStatus === 401 || providerStatus === 403) return { outcome: "refused", providerStatus };
+  return { outcome: "failed", providerStatus };
+}
+async function defaultSleep(milliseconds) {
+  await new Promise((resolve2) => setTimeout(resolve2, milliseconds));
+}
+async function scanPass(input) {
+  const candidates = /* @__PURE__ */ new Map();
+  for (const requestedStatus of ACTIVE_QUERY_STATUSES) {
+    let pageToken;
+    const usedTokens = /* @__PURE__ */ new Set();
+    for (let page = 0; page < MAX_PAGES_PER_STATUS; page += 1) {
+      const response = await input.transport.listQueries({
+        warehouseId: input.warehouseId,
+        status: requestedStatus,
+        pageToken,
+        maxResults: QUERY_HISTORY_PAGE_SIZE
+      });
+      for (const row2 of Array.isArray(response.res) ? response.res : []) {
+        const queryId = stringValue(row2.query_id);
+        const activeStatus = returnedActiveStatus(row2, requestedStatus);
+        if (!queryId || !activeStatus) continue;
+        if (row2.warehouse_id !== void 0 && row2.warehouse_id !== input.warehouseId) continue;
+        if (matchesScope(row2, input.scope)) candidates.set(queryId, activeStatus);
+      }
+      const nextPageToken = stringValue(response.next_page_token);
+      if (!nextPageToken) {
+        if (response.has_next_page) {
+          throw new Error("Query History reported another page without a page token.");
+        }
+        break;
+      }
+      if (usedTokens.has(nextPageToken)) {
+        throw new Error("Query History repeated a page token.");
+      }
+      usedTokens.add(nextPageToken);
+      pageToken = nextPageToken;
+      if (page === MAX_PAGES_PER_STATUS - 1) {
+        throw new Error(`Query History exceeded ${MAX_PAGES_PER_STATUS} pages for one status.`);
+      }
+    }
+  }
+  return candidates;
+}
+async function cancelAstrolabeWarehouseQueries(input) {
+  const warehouseId2 = input.warehouseId.trim();
+  if (!warehouseId2) throw new Error("A configured SQL warehouse ID is required.");
+  const sleep = input.sleep ?? defaultSleep;
+  const sweepDelayMs = Math.max(0, input.sweepDelayMs ?? DEFAULT_SWEEP_DELAY_MS);
+  const matched = /* @__PURE__ */ new Set();
+  const attempted = /* @__PURE__ */ new Set();
+  const details = [];
+  for (let pass = 0; pass < 2; pass += 1) {
+    const candidates = await scanPass({
+      warehouseId: warehouseId2,
+      scope: input.scope,
+      transport: input.transport
+    });
+    for (const [queryId, queryStatus] of candidates) {
+      matched.add(queryId);
+      if (attempted.has(queryId)) continue;
+      attempted.add(queryId);
+      try {
+        await input.transport.cancelStatement(queryId);
+        details.push({ query_id: queryId, query_status: queryStatus, outcome: "cancel_requested" });
+      } catch (error48) {
+        const classified = classifyCancellationError(error48);
+        details.push({
+          query_id: queryId,
+          query_status: queryStatus,
+          outcome: classified.outcome,
+          ...classified.providerStatus === void 0 ? {} : { provider_status: classified.providerStatus }
+        });
+      }
+    }
+    if (pass === 0) await sleep(sweepDelayMs);
+  }
+  const count4 = (outcome) => details.filter((detail) => detail.outcome === outcome).length;
+  return {
+    matched: matched.size,
+    cancel_requested: count4("cancel_requested"),
+    already_finished_or_raced: count4("already_finished_or_raced"),
+    refused: count4("refused"),
+    failed: count4("failed"),
+    details
+  };
+}
+function queryHistoryPage(value) {
+  if (!value || typeof value !== "object") return {};
+  const record2 = value;
+  return {
+    res: Array.isArray(record2.res) ? record2.res : [],
+    ...typeof record2.next_page_token === "string" ? { next_page_token: record2.next_page_token } : {},
+    ...typeof record2.has_next_page === "boolean" ? { has_next_page: record2.has_next_page } : {}
+  };
+}
+function createDatabricksWarehouseCancellationTransport(client) {
+  return {
+    async listQueries({ warehouseId: warehouseId2, status, pageToken, maxResults }) {
+      const response = await client.request({
+        path: "/api/2.0/sql/history/queries",
+        method: "GET",
+        headers: new Headers({ Accept: "application/json" }),
+        raw: false,
+        query: {
+          filter_by: { warehouse_ids: [warehouseId2], statuses: [status] },
+          include_metrics: false,
+          max_results: maxResults,
+          ...pageToken ? { page_token: pageToken } : {}
+        }
+      });
+      return queryHistoryPage(response);
+    },
+    async cancelStatement(statementId) {
+      await client.request({
+        path: `/api/2.0/sql/statements/${encodeURIComponent(statementId)}/cancel`,
+        method: "POST",
+        headers: new Headers(),
+        raw: false
+      });
+    }
+  };
+}
+async function createWorkspaceWarehouseCancellationTransport(input = {}) {
+  const { WorkspaceClient: WorkspaceClient6 } = await import("./vendor-databricks-sdk-experimental.mjs");
+  const client = input.token ? new WorkspaceClient6({
+    host: input.host,
+    token: input.token,
+    authType: "pat"
+  }) : new WorkspaceClient6({});
+  return createDatabricksWarehouseCancellationTransport({
+    request: (options) => client.apiClient.request(options)
+  });
+}
+var ACTIVE_QUERY_STATUSES, ACTIVE_STATUS_SET, DEFAULT_SWEEP_DELAY_MS, QUERY_HISTORY_PAGE_SIZE, MAX_PAGES_PER_STATUS;
+var init_warehouse_cancellation = __esm({
+  "server/lib/warehouse-cancellation.ts"() {
+    ACTIVE_QUERY_STATUSES = ["QUEUED", "STARTED", "COMPILING", "COMPILED", "RUNNING"];
+    ACTIVE_STATUS_SET = new Set(ACTIVE_QUERY_STATUSES);
+    DEFAULT_SWEEP_DELAY_MS = 500;
+    QUERY_HISTORY_PAGE_SIZE = 999;
+    MAX_PAGES_PER_STATUS = 100;
+  }
+});
+
 // server/lib/genie-warehouse-warmup.ts
 function messageOf3(error48) {
   return error48?.message ?? String(error48);
@@ -168407,6 +168694,36 @@ var init_data_contract = __esm({
     ];
     DICTIONARY_GENIE_TABLES = ["data_dictionary"];
     DATA_CONTRACT_TABLES = [...DATA_GENIE_TABLES, ...DICTIONARY_GENIE_TABLES];
+  }
+});
+
+// server/lib/sql-query-tags.ts
+import { createHash as createHash6 } from "node:crypto";
+function safeSqlTagIdentifier(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= SQL_QUERY_TAG_TEXT_LIMIT && SAFE_IDENTIFIER.test(trimmed)) return trimmed;
+  return `id_${createHash6("sha256").update(trimmed).digest("hex")}`;
+}
+function sqlQueryTags(input) {
+  const tags = [
+    { key: "application", value: "Astrolabe" },
+    { key: "surface", value: input.surface },
+    { key: "tool", value: input.tool },
+    { key: "operation", value: input.operation }
+  ];
+  const runId = input.runId ? safeSqlTagIdentifier(input.runId) : "";
+  const correlationId = input.correlationId ? safeSqlTagIdentifier(input.correlationId) : "";
+  if (runId) tags.push({ key: "run_id", value: runId });
+  if (correlationId) tags.push({ key: "correlation_id", value: correlationId });
+  return tags.slice(0, SQL_QUERY_TAG_LIMIT);
+}
+var SQL_QUERY_TAG_LIMIT, SQL_QUERY_TAG_TEXT_LIMIT, SAFE_IDENTIFIER;
+var init_sql_query_tags = __esm({
+  "server/lib/sql-query-tags.ts"() {
+    SQL_QUERY_TAG_LIMIT = 20;
+    SQL_QUERY_TAG_TEXT_LIMIT = 128;
+    SAFE_IDENTIFIER = /^[A-Za-z0-9_-]+$/;
   }
 });
 
@@ -169212,6 +169529,11 @@ function statementExecutorFor(options) {
         body: JSON.stringify({
           warehouse_id: options.warehouseId,
           statement,
+          query_tags: sqlQueryTags({
+            surface: "connections",
+            tool: "access_verification",
+            operation: "preflight"
+          }),
           // Long enough for a warehouse that has to wake up, and synchronous so
           // the route does not have to poll a statement id to find out whether a
           // permission held.
@@ -169249,6 +169571,7 @@ var AGE_NOT_SUPPLIED, USER_TOKEN_HEADER, GENIE_SCOPE, ALL_APIS_SCOPE, SQL_ACCESS
 var init_access_verification = __esm({
   "server/routes/access-verification.ts"() {
     init_data_contract();
+    init_sql_query_tags();
     init_token_rejection();
     AGE_NOT_SUPPLIED = {
       kind: "unreadable",
@@ -169996,6 +170319,83 @@ var init_execution_credential = __esm({
   }
 });
 
+// server/lib/run-cancellation.ts
+function isRunCancelledError(error48) {
+  return error48 instanceof RunCancelledError;
+}
+function throwIfRunCancelled(signal, runId = "") {
+  if (!signal?.aborted) return;
+  if (isRunCancelledError(signal.reason)) throw signal.reason;
+  throw new RunCancelledError(runId || "unknown");
+}
+function registerRunController(runId, controller) {
+  const controllers = activeRunControllers.get(runId) ?? /* @__PURE__ */ new Set();
+  controllers.add(controller);
+  activeRunControllers.set(runId, controllers);
+  return () => {
+    controllers.delete(controller);
+    if (controllers.size === 0) activeRunControllers.delete(runId);
+  };
+}
+function abortInProcessRuns(runIds) {
+  const aborted2 = [];
+  for (const runId of new Set(runIds)) {
+    const controllers = activeRunControllers.get(runId);
+    if (!controllers || controllers.size === 0) continue;
+    const reason = new RunCancelledError(runId);
+    for (const controller of controllers) {
+      if (!controller.signal.aborted) controller.abort(reason);
+    }
+    aborted2.push(runId);
+  }
+  return aborted2;
+}
+function watchDurableCancellation(input) {
+  const intervalMs = Math.max(10, input.intervalMs ?? 250);
+  let stopped = false;
+  let timer;
+  const schedule = () => {
+    if (stopped || input.controller.signal.aborted) return;
+    timer = setTimeout(() => void check3(), intervalMs);
+  };
+  const check3 = async () => {
+    try {
+      const result = await readRun(input.store, input.runId, input.userEmail);
+      if (stopped || input.controller.signal.aborted) return;
+      if (result.ok && result.value?.state === "CANCELLED") {
+        input.controller.abort(new RunCancelledError(input.runId));
+        return;
+      }
+    } catch {
+    }
+    schedule();
+  };
+  void check3();
+  return {
+    stop() {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    }
+  };
+}
+var RunCancelledError, activeRunControllers;
+var init_run_cancellation = __esm({
+  "server/lib/run-cancellation.ts"() {
+    init_run_ledger();
+    RunCancelledError = class extends Error {
+      runId;
+      constructor(runId) {
+        super(
+          `Run ${runId} was explicitly cancelled. App-side serving consumption stopped and no replacement invocation will be started; the current remote model invocation may still finish server-side.`
+        );
+        this.name = "RunCancelledError";
+        this.runId = runId;
+      }
+    };
+    activeRunControllers = /* @__PURE__ */ new Map();
+  }
+});
+
 // server/lib/serving-stream.ts
 function stageOf(event) {
   const custom2 = event.custom_outputs;
@@ -170011,10 +170411,10 @@ function isFlush(event) {
 function isAnnouncement(stage) {
   return stage.status === "running";
 }
-async function* sseEvents(body) {
+async function* sseEvents(body, signal) {
   const decoder = new TextDecoder();
   let buffer = "";
-  for await (const chunk of toChunks(body)) {
+  for await (const chunk of toChunks(body, signal)) {
     buffer += typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
     let boundary = buffer.search(/\r?\n\r?\n/);
     while (boundary !== -1) {
@@ -170038,24 +170438,45 @@ function parseBlock(block) {
     return null;
   }
 }
-async function* toChunks(body) {
+async function* toChunks(body, signal) {
   if (!body) throw new Error("The endpoint returned a streaming response with no body.");
-  if (typeof body[Symbol.asyncIterator] === "function") {
-    yield* body;
-    return;
-  }
-  const reader = body.getReader();
-  try {
-    for (; ; ) {
-      const { done, value } = await reader.read();
-      if (done) return;
-      if (value) yield value;
+  throwIfRunCancelled(signal);
+  if (typeof body.getReader === "function") {
+    const reader = body.getReader();
+    const abort = () => {
+      void reader.cancel(signal?.reason).catch(() => void 0);
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    try {
+      for (; ; ) {
+        const { done, value } = await reader.read();
+        throwIfRunCancelled(signal);
+        if (done) return;
+        if (value) yield value;
+      }
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      reader.releaseLock();
     }
-  } finally {
-    reader.releaseLock();
   }
+  if (typeof body[Symbol.asyncIterator] === "function") {
+    const nodeBody = body;
+    const abort = () => nodeBody.destroy?.(signal?.reason instanceof Error ? signal.reason : void 0);
+    signal?.addEventListener("abort", abort, { once: true });
+    try {
+      for await (const chunk of nodeBody) {
+        throwIfRunCancelled(signal);
+        yield chunk;
+      }
+      throwIfRunCancelled(signal);
+      return;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+    }
+  }
+  throw new Error("The endpoint returned a streaming response body that cannot be read.");
 }
-async function consumeServingStream(body, onStage) {
+async function consumeServingStream(body, onStage, signal) {
   const output = [];
   let customOutputs2 = null;
   let databricksOutput = null;
@@ -170063,7 +170484,7 @@ async function consumeServingStream(body, onStage) {
   let stages = 0;
   let announced = 0;
   try {
-    for await (const event of sseEvents(body)) {
+    for await (const event of sseEvents(body, signal)) {
       if (isFlush(event)) continue;
       if (!streamTraceId) streamTraceId = servingMlflowTraceId(event);
       const stage = stageOf(event);
@@ -170087,16 +170508,19 @@ async function consumeServingStream(body, onStage) {
       }
     }
   } catch (error48) {
+    if (isRunCancelledError(error48) || signal?.aborted) {
+      throwIfRunCancelled(signal);
+      throw error48;
+    }
     if (customOutputs2 === null && output.length === 0) {
       console.warn(
         `[serving] Stream died after ${stages} stage(s) and ${announced} announcement(s): ${error48.message}`
       );
       throw new TruncatedStreamError(stages, announced);
     }
-    console.warn(
-      `[serving] Stream died after the answer arrived (${error48.message}); keeping it.`
-    );
+    console.warn(`[serving] Stream died after the answer arrived (${error48.message}); keeping it.`);
   }
+  throwIfRunCancelled(signal);
   if (customOutputs2 === null && output.length === 0) {
     throw new TruncatedStreamError(stages, announced);
   }
@@ -170111,6 +170535,7 @@ var TruncatedStreamError;
 var init_serving_stream = __esm({
   "server/lib/serving-stream.ts"() {
     init_mlflow_trace_id();
+    init_run_cancellation();
     TruncatedStreamError = class extends Error {
       /**
        * Stages that reported finished work.
@@ -170536,6 +170961,40 @@ function workspaceHost() {
 }
 function appWarehouseId() {
   return (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? "").trim();
+}
+async function cancelTaggedWarehouseQueries(input) {
+  const warehouseId2 = appWarehouseId();
+  const token = executionToken(input.req);
+  const host2 = workspaceHost();
+  if (!warehouseId2) {
+    return { result: NO_WAREHOUSE_CANCELLATION, failures: [] };
+  }
+  if (!input.transport && (!token || !host2)) {
+    return {
+      result: NO_WAREHOUSE_CANCELLATION,
+      failures: ["The signed-in token or workspace host was unavailable, so tagged SQL could not be cancelled."]
+    };
+  }
+  try {
+    const transport = input.transport ?? await createWorkspaceWarehouseCancellationTransport({
+      host: host2,
+      token: token ?? void 0
+    });
+    return {
+      result: await cancelAstrolabeWarehouseQueries({
+        warehouseId: warehouseId2,
+        scope: input.scope,
+        transport
+      }),
+      failures: []
+    };
+  } catch (error48) {
+    console.warn("[cancel] Tagged warehouse queries could not be swept:", error48.message);
+    return {
+      result: NO_WAREHOUSE_CANCELLATION,
+      failures: ["Tagged SQL cancellation could not be completed. The run itself is still marked cancelled."]
+    };
+  }
 }
 function mlflowReference(traceId, experimentId) {
   if (!isMlflowTraceId(traceId)) return null;
@@ -171247,8 +171706,10 @@ function warmGenieWarehousesForArrival(req) {
   });
 }
 function createServingTransport(resolveClient) {
-  return async ({ path: path19, payload, onStage, userToken }) => {
+  return async ({ path: path19, payload, onStage, userToken, signal }) => {
+    throwIfRunCancelled(signal);
     const client = await resolveClient(userToken);
+    throwIfRunCancelled(signal);
     const streaming = typeof onStage === "function";
     const invoke2 = (asStream) => client.request({
       path: path19,
@@ -171258,26 +171719,39 @@ function createServingTransport(resolveClient) {
         Accept: asStream ? "text/event-stream" : "application/json"
       }),
       payload,
-      raw: asStream
+      raw: asStream,
+      signal
     });
     if (!streaming) return invoke2(false);
     try {
       const streamed = await invoke2(true);
-      return await consumeServingStream(streamed.contents, onStage);
+      if (signal?.aborted) {
+        const body = streamed.contents;
+        if (typeof body?.cancel === "function") await body.cancel(signal.reason).catch(() => void 0);
+        else body?.destroy?.(signal.reason instanceof Error ? signal.reason : void 0);
+        throwIfRunCancelled(signal);
+      }
+      return await consumeServingStream(streamed.contents, onStage, signal);
     } catch (error48) {
+      if (isRunCancelledError(error48) || signal?.aborted) {
+        throwIfRunCancelled(signal);
+        throw error48;
+      }
       if (!(error48 instanceof TruncatedStreamError)) throw error48;
       if (error48.stages > 0) {
         console.warn(`[serving] ${error48.message} Keeping the partial run; no second invocation will be started.`);
         throw error48;
       }
       console.warn(`[serving] ${error48.message} No stage reported work; asking once without streaming.`);
+      throwIfRunCancelled(signal);
       const blocking = { ...payload, stream: false };
       return client.request({
         path: path19,
         method: "POST",
         headers: new Headers({ "Content-Type": "application/json", Accept: "application/json" }),
         payload: blocking,
-        raw: false
+        raw: false,
+        signal
       });
     }
   };
@@ -171314,16 +171788,18 @@ function buildAskServingBody({
   const input = history.length > 0 ? history : [{ role: "user", content: prompt }];
   return stream2 ? { input, custom_inputs, stream: true } : { input, custom_inputs };
 }
-async function invokeServing(appkit, payload, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS, userToken, endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME) {
+async function invokeServing(appkit, payload, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS, userToken, endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME, signal) {
   if (!endpointName) {
     throw new Error("DATABRICKS_SERVING_ENDPOINT_NAME is not set.");
   }
   const transport = appkit.servingTransport ?? workspaceServingTransport;
-  return withDeadline(
-    transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken }),
+  const result = await withDeadline(
+    transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken, signal }),
     timeoutMs,
     `The agent endpoint did not answer within ${timeoutMs} ms. The call was abandoned rather than cancelled, so it may still be running at the endpoint.`
   );
+  throwIfRunCancelled(signal);
+  return result;
 }
 function agentEndpointDependency() {
   return { kind: "agent-endpoint", name: process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "" };
@@ -171354,9 +171830,9 @@ function rejectionStatus(error48) {
   if (/\b401\b|unauthenticated|unauthorized|invalid access token|expired/i.test(message)) return 401;
   return null;
 }
-async function invokeServingAsUser(appkit, payload, userToken, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS, endpointName) {
+async function invokeServingAsUser(appkit, payload, userToken, onStage, timeoutMs = SERVING_INVOKE_TIMEOUT_MS, endpointName, signal) {
   try {
-    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken, endpointName);
+    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken, endpointName, signal);
   } catch (error48) {
     const code = authorizationFailureFor(rejectionStatus(error48) ?? 0);
     if (!code) throw error48;
@@ -171952,6 +172428,114 @@ function setupInsightsRoutes(appkit, options = {}) {
         });
       }
     });
+    app.post("/api/runs/:id/cancel", async (req, res) => {
+      const actor = userEmail(req);
+      const identifier = req.params.id.trim();
+      if (!identifier) {
+        res.status(404).json({ error: "run_not_found", message: "No active run with this id belongs to you." });
+        return;
+      }
+      const result = await cancelOwnedRun(appkit, actor, identifier);
+      if (!result.ok) {
+        res.status(503).json({
+          error: "run_cancel_unavailable",
+          message: "The run was not stopped because its durable state could not be updated."
+        });
+        return;
+      }
+      if (result.value.kind === "not-found") {
+        res.status(404).json({ error: "run_not_found", message: "No active run with this id belongs to you." });
+        return;
+      }
+      if (result.value.kind === "not-active") {
+        res.status(409).json({
+          error: "run_not_active",
+          state: result.value.run.state,
+          message: "That run is no longer active, so there is nothing to stop."
+        });
+        return;
+      }
+      const runIds = result.value.runs.map((run2) => run2.runId);
+      const abortedHere = abortInProcessRuns(runIds);
+      const durableRun = result.value.runs[0];
+      const warehouse = await cancelTaggedWarehouseQueries({
+        req,
+        scope: {
+          mode: "owner",
+          signedInEmail: actor,
+          runId: durableRun?.runId,
+          correlationId: durableRun?.correlationId ?? identifier
+        },
+        transport: appkit.warehouseCancellationTransport
+      });
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: "run-cancelled",
+        subject: runIds.join(","),
+        detail: `${actor} stopped their own active Astrolabe run(s): ${runIds.join(", ")}.`
+      });
+      res.json({
+        targeted: runIds.length,
+        cancelled: runIds.length,
+        runIds,
+        abortedHere,
+        failures: warehouse.failures,
+        warehouse: warehouse.result,
+        modelServing: "App-side stream consumption was stopped and no replacement invocation will be started. A model invocation already accepted by Model Serving may still finish server-side."
+      });
+    });
+    app.post("/api/admin/runs/cancel-all", async (req, res) => {
+      const actor = userEmail(req);
+      const result = await cancelAllExecutingRuns(appkit);
+      if (!result.ok) {
+        res.status(503).json({
+          error: "run_cancel_all_unavailable",
+          message: "No runs were reported stopped because the durable snapshot could not be updated."
+        });
+        return;
+      }
+      const runIds = result.value.map((run2) => run2.runId);
+      const abortedHere = abortInProcessRuns(runIds);
+      const failures = [];
+      let benchmarkSuites = 0;
+      try {
+        const benchmarkResult = await appkit.lakebase.query(
+          `UPDATE ${APP_SCHEMA}.benchmark_runs
+              SET metrics_json = jsonb_set(metrics_json, '{cancelRequested}', 'true'::jsonb, true)
+            WHERE status = 'running'
+          RETURNING id`
+        );
+        benchmarkSuites = benchmarkResult.rows.length;
+      } catch (error48) {
+        console.warn("[cancel] Active benchmark suites could not be marked for cancellation:", error48.message);
+        failures.push("Active benchmark suites could not be marked for cancellation.");
+      }
+      const warehouse = await cancelTaggedWarehouseQueries({
+        req,
+        scope: { mode: "admin" },
+        transport: appkit.warehouseCancellationTransport
+      });
+      failures.push(...warehouse.failures);
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: "runs-cancelled",
+        subject: "active-astrolabe-runs",
+        detail: `${actor} stopped a one-time snapshot of ${runIds.length} active Astrolabe run(s).`
+      });
+      res.json({
+        targeted: runIds.length,
+        cancelled: runIds.length,
+        runIds,
+        abortedHere,
+        failures,
+        warehouse: warehouse.result,
+        benchmarkSuites,
+        oneShot: true,
+        deleted: 0,
+        futureAsksPaused: false,
+        modelServing: "App-side stream consumption was stopped where reachable and no replacement invocation will be started. Model invocations already accepted by Model Serving may still finish server-side."
+      });
+    });
     app.post("/api/insights/ask", async (req, res) => {
       const reply = createAskResponder(req, res);
       const parsed = AskBody.safeParse(req.body);
@@ -172186,7 +172770,37 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           stageRecorder?.record(stage);
         };
         const askEndpoint = await resolveAskEndpoint(appkit);
-        const endpointResult = identity.token ? await invokeServingAsUser(appkit, payload, identity.token, onStage, SERVING_INVOKE_TIMEOUT_MS, askEndpoint) : await invokeServing(appkit, payload, onStage, SERVING_INVOKE_TIMEOUT_MS, void 0, askEndpoint);
+        const cancellationController = new AbortController();
+        const unregisterCancellation = admission.run ? registerRunController(admission.run.runId, cancellationController) : () => void 0;
+        const cancellationWatch = admission.run ? watchDurableCancellation({
+          store: appkit,
+          runId: admission.run.runId,
+          userEmail: email3,
+          controller: cancellationController
+        }) : null;
+        let endpointResult;
+        try {
+          endpointResult = identity.token ? await invokeServingAsUser(
+            appkit,
+            payload,
+            identity.token,
+            onStage,
+            SERVING_INVOKE_TIMEOUT_MS,
+            askEndpoint,
+            cancellationController.signal
+          ) : await invokeServing(
+            appkit,
+            payload,
+            onStage,
+            SERVING_INVOKE_TIMEOUT_MS,
+            void 0,
+            askEndpoint,
+            cancellationController.signal
+          );
+        } finally {
+          cancellationWatch?.stop();
+          unregisterCancellation();
+        }
         ranAsSignedInUser = Boolean(identity.token);
         const refused2 = readAgentRefusal(endpointResult, { requestId: identity.correlationId });
         if (refused2) {
@@ -172341,6 +172955,21 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
           return;
         }
       } catch (error48) {
+        if (isRunCancelledError(error48)) {
+          console.info(
+            `[serving] Run ${error48.runId} was cancelled. App-side consumption stopped and no replacement invocation was started; the current Model Serving invocation may still finish server-side.`
+          );
+          reply.status(409).json({
+            type: "cancelled",
+            state: "CANCELLED",
+            message: "Stopped.",
+            runId: admission.run?.runId ?? error48.runId,
+            correlationId: identity.correlationId,
+            completedStages: stagesSeen,
+            modelServing: "App-side stream consumption stopped and no replacement invocation was started. The current model invocation may still finish server-side."
+          });
+          return;
+        }
         if (error48 instanceof TruncatedStreamError && error48.stages > 0) {
           console.error(
             `[serving] The stream ended after ${error48.stages} stage(s). The partial run was kept and no second invocation was started.`
@@ -172839,7 +173468,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -172886,6 +173515,7 @@ var init_insights_routes = __esm({
     init_deadline();
     init_request_latency();
     init_warehouse_warmup();
+    init_warehouse_cancellation();
     init_genie_warehouse_warmup();
     init_failure_taxonomy();
     init_terminal_response();
@@ -172895,6 +173525,8 @@ var init_insights_routes = __esm({
     init_identity_binding();
     init_execution_credential();
     init_serving_stream();
+    init_run_ledger();
+    init_run_cancellation();
     init_ask_responder();
     init_app_user_api_scopes();
     init_optional_user_api_scopes();
@@ -173218,6 +173850,28 @@ var init_insights_routes = __esm({
   FROM answers a
   ${overlayJoinSql("a.id")}
   UNION ALL
+  -- Cancelled asks have no assistant message by design, so the legacy
+  -- message-derived half above cannot list them. The durable ledger is the
+  -- authority for this terminal outcome; keeping it in the union preserves the
+  -- question and its history without inventing an answer or a trace.
+  SELECT r.run_id AS id, 'conversation' AS kind, r.conversation_id,
+         q.content AS prompt,
+         r.user_email AS stakeholder,
+         ${overlayStatusSql("'cancelled'")} AS status,
+         TRUE AS truncated,
+         NULL::jsonb AS genie_spaces,
+         GREATEST(0, ROUND(EXTRACT(EPOCH FROM (COALESCE(r.completed_at, r.updated_at) - r.created_at)) * 1000))::int
+           AS duration_ms,
+         NULL::int AS tool_calls,
+         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
+          WHERE f.message_id = r.run_id AND f.user_email = $2 AND f.usefulness IS NOT NULL
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
+         r.created_at
+  FROM ${APP_SCHEMA}.runs r
+  LEFT JOIN ${APP_SCHEMA}.messages q ON q.id = r.turn_id
+  ${overlayJoinSql("r.run_id")}
+  WHERE r.state = 'CANCELLED' AND ($3 OR r.user_email = $2)
+  UNION ALL
   SELECT b.id, 'benchmark' AS kind, NULL AS conversation_id,
          b.metrics_json->>'prompt' AS prompt,
          CASE WHEN $3 OR b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
@@ -173337,6 +173991,14 @@ var init_insights_routes = __esm({
         })
       }).nullable().default(null)
     });
+    NO_WAREHOUSE_CANCELLATION = {
+      matched: 0,
+      cancel_requested: 0,
+      already_finished_or_raced: 0,
+      refused: 0,
+      failed: 0,
+      details: []
+    };
     RUN_TRACE_MESSAGE_QUERY = `
   SELECT m.id, m.conversation_id, m.created_at, m.response_json, m.trace_id,
          c.user_email AS stakeholder,
@@ -174693,6 +175355,7 @@ var TELEMETRY_SCHEMA_ENV, LOGS_TABLE, EXPORTER_TABLES, AUTH_EVENT, SIGN_IN_REASO
 var init_ops_telemetry = __esm({
   "server/lib/ops-telemetry.ts"() {
     init_access_verification();
+    init_sql_query_tags();
     init_ops_contract();
     init_app_facts();
     TELEMETRY_SCHEMA_ENV = "PLAYER_INSIGHTS_TELEMETRY_SCHEMA";
@@ -174725,6 +175388,11 @@ var init_ops_telemetry = __esm({
           payload: {
             warehouse_id: warehouse,
             statement: buildExporterStatement(schema),
+            query_tags: sqlQueryTags({
+              surface: "telemetry",
+              tool: "ops_telemetry",
+              operation: "exporter_read"
+            }),
             wait_timeout: "30s",
             on_wait_timeout: "CANCEL",
             format: "JSON_ARRAY",
@@ -176510,6 +177178,11 @@ async function readPublishedDeclaration(input) {
       body: JSON.stringify({
         statement: declarationStatement(location),
         warehouse_id: input.warehouseId.trim(),
+        query_tags: sqlQueryTags({
+          surface: "declaration",
+          tool: "notebook_declaration",
+          operation: "read"
+        }),
         wait_timeout: "30s",
         on_wait_timeout: "CANCEL",
         // One row of bounded text. Asked for inline so there is no external link
@@ -176566,6 +177239,7 @@ var TABLE_NAME, FAILURE_DETAIL, DECLARATION_TIMEOUT_MS;
 var init_notebook_declaration_read = __esm({
   "server/lib/notebook-declaration-read.ts"() {
     init_notebook_declaration();
+    init_sql_query_tags();
     TABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}(\.[A-Za-z_][A-Za-z0-9_]{0,127}){2}$/;
     FAILURE_DETAIL = {
       "not-configured": "No notebook is connected. Add the table a notebook publishes to.",
@@ -177020,12 +177694,12 @@ function errorCode2(error48) {
   return typeof code === "string" || typeof code === "number" ? String(code).toUpperCase() : "";
 }
 function isPermissionError(error48) {
-  const status = errorStatus(error48);
+  const status = errorStatus2(error48);
   const raw2 = `${errorCode2(error48)} ${errorText(error48)}`;
   return status === 403 || /PERMISSION_DENIED|FORBIDDEN|UNAUTHORI[ZS]ED/i.test(raw2);
 }
 function isRetryable2(error48) {
-  if (RETRYABLE_STATUS.has(errorStatus(error48)) || RETRYABLE_CODES2.has(errorCode2(error48))) return true;
+  if (RETRYABLE_STATUS.has(errorStatus2(error48)) || RETRYABLE_CODES2.has(errorCode2(error48))) return true;
   return /DEADLINE_EXCEEDED|Gateway Timeout|HTTP\s+(?:502|503|504)|ECONNRESET|ECONNREFUSED|EPIPE|ETIMEDOUT|EAI_AGAIN/i.test(
     errorText(error48)
   );
@@ -177295,7 +177969,7 @@ async function applyAstrolabeTags(input) {
     results
   };
 }
-function errorStatus(error48) {
+function errorStatus2(error48) {
   const shape = error48;
   return Number(shape?.statusCode ?? shape?.status ?? 0);
 }
@@ -177315,7 +177989,7 @@ async function workspaceTagPlatform() {
         });
         return typeof body?.tag_value === "string" ? body.tag_value : "";
       } catch (error48) {
-        if (errorStatus(error48) === 404) return null;
+        if (errorStatus2(error48) === 404) return null;
         throw error48;
       }
     },
@@ -177455,7 +178129,7 @@ __export(settings_routes_exports, {
   setupSettingsRoutes: () => setupSettingsRoutes,
   validateAndStoreNotebookPath: () => validateAndStoreNotebookPath
 });
-import { createHash as createHash6, randomUUID as randomUUID6 } from "node:crypto";
+import { createHash as createHash7, randomUUID as randomUUID6 } from "node:crypto";
 async function validateAndStoreNotebookPath(input) {
   const validate2 = input.validate ?? validateNotebookPath;
   const validation = await validate2(input.path, {
@@ -177913,7 +178587,7 @@ function releaseDeclaration(plan) {
 ${canonicalSettings(settings)}`;
   return {
     source: "connections-apply",
-    revision: `sha256:${createHash6("sha256").update(body).digest("hex")}`,
+    revision: `sha256:${createHash7("sha256").update(body).digest("hex")}`,
     settings
   };
 }
@@ -178431,6 +179105,11 @@ function accessRunner(options) {
         body: JSON.stringify({
           warehouse_id: options.warehouseId,
           statement,
+          query_tags: sqlQueryTags({
+            surface: "admin",
+            tool: "admin_access",
+            operation: "revoke"
+          }),
           wait_timeout: "30s",
           on_wait_timeout: "CANCEL"
         }),
@@ -178466,6 +179145,7 @@ var init_admin_access = __esm({
   "server/lib/admin-access.ts"() {
     init_admin_roles();
     init_admin_roles_schema();
+    init_sql_query_tags();
     NO_WAREHOUSE_REASON = "Not checked. This deployment has no SQL warehouse configured, so no statement could be attempted.";
     NO_TOKEN_REASON = "Not checked. This session has no forwarded sign-in token, so a statement would have to be run by the app itself rather than by you. It is not, deliberately.";
     ACCESS_STATEMENT_TIMEOUT_MS = 4e4;
@@ -180805,6 +181485,11 @@ async function runStatement2(input) {
       body: JSON.stringify({
         warehouse_id: input.warehouseId,
         statement: input.statement,
+        query_tags: sqlQueryTags({
+          surface: "ops",
+          tool: "ops_query",
+          operation: "diagnostics"
+        }),
         ...input.parameters?.length ? { parameters: input.parameters } : {},
         wait_timeout: "30s",
         on_wait_timeout: "CANCEL",
@@ -181388,6 +182073,7 @@ var init_ops_routes = __esm({
     init_settings_routes();
     init_run_failure_codes();
     init_cost_budgets_store();
+    init_sql_query_tags();
     init_insights_routes();
     init_request_latency();
     init_ops_contract();
@@ -182307,6 +182993,11 @@ function createSqlExecutor(options) {
         body: JSON.stringify({
           warehouse_id: warehouseId2,
           statement: sql3,
+          query_tags: sqlQueryTags({
+            surface: "benchmark",
+            tool: "genie_result",
+            operation: "execute"
+          }),
           wait_timeout: GENIE_RESULT_WAIT,
           on_wait_timeout: "CANCEL",
           format: "JSON_ARRAY",
@@ -182346,6 +183037,7 @@ var init_genie_result_execute = __esm({
   "server/lib/genie-result-execute.ts"() {
     init_eval_flywheel();
     init_benchmark_lab_v3();
+    init_sql_query_tags();
     GENIE_RESULT_WAIT = "50s";
   }
 });
@@ -184601,11 +185293,11 @@ var sql = {
     throw new Error(`sql.number() expects number or numeric string, got: ${typeof value}`);
   },
   int(value) {
-    const stringValue = coerceIntegerLike(value, "sql.int");
-    ensureInBigIntRange(BigInt(stringValue), INT_MIN, INT_MAX, "INT (32-bit signed)", "sql.int", "Use sql.bigint() for 64-bit values.");
+    const stringValue2 = coerceIntegerLike(value, "sql.int");
+    ensureInBigIntRange(BigInt(stringValue2), INT_MIN, INT_MAX, "INT (32-bit signed)", "sql.int", "Use sql.bigint() for 64-bit values.");
     return {
       __sql_type: "INT",
-      value: stringValue
+      value: stringValue2
     };
   },
   bigint(value) {
@@ -184616,11 +185308,11 @@ var sql = {
         value: value.toString()
       };
     }
-    const stringValue = coerceIntegerLike(value, "sql.bigint");
-    ensureInBigIntRange(BigInt(stringValue), BIGINT_MIN, BIGINT_MAX, "BIGINT (64-bit signed)", "sql.bigint", "Use sql.numeric() with a string for arbitrary-precision integers.");
+    const stringValue2 = coerceIntegerLike(value, "sql.bigint");
+    ensureInBigIntRange(BigInt(stringValue2), BIGINT_MIN, BIGINT_MAX, "BIGINT (64-bit signed)", "sql.bigint", "Use sql.numeric() with a string for arbitrary-precision integers.");
     return {
       __sql_type: "BIGINT",
-      value: stringValue
+      value: stringValue2
     };
   },
   float(value) {
@@ -184643,12 +185335,12 @@ var sql = {
   },
   string(value) {
     if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") throw new Error(`sql.string() expects string or number or boolean, got: ${typeof value}`);
-    let stringValue = "";
-    if (typeof value === "string") stringValue = value;
-    else stringValue = value.toString();
+    let stringValue2 = "";
+    if (typeof value === "string") stringValue2 = value;
+    else stringValue2 = value.toString();
     return {
       __sql_type: "STRING",
-      value: stringValue
+      value: stringValue2
     };
   },
   boolean(value) {

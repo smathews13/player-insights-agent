@@ -25,13 +25,22 @@
  * "no history yet", because the platform does not backfill and starts writing at
  * the deploy that enables it.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const { statementRequest } = vi.hoisted(() => ({ statementRequest: vi.fn() }));
+
+vi.mock('@databricks/sdk-experimental', () => ({
+  WorkspaceClient: class {
+    apiClient = { request: statementRequest };
+  },
+}));
 
 import {
   APP_LOG_SOURCE,
   AUTH_EVENT,
   SIGN_IN_REASON,
   TELEMETRY_SCHEMA_ENV,
+  WAREHOUSE_ENV,
   EXPORTER_TABLES,
   buildExporterStatement,
   buildTelemetryStatement,
@@ -47,6 +56,7 @@ import {
   readTelemetryRows,
   telemetrySchema,
   uncheckedMeasurement,
+  workspaceExporterReader,
 } from './ops-telemetry';
 
 const HREF = 'https://example.invalid/apps';
@@ -56,6 +66,8 @@ const CONFIGURED = 'a_catalog.a_telemetry_schema';
 
 afterEach(() => {
   delete process.env[TELEMETRY_SCHEMA_ENV];
+  delete process.env[WAREHOUSE_ENV];
+  statementRequest.mockReset();
 });
 
 describe('the destination is whatever the release put in the environment', () => {
@@ -84,6 +96,29 @@ describe('the destination is whatever the release put in the environment', () =>
     expect(telemetrySchema()).toEqual('');
     process.env[TELEMETRY_SCHEMA_ENV] = 'a_catalog.a_schema.a_table';
     expect(telemetrySchema()).toEqual('');
+  });
+});
+
+describe('the exporter count request', () => {
+  it('tags the raw Statement Execution payload without copying the telemetry table', async () => {
+    process.env[TELEMETRY_SCHEMA_ENV] = CONFIGURED;
+    process.env[WAREHOUSE_ENV] = 'warehouse-id';
+    statementRequest.mockResolvedValue({
+      status: { state: 'SUCCEEDED' },
+      result: { data_array: [] },
+    });
+
+    await workspaceExporterReader();
+
+    const request = statementRequest.mock.calls[0]?.[0] as { payload?: Record<string, unknown> };
+    expect(request.payload?.query_tags).toEqual([
+      { key: 'application', value: 'Astrolabe' },
+      { key: 'surface', value: 'telemetry' },
+      { key: 'tool', value: 'ops_telemetry' },
+      { key: 'operation', value: 'exporter_read' },
+    ]);
+    expect(JSON.stringify(request.payload?.query_tags)).not.toContain(CONFIGURED);
+    expect(JSON.stringify(request.payload?.query_tags)).not.toContain('otel_');
   });
 });
 

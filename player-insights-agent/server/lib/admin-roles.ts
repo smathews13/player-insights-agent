@@ -636,6 +636,10 @@ export type AdminAction =
   | 'resource-tags-applied'
   /** An admin corrected a run’s outcome or rating on the Run Explorer rail. */
   | 'run-labels-updated'
+  /** A reader explicitly stopped their own active Ask run. */
+  | 'run-cancelled'
+  /** An administrator stopped the one-time snapshot of active Ask runs. */
+  | 'runs-cancelled'
   /** An admin saved MLflow / bake-off values on Settings → Experimental. */
   | 'benchmark-settings-updated'
   /** An admin saved the evaluation dataset from Benchmarking. */

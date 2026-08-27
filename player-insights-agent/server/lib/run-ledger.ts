@@ -546,6 +546,101 @@ export async function completeAttempt(
   return { ok: true, value: read.rows.length > 0 };
 }
 
+/**
+ * The owner-facing result of one explicit Stop.
+ *
+ * `not-found` deliberately combines a missing identifier with one owned by
+ * somebody else. The owner predicate is in both SQL statements, so this API
+ * never has another reader's row in hand and cannot disclose that it exists.
+ */
+export type OwnerCancellation =
+  | { kind: 'cancelled'; runs: LedgerRun[] }
+  | { kind: 'not-active'; run: LedgerRun }
+  | { kind: 'not-found' };
+
+/**
+ * Cancel one owner's active run by its durable run id or browser correlation id.
+ *
+ * The UPDATE is the cancellation authority. It is one conditional statement:
+ * changing the state, invalidating the old executor's fence, and releasing its
+ * lease happen together or not at all. A stale executor returning from Model
+ * Serving therefore cannot settle success under the token it was given.
+ *
+ * A second, owner-scoped read is used only to distinguish an already-terminal
+ * run (409 at the route) from an identifier the caller is not allowed to know
+ * about (404). It does not participate in the state change.
+ */
+export async function cancelOwnedRun(
+  store: LakebaseReader,
+  userEmail: string,
+  identifier: string
+): Promise<LedgerResult<OwnerCancellation>> {
+  const cancelled = await ledgerQuery(
+    store,
+    'run ledger cancel owned run',
+    `UPDATE ${APP_SCHEMA}.runs
+        SET state = 'CANCELLED',
+            terminal_code = NULL,
+            fencing_token = fencing_token + 1,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            completed_at = NOW(),
+            updated_at = NOW()
+      WHERE user_email = $1
+        AND (run_id = $2 OR correlation_id = $2)
+        AND state = ANY($3::text[])
+     RETURNING ${RUN_COLUMNS}`,
+    [userEmail, identifier, [...EXECUTING_STATES]]
+  );
+  if (!cancelled.available) return unavailable(cancelled);
+  if (cancelled.rows.length > 0) {
+    return { ok: true, value: { kind: 'cancelled', runs: cancelled.rows.map(toRun) } };
+  }
+
+  const existing = await ledgerQuery(
+    store,
+    'run ledger read owned cancellation target',
+    `SELECT ${RUN_COLUMNS}
+       FROM ${APP_SCHEMA}.runs
+      WHERE user_email = $1 AND (run_id = $2 OR correlation_id = $2)
+      ORDER BY CASE WHEN run_id = $2 THEN 0 ELSE 1 END, created_at DESC
+      LIMIT 1`,
+    [userEmail, identifier]
+  );
+  if (!existing.available) return unavailable(existing);
+  const found = row(existing);
+  return {
+    ok: true,
+    value: found ? { kind: 'not-active', run: toRun(found) } : { kind: 'not-found' },
+  };
+}
+
+/**
+ * Cancel the one-time snapshot of every run active when this statement starts.
+ *
+ * There is no deployment-level pause flag. A run admitted after this statement
+ * takes its snapshot is not matched and proceeds normally.
+ */
+export async function cancelAllExecutingRuns(store: LakebaseReader): Promise<LedgerResult<LedgerRun[]>> {
+  const cancelled = await ledgerQuery(
+    store,
+    'run ledger cancel all executing runs',
+    `UPDATE ${APP_SCHEMA}.runs
+        SET state = 'CANCELLED',
+            terminal_code = NULL,
+            fencing_token = fencing_token + 1,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            completed_at = NOW(),
+            updated_at = NOW()
+      WHERE state = ANY($1::text[])
+     RETURNING ${RUN_COLUMNS}`,
+    [[...EXECUTING_STATES]]
+  );
+  if (!cancelled.available) return unavailable(cancelled);
+  return { ok: true, value: cancelled.rows.map(toRun) };
+}
+
 /** A run read back by id, scoped to its owner. */
 export async function readRun(
   store: LakebaseReader,

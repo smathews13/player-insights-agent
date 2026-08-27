@@ -26,6 +26,7 @@ from databricks.sdk.service.sql import ExecuteStatementRequestOnWaitTimeout
 import evidence
 import failures
 import runtime_settings
+import sdk_attribution
 from config import Settings, format_genie_space
 from evidence import EvidenceGateway, EvidenceRefused, Verdict
 
@@ -209,9 +210,7 @@ class WarehouseStarting(TimeoutError):
 
     def __init__(self, waited: float):
         self.waited = waited
-        super().__init__(
-            f"the SQL warehouse behind it was still starting after {waited:.0f}s"
-        )
+        super().__init__(f"the SQL warehouse behind it was still starting after {waited:.0f}s")
 
 
 # ---------------------------------------------------------------------------
@@ -285,9 +284,7 @@ def _scope_clause(alias: str) -> re.Pattern[str]:
     )
 
 
-def unscope_dictionary_question(
-    question: str, declared: Sequence[str]
-) -> tuple[str, list[str]]:
+def unscope_dictionary_question(question: str, declared: Sequence[str]) -> tuple[str, list[str]]:
     """The question with any DECLARED table dropped from a scoping clause.
 
     Returns the question to ask and the tables that were dropped, because the
@@ -421,13 +418,12 @@ def dictionary_scope_note(dropped: Sequence[str]) -> str:
 SQL_WAIT_CEILING_SECONDS = 50
 SQL_WAIT_FLOOR_SECONDS = 5
 
-#: Total wait for a statement that ANSWERS the question. 50s is the platform
-#: ceiling for a synchronous wait, so 110s is a different call, not a larger
-#: constant: wait 50s with CONTINUE, poll until the deadline, then cancel so
-#: the model reads CANCELED ("too slow, narrow it") rather than RUNNING, which
-#: used to be reported as a failure. A COUNT(DISTINCT) over hundreds of millions
-#: of ids on a Small warehouse lands in 15–30s warm and can sit past 50s cold.
-ANSWER_SQL_WAIT_SECONDS = 110
+#: Total allowance for a statement that ANSWERS the question. 50s is the
+#: platform ceiling for a synchronous wait, so 300s is a different call, not a
+#: larger synchronous wait: wait 50s with CONTINUE, then poll. `_sql_allowance`
+#: keeps both the remaining-turn bound and the answer reserve above this value,
+#: so 300s is an allowance rather than a promise to wait that long.
+ANSWER_SQL_WAIT_SECONDS = 300
 SQL_WAIT_SECONDS = ANSWER_SQL_WAIT_SECONDS
 SQL_WAIT_TIMEOUT = f"{SQL_WAIT_CEILING_SECONDS}s"
 
@@ -440,6 +436,11 @@ DISCOVERY_WAIT_SECONDS = SQL_WAIT_CEILING_SECONDS
 #: ceiling. Same shape as the Genie waiter: start small, double up to this.
 SQL_POLL_SECONDS = 2.0
 SQL_FIRST_POLL_SECONDS = 0.5
+#: A cancel request races statement completion. Read the authoritative state for
+#: a short bounded window before deciding that RUNNING was the final outcome.
+SQL_CANCEL_SETTLE_SECONDS = 2.0
+SQL_CANCEL_SETTLE_POLL_SECONDS = 0.1
+SQL_CANCEL_SETTLE_MAX_POLLS = 20
 
 #: A statement cancelled for slowness is retried ONCE, and only while the turn
 #: could still do something with the answer. The first attempt is usually what
@@ -768,7 +769,8 @@ def statement_failure(response: Any) -> str:
     if statement_denied(response):
         # The operator's half, in full and in one line, beside the SQLSTATE that
         # classified it. Nothing downstream of here ever sees this text.
-        print(f"[sql] DENIED (SQLSTATE {statement_sql_state(response) or 'unreported'}): "
+        print(
+            f"[sql] DENIED (SQLSTATE {statement_sql_state(response) or 'unreported'}): "
             f"{' '.join(detail.split())}"
         )
         return f"SQL {state}: {DENIAL_WITHOUT_OBJECT}"
@@ -1223,9 +1225,7 @@ class PlayerInsightTools:
 
         space_label = format_genie_space(space_id, space_title)
         asked_preamble = f"Asking Genie space {space_label}."
-        combined_preamble = (
-            f"{asked_preamble}\n\n{preamble}" if preamble else asked_preamble
-        )
+        combined_preamble = f"{asked_preamble}\n\n{preamble}" if preamble else asked_preamble
 
         with mlflow.start_span(name=name, span_type="TOOL") as span:
             span.set_inputs(
@@ -1427,9 +1427,7 @@ class PlayerInsightTools:
                 # Text only: a definition, or an answer that read nothing. Not a
                 # gap, and flagging it would cry wolf on every definitional
                 # question, which a run-level caveat already covers.
-                verdicts.append(
-                    gate.admit_definition(tool or name, has_text=bool(text_parts))
-                )
+                verdicts.append(gate.admit_definition(tool or name, has_text=bool(text_parts)))
             result = ToolResult(
                 # The preamble says what was ASKED, so it belongs above the
                 # answer and outside the "did Genie say anything" test: a call
@@ -1507,30 +1505,39 @@ class PlayerInsightTools:
     # SQL
     # -----------------------------------------------------------------------
 
+    def _sql_allowance(self, wait_seconds: int) -> float:
+        """How much of this statement's allowance the turn can still afford.
+
+        Answering statements are the only ones that poll past the synchronous
+        ceiling, and they must leave the same reserve the finder uses to decide
+        whether another call may start. Captured when the statement is dispatched
+        so the synchronous wait and later polling spend one shared allowance.
+        """
+
+        remaining = runtime_settings.remaining_seconds()
+        reserve = (
+            runtime_settings.answer_reserve_seconds()
+            if wait_seconds > SQL_WAIT_CEILING_SECONDS
+            else 0.0
+        )
+        return max(0.0, min(float(wait_seconds), remaining - reserve))
+
     def _wait_timeout(self, wait_seconds: int) -> str:
         """What to ask the warehouse to wait, clamped to what is legal and affordable.
 
-        Three bounds, and each one has been wrong here at least once. The turn's
-        remaining time, so a statement cannot outlive the request. The API's
-        fifty-second ceiling, so a longer discovery wait is not simply rejected.
+        Four bounds, and each one matters. The turn's remaining time and answer
+        reserve, so an answering statement leaves time to use its result. The
+        API's fifty-second ceiling, so a longer allowance is not simply rejected.
         And the API's five-second FLOOR, which the old `min(30, remaining)` could
         fall through at the tail of a turn: `wait_timeout=1s` is not a short wait,
         it is an argument error where the caller expected a cancelled statement.
         """
 
-        affordable = int(runtime_settings.remaining_seconds())
+        affordable = int(self._sql_allowance(wait_seconds))
         wanted = min(wait_seconds, SQL_WAIT_CEILING_SECONDS, max(affordable, 0))
         return f"{max(SQL_WAIT_FLOOR_SECONDS, wanted)}s"
 
-    def _polls_past_ceiling(self, wait_seconds: int) -> bool:
-        """Answering reads past 50s poll; discovery stays on the sync ceiling."""
-
-        return (
-            wait_seconds > SQL_WAIT_CEILING_SECONDS
-            and runtime_settings.remaining_seconds() > SQL_WAIT_CEILING_SECONDS
-        )
-
-    def _poll_until_deadline(self, response: Any, started: float, wait_seconds: int) -> Any:
+    def _poll_until_deadline(self, response: Any, started: float, allowance: float) -> Any:
         """After a CONTINUE, wait out the rest of the allowance, then cancel.
 
         Past the sync ceiling the statement is still RUNNING. Leaving it that
@@ -1545,15 +1552,29 @@ class PlayerInsightTools:
         poll = SQL_FIRST_POLL_SECONDS
         while statement_state(response) in _SQL_STILL_RUNNING:
             elapsed = time.perf_counter() - started
-            affordable = min(float(wait_seconds), runtime_settings.remaining_seconds())
-            if elapsed >= affordable:
+            if elapsed >= allowance:
                 if hasattr(execution, "cancel_execution"):
                     execution.cancel_execution(statement_id)
-                return execution.get_statement(statement_id)
-            time.sleep(min(poll, max(0.0, affordable - elapsed)))
+                return self._settle_after_cancel(execution, statement_id)
+            time.sleep(min(poll, max(0.0, allowance - elapsed)))
             poll = min(poll * 2, SQL_POLL_SECONDS)
             response = execution.get_statement(statement_id)
         return response
+
+    def _settle_after_cancel(self, execution: Any, statement_id: str) -> Any:
+        """Poll briefly for the terminal state that won the cancellation race."""
+
+        deadline = time.perf_counter() + SQL_CANCEL_SETTLE_SECONDS
+        latest = execution.get_statement(statement_id)
+        for _ in range(SQL_CANCEL_SETTLE_MAX_POLLS):
+            if statement_state(latest) not in _SQL_STILL_RUNNING:
+                return latest
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                return latest
+            time.sleep(min(SQL_CANCEL_SETTLE_POLL_SECONDS, remaining))
+            latest = execution.get_statement(statement_id)
+        return latest
 
     def _execute(
         self,
@@ -1563,6 +1584,7 @@ class PlayerInsightTools:
         *,
         wait_seconds: int = SQL_WAIT_SECONDS,
         retry_when_slow: bool = False,
+        tool: str = "statement",
     ) -> tuple[list[str], list[list[Any]], int]:
         """Run one statement on the declared warehouse. Columns, rows, and the true total.
 
@@ -1576,8 +1598,9 @@ class PlayerInsightTools:
         around them, so a slow query became a wrong answer about the data.
 
         Discovery stays on CANCEL at the 50s ceiling and never polls. Answering
-        reads CONTINUE at that ceiling, poll until 110s, then cancel so the
-        model still reads CANCELED rather than RUNNING.
+        reads CONTINUE at that ceiling, with up to 300s of statement allowance;
+        the remaining turn budget can stop it earlier so the model still has
+        time to use the result.
 
         `retry_when_slow` runs the statement a SECOND time when the first was
         cancelled or never started, and only then: a rejected statement is
@@ -1592,7 +1615,10 @@ class PlayerInsightTools:
             span.set_inputs({"sql": sql, "wait_seconds": wait_seconds})
             retried = False
             while True:
-                polls = self._polls_past_ceiling(wait_seconds)
+                allowance = self._sql_allowance(wait_seconds)
+                polls = (
+                    wait_seconds > SQL_WAIT_CEILING_SECONDS and allowance > SQL_WAIT_CEILING_SECONDS
+                )
                 on_wait = (
                     ExecuteStatementRequestOnWaitTimeout.CONTINUE
                     if polls
@@ -1604,9 +1630,10 @@ class PlayerInsightTools:
                     statement=sql,
                     wait_timeout=self._wait_timeout(wait_seconds),
                     on_wait_timeout=on_wait,
+                    query_tags=sdk_attribution.query_tags("ask", tool),
                 )
                 if polls and statement_state(response) in _SQL_STILL_RUNNING:
-                    response = self._poll_until_deadline(response, started, wait_seconds)
+                    response = self._poll_until_deadline(response, started, allowance)
                 failure = statement_failure(response)
                 if not failure:
                     break
@@ -1616,9 +1643,7 @@ class PlayerInsightTools:
                 # is the RuntimeError it has always been.
                 if statement_denied(response):
                     raise SqlDenied(failure, statement_sql_state(response))
-                affordable = (
-                    runtime_settings.remaining_seconds() >= SQL_RETRY_MIN_REMAINING_SECONDS
-                )
+                affordable = runtime_settings.remaining_seconds() >= SQL_RETRY_MIN_REMAINING_SECONDS
                 if (
                     retry_when_slow
                     and not retried
@@ -1633,8 +1658,7 @@ class PlayerInsightTools:
                         SQL_WAIT_FLOOR_SECONDS,
                         min(
                             wait_seconds,
-                            int(runtime_settings.remaining_seconds())
-                            - SQL_RETRY_RESERVE_SECONDS,
+                            int(runtime_settings.remaining_seconds()) - SQL_RETRY_RESERVE_SECONDS,
                         ),
                     )
                     continue
@@ -1649,14 +1673,10 @@ class PlayerInsightTools:
             # and a paged result read as a complete one under-reports.
             total = getattr(response.manifest, "total_row_count", None)
             total = int(total) if isinstance(total, int) else len(rows)
-            span.set_outputs(
-                {"row_count": len(rows), "total_row_count": total, "retried": retried}
-            )
+            span.set_outputs({"row_count": len(rows), "total_row_count": total, "retried": retried})
             return columns, rows, max(total, len(rows))
 
-    def _collect_rows(
-        self, response: Any, budget: RowBudget = SAMPLE_BUDGET
-    ) -> list[list[Any]]:
+    def _collect_rows(self, response: Any, budget: RowBudget = SAMPLE_BUDGET) -> list[list[Any]]:
         """The first chunk, then following chunks until enough rows are in hand.
 
         Stops at the rendering budget rather than draining the result: rows
@@ -1697,7 +1717,7 @@ class PlayerInsightTools:
         if admitted.refusal is not None:
             raise admitted.refusal
 
-        columns, rows, total = self._execute(sql, span_name)
+        columns, rows, total = self._execute(sql, span_name, tool=tool)
 
         # The static parse cannot expand `SELECT *` without the table's schema, so
         # the warehouse's result schema closes it, BEFORE any row becomes text:
@@ -1754,18 +1774,21 @@ class PlayerInsightTools:
             return ToolResult(
                 text=(
                     f"'{catalog}' has no declared tables. Declared catalogs: "
-                    + ", ".join(sorted({name.split('.')[0] for name in declared}))
+                    + ", ".join(sorted({name.split(".")[0] for name in declared}))
                 )
             )
-        if catalog and schema and not any(
-            name.split(".")[0] == catalog and name.split(".")[1] == schema
-            for name in declared
+        if (
+            catalog
+            and schema
+            and not any(
+                name.split(".")[0] == catalog and name.split(".")[1] == schema for name in declared
+            )
         ):
             in_catalog = [name for name in declared if name.split(".")[0] == catalog]
             return ToolResult(
                 text=(
                     f"'{catalog}.{schema}' has no declared tables. Declared schemas in "
-                    f"{catalog}: " + ", ".join(sorted({n.split('.')[1] for n in in_catalog}))
+                    f"{catalog}: " + ", ".join(sorted({n.split(".")[1] for n in in_catalog}))
                 )
             )
 
@@ -1924,6 +1947,7 @@ class PlayerInsightTools:
                 # makes it the right one to spend the API's whole wait on.
                 wait_seconds=DISCOVERY_WAIT_SECONDS,
                 retry_when_slow=True,
+                tool="search_tagged_assets",
             )
         except Exception as error:  # noqa: BLE001 - discovery failing is not the run failing
             # Including SqlDenied, which is the EXPECTED shape of "this estate did
@@ -2010,6 +2034,7 @@ class PlayerInsightTools:
             "orchestrator.describe_table",
             ENUMERATION_BUDGET,
             wait_seconds=DISCOVERY_WAIT_SECONDS,
+            tool="describe_table",
         )
         # The table's own COMMENT is lifted out of the extended section and put
         # first. It is the only place a deployment says what a table is FOR in
@@ -2157,8 +2182,7 @@ def dictionary_genie_tool(space_title: str = "") -> dict[str, Any]:
     )
     return _one_arg(
         "dictionary_genie",
-        head
-        + "what a table or column MEANS. Consult it before querying or reporting on any field "
+        head + "what a table or column MEANS. Consult it before querying or reporting on any field "
         "whose meaning is unclear or unlabeled. Never guess a field's meaning. Ask about the FIELD "
         "on its own: naming a wide table alongside it makes this space read that table too, "
         "and the call then times out and returns nothing. Name a table here only when the "
@@ -2245,6 +2269,7 @@ DESCRIBE_TABLE_TOOL = {
         },
     },
 }
+
 
 def _tag_search_sql(
     catalogs: Sequence[str], schemas: Sequence[str], *, tag: str, value: str

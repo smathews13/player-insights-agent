@@ -349,13 +349,20 @@ describe('the mark that replaced it', () => {
     expect(chip).not.toMatch(/--db-warm/);
   });
 
-  it('leaves no lucide glyph standing in for the agent on the composer either', () => {
-    // The submit button carried a sparkle. While a run is in flight it is now
-    // the in-button loader -- the 14px mark, all white on the blue fill -- and
-    // the label is "Running" (loading-suite.md, Seatings).
+  it('turns the composer action into Stop without presenting the run as a passive loader', () => {
+    // The submit button used to carry a sparkle, then a flickering "Running"
+    // state. It is now the cancellation control while this conversation is busy:
+    // explicit Stop copy, still pressable, and no animated mark competing with
+    // the action. Button flicker remains a supported seat for non-cancellable
+    // work such as applying resource tags.
     const home = SOURCES.get('HomePage.tsx')!;
     expect(home).not.toContain('<Sparkles />');
-    expect(home).toMatch(/<ConceptFlicker seat="button" \/>/);
+    expect(home).not.toMatch(/<ConceptFlicker seat="button" \/>/);
+    expect(home).toMatch(/<Button type="submit" disabled=\{loading \? stopping : !canAsk\}>/);
+    expect(home).toMatch(/\{loading \? \([\s\S]{0,220}'Stop'/);
+
+    const resourceTags = SOURCES.get('ResourceTagsPanel.tsx')!;
+    expect(resourceTags).toMatch(/\{running \? <ConceptFlicker seat="button" \/> : null\}/);
   });
 });
 

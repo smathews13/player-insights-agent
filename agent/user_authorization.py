@@ -43,6 +43,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+import sdk_attribution
+
 #: Read at LOG time only: this is the release decision, and the artifact carries
 #: it into serving.
 USER_AUTHORIZATION_ENV = "PLAYER_INSIGHTS_USER_AUTHORIZATION"
@@ -278,6 +280,7 @@ def user_authorized_client(factory: Any = None) -> Any:
 
     build = factory or WorkspaceClient
     try:
+        sdk_attribution.register_sdk_product()
         return build(credentials_strategy=ModelServingUserCredentials())
     except Exception as error:  # noqa: BLE001 - narrowed on the next line
         if is_user_credentials_unavailable(error):

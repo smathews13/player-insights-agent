@@ -49,8 +49,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import sdk_attribution
 import semantic_layer as sl
 from config import ENV_VARS, REQUIRED_KEYS, Settings
+
+sdk_attribution.register_sdk_product()
 
 #: Table properties a deployment sets to classify its own tables, so the filter
 #: dimensions come from the estate rather than from a guess made here. Set them
@@ -104,9 +107,10 @@ class BuildResult:
         for entry in self.entries:
             by_kind[entry.entry_kind] = by_kind.get(entry.entry_kind, 0) + 1
         invisible = [entry.name for entry in self.entries if not entry.authorized_scope]
-        lines = [f"{len(self.entries)} entries: " + ", ".join(
-            f"{count} {kind}" for kind, count in sorted(by_kind.items())
-        )]
+        lines = [
+            f"{len(self.entries)} entries: "
+            + ", ".join(f"{count} {kind}" for kind, count in sorted(by_kind.items()))
+        ]
         certified = sum(1 for entry in self.entries if entry.certification == sl.CERTIFIED)
         lines.append(f"{certified} certified, {len(self.entries) - certified} not")
         if invisible:
@@ -172,9 +176,7 @@ def principal_token(principal: str) -> str:
     return sl.group_scope(name)
 
 
-def scope_tokens(
-    workspace: Any, full_name: str, owner: str = ""
-) -> tuple[tuple[str, ...], str]:
+def scope_tokens(workspace: Any, full_name: str, owner: str = "") -> tuple[tuple[str, ...], str]:
     """`(tokens, note)` for who Unity Catalog says may read one asset.
 
     Effective privileges rather than direct ones, so a grant inherited from the
@@ -236,9 +238,7 @@ def _classification(table: Any) -> dict[str, str]:
     }
 
 
-def table_source_entries(
-    workspace: Any, assets: Sequence[str], stamp: datetime
-) -> BuildResult:
+def table_source_entries(workspace: Any, assets: Sequence[str], stamp: datetime) -> BuildResult:
     """One or more entries per declared table, from Unity Catalog's own words."""
 
     result = BuildResult()
@@ -509,7 +509,10 @@ def query(workspace: Any, warehouse_id: str, sql: str) -> list[list[str]]:
     from databricks.sdk.service.sql import StatementState
 
     response = workspace.statement_execution.execute_statement(
-        statement=sql, warehouse_id=warehouse_id, wait_timeout="50s"
+        statement=sql,
+        warehouse_id=warehouse_id,
+        wait_timeout="50s",
+        query_tags=sdk_attribution.query_tags("build", "dictionary_read"),
     )
     state = getattr(getattr(response, "status", None), "state", None)
     if state != StatementState.SUCCEEDED:
@@ -750,7 +753,10 @@ def execute(workspace: Any, warehouse_id: str, sql: str) -> None:
     from databricks.sdk.service.sql import StatementState
 
     response = workspace.statement_execution.execute_statement(
-        statement=sql, warehouse_id=warehouse_id, wait_timeout="50s"
+        statement=sql,
+        warehouse_id=warehouse_id,
+        wait_timeout="50s",
+        query_tags=sdk_attribution.query_tags("build", "semantic_write"),
     )
     state = getattr(getattr(response, "status", None), "state", None)
     if state != StatementState.SUCCEEDED:

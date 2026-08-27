@@ -1635,6 +1635,13 @@ describe('running the statement as the user', () => {
     const body = jsonBodyOn(init);
     expect(body.warehouse_id).toBe('wh-1');
     expect(body.statement).toContain('WHERE 1=0');
+    expect(body.query_tags).toEqual([
+      { key: 'application', value: 'Astrolabe' },
+      { key: 'surface', value: 'connections' },
+      { key: 'tool', value: 'access_verification' },
+      { key: 'operation', value: 'preflight' },
+    ]);
+    expect(JSON.stringify(body.query_tags)).not.toContain('main.silver.players');
   });
 
   it('surfaces the API message when the statement fails', async () => {

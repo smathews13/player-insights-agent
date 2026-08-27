@@ -33,6 +33,10 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import sdk_attribution
+
+sdk_attribution.register_sdk_product()
+
 if TYPE_CHECKING:  # `config` imports the table declaration below, so this stays type-only.
     from config import Settings
 
@@ -233,7 +237,6 @@ def declared_tables(settings: Settings) -> list[str]:
     ]
 
 
-
 # ---------------------------------------------------------------------------
 # Generating the declaration
 #
@@ -313,8 +316,7 @@ def scope_allows(settings: Settings, full_name: str) -> bool:
         return False
     catalog, schema, _ = parts
     return any(
-        scope == catalog or scope == f"{catalog}.{schema}"
-        for scope in discovery_scopes(settings)
+        scope == catalog or scope == f"{catalog}.{schema}" for scope in discovery_scopes(settings)
     )
 
 
@@ -477,9 +479,7 @@ def genie_curated_tables(workspace: Any, space_id: str) -> list[str]:
     return found
 
 
-def _manifest_from_genie(
-    settings: Settings, workspace: Any
-) -> tuple[tuple[str, ...], list[str]]:
+def _manifest_from_genie(settings: Settings, workspace: Any) -> tuple[tuple[str, ...], list[str]]:
     """`(manifest, notes)` for the tables the agent's Genie spaces curate.
 
     Union of the two spaces, in space order, with the same exclusions `schema`
@@ -698,6 +698,7 @@ def resolve_franchise_tags(
             statement=_franchise_tag_sql(catalogs, schemas),
             wait_timeout="50s",
             on_wait_timeout=ExecuteStatementRequestOnWaitTimeout.CANCEL,
+            query_tags=sdk_attribution.query_tags("preflight", "franchise_tags"),
         )
     except Exception as error:  # noqa: BLE001 - a missed bake is untagged, not a failed log
         return (), [
@@ -789,9 +790,7 @@ def _nothing_visible_refusal(entry: str, covered: Sequence[str]) -> str:
     )
 
 
-def _manifest_from_schema(
-    settings: Settings, workspace: Any
-) -> tuple[tuple[str, ...], list[str]]:
+def _manifest_from_schema(settings: Settings, workspace: Any) -> tuple[tuple[str, ...], list[str]]:
     """`(manifest, notes)` for every table in each `catalog_allowlist` scope.
 
     EXCLUSIONS ARE APPLIED BEFORE THE CONTRACT IS UNIONED IN, and a contract
@@ -906,9 +905,7 @@ def _manifest_from_schema(
     # Conditional on the table existing: declaring one that is not there grants
     # SELECT on a name and makes nothing work.
     contract = [
-        name
-        for name in declared_tables(settings)
-        if name not in manifest and name in listed_tables
+        name for name in declared_tables(settings) if name not in manifest and name in listed_tables
     ]
     if contract:
         manifest.extend(contract)
@@ -921,7 +918,9 @@ def _manifest_from_schema(
     if absent:
         notes.append(
             f"WARNING: {len(absent)} data-contract table(s) do not exist in any "
-            "allowlisted scope and are NOT declared: " + ", ".join(absent) + ". "
+            "allowlisted scope and are NOT declared: "
+            + ", ".join(absent)
+            + ". "
             + _absent_contract_advice(absent, declared_tables(settings))
         )
     notes.extend(governance_notes(settings, manifest))
@@ -1080,5 +1079,3 @@ def widening_refusal(model_name: str, previous_version: int, added: Sequence[str
         "Either way, see the whole picture first (every table, every exclusion and its "
         "reason) with:  cd agent && uv run --python 3.13 python manifest_dryrun.py"
     )
-
-

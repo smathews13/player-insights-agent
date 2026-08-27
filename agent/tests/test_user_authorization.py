@@ -250,6 +250,18 @@ def test_the_client_is_built_with_the_kwarg_the_sdk_actually_accepts():
     assert isinstance(captured["credentials_strategy"], ModelServingUserCredentials)
 
 
+def test_user_authorized_client_registers_product_before_construction():
+    from databricks.sdk import useragent
+
+    useragent._reset_product()
+
+    def factory(**_kwargs):
+        assert useragent.product() == ("Astrolabe", "0.1.0")
+        return SimpleNamespace()
+
+    user_authorized_client(factory=factory)
+
+
 def test_the_kwarg_name_is_one_the_workspace_client_declares():
     """Pinned against the installed SDK, not against the documentation.
 
@@ -594,9 +606,26 @@ def clients(monkeypatch):
 def build(user_authorization: bool):
     from agent import PlayerInsightsResponsesAgent
 
-    return PlayerInsightsResponsesAgent(
-        settings=settings(), user_authorization=user_authorization
+    return PlayerInsightsResponsesAgent(settings=settings(), user_authorization=user_authorization)
+
+
+def test_system_client_registers_product_before_construction(monkeypatch):
+    import agent as agent_module
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        agent_module.sdk_attribution,
+        "register_sdk_product",
+        lambda: events.append("registered"),
     )
+    monkeypatch.setattr(
+        "databricks.sdk.WorkspaceClient",
+        lambda: events.append("constructed") or RecordingWorkspace(),
+    )
+
+    build(user_authorization=True)._system_workspace()
+
+    assert events[:2] == ["registered", "constructed"]
 
 
 def test_a_user_authorized_client_is_never_reused_between_turns(clients):

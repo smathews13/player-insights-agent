@@ -17,8 +17,9 @@
  *   2. Treating "could not check" as "this app granted it". Unknown is not
  *      evidence, and the safe reading of no evidence is to change nothing.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  accessRunner,
   readProvenance,
   revokeStatement,
   withdrawAccess,
@@ -81,6 +82,31 @@ describe('the statement', () => {
     expect(revokeStatement({ kind: 'SCHEMA', name: TELEMETRY, privilege: 'SELECT' }, PERSON)).toBe(
       'REVOKE SELECT ON SCHEMA `example_catalog`.`player_insights_telemetry` FROM `analyst@example.com`;'
     );
+  });
+
+  it('tags the outgoing Statement Execution body without copying the statement or email', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ status: { state: 'SUCCEEDED' } }),
+    });
+    const run = accessRunner({
+      host: 'https://example.invalid',
+      token: 'admin-token',
+      warehouseId: 'warehouse-id',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await run('REVOKE SELECT ON TABLE `catalog`.`schema`.`table` FROM `analyst@example.com`;');
+
+    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(typeof init.body === 'string' ? init.body : '') as Record<string, unknown>;
+    expect(body.query_tags).toEqual([
+      { key: 'application', value: 'Astrolabe' },
+      { key: 'surface', value: 'admin' },
+      { key: 'tool', value: 'admin_access' },
+      { key: 'operation', value: 'revoke' },
+    ]);
+    expect(JSON.stringify(body.query_tags)).not.toContain('analyst@example.com');
+    expect(JSON.stringify(body.query_tags)).not.toContain('catalog');
   });
 });
 

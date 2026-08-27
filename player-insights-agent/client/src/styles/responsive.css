@@ -183,6 +183,9 @@
   .bench-lane-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .bench-turn-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .bench-failure {
     grid-template-columns: 1fr;
   }

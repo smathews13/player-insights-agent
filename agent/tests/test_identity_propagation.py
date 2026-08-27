@@ -65,7 +65,14 @@ class RecordingWorkspace:
             attachments=[SimpleNamespace(text=SimpleNamespace(content="Active players rose."))],
         )
 
-    def _execute(self, warehouse_id: str, statement: str, wait_timeout: str, on_wait_timeout=None):
+    def _execute(
+        self,
+        warehouse_id: str,
+        statement: str,
+        wait_timeout: str,
+        on_wait_timeout=None,
+        query_tags=None,
+    ):
         self.used.append(f"sql:{' '.join(statement.split())}")
         return SimpleNamespace(
             statement_id="s1",

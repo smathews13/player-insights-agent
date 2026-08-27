@@ -86,6 +86,7 @@ import {
 import { opsCostRangeId, useOpsBlock } from './ops-session';
 import { TimeRangeControl } from './TimeRangeControl';
 import { rangeWindow } from './time-range';
+import { showsAdminSurfaces, useRole } from './role';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -1393,7 +1394,67 @@ export function TrafficBody({
 
 /* ── The page ────────────────────────────────────────────────────────────── */
 
+interface StopAllResult {
+  targeted: number;
+  cancelled: number;
+  failures: unknown[];
+}
+
+/** Admin emergency control; the server remains the permission boundary. */
+export function StopAllActiveRuns() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<StopAllResult | null>(null);
+  const [error, setError] = useState('');
+
+  const stop = async () => {
+    const confirmed = window.confirm(
+      'Stop the current snapshot of active Astrolabe runs? This does not pause future Asks and deletes no data or history.'
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setError('');
+    setResult(null);
+    try {
+      const response = await fetch('/api/admin/runs/cancel-all', { method: 'POST' });
+      const body = (await response.json()) as Partial<StopAllResult> & { message?: unknown };
+      if (!response.ok) {
+        throw new Error(
+          typeof body.message === 'string' ? body.message : `The cancellation endpoint answered ${response.status}.`
+        );
+      }
+      setResult({
+        targeted: body.targeted ?? 0,
+        cancelled: body.cancelled ?? 0,
+        failures: Array.isArray(body.failures) ? body.failures : [],
+      });
+    } catch (stopError) {
+      setError(stopError instanceof Error ? stopError.message : 'Active runs could not be stopped.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="ops-stop-all" aria-labelledby="ops-stop-all-heading">
+      <div>
+        <h2 id="ops-stop-all-heading">Active runs</h2>
+        <p>One-time snapshot only. Future Asks continue, and no data or history is deleted.</p>
+      </div>
+      <Button type="button" variant="outline" disabled={busy} onClick={() => void stop()}>
+        {busy ? 'Stopping…' : 'Stop all active runs'}
+      </Button>
+      {result ? (
+        <p role="status">
+          Targeted {result.targeted}; cancelled {result.cancelled}; failures {result.failures.length}.
+        </p>
+      ) : null}
+      {error ? <p role="alert">{error}</p> : null}
+    </section>
+  );
+}
+
 export function OpsPage() {
+  const role = useRole();
   const [params] = useSearchParams();
   const [openedAt] = useState(() => Date.now());
   const selected = rangeWindow(params, openedAt);
@@ -1429,6 +1490,7 @@ export function OpsPage() {
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
       <TimeRangeControl page="Ops cost" />
+      {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
 
       {/* Each block reads itself. Three read times on one page rather than one,
           because they were read at three different moments. */}

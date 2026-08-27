@@ -1154,11 +1154,6 @@
   line-height: 1.35;
   color: var(--foreground);
 }
-@media (max-width: 800px) {
-  .bench-turn-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 .bench-sample-list {
   margin: 6px 0 0;
   padding-left: 18px;

@@ -31,6 +31,36 @@
   gap: 16px;
 }
 
+.ops-stop-all {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--ast-radius-card);
+  background: var(--card);
+}
+
+.ops-stop-all h2,
+.ops-stop-all p {
+  margin: 0;
+}
+
+.ops-stop-all h2 {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.ops-stop-all p {
+  color: var(--ast-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.ops-stop-all > p {
+  grid-column: 1 / -1;
+}
+
 /* ── A block ─────────────────────────────────────────────────────────────── */
 
 .ops-block {

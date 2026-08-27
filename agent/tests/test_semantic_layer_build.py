@@ -94,13 +94,15 @@ class FakeWorkspace:
         #: Every statement the build asked for, so a test can assert the
         #: dictionary was actually read rather than assumed.
         self.statements: list[str] = []
+        self.query_tag_calls: list[list[object]] = []
         self.tables = SimpleNamespace(get=self._get_table)
         self.grants = SimpleNamespace(get_effective=self._get_effective)
         self.genie = SimpleNamespace(get_space=self._get_space)
         self.statement_execution = SimpleNamespace(execute_statement=self._execute)
 
-    def _execute(self, statement, warehouse_id, wait_timeout=None):
+    def _execute(self, statement, warehouse_id, wait_timeout=None, query_tags=None):
         self.statements.append(statement)
+        self.query_tag_calls.append(list(query_tags or []))
         return SimpleNamespace(
             status=SimpleNamespace(state=self._state, error="fake failure"),
             result=SimpleNamespace(data_array=self._rows),
@@ -442,6 +444,11 @@ class TestDictionaryEntries:
 
         assert workspace.statements, "the dictionary was never actually queried"
         assert DICTIONARY in workspace.statements[0]
+        assert {tag.key: tag.value for tag in workspace.query_tag_calls[0]} == {
+            "application": "Astrolabe",
+            "surface": "build",
+            "tool": "dictionary_read",
+        }
 
     def test_a_definition_of_an_undeclared_table_is_not_indexed(self):
         """The manifest rule, applied to the dictionary. A dictionary may document
@@ -594,6 +601,17 @@ class TestStatements:
         assert any(statement.startswith("MERGE INTO") for statement in produced)
         assert produced[-1].startswith("DELETE FROM")
 
+    def test_build_writes_carry_semantic_build_query_tags(self):
+        workspace = FakeWorkspace()
+
+        build.execute(workspace, "warehouse", "CREATE TABLE c.s.t (id STRING)")
+
+        assert {tag.key: tag.value for tag in workspace.query_tag_calls[0]} == {
+            "application": "Astrolabe",
+            "surface": "build",
+            "tool": "semantic_write",
+        }
+
     def test_the_merge_source_carries_no_column_alias_list(self):
         """Databricks SQL refuses one with COLUMN_ALIASES_NOT_ALLOWED, and the
         statement reads fine until the warehouse rejects it. The names go on an
@@ -660,9 +678,9 @@ class TestStatements:
 
         asked: list[str] = []
         workspace = SimpleNamespace(
-            vector_search_indexes=SimpleNamespace(sync_index=lambda index_name: asked.append(
-                index_name
-            ))
+            vector_search_indexes=SimpleNamespace(
+                sync_index=lambda index_name: asked.append(index_name)
+            )
         )
         build.sync_index(workspace, "c.s.semantic_layer_index")
         assert asked == ["c.s.semantic_layer_index"]

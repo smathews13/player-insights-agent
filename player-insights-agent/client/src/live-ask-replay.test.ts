@@ -29,6 +29,7 @@ import {
   readLiveAsk,
   recordLiveStage,
   resetLiveAsks,
+  stopLiveAsk,
   subscribeToLiveAsks,
 } from './live-ask';
 
@@ -80,6 +81,33 @@ beforeEach(() => {
 });
 
 describe('an in-flight run whose stream this browser is still holding', () => {
+  it('keeps two conversations independently busy and settles only the one that completed', () => {
+    beginLiveAsk({ conversationId: 'conversation-a', question: 'Question A' });
+    beginLiveAsk({ conversationId: 'conversation-b', question: 'Question B' });
+    recordLiveStage('conversation-a', stage({ id: 'a-step' }));
+    recordLiveStage('conversation-b', stage({ id: 'b-step', status: 'running', duration: 0 }));
+
+    endLiveAsk('conversation-a');
+
+    expect(readLiveAsk('conversation-a')).toMatchObject({ inFlight: false, question: 'Question A' });
+    expect(readLiveAsk('conversation-b')).toMatchObject({ inFlight: true, question: 'Question B' });
+    expect(readLiveAsk('conversation-a')?.stages.map((entry) => entry.id)).toEqual(['a-step']);
+    expect(readLiveAsk('conversation-b')?.stages.map((entry) => entry.id)).toEqual(['b-step']);
+  });
+
+  it('restores a stopped conversation without affecting another active run', () => {
+    beginLiveAsk({ conversationId: 'conversation-a', question: 'Question A' });
+    beginLiveAsk({ conversationId: 'conversation-b', question: 'Question B' });
+
+    stopLiveAsk('conversation-a', 'Stopped by you');
+
+    expect(readLiveAsk('conversation-a')).toMatchObject({
+      inFlight: false,
+      stopNotice: 'Stopped by you',
+    });
+    expect(readLiveAsk('conversation-b')).toMatchObject({ inFlight: true, stopNotice: null });
+  });
+
   it('keeps every step the run reported while nobody was looking at it', () => {
     const first = mount();
     beginLiveAsk({ conversationId: CONVERSATION, question: 'How did the title perform?' });

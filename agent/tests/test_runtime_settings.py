@@ -79,7 +79,7 @@ def test_eval_guidance_reaches_the_prompt_without_runtime_settings():
     assert "Stay inside governed tables." in fragment
 
 
-def test_invalid_direct_caller_values_fall_back_safely():
+def test_integral_direct_caller_values_clamp_to_the_supported_range():
     settings = activate(
         {
             "runtime_settings": {
@@ -89,12 +89,27 @@ def test_invalid_direct_caller_values_fall_back_safely():
             }
         }
     )
-    assert settings.loop.max_steps == 12
+    assert settings.loop.max_steps == 20
     assert settings.loop.max_tool_calls == 12
+    assert settings.loop.max_run_seconds == 30
     assert settings.behavior.timezone == ""
     assert settings.answer.takeaway_guidance == ""
     assert settings.answer.figures_order == "as-ranked"
     assert settings.answer.charts_types == "auto"
+
+
+def test_max_run_seconds_above_the_ceiling_clamps_instead_of_dropping_to_default():
+    settings = activate({"runtime_settings": {"loop": {"maxRunSeconds": 300}}})
+
+    assert settings.loop.max_run_seconds == 200
+    assert settings.loop.max_run_seconds != 150
+
+
+@pytest.mark.parametrize("value", [199.5, "200", True, None])
+def test_fractional_and_invalid_max_run_seconds_still_use_the_default(value):
+    settings = activate({"runtime_settings": {"loop": {"maxRunSeconds": value}}})
+
+    assert settings.loop.max_run_seconds == 150
 
 
 def test_the_answer_reserve_scales_and_is_zero_at_the_floor():

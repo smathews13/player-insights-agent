@@ -34,6 +34,7 @@ holds both ids to the shape the app mints and drops anything else, which is why
 from __future__ import annotations
 
 import re
+from contextvars import ContextVar
 from typing import Any
 
 #: What the app prefixes its ids with, so ours are distinguishable in a log line
@@ -54,6 +55,13 @@ CORRELATION_TAG = "correlation_id"
 #: Separate from the correlation id on purpose -- see shared/correlation.ts.
 RUN_TAG = "run_id"
 
+#: SQL attribution for the current request only. A ContextVar is required because
+#: one serving process handles concurrent users; module-level ids would leak one
+#: run's Query History tags onto another.
+_CURRENT_QUERY_IDS: ContextVar[dict[str, str] | None] = ContextVar(
+    "current_query_ids", default=None
+)
+
 
 def usable(value: Any) -> str:
     """The caller's id if it is one we will print, otherwise the empty string.
@@ -68,6 +76,31 @@ def usable(value: Any) -> str:
         return ""
     trimmed = value.strip()
     return trimmed if _SHAPE.match(trimmed) else ""
+
+
+def activate_query_ids(required: Any) -> None:
+    """Scope validated request/run ids to this turn's SQL statements."""
+
+    recorded: dict[str, str] = {}
+    request_id = usable(getattr(required, "request_id", ""))
+    if request_id:
+        recorded[CORRELATION_TAG] = request_id
+    run_id = usable(getattr(required, "run_id", ""))
+    if run_id:
+        recorded[RUN_TAG] = run_id
+    _CURRENT_QUERY_IDS.set(recorded)
+
+
+def clear_query_ids() -> None:
+    """Remove this turn's ids even when the generator exits early."""
+
+    _CURRENT_QUERY_IDS.set(None)
+
+
+def current_query_ids() -> dict[str, str]:
+    """A copy of the current turn's validated ids, never shared mutable state."""
+
+    return dict(_CURRENT_QUERY_IDS.get() or {})
 
 
 def facts(required: Any, settings: Any = None) -> dict[str, str]:

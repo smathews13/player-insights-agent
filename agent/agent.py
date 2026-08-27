@@ -37,6 +37,7 @@ import execution_identity
 import knowledge
 import provenance
 import runtime_settings
+import sdk_attribution
 from charts import (
     MAX_CHARTS,
     NEW_PLOT_TOOL,
@@ -130,9 +131,7 @@ _SETTINGS = Settings.from_env()
 PACKAGED_KNOWLEDGE = knowledge.load_packaged_knowledge()
 COMMON_KNOWLEDGE = knowledge.load_common_knowledge()
 COUNTING_USERS = knowledge.load_counting_users()
-FINDER_KNOWLEDGE = "\n\n".join(
-    part for part in (COMMON_KNOWLEDGE, COUNTING_USERS) if part
-)
+FINDER_KNOWLEDGE = "\n\n".join(part for part in (COMMON_KNOWLEDGE, COUNTING_USERS) if part)
 
 # Resolved at import for the same reason, and empty for every deployment that
 # has not been given an AI Search index: it is an hourly charge nobody acquires
@@ -342,11 +341,7 @@ _NON_ACTION_FILLER = re.compile(
 def _without_non_action_filler(text: str) -> str:
     """Drop standalone non-actions instead of presenting them as findings."""
 
-    kept = [
-        line
-        for line in text.splitlines()
-        if not _NON_ACTION_FILLER.search(line)
-    ]
+    kept = [line for line in text.splitlines() if not _NON_ACTION_FILLER.search(line)]
     return "\n".join(kept).strip()
 
 
@@ -373,6 +368,7 @@ def _is_grant_timing_note(text: str) -> bool:
     """True for the standing UC grant-timing lecture, not for a real denial."""
 
     return bool(_GRANT_TIMING_NOTE.search(text)) and not _ACTUAL_REFUSAL.search(text)
+
 
 # ---------------------------------------------------------------------------
 # What bounds the loop
@@ -583,6 +579,7 @@ REQUEST_CLARIFICATION_TOOL = {
     },
 }
 
+
 def system_text(content: Any) -> str:
     """The system prompt as plain text, whether or not it is a cacheable block.
 
@@ -658,7 +655,9 @@ ORCHESTRATOR_TOOLS: tuple[dict[str, Any], ...] = ()
 # by the canonical name above and by the isolated invocation in `_turn`.
 LOOP_TOOLS = DATA_SOURCE_FINDER_TOOLS
 
-ORCHESTRATOR_INSTRUCTIONS = FINDER_SYSTEM_PROMPT + """
+ORCHESTRATOR_INSTRUCTIONS = (
+    FINDER_SYSTEM_PROMPT
+    + """
 
 # Deployment-specific source selection
 Everything in the package must come from a tool result in this invocation: never from
@@ -766,6 +765,7 @@ When you have what the request needs, end with exactly the notebook-defined DATA
 DATA OVERVIEW, or CLARIFICATION NEEDED shape. This package is internal: the orchestrator
 interprets it, decides whether figures help, and presents the user-facing answer.
 """
+)
 
 
 def _message_text(item: Any) -> str:
@@ -1022,9 +1022,7 @@ def _build_plan(
     """
 
     has_conversation_context = (
-        len(history) > 1
-        if uses_conversation_context is None
-        else uses_conversation_context
+        len(history) > 1 if uses_conversation_context is None else uses_conversation_context
     )
     steps: list[PlanStep] = []
     if has_conversation_context or attachment_context:
@@ -1445,9 +1443,7 @@ GATEWAY_REFUSALS = {
     "PERMISSION_DENIED": (
         "this deployment is not permitted to use the model service it is bound to"
     ),
-    "RESOURCE_DOES_NOT_EXIST": (
-        "the model service this deployment is bound to does not exist"
-    ),
+    "RESOURCE_DOES_NOT_EXIST": ("the model service this deployment is bound to does not exist"),
     "CUSTOMER_UNAUTHORIZED": (
         "your organisation's AI Gateway refused the request on a policy grounds"
     ),
@@ -1539,10 +1535,9 @@ def reasoning_endpoint_failure(error: Exception) -> str:
     if isinstance(body, dict):
         code = str(body.get("error_code") or "")
     detail = re.sub(r"\s+", " ", str(getattr(error, "message", "") or str(error))).strip()
-    return (
-        f"the reasoning endpoint refused this request "
-        f"({code or f'HTTP {status}'}: {detail})"
-    )[:300]
+    return (f"the reasoning endpoint refused this request ({code or f'HTTP {status}'}: {detail})")[
+        :300
+    ]
 
 
 #: The tools whose failure can mean "this space was never shared with me".
@@ -1776,7 +1771,7 @@ DEGRADED_ANSWER_MARKER = "This answer is degraded:"
 
 
 def _and_list(items: Sequence[str]) -> str:
-    """"a", "a and b", "a, b and c", so a caveat reads as a sentence."""
+    """ "a", "a and b", "a, b and c", so a caveat reads as a sentence."""
 
     items = list(items)
     if len(items) <= 1:
@@ -1960,9 +1955,41 @@ def _salvaged_synthesis(text: str, findings: str) -> Synthesis:
 #: deliberately not one: the app will not paint a process view for it.
 _MLFLOW_TRACE_ID = re.compile(r"^tr-[0-9a-f]+$", re.I)
 
+#: Reader-facing diagnosis for a run that completed without an MLflow record.
+#: Deliberately not marked as degraded: it limits process/SQL inspection, not the
+#: validity of figures the run read from governed tables.
+MLFLOW_NOT_RECORDED_CAVEAT = (
+    "MLflow did not record this run, so process and SQL inspection are unavailable."
+)
+
 
 def _is_mlflow_trace_id(value: object) -> bool:
     return isinstance(value, str) and bool(_MLFLOW_TRACE_ID.match(value.strip()))
+
+
+def _span_is_recording(span: object | None) -> bool:
+    """Whether MLflow's bound span is writing a trace.
+
+    `LiveSpan` exposes `_is_recording()`. `NoOpSpan` does not, but holds an
+    OpenTelemetry `NonRecordingSpan` whose public `is_recording()` returns false.
+    Treat an unknown shape as not recording: this helper is only used after no
+    real trace id could be resolved, so it cannot discredit a recorded run.
+    """
+
+    direct = getattr(span, "_is_recording", None)
+    if callable(direct):
+        try:
+            return bool(direct())
+        except Exception:  # noqa: BLE001 - tracing diagnostics cannot fail a turn
+            return False
+    underlying = getattr(span, "_span", None)
+    recording = getattr(underlying, "is_recording", None)
+    if callable(recording):
+        try:
+            return bool(recording())
+        except Exception:  # noqa: BLE001 - tracing diagnostics cannot fail a turn
+            return False
+    return False
 
 
 def _last_active_trace_id() -> str:
@@ -2495,6 +2522,10 @@ class RunLog:
         #: run span so the saving is a recorded number rather than something a
         #: reader has to reconstruct by counting stages: see `_coalesce_definitions`.
         self.calls_saved = 0
+        #: Reader-facing reason the process/SQL explorer is unavailable. Set only
+        #: from the bound orchestrator span's recording state, never inferred from
+        #: an empty source list (a traced run can legitimately read no tables).
+        self.trace_diagnostic = ""
         self._chars = 0
 
     def plot_evidence(self) -> list[str]:
@@ -2938,6 +2969,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         if self._system_client is None:
             from databricks.sdk import WorkspaceClient
 
+            sdk_attribution.register_sdk_product()
             self._system_client = WorkspaceClient()
         return self._system_client
 
@@ -3283,15 +3315,19 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         if name == "dictionary_genie":
             return tools.dictionary_genie(str(arguments.get("question") or ""))
         if name == "search_semantics":
-            return self._semantic_retrieval(tools).retrieve(
-                str(arguments.get("question") or ""),
-                kind=str(arguments.get("kind") or ""),
-                label=str(arguments.get("label") or ""),
-                title=str(arguments.get("title") or ""),
-                domain=str(arguments.get("domain") or ""),
-                certification=str(arguments.get("certification") or ""),
-                limit=int(arguments.get("limit") or 0),
-            ).as_tool_result()
+            return (
+                self._semantic_retrieval(tools)
+                .retrieve(
+                    str(arguments.get("question") or ""),
+                    kind=str(arguments.get("kind") or ""),
+                    label=str(arguments.get("label") or ""),
+                    title=str(arguments.get("title") or ""),
+                    domain=str(arguments.get("domain") or ""),
+                    certification=str(arguments.get("certification") or ""),
+                    limit=int(arguments.get("limit") or 0),
+                )
+                .as_tool_result()
+            )
         if name == "search_tagged_assets":
             return tools.search_tagged_assets(
                 str(arguments.get("tag") or ""), str(arguments.get("value") or "")
@@ -3387,9 +3423,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 parent_id=parent_id,
             )
             package = compact_finder_package(
-                "## DATA OVERVIEW\n"
-                "- **Declared governed sources:**\n"
-                + result.text
+                "## DATA OVERVIEW\n- **Declared governed sources:**\n" + result.text
             )
             return LoopOutcome(answer_text=package, complete=True)
         max_steps = runtime_settings.current().loop.max_steps
@@ -3418,9 +3452,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             with mlflow.start_span(
                 name=f"data_source_finder.llm.step-{step}", span_type="LLM"
             ) as llm_span:
-                llm_span.set_inputs(
-                    {"step": step, "model": self.settings.llm_endpoint}
-                )
+                llm_span.set_inputs({"step": step, "model": self.settings.llm_endpoint})
                 try:
                     response = client.chat.completions.create(
                         model=self.settings.llm_endpoint,
@@ -3472,9 +3504,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 message = response.choices[0].message
                 content = getattr(message, "content", None) or ""
                 calls = list(getattr(message, "tool_calls", None) or [])
-                llm_span.set_outputs(
-                    {"text": content[:6000], "tool_calls": len(calls)}
-                )
+                llm_span.set_outputs({"text": content[:6000], "tool_calls": len(calls)})
                 log.add_usage(record_llm_usage(llm_span, response))
 
             if not calls:
@@ -3880,9 +3910,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     # COMPLETED call, because a refused or failed one produced
                     # nothing to stand in for the earlier route.
                     log.routes.record_evidence(name)
-                    log.evidence.append(
-                        f"{name}({entry.arguments_json}) returned:\n{result.text}"
-                    )
+                    log.evidence.append(f"{name}({entry.arguments_json}) returned:\n{result.text}")
                     # Appended in the same breath as the block it names, because
                     # `plot_evidence` reads the two lists positionally and a block
                     # recorded without its tool would be plotted as though it were
@@ -3950,13 +3978,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             if capped:
                 break
         else:
-            counted = [
-                stage for stage in log.stages
-                if re.fullmatch(r"step-\d+", stage.id)
-            ]
-            names = ", ".join(
-                f"{stage.name} ({stage.duration / 1000:.2f}s)" for stage in counted
-            )
+            counted = [stage for stage in log.stages if re.fullmatch(r"step-\d+", stage.id)]
+            names = ", ".join(f"{stage.name} ({stage.duration / 1000:.2f}s)" for stage in counted)
             summed = sum(stage.duration for stage in counted) / 1000
             capped = (
                 f"the {max_steps}-step ceiling was reached; counted {names or 'no named steps'}; "
@@ -4058,9 +4081,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         ]
         log.calls += 1
         try:
-            with mlflow.start_span(
-                name="data_source_finder.llm.cap", span_type="LLM"
-            ) as llm_span:
+            with mlflow.start_span(name="data_source_finder.llm.cap", span_type="LLM") as llm_span:
                 llm_span.set_inputs({"capped": capped, "model": self.settings.llm_endpoint})
                 response = client.chat.completions.create(
                     model=self.settings.llm_endpoint,
@@ -4211,9 +4232,7 @@ Tables actually read this run:
                 # model calls, and no recorded run could tell us which path it took.
                 structured = "fallback"
                 if log.remaining < 5.0:
-                    return _incomplete_synthesis(
-                        findings, has_readings=bool(log.readings)
-                    )
+                    return _incomplete_synthesis(findings, has_readings=bool(log.readings))
                 try:
                     response = client.chat.completions.create(**kwargs)
                 except Exception as error:
@@ -4548,9 +4567,7 @@ Statements run, for column names and grain:
             if time.perf_counter() >= deadline:
                 break
             wave = candidates[start : start + MAX_PARALLEL_TOOL_CALLS]
-            with ThreadPoolExecutor(
-                max_workers=len(wave), thread_name_prefix="describe"
-            ) as pool:
+            with ThreadPoolExecutor(max_workers=len(wave), thread_name_prefix="describe") as pool:
                 # `_in_trace_context`, not a bare submit: without it every
                 # describe's span forms a trace of its own and the surface that
                 # explains a plan's table names goes blank. See its note.
@@ -4571,9 +4588,7 @@ Statements run, for column names and grain:
     ) -> list[str]:
         """Which of the readable tables this question would be answered from."""
 
-        with mlflow.start_span(
-            name="orchestrator.llm.plan_candidates", span_type="LLM"
-        ) as span:
+        with mlflow.start_span(name="orchestrator.llm.plan_candidates", span_type="LLM") as span:
             span.set_inputs({"question": question, "model": self.settings.llm_endpoint})
             response = client.chat.completions.create(
                 model=self.settings.llm_endpoint,
@@ -4587,8 +4602,7 @@ Statements run, for column names and grain:
                     {
                         "role": "user",
                         "content": (
-                            f"Question:\n{question}\n\n"
-                            f"Tables this agent may read:\n{listing}"
+                            f"Question:\n{question}\n\nTables this agent may read:\n{listing}"
                         ),
                     },
                 ],
@@ -4673,16 +4687,12 @@ Tables available to this analysis, with their columns:
         deadline = started + PLAN_BUDGET_SECONDS
         finder_intent = discovery_intent or question
         has_conversation_context = (
-            len(history) > 1
-            if uses_conversation_context is None
-            else uses_conversation_context
+            len(history) > 1 if uses_conversation_context is None else uses_conversation_context
         )
         # Set before the try, so a fallback taken before discovery ran carries no
         # claim about readability rather than an unbound name.
         note = ""
-        with mlflow.start_span(
-            name="data_source_finder.plan.discovery", span_type="AGENT"
-        ) as span:
+        with mlflow.start_span(name="data_source_finder.plan.discovery", span_type="AGENT") as span:
             span.set_inputs({"question": question})
             try:
                 tools, client = self._runtime()
@@ -4765,8 +4775,7 @@ Tables available to this analysis, with their columns:
                             f"Ask the data dictionary for the governed meaning of "
                             f"{_and_list(terms)} before any figure is computed."
                             if terms
-                            else "Check governed definitions and brand-scope rules "
-                            "before analysis."
+                            else "Check governed definitions and brand-scope rules before analysis."
                         ),
                         kind="definitions",
                     )
@@ -4907,6 +4916,7 @@ Tables available to this analysis, with their columns:
             return (yield from self._turn_within_request(request))
         finally:
             _TURN_CREDENTIALS.set(None)
+            correlation.clear_query_ids()
 
     def _turn_within_request(
         self, request: ResponsesAgentRequest
@@ -4932,6 +4942,7 @@ Tables available to this analysis, with their columns:
         # that will never be allowed to run must not get that far: a plan is
         # itself a disclosure of what this data model contains.
         required = execution_identity.requirement(custom_inputs)
+        correlation.activate_query_ids(required)
         # ASKING THE INVOKER IS ITSELF A FAILURE POINT, and until now the only
         # one on this path that was not answered in the app's shape. A container
         # Model Serving handed no user credential to raises out of here, the
@@ -5065,6 +5076,8 @@ Tables available to this analysis, with their columns:
             # minted `trace-<uuid>`, which the app disclosed as untraced
             # while still painting the local RunLog stages.
             trace_id = self._trace_id(span)
+            if not trace_id and not _span_is_recording(span):
+                log.trace_diagnostic = MLFLOW_NOT_RECORDED_CAVEAT
             span.set_outputs(
                 {
                     "sources": log.sources,
@@ -5105,9 +5118,7 @@ Tables available to this analysis, with their columns:
             if clarification.reason:
                 text = f"{clarification.reason}\n\n{text}"
             return ResponsesAgentResponse(
-                output=[
-                    self.create_text_output_item(text=text, id=f"response-{clarification.id}")
-                ],
+                output=[self.create_text_output_item(text=text, id=f"response-{clarification.id}")],
                 custom_outputs={
                     "type": "clarification",
                     "clarification": clarification.model_dump(),
@@ -5116,8 +5127,12 @@ Tables available to this analysis, with their columns:
 
         synthesis_started = time.perf_counter()
         yield log.starting(
-            "synthesis", "Preparing the answer", "agent", synthesis_started,
-            depth=1, parent_id=orchestrator.id,
+            "synthesis",
+            "Preparing the answer",
+            "agent",
+            synthesis_started,
+            depth=1,
+            parent_id=orchestrator.id,
         )
         synthesis = self._synthesize(
             question, history, attachment_context, log, outcome.answer_text
@@ -5151,8 +5166,12 @@ Tables available to this analysis, with their columns:
         ):
             plot_started = time.perf_counter()
             yield log.starting(
-                "plot", "Building the charts", stage_kind("new_plot"), plot_started,
-                depth=1, parent_id=orchestrator.id,
+                "plot",
+                "Building the charts",
+                stage_kind("new_plot"),
+                plot_started,
+                depth=1,
+                parent_id=orchestrator.id,
             )
             charts, plot_note, plot_status = self._plot(question, synthesis.takeaway, log)
             yield log.stage(
@@ -5179,9 +5198,7 @@ Tables available to this analysis, with their columns:
             output=[
                 self.create_text_output_item(
                     text="\n\n".join(
-                        part
-                        for part in (answer.takeaway, answer.narrative, answer.content)
-                        if part
+                        part for part in (answer.takeaway, answer.narrative, answer.content) if part
                     ),
                     id=f"response-{run_id}",
                 )
@@ -5246,6 +5263,11 @@ Tables available to this analysis, with their columns:
         # outage warnings are added below and remain mandatory, as the UI says.
         if presentation.max_caveats:
             caveats = caveats[: presentation.max_caveats]
+        if log.trace_diagnostic:
+            # Mandatory operational diagnosis, added after the analyst-authored
+            # cap. It says only that inspection is unavailable; it does not call
+            # genuine figures fallback, canned, fabricated, or degraded.
+            caveats.insert(0, log.trace_diagnostic)
         if not log.sources_complete:
             # Checked BEFORE the empty case, not as its else: with the tables
             # unknown, "no governed table was read" is a claim nothing here can
@@ -5329,8 +5351,7 @@ Tables available to this analysis, with their columns:
         if outcome.capped:
             caveats.insert(
                 0,
-                f"The analysis stopped early because {outcome.capped}, so it may be "
-                "incomplete.",
+                f"The analysis stopped early because {outcome.capped}, so it may be incomplete.",
             )
         # NOTHING IS APPENDED HERE ABOUT THE NATURE OF THE DATA. A constant
         # stating that the player records were generated used to be added to
@@ -5439,9 +5460,7 @@ Tables available to this analysis, with their columns:
             except StopIteration as complete:
                 return complete.value
 
-    def predict_stream(
-        self, request: ResponsesAgentRequest
-    ) -> Iterator[ResponsesAgentStreamEvent]:
+    def predict_stream(self, request: ResponsesAgentRequest) -> Iterator[ResponsesAgentStreamEvent]:
         """The same turn, with each stage emitted as it starts and as it finishes.
 
         TWO EVENTS PER STEP, both `type: "stage"`, told apart by the stage's own

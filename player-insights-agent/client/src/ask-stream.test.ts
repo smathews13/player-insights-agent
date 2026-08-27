@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
+import { AskCancelled, AskRefused, AskRunFailed, AskUnreachable, askStreaming } from './ask-stream';
 import { CORRELATION_HEADER, usableCorrelationId } from '../../shared/correlation';
 import { unavailableNotice, unavailableNoticeFor } from './unavailable-copy';
 
@@ -41,6 +41,64 @@ function fetchReturning(response: Response) {
 }
 
 describe('askStreaming', () => {
+  it('exposes the correlation id before fetch starts', async () => {
+    const order: string[] = [];
+    let started = '';
+    const fetchImpl = vi.fn(() => {
+      order.push('fetch');
+      return Promise.resolve(sse([frame('result', {})]));
+    }) as unknown as typeof fetch;
+
+    const result = await askStreaming(
+      {},
+      {
+        onStart: (correlationId) => {
+          started = correlationId;
+          order.push('start');
+        },
+        onStage: () => {},
+      },
+      fetchImpl
+    );
+
+    expect(order).toEqual(['start', 'fetch']);
+    expect(started).toBe(result.correlationId);
+  });
+
+  it('passes an explicit cancellation signal to fetch and reports Stop separately', async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.signal).toBe(controller.signal);
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(init.signal?.reason instanceof Error ? init.signal.reason : new Error('Ask cancelled')),
+          { once: true }
+        );
+      });
+    }) as unknown as typeof fetch;
+
+    const pending = askStreaming({}, { onStage: () => {} }, fetchImpl, controller.signal);
+    controller.abort(new DOMException('Stopped', 'AbortError'));
+
+    await expect(pending).rejects.toBeInstanceOf(AskCancelled);
+  });
+
+  it('recognizes the server cancellation event without relabeling it as a stream failure', async () => {
+    const response = sse([
+      frame('stage', STAGE),
+      frame('error', { type: 'cancelled', state: 'CANCELLED', message: 'Stopped.' }),
+    ]);
+
+    const failure = await askStreaming({}, { onStage: () => {} }, fetchReturning(response)).catch(
+      (error: unknown) => error
+    );
+
+    expect(failure).toBeInstanceOf(AskCancelled);
+    expect((failure as AskCancelled).completed).toBe(1);
+    expect(failure).not.toBeInstanceOf(AskRunFailed);
+  });
+
   it('reports each finished stage and then resolves with the answer', async () => {
     const stages: string[] = [];
     const response = sse([

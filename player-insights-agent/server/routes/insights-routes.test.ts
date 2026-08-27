@@ -37,7 +37,12 @@ import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { PROSE_ONLY_ANSWER_CAVEAT } from '../../shared/prose-only-answer';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { DEFAULT_RUNTIME_SETTINGS, type RuntimeSettings } from '../../shared/runtime-settings';
-import { answerRunVerdict, runVerdict, VERDICT_EXEMPT_STAGE_IDS, VERDICT_STAGE_EXEMPTION_SQL } from '../../shared/run-verdict';
+import {
+  answerRunVerdict,
+  runVerdict,
+  VERDICT_EXEMPT_STAGE_IDS,
+  VERDICT_STAGE_EXEMPTION_SQL,
+} from '../../shared/run-verdict';
 import { unavailableHttpStatus } from '../../shared/terminal-response';
 import type { FailureEvidence } from '../../shared/failure-evidence';
 import {
@@ -46,6 +51,7 @@ import {
   recordVerifiedAccess,
   rememberServingPrincipal,
 } from './execution-identity';
+import type { WarehouseCancellationTransport } from '../lib/warehouse-cancellation';
 
 // Captured verbatim from the deployed `player-insights-agent` endpoint so the app
 // contract is tested against what Model Serving actually returns.
@@ -57,14 +63,16 @@ function request(headers: Record<string, string> = {}) {
 
 describe('extractLiveText', () => {
   it('reads ResponsesAgent output text', () => {
-    expect(extractLiveText({
+    expect(
+      extractLiveText({
         output: [{ content: [{ type: 'output_text', text: 'Grounded answer' }] }],
       })
     ).toBe('Grounded answer');
   });
 
   it('does not treat endpoint errors as live answers', () => {
-    expect(extractLiveText({
+    expect(
+      extractLiveText({
         error_code: 'ENDPOINT_NOT_FOUND',
         message: 'The configured endpoint does not exist.',
       })
@@ -138,7 +146,8 @@ describe('extractStructuredAnswer', () => {
   });
 
   it('reads the plain-text output of a real serving response', () => {
-    expect(extractLiveText(liveAnswerResponse)).toContain(liveAnswerResponse.custom_outputs.answer.takeaway.slice(0, 40)
+    expect(extractLiveText(liveAnswerResponse)).toContain(
+      liveAnswerResponse.custom_outputs.answer.takeaway.slice(0, 40)
     );
   });
 });
@@ -165,8 +174,7 @@ function clarificationResponse(clarification: Record<string, unknown> = {}) {
       type: 'clarification',
       clarification: {
         id: 'clarify-cafecafecafe',
-        question:
-          'Which table did you mean? Give the full catalog.schema.table for the master table.',
+        question: 'Which table did you mean? Give the full catalog.schema.table for the master table.',
         reason: 'The question named "the master table", which is not a table this agent can resolve.',
         options: [
           '<your_catalog>.<your_schema>.silver_player_profiles',
@@ -189,8 +197,7 @@ describe('extractClarification', () => {
   });
 
   it('defaults the parts a clarification may legitimately omit', () => {
-    const result = extractClarification(clarificationResponse({ reason: undefined, options: undefined })
-    );
+    const result = extractClarification(clarificationResponse({ reason: undefined, options: undefined }));
 
     expect(result?.reason).toBe('');
     expect(result?.options).toEqual([]);
@@ -204,7 +211,8 @@ describe('extractClarification', () => {
   it('is null for an answer, a plan, and an endpoint error', () => {
     expect(extractClarification(liveAnswerResponse)).toBeNull();
     expect(extractClarification(livePlanResponse)).toBeNull();
-    expect(extractClarification({
+    expect(
+      extractClarification({
         error_code: 'ENDPOINT_NOT_FOUND',
         custom_outputs: { type: 'clarification', clarification: { question: 'x' } },
       })
@@ -274,7 +282,8 @@ describe('plan and conversation contracts', () => {
   it('forwards a plan field the app does not declare instead of stripping it', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      const result = extractAnalysisPlan(planResponse({ ...wholePlan, estimated_cost_usd: 0.42, data_scope: 'gold only' })
+      const result = extractAnalysisPlan(
+        planResponse({ ...wholePlan, estimated_cost_usd: 0.42, data_scope: 'gold only' })
       );
 
       expect(result).toMatchObject({ estimated_cost_usd: 0.42, data_scope: 'gold only' });
@@ -287,7 +296,8 @@ describe('plan and conversation contracts', () => {
   it('forwards an undeclared field on a step, and names the step it came from', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      const result = extractAnalysisPlan(planResponse({
+      const result = extractAnalysisPlan(
+        planResponse({
           ...wholePlan,
           steps: [{ ...wholePlan.steps[0], tables: ['silver_gameplay_activity'] }],
         })
@@ -311,7 +321,8 @@ describe('plan and conversation contracts', () => {
     }
   });
 
-  it.each(['requires_approval', 'uses_conversation_context', 'uses_attachment_context'])('still reads a plan from a model version logged before %s existed',
+  it.each(['requires_approval', 'uses_conversation_context', 'uses_attachment_context'])(
+    'still reads a plan from a model version logged before %s existed',
     (field) => {
       const older = { ...wholePlan } as Record<string, unknown>;
       delete older[field];
@@ -419,7 +430,8 @@ describe('attachments', () => {
   // PDF is handled by server/lib/pdf-text.ts and covered in attachments-routes.test.ts.
   it('rejects unsupported formats that would need a heavy parser', async () => {
     for (const filename of ['deck.pptx', 'notes.docx', 'archive.zip', 'noextension']) {
-      await expect(extractAttachmentText(filename, Buffer.from('x'))).rejects.toThrow(/PDF, TXT, Markdown, CSV, or JSON/
+      await expect(extractAttachmentText(filename, Buffer.from('x'))).rejects.toThrow(
+        /PDF, TXT, Markdown, CSV, or JSON/
       );
     }
   });
@@ -435,8 +447,7 @@ describe('attachments', () => {
   });
 });
 
-const NONTRIVIAL_QUESTION =
-  'Compare active players by title and label over the last 30 days and explain the drivers.';
+const NONTRIVIAL_QUESTION = 'Compare active players by title and label over the last 30 days and explain the drivers.';
 
 interface CapturedInvocation {
   path: string;
@@ -540,7 +551,8 @@ interface RunTraceResponse {
  * the two features most affected by the dropped-`custom_inputs` defect had no
  * route-level coverage at all.
  */
-function memoryLakebase(attachments: StoredAttachment[] = [],
+function memoryLakebase(
+  attachments: StoredAttachment[] = [],
   /** Rows of `deployment_settings`, for the values the app resolves per request. */
   settings: Record<string, unknown>[] = [],
   runtimeSettings?: RuntimeSettings
@@ -564,7 +576,8 @@ function memoryLakebase(attachments: StoredAttachment[] = [],
   function questionBefore(index: number, conversationId: string, approvalMessage: string) {
     const questions = messages
       .slice(0, index)
-      .filter((earlier) =>
+      .filter(
+        (earlier) =>
           earlier.conversation_id === conversationId && earlier.role === 'user' && earlier.content !== approvalMessage
       );
     return questions.length > 0 ? questions[questions.length - 1].content : null;
@@ -765,10 +778,8 @@ function agentContractTransport(captured: CapturedInvocation[]): ServingTranspor
     const wire = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
     captured.push({ path, payload: wire });
     const customInputs = (wire.custom_inputs ?? {}) as Record<string, unknown>;
-    const approved =
-      Boolean(customInputs.approved_plan_id) || customInputs.execute_plan === true;
-    return Promise.resolve(approved ? servingResponses.liveAnswerResponse : servingResponses.livePlanResponse
-    );
+    const approved = Boolean(customInputs.approved_plan_id) || customInputs.execute_plan === true;
+    return Promise.resolve(approved ? servingResponses.liveAnswerResponse : servingResponses.livePlanResponse);
   };
 }
 
@@ -834,8 +845,10 @@ afterAll(async () => {
   await new Promise((resolve) => server.close(() => resolve(undefined)));
 });
 
-async function startInsightsApp(transport: ServingTransport,
-  lakebase: InsightsAppKit['lakebase'] = { query: () => Promise.resolve({ rows: [] }) }
+async function startInsightsApp(
+  transport: ServingTransport,
+  lakebase: InsightsAppKit['lakebase'] = { query: () => Promise.resolve({ rows: [] }) },
+  overrides: Pick<InsightsAppKit, 'warehouseCancellationTransport'> = {}
 ) {
   const app = express();
   app.use(express.json());
@@ -843,6 +856,7 @@ async function startInsightsApp(transport: ServingTransport,
     lakebase,
     server: { extend: (fn) => fn(app) },
     servingTransport: transport,
+    ...overrides,
   };
   // Benchmark Lab's endpoints are admin-only, so the harness's caller has to be
   // an administrator for the tests below to be about benchmarking rather than
@@ -866,9 +880,7 @@ async function startInsightsApp(transport: ServingTransport,
      * null to exercise the fallback, which is a different answer. It carries a
      * caveat saying the application ran it instead.
      */
-    async ask(body: Record<string, unknown>,
-      userToken: string | null = 'forwarded-user-token'
-    ): Promise<AskResponse> {
+    async ask(body: Record<string, unknown>, userToken: string | null = 'forwarded-user-token'): Promise<AskResponse> {
       const response = await fetch(`http://127.0.0.1:${port}/api/insights/ask`, {
         method: 'POST',
         headers: headers({
@@ -880,7 +892,8 @@ async function startInsightsApp(transport: ServingTransport,
       return (await response.json()) as AskResponse;
     },
     /** As `ask`, but keeps the status, for the paths that refuse rather than answer. */
-    async askRaw(body: Record<string, unknown>,
+    async askRaw(
+      body: Record<string, unknown>,
       /** For headers the route reads rather than the harness, such as Idempotency-Key. */
       extraHeaders: Record<string, string> = {}
     ): Promise<{ status: number; body: AskResponse }> {
@@ -899,15 +912,28 @@ async function startInsightsApp(transport: ServingTransport,
       const response = await fetch(`http://127.0.0.1:${port}/api/runs`, { headers: headers() });
       return (await response.json()) as RunRow[];
     },
+    async cancelRun(identifier: string, email = DEVELOPMENT_IDENTITY) {
+      const response = await fetch(`http://127.0.0.1:${port}/api/runs/${encodeURIComponent(identifier)}/cancel`, {
+        method: 'POST',
+        headers: headers({ 'x-forwarded-email': email }),
+      });
+      return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+    },
+    async cancelAll(email = DEVELOPMENT_IDENTITY) {
+      const response = await fetch(`http://127.0.0.1:${port}/api/admin/runs/cancel-all`, {
+        method: 'POST',
+        headers: headers({ 'x-forwarded-email': email }),
+      });
+      return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+    },
     async conversations(): Promise<{ id: string; title: string }[]> {
       const response = await fetch(`http://127.0.0.1:${port}/api/conversations`, { headers: headers() });
       return (await response.json()) as { id: string; title: string }[];
     },
     async conversationRun(id: string): Promise<Record<string, unknown> | null> {
-      const response = await fetch(
-        `http://127.0.0.1:${port}/api/conversations/${encodeURIComponent(id)}/run`,
-        { headers: headers() }
-      );
+      const response = await fetch(`http://127.0.0.1:${port}/api/conversations/${encodeURIComponent(id)}/run`, {
+        headers: headers(),
+      });
       return (await response.json()) as Record<string, unknown> | null;
     },
     /**
@@ -1199,8 +1225,7 @@ describe('serving request body', () => {
   });
 
   it('builds the endpoint path the workspace client posts to', () => {
-    expect(servingInvocationPath('player-insights-agent')).toBe('/serving-endpoints/player-insights-agent/invocations'
-    );
+    expect(servingInvocationPath('player-insights-agent')).toBe('/serving-endpoints/player-insights-agent/invocations');
   });
 
   it('cannot be sent through the SDK typed query, which drops custom_inputs', async () => {
@@ -1334,6 +1359,39 @@ describe('the production serving transport', () => {
         onStage: () => undefined,
       })
     ).rejects.toMatchObject({ name: 'TruncatedStreamError', stages: 1 });
+    expect(seen).toHaveLength(1);
+  });
+
+  it('cancels the serving response body and starts no fallback after an explicit abort', async () => {
+    const seen: SeenRequest[] = [];
+    let bodyCancelled = false;
+    const transport = createServingTransport(() =>
+      Promise.resolve({
+        request: (options: SeenRequest) => {
+          seen.push(options);
+          return Promise.resolve({
+            contents: new ReadableStream<Uint8Array>({
+              cancel() {
+                bodyCancelled = true;
+              },
+            }),
+          });
+        },
+      })
+    );
+    const controller = new AbortController();
+    const pending = transport({
+      path: '/serving-endpoints/x/invocations',
+      payload: { stream: true },
+      onStage: () => undefined,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: 'RunCancelledError' });
+    expect(bodyCancelled).toBe(true);
     expect(seen).toHaveLength(1);
   });
 
@@ -1492,7 +1550,8 @@ describe('what the route actually puts on the wire', () => {
 
     const customInputs = captured[0]?.payload.custom_inputs as Record<string, unknown>;
     // The agent keys off `attachment_text`; the heading is how it attributes a source.
-    expect(customInputs.attachment_text).toBe('## halcyon-memo.txt\nProject HALCYON-7742 retires Iron Frontier Online on 2026-11-15.'
+    expect(customInputs.attachment_text).toBe(
+      '## halcyon-memo.txt\nProject HALCYON-7742 retires Iron Frontier Online on 2026-11-15.'
     );
   });
 
@@ -1513,8 +1572,7 @@ describe('what the route actually puts on the wire', () => {
     }
 
     const customInputs = captured[0]?.payload.custom_inputs as Record<string, unknown>;
-    expect(customInputs.attachment_text).toBe('## a.txt\nfirst report\n\n## b.pdf\nsecond report'
-    );
+    expect(customInputs.attachment_text).toBe('## a.txt\nfirst report\n\n## b.pdf\nsecond report');
     expect(String(customInputs.attachment_text)).not.toContain('must not leak');
   });
 
@@ -1630,10 +1688,7 @@ describe('the answer contract survives the round trip into the HTTP response', (
       await app.close();
     }
 
-    const endpointAnswer = servingResponses.liveAnswerResponse.custom_outputs.answer as Record<
-      string,
-      unknown
-    >;
+    const endpointAnswer = servingResponses.liveAnswerResponse.custom_outputs.answer as Record<string, unknown>;
 
     // Comparing key-by-key means a widened agent contract fails here rather than
     // disappearing silently on the way to the browser.
@@ -1643,8 +1698,7 @@ describe('the answer contract survives the round trip into the HTTP response', (
       // and the token counts onto the trace itself, for a model version that
       // predates them.
       if (key === 'trace') continue;
-      expect(answered[key], `custom_outputs.answer.${key} did not reach the response`).toEqual(value
-      );
+      expect(answered[key], `custom_outputs.answer.${key} did not reach the response`).toEqual(value);
     }
     const trace = endpointAnswer.trace as { stages: Record<string, unknown>[] };
     expect(answered.trace).toEqual({
@@ -1699,10 +1753,7 @@ describe('the answer contract survives the round trip into the HTTP response', (
       warnings.push(args.map(String).join(' '));
     });
 
-    const base = servingResponses.liveAnswerResponse.custom_outputs.answer as Record<
-      string,
-      unknown
-    >;
+    const base = servingResponses.liveAnswerResponse.custom_outputs.answer as Record<string, unknown>;
     const widened = {
       ...servingResponses.liveAnswerResponse,
       custom_outputs: {
@@ -1845,10 +1896,8 @@ describe('the answer contract survives the round trip into the HTTP response', (
     // keys, so `depth` and `parent_id` are absent from it. They are DEFAULTED
     // rather than optional (the same choice `charts` makes), so every stage the
     // timeline receives has a level, whichever agent version produced it.
-    expect(answered.trace?.stages).toEqual(expected.stages.map((stage) => ({ depth: 0, parent_id: '', ...stage }))
-    );
-    expect(answered.caveats).toEqual(servingResponses.liveAnswerResponse.custom_outputs.answer.caveats
-    );
+    expect(answered.trace?.stages).toEqual(expected.stages.map((stage) => ({ depth: 0, parent_id: '', ...stage })));
+    expect(answered.caveats).toEqual(servingResponses.liveAnswerResponse.custom_outputs.answer.caveats);
   });
 
   it('says so when the question ran as the application instead of as the reader', async () => {
@@ -1860,7 +1909,8 @@ describe('the answer contract survives the round trip into the HTTP response', (
       // what a deployment missing `serving.serving-endpoints` from its user
       // scopes looks like. Either way the endpoint sees the app, so the
       // warehouse enforces the app's grants and not the reader's.
-      const fellBack = await app.ask({ conversationId: 'conv-sp-fallback', prompt: NONTRIVIAL_QUESTION, executePlan: true },
+      const fellBack = await app.ask(
+        { conversationId: 'conv-sp-fallback', prompt: NONTRIVIAL_QUESTION, executePlan: true },
         null
       );
       expect(fellBack.caveats).toContain(SERVICE_PRINCIPAL_FALLBACK_CAVEAT);
@@ -1968,8 +2018,7 @@ describe('Plotly charts on the answer contract', () => {
   it('rejects a chart missing its envelope rather than half-rendering it', () => {
     // `data` is the panel. An envelope without one would reach the client as a card
     // with nothing in it.
-    const broken = extractStructuredAnswer(answerWithCharts([{ id: 'chart-1', title: 't', kind: 'bar' }])
-    );
+    const broken = extractStructuredAnswer(answerWithCharts([{ id: 'chart-1', title: 't', kind: 'bar' }]));
     expect(broken).toBeNull();
   });
 
@@ -2019,9 +2068,7 @@ describe('Plotly charts on the answer contract', () => {
   it('reaches the HTTP response the browser reads', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const specs = [chart(), chart({ id: 'chart-2', kind: 'line' })];
-    const app = await startInsightsApp(() => Promise.resolve(answerWithCharts(specs)),
-      memoryLakebase()
-    );
+    const app = await startInsightsApp(() => Promise.resolve(answerWithCharts(specs)), memoryLakebase());
 
     let answered: AskResponse;
     try {
@@ -2046,7 +2093,8 @@ describe('Plotly charts on the answer contract', () => {
 
     let answeredId: string | undefined;
     try {
-      answeredId = (await app.ask({
+      answeredId = (
+        await app.ask({
           conversationId: 'conv-charts-stored',
           prompt: NONTRIVIAL_QUESTION,
           executePlan: true,
@@ -2137,7 +2185,8 @@ describe('identity and benchmark records', () => {
     expect(payload.accessDecision?.detail).toContain('10 tables');
 
     // And it belongs to that user alone.
-    expect(identityPayload(request({ 'x-forwarded-email': 'other@example.example' })).executionMode).toBe('service-principal'
+    expect(identityPayload(request({ 'x-forwarded-email': 'other@example.example' })).executionMode).toBe(
+      'service-principal'
     );
     forgetAccessDecisions();
   });
@@ -2226,10 +2275,11 @@ describe('the label a conversation carries in the rail', () => {
 
       // What attaching a document does: the conversation exists, with a placeholder
       // for a label, before anybody has asked anything in it.
-      await store.query(
-        'INSERT INTO player_insights.conversations (id, user_email, title) VALUES ($1,$2,$3)',
-        ['conv-uploaded', email, PLACEHOLDER_CONVERSATION_TITLE]
-      );
+      await store.query('INSERT INTO player_insights.conversations (id, user_email, title) VALUES ($1,$2,$3)', [
+        'conv-uploaded',
+        email,
+        PLACEHOLDER_CONVERSATION_TITLE,
+      ]);
       expect(store.conversationTitles.get('conv-uploaded')).toBe(PLACEHOLDER_CONVERSATION_TITLE);
 
       const second = await app.ask({ conversationId: 'conv-uploaded', prompt: LONG_QUESTION });
@@ -2289,6 +2339,9 @@ describe('an answered conversation is a run', () => {
     const sql = RUNS_QUERY.replace(/\s+/g, ' ');
 
     expect(sql).toContain('FROM player_insights.messages m');
+    expect(sql).toContain('FROM player_insights.runs r');
+    expect(sql).toContain("WHERE r.state = 'CANCELLED'");
+    expect(sql).toContain("COALESCE(label_overlay.status, 'cancelled') AS status");
     expect(sql).toContain('FROM player_insights.benchmark_runs b');
     expect(sql).toContain('UNION ALL');
     // A plan proposal carries no trace, so it is a pending approval, not a run.
@@ -2309,7 +2362,7 @@ describe('an answered conversation is a run', () => {
     // Once per half, and nowhere else: a UNION takes its column names from the
     // first branch, so a half that omitted the column would silently borrow the
     // other's value for every row.
-    expect(sql.match(/AS truncated/g)).toHaveLength(2);
+    expect(sql.match(/AS truncated/g)).toHaveLength(3);
   });
 
   it('carries the agent tool-call count used by the Run Explorer badge', () => {
@@ -2317,7 +2370,7 @@ describe('an answered conversation is a run', () => {
 
     expect(sql).toContain("(a.trace->>'toolCalls')::int AS tool_calls");
     expect(sql).toContain('NULL::int AS tool_calls');
-    expect(sql.match(/AS tool_calls/g)).toHaveLength(2);
+    expect(sql.match(/AS tool_calls/g)).toHaveLength(3);
   });
 
   it('carries which Genie space answered each run', () => {
@@ -2331,7 +2384,7 @@ describe('an answered conversation is a run', () => {
     // no single trace to read spaces off, and '[]' there would assert that a run
     // of Genie cases opened no space.
     expect(sql).toContain('NULL::jsonb AS genie_spaces');
-    expect(sql.match(/AS genie_spaces/g)).toHaveLength(2);
+    expect(sql.match(/AS genie_spaces/g)).toHaveLength(3);
   });
 
   it('declares the spaces on the answer contract, so a run that used one is not drift', () => {
@@ -2354,9 +2407,7 @@ describe('an answered conversation is a run', () => {
 
   it('lists a just-answered question, keyed by the id the answer came back with', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
-    const app = await startInsightsApp(agentContractTransport([]),
-      memoryLakebase()
-    );
+    const app = await startInsightsApp(agentContractTransport([]), memoryLakebase());
 
     try {
       const planned = await app.ask({ conversationId: 'conv-run', prompt: NONTRIVIAL_QUESTION });
@@ -2470,7 +2521,9 @@ describe('the run verdict a chart cannot degrade', () => {
       const customInputs = (wire.custom_inputs ?? {}) as Record<string, unknown>;
       const approved = Boolean(customInputs.approved_plan_id) || customInputs.execute_plan === true;
       if (!approved) return Promise.resolve(servingResponses.livePlanResponse);
-      const answer = JSON.parse(JSON.stringify(servingResponses.liveAnswerResponse)) as typeof servingResponses.liveAnswerResponse;
+      const answer = JSON.parse(
+        JSON.stringify(servingResponses.liveAnswerResponse)
+      ) as typeof servingResponses.liveAnswerResponse;
       (answer.custom_outputs.answer.trace as unknown as { stages: unknown[] }).stages = stages;
       return Promise.resolve(answer);
     };
@@ -2544,9 +2597,19 @@ describe('the run verdict a chart cannot degrade', () => {
     // spec it would not render: a picture is missing and the answer is not.
     expect(runVerdict([{ id: 'plot', status: 'failed' }])).toBe('complete');
     expect(runVerdict([{ id: 'plot', status: 'partial' }])).toBe('complete');
-    expect(runVerdict([{ id: 'discover', status: 'failed' }, { id: 'plot', status: 'complete' }])).toBe('failed');
+    expect(
+      runVerdict([
+        { id: 'discover', status: 'failed' },
+        { id: 'plot', status: 'complete' },
+      ])
+    ).toBe('failed');
     // Worst-first still holds among the steps that do count.
-    expect(runVerdict([{ id: 'discover', status: 'partial' }, { id: 'synthesis', status: 'failed' }])).toBe('failed');
+    expect(
+      runVerdict([
+        { id: 'discover', status: 'partial' },
+        { id: 'synthesis', status: 'failed' },
+      ])
+    ).toBe('failed');
     // A step this rule cannot recognise counts, rather than being waved through.
     expect(runVerdict([{ status: 'partial' }])).toBe('partial');
     expect(runVerdict([])).toBe('failed');
@@ -2876,15 +2939,19 @@ describe('GET /api/runs/:id/trace', () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     process.env.DATABRICKS_HOST = 'https://example.cloud.databricks.com';
     delete process.env.PLAYER_INSIGHTS_EXPERIMENT_ID;
-    const app = await startInsightsApp(agentContractTransport([]),
-      memoryLakebase([], [
-        {
-          resource_id: 'experiment-id',
-          value: '9998887776665554',
-          intent: 'active',
-          updated_by: 'deployer@acme.com',
-        },
-      ])
+    const app = await startInsightsApp(
+      agentContractTransport([]),
+      memoryLakebase(
+        [],
+        [
+          {
+            resource_id: 'experiment-id',
+            value: '9998887776665554',
+            intent: 'active',
+            updated_by: 'deployer@acme.com',
+          },
+        ]
+      )
     );
 
     try {
@@ -2940,7 +3007,6 @@ describe('GET /api/runs/:id/trace', () => {
       expect(body.trace?.stages).toEqual(answered.trace?.stages);
       expect(body.takeaway).toBe(answered.takeaway);
       expect(body.sql).toBe(answered.sql);
-
     } finally {
       await app.close();
     }
@@ -3025,7 +3091,8 @@ describe('GET /api/runs/:id/trace', () => {
 
       expect(body.trace?.toolCalls).toBe(liveTrace.toolCalls);
       expect(body.toolStages).toEqual([]);
-      expect(body.toolStages?.length,
+      expect(
+        body.toolStages?.length,
         'the derived list was made to agree with the counter. They measure different ' +
           'things (the counter includes calls with no tool-tagged stage), so forcing ' +
           'them together makes one of the two numbers wrong.'
@@ -3044,7 +3111,8 @@ describe('GET /api/runs/:id/trace', () => {
       const { body } = await app.runTrace(String(answered.id));
 
       expect(body).toHaveProperty('toolStages');
-      expect(body,
+      expect(
+        body,
         'a top-level `toolCalls` is back alongside `trace.toolCalls`. One is a list of ' +
           'tagged stages and the other is the agent call counter; sharing a name is how ' +
           'they got conflated.'
@@ -3301,8 +3369,7 @@ describe('an agent endpoint that never answers', () => {
       servingTransport: () => new Promise<never>(() => {}),
     } as unknown as InsightsAppKit;
 
-    await expect(invokeServing(appkit, { input: [] }, undefined, 30)).rejects.toThrow(/did not answer within 30 ms/
-    );
+    await expect(invokeServing(appkit, { input: [] }, undefined, 30)).rejects.toThrow(/did not answer within 30 ms/);
   });
 });
 
@@ -3330,7 +3397,8 @@ describe('the MLflow trace behind an answer', () => {
 
     expect(reference?.traceId).toBe('tr-0123456789abcdef0123456789abcdef');
     expect(reference?.experimentId).toBe('9998887776665554');
-    expect(reference?.url).toBe('https://example.cloud.databricks.com/ml/experiments/9998887776665554/traces' +
+    expect(reference?.url).toBe(
+      'https://example.cloud.databricks.com/ml/experiments/9998887776665554/traces' +
         '?selectedEvaluationId=tr-0123456789abcdef0123456789abcdef'
     );
   });
@@ -3417,10 +3485,7 @@ describe('a canned answer discloses that no live query produced it', () => {
   it('leaves a disclosure already on a stored answer exactly where it is', () => {
     const stored = untraced({ caveats: [REPRESENTATIVE_ANSWER_CAVEAT, 'Some other caveat.'] });
 
-    expect(discloseAnswerProvenance(stored).caveats).toEqual([
-      REPRESENTATIVE_ANSWER_CAVEAT,
-      'Some other caveat.',
-    ]);
+    expect(discloseAnswerProvenance(stored).caveats).toEqual([REPRESENTATIVE_ANSWER_CAVEAT, 'Some other caveat.']);
   });
 
   it('does not mark an answer the agent actually produced', async () => {
@@ -3452,7 +3517,8 @@ describe('a canned answer discloses that no live query produced it', () => {
    */
   it('leaves a prose reply with no borrowed figures to disclose', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
-    const app = await startInsightsApp(() =>
+    const app = await startInsightsApp(
+      () =>
         Promise.resolve({
           output: [{ content: [{ type: 'output_text', text: 'VLH Online leads the last 30 days.' }] }],
         }),
@@ -3599,7 +3665,8 @@ describe('a failed run is answered with nothing', () => {
   }
 
   it('reports an endpoint that could not be called, and invents no figures', async () => {
-    const { status, body, errors } = await askThrough(() => Promise.reject(new Error('socket hang up after 30000 ms')),
+    const { status, body, errors } = await askThrough(
+      () => Promise.reject(new Error('socket hang up after 30000 ms')),
       'conv-honest-throw'
     );
 
@@ -3628,7 +3695,8 @@ describe('a failed run is answered with nothing', () => {
    * fails in a way that does not say which.
    */
   it('names the endpoint and quotes its error, so the panel has something to show', async () => {
-    const { body } = await askThrough(() => Promise.reject(new Error('socket hang up after 30000 ms')),
+    const { body } = await askThrough(
+      () => Promise.reject(new Error('socket hang up after 30000 ms')),
       'conv-evidence-dependency'
     );
 
@@ -3659,8 +3727,9 @@ describe('a failed run is answered with nothing', () => {
    * see -- and it names nothing.
    */
   it('discloses the status of a denial without forwarding what the provider named', async () => {
-    const denial = Object.assign(new Error('PERMISSION_DENIED: User does not have SELECT on table ' +
-        'restricted_catalog.other_label.player_identity'
+    const denial = Object.assign(
+      new Error(
+        'PERMISSION_DENIED: User does not have SELECT on table ' + 'restricted_catalog.other_label.player_identity'
       ),
       { statusCode: 403 }
     );
@@ -3677,7 +3746,8 @@ describe('a failed run is answered with nothing', () => {
   });
 
   it('reports a payload it cannot read, without answering from the fixture', async () => {
-    const { status, body, errors } = await askThrough(() => Promise.resolve({ custom_outputs: { insight_bundle: { headline: 42 } } }),
+    const { status, body, errors } = await askThrough(
+      () => Promise.resolve({ custom_outputs: { insight_bundle: { headline: 42 } } }),
       'conv-honest-contract'
     );
 
@@ -3698,7 +3768,8 @@ describe('a failed run is answered with nothing', () => {
    * the wire and one `console.warn` in the logs.
    */
   it('serves no fixture for a custom_outputs type nobody has written a branch for', async () => {
-    const { status, body, errors } = await askThrough(() =>
+    const { status, body, errors } = await askThrough(
+      () =>
         Promise.resolve({
           custom_outputs: {
             // A v9 agent answering in a shape this app predates entirely.
@@ -4075,7 +4146,8 @@ describe('the run ledger under POST /api/insights/ask', () => {
     const app = await startInsightsApp(agentContractTransport([]), store);
 
     try {
-      const { status, body } = await app.askRaw({ conversationId: 'conv-bad-key', prompt: NONTRIVIAL_QUESTION },
+      const { status, body } = await app.askRaw(
+        { conversationId: 'conv-bad-key', prompt: NONTRIVIAL_QUESTION },
         { 'Idempotency-Key': 'short' }
       );
 
@@ -4132,12 +4204,7 @@ describe('the run ledger under POST /api/insights/ask', () => {
       expect(ledger.runs[0].completed_at).not.toBeNull();
       // Walked rather than jumped, so a run that answered can be shown to have
       // passed through synthesis.
-      expect(ledger.events.map((event) => event.to)).toEqual([
-        'PLANNING',
-        'RUNNING',
-        'SYNTHESIZING',
-        'SUCCEEDED',
-      ]);
+      expect(ledger.events.map((event) => event.to)).toEqual(['PLANNING', 'RUNNING', 'SYNTHESIZING', 'SUCCEEDED']);
     } finally {
       await app.close();
     }
@@ -4173,7 +4240,8 @@ describe('the run ledger under POST /api/insights/ask', () => {
       // All three durable records exist before Model Serving is allowed to
       // answer: the rail row, the user's turn, and the run itself.
       expect(store.conversations.has('conv-detached')).toBe(true);
-      expect(store.messages.some((message) => message.conversation_id === 'conv-detached' && message.role === 'user')
+      expect(
+        store.messages.some((message) => message.conversation_id === 'conv-detached' && message.role === 'user')
       ).toBe(true);
       expect(ledger.runs).toHaveLength(1);
       expect(ledger.runs[0].state).toBe('RECEIVED');
@@ -4191,12 +4259,198 @@ describe('the run ledger under POST /api/insights/ask', () => {
       // Closing the response only drops narration. The server still stores the
       // answer and closes the run, which is what the returning view polls for.
       await vi.waitFor(() => {
-        expect(store.messages.some((message) => message.conversation_id === 'conv-detached' && message.role === 'assistant')
+        expect(
+          store.messages.some((message) => message.conversation_id === 'conv-detached' && message.role === 'assistant')
         ).toBe(true);
         expect(ledger.runs[0].state).toBe('SUCCEEDED');
       });
     } finally {
       releaseAnswer();
+      await app.close();
+    }
+  });
+
+  it('cancels an owned run durably, aborts its serving consumer, and persists no answer', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const savedWarehouse = process.env.DATABRICKS_SQL_WAREHOUSE_ID;
+    process.env.DATABRICKS_SQL_WAREHOUSE_ID = 'warehouse-cancel-test';
+    let announceStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      announceStarted = resolve;
+    });
+    let invocations = 0;
+    const transport: ServingTransport = ({ signal }) => {
+      invocations += 1;
+      announceStarted();
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener(
+          'abort',
+          () => reject(signal.reason instanceof Error ? signal.reason : new Error('Run cancelled')),
+          { once: true }
+        );
+      });
+    };
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const cancelledStatements: string[] = [];
+    const warehouseCancellationTransport: WarehouseCancellationTransport = {
+      listQueries({ status }) {
+        const run = ledger.runs[0];
+        return Promise.resolve({
+          res:
+            status === 'RUNNING' && run
+              ? [
+                  {
+                    query_id: 'statement-for-owned-run',
+                    status: 'RUNNING',
+                    warehouse_id: 'warehouse-cancel-test',
+                    executed_as_user_name: DEVELOPMENT_IDENTITY,
+                    query_tags: {
+                      application: 'Astrolabe',
+                      run_id: run.run_id,
+                      correlation_id: run.correlation_id,
+                    },
+                  },
+                  {
+                    query_id: 'unrelated-statement',
+                    status: 'RUNNING',
+                    warehouse_id: 'warehouse-cancel-test',
+                    executed_as_user_name: DEVELOPMENT_IDENTITY,
+                    query_tags: { application: 'Catalog Explorer' },
+                  },
+                ]
+              : [],
+        });
+      },
+      cancelStatement(statementId) {
+        cancelledStatements.push(statementId);
+        return Promise.resolve();
+      },
+    };
+    const app = await startInsightsApp(transport, lakebase, { warehouseCancellationTransport });
+
+    try {
+      const asking = app.ask({
+        conversationId: 'conv-explicit-stop',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      await started;
+      const run = ledger.runs[0];
+      const fenceBefore = run.fencing_token;
+
+      const stopped = await app.cancelRun(String(run.correlation_id));
+      const terminal = await asking;
+
+      expect(stopped.status).toBe(200);
+      expect(stopped.body).toMatchObject({ targeted: 1, cancelled: 1, runIds: [run.run_id], failures: [] });
+      expect(stopped.body.warehouse).toMatchObject({ matched: 1, cancel_requested: 1, failed: 0, refused: 0 });
+      expect(cancelledStatements).toEqual(['statement-for-owned-run']);
+      expect(terminal).toMatchObject({ type: 'cancelled', state: 'CANCELLED', runId: run.run_id });
+      expect(run.state).toBe('CANCELLED');
+      expect(run.fencing_token).toBe(fenceBefore + 1);
+      expect(run.lease_owner).toBeNull();
+      expect(run.lease_expires_at).toBeNull();
+      expect(store.messages.filter((message) => message.role === 'assistant')).toHaveLength(0);
+      // Cancellation is never a reason to try the blocking fallback.
+      expect(invocations).toBe(1);
+    } finally {
+      if (savedWarehouse === undefined) delete process.env.DATABRICKS_SQL_WAREHOUSE_ID;
+      else process.env.DATABRICKS_SQL_WAREHOUSE_ID = savedWarehouse;
+      await app.close();
+    }
+  });
+
+  it('returns 404 without revealing or stopping another reader run', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    let announceStarted: () => void = () => {};
+    let releaseAnswer: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      announceStarted = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseAnswer = resolve;
+    });
+    const transport: ServingTransport = async () => {
+      announceStarted();
+      await gate;
+      return servingResponses.liveAnswerResponse;
+    };
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const app = await startInsightsApp(transport, lakebase);
+
+    try {
+      const asking = app.ask({
+        conversationId: 'conv-owner-only-stop',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      await started;
+      const run = ledger.runs[0];
+
+      const refused = await app.cancelRun(run.run_id, 'someone.else@example.com');
+
+      expect(refused.status).toBe(404);
+      expect(refused.body).not.toHaveProperty('owner');
+      expect(run.state).toBe('RECEIVED');
+      releaseAnswer();
+      await asking;
+      expect(run.state).toBe('SUCCEEDED');
+    } finally {
+      releaseAnswer();
+      await app.close();
+    }
+  });
+
+  it('guards Stop all as admin-only and cancels only the current snapshot', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    let announceStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      announceStarted = resolve;
+    });
+    const transport: ServingTransport = ({ signal }) => {
+      announceStarted();
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener(
+          'abort',
+          () => reject(signal.reason instanceof Error ? signal.reason : new Error('Run cancelled')),
+          { once: true }
+        );
+      });
+    };
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    const app = await startInsightsApp(transport, lakebase);
+
+    try {
+      const asking = app.ask({
+        conversationId: 'conv-admin-stop',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+      await started;
+
+      const consumer = await app.cancelAll('consumer@example.com');
+      expect(consumer.status).toBe(403);
+      expect(ledger.runs[0].state).toBe('RECEIVED');
+
+      const stopped = await app.cancelAll();
+      await asking;
+      expect(stopped.status).toBe(200);
+      expect(stopped.body).toMatchObject({
+        targeted: 1,
+        cancelled: 1,
+        failures: [],
+        oneShot: true,
+        deleted: 0,
+        futureAsksPaused: false,
+      });
+
+      // The payload states the route's one-shot contract; the ledger unit test
+      // admits a run created after the snapshot and proves there is no pause row.
+      expect(stopped.body.futureAsksPaused).toBe(false);
+    } finally {
       await app.close();
     }
   });
@@ -4221,12 +4475,36 @@ describe('the run ledger under POST /api/insights/ask', () => {
     /** Held in an object so the assignment inside the transport is visible below. */
     const laterStep: { narrate: () => void } = { narrate: () => {} };
     const transport: ServingTransport = async ({ onStage }) => {
-      onStage?.({ id: 'step-1', name: 'Chose the next step', kind: 'agent', status: 'complete', start: 0, duration: 9, calls: 1 });
+      onStage?.({
+        id: 'step-1',
+        name: 'Chose the next step',
+        kind: 'agent',
+        status: 'complete',
+        start: 0,
+        duration: 9,
+        calls: 1,
+      });
       // Announced but unfinished, which is the row a reader is watching when
       // they navigate away.
-      onStage?.({ id: 'step-2', name: 'Querying governed data', kind: 'tool', status: 'running', start: 9, duration: 0, calls: 0 });
+      onStage?.({
+        id: 'step-2',
+        name: 'Querying governed data',
+        kind: 'tool',
+        status: 'running',
+        start: 9,
+        duration: 0,
+        calls: 0,
+      });
       laterStep.narrate = () => {
-        onStage?.({ id: 'step-2', name: 'Queried governed data', kind: 'tool', status: 'complete', start: 9, duration: 40, calls: 1 });
+        onStage?.({
+          id: 'step-2',
+          name: 'Queried governed data',
+          kind: 'tool',
+          status: 'complete',
+          start: 9,
+          duration: 40,
+          calls: 1,
+        });
       };
       announceStarted();
       await answerGate;
@@ -4441,8 +4719,7 @@ describe('the provenance an answer carries', () => {
       const wire = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
       const inputs = (wire.custom_inputs ?? {}) as Record<string, unknown>;
       const approved = Boolean(inputs.approved_plan_id) || inputs.execute_plan === true;
-      return Promise.resolve(approved ? answerWithDerivation(derivation) : servingResponses.livePlanResponse
-      );
+      return Promise.resolve(approved ? answerWithDerivation(derivation) : servingResponses.livePlanResponse);
     };
   }
 
@@ -4478,7 +4755,10 @@ describe('the provenance an answer carries', () => {
    * outcome than an answer with no figures.
    */
   it('still reads an answer from the model version that publishes none', () => {
-    const base = (servingResponses.liveAnswerResponse.custom_outputs as Record<string, unknown>).answer as Record<string, unknown>;
+    const base = (servingResponses.liveAnswerResponse.custom_outputs as Record<string, unknown>).answer as Record<
+      string,
+      unknown
+    >;
     expect('derivation' in base).toBe(false);
 
     const parsed = extractStructuredAnswer(servingResponses.liveAnswerResponse);
@@ -4490,16 +4770,14 @@ describe('the provenance an answer carries', () => {
   it('carries a partial entry as the part it knows, rather than refusing it', () => {
     // A statement with no WHERE clause has no window and no filter. Both empty
     // is what the agent sends and empty is what the renderers draw as nothing.
-    const parsed = extractStructuredAnswer(answerWithDerivation([{ source: ENTRY.source, metric: 'active_players' }])
-    );
+    const parsed = extractStructuredAnswer(answerWithDerivation([{ source: ENTRY.source, metric: 'active_players' }]));
 
-    expect(parsed?.derivation).toEqual([
-      { source: ENTRY.source, metric: 'active_players', window: '', filter: '' },
-    ]);
+    expect(parsed?.derivation).toEqual([{ source: ENTRY.source, metric: 'active_players', window: '', filter: '' }]);
   });
 
   it('reports a key it does not know about, on the entry it was on', () => {
-    const { drift } = parseWatchingWarnings(() => extractStructuredAnswer(answerWithDerivation([{ ...ENTRY, grain: 'daily' }]))
+    const { drift } = parseWatchingWarnings(() =>
+      extractStructuredAnswer(answerWithDerivation([{ ...ENTRY, grain: 'daily' }]))
     );
 
     expect(drift).toContain('derivation[0].grain');
@@ -4513,7 +4791,8 @@ describe('the provenance an answer carries', () => {
    * for a caption on it. So the entry states nothing and the answer survives.
    */
   it('drops an entry it cannot read without dropping the answer under it', () => {
-    const { value: parsed, drift } = parseWatchingWarnings(() => extractStructuredAnswer(answerWithDerivation(['not an entry at all']))
+    const { value: parsed, drift } = parseWatchingWarnings(() =>
+      extractStructuredAnswer(answerWithDerivation(['not an entry at all']))
     );
 
     expect(parsed).not.toBeNull();

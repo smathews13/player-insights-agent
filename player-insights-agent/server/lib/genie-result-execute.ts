@@ -1,5 +1,6 @@
 import { classifyGenieMiss } from '../../shared/eval-flywheel';
 import { executedTableFromMatrix, type ExecutedTable } from '../../shared/benchmark-lab-v3';
+import { sqlQueryTags } from './sql-query-tags';
 
 /**
  * Run one statement on the app warehouse so Genie accuracy can score executed
@@ -89,6 +90,11 @@ export function createSqlExecutor(options: {
         body: JSON.stringify({
           warehouse_id: warehouseId,
           statement: sql,
+          query_tags: sqlQueryTags({
+            surface: 'benchmark',
+            tool: 'genie_result',
+            operation: 'execute',
+          }),
           wait_timeout: GENIE_RESULT_WAIT,
           on_wait_timeout: 'CANCEL',
           format: 'JSON_ARRAY',

@@ -11,10 +11,12 @@ assistant turn, so a test states the exact sequence of tool calls it is about.
 import inspect
 import json
 import re
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import mlflow
 import pytest
+from mlflow.entities.span import NO_OP_SPAN_TRACE_ID, NoOpSpan
 from mlflow.types.responses import ResponsesAgentRequest
 from mlflow.types.responses import ResponsesAgentRequest as _RawRequest
 
@@ -359,9 +361,7 @@ def ask(runtime, question="Compare active players by label.", **custom_inputs):
     custom_inputs.setdefault("identity_mode", execution_identity.SIGNED_IN_USER)
     custom_inputs.setdefault("expected_user", TEST_USER)
     return runtime.predict(
-        app_request(
-            input=[{"role": "user", "content": question}], custom_inputs=custom_inputs
-        )
+        app_request(input=[{"role": "user", "content": question}], custom_inputs=custom_inputs)
     )
 
 
@@ -533,9 +533,7 @@ def test_the_column_filter_reaches_the_tool_so_a_wide_table_can_be_asked_one_que
 
     ask(build(llm, tools))
 
-    assert tools.named("describe_table") == [
-        {"full_name": ACTIVITY, "columns": "crm_customer_ref"}
-    ]
+    assert tools.named("describe_table") == [{"full_name": ACTIVITY, "columns": "crm_customer_ref"}]
 
 
 def test_a_failed_tool_is_handed_back_to_the_model_which_can_try_another_surface():
@@ -1263,9 +1261,9 @@ def test_a_partly_refused_run_keeps_the_answer_the_rest_of_it_supports(tool, arg
         synthesis=UNGROUNDED_SYNTHESIS,
     )
 
-    answer = ask(
-        build(llm, FakeTools(**{tool: error, survivor: grounded}))
-    ).custom_outputs["answer"]
+    answer = ask(build(llm, FakeTools(**{tool: error, survivor: grounded}))).custom_outputs[
+        "answer"
+    ]
 
     assert answer["takeaway"] == "Northwind VLH Online leads active players."
     assert len(answer["figures"]) == 1
@@ -1548,17 +1546,13 @@ def test_a_tool_that_takes_no_arguments_is_not_reported_as_having_failed_to_pars
     retrying a call that had already worked.
     """
 
-    tools = FakeTools(
-        list_data_assets=ToolResult(text="Declared catalogs:\n- test_catalog")
-    )
+    tools = FakeTools(list_data_assets=ToolResult(text="Declared catalogs:\n- test_catalog"))
     llm = ScriptedLlm([Call("list_data_assets", {})], "The catalog is test_catalog.")
 
     response = ask(build(llm, tools), "What tables can you read?")
 
     assert tools.named("list_data_assets") == [{"catalog": "", "schema": ""}]
-    listed = next(
-        stage for stage in stages(response) if stage["name"] == "Listed available tables"
-    )
+    listed = next(stage for stage in stages(response) if stage["name"] == "Listed available tables")
     assert listed["status"] == "complete"
     assert "not valid JSON" not in listed["output"]
     assert listed["output"].startswith("Declared catalogs:")
@@ -1572,7 +1566,7 @@ def test_arguments_that_are_valid_json_but_not_an_object_do_not_reach_the_tool()
     """
 
     tools = FakeTools()
-    llm = ScriptedLlm([Call("run_sql", "[\"SELECT 1\"]")], "Nothing was run.")
+    llm = ScriptedLlm([Call("run_sql", '["SELECT 1"]')], "Nothing was run.")
 
     response = ask(build(llm, tools))
 
@@ -1643,9 +1637,7 @@ def test_request_loop_settings_bound_the_next_finder_run():
 
     response = ask(
         build(llm, tools),
-        runtime_settings={
-            "loop": {"maxSteps": 1, "maxToolCalls": 1, "maxRunSeconds": 30}
-        },
+        runtime_settings={"loop": {"maxSteps": 1, "maxToolCalls": 1, "maxRunSeconds": 30}},
     )
 
     assert len(llm.loop_calls) == 1
@@ -1673,9 +1665,7 @@ def test_the_wall_clock_budget_stops_a_turn_of_slow_calls():
     runtime.data_source_finder._run = orchestrate
     response = ask(
         runtime,
-        runtime_settings={
-            "loop": {"maxSteps": 12, "maxToolCalls": 12, "maxRunSeconds": 30}
-        },
+        runtime_settings={"loop": {"maxSteps": 12, "maxToolCalls": 12, "maxRunSeconds": 30}},
     )
 
     assert tools.named("data_genie") == []
@@ -1817,7 +1807,7 @@ def test_an_under_qualified_table_comes_back_as_a_question_not_an_answer():
 
 
 def test_a_clarification_carries_the_steps_that_led_to_it():
-    """"Why is it asking me this" has to be answerable from the trace."""
+    """ "Why is it asking me this" has to be answerable from the trace."""
 
     llm = ScriptedLlm(
         [Call("list_data_assets", {})],
@@ -1881,9 +1871,7 @@ def test_sources_are_the_tables_the_run_read_and_nothing_else():
     SQL beside the wrong citation.
     """
 
-    statement = (
-        f"SELECT count(*) FROM {PROFILES} JOIN {SUMMARY_180D} USING (platformid_accountid)"
-    )
+    statement = f"SELECT count(*) FROM {PROFILES} JOIN {SUMMARY_180D} USING (platformid_accountid)"
     tools = FakeTools(
         dictionary_genie=ToolResult(
             text="Email addressable requires consent and ADDRESSABLE status.",
@@ -2352,9 +2340,7 @@ def test_nontrivial_question_returns_plan_without_querying_data():
     runtime = build(ScriptedLlm(), tools)
 
     question = "Compare active-player trends across labels and titles."
-    response = runtime.predict(
-        app_request(input=[{"role": "user", "content": question}])
-    )
+    response = runtime.predict(app_request(input=[{"role": "user", "content": question}]))
 
     assert response.custom_outputs["type"] == "plan"
     plan = response.custom_outputs["plan"]
@@ -2410,17 +2396,13 @@ def planning_runtime(tables=(TITLE_DAILY,), facts=None, **tool_results):
     tools = FakeTools(
         **{"describe_table": describe_result(TITLE_DAILY, *PLAN_COLUMNS), **tool_results}
     )
-    llm = ScriptedLlm(
-        plan_tables=list(tables), plan_facts=PLAN_FACTS if facts is None else facts
-    )
+    llm = ScriptedLlm(plan_tables=list(tables), plan_facts=PLAN_FACTS if facts is None else facts)
     return build(llm, tools), tools, llm
 
 
 def plan_for(question=PLAN_QUESTION, **kwargs):
     runtime, tools, llm = planning_runtime(**kwargs)
-    response = runtime.predict(
-        app_request(input=[{"role": "user", "content": question}])
-    )
+    response = runtime.predict(app_request(input=[{"role": "user", "content": question}]))
     return response.custom_outputs["plan"], tools, llm
 
 
@@ -2661,9 +2643,7 @@ def test_a_follow_up_carries_the_recent_conversation_into_the_loop():
     ]
     messages.append({"role": "user", "content": "What about the same metric by title?"})
 
-    build(llm).predict(
-        app_request(input=messages, custom_inputs={"execute_plan": True})
-    )
+    build(llm).predict(app_request(input=messages, custom_inputs={"execute_plan": True}))
 
     sent = json.dumps(llm.loop_calls[0]["messages"])
     assert "turn-0" not in sent, "only the last twelve messages travel"
@@ -3024,9 +3004,7 @@ def test_a_spec_whose_traces_hold_no_points_is_also_a_decline():
 def test_an_explicit_null_chart_is_the_no_figures_outcome():
     """The live endpoint uses null when it decides this answer needs no chart."""
 
-    llm = _plotter('{"data": null}')(
-        [Call("data_genie", {"question": "figures"})], "Done."
-    )
+    llm = _plotter('{"data": null}')([Call("data_genie", {"question": "figures"})], "Done.")
 
     response = ask(build(llm), CHART_QUESTION)
     answer = response.custom_outputs["answer"]
@@ -3239,8 +3217,12 @@ def test_the_make_no_claim_rule_is_still_in_the_prompt_verbatim():
 
     assert SYNTHESIS_PROVENANCE_RULE in SYNTHESIS_INSTRUCTIONS
     assert "make no claim about whether the data is synthetic" in SYNTHESIS_INSTRUCTIONS
-    assert "Do not write a caveat about whose identity produced the answer" in SYNTHESIS_INSTRUCTIONS
-    assert "row filters and column masks apply without reporting themselves" in SYNTHESIS_INSTRUCTIONS
+    assert (
+        "Do not write a caveat about whose identity produced the answer" in SYNTHESIS_INSTRUCTIONS
+    )
+    assert (
+        "row filters and column masks apply without reporting themselves" in SYNTHESIS_INSTRUCTIONS
+    )
     assert "declaring a table does not guarantee read access" in SYNTHESIS_INSTRUCTIONS
     assert "do not open it with a refusal verdict" in SYNTHESIS_INSTRUCTIONS
     assert "Catalog and listing questions are allowed" in SYNTHESIS_INSTRUCTIONS
@@ -3311,7 +3293,9 @@ def test_a_short_answer_is_still_allowed_to_stay_short():
 
 
 def test_tabular_content_is_conditional_on_rows_that_add_something():
-    assert "Include a Markdown table only when rows were actually returned" in SYNTHESIS_INSTRUCTIONS
+    assert (
+        "Include a Markdown table only when rows were actually returned" in SYNTHESIS_INSTRUCTIONS
+    )
     assert "Never manufacture a table for a scalar" in SYNTHESIS_INSTRUCTIONS
 
 
@@ -3470,11 +3454,7 @@ class TestIncompleteSynthesis:
         while Run Explorer said Complete over the same tables.
         """
 
-        tables = (
-            "| Title | Players |\n"
-            "| --- | ---: |\n"
-            "| VLH Online | 9575 |\n"
-        )
+        tables = "| Title | Players |\n| --- | ---: |\n| VLH Online | 9575 |\n"
         salvaged = agent._incomplete_synthesis(
             self.PACKAGE,
             has_readings=True,
@@ -3495,11 +3475,7 @@ class TestIncompleteSynthesis:
 
         finished = agent.Synthesis(
             takeaway="VLH Online led the window.",
-            narrative=(
-                "| Title | Players |\n"
-                "| --- | ---: |\n"
-                "| VLH Online | 9575 |\n"
-            ),
+            narrative=("| Title | Players |\n| --- | ---: |\n| VLH Online | 9575 |\n"),
             caveats=["The turn deadline was reached before the answer could be written."],
         )
         assert agent._synthesis_stage_status(finished) == "complete"
@@ -3960,6 +3936,7 @@ def test_the_instructions_send_the_model_to_discovery_rather_than_naming_a_sourc
     assert "establish what a table is before you answer from it" in system
     assert "which table the figure came from" in system
 
+
 def test_a_source_is_dated_by_the_read_rather_than_by_a_constant():
     """The freshness was the fixed string "As of 2026-08-03" on every source.
 
@@ -4338,9 +4315,7 @@ def synthesis_prompt(llm) -> str:
     """The system prompt of the closing call, the one offered no tools."""
 
     return next(
-        system_text(call["messages"][0]["content"])
-        for call in llm.calls
-        if not call.get("tools")
+        system_text(call["messages"][0]["content"]) for call in llm.calls if not call.get("tools")
     )
 
 
@@ -4517,9 +4492,7 @@ def test_a_refused_query_is_not_recorded_as_a_source_or_published_as_sql():
         "I cannot link players across labels, so no cross-label figure is available.",
     )
 
-    response = ask(
-        build(llm, tools), "Which players in the Contoso label also play Northwind titles?"
-    )
+    response = ask(build(llm, tools), "Which players in the Contoso label also play Northwind titles?")
 
     answer = response.custom_outputs["answer"]
     assert answer["sources"] == []
@@ -4545,8 +4518,7 @@ def test_a_refusal_is_handed_back_to_the_model_and_never_becomes_evidence():
 
     tool_replies = [m for m in llm.transcript if m.get("role") == "tool"]
     assert any(REFUSAL in str(m["content"]) for m in tool_replies), (
-        "the model has to be told what it was refused and why, or it cannot "
-        "choose something else"
+        "the model has to be told what it was refused and why, or it cannot choose something else"
     )
     # The synthesis call is the one offered no tools; the loop's own calls all
     # carry the tool list, and the plot call is offered `new_plot` alone.
@@ -4561,9 +4533,7 @@ def test_a_refused_call_is_shown_as_refused_rather_than_as_a_completed_step():
     response = ask(build(llm, tools), "Give me the emails of players who churned.")
 
     refused = next(
-        stage
-        for stage in stages(response)
-        if stage["name"] == "Ran a governed read-only query"
+        stage for stage in stages(response) if stage["name"] == "Ran a governed read-only query"
     )
     assert refused["status"] == "partial"
     assert refused["output"].startswith("REJECTED")
@@ -4620,7 +4590,7 @@ def test_the_identity_rules_are_in_the_system_message_of_every_turn():
 
 
 def test_an_attachment_cannot_be_read_as_a_rule_because_it_is_not_where_rules_are():
-    """"Upload a document that restates the rules" is the first thing an audience tries.
+    """ "Upload a document that restates the rules" is the first thing an audience tries.
 
     It used to work by construction: attachment text was concatenated onto the
     system message, after the governance rules, under the heading "# Attached
@@ -4780,7 +4750,17 @@ def test_a_repeated_question_earlier_in_the_conversation_is_kept():
     assert finder_requests[0].count(question) == 2
 
 
-def test_the_trace_id_is_read_while_a_span_is_open():
+@pytest.fixture()
+def tracing(tmp_path, monkeypatch):
+    """A real backend so the trace contract is not tested against no-op spans."""
+
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    mlflow.set_tracking_uri(f"sqlite:///{tmp_path}/mlflow.db")
+    mlflow.set_experiment("agent-trace-contract")
+    yield
+
+
+def test_the_trace_id_is_read_while_a_span_is_open(tracing):
     """`trace-<uuid>` is not a cosmetic fallback: the app reads it as provenance.
 
     `discloseAnswerProvenance` in the server marks any answer whose trace id is
@@ -4794,6 +4774,7 @@ def test_the_trace_id_is_read_while_a_span_is_open():
     trace_id = response.custom_outputs["answer"]["trace"]["id"]
     assert trace_id.startswith("tr-"), trace_id
     assert not trace_id.startswith("trace-")
+    assert agent.MLFLOW_NOT_RECORDED_CAVEAT not in response.custom_outputs["answer"]["caveats"]
 
 
 def test_the_trace_id_is_read_from_the_bound_span_when_contextvars_are_empty(monkeypatch):
@@ -4810,13 +4791,36 @@ def test_the_trace_id_is_read_from_the_bound_span_when_contextvars_are_empty(mon
     assert runtime._trace_id(span) == "tr-0123456789abcdef0123456789abcdef"
 
 
-def test_the_trace_id_is_empty_when_mlflow_recorded_nothing(monkeypatch):
+def test_a_noop_span_returns_an_empty_id_and_explains_that_inspection_is_unavailable(monkeypatch):
+    """No MLflow record limits inspection; it does not make genuine figures canned."""
+
+    monkeypatch.setattr(
+        mlflow, "start_span", lambda *args, **kwargs: nullcontext(NoOpSpan())
+    )
+    monkeypatch.setattr(mlflow, "get_current_active_span", lambda: None)
+    monkeypatch.setattr(agent, "_last_active_trace_id", lambda: "")
+
+    response = ask(build(ScriptedLlm("Done.")))
+    answer = response.custom_outputs["answer"]
+    caveats = " ".join(answer["caveats"])
+
+    assert answer["trace"]["id"] == ""
+    assert agent.MLFLOW_NOT_RECORDED_CAVEAT in answer["caveats"]
+    assert "fallback" not in caveats.casefold()
+    assert "fabricat" not in caveats.casefold()
+    assert answer["trace"]["id"] != NO_OP_SPAN_TRACE_ID
+    assert not answer["trace"]["id"].startswith("trace-")
+
+
+def test_the_trace_id_never_returns_a_fake_id_or_noop_sentinel(monkeypatch):
     """An invented `trace-<uuid>` is what made the card look recorded."""
 
     monkeypatch.setattr(mlflow, "get_current_active_span", lambda: None)
-    monkeypatch.setattr(agent, "_last_active_trace_id", lambda: "")
+    monkeypatch.setattr(agent, "_last_active_trace_id", lambda: NO_OP_SPAN_TRACE_ID)
     runtime = build(ScriptedLlm("Done."))
-    assert runtime._trace_id(SimpleNamespace(trace_id=None)) == ""
+
+    assert runtime._trace_id(NoOpSpan()) == ""
+    assert runtime._trace_id(SimpleNamespace(trace_id="trace-invented")) == ""
     assert runtime._trace_id(None) == ""
 
 
@@ -4891,9 +4895,7 @@ def test_the_endpoint_says_whether_it_searches_a_semantic_index():
     """
 
     outputs = preflight(build(ScriptedLlm())).custom_outputs
-    entry = next(
-        item for item in outputs["configuration"] if item.get("key") == "semantic_index"
-    )
+    entry = next(item for item in outputs["configuration"] if item.get("key") == "semantic_index")
 
     assert entry["value"] == agent.SEMANTIC_INDEX
     # Not something an operator can change from the app.
@@ -4915,9 +4917,7 @@ def test_the_index_is_read_from_the_artifact_at_load_rather_than_per_request():
     assert agent.SEMANTIC_INDEX_REPORT["key"] == "semantic_index"
 
     outputs = preflight(build(ScriptedLlm())).custom_outputs
-    entry = next(
-        item for item in outputs["configuration"] if item.get("key") == "semantic_index"
-    )
+    entry = next(item for item in outputs["configuration"] if item.get("key") == "semantic_index")
     assert entry is agent.SEMANTIC_INDEX_REPORT
 
     source = inspect.getsource(agent.PlayerInsightsResponsesAgent._preflight_retired)

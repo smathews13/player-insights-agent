@@ -51,7 +51,14 @@ import {
 } from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { runRuntimeUsedFromStored, type RunRuntimeUsed } from '../../shared/run-runtime-used';
-import { isAdminRoute, requireAdmin, requireSuperAdmin, resolveRole, rolePayload } from '../lib/admin-roles';
+import {
+  isAdminRoute,
+  recordAdminAction,
+  requireAdmin,
+  requireSuperAdmin,
+  resolveRole,
+  rolePayload,
+} from '../lib/admin-roles';
 import { opensAdminSurfaces } from '../../shared/user-roster-contract';
 import {
   admitRun,
@@ -75,6 +82,13 @@ import {
   type WarehouseWarmup,
   type WarmupTransport,
 } from '../lib/warehouse-warmup';
+import {
+  cancelAstrolabeWarehouseQueries,
+  createWorkspaceWarehouseCancellationTransport,
+  type WarehouseCancellationResult,
+  type WarehouseCancellationScope,
+  type WarehouseCancellationTransport,
+} from '../lib/warehouse-cancellation';
 import { createGenieWarehouseWarmup } from '../lib/genie-warehouse-warmup';
 import { FAILURE_TAXONOMY, type FailureCode } from '../../shared/failure-taxonomy';
 import { type ExecutionIdentityClaim, unavailableHttpStatus, unavailableResult } from '../../shared/terminal-response';
@@ -104,6 +118,14 @@ import {
   servingIdentityFields,
 } from '../lib/execution-credential';
 import { consumeServingStream, TruncatedStreamError, type StageSink } from '../lib/serving-stream';
+import { cancelAllExecutingRuns, cancelOwnedRun } from '../lib/run-ledger';
+import {
+  abortInProcessRuns,
+  isRunCancelledError,
+  registerRunController,
+  throwIfRunCancelled,
+  watchDurableCancellation,
+} from '../lib/run-cancellation';
 import { createAskResponder } from '../lib/ask-responder';
 import { allowAstrolabeUserApiScopes } from '../lib/app-user-api-scopes';
 import { isOptionalUserApiScope } from '../../shared/optional-user-api-scopes';
@@ -163,6 +185,8 @@ export type ServingTransport = (request: {
    * the benchmark runner, the settings probe) omit it and run as the app.
    */
   userToken?: string;
+  /** Present only for an explicit Stop; ordinary browser disconnects never set it. */
+  signal?: AbortSignal;
 }) => Promise<unknown>;
 
 export interface InsightsAppKit {
@@ -198,6 +222,8 @@ export interface InsightsAppKit {
    * once, and that a ping that fails is not something the page waits on.
    */
   warehouseWarmup?: WarehouseWarmup;
+  /** Overridable so cancellation tests never touch live Query History. */
+  warehouseCancellationTransport?: WarehouseCancellationTransport;
 }
 
 /** Schema name for ownership guards; resolved from PLAYER_INSIGHTS_APP_SCHEMA. */
@@ -661,6 +687,28 @@ export const RUNS_QUERY = `
   FROM answers a
   ${overlayJoinSql('a.id')}
   UNION ALL
+  -- Cancelled asks have no assistant message by design, so the legacy
+  -- message-derived half above cannot list them. The durable ledger is the
+  -- authority for this terminal outcome; keeping it in the union preserves the
+  -- question and its history without inventing an answer or a trace.
+  SELECT r.run_id AS id, 'conversation' AS kind, r.conversation_id,
+         q.content AS prompt,
+         r.user_email AS stakeholder,
+         ${overlayStatusSql("'cancelled'")} AS status,
+         TRUE AS truncated,
+         NULL::jsonb AS genie_spaces,
+         GREATEST(0, ROUND(EXTRACT(EPOCH FROM (COALESCE(r.completed_at, r.updated_at) - r.created_at)) * 1000))::int
+           AS duration_ms,
+         NULL::int AS tool_calls,
+         ${overlayRatingSql(`(SELECT f.usefulness FROM ${APP_SCHEMA}.feedback f
+          WHERE f.message_id = r.run_id AND f.user_email = $2 AND f.usefulness IS NOT NULL
+          ORDER BY f.created_at DESC LIMIT 1)`)} AS rating,
+         r.created_at
+  FROM ${APP_SCHEMA}.runs r
+  LEFT JOIN ${APP_SCHEMA}.messages q ON q.id = r.turn_id
+  ${overlayJoinSql('r.run_id')}
+  WHERE r.state = 'CANCELLED' AND ($3 OR r.user_email = $2)
+  UNION ALL
   SELECT b.id, 'benchmark' AS kind, NULL AS conversation_id,
          b.metrics_json->>'prompt' AS prompt,
          CASE WHEN $3 OR b.user_email = $2 THEN b.user_email ELSE '${SHARED_RUN_OWNER}' END AS stakeholder,
@@ -912,6 +960,56 @@ function workspaceHost() {
  */
 function appWarehouseId() {
   return (process.env.DATABRICKS_SQL_WAREHOUSE_ID ?? '').trim();
+}
+
+const NO_WAREHOUSE_CANCELLATION: WarehouseCancellationResult = {
+  matched: 0,
+  cancel_requested: 0,
+  already_finished_or_raced: 0,
+  refused: 0,
+  failed: 0,
+  details: [],
+};
+
+async function cancelTaggedWarehouseQueries(input: {
+  req: Request;
+  scope: WarehouseCancellationScope;
+  transport?: WarehouseCancellationTransport;
+}): Promise<{ result: WarehouseCancellationResult; failures: string[] }> {
+  const warehouseId = appWarehouseId();
+  const token = executionToken(input.req);
+  const host = workspaceHost();
+  if (!warehouseId) {
+    return { result: NO_WAREHOUSE_CANCELLATION, failures: [] };
+  }
+  if (!input.transport && (!token || !host)) {
+    return {
+      result: NO_WAREHOUSE_CANCELLATION,
+      failures: ['The signed-in token or workspace host was unavailable, so tagged SQL could not be cancelled.'],
+    };
+  }
+  try {
+    const transport =
+      input.transport ??
+      (await createWorkspaceWarehouseCancellationTransport({
+        host,
+        token: token ?? undefined,
+      }));
+    return {
+      result: await cancelAstrolabeWarehouseQueries({
+        warehouseId,
+        scope: input.scope,
+        transport,
+      }),
+      failures: [],
+    };
+  } catch (error) {
+    console.warn('[cancel] Tagged warehouse queries could not be swept:', (error as Error).message);
+    return {
+      result: NO_WAREHOUSE_CANCELLATION,
+      failures: ['Tagged SQL cancellation could not be completed. The run itself is still marked cancelled.'],
+    };
+  }
 }
 
 export function mlflowReference(traceId: string, experimentId: string) {
@@ -2431,6 +2529,7 @@ interface ServingApiClient {
      * `data:` before a single stage has been read.
      */
     raw: boolean;
+    signal?: AbortSignal;
   }): Promise<unknown>;
 }
 
@@ -2447,8 +2546,10 @@ interface ServingApiClient {
 export function createServingTransport(
   resolveClient: (userToken?: string) => Promise<ServingApiClient>
 ): ServingTransport {
-  return async ({ path, payload, onStage, userToken }) => {
+  return async ({ path, payload, onStage, userToken, signal }) => {
+    throwIfRunCancelled(signal);
     const client = await resolveClient(userToken);
+    throwIfRunCancelled(signal);
     // `payload` is still forwarded by identity in both branches. Whether the
     // endpoint streams is decided by `stream: true` inside the body that
     // `buildAskServingBody` already produced, deliberately rather than by
@@ -2466,13 +2567,26 @@ export function createServingTransport(
         }),
         payload,
         raw: asStream,
+        signal,
       });
 
     if (!streaming) return invoke(false);
     try {
       const streamed = (await invoke(true)) as { contents?: unknown };
-      return await consumeServingStream(streamed.contents, onStage);
+      if (signal?.aborted) {
+        const body = streamed.contents as
+          | { cancel?: (reason?: unknown) => Promise<void>; destroy?: (error?: Error) => void }
+          | undefined;
+        if (typeof body?.cancel === 'function') await body.cancel(signal.reason).catch(() => undefined);
+        else body?.destroy?.(signal.reason instanceof Error ? signal.reason : undefined);
+        throwIfRunCancelled(signal);
+      }
+      return await consumeServingStream(streamed.contents, onStage, signal);
     } catch (error) {
+      if (isRunCancelledError(error) || signal?.aborted) {
+        throwIfRunCancelled(signal);
+        throw error;
+      }
       if (!(error instanceof TruncatedStreamError)) throw error;
       // Once a stage REPORTED work, the agent stack already ran. A blocking
       // retry would execute orchestrator → tools → synthesis a second time,
@@ -2494,6 +2608,7 @@ export function createServingTransport(
       // attempt is still the only route to an answer. This preserves the old
       // recovery for streams that fail before the agent reports doing anything.
       console.warn(`[serving] ${error.message} No stage reported work; asking once without streaming.`);
+      throwIfRunCancelled(signal);
       // `stream: true` lives inside the body, so it has to come back out or the
       // endpoint streams into a caller no longer reading events.
       const blocking = { ...payload, stream: false };
@@ -2503,6 +2618,7 @@ export function createServingTransport(
         headers: new Headers({ 'Content-Type': 'application/json', Accept: 'application/json' }),
         payload: blocking,
         raw: false,
+        signal,
       });
     }
   };
@@ -2653,18 +2769,24 @@ export async function invokeServing(
   onStage?: StageSink,
   timeoutMs: number = SERVING_INVOKE_TIMEOUT_MS,
   userToken?: string,
-  endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME
+  endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME,
+  signal?: AbortSignal
 ) {
   if (!endpointName) {
     throw new Error('DATABRICKS_SERVING_ENDPOINT_NAME is not set.');
   }
   const transport = appkit.servingTransport ?? workspaceServingTransport;
-  return withDeadline(
-    transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken }),
+  const result = await withDeadline(
+    transport({ path: servingInvocationPath(endpointName), payload, onStage, userToken, signal }),
     timeoutMs,
     `The agent endpoint did not answer within ${timeoutMs} ms. The call was abandoned rather than ` +
       'cancelled, so it may still be running at the endpoint.'
   );
+  // Custom transports in tests and future integrations may not consume the
+  // signal. The durable Stop still wins before any returned payload is parsed
+  // or persisted.
+  throwIfRunCancelled(signal);
+  return result;
 }
 
 /**
@@ -2851,10 +2973,11 @@ export async function invokeServingAsUser(
   userToken: string,
   onStage?: StageSink,
   timeoutMs: number = SERVING_INVOKE_TIMEOUT_MS,
-  endpointName?: string
+  endpointName?: string,
+  signal?: AbortSignal
 ): Promise<unknown> {
   try {
-    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken, endpointName);
+    return await invokeServing(appkit, payload, onStage, timeoutMs, userToken, endpointName, signal);
   } catch (error) {
     const code = authorizationFailureFor(rejectionStatus(error) ?? 0);
     if (!code) throw error;
@@ -3852,6 +3975,134 @@ export function setupInsightsRoutes(
       }
     });
 
+    /**
+     * Stop one active Ask owned by the signed-in reader.
+     *
+     * The identifier may be the durable run id or the correlation id minted by
+     * the browser before the ask left. Cross-user identifiers are deliberately
+     * indistinguishable from missing ones.
+     */
+    app.post('/api/runs/:id/cancel', async (req, res) => {
+      const actor = userEmail(req);
+      const identifier = req.params.id.trim();
+      if (!identifier) {
+        res.status(404).json({ error: 'run_not_found', message: 'No active run with this id belongs to you.' });
+        return;
+      }
+      const result = await cancelOwnedRun(appkit, actor, identifier);
+      if (!result.ok) {
+        res.status(503).json({
+          error: 'run_cancel_unavailable',
+          message: 'The run was not stopped because its durable state could not be updated.',
+        });
+        return;
+      }
+      if (result.value.kind === 'not-found') {
+        res.status(404).json({ error: 'run_not_found', message: 'No active run with this id belongs to you.' });
+        return;
+      }
+      if (result.value.kind === 'not-active') {
+        res.status(409).json({
+          error: 'run_not_active',
+          state: result.value.run.state,
+          message: 'That run is no longer active, so there is nothing to stop.',
+        });
+        return;
+      }
+
+      const runIds = result.value.runs.map((run) => run.runId);
+      const abortedHere = abortInProcessRuns(runIds);
+      const durableRun = result.value.runs[0];
+      const warehouse = await cancelTaggedWarehouseQueries({
+        req,
+        scope: {
+          mode: 'owner',
+          signedInEmail: actor,
+          runId: durableRun?.runId,
+          correlationId: durableRun?.correlationId ?? identifier,
+        },
+        transport: appkit.warehouseCancellationTransport,
+      });
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: 'run-cancelled',
+        subject: runIds.join(','),
+        detail: `${actor} stopped their own active Astrolabe run(s): ${runIds.join(', ')}.`,
+      });
+      res.json({
+        targeted: runIds.length,
+        cancelled: runIds.length,
+        runIds,
+        abortedHere,
+        failures: warehouse.failures,
+        warehouse: warehouse.result,
+        modelServing:
+          'App-side stream consumption was stopped and no replacement invocation will be started. ' +
+          'A model invocation already accepted by Model Serving may still finish server-side.',
+      });
+    });
+
+    /**
+     * Stop the one-time snapshot of active Ask runs.
+     *
+     * This writes no pause flag, stops no warehouse, and deletes no history.
+     * Runs admitted after the UPDATE snapshot continue normally.
+     */
+    app.post('/api/admin/runs/cancel-all', async (req, res) => {
+      const actor = userEmail(req);
+      const result = await cancelAllExecutingRuns(appkit);
+      if (!result.ok) {
+        res.status(503).json({
+          error: 'run_cancel_all_unavailable',
+          message: 'No runs were reported stopped because the durable snapshot could not be updated.',
+        });
+        return;
+      }
+      const runIds = result.value.map((run) => run.runId);
+      const abortedHere = abortInProcessRuns(runIds);
+      const failures: string[] = [];
+      let benchmarkSuites = 0;
+      try {
+        const benchmarkResult = await appkit.lakebase.query(
+          `UPDATE ${APP_SCHEMA}.benchmark_runs
+              SET metrics_json = jsonb_set(metrics_json, '{cancelRequested}', 'true'::jsonb, true)
+            WHERE status = 'running'
+          RETURNING id`
+        );
+        benchmarkSuites = benchmarkResult.rows.length;
+      } catch (error) {
+        console.warn('[cancel] Active benchmark suites could not be marked for cancellation:', (error as Error).message);
+        failures.push('Active benchmark suites could not be marked for cancellation.');
+      }
+      const warehouse = await cancelTaggedWarehouseQueries({
+        req,
+        scope: { mode: 'admin' },
+        transport: appkit.warehouseCancellationTransport,
+      });
+      failures.push(...warehouse.failures);
+      await recordAdminAction(appkit.lakebase, {
+        actor,
+        action: 'runs-cancelled',
+        subject: 'active-astrolabe-runs',
+        detail: `${actor} stopped a one-time snapshot of ${runIds.length} active Astrolabe run(s).`,
+      });
+      res.json({
+        targeted: runIds.length,
+        cancelled: runIds.length,
+        runIds,
+        abortedHere,
+        failures,
+        warehouse: warehouse.result,
+        benchmarkSuites,
+        oneShot: true,
+        deleted: 0,
+        futureAsksPaused: false,
+        modelServing:
+          'App-side stream consumption was stopped where reachable and no replacement invocation will be started. ' +
+          'Model invocations already accepted by Model Serving may still finish server-side.',
+      });
+    });
+
     app.post('/api/insights/ask', async (req, res) => {
       // Every response below goes through this rather than through `res`, so the
       // handler reads the same whether the caller wanted the answer in one JSON
@@ -4258,9 +4509,43 @@ export function setupInsightsRoutes(
         // The endpoint is the promoted winner when Benchmarking saved one,
         // otherwise the deployed default. Connections does not change.
         const askEndpoint = await resolveAskEndpoint(appkit);
-        const endpointResult = identity.token
-          ? await invokeServingAsUser(appkit, payload, identity.token, onStage, SERVING_INVOKE_TIMEOUT_MS, askEndpoint)
-          : await invokeServing(appkit, payload, onStage, SERVING_INVOKE_TIMEOUT_MS, undefined, askEndpoint);
+        const cancellationController = new AbortController();
+        const unregisterCancellation = admission.run
+          ? registerRunController(admission.run.runId, cancellationController)
+          : () => undefined;
+        const cancellationWatch = admission.run
+          ? watchDurableCancellation({
+              store: appkit,
+              runId: admission.run.runId,
+              userEmail: email,
+              controller: cancellationController,
+            })
+          : null;
+        let endpointResult: unknown;
+        try {
+          endpointResult = identity.token
+            ? await invokeServingAsUser(
+                appkit,
+                payload,
+                identity.token,
+                onStage,
+                SERVING_INVOKE_TIMEOUT_MS,
+                askEndpoint,
+                cancellationController.signal
+              )
+            : await invokeServing(
+                appkit,
+                payload,
+                onStage,
+                SERVING_INVOKE_TIMEOUT_MS,
+                undefined,
+                askEndpoint,
+                cancellationController.signal
+              );
+        } finally {
+          cancellationWatch?.stop();
+          unregisterCancellation();
+        }
         ranAsSignedInUser = Boolean(identity.token);
         /**
          * Before all four shapes, because a refusal is none of them and looks
@@ -4499,6 +4784,27 @@ export function setupInsightsRoutes(
           return;
         }
       } catch (error) {
+        if (isRunCancelledError(error)) {
+          console.info(
+            `[serving] Run ${error.runId} was cancelled. App-side consumption stopped and no replacement ` +
+              'invocation was started; the current Model Serving invocation may still finish server-side.'
+          );
+          // The cancellation route already wrote the authoritative terminal
+          // state and incremented the fence. Do not call settleRun here: doing
+          // so would relabel an explicit Stop as a dependency failure.
+          reply.status(409).json({
+            type: 'cancelled',
+            state: 'CANCELLED',
+            message: 'Stopped.',
+            runId: admission.run?.runId ?? error.runId,
+            correlationId: identity.correlationId,
+            completedStages: stagesSeen,
+            modelServing:
+              'App-side stream consumption stopped and no replacement invocation was started. ' +
+              'The current model invocation may still finish server-side.',
+          });
+          return;
+        }
         if (error instanceof TruncatedStreamError && error.stages > 0) {
           console.error(
             `[serving] The stream ended after ${error.stages} stage(s). The partial run was kept and no second invocation was started.`

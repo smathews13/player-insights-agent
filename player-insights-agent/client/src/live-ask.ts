@@ -70,6 +70,8 @@ export interface LiveAsk {
   runningSince: number | null;
   /** Every stage reported so far, announcements merged in place by id. */
   stages: TraceStage[];
+  /** Why an explicitly cancelled run stopped, retained across navigation. */
+  stopNotice: string | null;
   /**
    * Whether the stream this browser opened is still open.
    *
@@ -150,6 +152,7 @@ export function beginLiveAsk({
     lastStageAt: null,
     runningSince: null,
     stages: [],
+    stopNotice: null,
     inFlight: true,
   });
   announce();
@@ -203,6 +206,18 @@ export function endLiveAsk(conversationId: string): void {
   const run = runs.get(conversationId);
   if (!run) return;
   runs.set(conversationId, { ...run, inFlight: false, runningSince: null });
+  announce();
+}
+
+export function stopLiveAsk(conversationId: string, notice: string): void {
+  const run = runs.get(conversationId);
+  if (!run) return;
+  runs.set(conversationId, {
+    ...run,
+    inFlight: false,
+    runningSince: null,
+    stopNotice: notice,
+  });
   announce();
 }
 
@@ -291,6 +306,7 @@ export function hydrateLiveAsk({
     lastStageAt: at,
     runningSince: nextRunningSince({ stages: merged, since: run?.runningSince ?? null, now: at }),
     stages: merged,
+    stopNotice: run?.stopNotice ?? null,
     // A run being replayed is a run the caller found still working. A run that
     // has ended is settled by `endLiveAsk`, and its entry is kept with its steps.
     inFlight: run?.inFlight ?? true,

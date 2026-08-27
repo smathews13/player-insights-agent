@@ -9,6 +9,7 @@
 
 import type { Request } from 'express';
 import { qualifyDataContractTables } from '../../shared/data-contract';
+import { sqlQueryTags } from '../lib/sql-query-tags';
 
 // The copy for a refused token, and the comparison it is derived from. Here
 // rather than written inline below, because a diagnosis stated inline is a
@@ -1807,6 +1808,11 @@ function statementExecutorFor(options: StatementOptions) {
         body: JSON.stringify({
           warehouse_id: options.warehouseId,
           statement,
+          query_tags: sqlQueryTags({
+            surface: 'connections',
+            tool: 'access_verification',
+            operation: 'preflight',
+          }),
           // Long enough for a warehouse that has to wake up, and synchronous so
           // the route does not have to poll a statement id to find out whether a
           // permission held.

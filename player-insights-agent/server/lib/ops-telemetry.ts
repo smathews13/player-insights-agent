@@ -41,6 +41,7 @@
  */
 
 import { tableGrant, classifyDenial, type Remedy } from '../routes/access-verification';
+import { sqlQueryTags } from './sql-query-tags';
 import {
   SPAN_PERCENTILE_FLOOR,
   type AppMeasurement,
@@ -561,6 +562,11 @@ export const workspaceExporterReader: ExporterReader = async () => {
       payload: {
         warehouse_id: warehouse,
         statement: buildExporterStatement(schema),
+        query_tags: sqlQueryTags({
+          surface: 'telemetry',
+          tool: 'ops_telemetry',
+          operation: 'exporter_read',
+        }),
         wait_timeout: '30s',
         on_wait_timeout: 'CANCEL',
         format: 'JSON_ARRAY',

@@ -122,9 +122,7 @@ settings = dataclasses.replace(
     data_genie_space_title=data_genie_title,
     dictionary_genie_space_title=dictionary_genie_title,
 )
-print(
-    f"Genie titles: data={data_genie_title!r} · dictionary={dictionary_genie_title!r}"
-)
+print(f"Genie titles: data={data_genie_title!r} · dictionary={dictionary_genie_title!r}")
 
 # Printed before anything is logged, not only in the JSON summary at the end:
 # a governance note that arrives after the model is registered has been filed
@@ -357,6 +355,9 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             str(ROOT / "provenance.py"),
             str(ROOT / "route_disclosure.py"),
             str(ROOT / "runtime_settings.py"),
+            # Registers the SDK User-Agent and builds bounded, request-scoped
+            # Statement Execution query tags for every runtime SQL call.
+            str(ROOT / "sdk_attribution.py"),
             str(ROOT / "sql_policy.py"),
             # Added by the packaging test rather than by hand, which is the point
             # of that test: the semantic search tool arrived imported at module

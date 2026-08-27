@@ -25,6 +25,7 @@ import {
   parseDeclaration,
   type NotebookDeclaration,
 } from '../../shared/notebook-declaration';
+import { sqlQueryTags } from './sql-query-tags';
 
 /**
  * A three-part Unity Catalog name, and nothing else.
@@ -134,6 +135,11 @@ export async function readPublishedDeclaration(input: {
       body: JSON.stringify({
         statement: declarationStatement(location),
         warehouse_id: input.warehouseId.trim(),
+        query_tags: sqlQueryTags({
+          surface: 'declaration',
+          tool: 'notebook_declaration',
+          operation: 'read',
+        }),
         wait_timeout: '30s',
         on_wait_timeout: 'CANCEL',
         // One row of bounded text. Asked for inline so there is no external link

@@ -79,7 +79,9 @@ def _integer(value: Any, default: int, low: int, high: int) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return default
     number = int(value)
-    return number if number == value and low <= number <= high else default
+    if number != value:
+        return default
+    return min(high, max(low, number))
 
 
 def _boolean(value: Any, default: bool) -> bool:
