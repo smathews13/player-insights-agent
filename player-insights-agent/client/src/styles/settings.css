@@ -77,6 +77,28 @@
   font-weight: 500;
 }
 
+/* Quiet jump from Experimental SP On to the existing Identity pane. A
+   button, not a new page, and not a sentence telling the reader to go there. */
+.settings-identity-link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settings-identity-link:hover {
+  text-decoration: underline;
+}
+
+.settings-identity-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* What the switch does, in the small rung. Not an argument for the feature --
    it says where the page goes when the switch is off, which is the part a
    reader cannot work out from the label. */

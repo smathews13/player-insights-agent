@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { EMPTY_SP_IDENTITY, SpIdentityEditor, UNASSIGNED_PERSONA } from './SpIdentityPanel';
+import { EMPTY_SP_IDENTITY, SP_PERSONA_FIELDS, SpIdentityEditor, UNASSIGNED_PERSONA } from './SpIdentityPanel';
 import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpIdentityAdminPayload } from '../../shared/sp-identity';
 
 const PAYLOAD: SpIdentityAdminPayload = {
@@ -60,6 +60,24 @@ describe('Settings → Identity', () => {
     expect(markup).not.toContain('type="password"');
     expect(markup).not.toMatch(/secret value/i);
     expect(JSON.stringify(payloadWithoutSecrets(PAYLOAD))).not.toMatch(/s3cret|client_secret|secretValue/i);
+  });
+
+  it('puts a short description and a fake example on each add-persona field', () => {
+    const markup = render(true);
+    expect(SP_PERSONA_FIELDS).toHaveLength(4);
+    for (const field of SP_PERSONA_FIELDS) {
+      expect(markup).toContain(field.label);
+      expect(markup).toContain(field.help);
+      expect(markup).toContain(`placeholder="${field.placeholder}"`);
+      expect(field.help.length).toBeLessThan(80);
+    }
+    expect(markup).toContain('placeholder="Northwind warehouse"');
+    expect(markup).toContain('placeholder="00000000-0000-4000-a000-000000000000"');
+    expect(markup).toContain('placeholder="astrolabe-sp"');
+    expect(markup).toContain('placeholder="oauth-client-secret"');
+    expect(markup).not.toContain('secrets stay in Databricks');
+    expect(markup).not.toContain('Databricks Apps cannot mint a token');
+    expect(markup).not.toMatch(/example|example-workspace|<app-service-principal-client-id>/i);
   });
 
   it('assigns one persona per roster person, with OAuth as the unassigned choice', () => {

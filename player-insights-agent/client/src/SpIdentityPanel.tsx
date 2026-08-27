@@ -27,6 +27,38 @@ export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
 /** Radix Select refuses an empty string; this is "no persona, stay on OAuth". */
 export const UNASSIGNED_PERSONA = 'oauth';
 
+/** Field-help and ghost examples on Add persona. Invented values, never a live id. */
+export const SP_PERSONA_FIELDS = [
+  {
+    key: 'displayName',
+    label: 'Display name',
+    ariaLabel: 'Persona display name',
+    help: 'Name shown when you assign this persona.',
+    placeholder: 'Northwind warehouse',
+  },
+  {
+    key: 'clientId',
+    label: 'Application / client id',
+    ariaLabel: 'Service principal application id',
+    help: 'The service principal application ID.',
+    placeholder: '00000000-0000-4000-a000-000000000000',
+  },
+  {
+    key: 'secretScope',
+    label: 'Secret scope',
+    ariaLabel: 'Databricks secret scope',
+    help: 'Databricks secret scope name.',
+    placeholder: 'astrolabe-sp',
+  },
+  {
+    key: 'secretKey',
+    label: 'Secret key',
+    ariaLabel: 'Databricks secret key',
+    help: 'Key name in that scope.',
+    placeholder: 'oauth-client-secret',
+  },
+] as const;
+
 function serverDetail(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback;
   const detail = (body as { detail?: unknown }).detail;
@@ -64,6 +96,35 @@ async function readPayload(response: Response, operation: string): Promise<SpIde
   return body as SpIdentityAdminPayload;
 }
 
+function PersonaDraftField({
+  field,
+  value,
+  onChange,
+}: {
+  field: (typeof SP_PERSONA_FIELDS)[number];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const helpId = `sp-persona-${field.key}-help`;
+  return (
+    <label className="runtime-field">
+      <span className="runtime-field-label">{field.label}</span>
+      <span id={helpId} className="runtime-control-note">
+        {field.help}
+      </span>
+      <Input
+        type="text"
+        autoComplete="off"
+        aria-label={field.ariaLabel}
+        aria-describedby={helpId}
+        placeholder={field.placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
 export function SpIdentityEditor({
   enabled,
   payload,
@@ -81,11 +142,19 @@ export function SpIdentityEditor({
   onRemove: (id: string) => void;
   onAssign: (email: string, personaId: string | null) => void;
 }) {
-  const [displayName, setDisplayName] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [secretScope, setSecretScope] = useState('');
-  const [secretKey, setSecretKey] = useState('');
-  const canAdd = enabled && !busy && displayName.trim() && clientId.trim() && secretScope.trim() && secretKey.trim();
+  const [draft, setDraft] = useState({
+    displayName: '',
+    clientId: '',
+    secretScope: '',
+    secretKey: '',
+  });
+  const canAdd =
+    enabled &&
+    !busy &&
+    draft.displayName.trim() &&
+    draft.clientId.trim() &&
+    draft.secretScope.trim() &&
+    draft.secretKey.trim();
 
   const personaOptions = [
     { value: UNASSIGNED_PERSONA, label: 'OAuth (signed-in user)' },
@@ -95,9 +164,7 @@ export function SpIdentityEditor({
   return (
     <fieldset className="sp-identity-cluster" disabled={!enabled} data-testid="sp-identity-pane">
       <legend className="runtime-section-label">Service principal personas</legend>
-      {!enabled ? (
-        <p className="settings-row-note">Turn SP identities on under Experimental</p>
-      ) : null}
+      {!enabled ? <p className="settings-row-note">Turn SP identities on under Experimental</p> : null}
       <MintingNotice minting={payload.minting} />
       {error ? (
         <p className="settings-status settings-error" role="alert">
@@ -106,61 +173,26 @@ export function SpIdentityEditor({
       ) : null}
 
       <div className="sp-identity-add">
-        <label className="runtime-field">
-          <span className="runtime-field-label">Display name</span>
-          <Input
-            type="text"
-            autoComplete="off"
-            aria-label="Persona display name"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
+        {SP_PERSONA_FIELDS.map((field) => (
+          <PersonaDraftField
+            key={field.key}
+            field={field}
+            value={draft[field.key]}
+            onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))}
           />
-        </label>
-        <label className="runtime-field">
-          <span className="runtime-field-label">Application / client id</span>
-          <Input
-            type="text"
-            autoComplete="off"
-            aria-label="Service principal application id"
-            value={clientId}
-            onChange={(event) => setClientId(event.target.value)}
-          />
-        </label>
-        <label className="runtime-field">
-          <span className="runtime-field-label">Secret scope</span>
-          <Input
-            type="text"
-            autoComplete="off"
-            aria-label="Databricks secret scope"
-            value={secretScope}
-            onChange={(event) => setSecretScope(event.target.value)}
-          />
-        </label>
-        <label className="runtime-field">
-          <span className="runtime-field-label">Secret key</span>
-          <Input
-            type="text"
-            autoComplete="off"
-            aria-label="Databricks secret key"
-            value={secretKey}
-            onChange={(event) => setSecretKey(event.target.value)}
-          />
-        </label>
+        ))}
         <Button
           type="button"
           data-variant="primary"
           disabled={!canAdd}
           onClick={() => {
             onAdd({
-              displayName: displayName.trim(),
-              clientId: clientId.trim(),
-              secretScope: secretScope.trim(),
-              secretKey: secretKey.trim(),
+              displayName: draft.displayName.trim(),
+              clientId: draft.clientId.trim(),
+              secretScope: draft.secretScope.trim(),
+              secretKey: draft.secretKey.trim(),
             });
-            setDisplayName('');
-            setClientId('');
-            setSecretScope('');
-            setSecretKey('');
+            setDraft({ displayName: '', clientId: '', secretScope: '', secretKey: '' });
           }}
         >
           Add persona

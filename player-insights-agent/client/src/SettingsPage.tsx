@@ -281,7 +281,25 @@ export function SettingsPage({
                   </div>
                   <div className="settings-row">
                     <div>
-                      <p className="settings-row-label">SP identities · {spIdentityEnabled ? 'On' : 'Off'}</p>
+                      <p className="settings-row-label">
+                        SP identities · {spIdentityEnabled ? 'On' : 'Off'}
+                        {spIdentityEnabled ? (
+                          <>
+                            {' · '}
+                            <button
+                              type="button"
+                              className="settings-identity-link"
+                              data-testid="sp-identity-settings-link"
+                              onClick={() => {
+                                setActive('identity');
+                                setSaveState(SETTINGS_SAVE_IDLE);
+                              }}
+                            >
+                              Identity
+                            </button>
+                          </>
+                        ) : null}
+                      </p>
                       {spModeError ? (
                         <p className="settings-status settings-error" role="alert">
                           {spModeError}

@@ -76,7 +76,9 @@ describe('Settings modal', () => {
       expect(markup).not.toContain('Live behavior for the next ask.');
       expect(markup).not.toContain('Theme, type, and chip colours');
       expect(markup).not.toContain('Unfinished or internal surfaces, off by default.');
-      expect(markup).not.toContain('Shows the Benchmarking tab: evaluation dataset, Genie accuracy, then agent judges.');
+      expect(markup).not.toContain(
+        'Shows the Benchmarking tab: evaluation dataset, Genie accuracy, then agent judges.'
+      );
     }
   });
 
@@ -116,7 +118,7 @@ describe('Settings modal', () => {
     expect(on).not.toContain('Who runs as which persona');
     expect(on).not.toContain('Administrators assign this');
     expect(on).not.toContain('never the secret itself');
-    expect(on).not.toContain("Databricks Apps cannot mint a token for another service principal");
+    expect(on).not.toContain('Databricks Apps cannot mint a token for another service principal');
   });
 
   /**
@@ -137,7 +139,9 @@ describe('Settings modal', () => {
       />
     );
     expect(experimental).toContain('SP identities · Off');
+    expect(experimental).not.toContain('data-testid="sp-identity-settings-link"');
     expect(experimental).not.toContain('the whole deployment');
+    expect(experimental).not.toContain('go to Identity to assign');
 
     const identity = renderToStaticMarkup(
       <SettingsPage
@@ -163,6 +167,9 @@ describe('Settings modal', () => {
       />
     );
     expect(experimental).toContain('SP identities · On');
+    expect(experimental).toContain('data-testid="sp-identity-settings-link"');
+    expect(experimental).not.toContain('once enabled');
+    expect(experimental).not.toContain('go to Identity to assign');
 
     const identity = renderToStaticMarkup(
       <SettingsPage
@@ -181,6 +188,14 @@ describe('Settings modal', () => {
     const markup = render('experimental');
     expect(markup).toContain('aria-label="Run assigned people as their service principal"');
     expect(markup).not.toContain('People without an assignment still use OAuth');
+  });
+
+  it('opens the existing Identity pane from the Experimental SP row, only when On', () => {
+    const source = readFileSync(new URL('SettingsPage.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('data-testid="sp-identity-settings-link"');
+    expect(source).toContain("setActive('identity')");
+    expect(source).not.toContain('once enabled');
+    expect(source).not.toContain('go to Identity to assign');
   });
 
   it('puts PII egress, SP identities, and resource tags above the benchmarking Candidate cluster', () => {
