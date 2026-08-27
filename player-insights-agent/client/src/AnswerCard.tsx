@@ -16,7 +16,7 @@ import { dataAccessDisclosure } from './analytical-execution';
 import type { TraceStage } from './answer-shape';
 import { answerBadge, answerFallbackNotice, splitCaveats } from './degraded-answer';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
-import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
+import { isMlflowTraceId, withoutUntracedTimeline } from '../../shared/mlflow-trace-id';
 import { answerRunVerdict } from '../../shared/run-verdict';
 import {
   Alert,
@@ -138,7 +138,7 @@ export function AnswerCard({
   const recorded = isMlflowTraceId(answer.trace.id);
   const processTrace =
     !recorded
-      ? { ...answer.trace, stages: [], totalMs: 0, toolCalls: 0 }
+      ? withoutUntracedTimeline(answer.trace)
       : answer.trace.stages.length > 0 || !processStages?.length
         ? answer.trace
         : {

@@ -67,28 +67,30 @@ export function bindServingMlflowTraceId<T extends { trace: { id: string } }>(an
 }
 
 /**
+ * Drop the local Gantt when MLflow never issued a `tr-` id.
+ *
+ * Keep wall time and the agent's tool-call counter. Those are RunLog
+ * measurements, not MLflow, and zeroing them made Explorer say "0 tools" and
+ * "not set" on a run that had called SQL and burned the budget.
+ */
+export function withoutUntracedTimeline<T extends { id: string; stages?: unknown[] }>(trace: T): T {
+  if (isMlflowTraceId(trace.id)) return trace;
+  if (!Array.isArray(trace.stages) || trace.stages.length === 0) return trace;
+  return { ...trace, stages: [] };
+}
+
+/**
  * Take the process view off an answer that has no recorded MLflow trace.
  *
  * The agent's `RunLog` always records local stages, even when MLflow handed
  * back a no-op span. Those stages are what made Keep in mind say "no trace"
- * while the card still drew a convincing Gantt. Figures and SQL stay: they are
- * the answer. The timeline, stage timings and tool-call count do not.
+ * while the card still drew a convincing Gantt. Figures, SQL, wall time and
+ * the tool-call count stay: they are the answer and the agent's own meters.
+ * The timeline does not.
  */
 export function withoutUntracedProcess<
   T extends { trace: { id: string; stages?: unknown[]; totalMs?: number; toolCalls?: number } },
 >(answer: T): T {
-  if (isMlflowTraceId(answer.trace.id)) return answer;
-  const stages = answer.trace.stages;
-  const hasProcess =
-    (Array.isArray(stages) && stages.length > 0) || Boolean(answer.trace.totalMs) || Boolean(answer.trace.toolCalls);
-  if (!hasProcess) return answer;
-  return {
-    ...answer,
-    trace: {
-      ...answer.trace,
-      stages: [],
-      totalMs: 0,
-      toolCalls: 0,
-    },
-  };
+  const trace = withoutUntracedTimeline(answer.trace);
+  return trace === answer.trace ? answer : { ...answer, trace };
 }

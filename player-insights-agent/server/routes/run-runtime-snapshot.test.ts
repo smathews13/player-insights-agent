@@ -50,4 +50,38 @@ describe('the run trace carries the runtime that Ask sent', () => {
     const trace = conversationRunTrace(row({}), '');
     expect(trace.runtimeUsed).toBeNull();
   });
+
+  it('keeps the agent’s tool-call count and wall time when MLflow never recorded', () => {
+    const trace = conversationRunTrace(
+      row({
+        trace: {
+          id: 'trace-local',
+          totalMs: 150_500,
+          toolCalls: 4,
+          prompt_tokens: 111_872,
+          completion_tokens: 2_340,
+          total_tokens: 114_212,
+          stages: [
+            {
+              id: 'step-1-1-run_sql',
+              name: 'Ran a governed read-only query',
+              kind: 'tool',
+              status: 'failed',
+              start: 0,
+              duration: 110_000,
+              calls: 1,
+              input: 'SELECT 1',
+              output: 'timeout',
+            },
+          ],
+        },
+      }),
+      ''
+    );
+    expect(trace.trace?.toolCalls).toBe(4);
+    expect(trace.trace?.totalMs).toBe(150_500);
+    expect(trace.trace?.total_tokens).toBe(114_212);
+    expect(trace.trace?.stages).toEqual([]);
+    expect(trace.toolStages).toEqual([]);
+  });
 });

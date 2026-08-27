@@ -3492,8 +3492,12 @@ describe('a canned answer discloses that no live query produced it', () => {
       expect(answered.caveats).toContain(REPRESENTATIVE_ANSWER_CAVEAT);
       expect((answered.trace as { id: string }).id).toBe('trace-local');
       expect((answered.trace as { stages: unknown[] }).stages).toEqual([]);
-      expect((answered.trace as { totalMs: number; toolCalls: number }).totalMs).toBe(0);
-      expect((answered.trace as { toolCalls: number }).toolCalls).toBe(0);
+      expect((answered.trace as { totalMs: number; toolCalls: number }).totalMs).toBe(
+        servingResponses.liveAnswerResponse.custom_outputs.answer.trace.totalMs
+      );
+      expect((answered.trace as { toolCalls: number }).toolCalls).toBe(
+        servingResponses.liveAnswerResponse.custom_outputs.answer.trace.toolCalls
+      );
       expect(answered.figures).toEqual(servingResponses.liveAnswerResponse.custom_outputs.answer.figures);
     } finally {
       await app.close();

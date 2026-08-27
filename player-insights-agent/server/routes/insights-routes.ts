@@ -21,6 +21,7 @@ import {
   isMlflowTraceId,
   servingMlflowTraceId,
   withoutUntracedProcess,
+  withoutUntracedTimeline,
 } from '../../shared/mlflow-trace-id';
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
@@ -933,6 +934,7 @@ export {
   isMlflowTraceId,
   servingMlflowTraceId,
   withoutUntracedProcess,
+  withoutUntracedTimeline,
 } from '../../shared/mlflow-trace-id';
 
 /**
@@ -1073,9 +1075,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     const asked = clarification.success ? TraceDetailSchema.safeParse(clarification.data.trace) : null;
     if (clarification.success && asked?.success) {
       const recorded = isMlflowTraceId(asked.data.id);
-      const process = recorded
-        ? asked.data
-        : { ...asked.data, stages: [], totalMs: 0, toolCalls: 0 };
+      const process = withoutUntracedTimeline(asked.data);
       return {
         ...identity,
         state: 'trace',
@@ -1122,7 +1122,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
   }
 
   const recorded = isMlflowTraceId(trace.data.id);
-  const process = recorded ? trace.data : { ...trace.data, stages: [], totalMs: 0, toolCalls: 0 };
+  const process = withoutUntracedTimeline(trace.data);
 
   return {
     ...identity,
