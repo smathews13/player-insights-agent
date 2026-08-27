@@ -1,6 +1,8 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from runtime_settings import RuntimeSettings, activate, current, prompt_fragment, today_line
 
 
@@ -109,3 +111,5 @@ def test_the_answer_reserve_scales_and_is_zero_at_the_floor():
     assert answer_reserve_seconds() == 0
     activate({"runtime_settings": {"loop": {"maxRunSeconds": 150}}})
     assert answer_reserve_seconds() == 25
+    activate({"runtime_settings": {"loop": {"maxRunSeconds": 200}}})
+    assert answer_reserve_seconds() == pytest.approx(25 * 200 / 150)

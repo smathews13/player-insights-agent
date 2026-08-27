@@ -434,6 +434,13 @@ class Synthesis(BaseModel):
 
         return "" if value is None else value
 
+    @field_validator("figures", "document_snippets", "caveats", mode="before")
+    @classmethod
+    def _null_list_is_empty(cls, value: Any) -> Any:
+        """Same for a null section: the key was sent, and it means none."""
+
+        return [] if value is None else value
+
 
 # ---------------------------------------------------------------------------
 # Turning the finder's internal handoff into something a reader can be shown

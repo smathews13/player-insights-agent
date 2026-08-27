@@ -241,3 +241,18 @@ class AnswerContract(BaseModel):
         """An explicit JSON null means 'nothing here', not a validation failure."""
 
         return "" if value is None else value
+
+    @field_validator(
+        "figures",
+        "charts",
+        "sources",
+        "document_snippets",
+        "caveats",
+        "derivation",
+        mode="before",
+    )
+    @classmethod
+    def _null_list_is_empty(cls, value: Any) -> Any:
+        """A null section is none of that section, not a failed answer object."""
+
+        return [] if value is None else value

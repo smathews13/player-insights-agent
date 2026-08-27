@@ -3504,6 +3504,57 @@ class TestIncompleteSynthesis:
         assert agent._synthesis_stage_status(finished) == "complete"
 
 
+def test_an_explicit_null_section_is_empty_not_a_failed_object():
+    """A Pydantic default applies only where a key is absent.
+
+    An explicit null used to fail the whole object, and the caller then put the
+    raw model text into the answer body. Both spellings — missing key and null —
+    now mean 'nothing here'.
+    """
+
+    from contracts import AnswerContract
+
+    synthesis = agent.Synthesis.model_validate(
+        {
+            "takeaway": "273 million played.",
+            "narrative": "Counted brand_firstpartyid.",
+            "content": None,
+            "figures": None,
+            "caveats": None,
+            "document_snippets": None,
+        }
+    )
+    assert synthesis.takeaway == "273 million played."
+    assert synthesis.content == ""
+    assert synthesis.figures == []
+    assert synthesis.caveats == []
+    assert synthesis.document_snippets == []
+
+    answer = AnswerContract.model_validate(
+        {
+            "id": "a1",
+            "takeaway": "273 million played.",
+            "narrative": "Counted brand_firstpartyid.",
+            "content": None,
+            "figures": None,
+            "charts": None,
+            "sources": None,
+            "document_snippets": None,
+            "caveats": None,
+            "derivation": None,
+            "sql": None,
+            "trace": {"id": "t1", "totalMs": 1, "toolCalls": 0, "stages": []},
+        }
+    )
+    assert answer.content == ""
+    assert answer.sql == ""
+    assert answer.figures == []
+    assert answer.charts == []
+    assert answer.sources == []
+    assert answer.caveats == []
+    assert answer.derivation == []
+
+
 def test_headline_figures_are_bounded_without_fabricating_them():
     # "at most {MAX_FIGURES}" and not the literal "3-4", because the cap is an
     # operator setting and the phrase is what `_synthesise` retunes. See MAX_FIGURES.
