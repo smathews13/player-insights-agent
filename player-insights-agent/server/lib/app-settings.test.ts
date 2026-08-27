@@ -183,6 +183,32 @@ describe('lining up configured against actual', () => {
     expect(state(all, 'agent-endpoint').configuredFrom).toBe('app-environment');
   });
 
+  it('shows the foundation model the release named, rather than a blank not-set', () => {
+    const all = states({
+      report: report({
+        configuration: [configured({ key: 'llm_endpoint', value: 'databricks-claude-sonnet-4-6' })],
+      }),
+      environment: {},
+      stored: stored(),
+    });
+    expect(state(all, 'llm-endpoint').configured).toBe('databricks-claude-sonnet-4-6');
+  });
+
+  it('falls back to the app environment when the configuration list omitted the foundation model', () => {
+    const all = states({
+      report: report({ configuration: [] }),
+      environment: { PLAYER_INSIGHTS_LLM_ENDPOINT: 'databricks-claude-sonnet-4-6' },
+      stored: stored(),
+    });
+    expect(state(all, 'llm-endpoint').configured).toBe('databricks-claude-sonnet-4-6');
+    expect(state(all, 'llm-endpoint').configuredFrom).toBe('app-environment');
+  });
+
+  it('does not invent a foundation model when nothing named one', () => {
+    const all = states({ report: report({ configuration: [] }), environment: {}, stored: stored() });
+    expect(state(all, 'llm-endpoint').configured).toBe('');
+  });
+
   it('shows what an unset app variable will actually do', () => {
     // An empty variable is not "no value": the code behind it falls through to a
     // compiled default and the deployment behaves accordingly. A dash here would
@@ -459,6 +485,41 @@ describe('what the page refuses to call healthy', () => {
     const findings = computeDrift({ report: report(), states: all });
 
     expect(findings.map((finding) => finding.id)).not.toContain('provenance-llm-gateway');
+    expect(driftStatus(findings)).not.toBe('blocked');
+  });
+
+  it('does not call the committed data-contract table list a provenance failure', () => {
+    /**
+     * THE LIVE DEFECT THIS PINS. After the fake preflight Ask went away, the
+     * six-name fallback is what the container has until the baked model version
+     * or a Unity Catalog listing fills the rest. Tagging that list `data-contract`
+     * (so later recovery can tell it from an explicit env list) made the
+     * provenance loop treat a healthy Git deploy as blocked — the same wolf-cry
+     * as the empty `llm_gateway` default, on the page whose job is to be believed.
+     */
+    const all = states({
+      report: report({
+        configuration: [
+          configured({
+            key: 'declared_manifest',
+            value: [
+              'a.b.data_dictionary',
+              'a.b.gold_player_180d_summary',
+              'a.b.gold_title_daily_summary',
+              'a.b.silver_gameplay_activity',
+              'a.b.silver_player_profiles',
+              'a.b.silver_purchases',
+            ],
+            source: 'data-contract',
+          }),
+        ],
+      }),
+      environment: {},
+      stored: stored(),
+    });
+    const findings = computeDrift({ report: report(), states: all });
+
+    expect(findings.map((finding) => finding.id)).not.toContain('provenance-declared-manifest');
     expect(driftStatus(findings)).not.toBe('blocked');
   });
 

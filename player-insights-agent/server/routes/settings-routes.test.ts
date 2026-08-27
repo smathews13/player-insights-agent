@@ -66,6 +66,8 @@ const RELEASE_ENV_KEYS = [
   'PLAYER_INSIGHTS_DATA_GENIE_ID',
   'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
   'PLAYER_INSIGHTS_WAREHOUSE_ID',
+  'PLAYER_INSIGHTS_LLM_ENDPOINT',
+  'PLAYER_INSIGHTS_SEMANTIC_INDEX',
 ] as const;
 
 const savedReleaseEnv: Record<string, string | undefined> = {};
@@ -172,6 +174,9 @@ describe('what /api/settings makes of this release, without asking the agent', (
     expect(catalog?.configuredFrom).toBe('app-environment');
     expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.value).toEqual(
       qualifyDataContractTables('a_catalog', 'a_schema')
+    );
+    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.source).toBe(
+      'data-contract'
     );
   });
 

@@ -515,6 +515,17 @@ export function resourceStates(input: {
 const ARTIFACT = 'artifact';
 
 /**
+ * Provenance the page must not treat as a leak.
+ *
+ * `artifact` is the model version. `app-environment` is what this release wrote
+ * into the container. `data-contract` is the committed six-name fallback the
+ * app uses when the container was not given a longer list — it is compiled into
+ * the app, not resolved from a shell, so crying "this did not come from the
+ * model artifact" over it turns a healthy Git deploy into a blocked page.
+ */
+const TRUSTED_PROVENANCE = new Set([ARTIFACT, 'app-environment', 'data-contract']);
+
+/**
  * The healthiest state this page has, written so a reader can tell.
  *
  * ONE CONSTANT BECAUSE THERE ARE TWO CALL SITES. An absent report and a
@@ -643,7 +654,7 @@ export function computeDrift(input: {
   //    config.py exists to prevent, seen from the outside.
   for (const state of states) {
     if (!state.resource.agentKey || !state.configuredFrom) continue;
-    if (state.configuredFrom === ARTIFACT || state.configuredFrom === 'app-environment') continue;
+    if (TRUSTED_PROVENANCE.has(state.configuredFrom)) continue;
     /**
      * An ABSENT value has no provenance to doubt, which check 4 already knows and
      * this one did not.

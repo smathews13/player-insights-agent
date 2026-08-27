@@ -182,10 +182,12 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     label: 'Foundation model',
     kind: 'model',
     changedBy: 'model-version',
-    arrivesBy: 'MLflow model_config, baked by agent/log_model.py at log time.',
+    arrivesBy:
+      'MLflow model_config, baked by agent/log_model.py at log time, or PLAYER_INSIGHTS_LLM_ENDPOINT ' +
+      'when the app release wrote the same bundle variable into the container.',
     bundleVariable: 'llm_endpoint',
     agentKey: 'llm_endpoint',
-    appEnvVar: null,
+    appEnvVar: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
     actualFromCheck: 'llm-endpoint',
     namesRemoteObject: true,
     applyWith: AGENT_RELEASE,
@@ -403,7 +405,7 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     // the environment the release script logs it from.
     bundleVariable: null,
     agentKey: 'semantic_index',
-    appEnvVar: null,
+    appEnvVar: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
     actualFromCheck: null,
     namesRemoteObject: true,
     applyWith: 'Set PLAYER_INSIGHTS_SEMANTIC_INDEX and re-log the model. The app cannot change it.',

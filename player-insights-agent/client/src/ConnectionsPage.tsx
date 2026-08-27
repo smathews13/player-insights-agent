@@ -260,6 +260,7 @@ const SOURCE_WORDS: Record<string, string> = {
   'app-environment': 'from the app container',
   'app-default': 'the app default, because no value was set',
   'app-saved': 'saved here, and in force ahead of the deployed value',
+  'data-contract': "from this build's data contract",
 };
 
 function tierBadgeVariant(tier: ChangedBy) {

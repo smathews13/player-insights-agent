@@ -20,7 +20,13 @@ import {
   type PreflightConfiguration,
   type PreflightReport,
 } from './insights-routes';
-import { configurationFromRelease } from '../lib/release-configuration';
+import { configurationForSettings } from '../lib/release-configuration';
+import { readBakedModelConfig } from '../lib/baked-model-config';
+import {
+  isDataContractFallback,
+  listDeclarableTablesInSchema,
+  unionTableNames,
+} from '../lib/declared-tables';
 import type { StoredSetting } from '../lib/app-settings';
 import { lakebaseStorageCheck } from '../lib/lakebase-store';
 import {
@@ -189,15 +195,17 @@ function configurationOnlyReport(configuration: PreflightConfiguration[]): Prefl
 /**
  * The release's configuration, never a serving invoke.
  *
- * Connections still needs catalog, schema, Genie ids and the declared table
- * list. Those come from the app container (filled at app-release from the same
- * bundle variables a log uses) and, when catalog+schema are present, from the
- * committed data contract. Unity Catalog then answers whether the signed-in
- * user can reach those objects.
+ * Connections still needs catalog, schema, Genie ids, the foundation model,
+ * the Vector Search index and the declared table list. Those come from the app
+ * container where the release wrote them, from the served model version's
+ * baked model_config (a GET, never an Ask), and, when catalog+schema are
+ * present and nothing longer was written, from the committed data contract.
+ * Unity Catalog then answers whether the signed-in user can reach those objects.
  */
 export async function readOrchestratorReport(): Promise<OrchestratorRead> {
+  const baked = await readBakedModelConfig();
   return {
-    report: configurationOnlyReport(configurationFromRelease(process.env)),
+    report: configurationOnlyReport(configurationForSettings(process.env, baked)),
     answered: false,
   };
 }
@@ -927,12 +935,35 @@ async function readReachability(
     // does. Reading the raw configuration instead would answer about a value the
     // reader cannot see.
     const configured = Object.fromEntries(resourceStates(input).map((state) => [state.resource.id, state.configured]));
-    const checks = await probeConnections({
-      configured,
-      tables: accessDependenciesFrom({
-        configuration: input.report?.configuration ?? [],
+    const configuration = input.report?.configuration ?? [];
+    let tables = [
+      ...accessDependenciesFrom({
+        configuration,
         env: process.env,
       }).tables,
+    ];
+    const catalog = configured.catalog ?? '';
+    const schema = configured.schema ?? '';
+    const manifest = configuration.find((entry) => entry.key === 'declared_manifest');
+    if (manifest?.source === 'data-contract' || isDataContractFallback(tables, catalog, schema)) {
+      const denylistEntry = configuration.find((entry) => entry.key === 'catalog_denylist');
+      const denylist = Array.isArray(denylistEntry?.value)
+        ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean)
+        : typeof denylistEntry?.value === 'string'
+          ? denylistEntry.value.split(',').map((item) => item.trim()).filter(Boolean)
+          : [];
+      const listed = await listDeclarableTablesInSchema({
+        catalog,
+        schema,
+        host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
+        token: executionToken(req) ?? '',
+        denylist,
+      });
+      if (listed.length > tables.length) tables = unionTableNames(tables, listed);
+    }
+    const checks = await probeConnections({
+      configured,
+      tables,
       host: normalizeWorkspaceHost(process.env.DATABRICKS_HOST),
       token: executionToken(req),
       principal: req.header('x-forwarded-email')?.trim() ?? '',

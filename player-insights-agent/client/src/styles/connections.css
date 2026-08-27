@@ -691,10 +691,23 @@ html:has(.connections-page) body[data-scroll-locked] {
   color: var(--muted-foreground);
 }
 .connections-table {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
+}
+.connections-table th,
+.connections-table td,
+.connections-table [data-slot='table-head'],
+.connections-table [data-slot='table-cell'] {
+  /* Same seating as `.connection-row-summary`. Compact table-cell padding
+     (AppKit `p-2`, and the 8px this header used to set) made these rows
+     shorter than Foundation model / Vector Search above them. Tight
+     Experimental-features padding must not leak here: that table is scoped
+     to Settings. */
+  padding: 10px 16px;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  vertical-align: middle;
 }
 .connections-table th {
-  padding-block: 8px;
   background: var(--ast-fill-band);
   font-weight: 700;
   color: var(--muted-foreground);

@@ -270,6 +270,19 @@ describe('which subjects a deployment has at all', () => {
     expect(built).toEqual([]);
   });
 
+  it('asks about the derived index name when the flag is on and the namespace is known', () => {
+    const built = connectionSubjects({
+      configured: { 'semantic-index': 'true', catalog: 'a_catalog', schema: 'a_schema' },
+      tables: [],
+    });
+    expect(built.find((subject) => subject.id === 'semantic-index')?.name).toBe(
+      'a_catalog.a_schema.semantic_layer_index'
+    );
+    expect(built.find((subject) => subject.id === 'semantic-index')?.path).toBe(
+      '/api/2.0/vector-search/indexes/a_catalog.a_schema.semantic_layer_index'
+    );
+  });
+
   it('asks about every table the served version declared', () => {
     const tables = ['a_catalog.a_schema.one', 'a_catalog.a_schema.two'];
     const built = subjects({ tables }).filter((subject) => subject.kind === 'table');
@@ -415,6 +428,52 @@ describe('running them', () => {
     expect(endpoint?.status).toBe('unverified');
     expect(endpoint?.detail).toContain('the index did not answer');
     expect(asked.some((url) => url.includes('/vector-search/endpoints/'))).toBe(false);
+  });
+
+  it('probes a derived index when catalog and schema are known and the container named none', async () => {
+    const { call, asked } = scripted({
+      '/api/2.0/vector-search/indexes/a_catalog.a_schema.semantic_layer_index': {
+        status: 200,
+        body: { name: 'a_catalog.a_schema.semantic_layer_index', endpoint_name: 'a-semantic-vs' },
+      },
+      '/api/2.0/vector-search/endpoints/a-semantic-vs': {
+        status: 200,
+        body: { endpoint_status: { state: 'ONLINE' } },
+      },
+    });
+    const checks = await probeConnections({
+      configured: { catalog: 'a_catalog', schema: 'a_schema' },
+      tables: [],
+      host: 'https://workspace.example',
+      token: 'a-token',
+      principal: 'someone@example.com',
+      fetchImpl: call,
+    });
+    expect(checks.find((check) => check.id === 'semantic-index')?.status).toBe('ok');
+    expect(checks.find((check) => check.id === 'semantic-index')?.name).toBe(
+      'a_catalog.a_schema.semantic_layer_index'
+    );
+    expect(checks.find((check) => check.id === 'semantic-index-endpoint')?.name).toBe('a-semantic-vs');
+    expect(asked.some((url) => url.includes('semantic_layer_index'))).toBe(true);
+  });
+
+  it('does not invent a blocked Vector Search row when the derived index is not there', async () => {
+    const { call } = scripted({
+      '/api/2.0/vector-search/indexes/a_catalog.a_schema.semantic_layer_index': {
+        status: 404,
+        body: { error_code: 'NOT_FOUND', message: 'missing' },
+      },
+    });
+    const checks = await probeConnections({
+      configured: { catalog: 'a_catalog', schema: 'a_schema' },
+      tables: [],
+      host: 'https://workspace.example',
+      token: 'a-token',
+      principal: 'someone@example.com',
+      fetchImpl: call,
+    });
+    expect(checks.find((check) => check.id === 'semantic-index')).toBeUndefined();
+    expect(checks.find((check) => check.id === 'semantic-index-endpoint')).toBeUndefined();
   });
 });
 

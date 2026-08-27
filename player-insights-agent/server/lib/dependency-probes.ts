@@ -55,6 +55,7 @@ import { looksLikeMissingScope, scopesFromToken } from '../routes/access-verific
 import { scopeRefusalDiagnosis } from './scope-refusal';
 import { declaredUserApiScopes } from '../../shared/declared-scopes';
 import { tokenScopeVerdict } from '../../shared/token-scopes';
+import { derivedSemanticIndexName, resolveSemanticIndexValue } from './semantic-index-name';
 export { tokenCarriesScope, tokenScopeVerdict } from '../../shared/token-scopes';
 
 /**
@@ -450,10 +451,11 @@ export function connectionSubjects(input: {
     subjects.push(servingEndpointSubject(id, label, endpoint, note));
   }
 
-  const index = value('semantic-index');
-  // `true` means "derive the name from the catalog and schema", which is a
-  // decision rather than a name: there is nothing to GET until the artifact
-  // reports the resolved three-level name.
+  const index = resolveSemanticIndexValue(value('semantic-index'), value('catalog'), value('schema'));
+  // `true` with no catalog/schema is still a decision rather than a name, and
+  // is left to withSemanticFollowUps. When catalog and schema are known, the
+  // derived three-level name is asked about here — the same spelling the agent
+  // logged.
   if (index && index.includes('.')) {
     subjects.push({
       id: 'semantic-index',
@@ -1108,6 +1110,32 @@ export async function runProbes(subjects: readonly ProbeSubject[], options: Prob
 }
 
 /**
+ * A configured index of `true` (or an empty value when catalog+schema are
+ * known) turned into the three-level name the agent would derive.
+ *
+ * Empty is a CANDIDATE: many releases search an index the app container was
+ * never told about. It is probed, and a miss is dropped rather than shown as
+ * Blocked, so a deployment that genuinely has no semantic layer stays unset.
+ * `true` is a decision to use that name, so a miss stays a miss.
+ */
+function withDerivedSemanticIndex(configured: Readonly<Record<string, string>>): {
+  configured: Record<string, string>;
+  indexIsCandidate: boolean;
+} {
+  const next = { ...configured };
+  const raw = (next['semantic-index'] ?? '').trim();
+  const derived = derivedSemanticIndexName(next.catalog ?? '', next.schema ?? '');
+  if (!raw) {
+    if (!derived) return { configured: next, indexIsCandidate: false };
+    next['semantic-index'] = derived;
+    return { configured: next, indexIsCandidate: true };
+  }
+  const resolved = resolveSemanticIndexValue(raw, next.catalog ?? '', next.schema ?? '');
+  if (resolved.includes('.')) next['semantic-index'] = resolved;
+  return { configured: next, indexIsCandidate: false };
+}
+
+/**
  * The whole answer for one request: which subjects this deployment has, and what
  * the workspace said about each of them to this person.
  *
@@ -1128,9 +1156,23 @@ export async function probeConnections(input: {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
 }): Promise<PreflightCheck[]> {
-  const subjects = connectionSubjects(input);
+  const resolved = withDerivedSemanticIndex(input.configured);
+  const configured = resolved.configured;
+  const subjects = connectionSubjects({ ...input, configured });
   if (subjects.length === 0) return [];
-  const settle = (checks: PreflightCheck[]) => withSemanticFollowUps(withManifestRollup(checks), input.configured);
+  const settle = (checks: PreflightCheck[]) => {
+    let next = checks;
+    if (resolved.indexIsCandidate) {
+      const indexCheck = next.find((entry) => entry.id === 'semantic-index');
+      if (indexCheck?.status !== 'ok') {
+        next = next.filter(
+          (entry) => entry.id !== 'semantic-index' && entry.id !== 'semantic-index-endpoint'
+        );
+        return withSemanticFollowUps(withManifestRollup(next), input.configured);
+      }
+    }
+    return withSemanticFollowUps(withManifestRollup(next), configured);
+  };
   if (!input.host) {
     return settle(
       unaskedChecks(

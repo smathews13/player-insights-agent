@@ -177,6 +177,14 @@ describe('the parts a reader has to be able to use', () => {
      * reader came here to inspect.
      */
     expect(rule('.connections-table th')).toMatch(/background:\s*var\(--ast-fill-band\)/);
+    // Same seating as Foundation model / Vector Search. An 8px header and
+    // AppKit's compact cells made these rows shorter than every other
+    // connection on the page.
+    expect(rule('.connections-table')).toMatch(/font-size:\s*var\(--text-base\)/);
+    expect(rule('.connections-table th')).not.toMatch(/padding-block:\s*8px/);
+    expect(CSS).toMatch(
+      /\.connections-table th,\s*\n\s*\.connections-table td[\s\S]*?padding:\s*10px 16px/
+    );
     expect(rule('.connections-table tbody tr')).toMatch(/border-bottom:\s*1px solid var\(--border\)/);
     expect(rule('.connections-table tbody tr:hover')).toMatch(/background:\s*var\(--db-row-hover\)/);
     // The repeated catalog and schema are context; the table is the scanning
