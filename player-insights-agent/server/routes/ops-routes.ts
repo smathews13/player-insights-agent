@@ -60,11 +60,7 @@ import {
 } from '../lib/ops-telemetry';
 import { classifyDenial, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './access-verification';
 import { executionToken } from '../lib/execution-credential';
-import {
-  ANSWER_PATH_ENDPOINT_IDS,
-  probeConnections,
-  SERVING_ENDPOINT_KIND,
-} from '../lib/dependency-probes';
+import { ANSWER_PATH_ENDPOINT_IDS, probeConnections, SERVING_ENDPOINT_KIND } from '../lib/dependency-probes';
 import { appEnvironment, readStoredSettings, resourceStates, type ResourceState } from '../lib/app-settings';
 import { readDeclaredConnections } from '../lib/declared-connections';
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
@@ -73,13 +69,11 @@ import { readOrchestratorReport } from './settings-routes';
 import { isFailureCode } from '../lib/run-failure-codes';
 import { readCostBudgets } from '../lib/cost-budgets-store';
 import { sqlQueryTags } from '../lib/sql-query-tags';
-import {
-  isDataContractFallback,
-  listDeclarableTablesInSchema,
-  unionTableNames,
-} from '../lib/declared-tables';
+import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
 import { userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
+import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
+import { attributableCostBudgets } from '../../shared/cost-budgets';
 import type {
   AppMeasurement,
   DependencyResult,
@@ -91,7 +85,6 @@ import type {
   OpsTrafficPayload,
   PlatformReading,
   TrafficBar,
-  WarehouseAutoStop,
 } from '../../shared/ops-contract';
 import { opsDayRange } from '../../shared/ops-contract';
 
@@ -234,13 +227,10 @@ async function lookupVectorEndpoint(input: {
   if (!input.host || !input.token || !input.index) return '';
   const call = input.fetchImpl ?? fetch;
   try {
-    const response = await call(
-      `${input.host}/api/2.0/vector-search/indexes/${encodeURIComponent(input.index)}`,
-      {
-        headers: { authorization: `Bearer ${input.token}`, accept: 'application/json' },
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
+    const response = await call(`${input.host}/api/2.0/vector-search/indexes/${encodeURIComponent(input.index)}`, {
+      headers: { authorization: `Bearer ${input.token}`, accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!response.ok) return '';
     const body = (await response.json()) as { endpoint_name?: unknown };
     return typeof body.endpoint_name === 'string' ? body.endpoint_name.trim() : '';
@@ -323,7 +313,6 @@ async function costIdentifiersFor(
       warehouseId: extras.warehouse,
       vectorEndpoint,
       vectorIndex,
-      indexRebuildJobId: (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? '').trim(),
       genieSpaces: spaces.filter((space) => space.id),
       workspaceId: extras.workspaceId,
       telemetryEnabled: Boolean(telemetrySchema()),
@@ -421,29 +410,6 @@ function billingGrant(principal: string): GrantRemedy {
     privilege: 'SELECT',
     statement: `${usage.statement}\n${prices.statement}`,
   };
-}
-
-async function readWarehouseAutoStop(input: {
-  host: string;
-  token: string;
-  warehouseId: string;
-  fetchImpl?: typeof fetch;
-}): Promise<WarehouseAutoStop> {
-  const id = input.warehouseId.trim();
-  if (!input.host || !input.token || !id) return { minutes: null, readable: false };
-  try {
-    const call = input.fetchImpl ?? fetch;
-    const response = await call(`${input.host}/api/2.0/sql/warehouses/${encodeURIComponent(id)}`, {
-      headers: { authorization: `Bearer ${input.token}` },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) return { minutes: null, readable: false };
-    const body = (await response.json().catch(() => ({}))) as { auto_stop_mins?: unknown };
-    const minutes = Number(body.auto_stop_mins);
-    return { minutes: Number.isFinite(minutes) ? minutes : null, readable: true };
-  } catch {
-    return { minutes: null, readable: false };
-  }
 }
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
@@ -680,7 +646,10 @@ async function readDependencies(
       const denylist = Array.isArray(denylistEntry?.value)
         ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean)
         : typeof denylistEntry?.value === 'string'
-          ? denylistEntry.value.split(',').map((item) => item.trim()).filter(Boolean)
+          ? denylistEntry.value
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean)
           : [];
       const listed = await listDeclarableTablesInSchema({
         catalog,
@@ -737,6 +706,16 @@ async function readDependencies(
 export const QUESTIONS_PER_DAY_QUERY = `
   SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
+  WHERE m.role = 'user'
+  GROUP BY 1
+  ORDER BY 1`;
+
+/** Signed-in people who stored at least one user question on each day. */
+export const DISTINCT_ASKERS_PER_DAY_QUERY = `
+  SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day,
+         COUNT(DISTINCT lower(c.user_email))::int AS count
+  FROM ${APP_SCHEMA}.messages m
+  JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
   WHERE m.role = 'user'
   GROUP BY 1
   ORDER BY 1`;
@@ -936,7 +915,7 @@ export interface OpsDeps {
  *
  * MUST be called after `setupInsightsRoutes`. Express applies middleware to what
  * is added afterwards and the guard is registered in there, so a call before it
- * would leave all three open. That ordering is why the coverage check below is
+ * would leave all Ops routes open. That ordering is why the coverage check below is
  * not the whole of the protection, and why this note is here as well as in
  * server.ts.
  */
@@ -1016,9 +995,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       const workspace = host();
       const warehouse = warehouseId();
       const token = executionToken(req);
-      const workspaceId = token
-        ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl })
-        : '';
+      const workspaceId = token ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl }) : '';
       const resolved = await costIdentifiersFor(appkit, req, {
         workspaceId,
         warehouse,
@@ -1028,6 +1005,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       });
       const ids = resolved.ids;
       const storedBudgets = await readCostBudgets(appkit);
+      const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
         grant: null,
         reason: '',
@@ -1044,7 +1022,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           limited: false,
           reason: '',
         },
-        budgets: storedBudgets.budgets,
+        budgets: costBudgets,
         budgetsReadable: storedBudgets.readable,
       };
 
@@ -1070,13 +1048,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         return;
       }
 
-      const autoStopPromise = readWarehouseAutoStop({
-        host: workspace,
-        token,
-        warehouseId: warehouse,
-        fetchImpl: deps.fetchImpl,
-      });
-
       try {
         const outcome = await runStatement({
           host: workspace,
@@ -1086,7 +1057,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           parameters: built.parameters,
           fetchImpl: deps.fetchImpl,
         });
-        const warehouseAutoStop = await autoStopPromise;
         const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
 
         if (!outcome.ok) {
@@ -1097,7 +1067,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               state: 'no-grant',
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
               tiles: [],
-              warehouseAutoStop,
               reason:
                 `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing ` +
                 'runs under your own grants rather than this app\u2019s, so being an administrator here ' +
@@ -1109,7 +1078,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             ...empty,
             state: 'unreadable',
             tiles: [],
-            warehouseAutoStop,
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`,
           } satisfies OpsCostPayload);
           return;
@@ -1144,7 +1112,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
             billingLagDays: lagDays(range.to, split.meta?.lastDay || ''),
             coverage,
             honesty: buildHonesty(range, split.meta, tiles),
-            warehouseAutoStop,
             reason,
           } satisfies OpsCostPayload);
           return;
@@ -1176,7 +1143,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           perQuestion,
           coverage,
           honesty: buildHonesty(range, split.meta, tiles),
-          warehouseAutoStop,
         } satisfies OpsCostPayload);
       } catch (error) {
         res.json({
@@ -1196,8 +1162,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // Settled rather than awaited together: the run ledger is newer than the
         // messages table and a deployment that has not created it yet should
         // still get its questions chart rather than an empty block.
-        const [questions, outcomes, tools] = await Promise.allSettled([
+        const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
           appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
+          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY),
+          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY),
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY),
         ]);
@@ -1205,6 +1173,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         const questionsPerDay =
           questions.status === 'fulfilled'
             ? questions.value.rows.map((row) => ({ day: text(row.day), count: count(row.count) }))
+            : [];
+        const distinctAskersPerDay =
+          askers.status === 'fulfilled'
+            ? askers.value.rows.map((row) => ({ day: text(row.day), count: count(row.count) }))
+            : [];
+        const activeMinutesPerDay =
+          activeMinutes.status === 'fulfilled'
+            ? activeMinutes.value.rows.map((row) => ({ day: text(row.day), count: count(row.count) }))
             : [];
 
         const failures = new Map<string, number>();
@@ -1233,10 +1209,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               }))
             : [];
 
-        // Only when all three failed does the block itself report a reason,
+        // Only when every read failed does the block itself report a reason,
         // because `reason` REPLACES the block: one read failing must leave the
-        // two that answered on the page rather than substituting three empty
-        // charts under one sentence blaming whichever query rejected first.
+        // reads that answered on the page rather than substituting empty charts
+        // under one sentence blaming whichever query rejected first.
         //
         // But it must not leave them SILENTLY. An empty chart is a population
         // of nobody, and a read that was cut off did not measure a population
@@ -1244,24 +1220,29 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         // that answered, and only that case fills `unread`.
         const outstanding = [
           { done: questions, charts: 'Questions per day' },
+          { done: askers, charts: 'Distinct askers per day' },
+          { done: activeMinutes, charts: 'Recorded active app minutes per day' },
           { done: outcomes, charts: 'Failures and refusals' },
           { done: tools, charts: 'Tool calls' },
         ].filter((read) => read.done.status === 'rejected');
         const rejected = outstanding.map((read) => read.done as PromiseRejectedResult);
+        const readCount = 5;
         const payload: OpsTrafficPayload = {
           readAt,
           reason:
-            rejected.length === 3
+            rejected.length === readCount
               ? `Nothing about traffic could be read: ${text((rejected[0].reason as Error)?.message) || 'the store did not answer'}`
               : '',
           unread:
-            rejected.length > 0 && rejected.length < 3
+            rejected.length > 0 && rejected.length < readCount
               ? unreadNote(
                   outstanding.map((read) => read.charts),
                   text((rejected[0].reason as Error)?.message)
                 )
               : '',
           questionsPerDay,
+          distinctAskersPerDay,
+          activeMinutesPerDay,
           failuresByCause: toBars(failures),
           refusalsByCause: toBars(refusals),
           toolCalls,
@@ -1274,6 +1255,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           reason: `Nothing about traffic could be read: ${(error as Error).message}`,
           unread: '',
           questionsPerDay: [],
+          distinctAskersPerDay: [],
+          activeMinutesPerDay: [],
           failuresByCause: [],
           refusalsByCause: [],
           toolCalls: [],

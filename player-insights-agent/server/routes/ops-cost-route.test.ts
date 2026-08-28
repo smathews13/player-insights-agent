@@ -87,14 +87,6 @@ describe('the ranged cost route', () => {
           })
         );
       }
-      if (url.includes('/api/2.0/sql/warehouses/')) {
-        return Promise.resolve(
-          new globalThis.Response(JSON.stringify({ auto_stop_mins: 5 }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          })
-        );
-      }
       statementBodies.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>);
       return Promise.resolve(
         new globalThis.Response(
@@ -155,7 +147,6 @@ describe('the ranged cost route', () => {
     );
     expect(payload.budgets).toEqual({ total: null, resources: {} });
     expect(payload.budgetsReadable).toBe(true);
-    expect(payload.warehouseAutoStop).toEqual({ minutes: 5, readable: true });
     expect(payload.honesty?.priceSource).toBe('list_prices');
     expect(payload.honesty?.contractRates).toBe('unavailable');
   });
@@ -189,7 +180,18 @@ describe('the ranged cost route', () => {
       }
       if (sql.includes('cost_budgets')) {
         return Promise.resolve({
-          rows: [{ settings: { total: 250, resources: { 'app-compute': 40 } } }],
+          rows: [
+            {
+              settings: {
+                total: 250,
+                resources: {
+                  'app-compute': 40,
+                  'foundation-model': 90,
+                  'index-rebuild-job': 30,
+                },
+              },
+            },
+          ],
         });
       }
       return Promise.resolve({ rows: [] });
@@ -207,14 +209,6 @@ describe('the ranged cost route', () => {
           new globalThis.Response('{}', {
             status: 200,
             headers: { 'x-databricks-org-id': 'workspace-1' },
-          })
-        );
-      }
-      if (url.includes('/api/2.0/sql/warehouses/')) {
-        return Promise.resolve(
-          new globalThis.Response(JSON.stringify({ auto_stop_mins: 5 }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
           })
         );
       }
@@ -267,9 +261,12 @@ describe('the ranged cost route', () => {
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
     expect(genie.every((tile) => tile.unavailable === 'Genie LLM spend not attributable in this model')).toBe(true);
     expect(genie.every((tile) => tile.note.includes('not the complete Genie cost'))).toBe(true);
-    expect(payload.tiles.find((tile) => tile.id === 'foundation-model')?.unavailable).toContain(
-      'identifier unavailable'
-    );
+    expect(payload.tiles.find((tile) => tile.id === 'foundation-model')).toMatchObject({
+      amount: null,
+      quality: 'unknown',
+      population: 'Shared endpoint',
+      unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+    });
     expect(payload.tiles.find((tile) => tile.id === 'vector-search')).toMatchObject({
       resourceId: 'cat.schema.index',
       resourceKind: 'vector-index',
@@ -280,11 +277,7 @@ describe('the ranged cost route', () => {
       note: 'system_billing=astrolabe is on this app; Apps billing is matched by app name.',
       remedy: '',
     });
-    expect(payload.tiles.find((tile) => tile.id === 'index-rebuild-job')).toMatchObject({
-      resourceId: 'job-123',
-      resourceKind: 'job',
-      amount: null,
-    });
+    expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
     expect(payload.budgets).toEqual({ total: 250, resources: { 'app-compute': 40 } });
     expect(payload.budgetsReadable).toBe(true);
   });

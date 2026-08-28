@@ -14,6 +14,7 @@ import {
 } from '../lib/lakebase-store';
 import { describeSql, runMigrations, type SchemaStatementFailure } from '../lib/migration-runner';
 import { buildMigrations } from '../lib/migrations';
+import { recordAppActivityMinute } from '../lib/app-activity';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { REPRESENTATIVE_ANSWER_CAVEAT } from '../../shared/representative-answer';
 import {
@@ -3297,6 +3298,18 @@ export function setupInsightsRoutes(
     });
 
     /**
+     * Record one visible app minute for the authenticated caller.
+     *
+     * Identity is derived from the Databricks Apps proxy header by `userEmail`;
+     * the request carries no user, content, route, token, or session identifier.
+     * The table's composite key deduplicates retries and multiple tabs.
+     */
+    app.post('/api/activity/heartbeat', async (req, res) => {
+      await recordAppActivityMinute(appkit, userEmail(req));
+      res.status(204).send();
+    });
+
+    /**
      * Add Astrolabe's load-bearing scopes and workspace browse scope to this app
      * as the signed-in user.
      *
@@ -4071,7 +4084,10 @@ export function setupInsightsRoutes(
         );
         benchmarkSuites = benchmarkResult.rows.length;
       } catch (error) {
-        console.warn('[cancel] Active benchmark suites could not be marked for cancellation:', (error as Error).message);
+        console.warn(
+          '[cancel] Active benchmark suites could not be marked for cancellation:',
+          (error as Error).message
+        );
         failures.push('Active benchmark suites could not be marked for cancellation.');
       }
       const warehouse = await cancelTaggedWarehouseQueries({

@@ -159034,6 +159034,31 @@ var init_request_latency = __esm({
   }
 });
 
+// server/lib/app-activity.ts
+async function recordAppActivityMinute(store, user) {
+  await store.lakebase.query(RECORD_APP_ACTIVITY_QUERY, [user]);
+}
+var APP_ACTIVITY_TABLE, APP_ACTIVITY_DDL, RECORD_APP_ACTIVITY_QUERY, ACTIVE_MINUTES_PER_DAY_QUERY;
+var init_app_activity = __esm({
+  "server/lib/app-activity.ts"() {
+    init_app_schema();
+    APP_ACTIVITY_TABLE = appTable("app_activity_minutes");
+    APP_ACTIVITY_DDL = `CREATE TABLE IF NOT EXISTS ${APP_ACTIVITY_TABLE} (
+  user_email TEXT NOT NULL,
+  active_minute TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (user_email, active_minute)
+)`;
+    RECORD_APP_ACTIVITY_QUERY = `INSERT INTO ${APP_ACTIVITY_TABLE} (user_email, active_minute)
+VALUES (lower($1), date_trunc('minute', now()))
+ON CONFLICT (user_email, active_minute) DO NOTHING`;
+    ACTIVE_MINUTES_PER_DAY_QUERY = `
+  SELECT to_char(date_trunc('day', active_minute), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
+  FROM ${APP_ACTIVITY_TABLE}
+  GROUP BY 1
+  ORDER BY 1`;
+  }
+});
+
 // server/lib/migrations.ts
 function buildMigrations(baselineStatements) {
   return [
@@ -159083,6 +159108,7 @@ var init_migrations = __esm({
     init_app_schema();
     init_deployment_decisions();
     init_request_latency();
+    init_app_activity();
     BASELINE_VERSION = 1;
     BASELINE_NAME = "baseline schema";
     LATER_MIGRATIONS = [
@@ -159537,6 +159563,15 @@ var init_migrations = __esm({
           `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_assignments`,
           `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_personas`
         ]
+      },
+      {
+        version: 18,
+        name: "recorded app activity minutes",
+        // Additive by construction: existing customer-history tables are untouched.
+        // The composite primary key is declared with the new table, so boot needs no
+        // ownership-sensitive ALTER or CREATE INDEX against an existing object.
+        statements: [APP_ACTIVITY_DDL],
+        down: [`DROP TABLE IF EXISTS ${APP_ACTIVITY_TABLE}`]
       }
     ];
   }
@@ -171946,6 +171981,10 @@ function setupInsightsRoutes(appkit, options = {}) {
       const spIdentity = await describeSpIdentity(req, appkit);
       res.json({ ...identityPayload(req), ...role, spIdentity });
     });
+    app.post("/api/activity/heartbeat", async (req, res) => {
+      await recordAppActivityMinute(appkit, userEmail(req));
+      res.status(204).send();
+    });
     app.post("/api/app-user-api-scopes", async (req, res) => {
       const requestedScope = req.body?.scope;
       if (requestedScope !== void 0 && (typeof requestedScope !== "string" || !isOptionalUserApiScope(requestedScope))) {
@@ -172507,7 +172546,10 @@ function setupInsightsRoutes(appkit, options = {}) {
         );
         benchmarkSuites = benchmarkResult.rows.length;
       } catch (error48) {
-        console.warn("[cancel] Active benchmark suites could not be marked for cancellation:", error48.message);
+        console.warn(
+          "[cancel] Active benchmark suites could not be marked for cancellation:",
+          error48.message
+        );
         failures.push("Active benchmark suites could not be marked for cancellation.");
       }
       const warehouse = await cancelTaggedWarehouseQueries({
@@ -173478,6 +173520,7 @@ var init_insights_routes = __esm({
     init_lakebase_store();
     init_migration_runner();
     init_migrations();
+    init_app_activity();
     init_databricks_links();
     init_representative_answer();
     init_mlflow_trace_id();
@@ -180371,8 +180414,10 @@ function workspaceEstimateRow(component) {
   return `${component}${WORKSPACE_ESTIMATE_SUFFIX}`;
 }
 function canAsk(component, ids) {
+  if (!ids.workspaceId) return false;
   if (component === "genie") return false;
-  if (component === "foundation-model" && ids.foundationEndpoint && ids.foundationEndpoint === ids.endpointName) {
+  if (component === "foundation-model") return false;
+  if (component === "serving-endpoint" && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
     return false;
   }
   return Boolean(ids[MATCHERS[component].parameter]);
@@ -180389,8 +180434,6 @@ function resourceIdFor(component, ids) {
       return ids.appName;
     case "vector-search":
       return vectorIndexName(ids.vectorIndex);
-    case "index-rebuild-job":
-      return ids.indexRebuildJobId;
     case "genie":
       return "";
   }
@@ -180406,8 +180449,6 @@ function resourceKindFor(component, ids) {
       return "app";
     case "vector-search":
       return vectorIndexName(ids.vectorIndex) ? "vector-index" : "";
-    case "index-rebuild-job":
-      return "job";
     case "genie":
       return "";
   }
@@ -180450,14 +180491,9 @@ function buildCostStatement(ids, range) {
   if (ids.warehouseId) {
     resourcePredicates.push(`(u.billing_origin_product = 'SQL' AND u.usage_metadata.warehouse_id = :warehouseId)`);
   }
-  if (ids.endpointName) {
+  if (ids.endpointName && canAsk("serving-endpoint", ids)) {
     resourcePredicates.push(
       `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName)`
-    );
-  }
-  if (ids.foundationEndpoint) {
-    resourcePredicates.push(
-      `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :foundationEndpoint)`
     );
   }
   if (ids.vectorEndpoint) {
@@ -180468,11 +180504,6 @@ function buildCostStatement(ids, range) {
   if (ids.appName) {
     resourcePredicates.push(`(u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)`);
   }
-  if (ids.indexRebuildJobId) {
-    resourcePredicates.push(
-      `(u.billing_origin_product = 'JOBS' AND u.usage_metadata.job_id = :indexRebuildJobId)`
-    );
-  }
   const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join("\n     OR ") : "FALSE";
   const statement = `WITH tagged AS (
   SELECT
@@ -180482,7 +180513,6 @@ function buildCostStatement(ids, range) {
     u.cloud,
     u.usage_unit,
     u.usage_end_time,
-    u.usage_metadata.job_run_id AS job_run_id,
     u.workspace_id,
     u.billing_origin_product,
     COALESCE(
@@ -180498,6 +180528,8 @@ ${branches.join("\n")}
   FROM system.billing.usage u
   WHERE u.usage_date >= :from_day
     AND u.usage_date <= :to_day
+    AND u.workspace_id = :workspaceId
+    AND u.billing_origin_product <> 'JOBS'
     AND (
       u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
       OR ${leakPredicate}
@@ -180524,7 +180556,6 @@ deduped AS (
     usage_date,
     usage_quantity,
     sku_name,
-    job_run_id,
     billing_origin_product,
     component,
     record_type,
@@ -180534,7 +180565,7 @@ deduped AS (
     MAX(currency_code) AS currency_code,
     MAX(CAST(price_start_time AS STRING)) AS price_start_time
   FROM price_hits
-  GROUP BY record_id, usage_date, usage_quantity, sku_name, job_run_id, billing_origin_product, component, record_type, tag_matches
+  GROUP BY record_id, usage_date, usage_quantity, sku_name, billing_origin_product, component, record_type, tag_matches
 ),
 priced AS (
   SELECT
@@ -180558,7 +180589,7 @@ SELECT
        THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
   COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
   COUNT(DISTINCT usage_date) AS billed_days,
-  COUNT(DISTINCT job_run_id) AS job_runs,
+  CAST(NULL AS BIGINT) AS job_runs,
   MAX(usage_date) AS last_day,
   SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
   SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
@@ -180660,6 +180691,8 @@ SELECT
 FROM system.billing.usage u
 WHERE u.usage_date >= :from_day
   AND u.usage_date <= :to_day
+  AND u.workspace_id = :workspaceId
+  AND u.billing_origin_product <> 'JOBS'
   AND (${leakPredicate})
 GROUP BY u.billing_origin_product`;
   return { statement, parameters, covered, estimated };
@@ -180839,7 +180872,9 @@ function unpricedUnavailable(pricing) {
   return "";
 }
 function buildHonesty(range, meta3, tiles) {
-  const currencies = new Set(tiles.map((tile) => tile.pricing?.currency).filter((code) => Boolean(code)));
+  const currencies = new Set(
+    tiles.map((tile) => tile.pricing?.currency).filter((code) => Boolean(code))
+  );
   const through = meta3?.lastDay || "";
   return {
     priceSource: "list_prices",
@@ -180853,6 +180888,7 @@ function buildCoverage(input) {
   const products = [];
   const seen = /* @__PURE__ */ new Set();
   for (const row2 of input.coverageRows) {
+    if (row2.component === "JOBS") continue;
     seen.add(row2.component);
     const tiled = TILED_PRODUCTS.has(row2.component) || row2.component === "GENIE";
     products.push({
@@ -180867,21 +180903,21 @@ function buildCoverage(input) {
   }
   for (const [product, reason] of Object.entries(PRODUCT_REASONS)) {
     if (seen.has(product)) continue;
-    if (product === "MLFLOW" || product === "JOBS" || product === "LAKEBASE") {
+    if (product === "MLFLOW" || product === "LAKEBASE") {
       products.push({
         product,
         taggedRows: 0,
         taggedQuantity: 0,
         pricedRows: 0,
         unpricedRows: 0,
-        tiled: product === "JOBS",
+        tiled: false,
         reason
       });
     }
   }
   const through = input.meta?.lastDay || "";
   const delayed = Boolean(through && through < input.range.to);
-  const propagation2 = input.propagationRows.map((row2) => {
+  const propagation2 = input.propagationRows.filter((row2) => row2.component !== "JOBS").map((row2) => {
     if (row2.component === "APPS") {
       const pair = billingTagPair();
       const assignment = input.appBillingTag === "matched" ? `${pair} is assigned to this app.` : input.appBillingTag === "missing" ? `${pair} is not assigned to this app.` : `The app's ${pair} assignment could not be read.`;
@@ -181026,13 +181062,24 @@ function componentTile(component, ids, byComponent) {
       note: tile.note
     };
   };
-  if (component === "foundation-model" && ids.foundationEndpoint && ids.foundationEndpoint === ids.endpointName) {
+  if (component === "foundation-model") {
     return withMeta({
       ...base,
       quality: "unknown",
       amount: null,
       note: "",
-      unavailable: "Same endpoint as agent serving; spend is counted once on the Serving endpoint tile.",
+      unavailable: "Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.",
+      remedy: ""
+    });
+  }
+  if (component === "serving-endpoint" && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
+    return withMeta({
+      ...base,
+      quality: "unknown",
+      population: "Shared endpoint",
+      amount: null,
+      note: "",
+      unavailable: "Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.",
       remedy: ""
     });
   }
@@ -181083,8 +181130,7 @@ function componentTile(component, ids, byComponent) {
       remedy: ""
     });
   }
-  const note = component === "index-rebuild-job" && typeof row2?.jobRuns === "number" && row2.jobRuns > 0 ? `${row2.jobRuns} billed job ${row2.jobRuns === 1 ? "run" : "runs"}` : "";
-  return withMeta({ ...base, amount, pricing, note, unavailable: "", remedy: "" });
+  return withMeta({ ...base, amount, pricing, note: "", unavailable: "", remedy: "" });
 }
 function unknownPart(id, label, unavailable4) {
   return { id, label, quality: "unknown", amount: null, unavailable: unavailable4 };
@@ -181167,8 +181213,7 @@ var init_ops_billing = __esm({
       "sql-warehouse",
       "genie",
       "vector-search",
-      "app-compute",
-      "index-rebuild-job"
+      "app-compute"
     ];
     WORKSPACE_ESTIMATE_SUFFIX = ":workspace";
     MATCHERS = {
@@ -181204,12 +181249,6 @@ var init_ops_billing = __esm({
         column: "u.usage_metadata.app_name",
         parameter: "appName",
         type: "STRING"
-      },
-      "index-rebuild-job": {
-        product: "JOBS",
-        column: "u.usage_metadata.job_id",
-        parameter: "indexRebuildJobId",
-        type: "STRING"
       }
     };
     RANGE_ROW = "__range";
@@ -181217,14 +181256,13 @@ var init_ops_billing = __esm({
     BILLING_TAG_VALUE = BILLING_TAG.value;
     GENIE_LLM_UNAVAILABLE = "Genie LLM spend not attributable in this model";
     GENIE_SQL_NOT_COMPLETE = "SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.";
-    TILED_PRODUCTS = /* @__PURE__ */ new Set(["MODEL_SERVING", "SQL", "VECTOR_SEARCH", "APPS", "JOBS"]);
+    TILED_PRODUCTS = /* @__PURE__ */ new Set(["MODEL_SERVING", "SQL", "VECTOR_SEARCH", "APPS"]);
     PRODUCT_REASONS = {
       MODEL_SERVING: "Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.",
       SQL: "Tracked as the SQL warehouse tile. This is a shared meter, not app-only spend.",
       VECTOR_SEARCH: "Tracked as the Vector Search tile when the endpoint name matches.",
       APPS: "Measured by exact app name. App tag presence is a separate organizational signal.",
       GENIE: "Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.",
-      JOBS: "Measured only when the exact configured index rebuild job id matches; no custom tag is required.",
       LAKEBASE: "Lakebase can be tagged. No documented billing join exists in this model.",
       MLFLOW: "MLflow experiments can be tagged. They have no Cost tile."
     };
@@ -181256,10 +181294,10 @@ var init_ops_billing = __esm({
       },
       "foundation-model": {
         label: "Foundation model",
-        quality: "real",
-        population: "This endpoint",
+        quality: "unknown",
+        population: "Shared endpoint",
         basis: "total-in-range",
-        variable: "PLAYER_INSIGHTS_LLM_ENDPOINT"
+        variable: ""
       },
       "sql-warehouse": {
         label: "SQL warehouse",
@@ -181288,13 +181326,6 @@ var init_ops_billing = __esm({
         population: "This app",
         basis: "per-day",
         variable: "DATABRICKS_APP_NAME"
-      },
-      "index-rebuild-job": {
-        label: "Index rebuild job",
-        quality: "real",
-        population: "This job",
-        basis: "total-in-range",
-        variable: "PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID"
       }
     };
     UNKNOWN_QUESTION_PARTS = [
@@ -181314,11 +181345,6 @@ var init_ops_billing = __esm({
         unavailable: "Compute time cannot be joined to one run."
       },
       {
-        id: "foundation-model",
-        label: "Foundation model",
-        unavailable: "Foundation model spend is measured in its own tile, but the run ledger does not separate its tokens from the agent endpoint."
-      },
-      {
         id: "lakebase",
         label: "Lakebase Postgres",
         unavailable: "No documented billing row in this app can be joined to a Lakebase query or run."
@@ -181328,11 +181354,22 @@ var init_ops_billing = __esm({
 });
 
 // shared/cost-budgets.ts
+function costBudgetEligibleTile(tileId) {
+  return !COST_BUDGET_WITHHELD_TILE_IDS.has(tileId);
+}
+function attributableCostBudgets(budgets) {
+  return {
+    total: budgets.total,
+    resources: Object.fromEntries(
+      Object.entries(budgets.resources).filter(([tileId]) => costBudgetEligibleTile(tileId))
+    )
+  };
+}
 function parseCostBudgets(raw2) {
   const parsed = CostBudgetsSchema.safeParse(raw2);
-  return parsed.success ? parsed.data : null;
+  return parsed.success ? attributableCostBudgets(parsed.data) : null;
 }
-var COST_BUDGET_MAX, AmountSchema, CostBudgetsSchema, EMPTY_COST_BUDGETS;
+var COST_BUDGET_MAX, AmountSchema, CostBudgetsSchema, EMPTY_COST_BUDGETS, COST_BUDGET_WITHHELD_TILE_IDS;
 var init_cost_budgets = __esm({
   "shared/cost-budgets.ts"() {
     init_zod();
@@ -181348,6 +181385,7 @@ var init_cost_budgets = __esm({
       resources: external_exports.record(external_exports.string().min(1).max(200), AmountSchema)
     });
     EMPTY_COST_BUDGETS = { total: null, resources: {} };
+    COST_BUDGET_WITHHELD_TILE_IDS = /* @__PURE__ */ new Set(["foundation-model", "index-rebuild-job"]);
   }
 });
 
@@ -181412,6 +181450,7 @@ var init_cost_budgets_store = __esm({
 // server/routes/ops-routes.ts
 var ops_routes_exports = {};
 __export(ops_routes_exports, {
+  DISTINCT_ASKERS_PER_DAY_QUERY: () => DISTINCT_ASKERS_PER_DAY_QUERY,
   OPS_ROUTES: () => OPS_ROUTES,
   QUESTIONS_PER_DAY_QUERY: () => QUESTIONS_PER_DAY_QUERY,
   QUESTION_COST_RUNS_QUERY: () => QUESTION_COST_RUNS_QUERY,
@@ -181469,13 +181508,10 @@ async function lookupVectorEndpoint(input) {
   if (!input.host || !input.token || !input.index) return "";
   const call = input.fetchImpl ?? fetch;
   try {
-    const response = await call(
-      `${input.host}/api/2.0/vector-search/indexes/${encodeURIComponent(input.index)}`,
-      {
-        headers: { authorization: `Bearer ${input.token}`, accept: "application/json" },
-        signal: AbortSignal.timeout(1e4)
-      }
-    );
+    const response = await call(`${input.host}/api/2.0/vector-search/indexes/${encodeURIComponent(input.index)}`, {
+      headers: { authorization: `Bearer ${input.token}`, accept: "application/json" },
+      signal: AbortSignal.timeout(1e4)
+    });
     if (!response.ok) return "";
     const body = await response.json();
     return typeof body.endpoint_name === "string" ? body.endpoint_name.trim() : "";
@@ -181535,7 +181571,6 @@ async function costIdentifiersFor(appkit, req, extras) {
       warehouseId: extras.warehouse,
       vectorEndpoint,
       vectorIndex,
-      indexRebuildJobId: (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? "").trim(),
       genieSpaces: spaces.filter((space) => space.id),
       workspaceId: extras.workspaceId,
       telemetryEnabled: Boolean(telemetrySchema()),
@@ -181609,23 +181644,6 @@ function billingGrant(principal) {
     statement: `${usage.statement}
 ${prices.statement}`
   };
-}
-async function readWarehouseAutoStop(input) {
-  const id = input.warehouseId.trim();
-  if (!input.host || !input.token || !id) return { minutes: null, readable: false };
-  try {
-    const call = input.fetchImpl ?? fetch;
-    const response = await call(`${input.host}/api/2.0/sql/warehouses/${encodeURIComponent(id)}`, {
-      headers: { authorization: `Bearer ${input.token}` },
-      signal: AbortSignal.timeout(8e3)
-    });
-    if (!response.ok) return { minutes: null, readable: false };
-    const body = await response.json().catch(() => ({}));
-    const minutes = Number(body.auto_stop_mins);
-    return { minutes: Number.isFinite(minutes) ? minutes : null, readable: true };
-  } catch {
-    return { minutes: null, readable: false };
-  }
 }
 function resultFor(status) {
   if (status === "ok") return "answered";
@@ -181895,6 +181913,7 @@ function setupOpsRoutes(appkit, deps) {
       });
       const ids = resolved.ids;
       const storedBudgets = await readCostBudgets(appkit);
+      const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
         grant: null,
         reason: "",
@@ -181911,7 +181930,7 @@ function setupOpsRoutes(appkit, deps) {
           limited: false,
           reason: ""
         },
-        budgets: storedBudgets.budgets,
+        budgets: costBudgets,
         budgetsReadable: storedBudgets.readable
       };
       if (!workspace2 || !warehouse || !token) {
@@ -181932,12 +181951,6 @@ function setupOpsRoutes(appkit, deps) {
         });
         return;
       }
-      const autoStopPromise = readWarehouseAutoStop({
-        host: workspace2,
-        token,
-        warehouseId: warehouse,
-        fetchImpl: deps.fetchImpl
-      });
       try {
         const outcome = await runStatement2({
           host: workspace2,
@@ -181947,7 +181960,6 @@ function setupOpsRoutes(appkit, deps) {
           parameters: built.parameters,
           fetchImpl: deps.fetchImpl
         });
-        const warehouseAutoStop = await autoStopPromise;
         const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, "system.billing.usage");
@@ -181957,7 +181969,6 @@ function setupOpsRoutes(appkit, deps) {
               state: "no-grant",
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
               tiles: [],
-              warehouseAutoStop,
               reason: `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing runs under your own grants rather than this app\u2019s, so being an administrator here does not grant it. SELECT is needed on both system.billing.usage and system.billing.list_prices.`
             });
             return;
@@ -181966,7 +181977,6 @@ function setupOpsRoutes(appkit, deps) {
             ...empty,
             state: "unreadable",
             tiles: [],
-            warehouseAutoStop,
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`
           });
           return;
@@ -181994,7 +182004,6 @@ function setupOpsRoutes(appkit, deps) {
             billingLagDays: lagDays(range.to, split.meta?.lastDay || ""),
             coverage: coverage2,
             honesty: buildHonesty(range, split.meta, tiles2),
-            warehouseAutoStop,
             reason
           });
           return;
@@ -182023,8 +182032,7 @@ function setupOpsRoutes(appkit, deps) {
           tiles,
           perQuestion,
           coverage: coverage2,
-          honesty: buildHonesty(range, split.meta, tiles),
-          warehouseAutoStop
+          honesty: buildHonesty(range, split.meta, tiles)
         });
       } catch (error48) {
         res.json({
@@ -182038,12 +182046,16 @@ function setupOpsRoutes(appkit, deps) {
     app.get("/api/ops/traffic", async (_req, res) => {
       const readAt = new Date(clock()).toISOString();
       try {
-        const [questions, outcomes, tools] = await Promise.allSettled([
+        const [questions, askers, activeMinutes, outcomes, tools] = await Promise.allSettled([
           appkit.lakebase.query(QUESTIONS_PER_DAY_QUERY),
+          appkit.lakebase.query(DISTINCT_ASKERS_PER_DAY_QUERY),
+          appkit.lakebase.query(ACTIVE_MINUTES_PER_DAY_QUERY),
           appkit.lakebase.query(RUN_OUTCOMES_QUERY),
           appkit.lakebase.query(TOOL_CALLS_QUERY)
         ]);
         const questionsPerDay = questions.status === "fulfilled" ? questions.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
+        const distinctAskersPerDay = askers.status === "fulfilled" ? askers.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
+        const activeMinutesPerDay = activeMinutes.status === "fulfilled" ? activeMinutes.value.rows.map((row2) => ({ day: text18(row2.day), count: count3(row2.count) })) : [];
         const failures = /* @__PURE__ */ new Map();
         const refusals = /* @__PURE__ */ new Map();
         let runsInRange = 0;
@@ -182067,18 +182079,23 @@ function setupOpsRoutes(appkit, deps) {
         })) : [];
         const outstanding = [
           { done: questions, charts: "Questions per day" },
+          { done: askers, charts: "Distinct askers per day" },
+          { done: activeMinutes, charts: "Recorded active app minutes per day" },
           { done: outcomes, charts: "Failures and refusals" },
           { done: tools, charts: "Tool calls" }
         ].filter((read2) => read2.done.status === "rejected");
         const rejected = outstanding.map((read2) => read2.done);
+        const readCount = 5;
         const payload = {
           readAt,
-          reason: rejected.length === 3 ? `Nothing about traffic could be read: ${text18(rejected[0].reason?.message) || "the store did not answer"}` : "",
-          unread: rejected.length > 0 && rejected.length < 3 ? unreadNote(
+          reason: rejected.length === readCount ? `Nothing about traffic could be read: ${text18(rejected[0].reason?.message) || "the store did not answer"}` : "",
+          unread: rejected.length > 0 && rejected.length < readCount ? unreadNote(
             outstanding.map((read2) => read2.charts),
             text18(rejected[0].reason?.message)
           ) : "",
           questionsPerDay,
+          distinctAskersPerDay,
+          activeMinutesPerDay,
           failuresByCause: toBars(failures),
           refusalsByCause: toBars(refusals),
           toolCalls,
@@ -182091,6 +182108,8 @@ function setupOpsRoutes(appkit, deps) {
           reason: `Nothing about traffic could be read: ${error48.message}`,
           unread: "",
           questionsPerDay: [],
+          distinctAskersPerDay: [],
+          activeMinutesPerDay: [],
           failuresByCause: [],
           refusalsByCause: [],
           toolCalls: [],
@@ -182142,7 +182161,7 @@ function setupOpsRoutes(appkit, deps) {
   });
   console.log("[ops] Registered the Ops read routes. The admin guard's prefix list covers all of them.");
 }
-var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, QUESTION_COST_RUNS_QUERY, QUESTION_COST_LIMIT, OPS_ROUTES;
+var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, DISTINCT_ASKERS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, QUESTION_COST_RUNS_QUERY, QUESTION_COST_LIMIT, OPS_ROUTES;
 var init_ops_routes = __esm({
   "server/routes/ops-routes.ts"() {
     init_app_schema();
@@ -182163,6 +182182,8 @@ var init_ops_routes = __esm({
     init_declared_tables();
     init_insights_routes();
     init_request_latency();
+    init_app_activity();
+    init_cost_budgets();
     init_ops_contract();
     STATEMENT_TIMEOUT_MS2 = 45e3;
     ORG_ID_HEADER = "x-databricks-org-id";
@@ -182170,6 +182191,14 @@ var init_ops_routes = __esm({
     QUESTIONS_PER_DAY_QUERY = `
   SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
   FROM ${APP_SCHEMA}.messages m
+  WHERE m.role = 'user'
+  GROUP BY 1
+  ORDER BY 1`;
+    DISTINCT_ASKERS_PER_DAY_QUERY = `
+  SELECT to_char(date_trunc('day', m.created_at), 'YYYY-MM-DD') AS day,
+         COUNT(DISTINCT lower(c.user_email))::int AS count
+  FROM ${APP_SCHEMA}.messages m
+  JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
   WHERE m.role = 'user'
   GROUP BY 1
   ORDER BY 1`;
@@ -182588,7 +182617,7 @@ function setupCostBudgetsRoutes(appkit) {
       }
       const actor = userEmail(req);
       try {
-        const budgets = await writeCostBudgets(appkit, parsed.data, actor);
+        const budgets = await writeCostBudgets(appkit, attributableCostBudgets(parsed.data), actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: "cost-budgets-updated",

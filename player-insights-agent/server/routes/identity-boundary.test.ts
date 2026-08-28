@@ -62,7 +62,12 @@ async function startApp(
 }
 
 /** Routes that read or write rows belonging to one person. */
-const USER_SCOPED = ['/api/identity', '/api/conversations', '/api/conversations/conv-a/attachments'];
+const USER_SCOPED = [
+  '/api/identity',
+  '/api/conversations',
+  '/api/conversations/conv-a/attachments',
+  '/api/activity/heartbeat',
+];
 
 let nodeEnv: string | undefined;
 let errors: string[];
@@ -201,6 +206,27 @@ describe('a deployed app with no forwarded identity', () => {
 
 describe('a deployed app with a forwarded identity', () => {
   beforeEach(() => void (process.env.NODE_ENV = 'production'));
+
+  it('records a heartbeat under the proxy-authenticated caller only', async () => {
+    const store = recordingStore();
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+
+    try {
+      const response = await app.fetch('/api/activity/heartbeat', {
+        method: 'POST',
+        headers: { 'x-forwarded-email': 'analyst@example.example' },
+      });
+      expect(response.status).toBe(204);
+    } finally {
+      await app.close();
+    }
+
+    const write = store.queries.find((entry) => entry.sql.includes('app_activity_minutes'));
+    expect(write?.params).toEqual(['analyst@example.example']);
+    expect(write?.sql).toContain("date_trunc('minute', now())");
+    expect(write?.sql).not.toMatch(/content|question|token|session/i);
+  });
 
   it('scopes the read to the caller, and to nobody else', async () => {
     const store = recordingStore();

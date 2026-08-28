@@ -28,9 +28,32 @@ export type CostBudgets = z.infer<typeof CostBudgetsSchema>;
 
 export const EMPTY_COST_BUDGETS: CostBudgets = { total: null, resources: {} };
 
+/**
+ * Tiles that are visible for context but cannot own a budget.
+ *
+ * The foundation endpoint is a configured shared endpoint, not an app-owned
+ * resource. The retired rebuild-job tile stays here so an older saved document
+ * cannot put that budget back onto a newer Cost payload.
+ */
+export const COST_BUDGET_WITHHELD_TILE_IDS = new Set(['foundation-model', 'index-rebuild-job']);
+
+export function costBudgetEligibleTile(tileId: string): boolean {
+  return !COST_BUDGET_WITHHELD_TILE_IDS.has(tileId);
+}
+
+/** Remove budgets that this Cost model is not allowed to attribute. */
+export function attributableCostBudgets(budgets: CostBudgets): CostBudgets {
+  return {
+    total: budgets.total,
+    resources: Object.fromEntries(
+      Object.entries(budgets.resources).filter(([tileId]) => costBudgetEligibleTile(tileId))
+    ),
+  };
+}
+
 export function parseCostBudgets(raw: unknown): CostBudgets | null {
   const parsed = CostBudgetsSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
+  return parsed.success ? attributableCostBudgets(parsed.data) : null;
 }
 
 export function resourceBudget(budgets: CostBudgets, tileId: string): number | null {
@@ -48,6 +71,7 @@ export function resourceBudget(budgets: CostBudgets, tileId: string): number | n
 export function budgetsForVisibleTiles(budgets: CostBudgets, tileIds: readonly string[]): CostBudgets {
   const resources: CostBudgets['resources'] = {};
   for (const id of tileIds) {
+    if (!costBudgetEligibleTile(id)) continue;
     resources[id] = resourceBudget(budgets, id);
   }
   return { total: budgets.total, resources };

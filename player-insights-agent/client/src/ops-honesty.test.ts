@@ -45,7 +45,6 @@ import {
   totalBudgetView,
   trafficCaption,
   costHonestyLine,
-  warehouseAutoStopLine,
   costCoverageLinesForTile,
   costCoverageProductForTile,
 } from './ops-view';
@@ -223,7 +222,7 @@ describe('the quality of a number', () => {
     for (const population of ['Whole warehouse', 'Whole workspace']) {
       expect(tileView(tile({ population }), 'USD').sharedScope).toBe(true);
     }
-    for (const population of ['This endpoint', 'This app', 'This job']) {
+    for (const population of ['This endpoint', 'This app']) {
       expect(tileView(tile({ population }), 'USD').sharedScope).toBe(false);
     }
     // Nothing for a scope to be the scope of.
@@ -371,10 +370,13 @@ describe('an empty cost block', () => {
       'genie',
       'vector-search',
       'app-compute',
-      'index-rebuild-job',
     ]);
-    expect(tiles.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
-    expect(tiles.find((tile) => tile.id === 'index-rebuild-job')?.resourceKind).toBe('job');
+    expect(tiles.find((tile) => tile.id === 'foundation-model')?.unavailable).toContain(
+      'Whole shared endpoint spend is withheld'
+    );
+    expect(
+      tiles.filter((tile) => tile.id !== 'foundation-model').every((tile) => tile.unavailable === 'No billing rows')
+    ).toBe(true);
   });
 });
 
@@ -418,21 +420,52 @@ describe('a nominal budget against the Cost window', () => {
   it('will not compare unpriced or partial spend as a measured overage', () => {
     expect(
       spendVersusBudget(
-        tile({ amount: 12, quality: 'real', pricing: { source: 'list_prices', match: 'unpriced', currency: 'USD', pricedQuantity: 0, unpricedQuantity: 4, pricedRows: 0, unpricedRows: 1, unpricedSkus: ['PREMIUM_SQL'], duplicateMatches: 0, correctionRows: 0, priceEffectiveAt: '' } }),
+        tile({
+          amount: 12,
+          quality: 'real',
+          pricing: {
+            source: 'list_prices',
+            match: 'unpriced',
+            currency: 'USD',
+            pricedQuantity: 0,
+            unpricedQuantity: 4,
+            pricedRows: 0,
+            unpricedRows: 1,
+            unpricedSkus: ['PREMIUM_SQL'],
+            duplicateMatches: 0,
+            correctionRows: 0,
+            priceEffectiveAt: '',
+          },
+        }),
         10,
         'USD'
       ).kind
     ).toBe('budget-only');
     expect(
       spendVersusBudget(
-        tile({ amount: 12, quality: 'real', pricing: { source: 'list_prices', match: 'partial', currency: 'USD', pricedQuantity: 4, unpricedQuantity: 2, pricedRows: 1, unpricedRows: 1, unpricedSkus: ['NEW_SKU'], duplicateMatches: 0, correctionRows: 0, priceEffectiveAt: '' } }),
+        tile({
+          amount: 12,
+          quality: 'real',
+          pricing: {
+            source: 'list_prices',
+            match: 'partial',
+            currency: 'USD',
+            pricedQuantity: 4,
+            unpricedQuantity: 2,
+            pricedRows: 1,
+            unpricedRows: 1,
+            unpricedSkus: ['NEW_SKU'],
+            duplicateMatches: 0,
+            correctionRows: 0,
+            priceEffectiveAt: '',
+          },
+        }),
         10,
         'USD'
       ).kind
     ).toBe('budget-only');
   });
 });
-
 
 /* ── Telemetry has four ordinary states ──────────────────────────────────── */
 
@@ -591,7 +624,7 @@ describe('the copy', () => {
 describe('the mark on a cost tile', () => {
   it('names a product for every billed component', () => {
     const undecided = COST_COMPONENTS.filter((id) => productForCostTile(id) === null);
-    expect(undecided).toEqual(['index-rebuild-job']);
+    expect(undecided).toEqual([]);
   });
 
   it('marks each Genie space tile as Genie', () => {
@@ -671,11 +704,6 @@ describe('cost honesty and coverage copy', () => {
     ).toContain('later days in this range may still be filling');
   });
 
-  it('reports warehouse auto-stop without claiming this app can change it', () => {
-    expect(warehouseAutoStopLine({ minutes: 5, readable: true })).toContain('5 minutes');
-    expect(warehouseAutoStopLine({ minutes: 5, readable: true })).not.toContain('does not change');
-  });
-
   it('maps coverage by product contract, never by prose or a nearby tile', () => {
     const coverage = {
       inventoryCount: 11,
@@ -691,9 +719,7 @@ describe('cost honesty and coverage copy', () => {
           reason: 'Matched by app name.',
         },
       ],
-      propagation: [
-        { product: 'APPS', status: 'unsupported' as const, detail: 'App tags are organizational.' },
-      ],
+      propagation: [{ product: 'APPS', status: 'unsupported' as const, detail: 'App tags are organizational.' }],
     };
     expect(costCoverageProductForTile('serving-endpoint')).toBe('MODEL_SERVING');
     expect(costCoverageProductForTile('genie:space-1')).toBe('GENIE');
@@ -728,18 +754,16 @@ describe('which Ops resources open in Databricks', () => {
   });
 
   it('opens a Genie space and a Vector Search index when those ids are real', () => {
-    expect(
-      costTileWorkspaceObject({ id: 'genie:01ab', resourceId: '01ab', resourceKind: 'genie-space' })
-    ).toEqual({
+    expect(costTileWorkspaceObject({ id: 'genie:01ab', resourceId: '01ab', resourceKind: 'genie-space' })).toEqual({
       kind: 'genie-space',
       spaceId: '01ab',
     });
-    expect(
-      costTileWorkspaceObject({ id: 'vector-search', resourceId: 'a.b.c', resourceKind: 'vector-index' })
-    ).toEqual({
-      kind: 'vector-index',
-      index: 'a.b.c',
-    });
+    expect(costTileWorkspaceObject({ id: 'vector-search', resourceId: 'a.b.c', resourceKind: 'vector-index' })).toEqual(
+      {
+        kind: 'vector-index',
+        index: 'a.b.c',
+      }
+    );
   });
 
   it('does not turn a workspace id or a Vector Search endpoint name into a link', () => {

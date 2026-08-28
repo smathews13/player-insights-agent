@@ -1,4 +1,4 @@
-import { CostBudgetsSchema } from '../../shared/cost-budgets';
+import { attributableCostBudgets, CostBudgetsSchema } from '../../shared/cost-budgets';
 import { recordAdminAction } from '../lib/admin-roles';
 import { readCostBudgets, writeCostBudgets } from '../lib/cost-budgets-store';
 import { userEmail, type InsightsAppKit } from './insights-routes';
@@ -18,7 +18,7 @@ export function setupCostBudgetsRoutes(appkit: InsightsAppKit): void {
       }
       const actor = userEmail(req);
       try {
-        const budgets = await writeCostBudgets(appkit, parsed.data, actor);
+        const budgets = await writeCostBudgets(appkit, attributableCostBudgets(parsed.data), actor);
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'cost-budgets-updated',

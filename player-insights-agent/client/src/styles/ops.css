@@ -56,9 +56,9 @@
 }
 
 .ops-stop-all strong {
-  color: var(--ast-negative);
+  color: var(--db-red-700);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.08em;
 }
 
@@ -991,6 +991,14 @@ a.ops-dependency-name:hover {
  * would invite a total of the two that an operator would then chase.
  */
 .ops-chart-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The three daily series share one column and one compact chart vocabulary. */
+.ops-chart-stack {
   display: flex;
   flex-direction: column;
   gap: 16px;

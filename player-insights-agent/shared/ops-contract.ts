@@ -58,13 +58,7 @@ export const COST_QUALITY_LABEL: Record<CostQuality, string> = {
  * the first as `$0.00` is the invented number the honesty rules forbid.
  */
 /** The workspace object a cost tile can open, when it can open one. */
-export type CostResourceKind =
-  | 'serving-endpoint'
-  | 'sql-warehouse'
-  | 'app'
-  | 'genie-space'
-  | 'vector-index'
-  | 'job';
+export type CostResourceKind = 'serving-endpoint' | 'sql-warehouse' | 'app' | 'genie-space' | 'vector-index';
 
 /**
  * Whose money a tile's figure is, independent of the chip wording.
@@ -81,13 +75,7 @@ export type CostAttributionScope = 'deployment' | 'shared-upper-bound' | 'unavai
  * `priced` is the only status that may be compared as measured spend.
  * Unpriced, duplicate, or mixed-currency rows must not render as $0.00.
  */
-export type CostPriceMatch =
-  | 'priced'
-  | 'unpriced'
-  | 'partial'
-  | 'duplicate'
-  | 'mixed-currency'
-  | 'none';
+export type CostPriceMatch = 'priced' | 'unpriced' | 'partial' | 'duplicate' | 'mixed-currency' | 'none';
 
 /** List-price join evidence for one tile. Contracted rates are not available here. */
 export interface CostTilePricing {
@@ -139,12 +127,6 @@ export interface CostHonesty {
   dataThrough: string;
   rangeMayStillFill: boolean;
   currencyConsistent: boolean;
-}
-
-/** The warehouse auto-stop setting, when this app can read it. It does not change it. */
-export interface WarehouseAutoStop {
-  minutes: number | null;
-  readable: boolean;
 }
 
 export interface CostTile {
@@ -310,8 +292,6 @@ export interface OpsCostPayload {
   coverage?: CostCoverage | null;
   /** List-price source, lag, and currency consistency. */
   honesty?: CostHonesty | null;
-  /** Warehouse auto-stop, when readable. This app never writes that setting. */
-  warehouseAutoStop?: WarehouseAutoStop | null;
 }
 
 /**
@@ -547,7 +527,7 @@ export interface OpsTrafficPayload {
    * NOT A SECOND SPELLING OF `reason`, and the difference is the whole point of
    * the field. `reason` replaces the block: it is what the page shows when
    * nothing about traffic was established. `unread` stands next to charts that
-   * did answer, because this block is three independent reads and losing one of
+   * did answer, because this block is several independent reads and losing one of
    * them is not losing the block.
    *
    * It exists because the alternative was a lie. A chart drawn from a read that
@@ -559,6 +539,15 @@ export interface OpsTrafficPayload {
    */
   unread: string;
   questionsPerDay: Array<{ day: string; count: number }>;
+  /** Distinct signed-in people who stored a user question on each day. */
+  distinctAskersPerDay: Array<{ day: string; count: number }>;
+  /**
+   * Visible app minutes observed by the authenticated heartbeat.
+   *
+   * One signed-in person contributes at most one row per UTC minute. This starts
+   * with the release that creates the activity table and never implies backfill.
+   */
+  activeMinutesPerDay: Array<{ day: string; count: number }>;
   /**
    * Failures and refusals, drawn as two charts and never one series.
    *

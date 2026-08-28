@@ -9,6 +9,7 @@ import { BenchmarkingVisibility } from './BenchmarkingVisibility';
 import { kickWarehouseWarmup } from './warehouse-warmup';
 import { applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
 import { useRuntimeEntityStyles } from './runtime-entity-styles';
+import { startActivityHeartbeat } from './activity-heartbeat';
 
 /**
  * The six pages that are fetched when somebody opens them, not when the app
@@ -231,6 +232,11 @@ export default function App() {
   useEffect(() => {
     kickWarehouseWarmup();
   }, []);
+
+  // Record only visible first-party use. The heartbeat carries no identity or
+  // content; the authenticated server derives the caller and stores one row at
+  // most per user/minute.
+  useEffect(() => startActivityHeartbeat(), []);
 
   // Outside the router on purpose: the choice is about the session rather than
   // about a page, and asking again on every navigation would train people to

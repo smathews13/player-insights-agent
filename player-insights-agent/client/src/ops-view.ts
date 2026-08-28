@@ -46,7 +46,6 @@ import {
   type RouteLatency,
   type TelemetryState,
   type TrafficBar,
-  type WarehouseAutoStop,
 } from '../../shared/ops-contract';
 
 /* ── Money ───────────────────────────────────────────────────────────────── */
@@ -225,8 +224,6 @@ export function costTileWorkspaceObject(
       const parts = id.split('.').filter((piece) => piece.length > 0);
       return parts.length === 3 ? { kind: 'vector-index', index: id } : null;
     }
-    case 'job':
-      return { kind: 'job', jobId: id };
     default:
       return null;
   }
@@ -238,7 +235,6 @@ function kindFromCostTileId(id: string): CostTile['resourceKind'] {
   if (id === 'app-compute') return 'app';
   if (id.startsWith('genie:')) return 'genie-space';
   if (id === 'vector-search') return 'vector-index';
-  if (id === 'index-rebuild-job') return 'job';
   return '';
 }
 
@@ -246,8 +242,7 @@ export function tileView(tile: CostTile, currency: string): TileView {
   // `CostTile` predates the discriminated per-question part, so defend the wire
   // boundary here too: an unknown tile never becomes a number even if malformed
   // JSON happens to carry one.
-  const completePrice =
-    !tile.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
+  const completePrice = !tile.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
   const figure = tile.quality === 'unknown' || !completePrice ? '' : money(tile.amount, currency);
   return {
     id: tile.id,
@@ -440,12 +435,18 @@ const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
 
 const EMPTY_COST_TILES: readonly CostTile[] = [
   { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Serving endpoint', resourceKind: 'serving-endpoint' },
-  { ...EMPTY_COST_TILE, id: 'foundation-model', label: 'Foundation model', resourceKind: 'serving-endpoint' },
+  {
+    ...EMPTY_COST_TILE,
+    id: 'foundation-model',
+    label: 'Foundation model',
+    resourceKind: 'serving-endpoint',
+    population: 'Shared endpoint',
+    unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+  },
   { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
   { ...EMPTY_COST_TILE, id: 'genie', label: 'Genie', resourceKind: 'genie-space' },
   { ...EMPTY_COST_TILE, id: 'vector-search', label: 'Vector search', resourceKind: 'vector-index' },
   { ...EMPTY_COST_TILE, id: 'app-compute', label: 'App compute', resourceKind: 'app' },
-  { ...EMPTY_COST_TILE, id: 'index-rebuild-job', label: 'Index rebuild job', resourceKind: 'job' },
 ];
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
@@ -736,12 +737,10 @@ const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
  */
 const COST_COVERAGE_PRODUCT: Readonly<Record<string, string>> = {
   'serving-endpoint': 'MODEL_SERVING',
-  'foundation-model': 'MODEL_SERVING',
   'sql-warehouse': 'SQL',
   'vector-search': 'VECTOR_SEARCH',
   'app-compute': 'APPS',
   genie: 'GENIE',
-  'index-rebuild-job': 'JOBS',
 };
 
 export function costCoverageProductForTile(tileId: string): string | null {
@@ -750,10 +749,7 @@ export function costCoverageProductForTile(tileId: string): string | null {
 }
 
 /** Concise coverage and propagation facts for one displayed tile. */
-export function costCoverageLinesForTile(
-  tileId: string,
-  coverage: CostCoverage | null | undefined
-): string[] {
+export function costCoverageLinesForTile(tileId: string, coverage: CostCoverage | null | undefined): string[] {
   if (!coverage) return [];
   const product = costCoverageProductForTile(tileId);
   if (!product) return [];
@@ -782,8 +778,7 @@ export const QUESTION_COST_FORMULA = 'serving endpoint spend ÷ questions with r
 export function questionServingAverage(payload: OpsCostPayload): number | null {
   const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
   const covered = payload.perQuestion.tokenCoveredRuns;
-  const dedicated =
-    serving?.population === 'This endpoint' && tileAttribution(serving) === 'deployment';
+  const dedicated = serving?.population === 'This endpoint' && tileAttribution(serving) === 'deployment';
   const priced = !serving?.pricing || serving.pricing.match === 'priced' || serving.pricing.match === 'none';
   if (
     serving?.quality !== 'real' ||
@@ -810,13 +805,6 @@ export function costHonestyLine(honesty: CostHonesty | null | undefined): string
       : '';
   const currency = honesty.currencyConsistent ? '' : ' Mixed currencies were withheld rather than combined.';
   return `Figures are list prices from system.billing.list_prices, not contracted rates.${through}${currency}`;
-}
-
-export function warehouseAutoStopLine(autoStop: WarehouseAutoStop | null | undefined): string {
-  if (!autoStop?.readable) return '';
-  if (autoStop.minutes === null) return 'Warehouse auto-stop could not be read.';
-  const noun = autoStop.minutes === 1 ? 'minute' : 'minutes';
-  return `Warehouse auto-stop is ${autoStop.minutes} ${noun}.`;
 }
 
 /*

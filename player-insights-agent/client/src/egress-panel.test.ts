@@ -97,10 +97,12 @@ describe('a switch says how far it reaches', () => {
 });
 
 describe('what the panel lists', () => {
-  it('draws only controllable paths, with switches', () => {
+  it('draws only controllable paths, with explicit state switches', () => {
     expect(PANEL_SOURCE).toContain('controllablePaths()');
     expect(PANEL_SOURCE).toContain('ControlRow');
-    expect(PANEL_SOURCE).toContain('<Switch');
+    expect(PANEL_SOURCE).toContain('<StateSwitch');
+    expect(PANEL_SOURCE).toContain('onLabel="Allowed"');
+    expect(PANEL_SOURCE).toContain('offLabel="Blocked"');
   });
 
   it('does not draw the uncontrollable status rows or the egress log', () => {

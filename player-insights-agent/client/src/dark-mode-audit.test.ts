@@ -35,8 +35,7 @@ describe('the opaque stand-in matches the surface it stands in for', () => {
     expect(solid, 'the fallback surface is declared').toBeDefined();
     expect(navy, 'the sky is declared').toBeDefined();
 
-    const channels = (hex: string) =>
-      [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+    const channels = (hex: string) => [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
     // The frosted surfaces are rgba(255, 255, 255, 0.03) over the sky.
     const expected = channels(navy!).map((channel) => Math.round(channel * 0.97 + 255 * 0.03));
 
@@ -119,10 +118,7 @@ describe('dark mode covers the shipped surfaces', () => {
      * component's own classes for that reason; requiring the absence of the
      * wrapper is what keeps the second surface fixed.
      */
-    for (const selector of [
-      "html[data-theme='dark'] .trace-timeline",
-      "html[data-theme='dark'] .trace-gantt",
-    ]) {
+    for (const selector of ["html[data-theme='dark'] .trace-timeline", "html[data-theme='dark'] .trace-gantt"]) {
       const body = bodyFor(DARK, selector);
       expect(body, `${selector} still compounds the parent pane`).toMatch(/background:\s*transparent/);
       expect(body).toMatch(/backdrop-filter:\s*none/);
@@ -143,14 +139,9 @@ describe('dark mode covers the shipped surfaces', () => {
      * fill. Only the card may hold a fill; the list is a bordered region and
      * the rows are rows.
      */
-    for (const selector of [
-      "html[data-theme='dark'] .live-steps",
-      "html[data-theme='dark'] .live-step",
-    ]) {
+    for (const selector of ["html[data-theme='dark'] .live-steps", "html[data-theme='dark'] .live-step"]) {
       const body = bodyFor(DARK, selector);
-      expect(body, `${selector} still stacks white inside the working card`).toMatch(
-        /background:\s*transparent/
-      );
+      expect(body, `${selector} still stacks white inside the working card`).toMatch(/background:\s*transparent/);
       expect(body).toMatch(/backdrop-filter:\s*none/);
     }
     // The panes that DO sit straight on the sky keep their frost.
@@ -177,15 +168,11 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).not.toMatch(/\.run-process \.trace-(?:timeline|gantt|kpi)/);
     expect(DARK).not.toMatch(/\.run-explorer \.trace-(?:timeline|gantt|kpi)/);
     // Both mount points, so the shared rule is provably shared.
-    expect(source('AnswerCard.tsx'), 'Ask no longer draws the run process').toContain(
-      'className="run-process"'
-    );
+    expect(source('AnswerCard.tsx'), 'Ask no longer draws the run process').toContain('className="run-process"');
     expect(source('RunExplorer.tsx'), 'Run Explorer no longer draws the timeline').toMatch(
       /<TraceTimeline[\s\S]*?trace=\{runTrace\.trace}/
     );
-    expect(source('TraceTimeline.tsx'), 'the de-stacked classes are not the ones drawn').toMatch(
-      /trace-timeline/
-    );
+    expect(source('TraceTimeline.tsx'), 'the de-stacked classes are not the ones drawn').toMatch(/trace-timeline/);
     expect(source('TraceTimeline.tsx')).toContain("variant === 'explorer' ? 'trace-timeline--explorer'");
   });
 
@@ -346,9 +333,7 @@ describe('dark mode covers the shipped surfaces', () => {
       expect(body, `${selector} still frosts the column`).toMatch(/backdrop-filter:\s*none/);
       expect(body, `${selector} still uses the lifted gray mix`).not.toMatch(/color-mix/);
     }
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(
-      /background:\s*var\(--ast-surface-solid\)/
-    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-solid\)/);
     expect(bodyFor(DARK, "html[data-theme='dark'] [data-slot='select-content']")).toMatch(
       /background:\s*var\(--ast-surface-solid\)/
     );
@@ -447,9 +432,7 @@ describe('dark mode covers the shipped surfaces', () => {
     const darkTokens = TOKENS.split("html[data-theme='dark']")[1] ?? '';
     expect(darkTokens).toMatch(/--popover:\s*var\(--ast-surface-solid\)/);
     expect(darkTokens).not.toMatch(/--popover:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
-    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(
-      /background:\s*var\(--ast-surface-solid\)/
-    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] .account-menu")).toMatch(/background:\s*var\(--ast-surface-solid\)/);
   });
 
   it('keeps Settings on the rail frost instead of the opaque overlay paint', () => {
@@ -482,15 +465,17 @@ describe('dark mode covers the shipped surfaces', () => {
     );
     expect(DARK).toMatch(/--ast-entity-catalog-bg:\s*var\(--entity-catalog-bg,\s*var\(--ast-primary-control-fill\)\)/);
     expect(DARK).toMatch(
-      new RegExp(`--ast-entity-schema-bg:\\s*var\\(--entity-schema-bg,\\s*${DEFAULT_ENTITY_STYLES.schema.background}\\)`)
+      new RegExp(
+        `--ast-entity-schema-bg:\\s*var\\(--entity-schema-bg,\\s*${DEFAULT_ENTITY_STYLES.schema.background}\\)`
+      )
     );
     expect(DARK).toMatch(
-      new RegExp(`--ast-entity-column-bg:\\s*var\\(--entity-column-bg,\\s*${DEFAULT_ENTITY_STYLES.column.background}\\)`)
+      new RegExp(
+        `--ast-entity-column-bg:\\s*var\\(--entity-column-bg,\\s*${DEFAULT_ENTITY_STYLES.column.background}\\)`
+      )
     );
     expect(DARK).toMatch(/--ast-entity-quote-bg:\s*var\(--entity-quote-bg,\s*var\(--ast-surface-solid\)\)/);
-    expect(ASTROLABE).toMatch(
-      new RegExp(`--ast-entity-tag-on-navy:\\s*${DEFAULT_ENTITY_STYLES.tag.background}`, 'i')
-    );
+    expect(ASTROLABE).toMatch(new RegExp(`--ast-entity-tag-on-navy:\\s*${DEFAULT_ENTITY_STYLES.tag.background}`, 'i'));
     expect(DARK).toMatch(/--ast-entity-tag-bg:\s*var\(--entity-tag-bg,\s*var\(--ast-entity-tag-on-navy\)\)/);
     for (const paper of ['#ddeaf4', '#e8e8e8', '#f4f4f4', '#f7f7f7']) {
       expect(DARK, `${paper} is still an entity fallback`).not.toMatch(
@@ -523,9 +508,7 @@ describe('dark mode covers the shipped surfaces', () => {
       '.plan-step > span',
     ]) {
       const pressed = bodyFor(ALL_CSS, selector);
-      expect(pressed, `${selector} misses the shared pressed fill`).toMatch(
-        /background:\s*var\(--ast-seg-pressed\)/
-      );
+      expect(pressed, `${selector} misses the shared pressed fill`).toMatch(/background:\s*var\(--ast-seg-pressed\)/);
       expect(pressed).toMatch(/color:\s*var\(--ast-seg-pressed-ink\)/);
     }
   });
@@ -555,6 +538,10 @@ describe('dark mode covers the shipped surfaces', () => {
         /color:\s*var\(--destructive-foreground\)/
       );
     }
+    const admin = bodyFor(DARK, "html[data-theme='dark'] .ops-stop-all strong");
+    expect(admin).toMatch(/color:\s*var\(--ast-neg-text\)/);
+    expect(admin).toMatch(/font-weight:\s*800/);
+    expect(source('OpsPage.tsx')).toContain('data-variant="destructive"');
   });
 
   it('keeps Settings role plaques neutral and readable in both themes', () => {
@@ -572,9 +559,7 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(seed).toMatch(/color:\s*var\(--foreground\)/);
     // Immutable roles now use the shared neutral-outline status pill rather
     // than a private plaque with a second dark-mode recipe.
-    expect(source('UserRoleEditor.tsx')).toContain(
-      'className="ast-pill ast-pill--neutral-outline roster-role-status"'
-    );
+    expect(source('UserRoleEditor.tsx')).toContain('className="ast-pill ast-pill--neutral-outline roster-role-status"');
     expect(SETTINGS).not.toMatch(/\.roster-role-chip\s*\{/);
     expect(SETTINGS).not.toMatch(/\.roster-role-chip-super-admin\s*\{/);
     expect(DARK).not.toContain("html[data-theme='dark'] .roster-role-chip");
@@ -698,9 +683,7 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(normal).toMatch(
       /html\[data-theme='dark'\] \.eval-steps\s*\{[^}]*color-mix\(in srgb, var\(--ast-sky-fill\) 86%, white\)[^}]*backdrop-filter:\s*blur\(10px\)/
     );
-    expect(reduced, 'the how-to has no reduced-transparency fallback').toContain(
-      "html[data-theme='dark'] .eval-steps"
-    );
+    expect(reduced, 'the how-to has no reduced-transparency fallback').toContain("html[data-theme='dark'] .eval-steps");
     expect(bodyFor(reduced, "html[data-theme='dark'] .eval-steps")).toMatch(
       /backdrop-filter:\s*none[\s\S]*background:\s*var\(--ast-surface-solid\)/
     );

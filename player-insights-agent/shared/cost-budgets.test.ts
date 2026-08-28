@@ -39,15 +39,24 @@ describe('nominal cost budgets', () => {
   });
 
   it('drops keys that are no longer on the Cost grid', () => {
-    const stored = withResourceBudget(
-      withTotalBudget(EMPTY_COST_BUDGETS, 100),
-      'genie:old-space',
-      25
-    );
+    const stored = withResourceBudget(withTotalBudget(EMPTY_COST_BUDGETS, 100), 'genie:old-space', 25);
     expect(budgetsForVisibleTiles(stored, ['app-compute', 'serving-endpoint'])).toEqual({
       total: 100,
       resources: { 'app-compute': null, 'serving-endpoint': null },
     });
+  });
+
+  it('removes retired rebuild and unproven shared-endpoint budgets from stored payloads', () => {
+    expect(
+      parseCostBudgets({
+        total: 100,
+        resources: {
+          'app-compute': 25,
+          'foundation-model': 50,
+          'index-rebuild-job': 75,
+        },
+      })
+    ).toEqual({ total: 100, resources: { 'app-compute': 25 } });
   });
 
   it('keeps a typed amount inside the schema ceiling', () => {

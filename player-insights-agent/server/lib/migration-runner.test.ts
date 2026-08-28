@@ -249,6 +249,18 @@ describe('the app request timing migration', () => {
   });
 });
 
+describe('the recorded app activity migration', () => {
+  it('adds a new idempotent table without altering customer history tables', () => {
+    const migration = MIGRATIONS.find((entry) => entry.name === 'recorded app activity minutes');
+    expect(migration?.version).toBe(18);
+    const ddl = migration?.statements.join('\n') ?? '';
+    expect(ddl).toContain('CREATE TABLE IF NOT EXISTS');
+    expect(ddl).toContain('app_activity_minutes');
+    expect(ddl).toContain('PRIMARY KEY (user_email, active_minute)');
+    expect(ddl).not.toMatch(/ALTER TABLE/i);
+  });
+});
+
 describe('a fresh database', () => {
   it('applies every version in order and records each one', async () => {
     const store = fakeStore();

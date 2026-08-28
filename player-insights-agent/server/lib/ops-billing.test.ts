@@ -16,7 +16,6 @@ const IDS: CostIdentifiers = {
   warehouseId: 'warehouse-1',
   vectorEndpoint: '',
   vectorIndex: '',
-  indexRebuildJobId: 'job-123',
   genieSpaces: [],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
@@ -33,20 +32,23 @@ describe('billing attribution', () => {
     expect(query?.statement).toContain(
       "WHEN u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName THEN 'serving-endpoint'"
     );
-    expect(query?.statement).toContain(
-      "WHEN u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :foundationEndpoint THEN 'foundation-model'"
-    );
+    expect(query?.statement).not.toContain(':foundationEndpoint');
     expect(query?.statement).toContain(
       "WHEN u.billing_origin_product = 'SQL' AND u.usage_metadata.warehouse_id = :warehouseId THEN 'sql-warehouse'"
     );
     expect(query?.statement).toContain(
       "WHEN u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName THEN 'app-compute'"
     );
-    expect(query?.statement).toContain(
-      "WHEN u.billing_origin_product = 'JOBS' AND u.usage_metadata.job_id = :indexRebuildJobId THEN 'index-rebuild-job'"
-    );
+    expect(query?.statement).not.toContain('indexRebuildJobId');
+    expect(query?.statement).not.toContain("billing_origin_product = 'JOBS'");
     expect(query?.statement).not.toContain('COALESCE(p.pricing.default, 0)');
     expect(query?.statement).toContain('t.usage_unit = p.usage_unit');
+    expect(query?.statement.match(/u\.workspace_id = :workspaceId/g) ?? []).toHaveLength(2);
+    expect(query?.parameters).toContainEqual({ name: 'workspaceId', value: IDS.workspaceId, type: 'STRING' });
+  });
+
+  it('refuses to scan account-wide billing when the workspace id is unavailable', () => {
+    expect(buildCostStatement({ ...IDS, workspaceId: '' }, RANGE)).toBeNull();
   });
 
   it('deduplicates tag and metadata overlap by billing record id before summing', () => {
@@ -93,7 +95,7 @@ describe('billing attribution', () => {
     expect(tiles.find((tile) => tile.id === 'app-compute')?.resourceId).toBe(IDS.appName);
     expect(tiles.find((tile) => tile.id === 'genie')?.resourceId).toBe('');
     expect(tiles.find((tile) => tile.id === 'vector-search')?.resourceId).toBe('');
-    expect(tiles.find((tile) => tile.id === 'index-rebuild-job')?.resourceId).toBe(IDS.indexRebuildJobId);
+    expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
 
   it('does not turn a missing app-tag match into zero app-compute spend', () => {
@@ -239,7 +241,11 @@ describe('billing attribution', () => {
     expect(serving?.attribution).toBe('unavailable');
   });
 
-  it('counts one MODEL_SERVING endpoint once when agent and foundation names are equal', () => {
+  it('withholds the configured foundation endpoint even when its name is exact', () => {
+    const sameStatement = buildCostStatement({ ...IDS, foundationEndpoint: IDS.endpointName }, RANGE);
+    expect(sameStatement?.statement).not.toContain(':endpointName');
+    expect(sameStatement?.statement).not.toContain(':foundationEndpoint');
+
     const same = buildTiles({ ...IDS, foundationEndpoint: IDS.endpointName }, [
       {
         component: 'serving-endpoint',
@@ -250,12 +256,29 @@ describe('billing attribution', () => {
         lastDay: RANGE.to,
       },
     ]);
-    expect(same.find((tile) => tile.id === 'serving-endpoint')?.amount).toBe(12);
+    expect(same.find((tile) => tile.id === 'serving-endpoint')).toMatchObject({
+      amount: null,
+      quality: 'unknown',
+      population: 'Shared endpoint',
+    });
     const foundation = same.find((tile) => tile.id === 'foundation-model');
     expect(foundation).toMatchObject({
       amount: null,
       quality: 'unknown',
+      population: 'Shared endpoint',
     });
-    expect(foundation?.unavailable).toContain('counted once');
+    expect(foundation?.unavailable).toContain('app has not proven ownership');
+    expect(
+      buildTiles({ ...IDS, foundationEndpoint: 'some-other-shared-endpoint' }, [
+        {
+          component: 'foundation-model',
+          spend: 99,
+          currency: 'USD',
+          billedDays: 2,
+          jobRuns: null,
+          lastDay: RANGE.to,
+        },
+      ]).find((tile) => tile.id === 'foundation-model')?.amount
+    ).toBeNull();
   });
 });

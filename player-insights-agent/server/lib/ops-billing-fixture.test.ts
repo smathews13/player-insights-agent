@@ -27,7 +27,6 @@ const IDS: CostIdentifiers = {
   warehouseId: 'warehouse-1',
   vectorEndpoint: 'vs-endpoint',
   vectorIndex: 'cat.schema.index',
-  indexRebuildJobId: '12345',
   genieSpaces: [{ id: 'space-data', label: 'Data Genie space' }],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
@@ -117,11 +116,12 @@ describe('price join golden outputs', () => {
       row({ component: 'sql-warehouse', spend: 3, billedDays: 1 }),
       row({ component: 'vector-search', spend: 4, billedDays: 1 }),
       row({ component: 'app-compute', spend: 5, billedDays: 1 }),
-      row({ component: 'index-rebuild-job', spend: 6, billedDays: 1 }),
     ]);
     const measured = tiles.filter((tile) => tile.amount !== null);
     expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
-    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(21);
+    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(13);
+    expect(tiles.find((tile) => tile.id === 'foundation-model')?.amount).toBeNull();
+    expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
 
   it('treats a fully priced serving row as measured spend', () => {
@@ -230,12 +230,9 @@ describe('coverage, shared meters, and Genie', () => {
       ],
       appBillingTag: 'matched',
     });
-    expect(coverage.costModelCount).toBe(7);
+    expect(coverage.costModelCount).toBe(6);
     expect(coverage.inventoryCount).toBe(11);
-    expect(coverage.products.find((product) => product.product === 'JOBS')).toMatchObject({
-      tiled: true,
-      taggedRows: 4,
-    });
+    expect(coverage.products.find((product) => product.product === 'JOBS')).toBeUndefined();
     expect(coverage.propagation.find((item) => item.product === 'APPS')?.status).toBe('unsupported');
     expect(coverage.propagation.find((item) => item.product === 'SQL')?.status).toBe('propagated');
   });
@@ -279,10 +276,9 @@ describe('per-question average eligibility', () => {
   });
 
   it('does not widen a missing endpoint name to a whole-workspace estimate', () => {
-    const serving = buildTiles(
-      { ...IDS, endpointName: '' },
-      [row({ kind: 'component', component: 'serving-endpoint:workspace', spend: 12 })]
-    ).find((tile) => tile.id === 'serving-endpoint');
+    const serving = buildTiles({ ...IDS, endpointName: '' }, [
+      row({ kind: 'component', component: 'serving-endpoint:workspace', spend: 12 }),
+    ]).find((tile) => tile.id === 'serving-endpoint');
     expect(serving?.amount).toBeNull();
     expect(serving?.quality).toBe('unknown');
     expect(serving?.unavailable).toBe('Resource identifier unavailable');

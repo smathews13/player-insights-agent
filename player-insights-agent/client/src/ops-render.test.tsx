@@ -77,7 +77,10 @@ describe('the admin cancellation control', () => {
     expect(visible).toContain('No data or history is deleted.');
     expect(visible).not.toContain('One-time snapshot only');
     expect(visible).not.toContain('Future Asks continue');
-    expect(markupOf(<StopAllActiveRuns />)).toContain('ops-stop-all-button');
+    const markup = markupOf(<StopAllActiveRuns />);
+    expect(markup).toContain('ops-stop-all-button');
+    expect(markup).toContain('data-variant="destructive"');
+    expect(OPS_STYLES).toMatch(/\.ops-stop-all strong\s*\{[^}]*color:\s*var\(--db-red-700\)[^}]*font-weight:\s*800/);
   });
 
   it('is gated by the resolved admin role on Ops', () => {
@@ -217,6 +220,8 @@ function traffic(overrides: Partial<OpsTrafficPayload> = {}): OpsTrafficPayload 
     reason: '',
     unread: '',
     questionsPerDay: [{ day: '2026-08-14', count: 12 }],
+    distinctAskersPerDay: [{ day: '2026-08-14', count: 4 }],
+    activeMinutesPerDay: [{ day: '2026-08-14', count: 80 }],
     failuresByCause: [{ key: 'WAREHOUSE_UNAVAILABLE', label: 'Warehouse unavailable', count: 2 }],
     refusalsByCause: [{ key: 'NOT_PERMITTED', label: 'Not permitted', count: 40 }],
     toolCalls: [{ key: 'genie', label: 'Genie', count: 30 }],
@@ -827,9 +832,10 @@ describe('the cost block', () => {
   /** The six lines of prose, gone, and named so they cannot come back quietly. */
   it('carries no caption under any figure', () => {
     const payload = cost({
-      tiles: (
-        ['serving-endpoint', 'sql-warehouse', 'genie', 'vector-search', 'app-compute'] as const
-      ).map((id) => ({ ...cost().tiles[0], id })),
+      tiles: (['serving-endpoint', 'sql-warehouse', 'genie', 'vector-search', 'app-compute'] as const).map((id) => ({
+        ...cost().tiles[0],
+        id,
+      })),
     });
     const markup = render(<CostBody block={block(payload)} />);
     for (const caption of [
@@ -893,27 +899,25 @@ describe('the cost block', () => {
   /**
    * A state and a remedy, where two cards were nothing but a paragraph.
    *
-   * Vector search and the index rebuild job are unattributable on this
-   * deployment, and both cards were two sentences of explanation with no figure
-   * above them. What a reader needs from them is that there is no figure and, for
-   * the one that has a fix, the variable to set.
+   * A configured resource with no billing identity is a state and a remedy,
+   * never a zero.
    */
   it('renders a missing resource identifier as a state and the fix for it', () => {
     const payload = cost({
       tiles: [
         {
           ...cost().tiles[0],
-          label: 'Index rebuild job',
+          label: 'Serving endpoint',
           amount: null,
           unavailable: 'Resource identifier unavailable',
-          remedy: 'Set PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID.',
+          remedy: 'Set DATABRICKS_SERVING_ENDPOINT_NAME.',
         },
       ],
     });
     const markup = render(<CostBody block={block(payload)} />);
     expect(markup).toContain('Resource identifier unavailable');
     expect(markup).not.toContain('Not attributable');
-    expect(markup).toContain('Set PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID.');
+    expect(markup).toContain('Set DATABRICKS_SERVING_ENDPOINT_NAME.');
     expect(markup).not.toMatch(/cannot be told apart/);
     expect(markup).not.toContain('0.00');
   });
@@ -1042,12 +1046,12 @@ describe('the cost block', () => {
     expect(markup).toContain('Vector search');
     expect(markup).toContain('App compute');
     expect(markup).toContain('AVG. COST / QUESTION');
-    expect(markup).toContain('Index rebuild job');
+    expect(markup).not.toContain('Index rebuild job');
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).toContain('system_billing');
     expect(markup).toContain('astrolabe');
-    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(8);
+    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(7);
   });
 
   it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
@@ -1066,11 +1070,41 @@ describe('the cost block', () => {
           cost({
             state: 'no-rows',
             tiles: [
-              { ...empty, id: 'serving-endpoint', label: 'Serving endpoint', resourceId: 'an-endpoint', resourceKind: 'serving-endpoint' },
-              { ...empty, id: 'sql-warehouse', label: 'SQL warehouse', resourceId: 'wh-1', resourceKind: 'sql-warehouse' },
-              { ...empty, id: 'genie:space-data', label: 'Player data', resourceId: 'space-data', resourceKind: 'genie-space' },
-              { ...empty, id: 'genie:space-dictionary', label: 'Dictionary', resourceId: 'space-dictionary', resourceKind: 'genie-space' },
-              { ...empty, id: 'vector-search', label: 'Vector search', resourceId: 'cat.schema.index', resourceKind: 'vector-index' },
+              {
+                ...empty,
+                id: 'serving-endpoint',
+                label: 'Serving endpoint',
+                resourceId: 'an-endpoint',
+                resourceKind: 'serving-endpoint',
+              },
+              {
+                ...empty,
+                id: 'sql-warehouse',
+                label: 'SQL warehouse',
+                resourceId: 'wh-1',
+                resourceKind: 'sql-warehouse',
+              },
+              {
+                ...empty,
+                id: 'genie:space-data',
+                label: 'Player data',
+                resourceId: 'space-data',
+                resourceKind: 'genie-space',
+              },
+              {
+                ...empty,
+                id: 'genie:space-dictionary',
+                label: 'Dictionary',
+                resourceId: 'space-dictionary',
+                resourceKind: 'genie-space',
+              },
+              {
+                ...empty,
+                id: 'vector-search',
+                label: 'Vector search',
+                resourceId: 'cat.schema.index',
+                resourceKind: 'vector-index',
+              },
               { ...empty, id: 'app-compute', label: 'App compute', resourceId: 'player-insights', resourceKind: 'app' },
             ],
             reason: 'No billing rows matched the Astrolabe tag in this range.',
@@ -1118,18 +1152,26 @@ describe('the cost block', () => {
     expect(markup).toContain('--brand-icon-size:14px');
   });
 
-  /**
-   * AND LEAVES THE ONE THAT IS NOT A PRODUCT'S BARE, which the handoff asks for
-   * outright: the index rebuild is a Lakeflow job and there is no job mark in
-   * the set, so any mark would name a product the figure is not about.
-   */
-  it('shows the exact index rebuild job without inventing a product mark', () => {
+  it('keeps the shared foundation endpoint dollar-free and visibly identified', () => {
     const payload = cost({
-      tiles: [{ ...cost().tiles[0], id: 'index-rebuild-job', label: 'Index rebuild job' }],
+      tiles: [
+        {
+          ...cost().tiles[0],
+          id: 'foundation-model',
+          label: 'Foundation model',
+          amount: null,
+          quality: 'unknown',
+          population: 'Shared endpoint',
+          unavailable:
+            'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+        },
+      ],
     });
-    const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Index rebuild job');
-    expect(markup).not.toContain('ops-tile-mark');
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    expect(markup).toContain('Foundation model');
+    expect(markup).toContain('Whole shared endpoint spend is withheld');
+    expect(markup).toContain('ops-tile-mark');
+    expect(markup).not.toMatch(/Budget in range/);
   });
 
   it('draws a tile title as a hyperlink with the Databricks mark when it has a URL', () => {
@@ -1398,12 +1440,24 @@ describe('the traffic block', () => {
    */
   it('gives the day columns a magnitude at both densities', () => {
     const day = (n: number) => ({ day: `2026-08-${String(n).padStart(2, '0')}`, count: n });
-    const week = markupOf(<TrafficBody block={block(traffic({ questionsPerDay: [day(3), day(9)] }))} />);
+    const week = markupOf(
+      <TrafficBody
+        block={block(traffic({ questionsPerDay: [day(3), day(9)], distinctAskersPerDay: [], activeMinutesPerDay: [] }))}
+      />
+    );
     expect(week).toContain('ops-daybar-value');
     expect(week).not.toContain('ops-daybars-peak');
 
     const month = markupOf(
-      <TrafficBody block={block(traffic({ questionsPerDay: Array.from({ length: 30 }, (_, i) => day(i + 1)) }))} />
+      <TrafficBody
+        block={block(
+          traffic({
+            questionsPerDay: Array.from({ length: 30 }, (_, i) => day(i + 1)),
+            distinctAskersPerDay: [],
+            activeMinutesPerDay: [],
+          })
+        )}
+      />
     );
     expect(month).not.toContain('ops-daybar-value');
     expect(month).toContain('ops-daybars-peak');
@@ -1431,6 +1485,10 @@ describe('the traffic block', () => {
     const markup = render(<TrafficBody block={block(traffic())} />);
     expect(markup).toContain('30');
     expect(markup).toContain('12');
+    expect(markup).toContain('4');
+    expect(markup).toContain('80');
+    expect(markup).toContain('Distinct askers per day');
+    expect(markup).toContain('Recorded active app minutes per day');
   });
 
   /**

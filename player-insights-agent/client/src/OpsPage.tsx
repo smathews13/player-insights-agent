@@ -79,7 +79,6 @@ import {
   withheldReason,
   tileView,
   trafficCaption,
-  warehouseAutoStopLine,
   type Absence as AbsenceCopy,
   type HealthRow,
 } from './ops-view';
@@ -403,10 +402,10 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                     const object = healthResourceObject(row);
                     const resourceHref = object ? databricksLink(host, object) : null;
                     return (
-                    <tr key={row.id}>
-                      <th scope="row">
-                        <span className="ops-dependency">
-                          {/* The product's own mark, 16px, from the module that
+                      <tr key={row.id}>
+                        <th scope="row">
+                          <span className="ops-dependency">
+                            {/* The product's own mark, 16px, from the module that
                               owns the artwork. Decorative: the name is right
                               beside it, and a mark that announced itself would
                               make a screen reader say the product twice. Drawn
@@ -414,73 +413,73 @@ export function HealthBody({ block }: { block: Block<OpsHealthPayload> }) {
                               null draws nothing rather than a stand-in, because
                               the wrong mark on a failing row sends a reader to
                               the wrong service's console. */}
-                          {probeMark(row.kind)}
-                          {/* The row this dependency is documented on. Drawn only
+                            {probeMark(row.kind)}
+                            {/* The row this dependency is documented on. Drawn only
                               where the server said there is one: some probes have
                               no Connections row, and a link to nothing looks like
                               the page failing to find it. */}
-                          {row.connectionsId ? (
-                            <Link
-                              className="ops-dependency-label"
-                              to={`/connections?entity=${encodeURIComponent(row.connectionsId)}`}
-                            >
-                              {row.label}
-                            </Link>
-                          ) : (
-                            <span className="ops-dependency-label">{row.label}</span>
-                          )}
-                          {/* Databricks, beside Connections, and only where a
+                            {row.connectionsId ? (
+                              <Link
+                                className="ops-dependency-label"
+                                to={`/connections?entity=${encodeURIComponent(row.connectionsId)}`}
+                              >
+                                {row.label}
+                              </Link>
+                            ) : (
+                              <span className="ops-dependency-label">{row.label}</span>
+                            )}
+                            {/* Databricks, beside Connections, and only where a
                               verified path exists. Architecture does the same
                               split: the in-app row always works, leaving the
                               workspace is a second control. */}
-                          {resourceHref && row.name && row.label.includes(row.name) ? (
-                            <a
-                              className="ops-resource-open"
-                              href={resourceHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={`Open ${row.label} in Databricks`}
-                            >
-                              <ExternalLink className="size-3.5" aria-hidden="true" />
-                              <span className="sr-only">Open in Databricks</span>
-                            </a>
-                          ) : null}
-                        </span>
-                        {/* The configured identifier, and only where the label is
+                            {resourceHref && row.name && row.label.includes(row.name) ? (
+                              <a
+                                className="ops-resource-open"
+                                href={resourceHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open ${row.label} in Databricks`}
+                              >
+                                <ExternalLink className="size-3.5" aria-hidden="true" />
+                                <span className="sr-only">Open in Databricks</span>
+                              </a>
+                            ) : null}
+                          </span>
+                          {/* The configured identifier, and only where the label is
                             not already carrying it. Most probe labels are
                             "SQL warehouse · <id>" and the second line was the
                             same string again under the first. When a Databricks
                             URL can be built, this identifier is that link. */}
-                        {row.name && !row.label.includes(row.name) ? (
-                          resourceHref ? (
-                            <a
-                              className="ops-dependency-name"
-                              href={resourceHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={`Open ${row.name} in Databricks`}
-                            >
-                              {row.name}
-                            </a>
-                          ) : (
-                            <span className="ops-dependency-name">{row.name}</span>
-                          )
-                        ) : null}
-                      </th>
-                      <td className="ops-col-result">
-                        {/* The badge that used to sit in the band above, in the
+                          {row.name && !row.label.includes(row.name) ? (
+                            resourceHref ? (
+                              <a
+                                className="ops-dependency-name"
+                                href={resourceHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open ${row.name} in Databricks`}
+                              >
+                                {row.name}
+                              </a>
+                            ) : (
+                              <span className="ops-dependency-name">{row.name}</span>
+                            )
+                          ) : null}
+                        </th>
+                        <td className="ops-col-result">
+                          {/* The badge that used to sit in the band above, in the
                             row it is about. The words are the state; the class
                             only paints what they already said, so this reads the
                             same in monochrome and to a screen reader. */}
-                        <ResultPill pill={row.pill} />
-                      </td>
-                      <td className="ops-col-when">
-                        {row.lastCheckedAt ? (
-                          <time dateTime={row.lastCheckedAt}>{ageAgo(row.lastCheckedAt)}</time>
-                        ) : null}
-                      </td>
-                      <td className="ops-reason">{row.notes}</td>
-                    </tr>
+                          <ResultPill pill={row.pill} />
+                        </td>
+                        <td className="ops-col-when">
+                          {row.lastCheckedAt ? (
+                            <time dateTime={row.lastCheckedAt}>{ageAgo(row.lastCheckedAt)}</time>
+                          ) : null}
+                        </td>
+                        <td className="ops-reason">{row.notes}</td>
+                      </tr>
                     );
                   })}
                 </tbody>
@@ -601,7 +600,7 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                       ) : (
                         <p className="ops-tile-absent">{view.absence}</p>
                       )}
-                      <CostTileBudget tile={tile} />
+                      {tile.id === 'foundation-model' ? null : <CostTileBudget tile={tile} />}
                       {view.estimate || view.sharedScope || view.remedy || view.note || coverage.length > 0 ? (
                         <div className="ops-tile-foot">
                           {view.estimate ? (
@@ -627,9 +626,6 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
             </fieldset>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
             <p className="ops-cost-honesty">{costHonestyLine(payload.honesty)}</p>
-            {warehouseAutoStopLine(payload.warehouseAutoStop) ? (
-              <p className="ops-cost-honesty">{warehouseAutoStopLine(payload.warehouseAutoStop)}</p>
-            ) : null}
             {billingHref ? (
               <a
                 className="ops-external"
@@ -805,7 +801,15 @@ const DAY_VALUE_LIMIT = 10;
  * column's own `title` and to a screen reader. A chart whose counts exist only
  * as heights is a chart a screen reader reports as nothing at all.
  */
-function QuestionsPerDay({ days }: { days: Array<{ day: string; count: number }> }) {
+function DailyBars({
+  title,
+  days,
+  empty,
+}: {
+  title: string;
+  days: Array<{ day: string; count: number }>;
+  empty: string;
+}) {
   const busiest = days.reduce((high, day) => Math.max(high, day.count), 0);
   const valued = days.length <= DAY_VALUE_LIMIT;
   /*
@@ -818,9 +822,9 @@ function QuestionsPerDay({ days }: { days: Array<{ day: string; count: number }>
   const ceiling = valued ? 78 : 100;
   return (
     <div className="ops-chart">
-      <h4>Questions per day</h4>
+      <h4>{title}</h4>
       {days.length === 0 ? (
-        <p className="ops-chart-empty">No questions have been recorded.</p>
+        <p className="ops-chart-empty">{empty}</p>
       ) : (
         <>
           {/* The scale, where the columns are too many to each carry one. On the
@@ -1030,9 +1034,7 @@ export function LatencyBody({
                  telemetry empty. */
                 <div className="monitoring-empty">
                   <p className="monitoring-empty-line">
-                    {search.trim()
-                      ? `Nothing matches "${search.trim()}".`
-                      : 'Nothing matches the selected trend.'}
+                    {search.trim() ? `Nothing matches "${search.trim()}".` : 'Nothing matches the selected trend.'}
                   </p>
                   <div className="monitoring-empty-actions">
                     <Button
@@ -1305,7 +1307,23 @@ export function TrafficBody({
               <Absence notice={{ title: 'Part of this could not be read', body: payload.unread }} />
             ) : null}
             <div className="ops-charts">
-              <QuestionsPerDay days={payload.questionsPerDay} />
+              <div className="ops-chart-stack">
+                <DailyBars
+                  title="Questions per day"
+                  days={payload.questionsPerDay}
+                  empty="No questions have been recorded."
+                />
+                <DailyBars
+                  title="Distinct askers per day"
+                  days={payload.distinctAskersPerDay ?? []}
+                  empty="No distinct askers have been recorded."
+                />
+                <DailyBars
+                  title="Recorded active app minutes per day"
+                  days={payload.activeMinutesPerDay ?? []}
+                  empty="No recorded active app minutes yet. Recording starts with this release and does not backfill."
+                />
+              </div>
 
               {/* TWO CHARTS, NEVER ONE SERIES AND NEVER A TOTAL. A refusal is the
                 app working correctly and telling somebody they may not read
@@ -1414,7 +1432,14 @@ export function StopAllActiveRuns() {
     <section className="ops-stop-all" aria-labelledby="ops-stop-all-heading">
       <strong id="ops-stop-all-heading">ADMIN</strong>
       <span>No data or history is deleted.</span>
-      <Button className="ops-stop-all-button" type="button" disabled={busy} onClick={() => void stop()}>
+      <Button
+        className="ops-stop-all-button"
+        variant="destructive"
+        data-variant="destructive"
+        type="button"
+        disabled={busy}
+        onClick={() => void stop()}
+      >
         {busy ? 'Stopping…' : 'Stop all active runs'}
       </Button>
       {result ? (

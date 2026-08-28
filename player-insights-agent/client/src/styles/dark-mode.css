@@ -731,7 +731,10 @@ html[data-theme='dark'] .monitoring-question-modal [data-slot='alert'] {
  * and every `[data-slot='card']` inside, including the step timeline.
  */
 html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal,
-html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal [data-slot='card'],
+html[data-theme='dark']
+  .page-shell:not(.run-explorer):not(.connections-page)
+  .monitoring-question-modal
+  [data-slot='card'],
 html[data-theme='dark'] .page-shell:not(.run-explorer):not(.connections-page) .monitoring-question-modal .answer-card {
   background: var(--ast-surface-solid);
   backdrop-filter: none;
@@ -1147,6 +1150,11 @@ html[data-theme='dark'] [data-slot='button'][data-variant='destructive'] {
   background: var(--ast-destructive-control);
   border-color: var(--ast-destructive-control);
   color: var(--destructive-foreground);
+}
+
+html[data-theme='dark'] .ops-stop-all strong {
+  color: var(--ast-neg-text);
+  font-weight: 800;
 }
 
 html[data-theme='dark'] .conversation-confirm-delete:hover {

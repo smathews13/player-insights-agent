@@ -26,22 +26,32 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  DISTINCT_ASKERS_PER_DAY_QUERY,
   QUESTIONS_PER_DAY_QUERY,
   RUN_OUTCOMES_QUERY,
   TOOL_CALLS_QUERY,
   setupOpsRoutes,
 } from './ops-routes';
+import { ACTIVE_MINUTES_PER_DAY_QUERY } from '../lib/app-activity';
 import type { OpsTrafficPayload } from '../../shared/ops-contract';
 import type { InsightsAppKit } from './insights-routes';
 import type { Application, Request, Response } from 'express';
 
-/** Which of the three reads answers, and which rejects. */
-type Answers = { questions: boolean; outcomes: boolean; tools: boolean };
+/** Which independent reads answer, and which reject. */
+type Answers = {
+  questions: boolean;
+  outcomes: boolean;
+  tools: boolean;
+  askers?: boolean;
+  activeMinutes?: boolean;
+};
 
 const REFUSAL = 'canceling statement due to statement timeout';
 
 const ROWS: Record<string, Record<string, unknown>[]> = {
   [QUESTIONS_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 12 }],
+  [DISTINCT_ASKERS_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 4 }],
+  [ACTIVE_MINUTES_PER_DAY_QUERY]: [{ day: '2026-08-14', count: 80 }],
   [RUN_OUTCOMES_QUERY]: [{ state: 'FAILED', terminal_code: 'WAREHOUSE_UNAVAILABLE', count: 2 }],
   [TOOL_CALLS_QUERY]: [{ tool: 'genie', count: 30 }],
 };
@@ -57,6 +67,8 @@ function trafficRoute(answers: Answers, rows: Record<string, Record<string, unkn
 
   const answering: Record<string, boolean> = {
     [QUESTIONS_PER_DAY_QUERY]: answers.questions,
+    [DISTINCT_ASKERS_PER_DAY_QUERY]: answers.askers ?? true,
+    [ACTIVE_MINUTES_PER_DAY_QUERY]: answers.activeMinutes ?? true,
     [RUN_OUTCOMES_QUERY]: answers.outcomes,
     [TOOL_CALLS_QUERY]: answers.tools,
   };
@@ -90,7 +102,7 @@ async function trafficPayload(answers: Answers, rows?: Record<string, Record<str
   return body;
 }
 
-const ALL = { questions: true, outcomes: true, tools: true };
+const ALL = { questions: true, askers: true, activeMinutes: true, outcomes: true, tools: true };
 
 describe('the Traffic block when a read is cut off', () => {
   /**
@@ -134,6 +146,16 @@ describe('the Traffic block when a read is cut off', () => {
     expect(payload.toolCalls).toHaveLength(1);
   });
 
+  it('keeps question and run charts when recorded active minutes cannot be read', async () => {
+    const payload = await trafficPayload({ ...ALL, activeMinutes: false });
+
+    expect(payload.reason).toBe('');
+    expect(payload.unread).toContain('Recorded active app minutes per day');
+    expect(payload.questionsPerDay).toHaveLength(1);
+    expect(payload.distinctAskersPerDay).toHaveLength(1);
+    expect(payload.activeMinutesPerDay).toEqual([]);
+  });
+
   /**
    * The run ledger carries the denominator as well as the two cause charts, so
    * losing it must not leave a run count standing that nothing counted.
@@ -151,7 +173,13 @@ describe('the Traffic block when a read is cut off', () => {
    * draw three empty charts above a line explaining them.
    */
   it('still fails the whole block when nothing answered', async () => {
-    const payload = await trafficPayload({ questions: false, outcomes: false, tools: false });
+    const payload = await trafficPayload({
+      questions: false,
+      askers: false,
+      activeMinutes: false,
+      outcomes: false,
+      tools: false,
+    });
 
     expect(payload.reason).toContain('Nothing about traffic could be read');
     expect(payload.unread).toBe('');
@@ -167,6 +195,8 @@ describe('the Traffic block over a range that genuinely holds nothing', () => {
   it('says nothing extra, because zero is an answer', async () => {
     const payload = await trafficPayload(ALL, {
       [QUESTIONS_PER_DAY_QUERY]: [],
+      [DISTINCT_ASKERS_PER_DAY_QUERY]: [],
+      [ACTIVE_MINUTES_PER_DAY_QUERY]: [],
       [RUN_OUTCOMES_QUERY]: [],
       [TOOL_CALLS_QUERY]: [],
     });
@@ -174,6 +204,8 @@ describe('the Traffic block over a range that genuinely holds nothing', () => {
     expect(payload.unread).toBe('');
     expect(payload.reason).toBe('');
     expect(payload.questionsPerDay).toEqual([]);
+    expect(payload.distinctAskersPerDay).toEqual([]);
+    expect(payload.activeMinutesPerDay).toEqual([]);
     expect(payload.runsInRange).toBe(0);
   });
 });

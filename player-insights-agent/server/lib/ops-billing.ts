@@ -24,7 +24,6 @@
  *   SQL               usage_metadata.warehouse_id
  *   APPS              usage_metadata.app_name
  *   VECTOR_SEARCH     usage_metadata.endpoint_name
- *   JOBS              usage_metadata.job_id, usage_metadata.job_run_id
  *   GENIE             no metadata at all, workspace-scoped only
  *   LAKEFLOW_CONNECT  no metadata at all, workspace-scoped only
  *
@@ -72,7 +71,6 @@ export const COST_COMPONENTS = [
   'genie',
   'vector-search',
   'app-compute',
-  'index-rebuild-job',
 ] as const;
 
 export type CostComponent = (typeof COST_COMPONENTS)[number];
@@ -82,8 +80,7 @@ export type CostComponent = (typeof COST_COMPONENTS)[number];
  *
  * Every field may be empty, and empty is handled rather than defaulted. The app
  * genuinely does not know some of these: the vector search endpoint is read off
- * a probe rather than configuration, and the rebuild job id is not exposed to
- * the app at all.
+ * a probe rather than configuration.
  */
 export interface CostIdentifiers {
   /** `DATABRICKS_APP_NAME`. */
@@ -98,8 +95,6 @@ export interface CostIdentifiers {
   vectorEndpoint: string;
   /** Three-level Vector Search index name, or ''. Used to open the index, not to bill. */
   vectorIndex: string;
-  /** `PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID`. */
-  indexRebuildJobId: string;
   /** The Genie spaces this deployment asks, in display order. */
   genieSpaces: readonly { id: string; label: string }[];
   /** `DATABRICKS_WORKSPACE_ID`. The only handle workspace-wide Genie billing has. */
@@ -229,12 +224,6 @@ const MATCHERS: Record<
     parameter: 'appName',
     type: 'STRING',
   },
-  'index-rebuild-job': {
-    product: 'JOBS',
-    column: 'u.usage_metadata.job_id',
-    parameter: 'indexRebuildJobId',
-    type: 'STRING',
-  },
 };
 
 /** The row this statement adds so the block can date itself even with no matches. */
@@ -248,14 +237,13 @@ export const GENIE_LLM_UNAVAILABLE = 'Genie LLM spend not attributable in this m
 export const GENIE_SQL_NOT_COMPLETE =
   'SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.';
 
-const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS', 'JOBS']);
+const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']);
 const PRODUCT_REASONS: Record<string, string> = {
   MODEL_SERVING: 'Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.',
   SQL: 'Tracked as the SQL warehouse tile. This is a shared meter, not app-only spend.',
   VECTOR_SEARCH: 'Tracked as the Vector Search tile when the endpoint name matches.',
   APPS: 'Measured by exact app name. App tag presence is a separate organizational signal.',
   GENIE: 'Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.',
-  JOBS: 'Measured only when the exact configured index rebuild job id matches; no custom tag is required.',
   LAKEBASE: 'Lakebase can be tagged. No documented billing join exists in this model.',
   MLFLOW: 'MLflow experiments can be tagged. They have no Cost tile.',
 };
@@ -281,14 +269,18 @@ export const EMPTY_PRICING: CostTilePricing = {
  * identifier.
  */
 export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean {
+  // Resource names are not account-global. The live audit reproduced the old
+  // Foundation figure across 214 workspaces because endpoint identity was used
+  // without this boundary. No workspace means no defensible Cost query.
+  if (!ids.workspaceId) return false;
   // Genie billing has no space identifier. A workspace id is not a safe
   // substitute: it would attribute every space in the workspace to this app.
   if (component === 'genie') return false;
-  if (
-    component === 'foundation-model' &&
-    ids.foundationEndpoint &&
-    ids.foundationEndpoint === ids.endpointName
-  ) {
+  // A configured foundation endpoint is shared until app-level ownership is
+  // proven independently. Exact endpoint-name identity proves only identity,
+  // not ownership, so Cost never asks billing for this amount.
+  if (component === 'foundation-model') return false;
+  if (component === 'serving-endpoint' && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
     return false;
   }
   return Boolean(ids[MATCHERS[component].parameter]);
@@ -313,8 +305,6 @@ export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): s
       return ids.appName;
     case 'vector-search':
       return vectorIndexName(ids.vectorIndex);
-    case 'index-rebuild-job':
-      return ids.indexRebuildJobId;
     case 'genie':
       return '';
   }
@@ -331,8 +321,6 @@ function resourceKindFor(component: CostComponent, ids: CostIdentifiers): CostRe
       return 'app';
     case 'vector-search':
       return vectorIndexName(ids.vectorIndex) ? 'vector-index' : '';
-    case 'index-rebuild-job':
-      return 'job';
     case 'genie':
       return '';
   }
@@ -403,14 +391,9 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   if (ids.warehouseId) {
     resourcePredicates.push(`(u.billing_origin_product = 'SQL' AND u.usage_metadata.warehouse_id = :warehouseId)`);
   }
-  if (ids.endpointName) {
+  if (ids.endpointName && canAsk('serving-endpoint', ids)) {
     resourcePredicates.push(
       `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName)`
-    );
-  }
-  if (ids.foundationEndpoint) {
-    resourcePredicates.push(
-      `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :foundationEndpoint)`
     );
   }
   if (ids.vectorEndpoint) {
@@ -420,11 +403,6 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   }
   if (ids.appName) {
     resourcePredicates.push(`(u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)`);
-  }
-  if (ids.indexRebuildJobId) {
-    resourcePredicates.push(
-      `(u.billing_origin_product = 'JOBS' AND u.usage_metadata.job_id = :indexRebuildJobId)`
-    );
   }
   const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join('\n     OR ') : 'FALSE';
 
@@ -436,7 +414,6 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
     u.cloud,
     u.usage_unit,
     u.usage_end_time,
-    u.usage_metadata.job_run_id AS job_run_id,
     u.workspace_id,
     u.billing_origin_product,
     COALESCE(
@@ -452,6 +429,8 @@ ${branches.join('\n')}
   FROM system.billing.usage u
   WHERE u.usage_date >= :from_day
     AND u.usage_date <= :to_day
+    AND u.workspace_id = :workspaceId
+    AND u.billing_origin_product <> 'JOBS'
     AND (
       u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
       OR ${leakPredicate}
@@ -478,7 +457,6 @@ deduped AS (
     usage_date,
     usage_quantity,
     sku_name,
-    job_run_id,
     billing_origin_product,
     component,
     record_type,
@@ -488,7 +466,7 @@ deduped AS (
     MAX(currency_code) AS currency_code,
     MAX(CAST(price_start_time AS STRING)) AS price_start_time
   FROM price_hits
-  GROUP BY record_id, usage_date, usage_quantity, sku_name, job_run_id, billing_origin_product, component, record_type, tag_matches
+  GROUP BY record_id, usage_date, usage_quantity, sku_name, billing_origin_product, component, record_type, tag_matches
 ),
 priced AS (
   SELECT
@@ -512,7 +490,7 @@ SELECT
        THEN MAX(currency_code) ELSE CAST('' AS STRING) END AS currency,
   COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END) AS currency_count,
   COUNT(DISTINCT usage_date) AS billed_days,
-  COUNT(DISTINCT job_run_id) AS job_runs,
+  CAST(NULL AS BIGINT) AS job_runs,
   MAX(usage_date) AS last_day,
   SUM(CASE WHEN row_match = 'priced' THEN usage_quantity ELSE 0 END) AS priced_quantity,
   SUM(CASE WHEN row_match <> 'priced' THEN usage_quantity ELSE 0 END) AS unpriced_quantity,
@@ -614,6 +592,8 @@ SELECT
 FROM system.billing.usage u
 WHERE u.usage_date >= :from_day
   AND u.usage_date <= :to_day
+  AND u.workspace_id = :workspaceId
+  AND u.billing_origin_product <> 'JOBS'
   AND (${leakPredicate})
 GROUP BY u.billing_origin_product`;
 
@@ -850,7 +830,9 @@ export function unpricedUnavailable(pricing: CostTilePricing): string {
   if (pricing.match === 'mixed-currency') return 'Mixed currencies; spend withheld';
   if (pricing.match === 'partial') {
     const skus = pricing.unpricedSkus.slice(0, 4).join(', ');
-    return skus ? `Partial list-price coverage; spend withheld. Unpriced SKUs: ${skus}` : 'Partial list-price coverage; spend withheld';
+    return skus
+      ? `Partial list-price coverage; spend withheld. Unpriced SKUs: ${skus}`
+      : 'Partial list-price coverage; spend withheld';
   }
   if (pricing.match === 'unpriced') {
     const skus = pricing.unpricedSkus.slice(0, 4).join(', ');
@@ -859,12 +841,10 @@ export function unpricedUnavailable(pricing: CostTilePricing): string {
   return '';
 }
 
-export function buildHonesty(
-  range: CostRange,
-  meta: ComponentRow | undefined,
-  tiles: CostTile[]
-): CostHonesty {
-  const currencies = new Set(tiles.map((tile) => tile.pricing?.currency).filter((code): code is string => Boolean(code)));
+export function buildHonesty(range: CostRange, meta: ComponentRow | undefined, tiles: CostTile[]): CostHonesty {
+  const currencies = new Set(
+    tiles.map((tile) => tile.pricing?.currency).filter((code): code is string => Boolean(code))
+  );
   const through = meta?.lastDay || '';
   return {
     priceSource: 'list_prices',
@@ -886,6 +866,7 @@ export function buildCoverage(input: {
   const products: CostCoverageProduct[] = [];
   const seen = new Set<string>();
   for (const row of input.coverageRows) {
+    if (row.component === 'JOBS') continue;
     seen.add(row.component);
     const tiled = TILED_PRODUCTS.has(row.component) || row.component === 'GENIE';
     products.push({
@@ -895,71 +876,73 @@ export function buildCoverage(input: {
       pricedRows: row.pricedRows ?? 0,
       unpricedRows: row.unpricedRows ?? 0,
       tiled,
-      reason: PRODUCT_REASONS[row.component] ?? (tiled ? 'On the tracked cost grid.' : 'Tagged usage with no Cost tile.'),
+      reason:
+        PRODUCT_REASONS[row.component] ?? (tiled ? 'On the tracked cost grid.' : 'Tagged usage with no Cost tile.'),
     });
   }
   for (const [product, reason] of Object.entries(PRODUCT_REASONS)) {
     if (seen.has(product)) continue;
-    if (product === 'MLFLOW' || product === 'JOBS' || product === 'LAKEBASE') {
+    if (product === 'MLFLOW' || product === 'LAKEBASE') {
       products.push({
         product,
         taggedRows: 0,
         taggedQuantity: 0,
         pricedRows: 0,
         unpricedRows: 0,
-        tiled: product === 'JOBS',
+        tiled: false,
         reason,
       });
     }
   }
   const through = input.meta?.lastDay || '';
   const delayed = Boolean(through && through < input.range.to);
-  const propagation: CostPropagation[] = input.propagationRows.map((row) => {
-    if (row.component === 'APPS') {
-      const pair = billingTagPair();
-      const assignment =
-        input.appBillingTag === 'matched'
-          ? `${pair} is assigned to this app.`
-          : input.appBillingTag === 'missing'
-            ? `${pair} is not assigned to this app.`
-            : `The app's ${pair} assignment could not be read.`;
-      return {
-        product: 'APPS',
-        status: 'unsupported' as const,
-        detail:
-          `${assignment} App spend is measured separately by exact app name; billing-row tag propagation is not required.`,
-      };
-    }
-    if (row.component === 'GENIE') {
-      return {
-        product: 'GENIE',
-        status: 'unsupported' as const,
-        detail: GENIE_LLM_UNAVAILABLE + ' ' + GENIE_SQL_NOT_COMPLETE,
-      };
-    }
-    if ((row.taggedRows ?? 0) > 0) {
-      return {
-        product: row.component,
-        status: 'propagated',
-        detail: `${row.taggedRows} tagged billing rows in this range.`,
-      };
-    }
-    if ((row.untaggedRows ?? 0) > 0) {
-      return {
-        product: row.component,
-        status: 'unpropagated',
-        detail: `${row.untaggedRows} matching usage rows have no ${BILLING_TAG.key}=${BILLING_TAG.value} tag.`,
-      };
-    }
-    if (delayed) {
-      return {
-        product: row.component,
-        status: 'delayed',
-        detail: `Billing data through ${through}. Later days in this range may still be filling.`,
-      };
-    }
-    return { product: row.component, status: 'unused', detail: 'No matching usage rows in this range.' };
-  });
+  const propagation: CostPropagation[] = input.propagationRows
+    .filter((row) => row.component !== 'JOBS')
+    .map((row) => {
+      if (row.component === 'APPS') {
+        const pair = billingTagPair();
+        const assignment =
+          input.appBillingTag === 'matched'
+            ? `${pair} is assigned to this app.`
+            : input.appBillingTag === 'missing'
+              ? `${pair} is not assigned to this app.`
+              : `The app's ${pair} assignment could not be read.`;
+        return {
+          product: 'APPS',
+          status: 'unsupported' as const,
+          detail: `${assignment} App spend is measured separately by exact app name; billing-row tag propagation is not required.`,
+        };
+      }
+      if (row.component === 'GENIE') {
+        return {
+          product: 'GENIE',
+          status: 'unsupported' as const,
+          detail: GENIE_LLM_UNAVAILABLE + ' ' + GENIE_SQL_NOT_COMPLETE,
+        };
+      }
+      if ((row.taggedRows ?? 0) > 0) {
+        return {
+          product: row.component,
+          status: 'propagated',
+          detail: `${row.taggedRows} tagged billing rows in this range.`,
+        };
+      }
+      if ((row.untaggedRows ?? 0) > 0) {
+        return {
+          product: row.component,
+          status: 'unpropagated',
+          detail: `${row.untaggedRows} matching usage rows have no ${BILLING_TAG.key}=${BILLING_TAG.value} tag.`,
+        };
+      }
+      if (delayed) {
+        return {
+          product: row.component,
+          status: 'delayed',
+          detail: `Billing data through ${through}. Later days in this range may still be filling.`,
+        };
+      }
+      return { product: row.component, status: 'unused', detail: 'No matching usage rows in this range.' };
+    });
   return {
     inventoryCount: input.inventoryCount,
     costModelCount: COST_COMPONENTS.length,
@@ -1014,10 +997,10 @@ const DESCRIPTIONS: Record<
   },
   'foundation-model': {
     label: 'Foundation model',
-    quality: 'real',
-    population: 'This endpoint',
+    quality: 'unknown',
+    population: 'Shared endpoint',
     basis: 'total-in-range',
-    variable: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
+    variable: '',
   },
   'sql-warehouse': {
     label: 'SQL warehouse',
@@ -1047,13 +1030,6 @@ const DESCRIPTIONS: Record<
     basis: 'per-day',
     variable: 'DATABRICKS_APP_NAME',
   },
-  'index-rebuild-job': {
-    label: 'Index rebuild job',
-    quality: 'real',
-    population: 'This job',
-    basis: 'total-in-range',
-    variable: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID',
-  },
 };
 
 /**
@@ -1074,9 +1050,7 @@ const DESCRIPTIONS: Record<
  */
 export function buildTiles(ids: CostIdentifiers, rows: ComponentRow[]): CostTile[] {
   const byComponent = new Map(
-    rows
-      .filter((row) => (row.kind ?? 'component') === 'component')
-      .map((row) => [row.component, row])
+    rows.filter((row) => (row.kind ?? 'component') === 'component').map((row) => [row.component, row])
   );
   const tiles: CostTile[] = [];
 
@@ -1190,17 +1164,25 @@ function componentTile(
     };
   };
 
-  if (
-    component === 'foundation-model' &&
-    ids.foundationEndpoint &&
-    ids.foundationEndpoint === ids.endpointName
-  ) {
+  if (component === 'foundation-model') {
     return withMeta({
       ...base,
       quality: 'unknown',
       amount: null,
       note: '',
-      unavailable: 'Same endpoint as agent serving; spend is counted once on the Serving endpoint tile.',
+      unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
+      remedy: '',
+    });
+  }
+
+  if (component === 'serving-endpoint' && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
+    return withMeta({
+      ...base,
+      quality: 'unknown',
+      population: 'Shared endpoint',
+      amount: null,
+      note: '',
+      unavailable: 'Whole shared endpoint spend is withheld because this app has not proven ownership of the endpoint.',
       remedy: '',
     });
   }
@@ -1254,11 +1236,7 @@ function componentTile(
     });
   }
 
-  const note =
-    component === 'index-rebuild-job' && typeof row?.jobRuns === 'number' && row.jobRuns > 0
-      ? `${row.jobRuns} billed job ${row.jobRuns === 1 ? 'run' : 'runs'}`
-      : '';
-  return withMeta({ ...base, amount, pricing, note, unavailable: '', remedy: '' });
+  return withMeta({ ...base, amount, pricing, note: '', unavailable: '', remedy: '' });
 }
 
 /*
@@ -1295,7 +1273,8 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
     {
       id: 'genie',
       label: 'Genie spaces',
-      unavailable: 'Space tags are organizational only. Genie LLM spend is not attributable in this model; Genie SQL is billed through the associated warehouse and is not the complete Genie cost.',
+      unavailable:
+        'Space tags are organizational only. Genie LLM spend is not attributable in this model; Genie SQL is billed through the associated warehouse and is not the complete Genie cost.',
     },
     {
       id: 'vector-search',
@@ -1306,12 +1285,6 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
       id: 'app-compute',
       label: 'App compute',
       unavailable: 'Compute time cannot be joined to one run.',
-    },
-    {
-      id: 'foundation-model',
-      label: 'Foundation model',
-      unavailable:
-        'Foundation model spend is measured in its own tile, but the run ledger does not separate its tokens from the agent endpoint.',
     },
     {
       id: 'lakebase',

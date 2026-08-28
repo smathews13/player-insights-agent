@@ -1,6 +1,7 @@
 import { APP_SCHEMA, appTable } from '../../shared/app-schema';
 import { DEPLOYMENT_DECISIONS_TABLE_NAME, deploymentDecisionsDdl } from './deployment-decisions';
 import { REQUEST_LATENCY_DDL, REQUEST_LATENCY_INDEX_DDL } from './request-latency';
+import { APP_ACTIVITY_DDL, APP_ACTIVITY_TABLE } from './app-activity';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -551,6 +552,15 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
       `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_assignments`,
       `DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_personas`,
     ],
+  },
+  {
+    version: 18,
+    name: 'recorded app activity minutes',
+    // Additive by construction: existing customer-history tables are untouched.
+    // The composite primary key is declared with the new table, so boot needs no
+    // ownership-sensitive ALTER or CREATE INDEX against an existing object.
+    statements: [APP_ACTIVITY_DDL],
+    down: [`DROP TABLE IF EXISTS ${APP_ACTIVITY_TABLE}`],
   },
 ];
 
