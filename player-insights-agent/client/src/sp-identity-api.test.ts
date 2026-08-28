@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { EMPTY_SP_IDENTITY, loadSpIdentityAdmin, persistSpIdentityMode } from './SpIdentityPanel';
+import { EMPTY_SP_IDENTITY, loadSpIdentityAdmin, persistSpIdentityMode } from './identity-settings-api';
 import { spIdentityEnabledFromPayload } from './sp-identity-mode';
 
 function json(body: unknown, status = 200): Response {
@@ -47,7 +47,7 @@ describe('reading and writing the deployment-wide SP-identity pivot', () => {
     expect(source).toContain('persistSpIdentityMode');
     expect(source).toContain('spIdentityEnabledFromPayload');
     expect(source).toContain('checked={spIdentityEnabled}');
-    expect(source).toContain('enabled={spIdentityEnabled}');
+    expect(source).toContain('spIdentityEnabled={spIdentityEnabled}');
     expect(source).not.toContain('showsSpIdentities');
     expect(source).not.toContain("setFeature('spIdentities'");
   });

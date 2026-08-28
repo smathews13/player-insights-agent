@@ -374,6 +374,32 @@ describe('applying Astrolabe resource tags', () => {
     expect(summary.results[0].technicalDetail).toContain('DEADLINE_EXCEEDED');
   });
 
+  it('returns a failed result when one SDK operation never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = applyAstrolabeTags({
+        environment: { DATABRICKS_APP_NAME: 'astrolabe' },
+        report: null,
+        platform: platform({
+          getAppTag: vi.fn(() => new Promise<string | null>(() => {})),
+        }),
+        retry: { maxAttempts: 1, timeBudgetMs: 1_000 },
+      });
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      const summary = await pending;
+      expect(summary).toMatchObject({
+        total: 1,
+        correct: 0,
+        failed: 1,
+      });
+      expect(summary.results[0]).toMatchObject({ status: 'failed' });
+      expect(summary.results[0].technicalDetail).toContain('stopped waiting');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('names the warehouse grant needed when the app service principal cannot tag it', async () => {
     const summary = await applyAstrolabeTags({
       environment: {

@@ -135,6 +135,21 @@ class GenieSpace(BaseModel):
     title: str = ""
 
 
+class ResourceCall(BaseModel):
+    """Calls this run dispatched to one configured external resource.
+
+    This is deliberately identifier-only telemetry. It carries no prompt,
+    result, query text, or token contents. `calls` is incremented on dispatch,
+    including a request that later fails, because the external service was
+    still asked and may still have billed it.
+    """
+
+    kind: Literal["genie-space", "vector-index"]
+    id: str
+    tool: Literal["data_genie", "dictionary_genie", "search_semantics"]
+    calls: int = 1
+
+
 class TraceSummary(BaseModel):
     """What one run did, as the app reads it back.
 
@@ -165,6 +180,7 @@ class TraceSummary(BaseModel):
     toolCalls: int
     stages: list[TraceStage]
     genie_spaces: list[GenieSpace] = Field(default_factory=list)
+    resource_calls: list[ResourceCall] = Field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0

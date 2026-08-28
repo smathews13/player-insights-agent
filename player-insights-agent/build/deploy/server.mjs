@@ -173533,7 +173533,7 @@ ${String(row2.extracted_text)}`).join("\n\n").slice(0, MAX_CONVERSATION_ATTACHME
   });
   return Promise.resolve({ storeReady });
 }
-var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
+var import_express3, schemaStatements, AskBody, FeedbackBody, BenchmarkRunBody, FigureSchema, SourceSchema, ChartSchema, StageSchema, GenieSpaceSchema, ResourceCallSchema, TraceSchema, DerivationSchema, DerivationEntrySchema, DocumentSnippetSchema, LiveAnswerSchema, PlanStepSchema, AnalysisPlanSchema, ClarificationSchema, ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT, MAX_CONVERSATION_ATTACHMENT_TEXT, PLAN_APPROVAL_MESSAGE, SHARED_RUN_OWNER, RUNS_QUERY, TraceStageDetailSchema, TraceDetailSchema, ToolStageSchema, MlflowReferenceSchema, BenchmarkMetricsSchema, RunTraceSchema, NO_WAREHOUSE_CANCELLATION, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY, PreflightStatus, PreflightRemedySchema, PreflightCheckSchema, PreflightConfigurationSchema, PreflightReportSchema, DEVELOPMENT_IDENTITY, IdentityUnavailableError, IDENTITY_OPTIONAL_ROUTES, SHARED_CONVERSATION_RAIL_ENV, sharedRail, CONVERSATION_RAIL_LIMIT, CONVERSATION_VERDICT_JOIN, CONVERSATION_LIST_COLUMNS, CONVERSATION_RUN_STATUS_QUERY, workspaceClient, appWarehouseWarmup, genieWarehouseWarmup, workspaceServingTransport, SERVING_INVOKE_TIMEOUT_MS, SERVICE_PRINCIPAL_FALLBACK_CAVEAT, AuthorizationRefused, endpointMetadataFlights, MIGRATIONS, MIGRATE_ON_BOOT_ENV;
 var init_insights_routes = __esm({
   "server/routes/insights-routes.ts"() {
     init_app_schema();
@@ -173736,6 +173736,12 @@ var init_insights_routes = __esm({
       parent_id: external_exports.string().default("")
     });
     GenieSpaceSchema = external_exports.looseObject({ id: external_exports.string(), title: external_exports.string().default("") });
+    ResourceCallSchema = external_exports.looseObject({
+      kind: external_exports.enum(["genie-space", "vector-index"]),
+      id: external_exports.string(),
+      tool: external_exports.enum(["data_genie", "dictionary_genie", "search_semantics"]),
+      calls: external_exports.number().int().nonnegative()
+    });
     TraceSchema = external_exports.looseObject({
       id: external_exports.string(),
       totalMs: external_exports.number(),
@@ -173753,6 +173759,13 @@ var init_insights_routes = __esm({
        * claim, so the two must not be collapsed.
        */
       genie_spaces: external_exports.array(GenieSpaceSchema).optional(),
+      /**
+       * Exact resource-call counters emitted by current agent versions.
+       *
+       * Optional preserves the distinction between an older trace that did not
+       * record resource identity and a current trace that recorded zero calls.
+       */
+      resource_calls: external_exports.array(ResourceCallSchema).optional(),
       // OPTIONAL WITHOUT A DEFAULT, and the difference is the whole point. Optional is
       // what lets an answer stored before the agent metered tokens still parse, and it
       // is enough to keep `undeclaredAnswerKeys` from calling a metered run drift.
@@ -177807,11 +177820,31 @@ function failed4(target, error48, servicePrincipalId) {
     technicalDetail: technicalDetail(error48)
   };
 }
+function taggingDeadlineError() {
+  return Object.assign(new Error("Astrolabe stopped waiting for the Databricks tag operation at its time limit."), {
+    code: "ETIMEDOUT"
+  });
+}
+async function insideTaggingDeadline(operation, policy2) {
+  const remaining = policy2.deadline - policy2.now();
+  if (remaining <= 0) throw taggingDeadlineError();
+  let timer;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(taggingDeadlineError()), remaining);
+      })
+    ]);
+  } finally {
+    if (timer !== void 0) clearTimeout(timer);
+  }
+}
 async function retryTransient(operation, policy2) {
   let lastError;
   for (let attempt = 1; attempt <= policy2.maxAttempts; attempt += 1) {
     try {
-      return await operation();
+      return await insideTaggingDeadline(operation, policy2);
     } catch (error48) {
       lastError = error48;
       if (!isRetryable2(error48) || attempt === policy2.maxAttempts) throw error48;
@@ -180570,24 +180603,36 @@ var init_ops_query_history = __esm({
 });
 
 // server/lib/ops-billing.ts
+function readResourceActivityRows(rows) {
+  const allowed = /* @__PURE__ */ new Set(["genie:data", "genie:dictionary", "vector-search"]);
+  const parsed = [];
+  for (const row2 of rows) {
+    const tileId = typeof row2.tile_id === "string" ? row2.tile_id : "";
+    if (!allowed.has(tileId)) continue;
+    const calls = Number(row2.astrolabe_calls);
+    const observedCalls = Number(row2.observed_calls);
+    if (!Number.isFinite(calls) || calls < 0 || !Number.isFinite(observedCalls) || observedCalls < 0) continue;
+    parsed.push({
+      tileId,
+      calls,
+      observedCalls
+    });
+  }
+  return parsed;
+}
 function workspaceEstimateRow(component) {
   return `${component}${WORKSPACE_ESTIMATE_SUFFIX}`;
 }
 function canAsk(component, ids) {
   if (!ids.workspaceId) return false;
   if (component === "genie") return false;
-  if (component === "foundation-model") return false;
-  if (component === "serving-endpoint" && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
-    return false;
-  }
+  if (component === "vector-search") return false;
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 function resourceIdFor(component, ids) {
   switch (component) {
     case "serving-endpoint":
       return ids.endpointName;
-    case "foundation-model":
-      return ids.foundationEndpoint;
     case "sql-warehouse":
       return ids.warehouseId;
     case "app-compute":
@@ -180601,7 +180646,6 @@ function resourceIdFor(component, ids) {
 function resourceKindFor(component, ids) {
   switch (component) {
     case "serving-endpoint":
-    case "foundation-model":
       return "serving-endpoint";
     case "sql-warehouse":
       return "sql-warehouse";
@@ -180654,11 +180698,6 @@ function buildCostStatement(ids, range) {
   if (ids.endpointName && canAsk("serving-endpoint", ids)) {
     resourcePredicates.push(
       `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName)`
-    );
-  }
-  if (ids.vectorEndpoint) {
-    resourcePredicates.push(
-      `(u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint)`
     );
   }
   if (ids.appName) {
@@ -181124,58 +181163,44 @@ function buildCoverage(input) {
     propagation: propagation2
   };
 }
-function buildTiles(ids, rows, warehouseAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION) {
+function buildTiles(ids, rows, warehouseAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity = []) {
   const byComponent = new Map(
     rows.filter((row2) => (row2.kind ?? "component") === "component").map((row2) => [row2.component, row2])
   );
   const tiles = [];
   for (const component of COST_COMPONENTS) {
     if (component === "genie") {
-      tiles.push(...genieSpaceTiles(ids));
+      tiles.push(...genieSpaceTiles(ids, resourceActivity));
       continue;
     }
-    tiles.push(componentTile(component, ids, byComponent, warehouseAttribution));
+    tiles.push(componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity));
   }
   return tiles;
 }
-function genieSpaceTiles(ids) {
-  const spaces = ids.genieSpaces.filter((space) => space.id.trim());
-  if (spaces.length === 0) {
-    return [
-      {
-        id: "genie",
-        label: "Genie",
-        resourceId: "",
-        resourceKind: "",
-        quality: "unknown",
-        amount: null,
-        basis: "total-in-range",
-        population: "Whole workspace",
-        attribution: "unavailable",
-        pricing: { ...EMPTY_PRICING },
-        unavailable: GENIE_LLM_UNAVAILABLE,
-        remedy: "Genie space identifier unavailable",
-        note: GENIE_SQL_NOT_COMPLETE,
-        evidence: { billingRows: null, astrolabeQueries: null }
+function genieSpaceTiles(ids, activity) {
+  return ids.genieSpaces.map((space) => {
+    const measured = activity.find((item) => item.tileId === space.tileId);
+    return {
+      id: space.tileId,
+      label: space.label,
+      resourceId: space.id.trim(),
+      resourceKind: space.id.trim() ? "genie-space" : "",
+      quality: "unknown",
+      amount: null,
+      basis: "total-in-range",
+      population: "This space",
+      attribution: "unavailable",
+      pricing: { ...EMPTY_PRICING },
+      unavailable: space.id.trim() ? "Genie LLM dollars unavailable" : "Resource identifier unavailable",
+      remedy: space.id.trim() ? "" : `Configure the ${space.label} space.`,
+      note: GENIE_SQL_NOT_COMPLETE,
+      evidence: {
+        billingRows: null,
+        astrolabeQueries: null,
+        activity: measured ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: "requests" } : null
       }
-    ];
-  }
-  return spaces.map((space) => ({
-    id: `genie:${space.id.trim()}`,
-    label: space.label.trim() || "Genie space",
-    resourceId: space.id.trim(),
-    resourceKind: "genie-space",
-    quality: "unknown",
-    amount: null,
-    basis: "total-in-range",
-    population: "This space",
-    attribution: "unavailable",
-    pricing: { ...EMPTY_PRICING },
-    unavailable: GENIE_LLM_UNAVAILABLE,
-    remedy: "",
-    note: GENIE_SQL_NOT_COMPLETE,
-    evidence: { billingRows: null, astrolabeQueries: null }
-  }));
+    };
+  });
 }
 function appComputeAbsence(state) {
   const pair = billingTagPair();
@@ -181199,12 +181224,13 @@ function appComputeAbsence(state) {
     note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`
   };
 }
-function componentTile(component, ids, byComponent, warehouseAttribution) {
+function componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity) {
   const description = DESCRIPTIONS[component];
   const base = {
     id: component,
     label: description.label,
     resourceId: resourceIdFor(component, ids),
+    ...component === "vector-search" ? { secondaryResourceId: ids.vectorEndpoint } : {},
     resourceKind: resourceKindFor(component, ids),
     quality: description.quality,
     basis: description.basis,
@@ -181224,41 +181250,23 @@ function componentTile(component, ids, byComponent, warehouseAttribution) {
       note: tile.note
     };
   };
-  if (component === "foundation-model") {
-    return withMeta({
-      ...base,
-      quality: "unknown",
-      amount: null,
-      note: "",
-      unavailable: "Shared spend withheld",
-      remedy: "",
-      evidence: { billingRows: null, astrolabeQueries: null }
-    });
-  }
-  if (component === "serving-endpoint" && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
-    return withMeta({
-      ...base,
-      quality: "unknown",
-      population: "Shared endpoint",
-      amount: null,
-      note: "",
-      unavailable: "Shared spend withheld",
-      remedy: "",
-      evidence: { billingRows: null, astrolabeQueries: null }
-    });
-  }
   if (!canAsk(component, ids)) {
     const pricing2 = EMPTY_PRICING;
     if (component === "vector-search") {
+      const activity = resourceActivity.find((item) => item.tileId === "vector-search");
       return withMeta({
         ...base,
         quality: "unknown",
         amount: null,
         pricing: pricing2,
         note: "",
-        unavailable: base.resourceId ? "No billing rows" : "Vector Search index identifier unavailable",
-        remedy: "",
-        evidence: { billingRows: ids.vectorEndpoint ? 0 : null, astrolabeQueries: null }
+        unavailable: base.resourceId ? "Vector Search dollars unavailable" : "Resource identifier unavailable",
+        remedy: base.resourceId ? "" : "Configure the Vector Search index.",
+        evidence: {
+          billingRows: null,
+          astrolabeQueries: null,
+          activity: activity ? { calls: activity.calls, observedCalls: activity.observedCalls, unit: "queries" } : null
+        }
       });
     }
     return withMeta({
@@ -181407,26 +181415,13 @@ var init_ops_billing = __esm({
   "server/lib/ops-billing.ts"() {
     init_billing_tag();
     init_ops_query_history();
-    COST_COMPONENTS = [
-      "serving-endpoint",
-      "foundation-model",
-      "sql-warehouse",
-      "genie",
-      "vector-search",
-      "app-compute"
-    ];
+    COST_COMPONENTS = ["serving-endpoint", "sql-warehouse", "genie", "vector-search", "app-compute"];
     WORKSPACE_ESTIMATE_SUFFIX = ":workspace";
     MATCHERS = {
       "serving-endpoint": {
         product: "MODEL_SERVING",
         column: "u.usage_metadata.endpoint_name",
         parameter: "endpointName",
-        type: "STRING"
-      },
-      "foundation-model": {
-        product: "MODEL_SERVING",
-        column: "u.usage_metadata.endpoint_name",
-        parameter: "foundationEndpoint",
         type: "STRING"
       },
       "sql-warehouse": {
@@ -181460,7 +181455,7 @@ var init_ops_billing = __esm({
     PRODUCT_REASONS = {
       MODEL_SERVING: "Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.",
       SQL: "Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.",
-      VECTOR_SEARCH: "Tracked as the Vector Search tile when the endpoint name matches.",
+      VECTOR_SEARCH: "Endpoint billing is excluded; the tile uses exact index-tagged Astrolabe calls.",
       APPS: "Measured by exact app name. App tag presence is a separate organizational signal.",
       GENIE: "Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.",
       LAKEBASE: "Lakebase can be tagged. No documented billing join exists in this model.",
@@ -181491,13 +181486,6 @@ var init_ops_billing = __esm({
         population: "This endpoint",
         basis: "total-in-range",
         variable: "DATABRICKS_SERVING_ENDPOINT_NAME"
-      },
-      "foundation-model": {
-        label: "Foundation model",
-        quality: "unknown",
-        population: "Shared endpoint",
-        basis: "total-in-range",
-        variable: ""
       },
       "sql-warehouse": {
         label: "SQL warehouse",
@@ -181654,6 +181642,7 @@ __export(ops_routes_exports, {
   OPS_ROUTES: () => OPS_ROUTES,
   QUESTIONS_PER_DAY_QUERY: () => QUESTIONS_PER_DAY_QUERY,
   QUESTION_COST_RUNS_QUERY: () => QUESTION_COST_RUNS_QUERY,
+  RESOURCE_ACTIVITY_QUERY: () => RESOURCE_ACTIVITY_QUERY,
   RUN_OUTCOMES_QUERY: () => RUN_OUTCOMES_QUERY,
   TOOL_CALLS_QUERY: () => TOOL_CALLS_QUERY,
   causeLabel: () => causeLabel,
@@ -181724,63 +181713,34 @@ function shownConnectionValue(state) {
 }
 async function costIdentifiersFor(appkit, req, extras) {
   const appName = (process.env.DATABRICKS_APP_NAME ?? "").trim();
-  const [{ report }, stored, declared, appBillingTag] = await Promise.all([
+  const [{ report }, stored, appBillingTag] = await Promise.all([
     (extras.readReport ?? readOrchestratorReport)(),
     readStoredSettings(appkit).catch(() => /* @__PURE__ */ new Map()),
-    readDeclaredConnections(appkit),
     (extras.readAppBillingTag ?? readAppBillingTag)(appName)
   ]);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   const configured = Object.fromEntries(states.map((state) => [state.resource.id, shownConnectionValue(state)]));
   const configuration = [...report?.configuration ?? []];
-  const configuredKeys = new Set(configuration.map((entry) => String(entry.key)));
-  for (const entry of [
-    configured["genie-data"] ? {
-      key: "data_genie_space_id",
-      value: configured["genie-data"],
-      env_var: "",
-      source: "connections",
-      mutability: "",
-      baked: false,
-      required: false
-    } : null,
-    configured["genie-dictionary"] ? {
-      key: "dictionary_genie_space_id",
-      value: configured["genie-dictionary"],
-      env_var: "",
-      source: "connections",
-      mutability: "",
-      baked: false,
-      required: false
-    } : null,
-    configured["semantic-index"] ? {
-      key: "semantic_index",
-      value: configured["semantic-index"],
-      env_var: "",
-      source: "connections",
-      mutability: "",
-      baked: false,
-      required: false
-    } : null
+  for (const [key2, value] of [
+    ["data_genie_space_id", configured["genie-data"]],
+    ["dictionary_genie_space_id", configured["genie-dictionary"]]
   ]) {
-    if (!entry) continue;
-    if (!configuredKeys.has(entry.key)) configuration.push(entry);
+    if (!value || configuration.some((entry) => entry.key === key2)) continue;
+    configuration.push({
+      key: key2,
+      value,
+      env_var: "",
+      source: "connections",
+      mutability: "",
+      baked: false,
+      required: false
+    });
   }
-  const { genieSpaces } = accessDependenciesFrom({ configuration, env: process.env });
-  const spaces = genieSpaces.map((space) => ({ id: space.id.trim(), label: space.label.trim() || space.id.trim() }));
-  const seen = new Set(spaces.map((space) => space.id));
-  for (const row2 of declared) {
-    if (row2.state !== "declared" || row2.kind !== "genie-space") continue;
-    const id = row2.value.trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    spaces.push({ id, label: row2.label.trim() || "Genie space" });
-  }
-  const declaredIndex = declared.find(
-    (row2) => row2.state === "declared" && row2.kind === "vector-search" && vectorIndexName(row2.value)
-  );
+  const configuredGenie = accessDependenciesFrom({ configuration, env: process.env }).genieSpaces;
+  const dataGenie = configuredGenie.find((space) => space.role === "Data Genie space");
+  const dictionaryGenie = configuredGenie.find((space) => space.role === "Dictionary Genie space");
   const vectorIndex = vectorIndexName(
-    configured["semantic-index"] || declaredIndex?.value || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
+    configured["semantic-index"] || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? "")
   );
   let vectorEndpoint = queryText(req, "vectorEndpoint") || configured["semantic-index-endpoint"];
   if (!vectorEndpoint && vectorIndex) {
@@ -181796,11 +181756,23 @@ async function costIdentifiersFor(appkit, req, extras) {
     ids: {
       appName,
       endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? "").trim(),
-      foundationEndpoint: configured["llm-endpoint"] || "",
       warehouseId: extras.warehouse,
       vectorEndpoint,
       vectorIndex,
-      genieSpaces: spaces.filter((space) => space.id),
+      genieSpaces: [
+        {
+          id: dataGenie?.id || "",
+          label: "Data Genie",
+          tool: "data_genie",
+          tileId: "genie:data"
+        },
+        {
+          id: dictionaryGenie?.id || "",
+          label: "Dictionary Genie",
+          tool: "dictionary_genie",
+          tileId: "genie:dictionary"
+        }
+      ],
       workspaceId: extras.workspaceId,
       telemetryEnabled: Boolean(telemetrySchema()),
       appBillingTag
@@ -182053,6 +182025,21 @@ function unreadNote(charts, message) {
 function toBars(counts) {
   return [...counts.entries()].map(([key2, count4]) => ({ key: key2, label: causeLabel(key2), count: count4 })).sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
 }
+async function resourceActivityAttribution(appkit, ids, range) {
+  try {
+    const result = await appkit.lakebase.query(RESOURCE_ACTIVITY_QUERY, [
+      range.from,
+      range.to,
+      ids.genieSpaces.find((space) => space.tileId === "genie:data")?.id ?? "",
+      ids.genieSpaces.find((space) => space.tileId === "genie:dictionary")?.id ?? "",
+      ids.vectorIndex
+    ]);
+    return readResourceActivityRows(result.rows);
+  } catch (error48) {
+    console.warn(`[ops] Resource-scoped usage counts could not be read: ${error48.message}`);
+    return [];
+  }
+}
 function questionRun(row2) {
   const nullableNumber = (value) => {
     const parsed = Number(text18(value));
@@ -182163,7 +182150,10 @@ function setupOpsRoutes(appkit, deps) {
         readReport: deps.readOrchestratorReport
       });
       const ids = resolved.ids;
-      const storedBudgets = await readCostBudgets(appkit);
+      const [storedBudgets, resourceActivity] = await Promise.all([
+        readCostBudgets(appkit),
+        resourceActivityAttribution(appkit, ids, range)
+      ]);
       const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
         grant: null,
@@ -182188,7 +182178,7 @@ function setupOpsRoutes(appkit, deps) {
         res.json({
           ...empty,
           state: "no-warehouse",
-          tiles: buildTiles(ids, []),
+          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
           reason: "Billing could not be read because this app has no SQL warehouse, no workspace address, or no forwarded sign-in to read it with. Nothing about spend was established."
         });
         return;
@@ -182198,7 +182188,7 @@ function setupOpsRoutes(appkit, deps) {
         res.json({
           ...empty,
           state: "ready",
-          tiles: buildTiles(ids, [])
+          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity)
         });
         return;
       }
@@ -182228,7 +182218,7 @@ function setupOpsRoutes(appkit, deps) {
               ...empty,
               state: "no-grant",
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
-              tiles: buildTiles(ids, [], queryAttribution),
+              tiles: buildTiles(ids, [], queryAttribution, resourceActivity),
               reason: `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing runs under your own grants rather than this app\u2019s, so being an administrator here does not grant it. SELECT is needed on both system.billing.usage and system.billing.list_prices.`
             });
             return;
@@ -182236,7 +182226,7 @@ function setupOpsRoutes(appkit, deps) {
           res.json({
             ...empty,
             state: "unreadable",
-            tiles: buildTiles(ids, [], queryAttribution),
+            tiles: buildTiles(ids, [], queryAttribution, resourceActivity),
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`
           });
           return;
@@ -182253,7 +182243,7 @@ function setupOpsRoutes(appkit, deps) {
         const unpropagated = coverage2.propagation.filter((row2) => row2.status === "unpropagated");
         const delayed = coverage2.propagation.some((row2) => row2.status === "delayed");
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
-          const tiles2 = buildTiles(ids, [], queryAttribution);
+          const tiles2 = buildTiles(ids, [], queryAttribution, resourceActivity);
           const reason = unpropagated.length ? "Matching usage exists without the Astrolabe tag, but exact resource attribution remains available." : delayed ? "No exact tracked-resource billing rows in this range yet. Later days may still be filling." : "No billing rows matched an exact tracked resource in this range.";
           res.json({
             ...empty,
@@ -182268,7 +182258,7 @@ function setupOpsRoutes(appkit, deps) {
           });
           return;
         }
-        const tiles = buildTiles(ids, split.components, queryAttribution);
+        const tiles = buildTiles(ids, split.components, queryAttribution, resourceActivity);
         let perQuestion = {
           ...empty.perQuestion,
           reason: "Per-question attribution could not be read from the run ledger."
@@ -182298,7 +182288,7 @@ function setupOpsRoutes(appkit, deps) {
         res.json({
           ...empty,
           state: "unreadable",
-          tiles: [],
+          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
           reason: `Billing could not be read, so nothing about spend was established: ${error48.message}`
         });
       }
@@ -182430,7 +182420,7 @@ function setupOpsRoutes(appkit, deps) {
   });
   console.log("[ops] Registered the Ops read routes. The admin guard's prefix list covers all of them.");
 }
-var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, DISTINCT_ASKERS_PER_DAY_QUERY, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, QUESTION_COST_RUNS_QUERY, QUESTION_COST_LIMIT, OPS_ROUTES;
+var STATEMENT_TIMEOUT_MS2, ORG_ID_HEADER, knownWorkspaceId, QUESTIONS_PER_DAY_QUERY, DISTINCT_ASKERS_PER_DAY_QUERY, OPS_ANSWER_STATUS_SQL, RUN_OUTCOMES_QUERY, TOOL_CALLS_QUERY, FAILURE_STATES, QUESTION_COST_RUNS_QUERY, QUESTION_COST_LIMIT, RESOURCE_ACTIVITY_QUERY, OPS_ROUTES;
 var init_ops_routes = __esm({
   "server/routes/ops-routes.ts"() {
     init_app_schema();
@@ -182441,7 +182431,6 @@ var init_ops_routes = __esm({
     init_execution_credential();
     init_dependency_probes();
     init_app_settings();
-    init_declared_connections();
     init_databricks_links();
     init_resource_tagging();
     init_settings_routes();
@@ -182453,6 +182442,7 @@ var init_ops_routes = __esm({
     init_request_latency();
     init_app_activity();
     init_cost_budgets();
+    init_run_verdict();
     init_ops_query_history();
     init_runtime_settings_store();
     init_ops_contract();
@@ -182473,9 +182463,62 @@ var init_ops_routes = __esm({
   WHERE m.role = 'user'
   GROUP BY 1
   ORDER BY 1`;
+    OPS_ANSWER_STATUS_SQL = classifiedRunStatusSql({
+      trace: "m.response_json->'trace'",
+      payload: "m.response_json",
+      caveats: "m.response_json->'caveats'"
+    });
     RUN_OUTCOMES_QUERY = `
-  SELECT r.state, COALESCE(r.terminal_code, '') AS terminal_code, COUNT(*)::int AS count
-  FROM ${APP_SCHEMA}.runs r
+  WITH answers AS (
+    SELECT m.id,
+           COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
+           ${OPS_ANSWER_STATUS_SQL} AS answer_status
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+  ),
+  ledger_events AS (
+    SELECT r.run_id AS event_id,
+           CASE
+             WHEN r.state = 'REFUSED' THEN 'REFUSED'
+             WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN r.state
+             WHEN a.answer_status = 'failed' THEN 'FAILED'
+             ELSE r.state
+           END AS state,
+           CASE
+             WHEN COALESCE(r.terminal_code, '') <> '' THEN r.terminal_code
+             WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE'
+             ELSE ''
+           END AS terminal_code
+    FROM ${APP_SCHEMA}.runs r
+    LEFT JOIN LATERAL (
+      SELECT answer_status
+      FROM answers a
+      WHERE a.id = r.terminal_message_id
+         OR (COALESCE(r.trace_id, '') <> '' AND a.trace_id = r.trace_id)
+      ORDER BY (a.id = r.terminal_message_id) DESC
+      LIMIT 1
+    ) a ON TRUE
+  ),
+  legacy_answer_events AS (
+    SELECT a.id AS event_id,
+           CASE WHEN a.answer_status = 'failed' THEN 'FAILED' ELSE 'SUCCEEDED' END AS state,
+           CASE WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE' ELSE '' END AS terminal_code
+    FROM answers a
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM ${APP_SCHEMA}.runs r
+      WHERE r.terminal_message_id = a.id
+         OR (COALESCE(r.trace_id, '') <> '' AND r.trace_id = a.trace_id)
+    )
+  ),
+  events AS (
+    SELECT * FROM ledger_events
+    UNION ALL
+    SELECT * FROM legacy_answer_events
+  )
+  SELECT state, terminal_code, COUNT(*)::int AS count
+  FROM events
   GROUP BY 1, 2`;
     TOOL_CALLS_QUERY = `
   SELECT stage->>'name' AS tool, COUNT(*)::int AS count
@@ -182519,6 +182562,57 @@ var init_ops_routes = __esm({
   ORDER BY completed_at DESC
   LIMIT 100`;
     QUESTION_COST_LIMIT = 100;
+    RESOURCE_ACTIVITY_QUERY = `
+  WITH completed AS (
+    SELECT m.response_json->'trace' AS trace
+    FROM ${APP_SCHEMA}.runs r
+    JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
+    WHERE r.completed_at >= $1::date
+      AND r.completed_at < ($2::date + INTERVAL '1 day')
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+  ),
+  configured(tile_id, tool, resource_id) AS (
+    VALUES
+      ('genie:data', 'data_genie', $3::text),
+      ('genie:dictionary', 'dictionary_genie', $4::text),
+      ('vector-search', 'search_semantics', $5::text)
+  ),
+  observed AS (
+    SELECT CASE
+             WHEN stage->>'id' ~ '(^|-)dictionary_genie$' THEN 'dictionary_genie'
+             WHEN stage->>'id' ~ '(^|-)data_genie$' THEN 'data_genie'
+             WHEN stage->>'id' ~ '(^|-)search_semantics$' THEN 'search_semantics'
+           END AS tool,
+           SUM(CASE WHEN COALESCE(stage->>'calls', '') ~ '^[0-9]+$'
+                    THEN (stage->>'calls')::bigint ELSE 1 END)::bigint AS calls
+    FROM completed,
+         LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(trace->'stages') = 'array'
+                THEN trace->'stages' ELSE '[]'::jsonb END
+         ) AS stage
+    WHERE stage->>'id' ~ '(^|-)(data_genie|dictionary_genie|search_semantics)$'
+    GROUP BY 1
+  ),
+  attributed AS (
+    SELECT resource->>'tool' AS tool,
+           resource->>'id' AS resource_id,
+           SUM(CASE WHEN COALESCE(resource->>'calls', '') ~ '^[0-9]+$'
+                    THEN (resource->>'calls')::bigint ELSE 0 END)::bigint AS calls
+    FROM completed,
+         LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(trace->'resource_calls') = 'array'
+                THEN trace->'resource_calls' ELSE '[]'::jsonb END
+         ) AS resource
+    WHERE resource->>'tool' IN ('data_genie', 'dictionary_genie', 'search_semantics')
+    GROUP BY 1, 2
+  )
+  SELECT c.tile_id,
+         COALESCE(a.calls, 0)::bigint AS astrolabe_calls,
+         GREATEST(COALESCE(o.calls, 0), COALESCE(a.calls, 0))::bigint AS observed_calls
+  FROM configured c
+  LEFT JOIN attributed a ON a.tool = c.tool AND a.resource_id = c.resource_id
+  LEFT JOIN observed o ON o.tool = c.tool
+  ORDER BY c.tile_id`;
     OPS_ROUTES = ["/api/ops/health", "/api/ops/cost", "/api/ops/traffic", "/api/ops/latency"];
   }
 });

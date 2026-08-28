@@ -199,12 +199,6 @@
   .runtime-entity-row {
     grid-template-columns: 1fr;
   }
-  .sp-role-name-editor {
-    grid-template-columns: 1fr;
-  }
-  .sp-role-name-save {
-    justify-self: end;
-  }
   /* The search box's own line is settled in the 1180px block above, which covers
      this band too. It was here, and 800px was too late: the row runs out of line
      around 1090px. Do not restate it here. */

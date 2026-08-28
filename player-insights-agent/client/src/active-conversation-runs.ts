@@ -19,7 +19,17 @@ export type ActiveConversationRuns = ReadonlyMap<string, ActiveConversationRun>;
 const MAX_ACTIVE_RUNS = 32;
 const DIRECT_TERMINALS = new Set(['REFUSED', 'FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED']);
 
-function directTerminalSummary(status: ConversationRunStatus): RailRunSummary | null {
+function directLedgerSummary(status: ConversationRunStatus): RailRunSummary | null {
+  if (status.state === 'AWAITING_APPROVAL') {
+    return {
+      runId: status.run_id,
+      status: 'Approval needed',
+      tone: 'ast-pill--neutral-outline',
+      durationMs: null,
+      rating: null,
+      truncated: false,
+    };
+  }
   if (status.state === 'CANCELLED') {
     return {
       runId: status.run_id,
@@ -44,9 +54,12 @@ function directTerminalSummary(status: ConversationRunStatus): RailRunSummary | 
 }
 
 /**
- * Resolve a terminal rail reading without ever borrowing one from another turn.
+ * Resolve a non-executing rail reading without borrowing one from another turn.
  *
- * Failures and cancellation are fully described by the ledger row itself.
+ * Approval waits, failures and cancellation are fully described by the ledger
+ * row itself. Approval is deliberately not terminal, but it is equally
+ * important that the browser stop calling it Live: no executor or lease remains
+ * while a person reviews the plan.
  * Successful/clarifying runs need the message-derived verdict to distinguish
  * Complete from Partial, and that verdict is accepted only when its message id
  * is the terminal message id recorded on the same ledger row.
@@ -55,7 +68,7 @@ export function terminalConversationRunSummary(
   status: ConversationRunStatus,
   summary: RailRunSummary | null = null
 ): RailRunSummary | null {
-  const direct = directTerminalSummary(status);
+  const direct = directLedgerSummary(status);
   if (direct) return direct;
   if (status.state !== 'SUCCEEDED' && status.state !== 'CLARIFICATION_REQUIRED') return null;
   const messageId = status.terminal_message_id?.trim();
@@ -122,9 +135,16 @@ export function trackActiveConversationRun(
   const held = current.get(conversationId);
   if (held) {
     if (held.status.run_id !== status.run_id && !newerRun(status, held.status)) return current;
-    // A late working read can never reopen a run whose terminal ledger row was
-    // already accepted.
-    if (held.status.run_id === status.run_id && held.summary && isWorkingConversationRun(status)) return current;
+    // A late working read cannot reopen a terminal ledger row. Approval is the
+    // one summarized state that is intentionally resumable: the same run moves
+    // from AWAITING_APPROVAL back into RUNNING when the person approves it.
+    if (
+      held.status.run_id === status.run_id &&
+      held.summary &&
+      held.status.state !== 'AWAITING_APPROVAL' &&
+      isWorkingConversationRun(status)
+    )
+      return current;
     if (
       held.status.run_id === status.run_id &&
       isWorkingConversationRun(held.status) &&

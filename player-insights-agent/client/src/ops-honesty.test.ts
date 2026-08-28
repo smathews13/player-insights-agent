@@ -365,16 +365,13 @@ describe('an empty cost block', () => {
     const tiles = costTilesForDisplay([]);
     expect(tiles.map((tile) => tile.id)).toEqual([
       'serving-endpoint',
-      'foundation-model',
       'sql-warehouse',
-      'genie',
+      'genie:data',
+      'genie:dictionary',
       'vector-search',
       'app-compute',
     ]);
-    expect(tiles.find((tile) => tile.id === 'foundation-model')?.unavailable).toBe('Shared spend withheld');
-    expect(
-      tiles.filter((tile) => tile.id !== 'foundation-model').every((tile) => tile.unavailable === 'No billing rows')
-    ).toBe(true);
+    expect(tiles.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
   });
 });
 

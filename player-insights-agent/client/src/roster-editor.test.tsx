@@ -188,7 +188,7 @@ describe('the #24a Roles geometry', () => {
     const markup = rows({
       entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
     });
-    for (const heading of ['Email', 'Set by', 'Role', 'Actions']) {
+    for (const heading of ['Email', 'Set by', 'Human role', 'Actions']) {
       expect(markup).toContain(`<th scope="col">${heading}</th>`);
     }
 
@@ -199,11 +199,11 @@ describe('the #24a Roles geometry', () => {
   });
 
   it('keeps role and action controls compact within their columns', () => {
-    expect(css).toMatch(/\.roster-role-select \{[^}]*flex:\s*0 0 auto/);
-    expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*12rem/);
+    expect(css).toMatch(/\.roster-role-select,\s*\.roster-persona-select \{[^}]*flex:\s*0 0 auto/);
+    expect(css).toMatch(/\.roster-role-select,\s*\.roster-persona-select \{[^}]*max-width:\s*13rem/);
     expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*flex:\s*none/);
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
-    expect(css).toMatch(/\.roles-table th:last-child \{[^}]*text-align:\s*right/);
+    expect(css).toMatch(/\.roles-table--editable th:last-child \{[^}]*text-align:\s*right/);
     expect(css).toMatch(/\.roster-action \{[^}]*text-align:\s*right/);
   });
 

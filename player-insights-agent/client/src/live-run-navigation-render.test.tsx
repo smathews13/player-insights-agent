@@ -122,6 +122,7 @@ describe('a live rail card across navigation and stale background reads', () => 
   });
 
   it.each([
+    { state: 'AWAITING_APPROVAL', terminal_message_id: null, summary: null, label: 'Approval needed' },
     {
       state: 'SUCCEEDED',
       terminal_message_id: 'answer-live',
@@ -152,6 +153,25 @@ describe('a live rail card across navigation and stale background reads', () => 
     expect(rail(settled, stages)).toContain(label);
     expect(rail(settled, stages)).not.toContain('Live');
     expect(settleActiveConversationRun(settled, 'conversation-live', terminal, summary)).toBe(settled);
+  });
+
+  it('returns a parked plan to Live when approval resumes the same run', () => {
+    const stages = [stage(3, 'complete')];
+    const live = trackActiveConversationRun(new Map(), 'conversation-live', running(stages));
+    const waiting = {
+      ...running(stages),
+      state: 'AWAITING_APPROVAL',
+      updated_at: '2026-08-27T20:00:10Z',
+    };
+    const parked = settleActiveConversationRun(live, 'conversation-live', waiting, null);
+    expect(rail(parked, stages)).toContain('Approval needed');
+
+    const resumed = trackActiveConversationRun(parked, 'conversation-live', {
+      ...running(stages),
+      updated_at: '2026-08-27T20:00:20Z',
+    });
+    expect(rail(resumed, stages)).toContain('Live · step 01');
+    expect(rail(resumed, stages)).not.toContain('Approval needed');
   });
 });
 

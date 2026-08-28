@@ -39,9 +39,11 @@ import {
   buildQuestionAttribution,
   buildTiles,
   readComponentRows,
+  readResourceActivityRows,
   splitBillingRows,
   type CostIdentifiers,
   type QuestionRunInput,
+  type ResourceActivity,
   type StatementParameter,
   vectorIndexName,
 } from '../lib/ops-billing';
@@ -62,7 +64,6 @@ import { classifyDenial, accessDependenciesFrom, UNKNOWN_PRINCIPAL } from './acc
 import { executionToken } from '../lib/execution-credential';
 import { ANSWER_PATH_ENDPOINT_IDS, probeConnections, SERVING_ENDPOINT_KIND } from '../lib/dependency-probes';
 import { appEnvironment, readStoredSettings, resourceStates, type ResourceState } from '../lib/app-settings';
-import { readDeclaredConnections } from '../lib/declared-connections';
 import { normalizeWorkspaceHost, workspaceAppsUrl } from '../../shared/databricks-links';
 import { readAppBillingTag } from '../lib/resource-tagging';
 import { readOrchestratorReport } from './settings-routes';
@@ -74,6 +75,7 @@ import { userEmail, type InsightsAppKit, type PreflightReport } from './insights
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import { ACTIVE_MINUTES_PER_DAY_QUERY, validIanaTimeZone } from '../lib/app-activity';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
+import { classifiedRunStatusSql } from '../../shared/run-verdict';
 import {
   createWorkspaceQueryHistoryTransport,
   EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
@@ -270,73 +272,34 @@ async function costIdentifiersFor(
   }
 ): Promise<{ ids: CostIdentifiers; report: PreflightReport | null }> {
   const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
-  const [{ report }, stored, declared, appBillingTag] = await Promise.all([
+  const [{ report }, stored, appBillingTag] = await Promise.all([
     (extras.readReport ?? readOrchestratorReport)(),
     readStoredSettings(appkit).catch(() => new Map()),
-    readDeclaredConnections(appkit),
     (extras.readAppBillingTag ?? readAppBillingTag)(appName),
   ]);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   const configured = Object.fromEntries(states.map((state) => [state.resource.id, shownConnectionValue(state)]));
-  // A report may carry only part of the deployment configuration. Starting
-  // with it and filling each missing key from resourceStates preserves the
-  // exact configured/actual/intended values Connections shows instead of
-  // dropping every fallback as soon as any unrelated report entry exists.
   const configuration = [...(report?.configuration ?? [])];
-  const configuredKeys = new Set(configuration.map((entry) => String(entry.key)));
-  for (const entry of [
-    configured['genie-data']
-      ? {
-          key: 'data_genie_space_id',
-          value: configured['genie-data'],
-          env_var: '',
-          source: 'connections',
-          mutability: '',
-          baked: false,
-          required: false,
-        }
-      : null,
-    configured['genie-dictionary']
-      ? {
-          key: 'dictionary_genie_space_id',
-          value: configured['genie-dictionary'],
-          env_var: '',
-          source: 'connections',
-          mutability: '',
-          baked: false,
-          required: false,
-        }
-      : null,
-    configured['semantic-index']
-      ? {
-          key: 'semantic_index',
-          value: configured['semantic-index'],
-          env_var: '',
-          source: 'connections',
-          mutability: '',
-          baked: false,
-          required: false,
-        }
-      : null,
-  ]) {
-    if (!entry) continue;
-    if (!configuredKeys.has(entry.key)) configuration.push(entry);
+  for (const [key, value] of [
+    ['data_genie_space_id', configured['genie-data']],
+    ['dictionary_genie_space_id', configured['genie-dictionary']],
+  ] as const) {
+    if (!value || configuration.some((entry) => entry.key === key)) continue;
+    configuration.push({
+      key,
+      value,
+      env_var: '',
+      source: 'connections',
+      mutability: '',
+      baked: false,
+      required: false,
+    });
   }
-  const { genieSpaces } = accessDependenciesFrom({ configuration, env: process.env });
-  const spaces = genieSpaces.map((space) => ({ id: space.id.trim(), label: space.label.trim() || space.id.trim() }));
-  const seen = new Set(spaces.map((space) => space.id));
-  for (const row of declared) {
-    if (row.state !== 'declared' || row.kind !== 'genie-space') continue;
-    const id = row.value.trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    spaces.push({ id, label: row.label.trim() || 'Genie space' });
-  }
-  const declaredIndex = declared.find(
-    (row) => row.state === 'declared' && row.kind === 'vector-search' && vectorIndexName(row.value)
-  );
+  const configuredGenie = accessDependenciesFrom({ configuration, env: process.env }).genieSpaces;
+  const dataGenie = configuredGenie.find((space) => space.role === 'Data Genie space');
+  const dictionaryGenie = configuredGenie.find((space) => space.role === 'Dictionary Genie space');
   const vectorIndex = vectorIndexName(
-    configured['semantic-index'] || declaredIndex?.value || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
+    configured['semantic-index'] || (process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX ?? '')
   );
   let vectorEndpoint = queryText(req, 'vectorEndpoint') || configured['semantic-index-endpoint'];
   if (!vectorEndpoint && vectorIndex) {
@@ -352,11 +315,23 @@ async function costIdentifiersFor(
     ids: {
       appName,
       endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
-      foundationEndpoint: configured['llm-endpoint'] || '',
       warehouseId: extras.warehouse,
       vectorEndpoint,
       vectorIndex,
-      genieSpaces: spaces.filter((space) => space.id),
+      genieSpaces: [
+        {
+          id: dataGenie?.id || '',
+          label: 'Data Genie',
+          tool: 'data_genie',
+          tileId: 'genie:data',
+        },
+        {
+          id: dictionaryGenie?.id || '',
+          label: 'Dictionary Genie',
+          tool: 'dictionary_genie',
+          tileId: 'genie:dictionary',
+        },
+      ],
       workspaceId: extras.workspaceId,
       telemetryEnabled: Boolean(telemetrySchema()),
       appBillingTag,
@@ -763,19 +738,72 @@ export const DISTINCT_ASKERS_PER_DAY_QUERY = `
   GROUP BY 1
   ORDER BY 1`;
 
+const OPS_ANSWER_STATUS_SQL = classifiedRunStatusSql({
+  trace: "m.response_json->'trace'",
+  payload: 'm.response_json',
+  caveats: "m.response_json->'caveats'",
+});
+
 /**
- * How runs ended, by state and code.
+ * How runs ended, from both durable ledger state and stored-answer evidence.
  *
- * REFUSALS AND FAILURES ARE DISJOINT BY CONSTRUCTION, not by discipline here. A
- * run's terminal state is decided from the LAYER of its terminal code by
- * `TERMINAL_STATE_BY_LAYER`, so a governance outcome cannot also be an
- * operational one and no run can appear on both charts. That is why nothing
- * below offers a total across the two: adding them would count runs that have
- * nothing in common because they happen to both be "not a success".
+ * The rail and Run Explorer have always been able to classify answers stored
+ * before the ledger existed, and can classify a failed answer whose durable run
+ * itself reached SUCCEEDED. Reading only runs.state made those visible failures
+ * disappear from Ops. The trace/message joins below use terminal message first
+ * and trace id second, then add only answers with no matching ledger row.
  */
 export const RUN_OUTCOMES_QUERY = `
-  SELECT r.state, COALESCE(r.terminal_code, '') AS terminal_code, COUNT(*)::int AS count
-  FROM ${APP_SCHEMA}.runs r
+  WITH answers AS (
+    SELECT m.id,
+           COALESCE(NULLIF(m.trace_id, ''), NULLIF(m.response_json->'trace'->>'id', '')) AS trace_id,
+           ${OPS_ANSWER_STATUS_SQL} AS answer_status
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.role = 'assistant'
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+  ),
+  ledger_events AS (
+    SELECT r.run_id AS event_id,
+           CASE
+             WHEN r.state = 'REFUSED' THEN 'REFUSED'
+             WHEN r.state IN ('FAILED', 'DEADLINE_EXCEEDED', 'PERSISTENCE_FAILED') THEN r.state
+             WHEN a.answer_status = 'failed' THEN 'FAILED'
+             ELSE r.state
+           END AS state,
+           CASE
+             WHEN COALESCE(r.terminal_code, '') <> '' THEN r.terminal_code
+             WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE'
+             ELSE ''
+           END AS terminal_code
+    FROM ${APP_SCHEMA}.runs r
+    LEFT JOIN LATERAL (
+      SELECT answer_status
+      FROM answers a
+      WHERE a.id = r.terminal_message_id
+         OR (COALESCE(r.trace_id, '') <> '' AND a.trace_id = r.trace_id)
+      ORDER BY (a.id = r.terminal_message_id) DESC
+      LIMIT 1
+    ) a ON TRUE
+  ),
+  legacy_answer_events AS (
+    SELECT a.id AS event_id,
+           CASE WHEN a.answer_status = 'failed' THEN 'FAILED' ELSE 'SUCCEEDED' END AS state,
+           CASE WHEN a.answer_status = 'failed' THEN 'NO_VALID_EVIDENCE' ELSE '' END AS terminal_code
+    FROM answers a
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM ${APP_SCHEMA}.runs r
+      WHERE r.terminal_message_id = a.id
+         OR (COALESCE(r.trace_id, '') <> '' AND r.trace_id = a.trace_id)
+    )
+  ),
+  events AS (
+    SELECT * FROM ledger_events
+    UNION ALL
+    SELECT * FROM legacy_answer_events
+  )
+  SELECT state, terminal_code, COUNT(*)::int AS count
+  FROM events
   GROUP BY 1, 2`;
 
 /** Tool-tagged stages, counted by the tool each one named. */
@@ -886,6 +914,86 @@ export const QUESTION_COST_RUNS_QUERY = `
   LIMIT 100`;
 
 const QUESTION_COST_LIMIT = 100;
+
+/**
+ * Resource-scoped request counts from Astrolabe's own persisted traces.
+ *
+ * Only `trace.resource_calls` can contribute to `astrolabe_calls`. Stage ids
+ * establish the same-tool denominator but never identify a resource, so older
+ * calls remain visible as a coverage gap instead of being assigned to today's
+ * configured space or index.
+ */
+export const RESOURCE_ACTIVITY_QUERY = `
+  WITH completed AS (
+    SELECT m.response_json->'trace' AS trace
+    FROM ${APP_SCHEMA}.runs r
+    JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
+    WHERE r.completed_at >= $1::date
+      AND r.completed_at < ($2::date + INTERVAL '1 day')
+      AND jsonb_typeof(m.response_json->'trace') = 'object'
+  ),
+  configured(tile_id, tool, resource_id) AS (
+    VALUES
+      ('genie:data', 'data_genie', $3::text),
+      ('genie:dictionary', 'dictionary_genie', $4::text),
+      ('vector-search', 'search_semantics', $5::text)
+  ),
+  observed AS (
+    SELECT CASE
+             WHEN stage->>'id' ~ '(^|-)dictionary_genie$' THEN 'dictionary_genie'
+             WHEN stage->>'id' ~ '(^|-)data_genie$' THEN 'data_genie'
+             WHEN stage->>'id' ~ '(^|-)search_semantics$' THEN 'search_semantics'
+           END AS tool,
+           SUM(CASE WHEN COALESCE(stage->>'calls', '') ~ '^[0-9]+$'
+                    THEN (stage->>'calls')::bigint ELSE 1 END)::bigint AS calls
+    FROM completed,
+         LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(trace->'stages') = 'array'
+                THEN trace->'stages' ELSE '[]'::jsonb END
+         ) AS stage
+    WHERE stage->>'id' ~ '(^|-)(data_genie|dictionary_genie|search_semantics)$'
+    GROUP BY 1
+  ),
+  attributed AS (
+    SELECT resource->>'tool' AS tool,
+           resource->>'id' AS resource_id,
+           SUM(CASE WHEN COALESCE(resource->>'calls', '') ~ '^[0-9]+$'
+                    THEN (resource->>'calls')::bigint ELSE 0 END)::bigint AS calls
+    FROM completed,
+         LATERAL jsonb_array_elements(
+           CASE WHEN jsonb_typeof(trace->'resource_calls') = 'array'
+                THEN trace->'resource_calls' ELSE '[]'::jsonb END
+         ) AS resource
+    WHERE resource->>'tool' IN ('data_genie', 'dictionary_genie', 'search_semantics')
+    GROUP BY 1, 2
+  )
+  SELECT c.tile_id,
+         COALESCE(a.calls, 0)::bigint AS astrolabe_calls,
+         GREATEST(COALESCE(o.calls, 0), COALESCE(a.calls, 0))::bigint AS observed_calls
+  FROM configured c
+  LEFT JOIN attributed a ON a.tool = c.tool AND a.resource_id = c.resource_id
+  LEFT JOIN observed o ON o.tool = c.tool
+  ORDER BY c.tile_id`;
+
+async function resourceActivityAttribution(
+  appkit: InsightsAppKit,
+  ids: CostIdentifiers,
+  range: { from: string; to: string }
+): Promise<ResourceActivity[]> {
+  try {
+    const result = await appkit.lakebase.query(RESOURCE_ACTIVITY_QUERY, [
+      range.from,
+      range.to,
+      ids.genieSpaces.find((space) => space.tileId === 'genie:data')?.id ?? '',
+      ids.genieSpaces.find((space) => space.tileId === 'genie:dictionary')?.id ?? '',
+      ids.vectorIndex,
+    ]);
+    return readResourceActivityRows(result.rows);
+  } catch (error) {
+    console.warn(`[ops] Resource-scoped usage counts could not be read: ${(error as Error).message}`);
+    return [];
+  }
+}
 
 function questionRun(row: Record<string, unknown>): QuestionRunInput {
   const nullableNumber = (value: unknown): number | null => {
@@ -1086,7 +1194,10 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         readReport: deps.readOrchestratorReport,
       });
       const ids = resolved.ids;
-      const storedBudgets = await readCostBudgets(appkit);
+      const [storedBudgets, resourceActivity] = await Promise.all([
+        readCostBudgets(appkit),
+        resourceActivityAttribution(appkit, ids, range),
+      ]);
       const costBudgets = attributableCostBudgets(storedBudgets.budgets);
       const empty = {
         grant: null,
@@ -1112,7 +1223,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         res.json({
           ...empty,
           state: 'no-warehouse',
-          tiles: buildTiles(ids, []),
+          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
           reason:
             'Billing could not be read because this app has no SQL warehouse, no workspace address, ' +
             'or no forwarded sign-in to read it with. Nothing about spend was established.',
@@ -1125,7 +1236,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         res.json({
           ...empty,
           state: 'ready',
-          tiles: buildTiles(ids, []),
+          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
         } satisfies OpsCostPayload);
         return;
       }
@@ -1157,7 +1268,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               ...empty,
               state: 'no-grant',
               grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
-              tiles: buildTiles(ids, [], queryAttribution),
+              tiles: buildTiles(ids, [], queryAttribution, resourceActivity),
               reason:
                 `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing ` +
                 'runs under your own grants rather than this app\u2019s, so being an administrator here ' +
@@ -1168,7 +1279,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           res.json({
             ...empty,
             state: 'unreadable',
-            tiles: buildTiles(ids, [], queryAttribution),
+            tiles: buildTiles(ids, [], queryAttribution, resourceActivity),
             reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${outcome.message}`,
           } satisfies OpsCostPayload);
           return;
@@ -1188,7 +1299,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
         // No exact component rows is its OWN state and not a missing grant.
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
-          const tiles = buildTiles(ids, [], queryAttribution);
+          const tiles = buildTiles(ids, [], queryAttribution, resourceActivity);
           const reason = unpropagated.length
             ? 'Matching usage exists without the Astrolabe tag, but exact resource attribution remains available.'
             : delayed
@@ -1208,7 +1319,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           return;
         }
 
-        const tiles = buildTiles(ids, split.components, queryAttribution);
+        const tiles = buildTiles(ids, split.components, queryAttribution, resourceActivity);
         let perQuestion: OpsCostPayload['perQuestion'] = {
           ...empty.perQuestion,
           reason: 'Per-question attribution could not be read from the run ledger.',
@@ -1239,7 +1350,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         res.json({
           ...empty,
           state: 'unreadable',
-          tiles: [],
+          tiles: buildTiles(ids, [], EMPTY_WAREHOUSE_QUERY_ATTRIBUTION, resourceActivity),
           reason: `Billing could not be read, so nothing about spend was established: ${(error as Error).message}`,
         } satisfies OpsCostPayload);
       }

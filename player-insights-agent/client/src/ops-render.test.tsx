@@ -21,7 +21,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -1149,30 +1149,100 @@ describe('the cost block', () => {
     expect(markup).toContain('--brand-icon-size:14px');
   });
 
-  it('keeps the shared foundation endpoint dollar-free and visibly identified', () => {
+  it('renders Data Genie, Dictionary Genie, Serving, and Vector Search separately with scoped counts', () => {
     const payload = cost({
       tiles: [
         {
           ...cost().tiles[0],
-          id: 'foundation-model',
-          label: 'Foundation model',
-          resourceId: 'databricks-claude-sonnet-4-6',
+          id: 'serving-endpoint',
+          label: 'Serving endpoint',
+          resourceId: 'astrolabe-agent',
           resourceKind: 'serving-endpoint',
+        },
+        {
+          ...cost().tiles[0],
+          id: 'genie:data',
+          label: 'Data Genie',
+          resourceId: 'space-data',
+          resourceKind: 'genie-space',
           amount: null,
           quality: 'unknown',
-          population: 'Shared endpoint',
-          unavailable: 'Shared spend withheld',
-          evidence: { billingRows: null, astrolabeQueries: null },
+          unavailable: 'Genie LLM dollars unavailable',
+          evidence: {
+            billingRows: null,
+            astrolabeQueries: null,
+            activity: { calls: 3, observedCalls: 4, unit: 'requests' },
+          },
+        },
+        {
+          ...cost().tiles[0],
+          id: 'genie:dictionary',
+          label: 'Dictionary Genie',
+          resourceId: 'space-dictionary',
+          resourceKind: 'genie-space',
+          amount: null,
+          quality: 'unknown',
+          unavailable: 'Genie LLM dollars unavailable',
+          evidence: {
+            billingRows: null,
+            astrolabeQueries: null,
+            activity: { calls: 2, observedCalls: 2, unit: 'requests' },
+          },
+        },
+        {
+          ...cost().tiles[0],
+          id: 'vector-search',
+          label: 'Vector search',
+          resourceId: 'catalog.schema.index',
+          secondaryResourceId: 'vs-endpoint',
+          resourceKind: 'vector-index',
+          amount: null,
+          quality: 'unknown',
+          unavailable: 'Vector Search dollars unavailable',
+          evidence: {
+            billingRows: null,
+            astrolabeQueries: null,
+            activity: { calls: 5, observedCalls: 7, unit: 'queries' },
+          },
         },
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Foundation model');
-    expect(markup).toContain('Shared spend withheld');
-    expect(markup).toContain('databricks-claude-sonnet-4-6');
-    expect(markup).not.toContain('Billing rows withheld');
-    expect(markup).toContain('ops-tile-mark');
-    expect(markup).not.toMatch(/Budget in range/);
+    const visible = text(markup);
+    expect(visible).toContain('Serving endpoint · astrolabe-agent');
+    expect(visible).toContain('Data Genie · space-data');
+    expect(visible).toContain('Dictionary Genie · space-dictionary');
+    expect(visible).toContain('Vector search · catalog.schema.index · vs-endpoint');
+    expect(visible).toContain('3 Astrolabe requests in range');
+    expect(visible).toContain('3 of 4 requests carry resource identity');
+    expect(visible).toContain('2 Astrolabe requests in range');
+    expect(visible).not.toContain('2 of 2 requests carry resource identity');
+    expect(visible).toContain('5 Astrolabe queries in range');
+    expect(visible).toContain('5 of 7 queries carry resource identity');
+    expect(visible).not.toContain('Foundation model');
+    expect(visible).not.toContain('withheld');
+  });
+
+  it('spells one Vector Search activity as one query', () => {
+    const tile = {
+      ...cost().tiles[0],
+      id: 'vector-search',
+      label: 'Vector search',
+      resourceId: 'catalog.schema.index',
+      resourceKind: 'vector-index' as const,
+      amount: null,
+      quality: 'unknown' as const,
+      unavailable: 'Vector Search dollars unavailable',
+      evidence: {
+        billingRows: null,
+        astrolabeQueries: null,
+        activity: { calls: 1, observedCalls: 1, unit: 'queries' as const },
+      },
+    };
+    const visible = text(markupOf(<CostBody block={block(cost({ tiles: [tile] }))} />));
+
+    expect(visible).toContain('1 Astrolabe query in range');
+    expect(visible).not.toContain('querie');
   });
 
   it('shows only concise row-count evidence under a SQL estimate', () => {
@@ -1366,14 +1436,14 @@ describe('the cost block', () => {
           basis: 'total-in-range',
           population: 'This space',
           attribution: 'unavailable',
-          unavailable: 'Genie LLM spend not attributable in this model',
+          unavailable: 'Genie LLM dollars unavailable',
           remedy: '',
           note: 'SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.',
         },
       ],
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('Genie LLM spend not attributable');
+    expect(markup).toContain('Genie LLM dollars unavailable');
     expect(markup).toContain('space-data');
     expect(markup).not.toContain('not the complete Genie cost');
     expect(markup).not.toContain('0.00');
@@ -1739,7 +1809,21 @@ describe('Ops cost uses complete billing days', () => {
   const at = (search: string) =>
     renderToStaticMarkup(
       <MemoryRouter initialEntries={[`/ops${search}`]}>
-        <OpsPage />
+        <Routes>
+          <Route
+            element={
+              <Outlet
+                context={{
+                  features: { benchmarkLab: false, egressControls: false, costEstimates: true },
+                  setFeature: () => {},
+                  role: { state: 'admin', addedAdminsReadable: true },
+                }}
+              />
+            }
+          >
+            <Route path="/ops" element={<OpsPage />} />
+          </Route>
+        </Routes>
       </MemoryRouter>
     );
 
@@ -1755,7 +1839,8 @@ describe('Ops cost uses complete billing days', () => {
     const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
     expect(source).toContain("costParams.set('from', range.from)");
     expect(source).toContain("costParams.set('to', range.to)");
-    expect(source).toContain("useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params))");
+    expect(source).toContain("'/api/ops/cost',");
+    expect(source).toContain('costEstimatesShown');
     expect(source).toContain("useOpsBlock<OpsHealthPayload>('/api/ops/health', '')");
     expect(source).toContain('TimeRangeControl page="Ops cost"');
     expect(source).toContain("params.set('range', 'all')");

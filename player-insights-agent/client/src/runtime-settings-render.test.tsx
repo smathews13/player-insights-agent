@@ -60,6 +60,13 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('Example: 42 teams increased weekly usage.');
   });
 
+  it('keeps saved numeric values real and moves examples into muted helper text', () => {
+    expect(source).toContain('value={draft ?? String(value)}');
+    expect(source).toContain('runtime-control-example');
+    expect(source).toContain('Example: {placeholder}');
+    expect(styles).toMatch(/\.runtime-control-example \{[^}]*font-style:\s*italic[^}]*opacity:\s*0\.72/s);
+  });
+
   it('maps the three Loop structure labels to Architecture’s semantic accents', () => {
     expect(source).toContain("runtime-loop-label runtime-loop-label--agent ast-pill");
     expect(source).toContain("runtime-loop-label runtime-loop-label--tool ast-pill");

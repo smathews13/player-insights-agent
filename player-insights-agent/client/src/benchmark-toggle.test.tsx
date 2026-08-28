@@ -186,16 +186,19 @@ describe('flipping it is wired to something', () => {
       ' '
     );
     expect(source).toMatch(/showsBenchmarkLab/);
+    expect(source).toMatch(/showsCostEstimates/);
     expect(source).toMatch(/setFeature\('benchmarkLab'/);
+    expect(source).toMatch(/setFeature\('costEstimates'/);
     expect(source).toMatch(/setFeature\('egressControls'/);
     expect(source).not.toMatch(/setFeature\('spIdentities'/);
     expect(source).toMatch(/persistSpIdentityMode/);
     expect(source).toMatch(/loadSpIdentityAdmin/);
     expect(source).toMatch(/spIdentityEnabledFromPayload/);
-    const rows = ['PII egress judge', 'SP identities', '<ResourceTagsPanel />', 'Benchmarking'];
+    const rows = ['PII egress judge', 'SP identities', '<ResourceTagsPanel />', 'Cost estimates', 'Benchmarking'];
     const positions = rows.map((row) => source.indexOf(row));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
     expect(source.indexOf("setFeature('egressControls'")).toBeLessThan(source.indexOf("setFeature('benchmarkLab'"));
+    expect(source.indexOf("setFeature('costEstimates'")).toBeLessThan(source.indexOf("setFeature('benchmarkLab'"));
   });
 });

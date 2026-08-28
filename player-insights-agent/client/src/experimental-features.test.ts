@@ -5,6 +5,7 @@ import {
   persistExperimentalFeatures,
   readExperimentalFeatures,
   showsBenchmarkLab,
+  showsCostEstimates,
   showsEgressControls,
   type PreferenceStore,
 } from './experimental-features';
@@ -113,6 +114,32 @@ describe('recording an experiment for the next visit', () => {
     const on = { ...NO_EXPERIMENTS, benchmarkLab: true };
     expect(persistExperimentalFeatures(on, throwingStore('write'))).toBe(false);
     expect(persistExperimentalFeatures(on, null)).toBe(false);
+  });
+});
+
+describe('the Ops cost estimate experiment', () => {
+  it('migrates an existing browser with no cost key to off', () => {
+    const store = fakeStore({
+      [EXPERIMENTAL_FEATURE_KEYS.benchmarkLab]: 'true',
+      [EXPERIMENTAL_FEATURE_KEYS.egressControls]: 'true',
+    });
+    const features = readExperimentalFeatures(store);
+
+    expect(NO_EXPERIMENTS.costEstimates).toBe(false);
+    expect(features.costEstimates).toBe(false);
+    expect(showsCostEstimates(features)).toBe(false);
+  });
+
+  it('persists both sides of the toggle without changing other experiments', () => {
+    const store = fakeStore();
+    const on = { ...NO_EXPERIMENTS, costEstimates: true };
+
+    expect(persistExperimentalFeatures(on, store)).toBe(true);
+    expect(readExperimentalFeatures(store)).toEqual(on);
+
+    persistExperimentalFeatures({ ...on, costEstimates: false }, store);
+    expect(store.written.get(EXPERIMENTAL_FEATURE_KEYS.costEstimates)).toBe('false');
+    expect(readExperimentalFeatures(store)).toEqual(NO_EXPERIMENTS);
   });
 });
 

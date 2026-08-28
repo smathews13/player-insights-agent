@@ -142,6 +142,8 @@ export interface CostTile {
    * host; it does not invent a host or a path.
    */
   resourceId: string;
+  /** A second configured identifier shown in the title, such as the endpoint serving a Vector Search index. */
+  secondaryResourceId?: string;
   /**
    * What `resourceId` is, when the page can open it. Absent or '' when there is
    * no verified workspace path for this tile.
@@ -188,6 +190,16 @@ export interface CostTile {
     astrolabeQueries: number | null;
     warehouseQueries?: number | null;
     queryHistoryComplete?: boolean;
+    /**
+     * Calls explicitly tagged with this exact resource id, and all observed
+     * calls of the same tool. A smaller numerator means older telemetry or
+     * calls to another configured resource, never permission to widen scope.
+     */
+    activity?: {
+      calls: number;
+      observedCalls: number;
+      unit: 'requests' | 'queries';
+    } | null;
   } | null;
 }
 

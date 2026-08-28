@@ -722,6 +722,21 @@ describe('the inspector while a run is still going', () => {
     expect(reconnect).toContain('terminalConversationRunSummary(status, summaries.get(runConversationId) ?? null)');
   });
 
+  it('parks an unapproved plan before any terminal-summary read', () => {
+    const reconnect = HOME_PAGE.slice(
+      HOME_PAGE.indexOf('Follow every durable run, regardless of which conversation is open'),
+      HOME_PAGE.indexOf('The rail, in one round trip rather than two')
+    );
+    const waiting = reconnect.indexOf("status.state === 'AWAITING_APPROVAL'");
+    const summaries = reconnect.indexOf('const summaries = await loadRunSummaries()');
+    const parked = reconnect.slice(waiting, summaries);
+
+    expect(waiting).toBeGreaterThan(-1);
+    expect(waiting).toBeLessThan(summaries);
+    expect(parked).toContain('settleActiveConversationRun');
+    expect(parked).toContain('endLiveAsk(runConversationId)');
+  });
+
   it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
     // The answer pane reports live steps in text; only the inspector draws their
     // expanding numbered path.

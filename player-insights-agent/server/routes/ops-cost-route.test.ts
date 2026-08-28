@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Application, Request, Response } from 'express';
 
-import { forgetWorkspaceId, QUESTION_COST_RUNS_QUERY, setupOpsRoutes } from './ops-routes';
+import { forgetWorkspaceId, QUESTION_COST_RUNS_QUERY, RESOURCE_ACTIVITY_QUERY, setupOpsRoutes } from './ops-routes';
 import type { InsightsAppKit } from './insights-routes';
 import type { OpsCostPayload } from '../../shared/ops-contract';
 
@@ -164,7 +164,7 @@ describe('the ranged cost route', () => {
     expect(payload.honesty?.contractRates).toBe('unavailable');
   });
 
-  it('shows each connected Genie space and Vector Search index even when billing is empty', async () => {
+  it('shows four configured resources and excludes untagged Vector Search calls', async () => {
     let handler: ((req: Request, res: Response) => Promise<void>) | undefined;
     const app = {
       get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
@@ -172,22 +172,12 @@ describe('the ranged cost route', () => {
       },
     } as unknown as Application;
     const lakebase = vi.fn((sql: string) => {
-      if (sql.includes('declared_connections')) {
+      if (sql === RESOURCE_ACTIVITY_QUERY) {
         return Promise.resolve({
           rows: [
-            {
-              id: 'extra-genie',
-              label: 'Extra Genie space',
-              kind: 'genie-space',
-              value: 'space-extra',
-              note: '',
-              state: 'declared',
-              origin: 'app',
-              created_at: new Date('2026-08-01T00:00:00Z'),
-              created_by: 'sam',
-              changed_at: new Date('2026-08-01T00:00:00Z'),
-              changed_by: 'sam',
-            },
+            { tile_id: 'genie:data', astrolabe_calls: '3', observed_calls: '4' },
+            { tile_id: 'genie:dictionary', astrolabe_calls: '2', observed_calls: '2' },
+            { tile_id: 'vector-search', astrolabe_calls: '5', observed_calls: '7' },
           ],
         });
       }
@@ -199,7 +189,6 @@ describe('the ranged cost route', () => {
                 total: 250,
                 resources: {
                   'app-compute': 40,
-                  'foundation-model': 90,
                   'index-rebuild-job': 30,
                 },
               },
@@ -267,13 +256,13 @@ describe('the ranged cost route', () => {
               build_sha: 'abc',
               configuration: [
                 {
-                  key: 'llm_endpoint',
-                  env_var: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
-                  value: 'shared-foundation',
+                  key: 'semantic_index',
+                  env_var: '',
+                  value: 'cat.schema.index',
                   source: 'artifact',
                   mutability: 'baked',
                   baked: true,
-                  required: true,
+                  required: false,
                 },
               ],
               checks: [
@@ -310,22 +299,16 @@ describe('the ranged cost route', () => {
 
     expect(payload.state).toBe('no-rows');
     const genie = payload.tiles.filter((tile) => tile.id.startsWith('genie:'));
-    expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary', 'space-extra']);
+    expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
-    expect(genie.every((tile) => tile.unavailable === 'Genie LLM spend not attributable in this model')).toBe(true);
-    expect(genie.every((tile) => tile.note.includes('not the complete Genie cost'))).toBe(true);
-    expect(payload.tiles.find((tile) => tile.id === 'foundation-model')).toMatchObject({
-      resourceId: 'shared-foundation',
-      amount: null,
-      quality: 'unknown',
-      population: 'Shared endpoint',
-      unavailable: 'Shared spend withheld',
-    });
+    expect(genie.map((tile) => tile.evidence?.activity?.calls)).toEqual([3, 2]);
+    expect(payload.tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
     expect(payload.tiles.find((tile) => tile.id === 'vector-search')).toMatchObject({
       resourceId: 'cat.schema.index',
+      secondaryResourceId: 'vs-endpoint-from-connections',
       resourceKind: 'vector-index',
-      unavailable: 'No billing rows',
-      evidence: { billingRows: 0 },
+      unavailable: 'Vector Search dollars unavailable',
+      evidence: { billingRows: null, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
     });
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
       unavailable: 'No Apps billing rows matched this app in this range.',

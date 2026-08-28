@@ -1,8 +1,18 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ResourceTagResults, ResourceTagsApplyButton, type TagSummary } from './ResourceTagsPanel';
+import {
+  ResourceTagResults,
+  ResourceTagsApplyButton,
+  RESOURCE_TAG_REQUEST_TIMEOUT_MS,
+  resourceTagStatus,
+  type TagSummary,
+} from './ResourceTagsPanel';
 
 describe('Astrolabe resource tag results', () => {
+  it('bounds the interactive request instead of leaving the button Applying forever', () => {
+    expect(RESOURCE_TAG_REQUEST_TIMEOUT_MS).toBe(20_000);
+  });
+
   it('leads with actionable counts and keeps raw Databricks JSON behind disclosure', () => {
     const summary: TagSummary = {
       headline:
@@ -56,5 +66,33 @@ describe('Astrolabe resource tag results', () => {
     expect(busy).toContain('ast-flick-slot--button');
     expect(busy).toContain('Apply tags');
     expect(busy.indexOf('ast-flick-slot--button')).toBeLessThan(busy.indexOf('Apply tags'));
+  });
+
+  it('reports partial failures and permission requirements instead of claiming Applied', () => {
+    const summary = (overrides: Partial<TagSummary>): TagSummary => ({
+      headline: '',
+      total: 1,
+      correct: 0,
+      tagged: 0,
+      alreadyCorrect: 0,
+      notSupported: 0,
+      permissionRequired: 0,
+      failed: 0,
+      results: [],
+      ...overrides,
+    });
+
+    expect(resourceTagStatus(false, summary({ failed: 1 }), '')).toEqual({
+      tone: 'ast-pill--neg',
+      label: 'Failed',
+    });
+    expect(resourceTagStatus(false, summary({ permissionRequired: 1 }), '')).toEqual({
+      tone: 'ast-pill--warn',
+      label: 'Needs access',
+    });
+    expect(resourceTagStatus(false, summary({ correct: 1 }), '')).toEqual({
+      tone: 'ast-pill--pos',
+      label: 'Applied',
+    });
   });
 });

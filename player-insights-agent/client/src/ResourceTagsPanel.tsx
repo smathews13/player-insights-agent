@@ -3,6 +3,8 @@ import { ConceptFlicker } from './ConceptFlicker';
 import { ExperimentalFeatureName } from './ExperimentalBadge';
 import { Button } from './ui';
 
+export const RESOURCE_TAG_REQUEST_TIMEOUT_MS = 20_000;
+
 export type TagResult = {
   label: string;
   status: 'tagged' | 'already-correct' | 'not-supported' | 'permission-required' | 'failed';
@@ -80,6 +82,18 @@ export function ResourceTagsApplyButton({ running, onClick }: { running: boolean
   );
 }
 
+export function resourceTagStatus(
+  running: boolean,
+  summary: TagSummary | null,
+  error: string
+): { tone: string; label: string } {
+  if (running) return { tone: 'ast-pill--warn', label: 'Applying' };
+  if (error || (summary?.failed ?? 0) > 0) return { tone: 'ast-pill--neg', label: 'Failed' };
+  if ((summary?.permissionRequired ?? 0) > 0) return { tone: 'ast-pill--warn', label: 'Needs access' };
+  if (summary) return { tone: 'ast-pill--pos', label: 'Applied' };
+  return { tone: 'ast-pill--neutral', label: 'Idle' };
+}
+
 export function ResourceTagsPanel() {
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<TagSummary | null>(null);
@@ -92,6 +106,7 @@ export function ResourceTagsPanel() {
       const response = await fetch('/api/settings/resource-tags', {
         method: 'POST',
         headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(RESOURCE_TAG_REQUEST_TIMEOUT_MS),
       });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
@@ -100,11 +115,20 @@ export function ResourceTagsPanel() {
       if (!isSummary(body)) throw new Error('Databricks returned an incomplete tag result.');
       setSummary(body);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The tags were not applied.');
+      const timeout =
+        cause instanceof Error && (cause.name === 'TimeoutError' || cause.name === 'AbortError');
+      setError(
+        timeout
+          ? 'Databricks did not finish the tag update within 20 seconds. Retry to confirm which tags landed.'
+          : cause instanceof Error
+            ? cause.message
+            : 'The tags were not applied.'
+      );
     } finally {
       setRunning(false);
     }
   };
+  const status = resourceTagStatus(running, summary, error);
 
   return (
     <tr className="settings-resource-tags">
@@ -121,13 +145,7 @@ export function ResourceTagsPanel() {
         ) : null}
       </td>
       <td className="exp-feature-status">
-        <span
-          className={`ast-pill ${
-            running ? 'ast-pill--warn' : error ? 'ast-pill--neg' : summary ? 'ast-pill--pos' : 'ast-pill--neutral'
-          }`}
-        >
-          {running ? 'Applying' : error ? 'Failed' : summary ? 'Applied' : 'Idle'}
-        </span>
+        <span className={`ast-pill ${status.tone}`}>{status.label}</span>
       </td>
       <td className="exp-feature-control">
         <div className="exp-feature-control-inner">

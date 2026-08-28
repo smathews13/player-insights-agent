@@ -12,11 +12,13 @@ import {
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
   endpointName: 'player-insights-agent',
-  foundationEndpoint: 'databricks-claude-sonnet-4-6',
   warehouseId: 'warehouse-1',
   vectorEndpoint: '',
   vectorIndex: '',
-  genieSpaces: [],
+  genieSpaces: [
+    { id: '', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
+    { id: '', label: 'Dictionary Genie', tool: 'dictionary_genie', tileId: 'genie:dictionary' },
+  ],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
   appBillingTag: 'unverified',
@@ -90,10 +92,10 @@ describe('billing attribution', () => {
   it('puts the configured identifier on each tile that has one', () => {
     const tiles = buildTiles(IDS, []);
     expect(tiles.find((tile) => tile.id === 'serving-endpoint')?.resourceId).toBe(IDS.endpointName);
-    expect(tiles.find((tile) => tile.id === 'foundation-model')?.resourceId).toBe(IDS.foundationEndpoint);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.resourceId).toBe(IDS.warehouseId);
     expect(tiles.find((tile) => tile.id === 'app-compute')?.resourceId).toBe(IDS.appName);
-    expect(tiles.find((tile) => tile.id === 'genie')?.resourceId).toBe('');
+    expect(tiles.find((tile) => tile.id === 'genie:data')?.resourceId).toBe('');
+    expect(tiles.find((tile) => tile.id === 'genie:dictionary')?.resourceId).toBe('');
     expect(tiles.find((tile) => tile.id === 'vector-search')?.resourceId).toBe('');
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
@@ -122,7 +124,7 @@ describe('billing attribution', () => {
     expect(app?.note).toContain('still matched by app name');
   });
 
-  it('reports Genie SQL through the warehouse instead of claiming space-level spend', () => {
+  it('reports both configured Genie roles even before their identifiers are available', () => {
     const genie = buildTiles(IDS, [
       {
         component: 'genie',
@@ -132,12 +134,12 @@ describe('billing attribution', () => {
         jobRuns: null,
         lastDay: RANGE.to,
       },
-    ]).find((tile) => tile.id === 'genie');
+    ]).filter((tile) => tile.id.startsWith('genie:'));
 
-    expect(genie?.amount).toBeNull();
-    expect(genie?.unavailable).toBe('Genie LLM spend not attributable in this model');
-    expect(genie?.remedy).toBe('Genie space identifier unavailable');
-    expect(genie?.note).toContain('not the complete Genie cost');
+    expect(genie).toHaveLength(2);
+    expect(genie.map((tile) => tile.label)).toEqual(['Data Genie', 'Dictionary Genie']);
+    expect(genie.every((tile) => tile.amount === null)).toBe(true);
+    expect(genie.every((tile) => tile.unavailable === 'Resource identifier unavailable')).toBe(true);
   });
 
   it('emits one Genie tile per configured space and links the space id', () => {
@@ -145,18 +147,29 @@ describe('billing attribution', () => {
       {
         ...IDS,
         genieSpaces: [
-          { id: 'space-data', label: 'Data Genie space' },
-          { id: 'space-dictionary', label: 'Dictionary Genie space' },
+          { id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
+          {
+            id: 'space-dictionary',
+            label: 'Dictionary Genie',
+            tool: 'dictionary_genie',
+            tileId: 'genie:dictionary',
+          },
         ],
       },
-      []
+      [],
+      undefined,
+      [
+        { tileId: 'genie:data', calls: 3, observedCalls: 4 },
+        { tileId: 'genie:dictionary', calls: 2, observedCalls: 2 },
+      ]
     );
     const genie = tiles.filter((tile) => tile.id.startsWith('genie:'));
     expect(genie).toHaveLength(2);
     expect(genie.map((tile) => tile.resourceId)).toEqual(['space-data', 'space-dictionary']);
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
-    expect(genie.every((tile) => tile.unavailable === 'Genie LLM spend not attributable in this model')).toBe(true);
-    expect(genie.every((tile) => tile.note.includes('not the complete Genie cost'))).toBe(true);
+    expect(genie.map((tile) => tile.id)).toEqual(['genie:data', 'genie:dictionary']);
+    expect(genie.every((tile) => tile.unavailable === 'Genie LLM dollars unavailable')).toBe(true);
+    expect(genie.map((tile) => tile.evidence?.activity?.calls)).toEqual([3, 2]);
     expect(tiles.some((tile) => tile.id === 'genie')).toBe(false);
   });
 
@@ -165,8 +178,9 @@ describe('billing attribution', () => {
       (item) => item.id === 'vector-search'
     );
     expect(tile?.resourceId).toBe('cat.schema.index');
+    expect(tile?.secondaryResourceId).toBe('vs-endpoint');
     expect(tile?.resourceKind).toBe('vector-index');
-    expect(tile?.unavailable).toBe('No billing rows');
+    expect(tile?.unavailable).toBe('Vector Search dollars unavailable');
   });
 
   it('keeps the Vector Search index id when billing has no rows and the endpoint is unknown', () => {
@@ -175,7 +189,7 @@ describe('billing attribution', () => {
     );
     expect(tile?.resourceId).toBe('cat.schema.index');
     expect(tile?.resourceKind).toBe('vector-index');
-    expect(tile?.unavailable).toBe('No billing rows');
+    expect(tile?.unavailable).toBe('Vector Search dollars unavailable');
   });
 
   it('apportions serving by recorded tokens while keeping SQL an estimate', () => {
@@ -328,44 +342,11 @@ describe('billing attribution', () => {
     expect(serving?.attribution).toBe('unavailable');
   });
 
-  it('withholds the configured foundation endpoint even when its name is exact', () => {
-    const sameStatement = buildCostStatement({ ...IDS, foundationEndpoint: IDS.endpointName }, RANGE);
-    expect(sameStatement?.statement).not.toContain(':endpointName');
-    expect(sameStatement?.statement).not.toContain(':foundationEndpoint');
-
-    const same = buildTiles({ ...IDS, foundationEndpoint: IDS.endpointName }, [
-      {
-        component: 'serving-endpoint',
-        spend: 12,
-        currency: 'USD',
-        billedDays: 2,
-        jobRuns: null,
-        lastDay: RANGE.to,
-      },
-    ]);
-    expect(same.find((tile) => tile.id === 'serving-endpoint')).toMatchObject({
-      amount: null,
-      quality: 'unknown',
-      population: 'Shared endpoint',
-    });
-    const foundation = same.find((tile) => tile.id === 'foundation-model');
-    expect(foundation).toMatchObject({
-      amount: null,
-      quality: 'unknown',
-      population: 'Shared endpoint',
-    });
-    expect(foundation?.unavailable).toBe('Shared spend withheld');
-    expect(
-      buildTiles({ ...IDS, foundationEndpoint: 'some-other-shared-endpoint' }, [
-        {
-          component: 'foundation-model',
-          spend: 99,
-          currency: 'USD',
-          billedDays: 2,
-          jobRuns: null,
-          lastDay: RANGE.to,
-        },
-      ]).find((tile) => tile.id === 'foundation-model')?.amount
-    ).toBeNull();
+  it('excludes unrelated shared model-serving activity from the serving tile query', () => {
+    const statement = buildCostStatement(IDS, RANGE)!.statement;
+    expect(statement).toContain('u.usage_metadata.endpoint_name = :endpointName');
+    expect(statement).toContain('u.workspace_id = :workspaceId');
+    expect(statement).not.toContain(':foundationEndpoint');
+    expect(statement).not.toContain('foundation-model');
   });
 });

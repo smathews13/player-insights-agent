@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { EMPTY_SP_IDENTITY, SpIdentityEditor, UNASSIGNED_PERSONA } from './SpIdentityPanel';
+import { SpIdentityEditor } from './SpIdentityPanel';
+import { EMPTY_SP_IDENTITY, UNASSIGNED_PERSONA } from './identity-settings-api';
 import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpIdentityAdminPayload } from '../../shared/sp-identity';
 
 const PAYLOAD: SpIdentityAdminPayload = {
@@ -30,14 +31,7 @@ const PAYLOAD: SpIdentityAdminPayload = {
 
 function render(enabled: boolean, payload: SpIdentityAdminPayload = PAYLOAD): string {
   return renderToStaticMarkup(
-    <SpIdentityEditor
-      enabled={enabled}
-      payload={payload}
-      busy={false}
-      error={null}
-      onRename={() => {}}
-      onAssign={() => {}}
-    />
+    <SpIdentityEditor enabled={enabled} payload={payload} busy={false} error={null} onRename={() => {}} />
   );
 }
 
@@ -51,9 +45,9 @@ describe('Settings → Identity', () => {
 
   it('lets an administrator name an existing SP role without exposing credentials', () => {
     const markup = render(true);
-    expect(markup).toContain('SP user roles');
-    expect(markup).toContain('aria-label="SP role name"');
-    expect(markup).toContain('Save role name');
+    expect(markup).toContain('SP Personas');
+    expect(markup).toContain('aria-label="Persona name for Finance analyst"');
+    expect(markup).toContain('>Rename</button>');
     expect(markup).not.toMatch(/application \/? client id/i);
     expect(markup).not.toMatch(/secret scope|secret key|secret reference/i);
     expect(markup).not.toContain(PAYLOAD.personas[0].clientId);
@@ -62,7 +56,7 @@ describe('Settings → Identity', () => {
   });
 
   it('only renames backend-defined identities instead of creating unusable roles', () => {
-    const source = readFileSync(new URL('SpIdentityPanel.tsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('identity-settings-api.ts', import.meta.url), 'utf8');
     expect(source).toContain("method: 'PATCH'");
     expect(source).toContain('body: JSON.stringify({ displayName })');
     expect(source).not.toContain("method: 'POST'");
@@ -70,16 +64,14 @@ describe('Settings → Identity', () => {
     expect(source).toContain('never deletes the stored identity');
   });
 
-  it('assigns one SP role per roster person, with OAuth as the unassigned choice', () => {
+  it('renders a proper persona rename table and no duplicate person-assignment table', () => {
     const markup = render(true);
-    expect(markup).toContain('ada@example.com');
-    expect(markup).toContain('ben@example.com');
-    expect(markup).toContain('Signed-in user (OAuth)');
-    expect(markup).toContain(`aria-label="SP role for ada@example.com: Finance analyst"`);
-    expect(markup).toContain(`aria-label="SP role for ben@example.com: Signed-in user (OAuth)"`);
-    expect(markup).toContain('<th scope="col">Email</th>');
-    expect(markup).toContain('<th scope="col">Human role</th>');
-    expect(markup).toContain('<th scope="col">SP role</th>');
+    expect(markup.match(/<table/g) ?? []).toHaveLength(1);
+    expect(markup).toContain('<th scope="col">Persona</th>');
+    expect(markup).toContain('<th scope="col">Actions</th>');
+    expect(markup).not.toContain('<th scope="col">Email</th>');
+    expect(markup).not.toContain('ada@example.com');
+    expect(markup).not.toContain('SP user roles');
     expect(UNASSIGNED_PERSONA).toBe('oauth');
     expect(UNASSIGNED_PERSONA).not.toBe('');
   });
@@ -107,7 +99,7 @@ describe('Settings → Identity', () => {
     expect(empty).not.toContain('Administrators assign this');
     expect(empty).not.toContain('People using the app do not pick a persona on Ask');
     expect(empty).not.toContain('never the secret itself');
-    expect(empty).toContain('sp-identity-assignments');
+    expect(empty).toContain('sp-personas-table');
   });
 });
 

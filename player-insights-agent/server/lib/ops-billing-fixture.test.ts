@@ -23,11 +23,18 @@ import {
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
   endpointName: 'player-insights-agent',
-  foundationEndpoint: 'databricks-claude-sonnet-4-6',
   warehouseId: 'warehouse-1',
   vectorEndpoint: 'vs-endpoint',
   vectorIndex: 'cat.schema.index',
-  genieSpaces: [{ id: 'space-data', label: 'Data Genie space' }],
+  genieSpaces: [
+    { id: 'space-data', label: 'Data Genie', tool: 'data_genie', tileId: 'genie:data' },
+    {
+      id: 'space-dictionary',
+      label: 'Dictionary Genie',
+      tool: 'dictionary_genie',
+      tileId: 'genie:dictionary',
+    },
+  ],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
   appBillingTag: 'matched',
@@ -95,11 +102,10 @@ describe('billing SQL contract', () => {
     expect(query?.statement).toContain('COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END)');
   });
 
-  it('measures exact untagged resources while retaining tag propagation evidence', () => {
+  it('measures exact untagged resources while excluding shared Vector Search endpoint totals', () => {
     expect(query?.statement).toContain(`u.custom_tags['${BILLING_TAG_KEY}'] = 'astrolabe'`);
-    expect(query?.statement).toContain(
-      "WHEN u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint THEN 'vector-search'"
-    );
+    expect(query?.statement).not.toContain("u.billing_origin_product = 'VECTOR_SEARCH'");
+    expect(query?.statement).not.toContain(':vectorEndpoint');
     expect(query?.statement).toContain(
       "OR (u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)"
     );
@@ -109,18 +115,17 @@ describe('billing SQL contract', () => {
 });
 
 describe('price join golden outputs', () => {
-  it('emits exact components once and withholds shared meters without an attribution denominator', () => {
+  it('emits exact components once and excludes shared meters without an attribution denominator', () => {
     const tiles = buildTiles(IDS, [
       row({ component: 'serving-endpoint', spend: 1, billedDays: 1 }),
-      row({ component: 'foundation-model', spend: 2, billedDays: 1 }),
       row({ component: 'sql-warehouse', spend: 3, billedDays: 1 }),
       row({ component: 'vector-search', spend: 4, billedDays: 1 }),
       row({ component: 'app-compute', spend: 5, billedDays: 1 }),
     ]);
     const measured = tiles.filter((tile) => tile.amount !== null);
     expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
-    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(10);
-    expect(tiles.find((tile) => tile.id === 'foundation-model')?.amount).toBeNull();
+    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(6);
+    expect(tiles.some((tile) => tile.id === 'foundation-model')).toBe(false);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.amount).toBeNull();
     expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
   });
@@ -231,7 +236,7 @@ describe('coverage, shared meters, and Genie', () => {
       ],
       appBillingTag: 'matched',
     });
-    expect(coverage.costModelCount).toBe(6);
+    expect(coverage.costModelCount).toBe(5);
     expect(coverage.inventoryCount).toBe(11);
     expect(coverage.products.find((product) => product.product === 'JOBS')).toBeUndefined();
     expect(coverage.propagation.find((item) => item.product === 'APPS')?.status).toBe('unsupported');
@@ -246,13 +251,13 @@ describe('coverage, shared meters, and Genie', () => {
     expect(tile?.attribution).toBe('unavailable');
   });
 
-  it('keeps Genie space cards dollar-free and names LLM spend as not attributable', () => {
+  it('keeps Genie space cards dollar-free and names the unavailable dollar join', () => {
     const genie = buildTiles(IDS, [row({ component: 'genie', spend: 99 })]).filter((tile) =>
       tile.id.startsWith('genie:')
     );
-    expect(genie).toHaveLength(1);
+    expect(genie).toHaveLength(2);
     expect(genie[0].amount).toBeNull();
-    expect(genie[0].unavailable).toContain('Genie LLM spend not attributable');
+    expect(genie[0].unavailable).toContain('Genie LLM dollars unavailable');
     expect(genie[0].note).toContain('not the complete Genie cost');
   });
 

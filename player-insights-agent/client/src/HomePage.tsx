@@ -927,6 +927,18 @@ export function HomePage() {
           });
           return;
         }
+        // A proposed plan is parked on the person, not running. It has no
+        // terminal answer summary to wait for and performs no work while the
+        // buttons are being reviewed. Settling directly from the authoritative
+        // ledger row clears the stale stream overlay, removes the blank working
+        // card, enables Approve/Revise, and keeps Stop from targeting nothing.
+        if (status.state === 'AWAITING_APPROVAL') {
+          updateActiveConversationRuns((current) =>
+            settleActiveConversationRun(current, runConversationId, status, null)
+          );
+          endLiveAsk(runConversationId);
+          return;
+        }
         // Keep Live until the terminal summary for THIS run is readable. A
         // missing/error response, or the previous turn's stale summary, is not
         // evidence that the run ended.

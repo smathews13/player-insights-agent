@@ -179,6 +179,22 @@ export async function loadOpsBlock<T>(key: string, url: string): Promise<OpsBloc
   return work;
 }
 
+/**
+ * Start one block's automatic read only when its surface is enabled.
+ *
+ * Kept outside the hook so the warehouse-saving gate can be tested with a real
+ * fetch. A disabled block does not even claim its session key, which means
+ * turning the experiment on later still gets its intended first read.
+ */
+export function autoLoadOpsBlock<T>(
+  enabled: boolean,
+  key: string,
+  url: string
+): Promise<OpsBlockAnswer<T>> | null {
+  if (!enabled || !claimOpsAutoLoad(key)) return null;
+  return loadOpsBlock<T>(key, url);
+}
+
 export interface OpsBlockSession<T> {
   data: T | null;
   busy: boolean;
@@ -199,7 +215,12 @@ export interface OpsBlockSession<T> {
  * remount recomputes cost `from`/`to` from a later clock and must not count
  * as a new question.
  */
-export function useOpsBlock<T>(path: string, search: string, rangeId = ''): OpsBlockSession<T> {
+export function useOpsBlock<T>(
+  path: string,
+  search: string,
+  rangeId = '',
+  enabled = true
+): OpsBlockSession<T> {
   const key = opsBlockKey(path, rangeId);
   const url = `${path}${search}`;
   const [, bump] = useState(0);
@@ -208,16 +229,15 @@ export function useOpsBlock<T>(path: string, search: string, rangeId = ''): OpsB
   // Guarded by the latch rather than by this effect, so React's development
   // double-invocation and a remount both find it already claimed.
   useEffect(() => {
-    if (claimOpsAutoLoad(key)) void loadOpsBlock<T>(key, url);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+    void autoLoadOpsBlock<T>(enabled, key, url);
+  }, [enabled, key, url]);
 
   const refresh = useCallback(() => {
-    void loadOpsBlock<T>(key, url);
-  }, [key, url]);
+    if (enabled) void loadOpsBlock<T>(key, url);
+  }, [enabled, key, url]);
 
   const stored = recallOpsBlock<T>(key);
-  const busy = isOpsBlockLoading(key) || !opsAutoLoadClaimed(key);
+  const busy = enabled && (isOpsBlockLoading(key) || !opsAutoLoadClaimed(key));
   return {
     data: stored?.data ?? null,
     busy,

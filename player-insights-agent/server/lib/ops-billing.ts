@@ -1,5 +1,5 @@
 /**
- * What the six cost tiles are read from, and what each of them is allowed to claim.
+ * What the Cost resources are read from, and what each is allowed to claim.
  *
  * Every figure here comes from `system.billing.usage` priced against
  * `system.billing.list_prices`. Nothing is modelled, apportioned by a ratio
@@ -58,21 +58,13 @@ import type {
 /**
  * The components a deployment can be billed for, in the order they are shown.
  *
- * SIX, WHICH IS THE HANDOFF'S GRID, and telemetry ingestion is the one that was
- * removed. It was a seventh card carrying a WHOLE WORKSPACE total that no key
+ * Telemetry ingestion is omitted because it carried a WHOLE WORKSPACE total that no key
  * narrows to this app. On a deployment with telemetry off, which is the default
  * and the customer case, the card said "Telemetry off" and nothing else. A
  * reader could neither act on it nor attribute it, and the one thing it could do
  * was be mistaken for this deployment's spend.
  */
-export const COST_COMPONENTS = [
-  'serving-endpoint',
-  'foundation-model',
-  'sql-warehouse',
-  'genie',
-  'vector-search',
-  'app-compute',
-] as const;
+export const COST_COMPONENTS = ['serving-endpoint', 'sql-warehouse', 'genie', 'vector-search', 'app-compute'] as const;
 
 export type CostComponent = (typeof COST_COMPONENTS)[number];
 
@@ -88,16 +80,19 @@ export interface CostIdentifiers {
   appName: string;
   /** `DATABRICKS_SERVING_ENDPOINT_NAME`. */
   endpointName: string;
-  /** The resolved `llm-endpoint` setting used by the orchestrator. */
-  foundationEndpoint: string;
   /** `DATABRICKS_SQL_WAREHOUSE_ID`. */
   warehouseId: string;
   /** Resolved from the index when this deployment searches one. */
   vectorEndpoint: string;
   /** Three-level Vector Search index name, or ''. Used to open the index, not to bill. */
   vectorIndex: string;
-  /** The Genie spaces this deployment asks, in display order. */
-  genieSpaces: readonly { id: string; label: string }[];
+  /** The two configured Genie roles, kept separate even if they point at the same space. */
+  genieSpaces: readonly {
+    id: string;
+    label: string;
+    tool: 'data_genie' | 'dictionary_genie';
+    tileId: 'genie:data' | 'genie:dictionary';
+  }[];
   /** `DATABRICKS_WORKSPACE_ID`. The only handle workspace-wide Genie billing has. */
   workspaceId: string;
   /**
@@ -124,6 +119,33 @@ export interface CostIdentifiers {
 export interface CostRange {
   from: string;
   to: string;
+}
+
+/** Exact app-recorded calls for one configured resource in the selected range. */
+export interface ResourceActivity {
+  tileId: 'genie:data' | 'genie:dictionary' | 'vector-search';
+  calls: number;
+  /** Same-tool calls observed in traces, including older calls with no resource id. */
+  observedCalls: number;
+}
+
+/** Parse the aggregate Lakebase query without turning missing rows into measurements. */
+export function readResourceActivityRows(rows: readonly Record<string, unknown>[]): ResourceActivity[] {
+  const allowed = new Set<ResourceActivity['tileId']>(['genie:data', 'genie:dictionary', 'vector-search']);
+  const parsed: ResourceActivity[] = [];
+  for (const row of rows) {
+    const tileId = typeof row.tile_id === 'string' ? row.tile_id : '';
+    if (!allowed.has(tileId as ResourceActivity['tileId'])) continue;
+    const calls = Number(row.astrolabe_calls);
+    const observedCalls = Number(row.observed_calls);
+    if (!Number.isFinite(calls) || calls < 0 || !Number.isFinite(observedCalls) || observedCalls < 0) continue;
+    parsed.push({
+      tileId: tileId as ResourceActivity['tileId'],
+      calls,
+      observedCalls,
+    });
+  }
+  return parsed;
 }
 
 /** One bound parameter, in the shape the SQL Statement Execution API takes. */
@@ -198,12 +220,6 @@ const MATCHERS: Record<
     parameter: 'endpointName',
     type: 'STRING',
   },
-  'foundation-model': {
-    product: 'MODEL_SERVING',
-    column: 'u.usage_metadata.endpoint_name',
-    parameter: 'foundationEndpoint',
-    type: 'STRING',
-  },
   'sql-warehouse': {
     product: 'SQL',
     column: 'u.usage_metadata.warehouse_id',
@@ -242,7 +258,7 @@ const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']
 const PRODUCT_REASONS: Record<string, string> = {
   MODEL_SERVING: 'Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.',
   SQL: 'Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.',
-  VECTOR_SEARCH: 'Tracked as the Vector Search tile when the endpoint name matches.',
+  VECTOR_SEARCH: 'Endpoint billing is excluded; the tile uses exact index-tagged Astrolabe calls.',
   APPS: 'Measured by exact app name. App tag presence is a separate organizational signal.',
   GENIE: 'Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.',
   LAKEBASE: 'Lakebase can be tagged. No documented billing join exists in this model.',
@@ -277,13 +293,10 @@ export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean 
   // Genie billing has no space identifier. A workspace id is not a safe
   // substitute: it would attribute every space in the workspace to this app.
   if (component === 'genie') return false;
-  // A configured foundation endpoint is shared until app-level ownership is
-  // proven independently. Exact endpoint-name identity proves only identity,
-  // not ownership, so Cost never asks billing for this amount.
-  if (component === 'foundation-model') return false;
-  if (component === 'serving-endpoint' && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
-    return false;
-  }
+  // Billing identifies only the Vector Search endpoint, which may serve other
+  // indexes and callers. Exact Astrolabe index usage comes from run telemetry;
+  // endpoint-wide dollars are never substituted for it.
+  if (component === 'vector-search') return false;
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 
@@ -298,8 +311,6 @@ export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): s
   switch (component) {
     case 'serving-endpoint':
       return ids.endpointName;
-    case 'foundation-model':
-      return ids.foundationEndpoint;
     case 'sql-warehouse':
       return ids.warehouseId;
     case 'app-compute':
@@ -314,7 +325,6 @@ export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): s
 function resourceKindFor(component: CostComponent, ids: CostIdentifiers): CostResourceKind | '' {
   switch (component) {
     case 'serving-endpoint':
-    case 'foundation-model':
       return 'serving-endpoint';
     case 'sql-warehouse':
       return 'sql-warehouse';
@@ -395,11 +405,6 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   if (ids.endpointName && canAsk('serving-endpoint', ids)) {
     resourcePredicates.push(
       `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName)`
-    );
-  }
-  if (ids.vectorEndpoint) {
-    resourcePredicates.push(
-      `(u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint)`
     );
   }
   if (ids.appName) {
@@ -996,13 +1001,6 @@ const DESCRIPTIONS: Record<
     basis: 'total-in-range',
     variable: 'DATABRICKS_SERVING_ENDPOINT_NAME',
   },
-  'foundation-model': {
-    label: 'Foundation model',
-    quality: 'unknown',
-    population: 'Shared endpoint',
-    basis: 'total-in-range',
-    variable: '',
-  },
   'sql-warehouse': {
     label: 'SQL warehouse',
     quality: 'estimate',
@@ -1034,9 +1032,9 @@ const DESCRIPTIONS: Record<
 };
 
 /**
- * Turn the rows into the tiles the page draws, one per component, always six.
+ * Turn the rows into the tiles the page draws, one per configured resource.
  *
- * Always six because a tile that disappears when its figure does takes the
+ * Always present because a tile that disappears when its figure does takes the
  * explanation with it. A reader looking for the index cost needs to be told
  * that nothing identifies the job on this deployment; an absent tile tells them
  * nothing and reads as an app that forgot.
@@ -1052,7 +1050,8 @@ const DESCRIPTIONS: Record<
 export function buildTiles(
   ids: CostIdentifiers,
   rows: ComponentRow[],
-  warehouseAttribution: WarehouseQueryAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION
+  warehouseAttribution: WarehouseQueryAttribution = EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
+  resourceActivity: readonly ResourceActivity[] = []
 ): CostTile[] {
   const byComponent = new Map(
     rows.filter((row) => (row.kind ?? 'component') === 'component').map((row) => [row.component, row])
@@ -1061,52 +1060,40 @@ export function buildTiles(
 
   for (const component of COST_COMPONENTS) {
     if (component === 'genie') {
-      tiles.push(...genieSpaceTiles(ids));
+      tiles.push(...genieSpaceTiles(ids, resourceActivity));
       continue;
     }
-    tiles.push(componentTile(component, ids, byComponent, warehouseAttribution));
+    tiles.push(componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity));
   }
   return tiles;
 }
 
-function genieSpaceTiles(ids: CostIdentifiers): CostTile[] {
-  const spaces = ids.genieSpaces.filter((space) => space.id.trim());
-  if (spaces.length === 0) {
-    return [
-      {
-        id: 'genie',
-        label: 'Genie',
-        resourceId: '',
-        resourceKind: '',
-        quality: 'unknown',
-        amount: null,
-        basis: 'total-in-range',
-        population: 'Whole workspace',
-        attribution: 'unavailable',
-        pricing: { ...EMPTY_PRICING },
-        unavailable: GENIE_LLM_UNAVAILABLE,
-        remedy: 'Genie space identifier unavailable',
-        note: GENIE_SQL_NOT_COMPLETE,
-        evidence: { billingRows: null, astrolabeQueries: null },
+function genieSpaceTiles(ids: CostIdentifiers, activity: readonly ResourceActivity[]): CostTile[] {
+  return ids.genieSpaces.map((space) => {
+    const measured = activity.find((item) => item.tileId === space.tileId);
+    return {
+      id: space.tileId,
+      label: space.label,
+      resourceId: space.id.trim(),
+      resourceKind: space.id.trim() ? ('genie-space' as const) : '',
+      quality: 'unknown' as const,
+      amount: null,
+      basis: 'total-in-range' as const,
+      population: 'This space',
+      attribution: 'unavailable' as const,
+      pricing: { ...EMPTY_PRICING },
+      unavailable: space.id.trim() ? 'Genie LLM dollars unavailable' : 'Resource identifier unavailable',
+      remedy: space.id.trim() ? '' : `Configure the ${space.label} space.`,
+      note: GENIE_SQL_NOT_COMPLETE,
+      evidence: {
+        billingRows: null,
+        astrolabeQueries: null,
+        activity: measured
+          ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: 'requests' as const }
+          : null,
       },
-    ];
-  }
-  return spaces.map((space) => ({
-    id: `genie:${space.id.trim()}`,
-    label: space.label.trim() || 'Genie space',
-    resourceId: space.id.trim(),
-    resourceKind: 'genie-space' as const,
-    quality: 'unknown' as const,
-    amount: null,
-    basis: 'total-in-range' as const,
-    population: 'This space',
-    attribution: 'unavailable' as const,
-    pricing: { ...EMPTY_PRICING },
-    unavailable: GENIE_LLM_UNAVAILABLE,
-    remedy: '',
-    note: GENIE_SQL_NOT_COMPLETE,
-    evidence: { billingRows: null, astrolabeQueries: null },
-  }));
+    };
+  });
 }
 
 /**
@@ -1142,13 +1129,15 @@ function componentTile(
   component: Exclude<CostComponent, 'genie'>,
   ids: CostIdentifiers,
   byComponent: Map<string, ComponentRow>,
-  warehouseAttribution: WarehouseQueryAttribution
+  warehouseAttribution: WarehouseQueryAttribution,
+  resourceActivity: readonly ResourceActivity[]
 ): CostTile {
   const description = DESCRIPTIONS[component];
   const base = {
     id: component,
     label: description.label,
     resourceId: resourceIdFor(component, ids),
+    ...(component === 'vector-search' ? { secondaryResourceId: ids.vectorEndpoint } : {}),
     resourceKind: resourceKindFor(component, ids),
     quality: description.quality,
     basis: description.basis,
@@ -1172,43 +1161,23 @@ function componentTile(
     };
   };
 
-  if (component === 'foundation-model') {
-    return withMeta({
-      ...base,
-      quality: 'unknown',
-      amount: null,
-      note: '',
-      unavailable: 'Shared spend withheld',
-      remedy: '',
-      evidence: { billingRows: null, astrolabeQueries: null },
-    });
-  }
-
-  if (component === 'serving-endpoint' && ids.endpointName && ids.endpointName === ids.foundationEndpoint) {
-    return withMeta({
-      ...base,
-      quality: 'unknown',
-      population: 'Shared endpoint',
-      amount: null,
-      note: '',
-      unavailable: 'Shared spend withheld',
-      remedy: '',
-      evidence: { billingRows: null, astrolabeQueries: null },
-    });
-  }
-
   if (!canAsk(component, ids)) {
     const pricing = EMPTY_PRICING;
     if (component === 'vector-search') {
+      const activity = resourceActivity.find((item) => item.tileId === 'vector-search');
       return withMeta({
         ...base,
         quality: 'unknown',
         amount: null,
         pricing,
         note: '',
-        unavailable: base.resourceId ? 'No billing rows' : 'Vector Search index identifier unavailable',
-        remedy: '',
-        evidence: { billingRows: ids.vectorEndpoint ? 0 : null, astrolabeQueries: null },
+        unavailable: base.resourceId ? 'Vector Search dollars unavailable' : 'Resource identifier unavailable',
+        remedy: base.resourceId ? '' : 'Configure the Vector Search index.',
+        evidence: {
+          billingRows: null,
+          astrolabeQueries: null,
+          activity: activity ? { calls: activity.calls, observedCalls: activity.observedCalls, unit: 'queries' } : null,
+        },
       });
     }
     return withMeta({

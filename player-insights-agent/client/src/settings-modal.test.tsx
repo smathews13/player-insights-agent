@@ -8,7 +8,7 @@ import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
-const FEATURES = { benchmarkLab: false, egressControls: true };
+const FEATURES = { benchmarkLab: false, egressControls: true, costEstimates: false };
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 
 function render(
@@ -59,7 +59,8 @@ describe('Settings modal', () => {
     const experimental = render('experimental');
     expect(identity).toContain('<h3>Identity</h3>');
     expect(identity).toContain('Human roles and admins');
-    expect(identity).toContain('SP user roles');
+    expect(identity).toContain('SP Personas');
+    expect(identity).not.toContain('SP user roles');
     expect(runtime).toContain('<h3>Runtime</h3>');
     expect(appearance).toContain('<h3>Appearance</h3>');
     expect(experimental).toContain('<h3>Experimental</h3>');
@@ -99,13 +100,15 @@ describe('Settings modal', () => {
     expect(markup).toContain('Idle');
     expect(markup).not.toContain('PII egress judge ·');
     expect(markup).not.toContain('SP identities ·');
+    expect(markup).toContain('Cost estimates');
     expect(markup).not.toContain('Benchmarking ·');
+    expect(markup).toContain('aria-label="Show Ops cost estimates"');
   });
 
   it('aligns every Experimental row through table cells and one control wrapper', () => {
     const markup = render('experimental');
-    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(4);
-    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(4);
+    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(5);
+    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(5);
     expect(SETTINGS_STYLES).toMatch(
       /\.exp-feature-table th,\s*\.exp-feature-table td \{[^}]*border-bottom:\s*1px solid var\(--border\)/
     );
@@ -117,10 +120,11 @@ describe('Settings modal', () => {
   it('puts a small Experimental badge on each Experimental feature row, not the word in the title', () => {
     const markup = render('experimental');
     const badges = markup.split('experimental-pane-badge').length - 1;
-    expect(badges).toBe(4);
+    expect(badges).toBe(5);
     expect(markup).toContain('PII egress judge');
     expect(markup).toContain('SP identities');
     expect(markup).toContain('Resource tags');
+    expect(markup).toContain('Cost estimates');
     expect(markup).toContain('Benchmarking');
     expect(markup).not.toContain('Resource tags · Experimental');
   });
@@ -258,7 +262,7 @@ describe('Settings modal', () => {
     const on = renderToStaticMarkup(
       <SettingsPage
         initialSection="experimental"
-        features={{ benchmarkLab: true, egressControls: true }}
+        features={{ benchmarkLab: true, egressControls: true, costEstimates: false }}
         setFeature={() => {}}
         role={roleFrom(NORMAL_IDENTITY)}
       />

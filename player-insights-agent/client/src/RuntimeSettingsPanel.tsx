@@ -111,6 +111,7 @@ function NumberField({
         }}
         onBlur={() => setDraft(null)}
       />
+      {placeholder ? <span className="runtime-control-example">Example: {placeholder}</span> : null}
     </label>
   );
 }

@@ -84,4 +84,45 @@ describe('conversation-keyed rail runs', () => {
       tone: 'ast-pill--pos',
     });
   });
+
+  it('parks a proposed plan as Approval needed instead of leaving a stale Live run', () => {
+    const active = trackActiveConversationRun(new Map(), 'conversation-a', runningA);
+    const waiting = {
+      ...runningA,
+      state: 'AWAITING_APPROVAL',
+      updated_at: '2026-08-27T20:00:10Z',
+    };
+    const settled = settleActiveConversationRun(active, 'conversation-a', waiting, null);
+
+    expect(conversationIsLive(settled, 'conversation-a')).toBe(false);
+    expect(settled.get('conversation-a')).toMatchObject({
+      status: waiting,
+      summary: {
+        runId: 'run-a',
+        status: 'Approval needed',
+        tone: 'ast-pill--neutral-outline',
+      },
+    });
+  });
+
+  it('resumes the same parked run when the plan is approved', () => {
+    const active = trackActiveConversationRun(new Map(), 'conversation-a', runningA);
+    const waiting = {
+      ...runningA,
+      state: 'AWAITING_APPROVAL',
+      updated_at: '2026-08-27T20:00:10Z',
+    };
+    const parked = settleActiveConversationRun(active, 'conversation-a', waiting, null);
+    const resumed = trackActiveConversationRun(parked, 'conversation-a', {
+      ...runningA,
+      state: 'RUNNING',
+      updated_at: '2026-08-27T20:00:20Z',
+    });
+
+    expect(conversationIsLive(resumed, 'conversation-a')).toBe(true);
+    expect(resumed.get('conversation-a')).toMatchObject({
+      status: { state: 'RUNNING', run_id: 'run-a' },
+      summary: null,
+    });
+  });
 });

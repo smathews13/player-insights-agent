@@ -7,7 +7,7 @@ import { SettingsPage } from './SettingsPage';
 import { SpIdentityEditor } from './SpIdentityPanel';
 import { RosterRows } from './UserRoleEditor';
 
-const FEATURES = { benchmarkLab: true, egressControls: true };
+const FEATURES = { benchmarkLab: true, egressControls: true, costEstimates: false };
 const SECTIONS = ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const;
 const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const PAGE = readFileSync(new URL('./SettingsPage.tsx', import.meta.url), 'utf8');
@@ -108,37 +108,36 @@ describe('the demo workspace Identity feedback', () => {
     const markup = renderToStaticMarkup(
       <div>
         <h4>Human roles and admins</h4>
-        <RosterRows payload={humanRoles} busy={false} onChange={() => {}} onRemove={() => {}} />
-        <SpIdentityEditor
-          enabled={true}
-          payload={spRoles}
+        <RosterRows
+          payload={humanRoles}
           busy={false}
-          error={null}
-          onRename={() => {}}
-          onAssign={() => {}}
+          onChange={() => {}}
+          onRemove={() => {}}
+          personas={spRoles.personas}
+          personaByEmail={new Map([['long.identity.owner@example.invalid', 'existing-backend-identity']])}
+          personaDisabled={false}
+          showPersona={true}
+          onPersonaChange={() => {}}
         />
+        <SpIdentityEditor enabled={true} payload={spRoles} busy={false} error={null} onRename={() => {}} />
       </div>
     );
     expect(markup.match(/<table/g) ?? []).toHaveLength(2);
-    for (const label of ['Human roles and admins', 'SP user roles', 'Email', 'Human role', 'SP role']) {
+    for (const label of ['Human roles and admins', 'SP Personas', 'Email', 'Human role', 'Persona']) {
       expect(markup).toContain(label);
     }
+    expect(markup.indexOf('Human roles and admins')).toBeLessThan(markup.indexOf('SP Personas'));
+    expect(markup).not.toContain('SP user roles');
+    expect(markup.match(/<th scope="col">Email<\/th>/g) ?? []).toHaveLength(1);
     expect(markup).toContain('settings-table-frame');
   });
 
   it('shows role names and assignments without credential fields or values', () => {
     const markup = renderToStaticMarkup(
-      <SpIdentityEditor
-        enabled={true}
-        payload={spRoles}
-        busy={false}
-        error={null}
-        onRename={() => {}}
-        onAssign={() => {}}
-      />
+      <SpIdentityEditor enabled={true} payload={spRoles} busy={false} error={null} onRename={() => {}} />
     );
-    expect(markup).toContain('SP role name');
-    expect(markup).toContain('Save role name');
+    expect(markup).toContain('Persona name for Finance reader');
+    expect(markup).toContain('>Rename</button>');
     expect(markup).not.toMatch(/application \/? client id|secret scope|secret key|secret reference/i);
     expect(markup).not.toContain(spRoles.personas[0].clientId);
     expect(markup).not.toContain(spRoles.personas[0].secretScope);
@@ -148,7 +147,14 @@ describe('the demo workspace Identity feedback', () => {
   it('prevents email and setter cells from wrapping character-by-character', () => {
     expect(CSS).toMatch(/\.admin-row-address \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.roster-set-by > \* \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
-    expect(CSS).toMatch(/\.sp-identity-assignment-email \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.settings-data-table \{[^}]*table-layout:\s*fixed/s);
+  });
+
+  it('pins every row control to the same 30px geometry', () => {
+    expect(CSS).toMatch(/\.roster-control \{[^}]*height:\s*30px[^}]*align-items:\s*center/s);
+    expect(CSS).toMatch(/\.roles-table td \{[^}]*height:\s*47px/s);
+    expect(CSS).toMatch(/\.roster-role-status \{[^}]*min-height:\s*30px[^}]*align-items:\s*center/s);
+    expect(CSS).toMatch(/\.sp-personas-table td \{[^}]*height:\s*47px/s);
+    expect(CSS).toMatch(/\.sp-personas-table \[data-slot='input'\] \{[^}]*height:\s*30px/s);
   });
 });

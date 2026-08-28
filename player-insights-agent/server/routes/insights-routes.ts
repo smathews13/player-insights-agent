@@ -394,6 +394,12 @@ const StageSchema = z.looseObject({
  * person reading their own run.
  */
 const GenieSpaceSchema = z.looseObject({ id: z.string(), title: z.string().default('') });
+const ResourceCallSchema = z.looseObject({
+  kind: z.enum(['genie-space', 'vector-index']),
+  id: z.string(),
+  tool: z.enum(['data_genie', 'dictionary_genie', 'search_semantics']),
+  calls: z.number().int().nonnegative(),
+});
 export const TraceSchema = z.looseObject({
   id: z.string(),
   totalMs: z.number(),
@@ -411,6 +417,13 @@ export const TraceSchema = z.looseObject({
    * claim, so the two must not be collapsed.
    */
   genie_spaces: z.array(GenieSpaceSchema).optional(),
+  /**
+   * Exact resource-call counters emitted by current agent versions.
+   *
+   * Optional preserves the distinction between an older trace that did not
+   * record resource identity and a current trace that recorded zero calls.
+   */
+  resource_calls: z.array(ResourceCallSchema).optional(),
   // OPTIONAL WITHOUT A DEFAULT, and the difference is the whole point. Optional is
   // what lets an answer stored before the agent metered tokens still parse, and it
   // is enough to keep `undeclaredAnswerKeys` from calling a metered run drift.

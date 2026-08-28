@@ -338,6 +338,28 @@ interface ResolvedRetryPolicy {
   now: () => number;
 }
 
+function taggingDeadlineError(): Error & { code: string } {
+  return Object.assign(new Error('Astrolabe stopped waiting for the Databricks tag operation at its time limit.'), {
+    code: 'ETIMEDOUT',
+  });
+}
+
+async function insideTaggingDeadline<T>(operation: () => Promise<T>, policy: ResolvedRetryPolicy): Promise<T> {
+  const remaining = policy.deadline - policy.now();
+  if (remaining <= 0) throw taggingDeadlineError();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(taggingDeadlineError()), remaining);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 async function retryTransient<T>(operation: () => Promise<T>, policy: ResolvedRetryPolicy): Promise<T> {
   /**
    * Retry the complete read-before-write operation, not only the failed write.
@@ -348,7 +370,7 @@ async function retryTransient<T>(operation: () => Promise<T>, policy: ResolvedRe
   let lastError: unknown;
   for (let attempt = 1; attempt <= policy.maxAttempts; attempt += 1) {
     try {
-      return await operation();
+      return await insideTaggingDeadline(operation, policy);
     } catch (error) {
       lastError = error;
       if (!isRetryable(error) || attempt === policy.maxAttempts) throw error;

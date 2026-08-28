@@ -25,14 +25,47 @@ import { Lock, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
 import { CopyableCommand } from './AdminListEditor';
 import { canSubmit, roleWord, rosterSummary, rowLocked, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
-import { type Role, type RosterPayload } from '../../shared/user-roster-contract';
+import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-contract';
+import type { SpIdentityAdminPayload, SpPersona } from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
+import {
+  assignSpPersona,
+  changeHumanRole,
+  EMPTY_SP_IDENTITY,
+  loadHumanRoster,
+  loadSpIdentityAdmin,
+  renameSpPersona,
+  UNASSIGNED_PERSONA,
+  writeHumanRoster,
+} from './identity-settings-api';
+import { SpIdentityEditor } from './SpIdentityPanel';
 
 /** The #24a add row appoints an Admin or Consumer. Super-admin promotion stays
  * on an existing row, where the server names it in `assignable` and protects the
  * last-super-admin rule. */
 const ADDABLE_ROLES: readonly Role[] = ['admin', 'consumer'];
+
+function rosterFromSpIdentity(payload: SpIdentityAdminPayload): RosterPayload {
+  const entries = payload.roster.map((row) => ({
+    email: row.email,
+    role: isRole(row.role) ? row.role : ('consumer' as const),
+    seedFloor: 'consumer' as const,
+    setBy: '',
+    setAt: '',
+    isYou: false,
+    assignable: [],
+    canRemove: false,
+  }));
+  return {
+    entries,
+    storedRosterReadable: true,
+    roleColumnPresent: true,
+    pendingSchemaStatement: '',
+    superAdminCount: entries.filter((entry) => entry.role === 'super_admin').length,
+    recoveryStatement: '',
+  };
+}
 
 /**
  * One row's role control, or the line saying why there is none.
@@ -69,6 +102,38 @@ function RoleControl({
   );
 }
 
+function PersonaControl({
+  email,
+  personaId,
+  personas,
+  disabled,
+  onChange,
+}: {
+  email: string;
+  personaId: string | null;
+  personas: SpPersona[];
+  disabled: boolean;
+  onChange?: (email: string, personaId: string | null) => void;
+}) {
+  const options = [
+    { value: UNASSIGNED_PERSONA, label: 'Signed-in user (OAuth)' },
+    ...personas.map((persona) => ({ value: persona.id, label: persona.displayName })),
+  ];
+  const known = new Set(personas.map((persona) => persona.id));
+  const value = personaId && known.has(personaId) ? personaId : UNASSIGNED_PERSONA;
+  return (
+    <AppSelect
+      label="Persona"
+      ariaLabel={`Persona for ${email}`}
+      value={value}
+      disabled={disabled || !onChange}
+      onValueChange={(next) => onChange?.(email, next === UNASSIGNED_PERSONA ? null : next)}
+      options={options}
+      className="roster-control roster-persona-select"
+    />
+  );
+}
+
 /**
  * The rows, as a function of the payload and nothing else.
  *
@@ -83,12 +148,24 @@ export function RosterRows({
   busy,
   onChange,
   onRemove,
+  personas = [],
+  personaByEmail = new Map<string, string | null>(),
+  personaDisabled = true,
+  onPersonaChange,
+  showPersona = false,
+  manageHumanRoles = true,
   footer,
 }: {
   payload: RosterPayload;
   busy: boolean;
   onChange: (entry: RosterEntry, role: Role) => void;
   onRemove: (entry: RosterEntry) => void;
+  personas?: SpPersona[];
+  personaByEmail?: ReadonlyMap<string, string | null>;
+  personaDisabled?: boolean;
+  onPersonaChange?: (email: string, personaId: string | null) => void;
+  showPersona?: boolean;
+  manageHumanRoles?: boolean;
   footer?: ReactNode;
 }) {
   return (
@@ -107,13 +184,18 @@ export function RosterRows({
       ) : null}
 
       <div className="settings-table-frame roster-frame">
-        <table className="settings-data-table roles-table">
+        <table
+          className={`settings-data-table roles-table roles-table--${
+            manageHumanRoles ? 'editable' : 'assignment-only'
+          }`}
+        >
           <thead>
             <tr>
               <th scope="col">Email</th>
-              <th scope="col">Set by</th>
-              <th scope="col">Role</th>
-              <th scope="col">Actions</th>
+              {manageHumanRoles ? <th scope="col">Set by</th> : null}
+              <th scope="col">Human role</th>
+              {showPersona ? <th scope="col">Persona</th> : null}
+              {manageHumanRoles ? <th scope="col">Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -130,36 +212,55 @@ export function RosterRows({
                       {entry.isYou ? <span className="admin-row-you">you</span> : null}
                     </span>
                   </td>
-                  <td className="roster-set-by">
-                    {entry.seedFloor !== 'consumer' ? (
-                      <span title="Set at deployment. Edit the bundle variable to change it.">Deployment</span>
-                    ) : (
-                      <>
-                        <span title={entry.setBy || undefined}>{entry.setBy || '—'}</span>
-                        {setDate ? <time dateTime={entry.setAt}>{setDate}</time> : null}
-                      </>
-                    )}
-                  </td>
+                  {manageHumanRoles ? (
+                    <td className="roster-set-by">
+                      {entry.seedFloor !== 'consumer' ? (
+                        <span title="Set at deployment. Edit the bundle variable to change it.">Deployment</span>
+                      ) : (
+                        <>
+                          <span title={entry.setBy || undefined}>{entry.setBy || '—'}</span>
+                          {setDate ? <time dateTime={entry.setAt}>{setDate}</time> : null}
+                        </>
+                      )}
+                    </td>
+                  ) : null}
                   <td className="roster-role">
-                    <RoleControl entry={entry} busy={busy} onChange={onChange} />
+                    <RoleControl
+                      entry={manageHumanRoles ? entry : { ...entry, assignable: [] }}
+                      busy={busy}
+                      onChange={onChange}
+                    />
                   </td>
-                  <td className="roster-action">
-                    {entry.canRemove ? (
-                      <Button
-                        variant="destructive"
-                        data-variant="destructive"
-                        className="roster-control settings-destructive"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => onRemove(entry)}
-                        aria-label={`Remove ${entry.email}`}
-                      >
-                        <Trash2 className="size-3.5" /> Remove
-                      </Button>
-                    ) : locked ? (
-                      <Lock className="roster-row-lock" aria-label={locked} />
-                    ) : null}
-                  </td>
+                  {showPersona ? (
+                    <td className="roster-persona">
+                      <PersonaControl
+                        email={entry.email}
+                        personaId={personaByEmail.get(entry.email) ?? null}
+                        personas={personas}
+                        disabled={busy || personaDisabled}
+                        onChange={onPersonaChange}
+                      />
+                    </td>
+                  ) : null}
+                  {manageHumanRoles ? (
+                    <td className="roster-action">
+                      {entry.canRemove ? (
+                        <Button
+                          variant="destructive"
+                          data-variant="destructive"
+                          className="roster-control settings-destructive"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => onRemove(entry)}
+                          aria-label={`Remove ${entry.email}`}
+                        >
+                          <Trash2 className="size-3.5" /> Remove
+                        </Button>
+                      ) : locked ? (
+                        <Lock className="roster-row-lock" aria-label={locked} />
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
@@ -171,59 +272,69 @@ export function RosterRows({
   );
 }
 
-export function UserRoleEditor() {
+export function UserRoleEditor({
+  spIdentityEnabled = false,
+  canManageHumanRoles = true,
+}: {
+  spIdentityEnabled?: boolean;
+  canManageHumanRoles?: boolean;
+}) {
   const [payload, setPayload] = useState<RosterPayload | null>(null);
+  const [spPayload, setSpPayload] = useState<SpIdentityAdminPayload>(EMPTY_SP_IDENTITY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [spError, setSpError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [draftRole, setDraftRole] = useState<Role>('admin');
   const [busy, setBusy] = useState(false);
   const [writeError, setWriteError] = useState('');
   const [notice, setNotice] = useState('');
 
-  /**
-   * One read, and it is a read.
-   *
-   * There used to be a second call, a POST that asked Unity Catalog for the grants
-   * every administrator's role was said to need. Opening this panel no longer
-   * changes anybody's permissions.
-   */
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await fetch('/api/users');
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setPayload((await response.json()) as RosterPayload);
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
+  /** The roster and persona assignment are one screen, so one refresh reads both. */
+  const load = useCallback(
+    async (showLoading = true) => {
+      if (showLoading) setLoading(true);
+      setError('');
+      setSpError(null);
+      const humanRequest = canManageHumanRoles ? loadHumanRoster() : Promise.resolve<RosterPayload | null>(null);
+      const [spResult, humanResult] = await Promise.allSettled([loadSpIdentityAdmin(), humanRequest]);
+
+      if (spResult.status === 'fulfilled') {
+        setSpPayload(spResult.value);
+        if (!canManageHumanRoles) setPayload(rosterFromSpIdentity(spResult.value));
+      } else {
+        setSpError(spResult.reason instanceof Error ? spResult.reason.message : 'SP personas could not be read.');
+        if (!canManageHumanRoles) setPayload(null);
+      }
+
+      if (canManageHumanRoles) {
+        if (humanResult.status === 'fulfilled' && humanResult.value) setPayload(humanResult.value);
+        else {
+          setError(
+            humanResult.status === 'rejected' && humanResult.reason instanceof Error
+              ? humanResult.reason.message
+              : 'The human roster could not be read.'
+          );
+        }
+      }
       setLoading(false);
-    }
-  }, []);
+    },
+    [canManageHumanRoles]
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  /** One write path, so an add and a change cannot report their outcome differently. */
-  async function write(request: { url: string; method: string; body: unknown; said: string }) {
+  /** Every mutation refreshes both halves so a person never shows mixed-time identity data. */
+  async function run(work: () => Promise<unknown>, said: string): Promise<boolean> {
     setBusy(true);
     setWriteError('');
     setNotice('');
     try {
-      const response = await fetch(request.url, {
-        method: request.method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request.body),
-      });
-      const body = (await response.json()) as RosterPayload & { detail?: string };
-      if (!response.ok) {
-        setWriteError(body.detail ?? 'Nothing changed.');
-        return false;
-      }
-      setPayload(body);
-      setNotice(request.said);
+      await work();
+      await load(false);
+      setNotice(said);
       return true;
     } catch (cause) {
       setWriteError((cause as Error).message);
@@ -235,86 +346,109 @@ export function UserRoleEditor() {
 
   async function add() {
     const email = draft.trim();
-    const added = await write({
-      url: '/api/users',
-      method: 'POST',
-      body: { email, role: draftRole },
-      said: `${email} is now ${roleWord(draftRole).toLowerCase()}.`,
-    });
+    const added = await run(
+      () => writeHumanRoster('/api/users', 'POST', { email, role: draftRole }),
+      `${email} is now ${roleWord(draftRole).toLowerCase()}.`
+    );
     if (added) setDraft('');
   }
 
+  const personaByEmail = new Map(spPayload.roster.map((row) => [row.email, row.personaId]));
+
   return (
     <div className="identity-table-content">
-      {loading ? <p className="admin-list-note">Reading the roster.</p> : null}
+      <section className="settings-identity-section" aria-labelledby="human-roles-title">
+        <h4 id="human-roles-title" className="settings-section-title">
+          Human roles and admins
+        </h4>
+        {loading ? <p className="admin-list-note">Reading identity settings.</p> : null}
+        {error ? (
+          <p className="admin-list-note admin-list-error">
+            The roster could not be read. Nobody has lost a role. Reload the page.
+          </p>
+        ) : null}
+        {payload ? (
+          <RosterRows
+            payload={payload}
+            busy={busy}
+            personas={spPayload.personas}
+            personaByEmail={personaByEmail}
+            personaDisabled={!spIdentityEnabled || Boolean(spError)}
+            showPersona={true}
+            manageHumanRoles={canManageHumanRoles}
+            onPersonaChange={(email, personaId) =>
+              void run(
+                () => assignSpPersona(email, personaId),
+                personaId ? `${email} now uses the selected persona.` : `${email} now uses signed-in OAuth.`
+              )
+            }
+            onChange={(entry, role) =>
+              void run(
+                () => changeHumanRole(entry.email, role),
+                [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
+                  .filter(Boolean)
+                  .join(' ')
+              )
+            }
+            onRemove={(entry) =>
+              void run(
+                () => writeHumanRoster(`/api/users/${encodeURIComponent(entry.email)}`, 'DELETE', {}),
+                `${entry.email} is off the roster.`
+              )
+            }
+            footer={
+              canManageHumanRoles ? (
+                <tr className="roster-add-row">
+                  <td>
+                    <Input
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder="name@example.com"
+                      aria-label="Email address to put on the roster"
+                    />
+                  </td>
+                  <td className="roster-add-help">Added by you</td>
+                  <td>
+                    <AppSelect<Role>
+                      label="Role"
+                      ariaLabel="Role to give them"
+                      value={draftRole}
+                      disabled={busy}
+                      onValueChange={setDraftRole}
+                      options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
+                      className="roster-control roster-role-select"
+                    />
+                  </td>
+                  <td className="roster-add-persona">Assign after adding</td>
+                  <td className="roster-action">
+                    <Button
+                      variant="outline"
+                      data-variant="outline"
+                      className="roster-control"
+                      disabled={!canSubmit(draft, busy)}
+                      onClick={() => void add()}
+                    >
+                      <UserPlus className="size-3.5" /> Add
+                    </Button>
+                  </td>
+                </tr>
+              ) : undefined
+            }
+          />
+        ) : null}
+      </section>
 
-      {error ? (
-        <p className="admin-list-note admin-list-error">
-          The roster could not be read. Nobody has lost a role. Reload the page.
-        </p>
-      ) : null}
-
-      {payload ? (
-        <RosterRows
-          payload={payload}
+      <section className="settings-identity-section" aria-label="Service principal personas">
+        <SpIdentityEditor
+          enabled={spIdentityEnabled}
+          payload={spPayload}
           busy={busy}
-          onChange={(entry, role) =>
-            void write({
-              url: `/api/users/${encodeURIComponent(entry.email)}`,
-              method: 'PATCH',
-              body: { role },
-              // The warning goes in the outcome line, before the panel this reader
-              // is standing on disappears from under them.
-              said: [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
-                .filter(Boolean)
-                .join(' '),
-            })
-          }
-          onRemove={(entry) =>
-            void write({
-              url: `/api/users/${encodeURIComponent(entry.email)}`,
-              method: 'DELETE',
-              body: {},
-              said: `${entry.email} is off the roster.`,
-            })
-          }
-          footer={
-            <tr className="roster-add-row">
-              <td>
-                <Input
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="name@example.com"
-                  aria-label="Email address to put on the roster"
-                />
-              </td>
-              <td className="roster-add-help">Added by you</td>
-              <td>
-                <AppSelect<Role>
-                  label="Role"
-                  ariaLabel="Role to give them"
-                  value={draftRole}
-                  disabled={busy}
-                  onValueChange={setDraftRole}
-                  options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
-                  className="roster-control roster-role-select"
-                />
-              </td>
-              <td className="roster-action">
-                <Button
-                  variant="outline"
-                  data-variant="outline"
-                  className="roster-control"
-                  disabled={!canSubmit(draft, busy)}
-                  onClick={() => void add()}
-                >
-                  <UserPlus className="size-3.5" /> Add
-                </Button>
-              </td>
-            </tr>
+          error={spError}
+          onRename={(id, displayName) =>
+            void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`)
           }
         />
-      ) : null}
+      </section>
 
       {/* One live region for both, because they are the same slot on screen and two
           regions would be two announcements for one action. */}

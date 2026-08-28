@@ -36,6 +36,7 @@ from agent import (
     SYNTHESIS_INSTRUCTIONS,
     SYNTHESIS_PROVENANCE_RULE,
     PlayerInsightsResponsesAgent,
+    RunLog,
     _is_grant_timing_note,
     _needs_dictionary,
     _plan_id,
@@ -44,6 +45,7 @@ from agent import (
 )
 from charts import BLUE, MAX_CHARTS, PLOT_INSTRUCTIONS
 from config import Settings
+from contracts import ResourceCall
 from evidence import EvidenceGateway
 from tools import (
     GENIE_WAREHOUSE_STARTING_GUIDANCE,
@@ -4045,6 +4047,7 @@ APP_TRACE_FIELDS = {
     "toolCalls",
     "stages",
     "genie_spaces",
+    "resource_calls",
     "prompt_tokens",
     "completion_tokens",
     "total_tokens",
@@ -4053,6 +4056,7 @@ APP_TRACE_FIELDS = {
 # shown instead of it. Both declared on the app side, or the trace projection
 # reports every run that called Genie as agent drift.
 APP_GENIE_SPACE_FIELDS = {"id", "title"}
+APP_RESOURCE_CALL_FIELDS = {"kind", "id", "tool", "calls"}
 APP_STAGE_FIELDS = {
     "id",
     "name",
@@ -4082,6 +4086,7 @@ def test_answer_contract_matches_exactly_what_the_app_reads():
     assert set(answer["trace"]) == APP_TRACE_FIELDS
     assert set(answer["trace"]["stages"][0]) == APP_STAGE_FIELDS
     assert set(answer["trace"]["genie_spaces"][0]) == APP_GENIE_SPACE_FIELDS
+    assert set(answer["trace"]["resource_calls"][0]) == APP_RESOURCE_CALL_FIELDS
 
 
 # ---------------------------------------------------------------------------
@@ -4091,6 +4096,10 @@ def test_answer_contract_matches_exactly_what_the_app_reads():
 
 def genie_spaces(response) -> list[dict]:
     return response.custom_outputs["answer"]["trace"]["genie_spaces"]
+
+
+def resource_calls(response) -> list[dict]:
+    return response.custom_outputs["answer"]["trace"]["resource_calls"]
 
 
 def configured(**overrides) -> FakeTools:
@@ -4143,7 +4152,11 @@ def test_a_space_asked_twice_is_recorded_once():
         "Done.",
     )
 
-    assert [space["id"] for space in genie_spaces(ask(build(llm)))] == ["data"]
+    response = ask(build(llm))
+    assert [space["id"] for space in genie_spaces(response)] == ["data"]
+    assert resource_calls(response) == [
+        {"kind": "genie-space", "id": "data", "tool": "data_genie", "calls": 2}
+    ]
 
 
 def test_a_run_records_the_space_that_refused_it():
@@ -4163,6 +4176,21 @@ def test_a_deployment_with_no_dictionary_space_records_nothing_for_it():
     tools = configured(dictionary_genie_space_id="")
 
     assert genie_spaces(ask(build(llm, tools))) == []
+
+
+def test_vector_search_call_metadata_names_only_the_index_and_count():
+    log = RunLog()
+    log.used_resource("vector-index", "catalog.schema.index", "search_semantics")
+    log.used_resource("vector-index", "catalog.schema.index", "search_semantics")
+
+    assert log.trace_summary("trace-1").resource_calls == [
+        ResourceCall(
+            kind="vector-index",
+            id="catalog.schema.index",
+            tool="search_semantics",
+            calls=2,
+        )
+    ]
 
 
 def test_clarification_contract_matches_exactly_what_the_app_reads():

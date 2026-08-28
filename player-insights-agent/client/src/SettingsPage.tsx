@@ -1,14 +1,19 @@
 import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { AdminListEditor } from './AdminListEditor';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
 import { ExperimentalFeatureName, ExperimentalStatus } from './ExperimentalBadge';
 import { ResourceTagsPanel } from './ResourceTagsPanel';
-import { showsBenchmarkLab, showsEgressControls, type ExperimentalFeatures } from './experimental-features';
+import {
+  NO_EXPERIMENTS,
+  showsBenchmarkLab,
+  showsCostEstimates,
+  showsEgressControls,
+  type ExperimentalFeatures,
+} from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
-import { loadSpIdentityAdmin, persistSpIdentityMode, SpIdentityPanel } from './SpIdentityPanel';
+import { loadSpIdentityAdmin, persistSpIdentityMode } from './identity-settings-api';
 import { spIdentityEnabledFromPayload } from './sp-identity-mode';
 import { showsUserRoster, type RoleResolution } from './role';
 import {
@@ -37,10 +42,6 @@ const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'experimental', label: 'Experimental' },
 ];
 
-const DEFAULT_FEATURES: ExperimentalFeatures = {
-  benchmarkLab: false,
-  egressControls: false,
-};
 const DEFAULT_ROLE: RoleResolution = { state: 'failed', addedAdminsReadable: false };
 
 interface SettingsPaneBoundaryProps {
@@ -125,7 +126,7 @@ export function SettingsPage({
   // null, and `null.state` a few lines below is read while THIS component
   // renders -- outside the pane boundary, so it would take the page down rather
   // than one section of it.
-  const features = featuresProp ?? DEFAULT_FEATURES;
+  const features = featuresProp ?? NO_EXPERIMENTS;
   const role = roleProp ?? DEFAULT_ROLE;
   const setFeature = setFeatureProp ?? noopSetFeature;
   const sections = BASE_SECTIONS.filter((section) => section.id !== 'egress' || showsEgressControls(features));
@@ -251,13 +252,10 @@ export function SettingsPage({
                   <div className="settings-pane-heading">
                     <h3>Identity</h3>
                   </div>
-                  <section className="settings-identity-section" aria-labelledby="human-roles-title">
-                    <h4 id="human-roles-title" className="settings-section-title">
-                      Human roles and admins
-                    </h4>
-                    {showsUserRoster(role.state) ? <UserRoleEditor /> : <AdminListEditor />}
-                  </section>
-                  <SpIdentityPanel enabled={spIdentityEnabled} />
+                  <UserRoleEditor
+                    spIdentityEnabled={spIdentityEnabled}
+                    canManageHumanRoles={showsUserRoster(role.state)}
+                  />
                 </div>
               ) : null}
               {active === 'runtime' || active === 'appearance' ? (
@@ -351,6 +349,23 @@ export function SettingsPage({
                         </td>
                       </tr>
                       <ResourceTagsPanel />
+                      <tr>
+                        <td>
+                          <ExperimentalFeatureName>Cost estimates</ExperimentalFeatureName>
+                        </td>
+                        <td className="exp-feature-status">
+                          <ExperimentalStatus on={showsCostEstimates(features)} onLabel="Shown" offLabel="Hidden" />
+                        </td>
+                        <td className="exp-feature-control">
+                          <div className="exp-feature-control-inner">
+                            <Switch
+                              checked={showsCostEstimates(features)}
+                              onCheckedChange={(enabled) => setFeature('costEstimates', enabled)}
+                              aria-label="Show Ops cost estimates"
+                            />
+                          </div>
+                        </td>
+                      </tr>
                       <tr>
                         <td>
                           <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>

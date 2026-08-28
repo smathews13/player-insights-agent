@@ -436,17 +436,9 @@ const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
 
 const EMPTY_COST_TILES: readonly CostTile[] = [
   { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Serving endpoint', resourceKind: 'serving-endpoint' },
-  {
-    ...EMPTY_COST_TILE,
-    id: 'foundation-model',
-    label: 'Foundation model',
-    resourceKind: 'serving-endpoint',
-    population: 'Shared endpoint',
-    unavailable: 'Shared spend withheld',
-    evidence: { billingRows: null, astrolabeQueries: null },
-  },
   { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
-  { ...EMPTY_COST_TILE, id: 'genie', label: 'Genie', resourceKind: 'genie-space' },
+  { ...EMPTY_COST_TILE, id: 'genie:data', label: 'Data Genie', resourceKind: 'genie-space' },
+  { ...EMPTY_COST_TILE, id: 'genie:dictionary', label: 'Dictionary Genie', resourceKind: 'genie-space' },
   { ...EMPTY_COST_TILE, id: 'vector-search', label: 'Vector search', resourceKind: 'vector-index' },
   { ...EMPTY_COST_TILE, id: 'app-compute', label: 'App compute', resourceKind: 'app' },
 ];
@@ -723,7 +715,6 @@ export function productForCostTile(id: string): BrandProduct | null {
 
 const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
   'serving-endpoint': 'mosaic-ai',
-  'foundation-model': 'mosaic-ai',
   'vector-search': 'mosaic-ai',
   'sql-warehouse': 'databricks-sql',
   'app-compute': 'apps',

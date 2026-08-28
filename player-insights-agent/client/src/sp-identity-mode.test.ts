@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_SP_IDENTITY } from './SpIdentityPanel';
+import { EMPTY_SP_IDENTITY } from './identity-settings-api';
 import { LEGACY_SP_IDENTITIES_BROWSER_KEY, spIdentityEnabledFromPayload } from './sp-identity-mode';
 
 describe('the deployment-wide SP-identity pivot as the UI reads it', () => {
@@ -10,7 +10,7 @@ describe('the deployment-wide SP-identity pivot as the UI reads it', () => {
     expect(spIdentityEnabledFromPayload(EMPTY_SP_IDENTITY)).toBe(false);
     expect(spIdentityEnabledFromPayload({ ...EMPTY_SP_IDENTITY, enabled: false })).toBe(false);
     for (const enabled of ['true', 'TRUE', 1, '1', 'yes', 'on', { enabled: true }]) {
-      expect(spIdentityEnabledFromPayload({ enabled }), String(enabled)).toBe(false);
+      expect(spIdentityEnabledFromPayload({ enabled }), JSON.stringify(enabled)).toBe(false);
     }
   });
 

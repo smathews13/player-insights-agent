@@ -59,6 +59,7 @@ from contracts import (
     Figure,
     GenieSpace,
     PlanStep,
+    ResourceCall,
     Source,
     TraceStage,
     TraceSummary,
@@ -2474,6 +2475,9 @@ class RunLog:
         #: orchestrator's configuration, so if the run does not record which space
         #: answered it, nothing anywhere does.
         self.genie_spaces: list[GenieSpace] = []
+        #: Exact configured-resource usage for cost attribution. Identifier and
+        #: count only: no prompt, result, query text, or token contents.
+        self.resource_calls: list[ResourceCall] = []
         #: What the dictionary space has already answered THIS RUN, keyed by
         #: `normalise_dictionary_question`. A definition does not change while one
         #: question is being answered, and the model asks for the same one twice
@@ -2557,6 +2561,20 @@ class RunLog:
             return
         self.genie_spaces.append(GenieSpace(id=space_id, title=(title or "").strip()))
 
+    def used_resource(self, kind: str, resource_id: str, tool: str) -> None:
+        """Count one dispatched call against its exact configured resource."""
+
+        resource_id = (resource_id or "").strip()
+        if not resource_id:
+            return
+        for resource in self.resource_calls:
+            if resource.kind == kind and resource.id == resource_id and resource.tool == tool:
+                resource.calls += 1
+                return
+        self.resource_calls.append(
+            ResourceCall(kind=kind, id=resource_id, tool=tool, calls=1)  # type: ignore[arg-type]
+        )
+
     def add_usage(self, usage: dict[str, int] | None) -> None:
         """Fold one chat-completions usage block into the turn totals.
 
@@ -2579,6 +2597,7 @@ class RunLog:
             toolCalls=self.calls,
             stages=self.stages,
             genie_spaces=list(self.genie_spaces),
+            resource_calls=list(self.resource_calls),
             prompt_tokens=self.prompt_tokens,
             completion_tokens=self.completion_tokens,
             total_tokens=self.total_tokens,
@@ -3215,7 +3234,11 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         # only on success would drop exactly the runs where the routing is what
         # somebody is trying to find out.
         if entry.name in GENIE_TOOLS:
-            log.used_genie_space(*self._genie_space_of(tools, entry.name))
+            space_id, space_title = self._genie_space_of(tools, entry.name)
+            log.used_genie_space(space_id, space_title)
+            log.used_resource("genie-space", space_id, entry.name)
+        elif entry.name == "search_semantics":
+            log.used_resource("vector-index", SEMANTIC_INDEX, entry.name)
         return ""
 
     def _refused_before_running(

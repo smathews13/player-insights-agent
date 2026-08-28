@@ -37,7 +37,7 @@
  * coming back is not a reason to scan billing again. Refresh still is.
  */
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Search, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './astrolabe-pill';
@@ -83,7 +83,8 @@ import {
 import { opsCostRangeId, useOpsBlock } from './ops-session';
 import { TimeRangeControl } from './TimeRangeControl';
 import { rangeWindow } from './time-range';
-import { showsAdminSurfaces, useRole } from './role';
+import { NO_EXPERIMENTS, showsCostEstimates } from './experimental-features';
+import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -579,7 +580,11 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               <div className="ops-tiles">
                 {displayed.map((tile) => {
                   const view = tileView(tile, payload.currency);
-                  const title = tile.resourceId.trim() ? `${view.label} · ${tile.resourceId.trim()}` : view.label;
+                  const activity = tile.evidence?.activity ?? null;
+                  const identifiers = [tile.resourceId, tile.secondaryResourceId].filter((value): value is string =>
+                    Boolean(value?.trim())
+                  );
+                  const title = identifiers.length > 0 ? `${view.label} · ${identifiers.join(' · ')}` : view.label;
                   const product = productForCostTile(tile.id);
                   const object = costTileWorkspaceObject(tile);
                   const href = object ? databricksLink(host, object) : null;
@@ -599,11 +604,24 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                             {view.estimate ? `estimated ${view.basisLabel}` : view.basisLabel}
                           </span>
                         </p>
+                      ) : activity ? (
+                        <p className="ops-tile-figure">
+                          <span className="ast-num">{count(activity.calls)}</span>{' '}
+                          <span className="ops-tile-basis">
+                            Astrolabe{' '}
+                            {activity.calls === 1
+                              ? activity.unit === 'queries'
+                                ? 'query'
+                                : 'request'
+                              : activity.unit}{' '}
+                            in range
+                          </span>
+                        </p>
                       ) : (
                         <p className="ops-tile-absent">{view.absence}</p>
                       )}
                       <CostTileEvidence tile={tile} />
-                      {tile.id === 'foundation-model' ? null : <CostTileBudget tile={tile} />}
+                      <CostTileBudget tile={tile} />
                     </div>
                   );
                 })}
@@ -646,6 +664,10 @@ function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
         ? ` of ${count(evidence.warehouseQueries)} warehouse ${evidence.warehouseQueries === 1 ? 'query' : 'queries'}`
         : '';
     facts.push(`${astrolabe}${total}${evidence.queryHistoryComplete === false ? ' · incomplete coverage' : ''}`);
+  }
+  if (evidence?.activity) {
+    const { calls, observedCalls, unit } = evidence.activity;
+    if (calls < observedCalls) facts.push(`${count(calls)} of ${count(observedCalls)} ${unit} carry resource identity`);
   }
   return facts.length > 0 ? (
     <p className="ops-tile-evidence" title={facts.join(' · ')}>
@@ -1463,6 +1485,8 @@ export function StopAllActiveRuns() {
 
 export function OpsPage() {
   const role = useRole();
+  const features = useOutletContext<AppOutletContext | null>()?.features ?? NO_EXPERIMENTS;
+  const costEstimatesShown = showsCostEstimates(features);
   const [params] = useSearchParams();
   const [openedAt] = useState(() => Date.now());
   const selected = rangeWindow(params, openedAt);
@@ -1490,7 +1514,7 @@ export function OpsPage() {
   // the billing selector also bounded live health or all-time latency would be
   // a second range bug, not consistency.
   const health = useOpsBlock<OpsHealthPayload>('/api/ops/health', '');
-  const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params));
+  const cost = useOpsBlock<OpsCostPayload>('/api/ops/cost', costSearch, opsCostRangeId(params), costEstimatesShown);
   const traffic = useOpsBlock<OpsTrafficPayload>(
     '/api/ops/traffic',
     trafficSearch,
@@ -1512,14 +1536,14 @@ export function OpsPage() {
     <div className="page-shell ops-page">
       <PageHeading title="Ops" />
       <div className="ops-page-controls">
-        <TimeRangeControl page="Ops cost" />
+        {costEstimatesShown ? <TimeRangeControl page="Ops cost" /> : null}
         {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
       </div>
 
       {/* Each block reads itself. Three read times on one page rather than one,
           because they were read at three different moments. */}
       <HealthBody block={health} />
-      <CostBody block={cost} />
+      {costEstimatesShown ? <CostBody block={cost} /> : null}
       <TrafficBody block={traffic} monitoringHref={monitoringHref} runsHref={runsHref} />
       <LatencyBody block={latency} />
     </div>
