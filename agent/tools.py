@@ -1522,7 +1522,7 @@ class PlayerInsightTools:
         )
         return max(0.0, min(float(wait_seconds), remaining - reserve))
 
-    def _wait_timeout(self, wait_seconds: int) -> str:
+    def _wait_timeout(self, wait_seconds: int, allowance: float | None = None) -> str:
         """What to ask the warehouse to wait, clamped to what is legal and affordable.
 
         Four bounds, and each one matters. The turn's remaining time and answer
@@ -1533,9 +1533,13 @@ class PlayerInsightTools:
         it is an argument error where the caller expected a cancelled statement.
         """
 
-        affordable = int(self._sql_allowance(wait_seconds))
+        affordable = int(
+            self._sql_allowance(wait_seconds) if allowance is None else allowance
+        )
+        if affordable < SQL_WAIT_FLOOR_SECONDS:
+            return "0s"
         wanted = min(wait_seconds, SQL_WAIT_CEILING_SECONDS, max(affordable, 0))
-        return f"{max(SQL_WAIT_FLOOR_SECONDS, wanted)}s"
+        return f"{wanted}s"
 
     def _poll_until_deadline(self, response: Any, started: float, allowance: float) -> Any:
         """After a CONTINUE, wait out the rest of the allowance, then cancel.
@@ -1616,6 +1620,12 @@ class PlayerInsightTools:
             retried = False
             while True:
                 allowance = self._sql_allowance(wait_seconds)
+                wait_timeout = self._wait_timeout(wait_seconds, allowance)
+                if wait_timeout == "0s":
+                    raise RuntimeError(
+                        "SQL was not started because the turn has less than "
+                        f"{SQL_WAIT_FLOOR_SECONDS}s available before its answer reserve."
+                    )
                 polls = (
                     wait_seconds > SQL_WAIT_CEILING_SECONDS and allowance > SQL_WAIT_CEILING_SECONDS
                 )
@@ -1628,7 +1638,7 @@ class PlayerInsightTools:
                 response = self.workspace.statement_execution.execute_statement(
                     warehouse_id=self.settings.warehouse_id,
                     statement=sql,
-                    wait_timeout=self._wait_timeout(wait_seconds),
+                    wait_timeout=wait_timeout,
                     on_wait_timeout=on_wait,
                     query_tags=sdk_attribution.query_tags("ask", tool),
                 )

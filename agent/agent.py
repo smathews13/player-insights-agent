@@ -1992,28 +1992,6 @@ def _span_is_recording(span: object | None) -> bool:
     return False
 
 
-def _last_active_trace_id() -> str:
-    """The last id MLflow recorded, even after the current context was lost."""
-
-    owners: list[object] = [mlflow]
-    tracing = getattr(mlflow, "tracing", None)
-    if tracing is not None:
-        owners.append(tracing)
-    for owner in owners:
-        for name in ("get_last_active_trace_id", "get_active_trace_id"):
-            reader = getattr(owner, name, None)
-            if not callable(reader):
-                continue
-            try:
-                value = reader()
-            except Exception:  # noqa: BLE001 - missing tracing is not a turn failure
-                continue
-            text = str(value or "").strip()
-            if text:
-                return text
-    return ""
-
-
 def _recorded_mlflow_trace_id(*candidates: object) -> str:
     """The first candidate that is a real MLflow id, else empty.
 
@@ -5229,7 +5207,6 @@ Tables available to this analysis, with their columns:
         return _recorded_mlflow_trace_id(
             getattr(span, "trace_id", None),
             getattr(active, "trace_id", None) if active is not None else None,
-            _last_active_trace_id(),
         )
 
     def _answer(

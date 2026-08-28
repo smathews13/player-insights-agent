@@ -4799,7 +4799,6 @@ def test_a_noop_span_returns_an_empty_id_and_explains_that_inspection_is_unavail
         mlflow, "start_span", lambda *args, **kwargs: nullcontext(NoOpSpan())
     )
     monkeypatch.setattr(mlflow, "get_current_active_span", lambda: None)
-    monkeypatch.setattr(agent, "_last_active_trace_id", lambda: "")
 
     response = ask(build(ScriptedLlm("Done.")))
     answer = response.custom_outputs["answer"]
@@ -4813,11 +4812,16 @@ def test_a_noop_span_returns_an_empty_id_and_explains_that_inspection_is_unavail
     assert not answer["trace"]["id"].startswith("trace-")
 
 
-def test_the_trace_id_never_returns_a_fake_id_or_noop_sentinel(monkeypatch):
-    """An invented `trace-<uuid>` is what made the card look recorded."""
+def test_the_trace_id_never_uses_a_fake_noop_or_process_global_id(monkeypatch):
+    """A process-global last trace may belong to another concurrent request."""
 
     monkeypatch.setattr(mlflow, "get_current_active_span", lambda: None)
-    monkeypatch.setattr(agent, "_last_active_trace_id", lambda: NO_OP_SPAN_TRACE_ID)
+    monkeypatch.setattr(
+        mlflow,
+        "get_last_active_trace_id",
+        lambda: "tr-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        raising=False,
+    )
     runtime = build(ScriptedLlm("Done."))
 
     assert runtime._trace_id(NoOpSpan()) == ""

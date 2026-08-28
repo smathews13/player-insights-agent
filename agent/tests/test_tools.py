@@ -616,7 +616,7 @@ def test_an_ungranted_tag_read_still_says_not_to_retry():
     assert "one later attempt is reasonable" not in text
 
 
-def test_a_wait_is_never_asked_for_below_the_apis_own_floor(monkeypatch):
+def test_a_statement_is_not_started_when_the_api_floor_exceeds_the_allowance(monkeypatch):
     """`wait_timeout=1s` is an argument error, not a short wait.
 
     The old clamp was `min(30, remaining)` with a floor of one second, so a turn
@@ -627,9 +627,11 @@ def test_a_wait_is_never_asked_for_below_the_apis_own_floor(monkeypatch):
     budget(monkeypatch, 2)
     tools, warehouse = tagged([tag_row(PROFILES, "pii", "true")])
 
-    tools.search_tagged_assets()
+    result = tools.search_tagged_assets()
 
-    assert warehouse.wait_timeouts[0][0] == f"{tools_module.SQL_WAIT_FLOOR_SECONDS}s"
+    assert warehouse.wait_timeouts == []
+    assert "SQL was not started" in result.text
+    assert f"less than {tools_module.SQL_WAIT_FLOOR_SECONDS}s" in result.text
 
 
 def test_no_matching_tag_is_not_reported_as_missing_data():
