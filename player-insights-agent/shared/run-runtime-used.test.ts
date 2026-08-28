@@ -70,7 +70,7 @@ describe('the runtime a stored run used', () => {
       'Takeaway on',
       'Narrative off',
       'Charts off',
-      'Character cap uncapped',
+      'Narrative cap uncapped',
       'Order Totals first',
     ]);
   });

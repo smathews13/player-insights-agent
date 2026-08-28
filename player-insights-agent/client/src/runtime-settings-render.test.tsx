@@ -2,11 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { RuntimeSettingsPanel } from './RuntimeSettingsPanel';
+import { RuntimeGuidanceField, RuntimeSettingsPanel } from './RuntimeSettingsPanel';
 
 const source = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(__dirname, 'styles', 'settings.css'), 'utf8');
+const responsiveStyles = fs.readFileSync(path.join(__dirname, 'styles', 'responsive.css'), 'utf8');
 const answerStyles = fs.readFileSync(path.join(__dirname, 'styles', 'answer.css'), 'utf8');
 
 /**
@@ -75,7 +76,7 @@ describe('runtime and appearance modal sections', () => {
       'Max DSF steps',
       'Max tool calls',
       'Run budget (s)',
-      'Character cap',
+      'Narrative cap',
       'Max figures',
       'Max charts',
       'Max caveats',
@@ -87,15 +88,49 @@ describe('runtime and appearance modal sections', () => {
     }
   });
 
-  it('gives Narrative one cap explanation and top-aligned, balanced controls', () => {
-    expect(source).toContain('bodyClassName="runtime-answer-body--narrative"');
-    expect(source).toContain("help: '0 means uncapped.'");
-    expect(source).not.toContain('Max length. 0 means none.');
-    expect(source).not.toContain('0 = uncapped');
-    expect(source).toContain('value={value}');
-    expect(styles).toMatch(/\.runtime-answer-body--narrative \{[^}]*align-items:\s*start/);
+  it('renders Narrative cap as a compact peer field without a competing heading or explanation', () => {
+    const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="runtime" />);
+    expect(markup).not.toContain('Character cap');
+    expect(markup).not.toContain('0 means uncapped');
+    expect(source).not.toContain('Character cap');
+    expect(source).not.toContain('0 means uncapped');
+    expect(markup).toMatch(
+      /class="runtime-field runtime-answer-field runtime-answer-cap"[^>]*>[\s\S]*?runtime-field-label">Cap<\/span>[\s\S]*?aria-label="Narrative cap"/
+    );
+    expect(markup).toMatch(
+      /class="runtime-field runtime-answer-field runtime-answer-guidance"[^>]*>[\s\S]*?runtime-field-label">Guidance<\/span>/
+    );
+  });
+
+  it('aligns Takeaway Guidance, Narrative Guidance and Cap with one field rhythm', () => {
+    expect(source.match(/<RuntimeGuidanceField/g) ?? []).toHaveLength(2);
+    expect(source).toContain('className="runtime-answer-field runtime-answer-cap"');
     expect(styles).toMatch(
-      /\.runtime-answer-body--narrative \.runtime-guidance,\s*\.runtime-answer-body--narrative input \{[^}]*height:\s*34px[^}]*min-height:\s*34px/s
+      /\.runtime-answer-body--narrative \{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+90px[^}]*align-items:\s*start/s
+    );
+    expect(styles).toMatch(
+      /\.runtime-answer-guidance \.runtime-guidance,\s*\.runtime-answer-cap input \{[^}]*width:\s*100%[^}]*height:\s*34px[^}]*min-height:\s*34px[^}]*border-color:\s*var\(--border\)[^}]*border-radius:\s*var\(--radius-sm\)[^}]*background:\s*var\(--background\)/s
+    );
+  });
+
+  it('keeps example copy as placeholder text while rendering saved guidance as the value', () => {
+    const placeholder = 'Example: a concise finding.';
+    const empty = renderToStaticMarkup(<RuntimeGuidanceField value="" update={() => {}} placeholder={placeholder} />);
+    const saved = renderToStaticMarkup(
+      <RuntimeGuidanceField value="Use the saved customer tone." update={() => {}} placeholder={placeholder} />
+    );
+
+    expect(empty).toContain(`placeholder="${placeholder}"`);
+    expect(empty.replace(`placeholder="${placeholder}"`, '')).not.toContain(placeholder);
+    expect(saved).toContain('>Use the saved customer tone.</textarea>');
+    expect(saved.replace(`placeholder="${placeholder}"`, '')).not.toContain(placeholder);
+    expect(source).not.toContain('Example: {placeholder}');
+    expect(source).not.toContain('runtime-control-example');
+  });
+
+  it('stacks the compact cap below Guidance on narrow screens without widening it', () => {
+    expect(responsiveStyles).toMatch(
+      /@media \(max-width:\s*800px\) \{[\s\S]*?\.runtime-answer-body--narrative \{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*\}[\s\S]*?\.runtime-answer-body--narrative \.runtime-answer-cap \{[^}]*width:\s*90px[^}]*justify-self:\s*start[^}]*\}/
     );
   });
 
@@ -146,7 +181,7 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-sample');
     expect(source).toContain('entityStyles');
     expect(source).toContain('colorScheme');
-    expect(source).toContain('aria-label="Dark"');
+    expect(source).toContain('aria-label="Dark mode"');
     expect(source).not.toContain('previewColorScheme(on)');
     expect(source).toContain('appearance-sample-plaque');
     expect(source).toContain('fontBodyColor');
@@ -154,7 +189,60 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('fontFamily');
     expect(source).toContain('fontSize');
     expect(source).not.toContain('previewRuntimeTypography(settings)');
-    expect(source).toContain('appearance-type-preview');
+    expect(source).toContain('appearance-display-preview');
+  });
+
+  it('merges Dark mode and text colors into one Display choices block', () => {
+    const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" />);
+    const display = markup.slice(
+      markup.indexOf('appearance-display-section'),
+      markup.indexOf('appearance-palette-section')
+    );
+
+    expect(markup).not.toContain('appearance-theme-section');
+    expect(markup).not.toMatch(/<h4[^>]*>Theme<\/h4>/);
+    expect(display).toContain('<h4 class="runtime-section-label">Display</h4>');
+    expect(display).toContain('appearance-display-choices');
+    expect(display).toContain('>Dark mode</span>');
+    expect(display).toContain('aria-label="Dark mode"');
+    expect(display).toContain('>Body text</span>');
+    expect(display).toContain('>Secondary</span>');
+    expect(display.indexOf('Dark mode')).toBeLessThan(display.indexOf('Body text'));
+    expect(display.indexOf('Body text')).toBeLessThan(display.indexOf('Secondary'));
+  });
+
+  it('keeps typography controls and a staged light/dark preview in the merged section', () => {
+    const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" />);
+    const display = markup.slice(
+      markup.indexOf('appearance-display-section'),
+      markup.indexOf('appearance-palette-section')
+    );
+
+    expect(display).toContain('aria-label="Body text color picker"');
+    expect(display).toContain('aria-label="Body text color"');
+    expect(display).toContain('aria-label="Secondary text color picker"');
+    expect(display).toContain('aria-label="Secondary text color"');
+    expect(display).toContain('aria-label="Font: DM Sans"');
+    expect(display).toContain('role="radiogroup"');
+    expect(display).toContain('aria-label="Font size L"');
+    expect(display).toContain('appearance-display-preview');
+    expect(source).toContain('data-color-scheme={settings.colorScheme}');
+    expect(source).toContain("'--appearance-preview-body': settings.fontBodyColor");
+    expect(source).toContain("'--appearance-preview-font': FONT_FAMILY_STACKS[settings.fontFamily]");
+  });
+
+  it('lays out merged choices across supported responsive breakpoints', () => {
+    expect(styles).toMatch(
+      /\.appearance-display-choices\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(responsiveStyles).toMatch(
+      /@media \(max-width:\s*800px\)\s*\{[\s\S]*?\.appearance-display-choices\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
+    );
+    expect(responsiveStyles).toMatch(
+      /@media \(max-width:\s*480px\)\s*\{[\s\S]*?\.appearance-display-choices\s*\{[^}]*minmax\(0,\s*1fr\)/
+    );
+    expect(styles).toContain(".appearance-display-preview[data-color-scheme='dark']");
+    expect(styles).toContain(".appearance-display-preview[data-color-scheme='light']");
   });
 
   it('pairs Body text and Secondary hex fields with a native colour picker', () => {

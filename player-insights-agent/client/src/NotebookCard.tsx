@@ -15,12 +15,7 @@
  * comes from `declared-connection-view.ts`.
  */
 import { useEffect, useState } from 'react';
-import {
-  comparisonBadge,
-  comparisonNote,
-  EMPTY_SCOPES_LABEL,
-  emptyScopesNote,
-} from './declared-connection-view';
+import { comparisonBadge, comparisonNote, EMPTY_SCOPES_LABEL, emptyScopesNote } from './declared-connection-view';
 import { astValueBadge, type AstPillFamily } from './astrolabe-pill';
 import type { NotebookPanel } from './connection-model';
 import { AssetPicker } from './AssetPicker';
@@ -130,8 +125,8 @@ function NotebookCardContent({
     <section className="plane-card" aria-label="Notebook">
       <div className="plane-card-head">
         <span className="plane-card-title">
-          Notebook
           <ExperimentalBadge />
+          Notebook
         </span>
         <span className="plane-card-purpose">
           Connecting one shows the settings it published beside what the running agent uses.
@@ -146,9 +141,7 @@ function NotebookCardContent({
           {shownPath ? (
             <>
               <span className="plane-label">Path source</span>
-              <span className="plane-value">
-                {configuredPath ? 'Saved configuration' : 'Latest published run'}
-              </span>
+              <span className="plane-value">{configuredPath ? 'Saved configuration' : 'Latest published run'}</span>
             </>
           ) : null}
           {configuredPath && observedPath && configuredPath !== observedPath ? (

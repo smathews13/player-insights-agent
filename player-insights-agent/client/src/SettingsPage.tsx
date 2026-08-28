@@ -29,22 +29,17 @@ import {
   unsavedChangesLabel,
   type SettingsSaveState,
 } from './settings-save-state';
+import {
+  BASE_SETTINGS_SECTIONS,
+  availableSettingsSections,
+  normalizeSettingsSection,
+  type SettingsSection,
+} from './settings-sections';
 import { UserRoleEditor } from './UserRoleEditor';
 import { Button, Switch } from './ui';
 
-type SettingsSection = 'identity' | 'runtime' | 'environment' | 'appearance' | 'egress' | 'experimental';
-
 const noopClose = () => {};
 const noopSetFeature = () => {};
-
-const BASE_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
-  { id: 'identity', label: 'Identity' },
-  { id: 'runtime', label: 'Runtime' },
-  { id: 'environment', label: 'Environment' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'egress', label: 'Egress controls' },
-  { id: 'experimental', label: 'Experimental' },
-];
 
 const DEFAULT_ROLE: RoleResolution = { state: 'failed', addedAdminsReadable: false };
 
@@ -80,7 +75,7 @@ export class SettingsPaneBoundary extends Component<SettingsPaneBoundaryProps, S
       return (
         <div className="settings-pane">
           <div className="settings-pane-heading">
-            <h3>{BASE_SECTIONS.find((section) => section.id === this.props.section)?.label ?? 'Settings'}</h3>
+            <h3>{BASE_SETTINGS_SECTIONS.find((section) => section.id === this.props.section)?.label ?? 'Settings'}</h3>
           </div>
           <p className="settings-status settings-error" role="alert">
             This section could not be displayed. The other Settings sections are still available.
@@ -112,7 +107,8 @@ export function SettingsPage({
    */
   spIdentityEnabled?: boolean;
 }) {
-  const [active, setActive] = useState<SettingsSection>(initialSection);
+  const features = featuresProp ?? NO_EXPERIMENTS;
+  const [active, setActive] = useState<SettingsSection>(() => normalizeSettingsSection(initialSection, features));
   // Held here rather than in the panel because the footer is what stays on
   // screen: `.settings-modal-content` scrolls, so an outcome drawn at the end of
   // the Runtime form was a thousand pixels below the button that caused it.
@@ -133,12 +129,11 @@ export function SettingsPage({
   // null, and `null.state` a few lines below is read while THIS component
   // renders -- outside the pane boundary, so it would take the page down rather
   // than one section of it.
-  const features = featuresProp ?? NO_EXPERIMENTS;
   const [draftFeatures, setDraftFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
   const [savedFeatures, setSavedFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
   const role = roleProp ?? DEFAULT_ROLE;
   const setFeature = setFeatureProp ?? noopSetFeature;
-  const sections = BASE_SECTIONS.filter((section) => section.id !== 'egress' || showsEgressControls(draftFeatures));
+  const sections = availableSettingsSections(savedFeatures);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -313,6 +308,11 @@ export function SettingsPage({
                     <h3>Experimental</h3>
                   </div>
                   <table className="exp-feature-table">
+                    <colgroup>
+                      <col className="exp-feature-name-column" />
+                      <col className="exp-feature-status-column" />
+                      <col className="exp-feature-control-column" />
+                    </colgroup>
                     <thead>
                       <tr>
                         <th scope="col">Feature</th>
@@ -326,11 +326,7 @@ export function SettingsPage({
                           <ExperimentalFeatureName>PII egress judge</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus
-                            on={showsEgressControls(draftFeatures)}
-                            onLabel="Shown"
-                            offLabel="Hidden"
-                          />
+                          <ExperimentalStatus on={showsEgressControls(draftFeatures)} />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">
@@ -357,7 +353,7 @@ export function SettingsPage({
                           ) : null}
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus on={spIdentityEnabled} onLabel="On" offLabel="Off" />
+                          <ExperimentalStatus on={spIdentityEnabled} />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">
@@ -395,7 +391,7 @@ export function SettingsPage({
                           <ExperimentalFeatureName>Forecasting</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsForecasting(draftFeatures)} onLabel="Shown" offLabel="Hidden" />
+                          <ExperimentalStatus on={showsForecasting(draftFeatures)} />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">
@@ -415,7 +411,7 @@ export function SettingsPage({
                           <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsBenchmarkLab(draftFeatures)} onLabel="Shown" offLabel="Hidden" />
+                          <ExperimentalStatus on={showsBenchmarkLab(draftFeatures)} />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">

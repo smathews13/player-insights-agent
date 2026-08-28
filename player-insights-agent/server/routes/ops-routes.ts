@@ -1330,8 +1330,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           const reason = unpropagated.length
             ? 'Matching usage exists without the Astrolabe tag, but exact resource attribution remains available.'
             : delayed
-              ? 'No exact tracked-resource billing rows for the selected period yet. Later days may still be filling.'
-              : 'No billing rows matched an exact tracked resource for the selected period.';
+              ? 'No exact tracked-resource billing rows yet. Later days may still be filling.'
+              : 'No billing rows matched an exact tracked resource.';
           res.json({
             ...empty,
             state: 'no-rows',

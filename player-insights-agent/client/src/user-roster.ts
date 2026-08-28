@@ -45,31 +45,6 @@ export function setOn(entry: RosterEntry): string {
 }
 
 /**
- * The line above the roster: what this deployment's administration currently is.
- *
- * The unreadable, the locked-out and the ordinary cases are different sentences on
- * purpose. The first two put few rows on screen and have different remedies, and
- * conflating them is what sends somebody looking for a person who was never removed.
- */
-export function rosterSummary(payload: RosterPayload): string {
-  if (!payload.storedRosterReadable) {
-    return (
-      'The stored half of this roster could not be read, so only roles set at deployment are shown. ' +
-      'There may be more. Nobody has lost a role.'
-    );
-  }
-  if (payload.entries.length === 0) {
-    return 'This deployment has no administrators, and none can be added from here.';
-  }
-  const admins = payload.entries.filter((entry) => entry.role !== 'consumer').length;
-  const roleCounts: string[] = [];
-  if (admins > 0) roleCounts.push(`${admins} administrator${admins === 1 ? '' : 's'}`);
-  if (payload.superAdminCount > 0) roleCounts.push(`${payload.superAdminCount} super`);
-  const roster = `${payload.entries.length} ${payload.entries.length === 1 ? 'person' : 'people'} on the roster.`;
-  return roleCounts.length > 0 ? `${roleCounts.join(', ')}. ${roster}` : roster;
-}
-
-/**
  * Why a row has no controls, or empty when it has them.
  *
  * ON THE ROW RATHER THAN AS A DISABLED MENU. A disabled control a reader can never

@@ -258,7 +258,7 @@ describe('coverage, shared meters, and Genie', () => {
     expect(genie).toHaveLength(2);
     expect(genie[0].amount).toBeNull();
     expect(genie[0].unavailable).toContain('Genie LLM dollars unavailable');
-    expect(genie[0].note).toContain('not the complete Genie cost');
+    expect(genie[0].note).toContain('Genie model cost is excluded');
   });
 
   it('says list prices, not contracted rates, and when the range may still fill', () => {

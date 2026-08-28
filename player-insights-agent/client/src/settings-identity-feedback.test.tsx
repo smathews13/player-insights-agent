@@ -62,8 +62,8 @@ describe('the demo workspace Settings shell feedback', () => {
     expect(markup).toContain('>On</span>');
     expect(markup).not.toContain('>Dark</span>');
     expect(markup).not.toContain('>Light</span>');
-    expect(RUNTIME).toContain('onLabel="On"');
-    expect(RUNTIME).toContain('offLabel="Off"');
+    expect(RUNTIME).not.toContain('onLabel=');
+    expect(RUNTIME).not.toContain('offLabel=');
   });
 });
 
@@ -120,11 +120,11 @@ describe('the demo workspace Identity feedback', () => {
           showPersona={true}
           onPersonaChange={() => {}}
         />
-        <SpIdentityEditor enabled={true} payload={spRoles} busy={false} error={null} onRename={() => {}} />
+        <SpIdentityEditor enabled={true} payload={spRoles} busy={false} readError={null} onRename={() => {}} />
       </div>
     );
     expect(markup.match(/<table/g) ?? []).toHaveLength(2);
-    for (const label of ['Human roles and admins', 'SP Personas', 'Email', 'Human role', 'Persona']) {
+    for (const label of ['Human roles and admins', 'SP Personas', 'Email', 'User role', 'Persona']) {
       expect(markup).toContain(label);
     }
     expect(markup.indexOf('Human roles and admins')).toBeLessThan(markup.indexOf('SP Personas'));
@@ -135,7 +135,7 @@ describe('the demo workspace Identity feedback', () => {
 
   it('shows role names and assignments without credential fields or values', () => {
     const markup = renderToStaticMarkup(
-      <SpIdentityEditor enabled={true} payload={spRoles} busy={false} error={null} onRename={() => {}} />
+      <SpIdentityEditor enabled={true} payload={spRoles} busy={false} readError={null} onRename={() => {}} />
     );
     expect(markup).toContain('Persona name for Finance reader');
     expect(markup).toContain('>Rename</button>');
@@ -186,5 +186,22 @@ describe('the demo workspace Identity feedback', () => {
     expect(CSS).toMatch(/\.roster-role-status \{[^}]*min-height:\s*30px[^}]*align-items:\s*center/s);
     expect(CSS).toMatch(/\.sp-personas-table td \{[^}]*height:\s*47px/s);
     expect(CSS).toMatch(/\.sp-personas-table \[data-slot='input'\] \{[^}]*height:\s*30px/s);
+  });
+
+  it('removes the roster count narrative and prefixes from user-role selectors', () => {
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={humanRoles}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        personas={spRoles.personas}
+        showPersona={true}
+      />
+    );
+    expect(markup).not.toContain('people on the roster');
+    expect(markup).not.toContain('administrator, 1 super');
+    expect(markup).toContain('<th scope="col">User role</th>');
+    expect(markup).not.toContain('Human role');
   });
 });

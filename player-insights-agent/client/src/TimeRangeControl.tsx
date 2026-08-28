@@ -1,5 +1,5 @@
 /**
- * The segmented time range: 24h, 7 days, 30 days, All time, Custom.
+ * The segmented time range: 24h, 7 days, 30 days and All time.
  *
  * One component, imported by Monitoring and by Ops, for the reason the Refresh
  * control is one component: two copies of a control drift, and the drift shows
@@ -10,17 +10,11 @@
  * a navigation, which is what makes the browser's back button work on it.
  *
  * Everything about WHICH ranges exist and WHAT window each covers is in
- * time-range.ts. This file is markup, ARIA and the custom-range inputs.
+ * time-range.ts. This file owns the markup, ARIA and URL navigation.
  */
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
-import {
-  CUSTOM_FROM_PARAM,
-  CUSTOM_TO_PARAM,
-  RANGE_SEGMENTS,
-  rangeFromParams,
-  withRange,
-  type RangeKey,
-} from './time-range';
+import { normalizeTimeRangeSearch, RANGE_SEGMENTS, rangeFromParams, withRange, type RangeKey } from './time-range';
 
 export interface TimeRangeControlProps {
   /**
@@ -31,28 +25,19 @@ export interface TimeRangeControlProps {
   className?: string;
 }
 
-/**
- * The dates a custom range is between, as `<input type="date">` values.
- *
- * Dates rather than timestamps: the window a person asks for is a run of days,
- * and asking somebody to type a time to get a day is a control that resists
- * being used. `rangeWindow` parses either.
- */
-function customEnds(params: URLSearchParams): { from: string; to: string } {
-  return { from: params.get(CUSTOM_FROM_PARAM) ?? '', to: params.get(CUSTOM_TO_PARAM) ?? '' };
-}
-
 export function TimeRangeControl({ page, className }: TimeRangeControlProps) {
   const [params, setParams] = useSearchParams();
   const active = rangeFromParams(params);
-  const ends = customEnds(params);
+  const currentSearch = params.toString() ? `?${params.toString()}` : '';
+  const normalizedSearch = normalizeTimeRangeSearch(currentSearch);
+
+  useEffect(() => {
+    if (normalizedSearch === currentSearch) return;
+    setParams(new URLSearchParams(normalizedSearch), { replace: true });
+  }, [currentSearch, normalizedSearch, setParams]);
 
   const choose = (key: RangeKey) => {
-    // Pressing Custom keeps whatever ends are already in the URL, so somebody
-    // who came back to the page by a link that carries them does not have to
-    // type them again. With no ends, `rangeWindow` falls back to the default
-    // window and reports that it did.
-    const next = withRange(`?${params.toString()}`, key, key === 'custom' ? ends : undefined);
+    const next = withRange(currentSearch, key);
 
     // Pressing the segment that is already chosen changes nothing, so it must not
     // push a history entry either. There is no unselected state to toggle into --
@@ -64,18 +49,15 @@ export function TimeRangeControl({ page, className }: TimeRangeControlProps) {
     setParams(new URLSearchParams(next), { replace: false });
   };
 
-  const setEnd = (which: 'from' | 'to', value: string) => {
-    const nextEnds = { ...ends, [which]: value };
-    setParams(new URLSearchParams(withRange(`?${params.toString()}`, 'custom', nextEnds)), { replace: false });
-  };
-
-  return (<div className={className ? `time-range ${className}` : 'time-range'}>
+  return (
+    <div className={className ? `time-range ${className}` : 'time-range'}>
       {/* A radio group rather than a row of buttons: exactly one is chosen at a
           time, and that is what `radiogroup` means to a screen reader. Buttons
           would each announce as an independent action and leave the reader to
           work out that pressing one un-presses another. */}
       <div className="time-range-segments" role="radiogroup" aria-label={`Time range for ${page}`}>
-        {RANGE_SEGMENTS.map((segment) => (<button
+        {RANGE_SEGMENTS.map((segment) => (
+          <button
             key={segment.key}
             type="button"
             role="radio"
@@ -90,27 +72,6 @@ export function TimeRangeControl({ page, className }: TimeRangeControlProps) {
           </button>
         ))}
       </div>
-      {/* Drawn only when Custom is the choice. Absent rather than disabled, for
-          the same reason the consumer navigation has no greyed entries: a
-          control that cannot be used is a question about why not. */}
-      {active === 'custom' ? (<div className="time-range-custom">
-          <label className="time-range-custom-label">
-            From
-            <input type="date" value={ends.from} onChange={(event) => setEnd('from', event.target.value)} />
-          </label>
-          <label className="time-range-custom-label">
-            To
-            <input type="date" value={ends.to} onChange={(event) => setEnd('to', event.target.value)} />
-          </label>
-          {/* Said on the page rather than left to be inferred from figures that
-              look like a week's. A window nobody asked for, unannounced, is the
-              page answering a different question. */}
-          {!ends.from || !ends.to ? (<p className="time-range-custom-note">
-              Pick both dates. Until then these figures are over the last 7 days.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

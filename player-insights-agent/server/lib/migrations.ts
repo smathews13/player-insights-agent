@@ -583,6 +583,25 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     ],
     down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_persona_definitions`],
   },
+  {
+    version: 20,
+    name: 'structured service principal grants',
+    /**
+     * Keep the old `capabilities` JSON intact for rolling clients. Existing
+     * rows read a null `legacy_capabilities` as "all capabilities are legacy";
+     * new writes set both columns explicitly. No customer-entered string is
+     * rewritten or discarded by this migration.
+     */
+    statements: [
+      `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions
+         ADD COLUMN IF NOT EXISTS grants JSONB NOT NULL DEFAULT '[]'::jsonb,
+         ADD COLUMN IF NOT EXISTS legacy_capabilities JSONB`,
+    ],
+    down: [
+      `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS legacy_capabilities`,
+      `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS grants`,
+    ],
+  },
 ];
 
 /**

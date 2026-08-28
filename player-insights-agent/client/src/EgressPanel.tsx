@@ -4,11 +4,11 @@ import {
   egressAllowed,
   type EgressChannel,
   type EgressControls,
-  type EgressControlsPayload,
   type EgressPath,
 } from '../../shared/egress-contract';
 import { adoptEgressControls, egressControlsSnapshot } from './egress-policy';
 import { controlAccessibleName, enforcementPill } from './egress-panel';
+import { egressControlsFromResponse, retainPendingEgressDrafts } from './egress-settings-api';
 import type { SettingsSaveState } from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
 
@@ -17,10 +17,12 @@ export const EGRESS_SETTINGS_FORM_ID = 'settings-egress-form';
 function ControlRow({
   path,
   allowed,
+  disabled,
   onChange,
 }: {
   path: EgressPath;
   allowed: boolean;
+  disabled: boolean;
   onChange: (allowed: boolean) => void;
 }) {
   const pill = enforcementPill(path);
@@ -34,8 +36,7 @@ function ControlRow({
         </p>
         <StateSwitch
           checked={allowed}
-          onLabel="Allowed"
-          offLabel="Blocked"
+          disabled={disabled}
           onCheckedChange={onChange}
           aria-label={controlAccessibleName(path)}
         />
@@ -58,10 +59,12 @@ export function EgressPanel({
   const [controls, setControls] = useState<EgressControls>(() => egressControlsSnapshot());
   const [savedControls, setSavedControls] = useState<EgressControls>(() => egressControlsSnapshot());
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
-  const [error, setError] = useState('');
+  const [stored, setStored] = useState<boolean | null>(null);
+  const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const changedCount = controllablePaths().filter(
     (path) => controls[path.channel] !== savedControls[path.channel]
   ).length;
+  const controlsDisabled = state === 'loading' || state === 'saving' || failure?.operation === 'load';
 
   useEffect(() => {
     onDirtyChange(changedCount);
@@ -72,16 +75,16 @@ export function EgressPanel({
     void (async () => {
       try {
         const response = await fetch('/api/egress/controls', { headers: { Accept: 'application/json' } });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const payload = (await response.json()) as EgressControlsPayload;
-        if (!live || !payload?.controls) return;
-        setControls(payload.controls);
-        setSavedControls(payload.controls);
-        adoptEgressControls(payload.controls);
+        const loaded = await egressControlsFromResponse(response, 'loaded');
+        if (!live) return;
+        setControls(loaded.controls);
+        setSavedControls(loaded.controls);
+        setStored(loaded.stored);
+        adoptEgressControls(loaded.controls);
         setState('ready');
       } catch (caught) {
         if (!live) return;
-        setError((caught as Error).message);
+        setFailure({ operation: 'load', message: (caught as Error).message });
         setState('failed');
       }
     })();
@@ -92,21 +95,27 @@ export function EgressPanel({
 
   async function save() {
     setState('saving');
-    setError('');
+    setFailure(null);
     onSaveState({ kind: 'saving' });
+    const changes = controllablePaths().filter((path) => controls[path.channel] !== savedControls[path.channel]);
+    const pending = new Set<EgressChannel>(changes.map((path) => path.channel));
     let latest = savedControls;
     try {
-      for (const path of controllablePaths()) {
+      for (const path of changes) {
         const channel: EgressChannel = path.channel;
-        if (controls[channel] === savedControls[channel]) continue;
         const response = await fetch('/api/egress/admin/controls', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ channel, allowed: controls[channel] }),
         });
-        if (!response.ok) throw new Error(`Could not save ${path.label.toLowerCase()}. HTTP ${response.status}`);
-        const payload = (await response.json()) as EgressControlsPayload;
-        if (payload?.controls) latest = payload.controls;
+        try {
+          const saved = await egressControlsFromResponse(response, 'saved');
+          latest = saved.controls;
+          setStored(saved.stored);
+        } catch (caught) {
+          throw new Error(`Could not save ${path.label.toLowerCase()}. ${(caught as Error).message}`);
+        }
+        pending.delete(channel);
       }
       setControls(latest);
       setSavedControls(latest);
@@ -116,8 +125,12 @@ export function EgressPanel({
       onSaveState({ kind: 'saved', count: changedCount });
     } catch (caught) {
       const message = (caught as Error).message;
-      setError(message);
-      setState('failed');
+      setControls((current) => retainPendingEgressDrafts(current, latest, pending));
+      setSavedControls(latest);
+      adoptEgressControls(latest);
+      onDirtyChange(pending.size);
+      setFailure({ operation: 'save', message });
+      setState('ready');
       onSaveState({ kind: 'failed', message });
     }
   }
@@ -140,20 +153,28 @@ export function EgressPanel({
             key={path.channel}
             path={path}
             allowed={egressAllowed(controls, path.channel)}
-            onChange={(allowed) => setControls((current) => ({ ...current, [path.channel]: allowed }))}
+            disabled={controlsDisabled}
+            onChange={(allowed) => {
+              setFailure((current) => (current?.operation === 'save' ? null : current));
+              setState('ready');
+              setControls((current) => ({ ...current, [path.channel]: allowed }));
+            }}
           />
         ))}
       </div>
       {state === 'loading' ? <p className="settings-status">Loading controls.</p> : null}
       {state === 'saving' ? <p className="settings-status">Saving controls.</p> : null}
+      {stored === false && failure?.operation !== 'load' ? (
+        <p className="settings-status">Stored policy is unavailable. Build defaults are shown.</p>
+      ) : null}
       {state === 'saved' ? (
         <p className="settings-status" role="status">
           Egress controls saved.
         </p>
       ) : null}
-      {error ? (
+      {failure ? (
         <p className="settings-status settings-error" role="alert">
-          {error}
+          {failure.message}
         </p>
       ) : null}
     </form>

@@ -142,9 +142,9 @@ function traffic(overrides: Partial<OpsTrafficPayload> = {}): OpsTrafficPayload 
 }
 
 describe('forecast arithmetic', () => {
-  it('sums every forecastable measured component, applies the cost buffer last, and uses fixed horizons', () => {
+  it('uses the direct component sum with no hidden contingency and fixed horizons', () => {
     const baseline = deriveForecastBaseline(cost(), traffic());
-    const assumptions = { ...baseline.defaults, costBufferPercent: 10 };
+    const assumptions = baseline.defaults;
     const result = calculateForecast(baseline, assumptions);
 
     expect(assumptions).toMatchObject({
@@ -160,13 +160,11 @@ describe('forecast arithmetic', () => {
       ['app-compute', 2],
       ['vector-search', 3],
     ]);
-    expect(result.costBufferDaily).toBeCloseTo(0.8);
     expect(result.horizons.map((horizon) => horizon.days)).toEqual([7, 30, 180]);
-    expect(result.horizons[0].total).toBeCloseTo(61.6);
-    expect(result.horizons[1].total).toBeCloseTo(264);
-    expect(result.horizons[2].total).toBeCloseTo(1584);
-    expect(result.horizons[0].components.at(-1)?.id).toBe('cost-buffer');
-    expect(result.horizons[0].components.at(-1)?.amount).toBeCloseTo(5.6);
+    expect(result.horizons[0].total).toBeCloseTo(56);
+    expect(result.horizons[1].total).toBeCloseTo(240);
+    expect(result.horizons[2].total).toBeCloseTo(1440);
+    expect(JSON.stringify(result)).not.toMatch(/buffer|contingency/i);
   });
 
   it('uses the editable token ratio for serving without changing SQL', () => {
@@ -185,14 +183,12 @@ describe('forecast arithmetic', () => {
       questionsPerUserPerDay: 4.8123,
       activeAppMinutesPerUserPerDay: 0.844,
       averageModelTokensPerQuestion: 52353.594,
-      costBufferPercent: 2.555,
     });
     expect(normalized).toEqual({
       averageDailyUsers: 1,
       questionsPerUserPerDay: 4.8,
       activeAppMinutesPerUserPerDay: 0.8,
       averageModelTokensPerQuestion: 52353.6,
-      costBufferPercent: 2.6,
     });
   });
 });
@@ -228,7 +224,6 @@ describe('suggested assumption evidence', () => {
       min: 420,
       max: 1900,
     });
-    expect(baseline.evidence.costBufferPercent.calculation).toContain('default 0% · user-set');
   });
 
   it('keeps the aggregate formula without inventing a range when observations are unavailable', () => {
@@ -345,7 +340,7 @@ describe('forecast assumption preferences', () => {
     expect(readForecastAssumptions(memory)).toBeNull();
   });
 
-  it('migrates the old contingency field and ignores obsolete Vector Search inputs', () => {
+  it('ignores old contingency and cost-buffer fields without discarding the remaining scenario', () => {
     const memory = store();
     memory.values.set(
       FORECAST_ASSUMPTIONS_KEY,
@@ -357,6 +352,7 @@ describe('forecast assumption preferences', () => {
         governedTableCount: 8,
         vectorSearchCostPerTableDay: 99,
         contingencyPercent: 5.55,
+        costBufferPercent: 12,
       })
     );
     expect(readForecastAssumptions(memory)).toEqual({
@@ -364,7 +360,6 @@ describe('forecast assumption preferences', () => {
       questionsPerUserPerDay: 3.3,
       activeAppMinutesPerUserPerDay: 4.4,
       averageModelTokensPerQuestion: 1000,
-      costBufferPercent: 5.6,
     });
   });
 });

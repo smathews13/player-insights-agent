@@ -394,13 +394,7 @@ export function AnswerCard({
                     `.advanced-row > div > p` in answer-body.css. */}
                 <p>Advanced trace details</p>
               </div>
-              <StateSwitch
-                checked={advanced}
-                onLabel="Shown"
-                offLabel="Hidden"
-                onCheckedChange={setAdvanced}
-                aria-label="Show advanced trace details"
-              />
+              <StateSwitch checked={advanced} onCheckedChange={setAdvanced} aria-label="Show advanced trace details" />
             </div>
             {advanced && (
               <Tabs defaultValue="sql">

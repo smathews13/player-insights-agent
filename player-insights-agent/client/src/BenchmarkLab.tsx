@@ -68,6 +68,7 @@ import { evalScorecard } from './eval-scorecard';
 import { SCORER_CATALOG } from '../../shared/scorer-catalog';
 import type { Scorecard, ScorecardState } from '../../shared/scorecard-contract';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
+import { onBenchmarkSettingsSaved } from './benchmark-settings-events';
 import { compareSides, DEFAULT_BENCHMARK_SETTINGS } from '../../shared/benchmark-settings';
 import { OPERATOR_EVAL_SUITE_ID } from '../../shared/eval-dataset';
 import {
@@ -399,6 +400,7 @@ export function HeldOutEvaluation({
  */
 export function BenchmarkLab() {
   const evalLab = useEvaluationLab();
+  const reloadEvaluationLab = evalLab.reload;
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [availability, setAvailability] = useState<ListAvailability | null>(null);
   const [selectedId, setSelectedId] = useState('');
@@ -411,29 +413,34 @@ export function BenchmarkLab() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/benchmark-settings')
-      .then((response) => benchmarkSettingsFromResponse(response, 'loaded'))
-      .then((payload) => {
-        if (!cancelled) {
-          setBakeOff(payload.settings);
-          setCurrentAgentEndpoint(payload.currentAgentEndpoint);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setBakeOff(DEFAULT_BENCHMARK_SETTINGS);
-          setRunError((error as Error).message || 'Benchmark settings could not be read.');
-        }
-      });
+    const loadBenchmarkSettings = () => {
+      void fetch('/api/benchmark-settings')
+        .then((response) => benchmarkSettingsFromResponse(response, 'loaded'))
+        .then((payload) => {
+          if (!cancelled) {
+            setBakeOff(payload.settings);
+            setCurrentAgentEndpoint(payload.currentAgentEndpoint);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setBakeOff(DEFAULT_BENCHMARK_SETTINGS);
+            setRunError((error as Error).message || 'Benchmark settings could not be read.');
+          }
+        });
+    };
+    loadBenchmarkSettings();
+    const unsubscribe = onBenchmarkSettingsSaved(loadBenchmarkSettings);
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
   useEffect(() => {
     if (reloadToken === 0) return;
-    void evalLab.reload();
-  }, [reloadToken, evalLab.reload]);
+    void reloadEvaluationLab();
+  }, [reloadToken, reloadEvaluationLab]);
 
   useEffect(() => {
     let active = true;

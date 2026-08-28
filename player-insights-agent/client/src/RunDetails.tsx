@@ -10,7 +10,8 @@ import type { EgressChannel } from '../../shared/egress-contract';
 import type { RunTrace } from './app-types';
 import type { TraceStage } from './answer-shape';
 import { PayloadView } from './TraceTimeline';
-import { isTableListingStage, stageTableEntities } from './live-progress';
+import { EntityText } from './DataEntityLinks';
+import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 
 /**
  * Puts a value the page has truncated onto the clipboard whole.
@@ -283,7 +284,12 @@ function StageRawIo({ stages }: { stages: readonly TraceStage[] }) {
             <article className="stage-raw-io-stage" key={stage.id}>
               <header>
                 <b>
-                  <span className="ast-num">{index + 1}.</span> {stage.name}
+                  <span className="ast-num">{index + 1}.</span>{' '}
+                  <EntityText
+                    text={stage.name}
+                    sources={tables.map((name) => ({ name }))}
+                    tools={stageToolNames(stage)}
+                  />
                 </b>
                 <span className={`stage-raw-io-status ${stage.status}`}>{stage.status}</span>
               </header>
@@ -373,8 +379,6 @@ export function RunDetails({
         <span>Advanced</span>
         <StateSwitch
           checked={advanced}
-          onLabel="Shown"
-          offLabel="Hidden"
           onCheckedChange={onAdvancedChange}
           aria-label="Show sanitized raw payloads for this run"
         />

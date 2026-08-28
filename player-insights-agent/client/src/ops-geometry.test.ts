@@ -161,6 +161,24 @@ describe('the traffic groups share the row', () => {
   });
 });
 
+describe('the Cost controls and values share compact rows', () => {
+  it('keeps every resource budget on one non-wrapping row with intentional narrow-width scrolling', () => {
+    const row = rule('.ops-cost-resource-budget-grid');
+    expect(row).toMatch(/display:\s*flex/);
+    expect(row).toMatch(/flex-wrap:\s*nowrap/);
+    expect(row).toMatch(/overflow-x:\s*auto/);
+    expect(rule('.ops-tile-budget')).toMatch(/flex:\s*1\s+0\s+9rem/);
+    expect(rule('.ops-budget-input-row')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto/);
+  });
+
+  it('reserves matching amount and evidence rows for values and honest empty states', () => {
+    expect(rule('.ops-tile')).toMatch(/grid-template-rows:\s*auto\s+minmax\(28px,\s*1fr\)\s+minmax\(1lh,\s*auto\)/);
+    expect(rule('.ops-tile-absent')).toMatch(/min-height:\s*28px/);
+    expect(rule('.ops-tile-absent')).toMatch(/align-items:\s*baseline/);
+    expect(rule('.ops-tile-evidence')).toMatch(/min-height:\s*1lh/);
+  });
+});
+
 describe('nothing on this tab is louder than what it is reporting', () => {
   /**
    * NO ORANGE, which §2 states as a palette rule and this tab was breaking in one

@@ -31,7 +31,7 @@ export const RUN_RUNTIME_ANSWER_LABEL = {
   narrative: 'Narrative',
   figures: 'Figures',
   charts: 'Charts',
-  characterCap: 'Character cap',
+  characterCap: 'Narrative cap',
   figuresOrder: 'Order',
 } as const;
 
@@ -69,9 +69,7 @@ export interface RunRuntimeUsedChip {
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 function optionalInt(value: unknown): number | null {
@@ -159,7 +157,7 @@ function flagValue(value: boolean): string {
  *
  * Loop bounds always, because those three are the ask. Answer flags only when
  * the snapshot actually carried them, so a loop-only row does not invent
- * Takeaway-on. Character cap 0 is Settings' "uncapped", not a missing value.
+ * Takeaway-on. Narrative cap 0 is Settings' "uncapped", not a missing value.
  */
 export function runRuntimeUsedChips(used: RunRuntimeUsed): RunRuntimeUsedChip[] {
   const chips: RunRuntimeUsedChip[] = [

@@ -24,10 +24,12 @@ describe('Settings → Experimental benchmarking cluster', () => {
     expect(markup).not.toContain('Compare two versions');
   });
 
-  it('enables the same controls once Benchmarking is on', () => {
+  it('keeps the same controls guarded until saved settings load', () => {
     const markup = renderToStaticMarkup(<BenchmarkSettingsPanel enabled={true} />);
     expect(markup).toContain('MLflow experiment');
-    expect(markup).not.toContain('disabled=""');
+    expect(markup).toContain('<fieldset class="benchmark-settings-cluster" disabled=""');
+    expect(markup).toContain('Reading benchmarking settings.');
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Add this custom judge<\/button>/);
     expect(markup).not.toContain('build a dataset, score a Genie space');
   });
 

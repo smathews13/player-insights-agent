@@ -1,10 +1,10 @@
 /*
- * The shared time range control: 24h, 7 days, 30 days, Custom.
+ * The shared time range control: 24h, 7 days, 30 days, All time.
  *
  * This partial did not exist. TimeRangeControl.tsx shipped with its markup, its
  * ARIA and its class names, and nothing in the cascade defined a single one of
  * them. AppKit's preflight strips a button's border, padding and background, so
- * four unstyled buttons in a row rendered as one word: "24h7 days30 daysCustom".
+ * four unstyled buttons in a row rendered as one word: "24h7 days30 daysAll time".
  * Both Monitoring and Ops import the component, so both read that way.
  *
  * It lives in its own partial rather than in monitoring.css or ops.css because
@@ -84,46 +84,4 @@
 .time-range-segment:focus-visible {
   outline: 2px solid var(--db-blue-600);
   outline-offset: -2px;
-}
-
-/* ── The custom range's two dates ────────────────────────────────────────── */
-
-.time-range-custom {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.time-range-custom-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-sm);
-  color: var(--db-slate);
-}
-
-.time-range-custom-label input {
-  border: 1px solid var(--db-line-strong);
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  font: inherit;
-  color: var(--db-ink);
-  background: var(--ast-surface-solid);
-}
-
-.time-range-custom-label input:focus-visible {
-  outline: 2px solid var(--db-blue-600);
-  outline-offset: 1px;
-}
-
-/*
- * The window this is actually showing while only one date is set. Reads as the
- * page's own note rather than as an error, because nothing is wrong: the
- * default window applies and the reader is being told which one they have.
- */
-.time-range-custom-note {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--db-slate);
 }

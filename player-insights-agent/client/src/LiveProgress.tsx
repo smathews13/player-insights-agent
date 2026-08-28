@@ -79,7 +79,7 @@ function StepRow({
       <div className="live-step-body">
         <p className="live-step-head">
           <strong>
-            <EntityText text={step.name} sources={step.tables.map((name) => ({ name }))} />
+            <EntityText text={step.name} sources={step.tables.map((name) => ({ name }))} tools={step.tools} />
           </strong>
           <span className="live-step-type">{step.type}</span>
           {/* A step the endpoint has announced and not reported has no duration,
@@ -106,12 +106,13 @@ function StepRow({
         </p>
         {step.detail && (
           <p className="live-step-detail">
-            <EntityText text={step.detail} sources={step.tables.map((name) => ({ name }))} />
+            <EntityText text={step.detail} sources={step.tables.map((name) => ({ name }))} tools={step.tools} />
           </p>
         )}
         {step.result && (
           <p className="live-step-result">
-            <span>returned</span> <EntityText text={step.result} sources={step.tables.map((name) => ({ name }))} />
+            <span>returned</span>{' '}
+            <EntityText text={step.result} sources={step.tables.map((name) => ({ name }))} tools={step.tools} />
           </p>
         )}
         {step.tableListing && step.status !== 'running' && (

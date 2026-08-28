@@ -43,7 +43,7 @@ describe('Settings modal', () => {
     expect(render('runtime')).toContain('Loop structure');
     expect(render('environment')).toContain('<h3>Environment</h3>');
     expect(render('appearance')).toContain('<h3>Appearance</h3>');
-    expect(render('appearance')).toContain('aria-label="Dark"');
+    expect(render('appearance')).toContain('aria-label="Dark mode"');
     expect(render('appearance')).toContain('Body text color');
     expect(render('appearance')).toContain('Secondary text color');
     expect(render('appearance')).toContain('aria-label="Font size L"');
@@ -96,7 +96,8 @@ describe('Settings modal', () => {
     expect(markup).toContain('>Status</th>');
     expect(markup).toContain('>Control</th>');
     expect(markup).toContain('PII egress judge');
-    expect(markup).toContain('Shown');
+    expect(markup).toContain('>On</span>');
+    expect(markup).toContain('>Off</span>');
     expect(markup).toContain('Idle');
     expect(markup).not.toContain('PII egress judge ·');
     expect(markup).not.toContain('SP identities ·');
@@ -109,23 +110,33 @@ describe('Settings modal', () => {
     const markup = render('experimental');
     expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(5);
     expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(5);
+    expect(markup.match(/class="exp-feature-status-column"/g) ?? []).toHaveLength(1);
+    expect(markup.match(/class="exp-feature-control-column"/g) ?? []).toHaveLength(1);
     expect(SETTINGS_STYLES).toMatch(
       /\.exp-feature-table th,\s*\.exp-feature-table td \{[^}]*border-bottom:\s*1px solid var\(--border\)/
     );
+    expect(SETTINGS_STYLES).toMatch(/\.exp-feature-table \{[^}]*table-layout:\s*fixed/);
+    expect(SETTINGS_STYLES).toMatch(/\.exp-feature-status-column \{[^}]*width:\s*92px/);
+    expect(SETTINGS_STYLES).toMatch(/\.exp-feature-control-column \{[^}]*width:\s*140px/);
     expect(SETTINGS_STYLES).toMatch(/\.exp-feature-control-inner \{[^}]*display:\s*flex/);
     expect(SETTINGS_STYLES).toMatch(/\.exp-feature-control \{[^}]*text-align:\s*right/);
     expect(SETTINGS_STYLES).not.toMatch(/\.exp-feature-control \{[^}]*display:\s*(?:inline-)?flex/);
   });
 
-  it('puts a small Experimental badge on each Experimental feature row, not the word in the title', () => {
+  it('puts one shared, fixed-position Experimental badge before every feature name', () => {
     const markup = render('experimental');
     const badges = markup.split('experimental-pane-badge').length - 1;
     expect(badges).toBe(5);
-    expect(markup).toContain('PII egress judge');
-    expect(markup).toContain('SP identities');
-    expect(markup).toContain('Resource tags');
-    expect(markup).toContain('Forecasting');
-    expect(markup).toContain('Benchmarking');
+    const rows = markup.match(/<tr(?: [^>]*)?>[\s\S]*?<\/tr>/g) ?? [];
+    for (const feature of ['PII egress judge', 'SP identities', 'Resource tags', 'Forecasting', 'Benchmarking']) {
+      const row = rows.find((candidate) => candidate.includes(`>${feature}</span>`));
+      expect(row, feature).toBeDefined();
+      expect(row?.match(/class="exp-feature-name"/g) ?? [], feature).toHaveLength(1);
+      expect(row?.indexOf('experimental-pane-badge'), feature).toBeLessThan(row?.indexOf(`>${feature}</span>`) ?? -1);
+    }
+    expect(SETTINGS_STYLES).toMatch(
+      /\.exp-feature-name \{[^}]*display:\s*inline-grid[^}]*grid-template-columns:\s*max-content minmax\(0,\s*1fr\)/
+    );
     expect(markup).not.toContain('Resource tags · Experimental');
   });
 

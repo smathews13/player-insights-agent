@@ -64,7 +64,16 @@ describe('credential-free persona configuration API', () => {
   const write = {
     displayName: 'Finance reader',
     description: 'Governed finance reporting',
-    capabilities: ['SQL warehouse — CAN USE'],
+    capabilities: ['SQL warehouse abc123 — CAN USE'],
+    grants: [
+      {
+        resourceType: 'SQL_WAREHOUSE' as const,
+        resource: 'abc123',
+        action: 'USE' as const,
+        privilege: 'CAN USE',
+      },
+    ],
+    legacyCapabilities: [],
   };
   const saved = {
     id: 'definition-1',

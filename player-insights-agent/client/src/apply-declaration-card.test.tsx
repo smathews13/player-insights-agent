@@ -90,6 +90,7 @@ describe('Connections Apply release request', () => {
   it('marks the model re-log pane as experimental and explains the warning', () => {
     const source = readFileSync(new URL('./ApplyDeclarationCard.tsx', import.meta.url), 'utf8');
     expect(source).toContain('<ExperimentalBadge />');
+    expect(source.indexOf('<ExperimentalBadge />')).toBeLessThan(source.indexOf('Apply → new model version'));
     expect(EXPERIMENTAL_PANE_HINT).toMatch(/may be unstable or may not work as expected/i);
   });
 

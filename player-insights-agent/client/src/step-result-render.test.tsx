@@ -103,7 +103,11 @@ const SEMANTIC = [
   '- signup_date (date)',
   '- snapshot_date (date)',
   '- marketing_region (string)',
-  '',
+  'platform (string)',
+  'platform_generation (string)',
+  'country_code (string)',
+  'favorite_title_code (string)',
+  'last_play_date (date)',
   '[table] <your_catalog>.<your_schema>.data_dictionary (uncertified)',
   'Table <your_catalog>.<your_schema>.data_dictionary. Business definitions and usage guardrails.',
   'Columns:',
@@ -420,12 +424,12 @@ describe('a search_semantics step', () => {
 
   it('draws each match as a row that says what it is and how wide it is', () => {
     expect(result(markup)).toContain('silver_player_profiles');
-    expect(result(markup)).toContain('7 columns');
+    expect(result(markup)).toContain('12 columns');
     expect(result(markup)).toContain('1 column');
     expect(result(markup)).toContain('uncertified');
-    // The catalog is elided and the full name kept in the title, so a reader can
-    // still recover it without opening the raw payload.
-    expect(result(markup)).toContain('…<your_schema>');
+    // The same segmented catalog/schema/table graphic used in answer prose is
+    // kept here rather than collapsing this surface to a separate name recipe.
+    expect(result(markup)).toContain('data-entity-part="schema"><your_schema></span>');
     expect(result(markup)).toContain('title="<your_catalog>.<your_schema>.silver_player_profiles"');
   });
 
@@ -455,10 +459,17 @@ describe('a search_semantics step', () => {
   it('opens the first row and shuts the rest, so the panel is a list and not a wall', () => {
     expect(result(markup).match(/aria-expanded="true"/g)).toHaveLength(1);
     expect(result(markup).match(/aria-expanded="false"/g)).toHaveLength(1);
-    // The opened row's columns, five of them, and a count for the rest.
+    // The opened row is capped at ten; the complete list remains in Raw.
     expect(result(markup)).toContain('>player_id</code>');
-    expect(result(markup)).toContain('2 more');
-    expect(result(markup)).not.toContain('>marketing_region</code>');
+    expect(result(markup)).toContain('class="dag-col-name"');
+    expect(result(markup)).toContain('class="dag-col-type">string</span>');
+    expect(result(markup)).toContain('+ 2 more columns');
+    expect(result(markup)).toContain('>country_code</code>');
+    expect(result(markup)).not.toContain('>favorite_title_code</code>');
+    expect(result(markup)).not.toContain('>last_play_date</code>');
+    expect(result(markup)).toContain('data-entity-part="catalog"');
+    expect(result(markup)).toContain('data-entity-part="schema"');
+    expect(result(markup)).toContain('data-entity-part="table"');
   });
 
   it('keeps what the search said it left out', () => {

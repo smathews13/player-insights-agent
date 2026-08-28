@@ -245,17 +245,14 @@ describe("Monitoring's filter row at three widths", () => {
   });
 
   /**
-   * A sixth segment, or a longer label on an existing one, moves the wrap point
-   * right. This is the assertion that makes the two tests above hold in future:
-   * without it, the next person to widen the control gets a green suite and a
-   * stranded search box, which is exactly how this arrived.
+   * The four supported presets leave a bounded amount of slack before the
+   * search moves to its own line. This catches an unexpectedly widened control
+   * without preserving the space that the retired Custom segment occupied.
    */
   it('leaves the period control room to grow before the breakpoint must move', () => {
     const headroom = searchOwnLineBreakpoint() - wrapViewport();
 
-    // Under one segment's worth of slack. Whoever adds the sixth has to raise the
-    // breakpoint in the same change, and this says so by failing.
-    expect(headroom).toBeLessThan(120);
+    expect(headroom).toBeLessThan(180);
     expect(headroom).toBeGreaterThanOrEqual(0);
   });
 });

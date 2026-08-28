@@ -24,7 +24,7 @@
  *   SQL               usage_metadata.warehouse_id
  *   APPS              usage_metadata.app_name
  *   VECTOR_SEARCH     usage_metadata.endpoint_name
- *   GENIE             no metadata at all, workspace-scoped only
+ *   GENIE             surface and channel, but no Genie space id
  *   LAKEFLOW_CONNECT  no metadata at all, workspace-scoped only
  *
  * The last two are why the Genie and telemetry tiles say they cover the whole
@@ -249,10 +249,11 @@ export const BILLING_TAG_KEY = BILLING_TAG.key;
 export const BILLING_TAG_VALUE = BILLING_TAG.value;
 export const LIST_PRICE_SOURCE = 'system.billing.list_prices' as const;
 
-/** Genie space cards stay dollar-free; LLM spend is a separate stream we cannot join. */
-export const GENIE_LLM_UNAVAILABLE = 'Genie LLM spend not attributable in this model';
+/** Billing can identify the Genie product, but not the configured space that incurred it. */
+export const GENIE_LLM_UNAVAILABLE =
+  'Genie LLM dollars unavailable by space: billing exposes surface and channel, not a Genie space ID.';
 export const GENIE_SQL_NOT_COMPLETE =
-  'SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.';
+  'Only generated SQL is estimated from Query History execution time; Genie model cost is excluded.';
 
 const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']);
 const PRODUCT_REASONS: Record<string, string> = {
@@ -260,7 +261,7 @@ const PRODUCT_REASONS: Record<string, string> = {
   SQL: 'Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.',
   VECTOR_SEARCH: 'Endpoint billing is excluded; the tile uses exact index-tagged Astrolabe calls.',
   APPS: 'Measured by exact app name. App tag presence is a separate organizational signal.',
-  GENIE: 'Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.',
+  GENIE: GENIE_LLM_UNAVAILABLE,
   LAKEBASE: 'Lakebase can be tagged. No documented billing join exists in this model.',
   MLFLOW: 'MLflow experiments can be tagged. They have no Cost tile.',
 };
@@ -930,7 +931,7 @@ export function buildCoverage(input: {
         return {
           product: row.component,
           status: 'propagated',
-          detail: `${row.taggedRows} tagged billing rows for the selected period.`,
+          detail: `${row.taggedRows} tagged billing rows.`,
         };
       }
       if ((row.untaggedRows ?? 0) > 0) {
@@ -944,10 +945,10 @@ export function buildCoverage(input: {
         return {
           product: row.component,
           status: 'delayed',
-          detail: `Billing data through ${through}. Later days in the selected period may still be filling.`,
+          detail: `Billing data through ${through}. Later days may still be filling.`,
         };
       }
-      return { product: row.component, status: 'unused', detail: 'No matching usage rows for the selected period.' };
+      return { product: row.component, status: 'unused', detail: 'No matching usage rows.' };
     });
   return {
     inventoryCount: input.inventoryCount,
@@ -1060,7 +1061,7 @@ export function buildTiles(
 
   for (const component of COST_COMPONENTS) {
     if (component === 'genie') {
-      tiles.push(...genieSpaceTiles(ids, resourceActivity));
+      tiles.push(...genieSpaceTiles(ids, byComponent.get('sql-warehouse'), warehouseAttribution, resourceActivity));
       continue;
     }
     tiles.push(componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity));
@@ -1068,26 +1069,66 @@ export function buildTiles(
   return tiles;
 }
 
-function genieSpaceTiles(ids: CostIdentifiers, activity: readonly ResourceActivity[]): CostTile[] {
+function genieSpaceTiles(
+  ids: CostIdentifiers,
+  warehouseRow: ComponentRow | undefined,
+  warehouseAttribution: WarehouseQueryAttribution,
+  activity: readonly ResourceActivity[]
+): CostTile[] {
+  const warehouseSpend = spendAmountFor(warehouseRow, 'total-in-range');
+  const warehousePricing = pricingFromRow(warehouseRow);
+  const billingRows = warehouseRow ? (warehouseRow.pricedRows ?? 0) + (warehouseRow.unpricedRows ?? 0) : 0;
+  const representedSpaces = new Map<string, string>();
   return ids.genieSpaces.map((space) => {
+    const spaceId = space.id.trim();
+    const representedBy = spaceId ? representedSpaces.get(spaceId) : undefined;
+    if (spaceId && !representedBy) representedSpaces.set(spaceId, space.label);
     const measured = activity.find((item) => item.tileId === space.tileId);
+    const generatedSql = warehouseAttribution.genieSpaces.find((item) => item.spaceId === spaceId);
+    const canAllocate =
+      Boolean(spaceId) &&
+      !representedBy &&
+      warehouseSpend !== null &&
+      warehouseAttribution.complete &&
+      warehouseAttribution.totalExecutionMs > 0 &&
+      Boolean(generatedSql && generatedSql.executionMs > 0);
+    const amount =
+      canAllocate && generatedSql
+        ? (warehouseSpend * generatedSql.executionMs) / warehouseAttribution.totalExecutionMs
+        : null;
+    const sqlGap = representedBy
+      ? `This Genie space is already represented by ${representedBy}; cost is not repeated`
+      : !spaceId
+        ? 'Resource identifier unavailable'
+        : warehouseSpend === null
+          ? unpricedUnavailable(warehousePricing) ||
+            'Generated SQL cost unavailable: no priced SQL warehouse billing rows'
+          : !warehouseAttribution.complete
+            ? 'Generated SQL cost unavailable: incomplete Query History'
+            : warehouseAttribution.totalExecutionMs <= 0
+              ? 'Generated SQL cost unavailable: Query History has no execution-time denominator'
+              : !generatedSql || generatedSql.executionMs <= 0
+                ? 'Generated SQL cost unavailable: no Query History execution matched this Genie space'
+                : '';
+    const unavailable = sqlGap ? `${sqlGap}. ${GENIE_LLM_UNAVAILABLE}` : GENIE_LLM_UNAVAILABLE;
     return {
       id: space.tileId,
       label: space.label,
-      resourceId: space.id.trim(),
-      resourceKind: space.id.trim() ? ('genie-space' as const) : '',
-      quality: 'unknown' as const,
-      amount: null,
+      resourceId: spaceId,
+      resourceKind: spaceId ? ('genie-space' as const) : '',
+      quality: amount === null ? ('unknown' as const) : ('estimate' as const),
+      amount,
       basis: 'total-in-range' as const,
-      population: 'This space',
-      attribution: 'unavailable' as const,
-      pricing: { ...EMPTY_PRICING },
-      unavailable: space.id.trim() ? 'Genie LLM dollars unavailable' : 'Resource identifier unavailable',
-      remedy: space.id.trim() ? '' : `Configure the ${space.label} space.`,
+      population: 'Generated SQL share',
+      attribution: amount === null ? ('unavailable' as const) : ('deployment' as const),
+      pricing: warehousePricing,
+      unavailable: amount === null ? unavailable : '',
+      remedy: spaceId ? '' : `Configure the ${space.label} space.`,
       note: GENIE_SQL_NOT_COMPLETE,
       evidence: {
-        billingRows: null,
+        billingRows: amount === null ? null : billingRows,
         astrolabeQueries: null,
+        queryHistoryComplete: warehouseAttribution.complete,
         activity: measured
           ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: 'requests' as const }
           : null,
@@ -1106,20 +1147,20 @@ function appComputeAbsence(state: AppBillingTagState): { unavailable: string; re
   const pair = billingTagPair();
   if (state === 'matched') {
     return {
-      unavailable: 'No Apps billing rows matched this app for the selected period.',
+      unavailable: 'No Apps billing rows matched this app.',
       remedy: '',
       note: `${pair} is on this app; Apps billing is matched by app name.`,
     };
   }
   if (state === 'missing') {
     return {
-      unavailable: 'No Apps billing rows matched this app for the selected period.',
+      unavailable: 'No Apps billing rows matched this app.',
       remedy: '',
       note: `${pair} is not on this app; Apps billing is still matched by app name.`,
     };
   }
   return {
-    unavailable: 'No Apps billing rows matched this app for the selected period.',
+    unavailable: 'No Apps billing rows matched this app.',
     remedy: '',
     note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`,
   };
@@ -1363,9 +1404,7 @@ export function buildQuestionAttribution(
         unknownPart(
           'serving-endpoint',
           'Model serving',
-          run.totalTokens === null
-            ? 'This run recorded no token count.'
-            : 'No endpoint spend was measured for the selected period.'
+          run.totalTokens === null ? 'This run recorded no token count.' : 'No endpoint spend was measured.'
         )
       );
     }
@@ -1379,9 +1418,7 @@ export function buildQuestionAttribution(
         unavailable: '',
       });
     } else {
-      parts.push(
-        unknownPart('sql-warehouse', 'SQL warehouse', 'No warehouse spend was available for the selected period.')
-      );
+      parts.push(unknownPart('sql-warehouse', 'SQL warehouse', 'No warehouse spend was available.'));
     }
 
     parts.push(
@@ -1403,6 +1440,6 @@ export function buildQuestionAttribution(
     tokenCoveredRuns,
     totalRecordedTokens,
     limited: runsInRange > attributed.length,
-    reason: runsInRange === 0 ? 'No completed runs were recorded for the selected period.' : '',
+    reason: runsInRange === 0 ? 'No completed runs were recorded.' : '',
   };
 }

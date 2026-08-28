@@ -32,13 +32,7 @@ interface ApplyResponse {
   detail?: string;
 }
 
-export function ApplyDeclarationCard({
-  notebook,
-  onRefresh,
-}: {
-  notebook?: NotebookPanel;
-  onRefresh?: () => void;
-}) {
+export function ApplyDeclarationCard({ notebook, onRefresh }: { notebook?: NotebookPanel; onRefresh?: () => void }) {
   const role = useRole();
   const isAdmin = showsAdminSurfaces(role.state);
   const [plan, setPlan] = useState<ApplyResponse | null>(null);
@@ -152,8 +146,8 @@ export function ApplyDeclarationCard({
     <section className="plane-card" aria-label="Apply model settings" data-testid="apply-declaration">
       <div className="plane-card-head">
         <span className="plane-card-title">
-          Apply → new model version
           <ExperimentalBadge />
+          Apply → new model version
         </span>
         <span className="plane-card-head-aside">
           <RefreshButton busy={busy} onRefresh={() => void load()} />

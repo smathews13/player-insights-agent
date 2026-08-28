@@ -44,6 +44,7 @@ describe('Ops Query History attribution', () => {
       totalQueries: 3,
       astrolabeExecutionMs: 125,
       totalExecutionMs: 200,
+      genieSpaces: [],
     });
     expect(listQueries).toHaveBeenNthCalledWith(
       2,
@@ -140,6 +141,7 @@ describe('Ops Query History attribution', () => {
       totalQueries: 3,
       astrolabeExecutionMs: 40,
       totalExecutionMs: 60,
+      genieSpaces: [],
     });
     expect(listQueries).toHaveBeenCalledTimes(3);
     const first = listQueries.mock.calls[0]?.[0] as { startTimeMs: number; endTimeMs: number };
@@ -166,5 +168,40 @@ describe('Ops Query History attribution', () => {
       astrolabeExecutionMs: 25,
       totalExecutionMs: 25,
     });
+  });
+
+  it('separates generated SQL by Genie space and never also counts it as Astrolabe SQL', async () => {
+    const genieRow = (id: string, spaceId: string, executionMs: number) => ({
+      ...row(id, executionMs, 'Astrolabe'),
+      query_source: { genie_space_id: spaceId },
+    });
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: {
+        listQueries: vi.fn().mockResolvedValue({
+          res: [
+            genieRow('data-1', 'space-data', 20),
+            genieRow('data-2', 'space-data', 30),
+            genieRow('dictionary-1', 'space-dictionary', 10),
+            row('app-1', 40, 'Astrolabe'),
+          ],
+          has_next_page: false,
+        }),
+      },
+    });
+
+    expect(result).toMatchObject({
+      complete: true,
+      astrolabeQueries: 1,
+      astrolabeExecutionMs: 40,
+      totalQueries: 4,
+      totalExecutionMs: 100,
+    });
+    expect(result.genieSpaces).toEqual([
+      { spaceId: 'space-data', queries: 2, executionMs: 50 },
+      { spaceId: 'space-dictionary', queries: 1, executionMs: 10 },
+    ]);
   });
 });

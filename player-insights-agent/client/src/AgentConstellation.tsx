@@ -80,6 +80,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StageStatus, TraceStage } from './answer-shape';
 import { formatDuration } from './benchmark-summary';
 import { formatMs } from './trace-timeline';
+import { EntityText } from './DataEntityLinks';
+import { stageTableEntities, stageToolNames } from './live-progress';
 
 /**
  * A recoloured mark as a data URL, for the one seating that cannot inline it.
@@ -366,7 +368,13 @@ function StepRail({
                   {path.numbers[index].label}
                 </span>
                 <span className="step-rail-say">
-                  <span className="step-rail-name">{stage.name}</span>
+                  <span className="step-rail-name">
+                    <EntityText
+                      text={stage.name}
+                      sources={stageTableEntities(stage).map((name) => ({ name }))}
+                      tools={stageToolNames(stage)}
+                    />
+                  </span>
                   <span className="step-rail-meta">
                     {/* The product's own mark for a tool call, and the agent's mark
                         for a decision -- which is what the sparkle meant on the
@@ -593,12 +601,11 @@ export function AgentPathConstellation({
   const path = buildPathConstellation(stages, beating ? activeIndex : -1, pathVariant(thread, turn));
   const currentStar = current ? path.stars[activeIndex] : null;
   const shownProduct = shownIndex >= 0 ? starProduct(path.stars[shownIndex]?.tool ?? '') : null;
-  const statusDuration =
-    beating
-      ? `${Math.max(0, Math.floor(elapsedMs / 1000))}s`
-      : activeIndex === -1 && totalMs !== null
-        ? formatDuration(totalMs)
-        : null;
+  const statusDuration = beating
+    ? `${Math.max(0, Math.floor(elapsedMs / 1000))}s`
+    : activeIndex === -1 && totalMs !== null
+      ? formatDuration(totalMs)
+      : null;
   /*
    * WHERE A SETTLED RUN ENDED, when it did not end cleanly. The band stays up
    * after the run now, so the one line on it has to survive a run that died: over
@@ -648,95 +655,93 @@ export function AgentPathConstellation({
           }`;
   return (
     <>
-    <div className="ast-sky ast-sky-path">
-      <svg
-        ref={canvasRef}
-        role="group"
-        aria-label="Agent steps"
-        className="ast-sky-canvas"
-        viewBox={`0 0 ${path.width} ${path.height}`}
-        preserveAspectRatio="xMidYMin meet"
-        fill="none"
-      >
-        <g className="ast-sky-dust" aria-hidden="true">
-          {[
-            [36, 0.16],
-            [274, 0.23],
-            [65, 0.34],
-            [293, 0.45],
-            [29, 0.58],
-            [263, 0.66],
-            [77, 0.78],
-            [286, 0.88],
-          ].map(([x, fraction]) => (
-            <circle key={`${x}-${fraction}`} cx={x} cy={Math.round(path.height * fraction)} r="1.5" />
-          ))}
-        </g>
-        <g className="ast-links">
-          {path.links.map((link) => (
-            <Link key={`${link.from}-${link.to}`} link={link} />
-          ))}
-        </g>
-        {path.stars.map((star, index) => (
-          <g
-            key={star.id}
-            className={`ast-star-select ${shownIndex === index ? 'selected' : ''}`}
-            role="button"
-            tabIndex={0}
-            aria-label={`Select step ${path.numbers[index].label}: ${stages[index].name}`}
-            onClick={() => pin(stages[index].id)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') pin(stages[index].id);
-            }}
-          >
-            {/* The wrapper is permanent. Switching between a wrapper and a bare
+      <div className="ast-sky ast-sky-path">
+        <svg
+          ref={canvasRef}
+          role="group"
+          aria-label="Agent steps"
+          className="ast-sky-canvas"
+          viewBox={`0 0 ${path.width} ${path.height}`}
+          preserveAspectRatio="xMidYMin meet"
+          fill="none"
+        >
+          <g className="ast-sky-dust" aria-hidden="true">
+            {[
+              [36, 0.16],
+              [274, 0.23],
+              [65, 0.34],
+              [293, 0.45],
+              [29, 0.58],
+              [263, 0.66],
+              [77, 0.78],
+              [286, 0.88],
+            ].map(([x, fraction]) => (
+              <circle key={`${x}-${fraction}`} cx={x} cy={Math.round(path.height * fraction)} r="1.5" />
+            ))}
+          </g>
+          <g className="ast-links">
+            {path.links.map((link) => (
+              <Link key={`${link.from}-${link.to}`} link={link} />
+            ))}
+          </g>
+          {path.stars.map((star, index) => (
+            <g
+              key={star.id}
+              className={`ast-star-select ${shownIndex === index ? 'selected' : ''}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`Select step ${path.numbers[index].label}: ${stages[index].name}`}
+              onClick={() => pin(stages[index].id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') pin(stages[index].id);
+              }}
+            >
+              {/* The wrapper is permanent. Switching between a wrapper and a bare
                 Star remounted the glyph exactly when a running step became an
                 error, so the path appeared to stutter at the error boundary. */}
-            <g
-              className={beating && activeIndex === index ? 'ast-anim-center-pulse' : undefined}
-              style={
-                beating && activeIndex === index ? { transformOrigin: `${star.x}px ${star.y}px` } : undefined
-              }
-            >
-              <Star star={star} tone="dark" path />
+              <g
+                className={beating && activeIndex === index ? 'ast-anim-center-pulse' : undefined}
+                style={beating && activeIndex === index ? { transformOrigin: `${star.x}px ${star.y}px` } : undefined}
+              >
+                <Star star={star} tone="dark" path />
+              </g>
             </g>
-          </g>
-        ))}
-        {/* The step in progress is marked twice: its existing glyph beats and a
+          ))}
+          {/* The step in progress is marked twice: its existing glyph beats and a
             ring breathes around it. Two marks rather than one, because a reader
             who cannot see the scale change still sees the ring, and because the
             ring is what survives at the small end of this band's rendered width.
             On a run that has stopped the frontier keeps the ring and loses both the
             beat and the larger glyph -- the newest step is still worth marking, and
             marking it is not the same as claiming it is happening. */}
-        {currentStar && (
-          <>
-            <circle
-              className={`ast-star-ring ${beating ? 'ast-anim-star-pulse' : ''}`.trim()}
-              cx={currentStar.x}
-              cy={currentStar.y}
-              r={SELECTED_RING}
-              style={beating ? { transformOrigin: `${currentStar.x}px ${currentStar.y}px` } : undefined}
-            />
-          </>
-        )}
-        <g className="ast-sky-num">
-          {path.numbers.map((number) => (
-            <text key={number.step} x={number.x} y={number.y} textAnchor={number.anchor}>
-              {number.label}
-            </text>
-          ))}
-        </g>
-      </svg>
-      {/*
+          {currentStar && (
+            <>
+              <circle
+                className={`ast-star-ring ${beating ? 'ast-anim-star-pulse' : ''}`.trim()}
+                cx={currentStar.x}
+                cy={currentStar.y}
+                r={SELECTED_RING}
+                style={beating ? { transformOrigin: `${currentStar.x}px ${currentStar.y}px` } : undefined}
+              />
+            </>
+          )}
+          <g className="ast-sky-num">
+            {path.numbers.map((number) => (
+              <text key={number.step} x={number.x} y={number.y} textAnchor={number.anchor}>
+                {number.label}
+              </text>
+            ))}
+          </g>
+        </svg>
+        {/*
         The one live region on this surface, and the visible label doubles as it.
         A run in flight names the step it is inside; a settled one names how it
         ended, rather than leaving a counter running or a step described as
         happening. The elapsed figure is the caller's measured elapsed in DM Mono,
         because it is a figure in a right-aligned meta slot.
       */}
-      <p ref={statusRef} className="ast-sky-status" aria-live="polite">
-        {/*
+        <p ref={statusRef} className="ast-sky-status" aria-live="polite">
+          {/*
           THE SLOT FLICKERS WHILE THE STEP IT NAMES IS THE ONE BEING WORKED ON,
           and holds the step's real mark the rest of the time.
 
@@ -755,40 +760,40 @@ export function AgentPathConstellation({
           step is happening -- the same substitution the ring refuses two comments
           up. Pinned, or run over: the real mark.
         */}
-        <span className="ast-sky-status-mark" aria-hidden="true">
-          {flickering ? (
-            <ConceptFlicker seat="status" />
-          ) : shownProduct ? (
-            <BrandIcon product={shownProduct} size={12} tone="dark" />
-          ) : (
-            <AstrolabeMark size={11} ink="dark" />
-          )}
-        </span>
-        <span className="ast-sky-status-text">{statusText}</span>
-        {statusDuration && (
-          <span
-            className="ast-num ast-sky-status-elapsed"
-            title={activeIndex === -1 && totalMs !== null ? `${totalMs.toLocaleString()} milliseconds` : undefined}
-          >
-            {statusDuration}
+          <span className="ast-sky-status-mark" aria-hidden="true">
+            {flickering ? (
+              <ConceptFlicker seat="status" />
+            ) : shownProduct ? (
+              <BrandIcon product={shownProduct} size={12} tone="dark" />
+            ) : (
+              <AstrolabeMark size={11} ink="dark" />
+            )}
           </span>
-        )}
-      </p>
-    </div>
-    {/* The same run, as daylight. A sibling rather than a child of the band, so
+          <span className="ast-sky-status-text">{statusText}</span>
+          {statusDuration && (
+            <span
+              className="ast-num ast-sky-status-elapsed"
+              title={activeIndex === -1 && totalMs !== null ? `${totalMs.toLocaleString()} milliseconds` : undefined}
+            >
+              {statusDuration}
+            </span>
+          )}
+        </p>
+      </div>
+      {/* The same run, as daylight. A sibling rather than a child of the band, so
         the two are alternatives rather than one nested in the other, and the
         column they sit in lays out exactly one of them. */}
-    <StepRail
-      stages={stages}
-      path={path}
-      shownIndex={shownIndex}
-      activeIndex={activeIndex}
-      beating={beating}
-      elapsedMs={elapsedMs}
-      statusText={statusText}
-      statusDuration={statusDuration}
-      onPick={pin}
-    />
+      <StepRail
+        stages={stages}
+        path={path}
+        shownIndex={shownIndex}
+        activeIndex={activeIndex}
+        beating={beating}
+        elapsedMs={elapsedMs}
+        statusText={statusText}
+        statusDuration={statusDuration}
+        onPick={pin}
+      />
     </>
   );
 }

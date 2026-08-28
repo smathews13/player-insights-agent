@@ -661,8 +661,9 @@
   font-size: var(--ast-fs-12);
 }
 .answer-subheading {
-  font-size: 0.94em;
-  color: var(--ast-text-secondary);
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--ast-text);
 }
 .answer-list {
   padding-left: 0;
@@ -712,6 +713,12 @@ ol.answer-list {
      note beside `.entity-token` at the top of this file. */
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+}
+.semantic-inline-code {
+  display: inline-block;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 /* A link the agent wrote, in the action colour with a solid underline. Solid, and
    not the dotted rule the entity links carry: dotted now means "this names a table
@@ -830,7 +837,8 @@ ol.answer-list {
      when they are not -- which is what makes the wrapper's scroll conditional
      rather than always on. */
   width: 100%;
-  font-size: var(--ast-fs-11);
+  font-size: var(--ast-fs-12);
+  line-height: var(--ast-lh-body);
   /* Prose in the card is #3A3838; a figure being compared against the figure
      under it is read as data and takes the body ink. */
   color: var(--ast-text);
@@ -843,11 +851,12 @@ ol.answer-list {
    with them is a heading being read twice. Same reasoning and same values as
    `.table-scroll thead th`. */
 .answer-table thead th {
-  padding: 7px 14px;
-  background: transparent;
+  padding: 8px 14px;
+  background: var(--ast-neutral-fill);
   border-bottom: 1px solid var(--ast-hairline);
-  font-size: 10px;
+  font-size: var(--ast-fs-11);
   font-weight: 700;
+  line-height: 1.35;
   letter-spacing: var(--ast-tracking-eyebrow);
   text-transform: uppercase;
   color: var(--ast-text-secondary);
@@ -858,7 +867,9 @@ ol.answer-list {
   vertical-align: bottom;
 }
 .answer-table tbody td {
-  padding: 8px 14px;
+  padding: 9px 14px;
+  font-size: var(--ast-fs-12);
+  line-height: var(--ast-lh-body);
   /* Centred rather than top-aligned. A row is one line tall wherever its cells
      are single values, and the rows that are not are tall because ONE prose cell
      wrapped: with `top`, the figures beside it sat at the ceiling of an otherwise
@@ -938,7 +949,7 @@ ol.answer-list {
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: normal;
-  font-size: var(--ast-fs-11);
+  font-size: var(--ast-fs-12);
 }
 /* A cell of prose -- a country, a phase name, a note -- breaks where it has to.
    `anywhere` is inherited from the card and is left alone here: these cells hold

@@ -505,8 +505,11 @@ describe('whether each build stamp names something that is working', () => {
   const serving = (app: string, compute: string, message = '') => ({ app, compute, message });
 
   function health(over: Partial<Parameters<typeof buildFacts>[0]>) {
-    const [app, orchestrator] = buildFacts({ appBuildSha: 'aaaaaaaa11', modelBuildSha: 'bbbbbbbb22', ...over })
-      .artifacts;
+    const [app, orchestrator] = buildFacts({
+      appBuildSha: 'aaaaaaaa11',
+      modelBuildSha: 'bbbbbbbb22',
+      ...over,
+    }).artifacts;
     return { app, orchestrator };
   }
 
@@ -696,6 +699,15 @@ describe('the configuration plane survived being restyled', () => {
     // And no inline style objects, which is how the hex got in and how it would
     // come back.
     expect(component(name)).not.toMatch(/CSSProperties/);
+  });
+
+  it('places the Notebook experimental badge before its feature name', () => {
+    const source = component('NotebookCard.tsx');
+    const title = source.slice(
+      source.indexOf('className="plane-card-title"'),
+      source.indexOf('className="plane-card-head-aside"')
+    );
+    expect(title.indexOf('<ExperimentalBadge />')).toBeLessThan(title.indexOf('Notebook'));
   });
 
   /**

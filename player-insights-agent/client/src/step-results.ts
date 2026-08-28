@@ -465,7 +465,10 @@ export function fieldDefinition(result: GenieResult): FieldDefinition | null {
 }
 
 /** `[table] catalog.schema.object (uncertified, Northwind)` */
-const ENTRY_HEAD = /^\[([a-z_]+)\]\s+(\S+)(?:\s+\(([^)]*)\))?\s*$/;
+const ENTRY_HEAD = /^\[([a-z_]+)\]\s+(\S+?)(?:\s+\(([^)]*)\))?\s*$/;
+
+/** `Table catalog.schema.object. Description`, including a table-only block head. */
+const TABLE_ENTRY = /^Table\s+((?:`?[^.`\s]+`?\.){2}`?[^.`\s]+`?)\.?(?:\s+(.*))?$/i;
 
 /**
  * `- player_id (string)`, or with the type's own brackets, `- rate (decimal(5,4))`.
@@ -476,11 +479,9 @@ const ENTRY_HEAD = /^\[([a-z_]+)\]\s+(\S+)(?:\s+\(([^)]*)\))?\s*$/;
  * appended it to the entry's description, so one row's `decimal(5,4)` arrived on
  * the end of the sentence above the columns.
  */
-const ENTRY_COLUMN = /^-\s+(\S+)\s+\((.+)\)(?::\s*(.*))?$/;
+const ENTRY_COLUMN = /^-?\s*(\S+)\s+\((.+)\)(?::\s*(.*))?$/;
 
 /** `Table catalog.schema.object.` — the name, which the row's own heading states. */
-const ENTRY_LEAD = /^Table\s+\S+\.\s*/;
-
 /**
  * The notices `RetrievalOutcome.rendered` appends to EVERY result, unconditionally.
  *
@@ -512,29 +513,88 @@ const STANDING_NOTICES = [/^SEMANTIC SEARCH RESULTS\b/, /^What appears above was
 export function semanticResult(text: string): SemanticResult | null {
   const entries: SemanticEntry[] = [];
   const notes: string[] = [];
-  for (const block of blocksOf(text)) {
-    const lines = block.split('\n');
-    const head = ENTRY_HEAD.exec(lines[0]);
-    if (!head) {
-      if (!STANDING_NOTICES.some((notice) => notice.test(block))) notes.push(block);
+  type Draft = SemanticEntry & { readingColumns: boolean };
+  let current: Draft | null = null;
+  let skippingNotice = false;
+
+  const flush = () => {
+    if (!current) return;
+    const { readingColumns: _readingColumns, ...entry } = current;
+    entries.push(entry);
+    current = null;
+  };
+
+  for (const sourceLine of text.split(/\r?\n/)) {
+    const line = sourceLine.trim();
+    const head = ENTRY_HEAD.exec(line);
+    const tableLine = TABLE_ENTRY.exec(line);
+
+    if (head) {
+      flush();
+      skippingNotice = false;
+      const tags = head[3]?.split(',').map((tag) => tag.trim()) ?? [];
+      current = {
+        kind: head[1],
+        name: head[2].replaceAll('`', ''),
+        certification: tags[0] || null,
+        description: '',
+        columns: [],
+        readingColumns: false,
+      };
       continue;
     }
-    const tags = head[3]?.split(',').map((tag) => tag.trim()) ?? [];
-    const columns: SemanticColumn[] = [];
-    const described: string[] = [];
-    for (const line of lines.slice(1)) {
-      const column = ENTRY_COLUMN.exec(line.trim());
-      if (column) columns.push({ name: column[1], type: column[2] });
-      else if (line.trim() !== 'Columns:') described.push(line.trim());
+
+    if (tableLine) {
+      const name = tableLine[1].replaceAll('`', '');
+      const description = tableLine[2]?.trim() ?? '';
+      if (!current || current.name.toLowerCase() !== name.toLowerCase()) {
+        flush();
+        current = {
+          kind: 'table',
+          name,
+          certification: null,
+          description,
+          columns: [],
+          readingColumns: false,
+        };
+      } else if (description) {
+        current.description = [current.description, description].filter(Boolean).join(' ');
+      }
+      skippingNotice = false;
+      continue;
     }
-    entries.push({
-      kind: head[1],
-      name: head[2],
-      certification: tags[0] || null,
-      description: described.join(' ').replace(ENTRY_LEAD, '').trim(),
-      columns,
-    });
+
+    if (STANDING_NOTICES.some((notice) => notice.test(line))) {
+      skippingNotice = true;
+      continue;
+    }
+    if (line === '') {
+      skippingNotice = false;
+      continue;
+    }
+    if (skippingNotice) continue;
+
+    if (!current) {
+      notes.push(line);
+      continue;
+    }
+    if (/^Columns:\s*$/i.test(line)) {
+      current.readingColumns = true;
+      continue;
+    }
+    const column = current.readingColumns ? ENTRY_COLUMN.exec(line) : null;
+    if (column) {
+      current.columns.push({ name: column[1], type: column[2] });
+      continue;
+    }
+    if (current.readingColumns) {
+      flush();
+      notes.push(line);
+      continue;
+    }
+    current.description = [current.description, line].filter(Boolean).join(' ');
   }
+  flush();
   if (entries.length === 0) return null;
   const kinds = new Set(entries.map((entry) => entry.kind));
   return {
@@ -664,7 +724,10 @@ const CLAUSE_KEYWORDS = [
   'WITH',
 ];
 
-const CLAUSE_PATTERN = new RegExp(`\\b(${CLAUSE_KEYWORDS.map((word) => word.replace(/ /g, '\\s+')).join('|')})\\b`, 'gi');
+const CLAUSE_PATTERN = new RegExp(
+  `\\b(${CLAUSE_KEYWORDS.map((word) => word.replace(/ /g, '\\s+')).join('|')})\\b`,
+  'gi'
+);
 
 /**
  * Whether a position in a statement is inside quotes or backticks.
@@ -750,7 +813,7 @@ const HIGHLIGHT_KEYWORDS = [
 
 const HIGHLIGHT_PATTERN = new RegExp(
   `\\b(${HIGHLIGHT_KEYWORDS.map((word) => word.replace(/ /g, '\\s+')).join('|')})\\b`,
-  'gi',
+  'gi'
 );
 
 /** A stretch of one SQL line, either a keyword or the text between keywords. */

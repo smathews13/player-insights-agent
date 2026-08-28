@@ -174,8 +174,8 @@ function filterValue(filters: MonitoringFilters, param: (typeof FILTER_PARAMS)[n
  *
  * Every parameter this module does not own is copied across untouched. That is
  * the whole contract with the shared range control and with the drawer: a
- * reader who changes Outcome while a drawer is open and a custom range is set
- * keeps both.
+ * reader who changes Outcome while a drawer is open keeps both the drawer and
+ * the selected preset.
  */
 export function withFilters(search: string, filters: MonitoringFilters): string {
   const next = new URLSearchParams(search);

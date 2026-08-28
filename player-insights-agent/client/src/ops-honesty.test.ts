@@ -254,12 +254,12 @@ describe('the quality of a number', () => {
     expect(absent.remedy).toBe('Set A_VARIABLE.');
   });
 
-  it('says whether a figure is a total or a daily rate', () => {
+  it('labels only a daily rate because the page control supplies the range context', () => {
     // The vector search endpoint is billed by the hour whether anything queries
     // it or not. Its daily rate read as a range total understates it by however
     // many days the range covers.
     expect(tileView(tile({ basis: 'per-day' }), 'USD').basisLabel).toBe(BASIS_LABEL['per-day']);
-    expect(tileView(tile({ basis: 'total-in-range' }), 'USD').basisLabel).toBe('selected period');
+    expect(tileView(tile({ basis: 'total-in-range' }), 'USD').basisLabel).toBe('');
     expect(BASIS_LABEL['per-day']).not.toBe(BASIS_LABEL['total-in-range']);
   });
 });
@@ -714,7 +714,7 @@ describe('cost honesty and coverage copy', () => {
         rangeMayStillFill: true,
         currencyConsistent: true,
       })
-    ).toContain('later days in the selected period may still be filling');
+    ).toContain('later days may still be filling');
   });
 
   it('maps coverage by product contract, never by prose or a nearby tile', () => {

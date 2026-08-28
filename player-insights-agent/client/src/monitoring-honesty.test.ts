@@ -111,6 +111,10 @@ describe('a rate never renders without its population', () => {
     expect(tile.caption).toBe('');
   });
 
+  it('uses range language without the retired selected-period wording', () => {
+    expect(tokensTile({ total: 0, metredRuns: 0, totalRuns: 0 }).absence).toBe('No runs in this range');
+  });
+
   /**
    * A mark and three words, where this used to be a paragraph.
    *

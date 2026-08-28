@@ -33,7 +33,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { MonitoringQuestionsPayload } from '../../shared/monitoring-contract';
-import { CUSTOM_FROM_PARAM, CUSTOM_TO_PARAM, rangeFromParams, type ReadableParams } from './time-range';
+import { rangeFromParams, type ReadableParams } from './time-range';
 
 type Listener = () => void;
 
@@ -62,16 +62,11 @@ function subscribe(listener: Listener): () => void {
  *
  * The computed `from`/`to` timestamps move every time the clock is read, so
  * they cannot be the key: a remount a second later would look like a different
- * window and pay for the scan again. The word in the URL (`7d`, `24h`, a
- * custom pair) is the question the reader asked, and it is what a later visit
- * is still asking.
+ * window and pay for the scan again. The supported preset in the URL is the
+ * question the reader asked, and it is what a later visit is still asking.
  */
 export function monitoringRangeId(params: ReadableParams): string {
-  const key = rangeFromParams(params);
-  if (key !== 'custom') return key;
-  const from = (params.get(CUSTOM_FROM_PARAM) ?? '').trim();
-  const to = (params.get(CUSTOM_TO_PARAM) ?? '').trim();
-  return `custom:${from}:${to}`;
+  return rangeFromParams(params);
 }
 
 /**
@@ -178,11 +173,7 @@ export interface MonitoringQuestionsSession {
  * The first visit of a range starts the read; every visit after that restores
  * the same store. Refresh is the only thing that reads again.
  */
-export function useMonitoringQuestions(
-  rangeId: string,
-  from: string,
-  to: string
-): MonitoringQuestionsSession {
+export function useMonitoringQuestions(rangeId: string, from: string, to: string): MonitoringQuestionsSession {
   const [, bump] = useState(0);
   useEffect(() => subscribe(() => bump((count) => count + 1)), []);
 

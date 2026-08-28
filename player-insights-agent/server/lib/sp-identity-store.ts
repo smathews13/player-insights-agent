@@ -19,7 +19,10 @@ import { randomUUID } from 'node:crypto';
 import { appTable } from '../../shared/app-schema';
 import {
   SP_IDENTITY_ENABLED_SETTING,
+  SpGrantSchema,
+  spGrantSummary,
   type SpAssignment,
+  type SpGrant,
   type SpPersona,
   type SpPersonaDefinition,
   type SpPersonaDefinitionWrite,
@@ -85,12 +88,38 @@ function capabilities(value: unknown): string[] {
   }
 }
 
+function grants(value: unknown): SpGrant[] {
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((entry) => {
+    const grant = SpGrantSchema.safeParse(entry);
+    return grant.success ? [grant.data] : [];
+  });
+}
+
 function definitionFromRow(row: Record<string, unknown>): SpPersonaDefinition {
+  const storedCapabilities = capabilities(row.capabilities);
+  const structured = grants(row.grants);
+  const legacy =
+    row.legacy_capabilities === null || row.legacy_capabilities === undefined
+      ? structured.length === 0
+        ? storedCapabilities
+        : []
+      : capabilities(row.legacy_capabilities);
   return {
     id: text(row.id),
     displayName: text(row.display_name),
     description: text(row.description),
-    capabilities: capabilities(row.capabilities),
+    capabilities: storedCapabilities,
+    grants: structured,
+    legacyCapabilities: legacy,
     updatedAt: iso(row.updated_at),
     updatedBy: text(row.updated_by),
   };
@@ -233,7 +262,7 @@ export async function deleteSpPersona(client: LakebaseReader, id: string): Promi
 export async function listSpPersonaDefinitions(client: LakebaseReader): Promise<SpPersonaDefinition[]> {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+      `SELECT id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
          FROM ${SP_PERSONA_DEFINITIONS_TABLE}
         ORDER BY display_name, id`
     );
@@ -247,7 +276,7 @@ export async function listSpPersonaDefinitions(client: LakebaseReader): Promise<
 export async function readSpPersonaDefinition(client: LakebaseReader, id: string): Promise<SpPersonaDefinition | null> {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+      `SELECT id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
          FROM ${SP_PERSONA_DEFINITIONS_TABLE}
         WHERE id = $1`,
       [id]
@@ -266,12 +295,26 @@ export async function insertSpPersonaDefinition(
   updatedBy: string
 ): Promise<SpPersonaDefinition> {
   const id = randomUUID();
+  const structured = write.grants;
+  const legacy =
+    structured.length > 0
+      ? write.legacyCapabilities
+      : [...new Set([...write.capabilities, ...write.legacyCapabilities])];
+  const compatibility = [...structured.map(spGrantSummary), ...legacy];
   const result = await client.lakebase.query(
     `INSERT INTO ${SP_PERSONA_DEFINITIONS_TABLE}
-       (id, display_name, description, capabilities, updated_by, updated_at)
-     VALUES ($1, $2, $3, $4::jsonb, $5, now())
-     RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
-    [id, write.displayName, write.description, JSON.stringify(write.capabilities), updatedBy]
+       (id, display_name, description, capabilities, grants, legacy_capabilities, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, now())
+     RETURNING id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
+    [
+      id,
+      write.displayName,
+      write.description,
+      JSON.stringify(compatibility),
+      JSON.stringify(structured),
+      JSON.stringify(legacy),
+      updatedBy,
+    ]
   );
   return definitionFromRow(result.rows[0]);
 }
@@ -284,21 +327,41 @@ export async function updateSpPersonaDefinition(
 ): Promise<SpPersonaDefinition | null> {
   const current = await readSpPersonaDefinition(client, id);
   if (!current) return null;
+  const structured = write.grants ?? current.grants ?? [];
+  const currentStructuredSummaries = new Set((current.grants ?? []).map(spGrantSummary));
+  const legacy =
+    write.legacyCapabilities ??
+    (write.capabilities
+      ? write.capabilities.filter((capability) => !currentStructuredSummaries.has(capability))
+      : (current.legacyCapabilities ?? []));
+  const compatibility = [...structured.map(spGrantSummary), ...legacy];
   const next = {
     displayName: write.displayName ?? current.displayName,
     description: write.description ?? current.description,
-    capabilities: write.capabilities ?? current.capabilities,
+    capabilities: compatibility,
+    grants: structured,
+    legacyCapabilities: legacy,
   };
   const result = await client.lakebase.query(
     `UPDATE ${SP_PERSONA_DEFINITIONS_TABLE}
         SET display_name = $2,
             description = $3,
             capabilities = $4::jsonb,
-            updated_by = $5,
+            grants = $5::jsonb,
+            legacy_capabilities = $6::jsonb,
+            updated_by = $7,
             updated_at = now()
       WHERE id = $1
-      RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
-    [id, next.displayName, next.description, JSON.stringify(next.capabilities), updatedBy]
+      RETURNING id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
+    [
+      id,
+      next.displayName,
+      next.description,
+      JSON.stringify(next.capabilities),
+      JSON.stringify(next.grants),
+      JSON.stringify(next.legacyCapabilities),
+      updatedBy,
+    ]
   );
   const row = result?.rows?.[0];
   return row ? definitionFromRow(row) : null;

@@ -199,6 +199,16 @@
   .runtime-entity-row {
     grid-template-columns: 1fr;
   }
+  .runtime-answer-body--narrative {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .runtime-answer-body--narrative .runtime-answer-cap {
+    width: 90px;
+    justify-self: start;
+  }
+  .appearance-display-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   /* The search box's own line is settled in the 1180px block above, which covers
      this band too. It was here, and 800px was too late: the row runs out of line
      around 1090px. Do not restate it here. */
@@ -443,8 +453,12 @@
   .settings-modal-content {
     padding: 14px;
   }
-  .sp-persona-fields {
+  .sp-persona-fields,
+  .sp-grant-fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .sp-grant-actions {
+    justify-self: end;
   }
   .appearance-type-colors {
     grid-template-columns: 1fr;
@@ -476,6 +490,12 @@
    width -- the nav went at 1180px -- but a rule that only happens to be unread is
    a rule that is wrong the day something reads it. */
 @media (max-width: 480px) {
+  .appearance-display-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .appearance-display-family {
+    min-width: min(220px, 100%);
+  }
   .app-header {
     --app-header-pad-x: 12px;
   }

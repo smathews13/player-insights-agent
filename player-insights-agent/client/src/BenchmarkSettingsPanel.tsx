@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AGENT_JUDGE_IDS,
   MULTI_TURN_JUDGES,
   type AgentJudgeId,
-  type CustomJudge,
   type MultiTurnJudgeId,
 } from '../../shared/eval-dataset';
 import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
 import { ExperimentalStatus } from './ExperimentalBadge';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
+import { notifyBenchmarkSettingsSaved } from './benchmark-settings-events';
+import { validateCustomJudgeDraft, type CustomJudgeDraft, type CustomJudgeDraftIssue } from './custom-judge-draft';
 import {
-  changedSettingKeys,
-  saveRetryAfterLoad,
-  type SettingsLoadResult,
-  type SettingsSaveState,
-} from './settings-save-state';
+  benchmarkSettingsChangedCount,
+  createBenchmarkSettingsDraftStore,
+  removeBenchmarkCustomJudge,
+  replaceBenchmarkSettingsDraft,
+  saveBenchmarkSettingsDraft,
+  stageBenchmarkCustomJudge,
+  updateBenchmarkSettingsDraft,
+} from './benchmark-settings-draft';
+import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
 import { Button, Input, Switch, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
 
@@ -54,16 +59,18 @@ function SettingField({
   children,
 }: {
   label: string;
-  help: string;
-  helpId: string;
+  help?: string;
+  helpId?: string;
   children: ReactNode;
 }) {
   return (
     <label className="runtime-field runtime-field-wide">
       <span className="runtime-field-label">{label}</span>
-      <span id={helpId} className="runtime-control-note">
-        {help}
-      </span>
+      {help ? (
+        <span id={helpId} className="runtime-control-note">
+          {help}
+        </span>
+      ) : null}
       {children}
     </label>
   );
@@ -91,7 +98,7 @@ function JudgeToggleRow({
         <p className="runtime-control-note">{help}</p>
       </td>
       <td>
-        <ExperimentalStatus on={on} onLabel="On" offLabel="Off" />
+        <ExperimentalStatus on={on} />
       </td>
       <td className="exp-feature-control">
         <Switch checked={on} disabled={disabled} onCheckedChange={onCheckedChange} aria-label={ariaLabel} />
@@ -118,13 +125,20 @@ export function BenchmarkSettingsPanel({
   const [experimentUrl, setExperimentUrl] = useState<string | null>(null);
   const [lastTrace, setLastTrace] = useState<{ traceId: string; url: string | null } | null>(null);
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
-  const [customDraft, setCustomDraft] = useState<CustomJudge>({ name: '', guidelines: '', prompt: '' });
+  const [customDraft, setCustomDraft] = useState<CustomJudgeDraft>({ name: '', guidelines: '', prompt: '' });
+  const [customJudgeNotice, setCustomJudgeNotice] = useState<{
+    tone: 'ok' | 'error';
+    text: string;
+  } | null>(null);
+  const settingsDraftRef = useRef(createBenchmarkSettingsDraftStore(DEFAULT_BENCHMARK_SETTINGS));
+  const addingCustomJudgeRef = useRef(false);
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setFailure(null);
     try {
       const response = await fetch('/api/benchmark-settings');
       const loaded = await benchmarkSettingsFromResponse(response, 'loaded');
+      replaceBenchmarkSettingsDraft(settingsDraftRef.current, loaded.settings, true);
       setSavedSettings(loaded.settings);
       setSettings(loaded.settings);
       setExperimentUrl(loaded.experimentUrl);
@@ -136,14 +150,17 @@ export function BenchmarkSettingsPanel({
     }
   }, []);
 
-  const changedCount = savedSettings ? changedSettingKeys(savedSettings, settings).length : 0;
+  const changedCount = benchmarkSettingsChangedCount(settingsDraftRef.current);
+  const customDraftValidation = validateCustomJudgeDraft(customDraft, settings.customJudges);
+  const customDraftIssue: CustomJudgeDraftIssue | null =
+    customDraftValidation.ok === true ? null : customDraftValidation.issue;
+  const editable = enabled && savedSettings !== null && failure?.operation !== 'load';
 
   useEffect(() => {
     onDirtyChange(changedCount);
   }, [changedCount, onDirtyChange]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- load() writes the fetched settings
     void load();
   }, [load]);
 
@@ -171,6 +188,10 @@ export function BenchmarkSettingsPanel({
     };
   }, []);
 
+  const updateSettings = (update: (current: BenchmarkSettings) => BenchmarkSettings) => {
+    setSettings(updateBenchmarkSettingsDraft(settingsDraftRef.current, update));
+  };
+
   const save = async () => {
     if (failure?.operation === 'load') {
       onSaveState({ kind: 'saving' });
@@ -178,26 +199,71 @@ export function BenchmarkSettingsPanel({
       onSaveState(saveRetryAfterLoad(result));
       return;
     }
+    if (settingsDraftRef.current.saveInFlight) return;
+    if (benchmarkSettingsChangedCount(settingsDraftRef.current) + additionalChangeCount === 0) return;
     setFailure(null);
     onSaveState({ kind: 'saving' });
     try {
-      if (changedCount > 0) {
-        const response = await fetch('/api/admin/benchmark-settings', {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(settings),
+      const result = await saveBenchmarkSettingsDraft(settingsDraftRef.current, {
+        additionalChangeCount,
+        persist: async (draft) => {
+          const response = await fetch('/api/admin/benchmark-settings', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(draft),
+          });
+          const saved = await benchmarkSettingsFromResponse(response, 'saved');
+          setExperimentUrl(saved.experimentUrl);
+          return saved.settings;
+        },
+        onPersisted: (saved, draftChangedDuringSave) => {
+          setSavedSettings(saved);
+          if (!draftChangedDuringSave) setSettings(saved);
+        },
+        onRefresh: notifyBenchmarkSettingsSaved,
+        commitStaged: onCommitStaged,
+      });
+      if (result.kind === 'busy' || result.kind === 'noop') return;
+
+      setFailure(null);
+      if (result.customJudgesChanged) {
+        setCustomJudgeNotice({
+          tone: 'ok',
+          text: 'Custom judges saved. Benchmark Lab refreshed.',
         });
-        const saved = await benchmarkSettingsFromResponse(response, 'saved');
-        setSavedSettings(saved.settings);
-        setSettings(saved.settings);
-        setExperimentUrl(saved.experimentUrl);
       }
-      await onCommitStaged();
-      onDirtyChange(0);
-      onSaveState({ kind: 'saved', count: changedCount + additionalChangeCount });
+      onDirtyChange(result.remainingCount);
+      onSaveState({ kind: 'saved', count: result.count });
     } catch (caught) {
       setFailure({ operation: 'save', message: (caught as Error).message });
       onSaveState({ kind: 'failed', message: (caught as Error).message });
+    }
+  };
+
+  const updateCustomDraft = (patch: Partial<CustomJudgeDraft>) => {
+    setCustomJudgeNotice(null);
+    setCustomDraft((current) => ({ ...current, ...patch }));
+  };
+
+  const addCustomJudge = () => {
+    if (addingCustomJudgeRef.current) return;
+    addingCustomJudgeRef.current = true;
+    try {
+      const staged = stageBenchmarkCustomJudge(settingsDraftRef.current, customDraft);
+      if (staged.ok === false) {
+        setCustomJudgeNotice({ tone: 'error', text: staged.message });
+        return;
+      }
+      setSettings(settingsDraftRef.current.current);
+      setCustomDraft({ name: '', guidelines: '', prompt: '' });
+      setCustomJudgeNotice({
+        tone: 'ok',
+        text: `${staged.judge.name} staged. Save Settings to apply it in Benchmark Lab.`,
+      });
+    } finally {
+      queueMicrotask(() => {
+        addingCustomJudgeRef.current = false;
+      });
     }
   };
 
@@ -210,9 +276,19 @@ export function BenchmarkSettingsPanel({
         void save();
       }}
     >
-      <fieldset className="benchmark-settings-cluster" disabled={!enabled}>
+      <fieldset className="benchmark-settings-cluster" disabled={!editable}>
         <legend className="runtime-section-label">Evaluation path</legend>
         {!enabled ? <p className="settings-row-note">Turn Benchmarking on above to edit these.</p> : null}
+        {enabled && savedSettings === null && !failure ? (
+          <p className="settings-row-note" role="status">
+            Reading benchmarking settings.
+          </p>
+        ) : null}
+        {failure?.operation === 'load' ? (
+          <p className="settings-row-note settings-error" role="alert">
+            {failure.message}
+          </p>
+        ) : null}
 
         <SettingField label="MLflow experiment" help="Experiment ID traces write to." helpId="bench-mlflow-help">
           <Input
@@ -222,7 +298,7 @@ export function BenchmarkSettingsPanel({
             aria-describedby="bench-mlflow-help"
             placeholder="1234567890123456"
             value={settings.experimentId}
-            onChange={(event) => setSettings((current) => ({ ...current, experimentId: event.target.value }))}
+            onChange={(event) => updateSettings((current) => ({ ...current, experimentId: event.target.value }))}
           />
           {experimentUrl ? (
             <a className="benchmark-settings-link" href={experimentUrl} target="_blank" rel="noreferrer">
@@ -239,7 +315,7 @@ export function BenchmarkSettingsPanel({
             aria-describedby="bench-judge-model-help"
             placeholder="databricks-claude-sonnet-4-5"
             value={settings.judgeEndpoint}
-            onChange={(event) => setSettings((current) => ({ ...current, judgeEndpoint: event.target.value }))}
+            onChange={(event) => updateSettings((current) => ({ ...current, judgeEndpoint: event.target.value }))}
           />
         </SettingField>
 
@@ -258,7 +334,7 @@ export function BenchmarkSettingsPanel({
               on={settings.alwaysOnTraces}
               disabled={!enabled}
               ariaLabel="Always-on traces"
-              onCheckedChange={(checked) => setSettings((current) => ({ ...current, alwaysOnTraces: checked }))}
+              onCheckedChange={(checked) => updateSettings((current) => ({ ...current, alwaysOnTraces: checked }))}
             />
             {AGENT_JUDGE_IDS.map((judge) => (
               <JudgeToggleRow
@@ -269,7 +345,7 @@ export function BenchmarkSettingsPanel({
                 disabled={!enabled}
                 ariaLabel={AGENT_JUDGE_COPY[judge].aria}
                 onCheckedChange={(checked) =>
-                  setSettings((current) => ({
+                  updateSettings((current) => ({
                     ...current,
                     enabledJudges: toggleJudge(current.enabledJudges, judge, checked),
                   }))
@@ -311,7 +387,7 @@ export function BenchmarkSettingsPanel({
                 disabled={!enabled}
                 ariaLabel={judge.label}
                 onCheckedChange={(checked) =>
-                  setSettings((current) => ({
+                  updateSettings((current) => ({
                     ...current,
                     enabledMultiTurnJudges: toggleMultiTurn(current.enabledMultiTurnJudges, judge.id, checked),
                   }))
@@ -323,7 +399,7 @@ export function BenchmarkSettingsPanel({
 
         <p className="runtime-section-label">Custom judges</p>
         {settings.customJudges.map((judge, index) => (
-          // Stored judges have no identifier; position distinguishes duplicate drafts until server normalization.
+          // Stored judges have no identifier; position keeps any legacy duplicate rows distinct.
           // eslint-disable-next-line react/no-array-index-key
           <div className="eval-custom-judge" key={`${judge.name}-${index}`}>
             <p className="settings-row-label">{judge.name}</p>
@@ -333,27 +409,31 @@ export function BenchmarkSettingsPanel({
               type="button"
               className="tile-link"
               disabled={!enabled}
-              onClick={() =>
-                setSettings((current) => ({
-                  ...current,
-                  customJudges: current.customJudges.filter((_, entryIndex) => entryIndex !== index),
-                }))
-              }
+              onClick={() => {
+                const removal = removeBenchmarkCustomJudge(settingsDraftRef.current, index);
+                if (!removal.removed) return;
+                setSettings(removal.settings);
+                setCustomJudgeNotice({
+                  tone: 'ok',
+                  text: `${removal.removed.name} removed. Save Settings to apply this change in Benchmark Lab.`,
+                });
+              }}
             >
               Remove
             </button>
           </div>
         ))}
-        <SettingField label="Custom judge name" help="Name shown in Lab." helpId="bench-custom-name-help">
+        <SettingField label="Custom judge name">
           <Input
             type="text"
             autoComplete="off"
             aria-label="Custom judge name"
-            aria-describedby="bench-custom-name-help"
+            aria-describedby="bench-custom-add-status"
+            aria-invalid={customDraftIssue === 'name_required' || customDraftIssue === 'duplicate_name'}
             placeholder="english"
             value={customDraft.name}
             disabled={!enabled}
-            onChange={(event) => setCustomDraft((current) => ({ ...current, name: event.target.value }))}
+            onChange={(event) => updateCustomDraft({ name: event.target.value })}
           />
         </SettingField>
         <SettingField
@@ -363,12 +443,13 @@ export function BenchmarkSettingsPanel({
         >
           <Textarea
             aria-label="Custom judge guidelines"
-            aria-describedby="bench-custom-guidelines-help"
+            aria-describedby="bench-custom-guidelines-help bench-custom-add-status"
+            aria-invalid={customDraftIssue === 'guidelines_required'}
             rows={2}
             placeholder="The response must be in English."
             value={customDraft.guidelines}
             disabled={!enabled}
-            onChange={(event) => setCustomDraft((current) => ({ ...current, guidelines: event.target.value }))}
+            onChange={(event) => updateCustomDraft({ guidelines: event.target.value })}
           />
         </SettingField>
         <SettingField
@@ -383,23 +464,25 @@ export function BenchmarkSettingsPanel({
             placeholder="Score whether the answer stays in English."
             value={customDraft.prompt}
             disabled={!enabled}
-            onChange={(event) => setCustomDraft((current) => ({ ...current, prompt: event.target.value }))}
+            onChange={(event) => updateCustomDraft({ prompt: event.target.value })}
           />
         </SettingField>
+        <p
+          id="bench-custom-add-status"
+          className={`settings-status${customJudgeNotice?.tone === 'error' ? ' settings-error' : ''}`}
+          role={customJudgeNotice?.tone === 'error' ? 'alert' : 'status'}
+        >
+          {customJudgeNotice?.text ??
+            (customDraftValidation.ok === true
+              ? 'Ready to stage. Save Settings afterward to apply it in Benchmark Lab.'
+              : customDraftValidation.message)}
+        </p>
         <Button
           type="button"
           className="benchmark-add-judge"
-          disabled={!enabled}
-          onClick={() => {
-            const next = {
-              name: customDraft.name.trim(),
-              guidelines: customDraft.guidelines.trim(),
-              prompt: customDraft.prompt.trim(),
-            };
-            if (!next.name || (!next.guidelines && !next.prompt)) return;
-            setSettings((current) => ({ ...current, customJudges: [...current.customJudges, next].slice(0, 12) }));
-            setCustomDraft({ name: '', guidelines: '', prompt: '' });
-          }}
+          disabled={!enabled || !customDraftValidation.ok}
+          aria-describedby="bench-custom-add-status"
+          onClick={addCustomJudge}
         >
           Add this custom judge
         </Button>

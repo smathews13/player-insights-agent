@@ -207,7 +207,7 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       tokenCoveredRuns: 0,
       totalRecordedTokens: 0,
       limited: false,
-      reason: 'No completed runs were recorded for the selected period.',
+      reason: 'No completed runs were recorded.',
     },
     budgets: { total: null, resources: {} },
     budgetsReadable: true,
@@ -781,7 +781,8 @@ describe('the cost block', () => {
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
     expect([...markup.matchAll(/ast-pill ast-pill--warn ops-pill/g)]).toHaveLength(1);
-    expect(markup).toContain('estimated selected period');
+    expect(markup).toContain('>estimated<');
+    expect(markup).not.toContain('selected period');
     expect(markup).not.toContain('Per token');
   });
 
@@ -848,9 +849,9 @@ describe('the cost block', () => {
     }
   });
 
-  it('says whether a tile is a total or a daily rate', () => {
+  it('leaves range totals unlabelled and keeps daily rates explicit', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('selected period');
+    expect(markup).not.toContain('selected period');
     expect(markup).toContain('per day');
   });
 
@@ -872,12 +873,14 @@ describe('the cost block', () => {
    * which described the account they came from rather than the numbers.
    */
   it('qualifies the whole block with badges rather than a paragraph', () => {
-    const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('Experimental');
-    expect(markup).not.toContain('Under development');
-    expect(markup).not.toContain('Not production');
-    expect(markup).not.toMatch(/How to read these figures/);
-    expect(markup).toContain('list prices from system.billing.list_prices, not contracted rates');
+    const markup = markupOf(<CostBody block={block(cost())} />);
+    const visible = text(markup);
+    expect(visible).toContain('Experimental');
+    expect(visible).not.toContain('Under development');
+    expect(visible).not.toContain('Not production');
+    expect(visible).not.toMatch(/How to read these figures/);
+    expect(visible).toContain('list prices from system.billing.list_prices, not contracted rates');
+    expect(markup.indexOf('>Experimental</span>')).toBeLessThan(markup.indexOf('>Cost</h3>'));
   });
 
   it('draws that badge as the badge the rest of the tab uses', () => {
@@ -1043,7 +1046,7 @@ describe('the cost block', () => {
           cost({
             state: 'no-rows',
             tiles: [],
-            reason: 'No billing rows matched an exact tracked resource for the selected period.',
+            reason: 'No billing rows matched an exact tracked resource.',
           })
         )}
       />
@@ -1141,6 +1144,9 @@ describe('the cost block', () => {
     const payload = cost();
     const markup = markupOf(<CostBody block={block(payload)} />);
     expect([...markup.matchAll(/experimental-pane-badge/g)]).toHaveLength(payload.tiles.length + 1);
+    const heads = markup.match(/<div class="ops-tile-head">[\s\S]*?<\/div>/g) ?? [];
+    expect(heads).toHaveLength(payload.tiles.length + 1);
+    expect(heads.every((head) => head.indexOf('experimental-pane-badge') < head.indexOf('ops-tile-label'))).toBe(true);
   });
 
   /**
@@ -1225,15 +1231,15 @@ describe('the cost block', () => {
     expect(visible).toContain('Data Genie · space-data');
     expect(visible).toContain('Dictionary Genie · space-dictionary');
     expect(visible).toContain('Vector search · catalog.schema.index · vs-endpoint');
-    expect(visible).toContain('3 Astrolabe requests during selected period');
-    expect(visible).toContain('2 Astrolabe requests during selected period');
-    expect(visible).toContain('5 Astrolabe queries during selected period');
+    expect(visible).toContain('Genie LLM dollars unavailable');
+    expect(visible).toContain('Vector Search dollars unavailable');
+    expect(visible).not.toMatch(/Astrolabe (?:requests|queries)/);
     expect(visible).not.toContain('carry resource identity');
     expect(visible).not.toContain('Foundation model');
     expect(visible).not.toContain('withheld');
   });
 
-  it('spells one Vector Search activity as one query', () => {
+  it('keeps internal Vector Search activity out of the visible cost tile', () => {
     const tile = {
       ...cost().tiles[0],
       id: 'vector-search',
@@ -1251,8 +1257,8 @@ describe('the cost block', () => {
     };
     const visible = text(markupOf(<CostBody block={block(cost({ tiles: [tile] }))} />));
 
-    expect(visible).toContain('1 Astrolabe query during selected period');
-    expect(visible).not.toContain('querie');
+    expect(visible).toContain('Vector Search dollars unavailable');
+    expect(visible).not.toContain('Astrolabe query');
   });
 
   it('shows only concise row-count evidence under a SQL estimate', () => {
@@ -1278,8 +1284,9 @@ describe('the cost block', () => {
       ],
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('2.50 USD estimated selected period');
-    expect(markup).toContain('4 billing rows · 2 Astrolabe queries of 10 warehouse queries');
+    expect(markup).toContain('2.50 USD estimated');
+    expect(markup).toContain('4 billing rows');
+    expect(markup).not.toMatch(/Astrolabe quer|warehouse quer/);
     expect(markup).not.toMatch(/ops-tile-evidence[^>]*>warehouse-1/);
     expect(markup).not.toContain('This must not render');
     expect(markup).not.toContain('ops-tile-foot');
@@ -1336,9 +1343,16 @@ describe('the cost block', () => {
     const markup = markupOf(<CostBody block={block(payload)} />);
     expect(markup).toContain('Total app spend');
     expect(markup).toContain('App budget');
-    expect(markup).toContain('Total budget selected period');
-    expect(markup).toContain('Budget selected period');
-    expect(markup).toContain('Budget per day');
+    expect(markup).toContain('aria-label="App budget in USD"');
+    expect(markup).toContain('aria-label="Serving endpoint budget in USD"');
+    expect(markup).toContain('aria-label="Vector search budget per day in USD"');
+    expect(markup).not.toContain('selected period');
+    expect(markup.match(/placeholder="e\.g\. 50"/g)).toHaveLength(payload.tiles.length + 1);
+    expect(markup).toMatch(/aria-label="App budget in USD"[^>]*placeholder="e\.g\. 50"[^>]*value="400"/);
+    expect(markup).toMatch(/aria-label="Serving endpoint budget in USD"[^>]*placeholder="e\.g\. 50"[^>]*value="40"/);
+    expect(markup).toMatch(/aria-label="Vector search budget per day in USD"[^>]*value=""/);
+    expect(markup.match(/class="ops-budget-resource">Serving endpoint/g)).toHaveLength(1);
+    expect(markup).not.toContain('ops-budget-label');
     expect(markup).not.toContain('Same window as the tiles');
     expect(markup).not.toMatch(/month|monthly|PagerDuty|forecast/i);
     expect(markup).toContain('400');
@@ -1499,7 +1513,7 @@ describe('the cost block', () => {
   it('keeps budget fields when billing has no rows and when the grant is missing', () => {
     const empty = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
     expect(empty).toContain('App budget');
-    expect(empty).toContain('Budget selected period');
+    expect(empty).not.toContain('selected period');
     const denied = render(
       <CostBody
         block={block(

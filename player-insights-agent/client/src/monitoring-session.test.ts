@@ -172,10 +172,8 @@ describe('the range identity a remount must reuse', () => {
     expect(monitoringRangeId(new URLSearchParams('range=all'))).toBe('all');
   });
 
-  it('keeps a custom pair as one key so the same typed window is one question', () => {
-    expect(monitoringRangeId(new URLSearchParams('range=custom&from=2026-01-01&to=2026-01-31'))).toBe(
-      'custom:2026-01-01:2026-01-31'
-    );
+  it('uses the safe default key for a retired custom URL', () => {
+    expect(monitoringRangeId(new URLSearchParams('range=custom&from=2026-01-01&to=2026-01-31'))).toBe('7d');
   });
 });
 

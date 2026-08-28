@@ -64,7 +64,7 @@ describe('Settings applied in this run', () => {
     expect(rendered).toContain(`${RUN_RUNTIME_LOOP_LABEL.maxToolCalls} 15`);
     expect(rendered).toContain(`${RUN_RUNTIME_LOOP_LABEL.maxRunSeconds} 200`);
     expect(rendered).toContain('Figures off');
-    expect(rendered).toContain('Character cap 800');
+    expect(rendered).toContain('Narrative cap 800');
     expect(rendered).toContain('Order Totals first');
     expect(rendered).not.toContain(RUN_RUNTIME_USED_ABSENT);
     expect(rendered).not.toContain('150');

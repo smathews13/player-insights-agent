@@ -62,12 +62,17 @@ export interface SpPersonaDefinition {
   id: string;
   displayName: string;
   description: string;
+  /** Compatibility summaries for clients deployed before structured grants. */
   capabilities: string[];
+  /** Canonical, validated Databricks grants. */
+  grants?: SpGrant[];
+  /** Original free-text entries, kept separate until an operator converts them. */
+  legacyCapabilities?: string[];
   updatedAt: string;
   updatedBy: string;
 }
 
-/** Real Databricks permission vocabulary used as editable starting points. */
+/** Old free-text examples. Read-only compatibility data, never new-row defaults. */
 export const SP_CAPABILITY_EXAMPLES = [
   'Governed tables — USE CATALOG, USE SCHEMA, SELECT',
   'SQL warehouse — CAN USE',
@@ -75,6 +80,177 @@ export const SP_CAPABILITY_EXAMPLES = [
   'Vector Search index — CAN SELECT',
   'Model serving endpoint — CAN QUERY',
 ] as const;
+
+export const SP_GRANT_RESOURCE_TYPES = [
+  'SERVING_ENDPOINT',
+  'SQL_WAREHOUSE',
+  'CATALOG',
+  'SCHEMA',
+  'TABLE',
+  'GENIE_SPACE',
+  'VECTOR_SEARCH_INDEX',
+  'VECTOR_SEARCH_ENDPOINT',
+  'FUNCTION',
+  'REGISTERED_MODEL',
+  'VOLUME',
+] as const;
+export type SpGrantResourceType = (typeof SP_GRANT_RESOURCE_TYPES)[number];
+
+export const SP_GRANT_ACTIONS = [
+  'READ',
+  'VIEW',
+  'USE',
+  'EXECUTE',
+  'WRITE',
+  'CREATE',
+  'EDIT',
+  'MONITOR',
+  'MANAGE',
+] as const;
+export type SpGrantAction = (typeof SP_GRANT_ACTIONS)[number];
+
+export interface SpGrantOption {
+  action: SpGrantAction;
+  label: string;
+  privilege: string;
+}
+
+export interface SpGrantTypeDefinition {
+  label: string;
+  identifierHint: string;
+  options: readonly SpGrantOption[];
+}
+
+/**
+ * Exact grant combinations the persona planner offers.
+ *
+ * Workspace ACL levels and Unity Catalog privileges are deliberately kept in
+ * one matrix. The UI never assembles a privilege from an arbitrary action and
+ * resource pair, and the API rejects a stale or forged combination.
+ */
+export const SP_GRANT_MATRIX: Record<SpGrantResourceType, SpGrantTypeDefinition> = {
+  SERVING_ENDPOINT: {
+    label: 'Serving endpoint',
+    identifierHint: 'Endpoint name',
+    options: [
+      { action: 'VIEW', label: 'View', privilege: 'CAN VIEW' },
+      { action: 'USE', label: 'Query', privilege: 'CAN QUERY' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'CAN MANAGE' },
+    ],
+  },
+  SQL_WAREHOUSE: {
+    label: 'SQL warehouse',
+    identifierHint: 'Warehouse ID',
+    options: [
+      { action: 'VIEW', label: 'View', privilege: 'CAN VIEW' },
+      { action: 'MONITOR', label: 'Monitor and run', privilege: 'CAN MONITOR' },
+      { action: 'USE', label: 'Use', privilege: 'CAN USE' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'CAN MANAGE' },
+    ],
+  },
+  CATALOG: {
+    label: 'Catalog',
+    identifierHint: 'Catalog name',
+    options: [
+      { action: 'VIEW', label: 'Browse metadata', privilege: 'BROWSE' },
+      { action: 'USE', label: 'Use', privilege: 'USE CATALOG' },
+      { action: 'READ', label: 'Read all current and future data', privilege: 'SELECT' },
+      { action: 'EXECUTE', label: 'Execute all current and future functions', privilege: 'EXECUTE' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
+    ],
+  },
+  SCHEMA: {
+    label: 'Schema',
+    identifierHint: 'catalog.schema',
+    options: [
+      { action: 'USE', label: 'Use', privilege: 'USE SCHEMA' },
+      { action: 'READ', label: 'Read all current and future data', privilege: 'SELECT' },
+      { action: 'EXECUTE', label: 'Execute all current and future functions', privilege: 'EXECUTE' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
+    ],
+  },
+  TABLE: {
+    label: 'Table or view',
+    identifierHint: 'catalog.schema.table',
+    options: [
+      { action: 'READ', label: 'Read', privilege: 'SELECT' },
+      { action: 'WRITE', label: 'Modify', privilege: 'MODIFY' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
+    ],
+  },
+  GENIE_SPACE: {
+    label: 'Genie space',
+    identifierHint: 'Genie space ID',
+    options: [
+      { action: 'VIEW', label: 'View', privilege: 'CAN VIEW' },
+      { action: 'USE', label: 'Run', privilege: 'CAN RUN' },
+      { action: 'EDIT', label: 'Edit', privilege: 'CAN EDIT' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'CAN MANAGE' },
+    ],
+  },
+  VECTOR_SEARCH_INDEX: {
+    label: 'Vector Search index',
+    identifierHint: 'catalog.schema.index',
+    options: [
+      { action: 'READ', label: 'Query', privilege: 'SELECT' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
+    ],
+  },
+  VECTOR_SEARCH_ENDPOINT: {
+    label: 'Vector Search endpoint',
+    identifierHint: 'Endpoint name',
+    options: [
+      { action: 'CREATE', label: 'Create indexes', privilege: 'CAN CREATE' },
+      { action: 'USE', label: 'Use', privilege: 'CAN USE' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'CAN MANAGE' },
+    ],
+  },
+  FUNCTION: {
+    label: 'Function',
+    identifierHint: 'catalog.schema.function',
+    options: [
+      { action: 'EXECUTE', label: 'Execute / call', privilege: 'EXECUTE' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
+    ],
+  },
+  REGISTERED_MODEL: {
+    label: 'Registered model',
+    identifierHint: 'catalog.schema.model',
+    options: [
+      { action: 'EXECUTE', label: 'Load / use', privilege: 'EXECUTE' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
+    ],
+  },
+  VOLUME: {
+    label: 'Volume',
+    identifierHint: 'catalog.schema.volume',
+    options: [
+      { action: 'READ', label: 'Read files', privilege: 'READ VOLUME' },
+      { action: 'WRITE', label: 'Write files', privilege: 'WRITE VOLUME' },
+      { action: 'MANAGE', label: 'Manage', privilege: 'MANAGE' },
+    ],
+  },
+};
+
+export interface SpGrant {
+  resourceType: SpGrantResourceType;
+  resource: string;
+  action: SpGrantAction;
+  privilege: string;
+}
+
+export interface SpGrantResource {
+  type: SpGrantResourceType;
+  id: string;
+  label: string;
+  source: 'configured' | 'declared';
+}
+
+export interface SpGrantResourceDiscovery {
+  status: 'ready' | 'error';
+  resources: SpGrantResource[];
+  detail: string;
+}
 
 export interface SpAssignment {
   email: string;
@@ -115,6 +291,8 @@ export interface SpIdentityAdminPayload {
   personas: SpPersona[];
   /** Optional while an older deployed server is rolling forward. */
   personaDefinitions?: SpPersonaDefinition[];
+  /** Absent while loading or when an older server has not implemented discovery. */
+  grantResourceDiscovery?: SpGrantResourceDiscovery;
   assignments: SpAssignment[];
   roster: SpIdentityRosterRow[];
 }
@@ -123,6 +301,7 @@ const NAME_MAX = 120;
 const DESCRIPTION_MAX = 280;
 const CAPABILITY_MAX = 180;
 const CAPABILITY_COUNT_MAX = 12;
+const GRANT_COUNT_MAX = 24;
 const SECRET_REF_MAX = 128;
 const CLIENT_ID_MAX = 64;
 
@@ -143,19 +322,102 @@ export const SpPersonaPatchSchema = SpPersonaWriteSchema.partial().refine((value
 });
 
 const SpCapabilitySchema = z.string().trim().min(1).max(CAPABILITY_MAX);
-const SpCapabilitiesSchema = z.array(SpCapabilitySchema).min(1).max(CAPABILITY_COUNT_MAX);
+const SpCapabilitiesSchema = z.array(SpCapabilitySchema).max(CAPABILITY_COUNT_MAX);
+const SpGrantResourceTypeSchema = z.enum(SP_GRANT_RESOURCE_TYPES);
+const SpGrantActionSchema = z.enum(SP_GRANT_ACTIONS);
+
+export function spGrantIdentifierFault(type: SpGrantResourceType, raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return 'Choose a configured resource or enter its identifier.';
+  const containsControlCharacter = [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint < 32 || codePoint === 127;
+  });
+  if (value.length > 255 || containsControlCharacter) return 'Use a valid Databricks identifier.';
+  const ucParts: Partial<Record<SpGrantResourceType, number>> = {
+    CATALOG: 1,
+    SCHEMA: 2,
+    TABLE: 3,
+    VECTOR_SEARCH_INDEX: 3,
+    FUNCTION: 3,
+    REGISTERED_MODEL: 3,
+    VOLUME: 3,
+  };
+  const partCount = ucParts[type];
+  if (partCount) {
+    const parts = value.split('.');
+    if (parts.length !== partCount || parts.some((part) => !/^[A-Za-z0-9_][A-Za-z0-9_-]{0,254}$/.test(part))) {
+      return `Enter ${SP_GRANT_MATRIX[type].identifierHint} using letters, digits, underscores, or hyphens.`;
+    }
+    return null;
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/.test(value)) {
+    return `Enter a valid ${SP_GRANT_MATRIX[type].identifierHint.toLowerCase()}.`;
+  }
+  return null;
+}
+
+export function spGrantOption(resourceType: SpGrantResourceType, action: SpGrantAction): SpGrantOption | undefined {
+  return SP_GRANT_MATRIX[resourceType].options.find((option) => option.action === action);
+}
+
+export function spGrantKey(grant: Pick<SpGrant, 'resourceType' | 'resource' | 'privilege'>): string {
+  return `${grant.resourceType}\u0000${grant.resource.trim().toLocaleLowerCase()}\u0000${grant.privilege}`;
+}
+
+export function spGrantSummary(grant: SpGrant): string {
+  return `${SP_GRANT_MATRIX[grant.resourceType].label} ${grant.resource} — ${grant.privilege}`;
+}
+
+export const SpGrantSchema = z
+  .object({
+    resourceType: SpGrantResourceTypeSchema,
+    resource: z.string().trim().min(1).max(255),
+    action: SpGrantActionSchema,
+    privilege: z.string().trim().min(1).max(64),
+  })
+  .superRefine((grant, context) => {
+    const identifierFault = spGrantIdentifierFault(grant.resourceType, grant.resource);
+    if (identifierFault) context.addIssue({ code: 'custom', path: ['resource'], message: identifierFault });
+    const option = spGrantOption(grant.resourceType, grant.action);
+    if (!option) {
+      context.addIssue({
+        code: 'custom',
+        path: ['action'],
+        message: `${grant.action} is not valid for ${SP_GRANT_MATRIX[grant.resourceType].label}.`,
+      });
+    } else if (grant.privilege !== option.privilege) {
+      context.addIssue({
+        code: 'custom',
+        path: ['privilege'],
+        message: `${grant.action} maps to ${option.privilege} for ${SP_GRANT_MATRIX[grant.resourceType].label}.`,
+      });
+    }
+  });
+
+const SpGrantsSchema = z
+  .array(SpGrantSchema)
+  .max(GRANT_COUNT_MAX)
+  .refine((grants) => new Set(grants.map(spGrantKey)).size === grants.length, {
+    message: 'The grant plan contains an exact duplicate.',
+  });
 const SpPersonaDefinitionFields = z.object({
   displayName: z.string().trim().min(1).max(NAME_MAX),
   description: z.string().trim().max(DESCRIPTION_MAX).default(''),
-  capabilities: SpCapabilitiesSchema,
+  capabilities: SpCapabilitiesSchema.default([]),
+  grants: SpGrantsSchema.default([]),
+  legacyCapabilities: SpCapabilitiesSchema.default([]),
 });
 const uniqueCapabilities = (capabilities: string[] | undefined): boolean =>
   !capabilities ||
   new Set(capabilities.map((capability) => capability.toLocaleLowerCase())).size === capabilities.length;
 
 export const SpPersonaDefinitionWriteSchema = SpPersonaDefinitionFields.refine(
-  (value) => uniqueCapabilities(value.capabilities),
-  { path: ['capabilities'], message: 'Each permission must be unique.' }
+  (value) =>
+    (value.grants.length > 0 || value.capabilities.length > 0 || value.legacyCapabilities.length > 0) &&
+    uniqueCapabilities(value.capabilities) &&
+    uniqueCapabilities(value.legacyCapabilities),
+  { path: ['grants'], message: 'Add at least one structured grant or preserve a legacy permission.' }
 );
 
 export const SpPersonaDefinitionPatchSchema = z
@@ -163,10 +425,12 @@ export const SpPersonaDefinitionPatchSchema = z
     displayName: z.string().trim().min(1).max(NAME_MAX).optional(),
     description: z.string().trim().max(DESCRIPTION_MAX).optional(),
     capabilities: SpCapabilitiesSchema.optional(),
+    grants: SpGrantsSchema.optional(),
+    legacyCapabilities: SpCapabilitiesSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'Nothing to update.' })
-  .refine((value) => uniqueCapabilities(value.capabilities), {
-    path: ['capabilities'],
+  .refine((value) => uniqueCapabilities(value.capabilities) && uniqueCapabilities(value.legacyCapabilities), {
+    path: ['grants'],
     message: 'Each permission must be unique.',
   });
 

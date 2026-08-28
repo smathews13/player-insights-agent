@@ -8,10 +8,9 @@ const FIELDS: Array<keyof ForecastAssumptions> = [
   'questionsPerUserPerDay',
   'activeAppMinutesPerUserPerDay',
   'averageModelTokensPerQuestion',
-  'costBufferPercent',
 ];
 
-/** Read and normalize a saved scenario; obsolete pricing/table fields are ignored. */
+/** Read and normalize a saved scenario; obsolete pricing, table, and buffer fields are ignored. */
 export function readForecastAssumptions(
   store: PreferenceStore | null = browserPreferenceStore()
 ): ForecastAssumptions | null {
@@ -20,18 +19,14 @@ export function readForecastAssumptions(
     const parsed = JSON.parse(store.getItem(FORECAST_ASSUMPTIONS_KEY) ?? 'null') as unknown;
     if (!parsed || typeof parsed !== 'object') return null;
     const record = parsed as Record<string, unknown>;
-    const migrated: Record<string, unknown> = {
-      ...record,
-      costBufferPercent: record.costBufferPercent ?? record.contingencyPercent ?? 0,
-    };
     if (
       !FIELDS.every(
-        (field) => typeof migrated[field] === 'number' && Number.isFinite(migrated[field]) && migrated[field] >= 0
+        (field) => typeof record[field] === 'number' && Number.isFinite(record[field]) && record[field] >= 0
       )
     ) {
       return null;
     }
-    return normalizeForecastAssumptions(migrated as Partial<ForecastAssumptions>);
+    return normalizeForecastAssumptions(record as Partial<ForecastAssumptions>);
   } catch {
     return null;
   }

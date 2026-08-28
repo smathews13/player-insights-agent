@@ -13,7 +13,6 @@ export interface ForecastAssumptions {
   questionsPerUserPerDay: number;
   activeAppMinutesPerUserPerDay: number;
   averageModelTokensPerQuestion: number;
-  costBufferPercent: number;
 }
 
 export interface ForecastExclusion {
@@ -65,7 +64,6 @@ export interface ForecastResult {
   dailyQuestions: number;
   dailyActiveMinutes: number;
   components: ForecastComponent[];
-  costBufferDaily: number;
   horizons: ForecastHorizon[];
 }
 
@@ -83,7 +81,6 @@ export function normalizeForecastAssumptions(assumptions: Partial<ForecastAssump
     questionsPerUserPerDay: oneDecimal(assumptions.questionsPerUserPerDay),
     activeAppMinutesPerUserPerDay: oneDecimal(assumptions.activeAppMinutesPerUserPerDay),
     averageModelTokensPerQuestion: oneDecimal(assumptions.averageModelTokensPerQuestion),
-    costBufferPercent: oneDecimal(assumptions.costBufferPercent),
   };
 }
 
@@ -163,15 +160,9 @@ export function deriveForecastBaseline(
     questionsPerUserPerDay: 0,
     activeAppMinutesPerUserPerDay: 0,
     averageModelTokensPerQuestion: 0,
-    costBufferPercent: 0,
-  };
-  const policyEvidence: ForecastSuggestionEvidence = {
-    calculation: 'default 0% · user-set · added after component forecast',
-    period: '',
-    range: null,
   };
   const unavailableEvidence = (label: string): ForecastSuggestionEvidence => ({
-    calculation: `Suggested ${label} unavailable`,
+    calculation: `${label} unavailable`,
     period: '',
     range: null,
   });
@@ -188,7 +179,6 @@ export function deriveForecastBaseline(
       questionsPerUserPerDay: unavailableEvidence('questions per user'),
       activeAppMinutesPerUserPerDay: unavailableEvidence('active minutes per user'),
       averageModelTokensPerQuestion: unavailableEvidence('model tokens'),
-      costBufferPercent: policyEvidence,
     },
     observed: {
       servingCostPerQuestion: null,
@@ -402,13 +392,6 @@ export function deriveForecastBaseline(
   const known = new Set(['serving-endpoint', 'sql-warehouse', 'app-compute', 'vector-search']);
   for (const tile of cost.tiles) {
     if (known.has(tile.id)) continue;
-    if (tile.id === 'genie' || tile.id.startsWith('genie:')) {
-      baseline.exclusions.push({
-        component: tile.label || 'Genie / Data Dictionary',
-        reason: 'Direct Genie and Data Dictionary dollars are unavailable and are not treated as zero cost.',
-      });
-      continue;
-    }
     const amount = dailyInWindow(tile, days);
     if (amount !== null) {
       baseline.fixedDailyCosts.push({ id: tile.id, label: tile.label, amount });
@@ -440,7 +423,7 @@ export function deriveForecastBaseline(
   return baseline;
 }
 
-/** Apply editable assumptions to a prepared baseline, with the cost buffer last. */
+/** Apply editable assumptions to a prepared baseline. */
 export function calculateForecast(baseline: ForecastBaseline, assumptions: ForecastAssumptions): ForecastResult {
   const safe = normalizeForecastAssumptions(assumptions);
   const dailyQuestions = safe.averageDailyUsers * safe.questionsPerUserPerDay;
@@ -485,7 +468,6 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
   }
 
   const baseDaily = components.reduce((total, component) => total + component.dailyAmount, 0);
-  const costBufferDaily = baseDaily * (safe.costBufferPercent / 100);
   const horizons = FORECAST_HORIZONS.map((horizon): ForecastHorizon => {
     if (!baseline.available || components.length === 0) {
       return { ...horizon, total: null, components: [] };
@@ -495,19 +477,12 @@ export function calculateForecast(baseline: ForecastBaseline, assumptions: Forec
       label: component.label,
       amount: component.dailyAmount * horizon.days,
     }));
-    if (safe.costBufferPercent > 0) {
-      breakdown.push({
-        id: 'cost-buffer',
-        label: `Cost buffer (${safe.costBufferPercent}%)`,
-        amount: costBufferDaily * horizon.days,
-      });
-    }
     return {
       ...horizon,
-      total: (baseDaily + costBufferDaily) * horizon.days,
+      total: baseDaily * horizon.days,
       components: breakdown,
     };
   });
 
-  return { dailyQuestions, dailyActiveMinutes, components, costBufferDaily, horizons };
+  return { dailyQuestions, dailyActiveMinutes, components, horizons };
 }

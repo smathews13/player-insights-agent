@@ -92,7 +92,7 @@ const FINDINGS = [
     'DISTINCT count)',
   '',
   'Note: `player_id` is scoped per label, so if a player exists under multiple labels they may be counted more ' +
-    "than once. If you need a cross-label unique player count, a different identity key (such as " +
+    'than once. If you need a cross-label unique player count, a different identity key (such as ' +
     '`crm_customer_ref`) may be more appropriate — let me know if you would like that breakdown.',
 ].join('\n');
 
@@ -129,7 +129,9 @@ describe('names inside a sentence', () => {
 describe('what Genie was understood to have been asked', () => {
   it('drops the label boilerplate and the second person, and unwraps a table name', () => {
     expect(
-      understoodAs('Query interpretation: You want to see the total number of unique players in the silver_player_profiles table.')
+      understoodAs(
+        'Query interpretation: You want to see the total number of unique players in the silver_player_profiles table.'
+      )
     ).toBe('The total number of unique players in silver_player_profiles.');
   });
 });
@@ -232,6 +234,40 @@ describe('a search_semantics result', () => {
     expect(first.columns).toHaveLength(6);
   });
 
+  it('reads repeated compact table blocks with undashed column rows', () => {
+    const compact = [
+      '[table] catalog.schema.first_table (uncertified)',
+      'Table catalog.schema.first_table. First description.',
+      'Columns:',
+      'first_id (string)',
+      'created_at (timestamp)',
+      '[table] catalog.schema.second_table (certified)',
+      'Table catalog.schema.second_table. Second description.',
+      'Columns:',
+      'second_id (bigint)',
+    ].join('\n');
+    const parsed = semanticResult(compact);
+    expect(parsed?.entries).toEqual([
+      {
+        kind: 'table',
+        name: 'catalog.schema.first_table',
+        certification: 'uncertified',
+        description: 'First description.',
+        columns: [
+          { name: 'first_id', type: 'string' },
+          { name: 'created_at', type: 'timestamp' },
+        ],
+      },
+      {
+        kind: 'table',
+        name: 'catalog.schema.second_table',
+        certification: 'certified',
+        description: 'Second description.',
+        columns: [{ name: 'second_id', type: 'bigint' }],
+      },
+    ]);
+  });
+
   it('drops the two notices that arrive on every call', () => {
     expect(result?.note).not.toContain('SEMANTIC SEARCH RESULTS');
     expect(result?.note).not.toContain('cached snapshot of grants');
@@ -328,7 +364,7 @@ describe('a recorded statement', () => {
 
   it('does not break inside a literal or a quoted name that holds a keyword', () => {
     const quoted = "SELECT `where` FROM t WHERE label = 'from Northwind'";
-    expect(sqlClauseLines(quoted)).toEqual(["SELECT `where`", 'FROM t', "WHERE label = 'from Northwind'"]);
+    expect(sqlClauseLines(quoted)).toEqual(['SELECT `where`', 'FROM t', "WHERE label = 'from Northwind'"]);
   });
 
   it('does not split on a semicolon inside a literal', () => {

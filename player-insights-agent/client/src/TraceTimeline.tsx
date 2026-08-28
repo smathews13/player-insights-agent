@@ -29,17 +29,22 @@ import {
   type ToolType,
 } from './trace-timeline';
 import type { RunVerdict } from '../../shared/run-verdict';
-import { describePayload, payloadSize } from './trace-payload';
+import { describePayload, payloadSize, type Payload } from './trace-payload';
 import { BrandIcon } from './BrandIcon';
 import { productForTool } from './brand-icons';
 import { stepNumber } from './agent-map';
 import { Badge } from './ui';
 import { MarkdownText } from './StepResult';
 import { EntityText, TableEntityList } from './DataEntityLinks';
-import { isTableListingStage, stageTableEntities } from './live-progress';
+import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 
 /** Which surface is drawing the panel. See file header. */
 export type TraceTimelineVariant = 'default' | 'explorer';
+
+/** The byte-for-byte sanitized payload shown only after the reader chooses Raw. */
+export function RawPayload({ payload }: { payload: Payload }) {
+  return <pre>{payload.body}</pre>;
+}
 
 /**
  * The word on the chip.
@@ -196,7 +201,7 @@ export function PayloadView({
         </span>
       </div>
       {raw ? (
-        <pre>{payload.body}</pre>
+        <RawPayload payload={payload} />
       ) : tableListing ? (
         <TableEntityList tables={tables} />
       ) : payload.fields ? (
@@ -206,7 +211,9 @@ export function PayloadView({
               <span className="trace-payload-key">{field.key}</span>
               {field.block ? (
                 field.key === 'sql' || field.key === 'query' ? (
-                  <pre>{field.value}</pre>
+                  <pre>
+                    <EntityText text={field.value} sources={tables.map((name) => ({ name }))} />
+                  </pre>
                 ) : (
                   <MarkdownText text={field.value} tables={tables} />
                 )
@@ -255,6 +262,7 @@ function GanttRow({
   const tables = stageTableEntities(row);
   const tableListing = isTableListingStage(row);
   const sources = tables.map((name) => ({ name }));
+  const tools = stageToolNames(row);
   return (
     <>
       <tr
@@ -273,7 +281,7 @@ function GanttRow({
         <td className="trace-event">
           <button type="button" aria-expanded={expanded}>
             <span className="trace-event-label" title={eventLabel}>
-              <EntityText text={eventLabel} sources={sources} />
+              <EntityText text={eventLabel} sources={sources} tools={tools} />
             </span>
             <ChevronDown aria-hidden="true" />
             {row.status !== 'complete' && <span className={`trace-status ${row.status}`}>{row.status}</span>}

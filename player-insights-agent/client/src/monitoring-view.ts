@@ -166,7 +166,7 @@ export function medianAnswerTimeTile(summary: MonitoringSummary): TileValue {
  */
 export function tokensTile(tokens: { total: number; metredRuns: number; totalRuns: number }): TileValue {
   if (tokens.totalRuns === 0) {
-    return absent('No runs for selected period', '');
+    return absent('No runs in this range', '');
   }
   if (tokens.metredRuns === 0) {
     return absent('Not metred', '');

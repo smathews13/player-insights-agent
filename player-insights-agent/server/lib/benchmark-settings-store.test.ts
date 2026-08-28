@@ -36,13 +36,21 @@ describe('benchmark settings persistence', () => {
   });
 
   it('prefers a stored valid override and writes JSON atomically', async () => {
+    const customJudge = {
+      name: 'English',
+      guidelines: 'The response must be in English.',
+      prompt: 'Score {{response}} for {{question}} in {{conversation}}.',
+    };
     const override = {
       ...DEFAULT_BENCHMARK_SETTINGS,
       evalSetId: 'held-out-eval' as const,
       experimentId: '<mlflow-experiment-id>',
+      customJudges: [customJudge],
     };
     const reader = client([{ settings: override }]);
-    expect((await readBenchmarkSettings(reader as never, { maxAgeMs: 0 })).evalSetId).toBe('held-out-eval');
+    const reloaded = await readBenchmarkSettings(reader as never, { maxAgeMs: 0 });
+    expect(reloaded.evalSetId).toBe('held-out-eval');
+    expect(reloaded.customJudges).toEqual([customJudge]);
 
     const writer = client();
     await writeBenchmarkSettings(writer as never, override, 'admin@example.com');

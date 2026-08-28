@@ -417,28 +417,16 @@ describe('removing a filter', () => {
     }
   });
 
-  /**
-   * All five periods, and All time among them.
-   *
-   * This test asserted its ABSENCE for two releases, on the reasoning that the
-   * read behind the page was quadratic in the questions in the window: the
-   * pairing joined on the result of a correlated subquery rather than on a
-   * column, so no index reached it. That has since been fixed at the source. The
-   * query pages first and pairs per page, so the answer-side work is bounded by
-   * the page and an unbounded window costs a page what a day costs.
-   *
-   * The labels are asserted with their surrounding tag rather than as substrings,
-   * because that is the failure this control has actually had: the segments
-   * shipped with no stylesheet and rendered as one word, "24h7 days30 daysCustom",
-   * which every substring assertion of the day passed.
-   */
-  it('offers all five periods, separately', () => {
+  it('offers only the four supported preset periods', () => {
     const markup = unfiltered();
 
-    for (const label of ['24h', '7 days', '30 days', 'All time', 'Custom']) {
+    for (const label of ['24h', '7 days', '30 days', 'All time']) {
       expect(markup).toContain(`>${label}<`);
     }
-    expect(markup.match(/role="radio"/g)).toHaveLength(5);
+    expect(markup.match(/role="radio"/g)).toHaveLength(4);
+    expect(markup).not.toContain('>Custom<');
+    expect(markup).not.toContain('type="date"');
+    expect(markup).not.toContain('Pick both dates');
   });
 });
 

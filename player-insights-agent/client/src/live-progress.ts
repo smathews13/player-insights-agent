@@ -48,6 +48,8 @@ export interface LiveStep {
   tables: string[];
   /** Whether this is the table-inventory step, including an honest empty state. */
   tableListing: boolean;
+  /** Callable identifiers proven by this stage, for shared semantic rendering. */
+  tools: string[];
   calls: number;
   depth: number;
 }
@@ -164,6 +166,24 @@ export function tableNamesFromListing(output: string): string[] {
 /** The inventory step across both the regular loop and its no-LLM fast path. */
 export function isTableListingStage(stage: Pick<TraceStage, 'id' | 'name'>): boolean {
   return toolNameFromId(stage.id) === 'list_data_assets' || stage.name === 'Listed available tables';
+}
+
+/**
+ * Callable identifiers a stage structurally proves.
+ *
+ * Tool stages carry one in their id. Model-turn stages carry the comma-separated
+ * call decision in output. No free-form prose scan is used, so an underscore
+ * word in an error or SQL result cannot accidentally become code.
+ */
+export function stageToolNames(stage: Pick<TraceStage, 'id' | 'output'>): string[] {
+  const fromId = toolNameFromId(stage.id);
+  if (fromId) return [fromId];
+  if (!/^step-\d+$/.test(stage.id) || !stage.output) return [];
+  const names = stage.output
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => /^[a-z_][a-z0-9_]*$/.test(name));
+  return names.length > 0 && names.length === stage.output.split(',').length ? names : [];
 }
 
 /**
@@ -450,6 +470,7 @@ export function toLiveStep(stage: TraceStage, question = ''): LiveStep {
     result: tableListing ? '' : describeResult(stage),
     tables: stageTableEntities(stage),
     tableListing,
+    tools: stageToolNames(stage),
     calls: stage.calls,
     depth: Math.min(stage.depth ?? 0, 3),
   };

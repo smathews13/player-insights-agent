@@ -33,7 +33,6 @@ import { parseAnswerMarkdown, type Block, type Inline } from './answer-markdown'
 import { EntityText } from './DataEntityLinks';
 import {
   chipRuns,
-  collapsedName,
   fieldDefinition,
   genieResult,
   semanticResult,
@@ -55,7 +54,7 @@ import {
  * the first few columns answer. A forty-column dictionary table opened flat is
  * the wall of names this view was built to replace.
  */
-const COLUMN_PREVIEW = 5;
+const COLUMN_PREVIEW = 10;
 
 /**
  * A table or column name, in the mono chip every identifier in the app takes.
@@ -66,7 +65,8 @@ const COLUMN_PREVIEW = 5;
 export function EntityName({ children }: { children: string }) {
   const parts = children.split('.');
   if (parts.length === 3 && parts.every(Boolean)) {
-    return (<code className="dag-entity-name" title={children}>
+    return (
+      <code className="dag-entity-name" title={children}>
         <span className="dag-entity-catalog">{parts[0]}</span>
         <span aria-hidden="true">.</span>
         <span className="dag-entity-schema">{parts[1]}</span>
@@ -75,7 +75,11 @@ export function EntityName({ children }: { children: string }) {
       </code>
     );
   }
-  return (<code className="dag-name-chip" title={children}>{children}</code>);
+  return (
+    <code className="dag-name-chip" title={children}>
+      {children}
+    </code>
+  );
 }
 
 function Name({ children }: { children: string }) {
@@ -89,7 +93,8 @@ function Name({ children }: { children: string }) {
 
 /** A sentence with the table and column names in it set as chips. */
 export function ChipText({ text }: { text: string }) {
-  return (<>
+  return (
+    <>
       {chipRuns(text).map((run) =>
         run.chip ? <Name key={run.start}>{run.text}</Name> : <span key={run.start}>{run.text}</span>
       )}
@@ -108,27 +113,24 @@ export function ChipText({ text }: { text: string }) {
  * the step did was mention a word.
  */
 function InlineRuns({ nodes, tables = [] }: { nodes: readonly Inline[]; tables?: readonly string[] }) {
-  return (<>
+  return (
+    <>
       {nodes.map((node) => {
         switch (node.kind) {
           case 'text':
-            // The text itself rather than a span round it: a wrapper on every run
-            // of prose is a span per sentence in the panel, and it is not carrying
-            // anything -- the runs exist so a tracked entity can be linked, and
-            // nothing links here.
-            return tables.length > 0 ? (
+            return (
               <EntityText
                 key={node.start}
                 text={node.runs.map((run) => run.text).join('')}
                 sources={tables.map((name) => ({ name }))}
+                numbers={tables.length > 0}
               />
-            ) : (
-              node.runs.map((run) => run.text).join('')
             );
           case 'code':
             return <Name key={node.start}>{node.runs.map((run) => run.text).join('')}</Name>;
           case 'strong':
-            return (<strong key={node.start}>
+            return (
+              <strong key={node.start}>
                 <InlineRuns nodes={node.children} tables={tables} />
               </strong>
             );
@@ -148,19 +150,24 @@ function InlineRuns({ nodes, tables = [] }: { nodes: readonly Inline[]; tables?:
 function MarkdownBlock({ block, tables = [] }: { block: Block; tables?: readonly string[] }) {
   switch (block.kind) {
     case 'heading':
-      return (<strong className="dag-md-head">
+      return (
+        <strong className="dag-md-head">
           <InlineRuns nodes={block.children} tables={tables} />
         </strong>
       );
     case 'list':
-      return block.ordered ? (<ol className="dag-md-list">
-          {block.items.map((item) => (<li key={item.start}>
+      return block.ordered ? (
+        <ol className="dag-md-list">
+          {block.items.map((item) => (
+            <li key={item.start}>
               <InlineRuns nodes={item.children} tables={tables} />
             </li>
           ))}
         </ol>
-      ) : (<ul className="dag-md-list">
-          {block.items.map((item) => (<li key={item.start}>
+      ) : (
+        <ul className="dag-md-list">
+          {block.items.map((item) => (
+            <li key={item.start}>
               <InlineRuns nodes={item.children} tables={tables} />
             </li>
           ))}
@@ -176,11 +183,14 @@ function MarkdownBlock({ block, tables = [] }: { block: Block; tables?: readonly
       // whether backticks, bold totals, or the table itself are markup.
       //
       // Scrolls inside the panel; see `.answer-table-wrap` in answer.css.
-      return (<div className="answer-table-wrap">
+      return (
+        <div className="answer-table-wrap">
           <table className="answer-table">
-            {block.header ? (<thead>
+            {block.header ? (
+              <thead>
                 <tr>
-                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]} data-wrap={block.wrap[column]}>
+                  {block.header.cells.map((cell, column) => (
+                    <th key={cell.start} scope="col" data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineRuns nodes={cell.children} tables={tables} />
                     </th>
                   ))}
@@ -188,8 +198,10 @@ function MarkdownBlock({ block, tables = [] }: { block: Block; tables?: readonly
               </thead>
             ) : null}
             <tbody>
-              {block.rows.map((row) => (<tr key={row.start}>
-                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
+              {block.rows.map((row) => (
+                <tr key={row.start}>
+                  {row.cells.map((cell, column) => (
+                    <td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
                       <InlineRuns nodes={cell.children} tables={tables} />
                     </td>
                   ))}
@@ -202,12 +214,14 @@ function MarkdownBlock({ block, tables = [] }: { block: Block; tables?: readonly
     case 'rule':
       return <hr className="dag-md-rule" />;
     case 'code':
-      return (<pre className="dag-md-code">
+      return (
+        <pre className="dag-md-code">
           <code data-language={block.language || undefined}>{block.text}</code>
         </pre>
       );
     case 'paragraph':
-      return (<p>
+      return (
+        <p>
           <InlineRuns nodes={block.children} tables={tables} />
         </p>
       );
@@ -216,8 +230,11 @@ function MarkdownBlock({ block, tables = [] }: { block: Block; tables?: readonly
 
 /** Markdown, where every shape that would not parse lands. */
 export function MarkdownText({ text, tables = [] }: { text: string; tables?: readonly string[] }) {
-  return (<div className="dag-md">
-      {parseAnswerMarkdown(text).map((block) => <MarkdownBlock block={block} tables={tables} key={block.start} />)}
+  return (
+    <div className="dag-md">
+      {parseAnswerMarkdown(text).map((block) => (
+        <MarkdownBlock block={block} tables={tables} key={block.start} />
+      ))}
     </div>
   );
 }
@@ -241,23 +258,31 @@ export function MarkdownText({ text, tables = [] }: { text: string; tables?: rea
 const FIGURE = /^-?\d{1,3}(,\d{3})*(\.\d+)?$|^-?\d+(\.\d+)?%?$/;
 
 function ResultGrid({ table }: { table: ResultTable }) {
-  return (<div className="dag-grid">
+  return (
+    <div className="dag-grid">
       <table>
         <thead>
           <tr>
-            {table.head.map((cell, at) => (<th key={table.head.slice(0, at + 1).join('|')} scope="col">
+            {table.head.map((cell, at) => (
+              <th key={table.head.slice(0, at + 1).join('|')} scope="col">
                 {cell}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {table.rows.map((row) => (<tr key={row.join('|')}>
-              {row.map((cell, cellAt) => (<td key={row.slice(0, cellAt + 1).join('|')}>{
-                  FIGURE.test(cell.trim()) ? <b>{cell}</b>
-                    : cell.split('.').length === 3 ? <EntityName>{cell}</EntityName>
-                      : cell
-                }</td>
+          {table.rows.map((row) => (
+            <tr key={row.join('|')}>
+              {row.map((cell, cellAt) => (
+                <td key={row.slice(0, cellAt + 1).join('|')}>
+                  {FIGURE.test(cell.trim()) ? (
+                    <b>{cell}</b>
+                  ) : cell.split('.').length === 3 ? (
+                    <EntityName>{cell}</EntityName>
+                  ) : (
+                    cell
+                  )}
+                </td>
               ))}
             </tr>
           ))}
@@ -281,10 +306,12 @@ function ResultGrid({ table }: { table: ResultTable }) {
  * dictionary says.
  */
 function DefinitionCard({ definition }: { definition: FieldDefinition }) {
-  return (<div className="dag-definition">
+  return (
+    <div className="dag-definition">
       <p className="dag-definition-head">
         <Name>{definition.column}</Name>
-        {definition.table && (<>
+        {definition.table && (
+          <>
             <span className="dag-definition-in">in</span>
             <span className="dag-definition-table" title={definition.table}>
               {definition.table}
@@ -295,11 +322,11 @@ function DefinitionCard({ definition }: { definition: FieldDefinition }) {
             size, weight, radius, padding, fill, edge and text colour, and the
             three it named were DuBois' amber: #93320B on #FFF9EB, which is an
             orange, and there is no orange in this palette. */}
-        {definition.guardrail && (<span className="ast-pill ast-pill--warn dag-guardrail">{definition.guardrail}</span>
-        )}
+        {definition.guardrail && <span className="ast-pill ast-pill--warn dag-guardrail">{definition.guardrail}</span>}
       </p>
       <p className="dag-definition-body">{definition.definition}</p>
-      {definition.verdict && (<div className="dag-definition-verdict">
+      {definition.verdict && (
+        <div className="dag-definition-verdict">
           <MarkdownText text={definition.verdict} />
         </div>
       )}
@@ -324,22 +351,26 @@ function DefinitionCard({ definition }: { definition: FieldDefinition }) {
 export function GenieCard({ result }: { result: GenieResult }) {
   const definition = fieldDefinition(result);
   if (definition) return <DefinitionCard definition={definition} />;
-  return (<dl className="dag-shape">
-      {result.understood && (<>
+  return (
+    <dl className="dag-shape">
+      {result.understood && (
+        <>
           <dt>Understood as</dt>
           <dd>
             <ChipText text={result.understood} />
           </dd>
         </>
       )}
-      {result.table && (<>
+      {result.table && (
+        <>
           <dt>Returned</dt>
           <dd>
             <ResultGrid table={result.table} />
           </dd>
         </>
       )}
-      {result.answer && (<>
+      {result.answer && (
+        <>
           <dt>Answer</dt>
           <dd>
             <MarkdownText text={result.answer} />
@@ -353,11 +384,10 @@ export function GenieCard({ result }: { result: GenieResult }) {
 /** One matched table, shut unless the reader opens it or it is the first. */
 function SemanticRow({ entry, open }: { entry: SemanticEntry; open: boolean }) {
   const [expanded, setExpanded] = useState(open);
-  const [allColumns, setAllColumns] = useState(false);
-  const { lead, object } = collapsedName(entry.name);
-  const shown = allColumns ? entry.columns : entry.columns.slice(0, COLUMN_PREVIEW);
+  const shown = entry.columns.slice(0, COLUMN_PREVIEW);
   const rest = entry.columns.length - shown.length;
-  return (<div className={`dag-table-row ${expanded ? 'open' : ''}`}>
+  return (
+    <div className={`dag-table-row ${expanded ? 'open' : ''}`}>
       <button type="button" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>
         <ChevronRight aria-hidden="true" />
         {/* The catalog and schema are dimmed rather than dropped. Every table in
@@ -366,14 +396,14 @@ function SemanticRow({ entry, open }: { entry: SemanticEntry; open: boolean }) {
             when a result spans two schemas, which is why the full name stays in
             the title. */}
         <span className="dag-table-name" title={entry.name}>
-          {lead && <span className="dag-table-lead">{lead}.</span>}
-          <span className="dag-table-object">{object}</span>
+          <EntityText text={entry.name} sources={[{ name: entry.name }]} />
         </span>
         {/* Outlined neutral, which is the recipe the detail spec names for this
             chip and also the one the shared pill offers for a chip that has to sit
             on a tinted surface: the row washes on hover, and a neutral tint on
             that wash reads as a rendering fault. */}
-        {entry.certification && (<span className="ast-pill ast-pill--neutral-outline dag-cert">{entry.certification}</span>
+        {entry.certification && (
+          <span className="ast-pill ast-pill--neutral-outline dag-cert">{entry.certification}</span>
         )}
         {/* Mono. This is a right-aligned meta count, which is one of the four
             placements the numeral rule names, and the reader compares it down the
@@ -384,18 +414,20 @@ function SemanticRow({ entry, open }: { entry: SemanticEntry; open: boolean }) {
           {entry.columns.length} column{entry.columns.length === 1 ? '' : 's'}
         </span>
       </button>
-      {expanded && (<div className="dag-table-body">
+      {expanded && (
+        <div className="dag-table-body">
           {entry.description && <p className="dag-table-about">{entry.description}</p>}
-          {entry.columns.length > 0 && (<p className="dag-col-chips">
-              {shown.map((column) => (<span className="dag-col-chip" key={column.name}>
-                  <code>{column.name}</code>
-                  {column.type && <span>{column.type}</span>}
+          {entry.columns.length > 0 && (
+            <p className="dag-col-chips">
+              {shown.map((column) => (
+                <span className="dag-col-chip" key={column.name}>
+                  <strong className="dag-col-name">
+                    <code>{column.name}</code>
+                  </strong>
+                  {column.type && <span className="dag-col-type">{column.type}</span>}
                 </span>
               ))}
-              {rest > 0 && (<button type="button" className="dag-col-more" onClick={() => setAllColumns(true)}>
-                  {rest} more
-                </button>
-              )}
+              {rest > 0 && <span className="dag-col-more">+ {rest} more columns</span>}
             </p>
           )}
         </div>
@@ -414,8 +446,10 @@ function SemanticRow({ entry, open }: { entry: SemanticEntry; open: boolean }) {
  * of this search rather than boilerplate.
  */
 export function SemanticCard({ result }: { result: SemanticResult }) {
-  return (<div className="dag-tables">
-      {result.entries.map((entry, at) => (<SemanticRow entry={entry} key={entry.name} open={at === 0} />
+  return (
+    <div className="dag-tables">
+      {result.entries.map((entry, at) => (
+        <SemanticRow entry={entry} key={entry.name} open={at === 0} />
       ))}
       {result.note && <p className="dag-tables-note">{result.note}</p>}
     </div>
@@ -424,8 +458,10 @@ export function SemanticCard({ result }: { result: SemanticResult }) {
 
 /** The `- **Label:** value` pairs an agent step writes, as the rows they were. */
 function FactGrid({ facts }: { facts: Fact[] }) {
-  return (<dl className="dag-shape dag-facts">
-      {facts.map((fact) => (<div key={fact.label}>
+  return (
+    <dl className="dag-shape dag-facts">
+      {facts.map((fact) => (
+        <div key={fact.label}>
           <dt>{fact.label}</dt>
           <dd>
             <MarkdownText text={fact.value} />
@@ -445,12 +481,15 @@ function FactGrid({ facts }: { facts: Fact[] }) {
  * above it -- read as more of the same sentence.
  */
 export function AgentReport({ sections }: { sections: ReportSection[] }) {
-  return (<div className="dag-report">
+  return (
+    <div className="dag-report">
       {sections.map((section) => {
-        const key = section.kind === 'facts' ? `facts-${JSON.stringify(section.facts)}` : `${section.kind}-${section.text}`;
+        const key =
+          section.kind === 'facts' ? `facts-${JSON.stringify(section.facts)}` : `${section.kind}-${section.text}`;
         if (section.kind === 'facts') return <FactGrid facts={section.facts} key={key} />;
         if (section.kind === 'note') {
-          return (<div className="dag-note" key={key}>
+          return (
+            <div className="dag-note" key={key}>
               <span className="dag-note-tag">Note</span>
               <div>
                 <MarkdownText text={section.text} />
@@ -476,14 +515,16 @@ export function ResultSource({ shape, text }: { shape: ResultShape; text: string
   if (shape === 'genie') {
     const space = genieResult(text)?.space;
     if (!space) return null;
-    return (<span className="dag-source">
+    return (
+      <span className="dag-source">
         {/* Genie's own mark for either space. `brand-icons.ts` files a TOOL under
             the product that executes it, which for `data_genie` is Databricks
             SQL; this line is naming the space that answered, and the space is
             Genie. */}
         <BrandIcon product="genie" size={14} />
         {space.name && <strong title={space.name}>{space.name}</strong>}
-        {space.id && (<code className="dag-space-id" title={space.id}>
+        {space.id && (
+          <code className="dag-space-id" title={space.id}>
             {truncatedId(space.id)}
           </code>
         )}
@@ -493,7 +534,8 @@ export function ResultSource({ shape, text }: { shape: ResultShape; text: string
   if (shape === 'semantic') {
     const result = semanticResult(text);
     if (!result) return null;
-    return (<span className="dag-source">
+    return (
+      <span className="dag-source">
         <BrandIcon product="mosaic-ai" size={14} />
         <strong>
           {result.entries.length} {result.kind}

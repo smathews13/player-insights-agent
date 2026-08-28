@@ -29,21 +29,26 @@ describe('service-principal identity admin routes', () => {
     ]);
   });
 
-  it('accepts only a name, purpose and permission plan for generated configurations', () => {
+  it('accepts only a credential-free structured and legacy permission plan', () => {
     expect(Object.keys(SpPersonaDefinitionWriteSchema.shape).sort()).toEqual([
       'capabilities',
       'description',
       'displayName',
+      'grants',
+      'legacyCapabilities',
     ]);
     const parsed = SpPersonaDefinitionWriteSchema.parse({
       displayName: 'Finance reader',
       description: '',
       capabilities: ['SQL warehouse — CAN USE'],
+      grants: [],
+      legacyCapabilities: ['SQL warehouse — CAN USE'],
       clientId: 'ignored',
       secret: 'ignored',
     });
     expect(parsed).not.toHaveProperty('clientId');
     expect(parsed).not.toHaveProperty('secret');
+    expect(source).toContain('discoverSpGrantResources');
     expect(source).toContain("app.post('/api/admin/sp-identity/persona-definitions'");
     expect(source).toContain("app.patch('/api/admin/sp-identity/persona-definitions/:id'");
     expect(source).toContain("app.delete('/api/admin/sp-identity/persona-definitions/:id'");

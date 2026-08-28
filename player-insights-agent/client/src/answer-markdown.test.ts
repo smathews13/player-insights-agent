@@ -418,17 +418,20 @@ describe('the tables the agent writes', () => {
   it('keeps a fenced SQL statement as code, because its pipe is not a table', () => {
     const source = '```sql\nSELECT CASE WHEN a THEN 1 END, x || y FROM t\n```';
     const blocks = parseAnswerMarkdown(source);
-    expect(blocks).toEqual([{
-      kind: 'code',
-      start: 0,
-      language: 'sql',
-      text: 'SELECT CASE WHEN a THEN 1 END, x || y FROM t',
-    }]);
+    expect(blocks).toEqual([
+      {
+        kind: 'code',
+        start: 0,
+        language: 'sql',
+        text: 'SELECT CASE WHEN a THEN 1 END, x || y FROM t',
+      },
+    ]);
   });
 
   it('renders the separator in a data package as a thematic break', () => {
-    expect(parseAnswerMarkdown('## DATA PACKAGE\n\n---\n\n**Interpretation:** ready').map((block) => block.kind))
-      .toEqual(['heading', 'rule', 'paragraph']);
+    expect(
+      parseAnswerMarkdown('## DATA PACKAGE\n\n---\n\n**Interpretation:** ready').map((block) => block.kind)
+    ).toEqual(['heading', 'rule', 'paragraph']);
   });
 
   it('is not a table when the pipes are nothing but a delimiter row', () => {
@@ -441,7 +444,8 @@ describe('the tables the agent writes', () => {
     // tracked table list and again with it, so a key has to be a property of the
     // node rather than its index.
     const table = firstTable(RAMP);
-    const cells = table.kind === 'table' ? [...(table.header?.cells ?? []), ...table.rows.flatMap((row) => row.cells)] : [];
+    const cells =
+      table.kind === 'table' ? [...(table.header?.cells ?? []), ...table.rows.flatMap((row) => row.cells)] : [];
     expect(new Set(cells.map((cell) => cell.start)).size).toBe(cells.length);
     const rows = table.kind === 'table' ? table.rows : [];
     expect(new Set(rows.map((row) => row.start)).size).toBe(rows.length);
@@ -681,7 +685,7 @@ describe('the rendered Markdown is styled as part of an answer', () => {
     // Body size with the weight up, so weight is the only thing marking it out,
     // and no size of its own to drift against the takeaway's.
     expect(ruleFor('.answer-heading {')).not.toContain('clamp');
-    expect(ruleFor('.answer-subheading')).toContain('0.94em');
+    expect(ruleFor('.answer-subheading')).toContain('1em');
   });
 
   it('draws the specified dot glyph after Tailwind removes list markers', () => {

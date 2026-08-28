@@ -185,7 +185,7 @@ export interface TileView {
    * follows the population it was sent rather than the card it is on.
    */
   sharedScope: boolean;
-  /** 'all time' or 'per day', so a rate is never read as a total. */
+  /** Empty for a range total, or 'per day' for a rate that must stay explicit. */
   basisLabel: string;
   /** The one thing that would make an absent figure attributable, or ''. */
   remedy: string;
@@ -194,7 +194,7 @@ export interface TileView {
 
 /** The words for the two bases. A rate drawn as a total is the whole hazard. */
 export const BASIS_LABEL: Record<CostTile['basis'], string> = {
-  'total-in-range': 'selected period',
+  'total-in-range': '',
   'per-day': 'per day',
 };
 
@@ -796,9 +796,9 @@ export function costHonestyLine(honesty: CostHonesty | null | undefined): string
     return 'Figures are list prices from system.billing.list_prices, not contracted rates.';
   }
   const through = honesty.dataThrough
-    ? ` Data through ${honesty.dataThrough}${honesty.rangeMayStillFill ? '; later days in the selected period may still be filling' : ''}.`
+    ? ` Data through ${honesty.dataThrough}${honesty.rangeMayStillFill ? '; later days may still be filling' : ''}.`
     : honesty.rangeMayStillFill
-      ? ' Later days in the selected period may still be filling.'
+      ? ' Later days may still be filling.'
       : '';
   const currency = honesty.currencyConsistent ? '' : ' Mixed currencies were withheld rather than combined.';
   return `Figures are list prices from system.billing.list_prices, not contracted rates.${through}${currency}`;

@@ -23,9 +23,28 @@ describe('benchmark settings response', () => {
     expect(payload.tracesAlwaysOnInAgent).toBe(true);
   });
 
+  it('keeps a custom judge in the saved response used to refresh Settings', async () => {
+    const customJudge = {
+      name: 'English',
+      guidelines: 'The response must be in English.',
+      prompt: 'Score {{response}} for {{question}} in {{conversation}}.',
+    };
+    const payload = await benchmarkSettingsFromResponse(
+      jsonResponse(200, {
+        settings: { ...DEFAULT_BENCHMARK_SETTINGS, customJudges: [customJudge] },
+      }),
+      'saved'
+    );
+
+    expect(payload.settings.customJudges).toEqual([customJudge]);
+  });
+
   it('surfaces the server sentence when a save is refused', async () => {
     await expect(
-      benchmarkSettingsFromResponse(jsonResponse(503, { detail: 'The settings were not saved.' }), 'saved')
-    ).rejects.toThrow('The settings were not saved.');
+      benchmarkSettingsFromResponse(
+        jsonResponse(503, { detail: 'The settings were not saved: permission denied for benchmark_settings.' }),
+        'saved'
+      )
+    ).rejects.toThrow('The settings were not saved: permission denied for benchmark_settings.');
   });
 });

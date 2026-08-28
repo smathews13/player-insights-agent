@@ -163,7 +163,6 @@ describe('Forecasting visibility and placement', () => {
       'Questions per user per day',
       'Active app minutes per user per day',
       'Average model tokens per question',
-      'Cost buffer',
       'Next 7 days',
       'Next 30 days',
       'Six months',
@@ -172,12 +171,23 @@ describe('Forecasting visibility and placement', () => {
     }
     expect(markup).toContain('type="number"');
     expect(markup).toContain('List-price estimate only');
-    expect(markup).toContain('Extra percentage added after the component forecast.');
-    expect(markup).toContain('Suggested: 2 user-days ÷ 7 complete days');
-    expect(markup).toContain('7 complete days · 2026-08-08–2026-08-14');
-    expect(markup).toContain('Suggested: default 0% · user-set');
+    const helpers = [...markup.matchAll(/class="ops-forecast-assumption-evidence">([^<]*)<\/small>/g)].map(
+      (match) => match[1]
+    );
+    expect(helpers).toHaveLength(4);
+    expect(helpers).toEqual([
+      'Example range: 2–2 users',
+      'Example range: 3.5–3.5 questions/user/day',
+      'Example range: 20–20 min/user/day',
+      'Example range: 800–1,200 tokens/question',
+    ]);
+    expect(helpers.join(' ')).not.toMatch(/Suggested|complete days|2026-|÷|default/i);
+    expect(markup).not.toMatch(/Cost buffer|contingency/i);
+    expect(markup).not.toContain('Use observed defaults');
+    expect(markup).not.toContain('Daily questions =');
     expect(markup).not.toContain('Governed table count');
     expect(markup).not.toContain('Vector Search cost per table per day');
+    expect(markup.indexOf('experimental-pane-badge')).toBeLessThan(markup.indexOf('>Forecasting</h3>'));
   });
 
   it('renders loading, unavailable, and partial states without inventing totals', () => {

@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   DEFAULT_RUNTIME_SETTINGS,
+  FONT_FAMILY_STACKS,
   FONT_SIZE_IDS,
+  FONT_SIZE_SCALE,
   fontColorsForScheme,
   isHexColor,
   type FontFamilyId,
@@ -69,6 +71,7 @@ export const RUNTIME_SETTINGS_FORM_ID = 'settings-runtime-form';
  */
 function NumberField({
   label,
+  ariaLabel = label,
   value,
   min,
   max,
@@ -79,6 +82,7 @@ function NumberField({
   helpId,
 }: {
   label: string;
+  ariaLabel?: string;
   value: number;
   min: number;
   max: number;
@@ -101,7 +105,7 @@ function NumberField({
         type="text"
         inputMode="numeric"
         autoComplete="off"
-        aria-label={label}
+        aria-label={ariaLabel}
         aria-describedby={helpId}
         value={draft ?? String(value)}
         onChange={(event) => {
@@ -112,6 +116,29 @@ function NumberField({
           if (typed !== '') onCommit(wholeNumberFrom(typed, min, max, value));
         }}
         onBlur={() => setDraft(null)}
+      />
+    </label>
+  );
+}
+
+export function RuntimeGuidanceField({
+  value,
+  update,
+  placeholder,
+}: {
+  value: string;
+  update: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="runtime-field runtime-answer-field runtime-answer-guidance">
+      <span className="runtime-field-label">Guidance</span>
+      <textarea
+        className="runtime-guidance"
+        aria-label="Guidance"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => update(event.target.value)}
       />
     </label>
   );
@@ -280,28 +307,6 @@ export function RuntimeSettingsPanel({
     />
   );
 
-  const guidance = (
-    label: string,
-    value: string,
-    update: (value: string) => void,
-    extra: { help: string; helpId: string; placeholder: string }
-  ) => (
-    <label className="runtime-field runtime-field-wide">
-      <span className="runtime-field-label">{label}</span>
-      <span id={extra.helpId} className="runtime-control-note">
-        {extra.help}
-      </span>
-      <textarea
-        className="runtime-guidance"
-        aria-label={label}
-        aria-describedby={extra.helpId}
-        placeholder={extra.placeholder}
-        value={value}
-        onChange={(event) => update(event.target.value)}
-      />
-    </label>
-  );
-
   return (
     <form
       id={RUNTIME_SETTINGS_FORM_ID}
@@ -355,11 +360,11 @@ export function RuntimeSettingsPanel({
               checked={settings.answer.takeaway}
               onToggle={(value) => setAnswer('takeaway', value)}
             >
-              {guidance('Guidance', settings.answer.takeawayGuidance, (value) => setAnswer('takeawayGuidance', value), {
-                help: 'Tone for that line.',
-                helpId: 'runtime-takeaway-guidance-help',
-                placeholder: 'Example: 42 teams increased weekly usage.',
-              })}
+              <RuntimeGuidanceField
+                value={settings.answer.takeawayGuidance}
+                update={(value) => setAnswer('takeawayGuidance', value)}
+                placeholder="Example: 42 teams increased weekly usage."
+              />
             </AnswerRow>
             <AnswerRow
               label="Narrative"
@@ -368,28 +373,20 @@ export function RuntimeSettingsPanel({
               onToggle={(value) => setAnswer('narrative', value)}
               bodyClassName="runtime-answer-body--narrative"
             >
-              {guidance(
-                'Guidance',
-                settings.answer.narrativeGuidance,
-                (value) => setAnswer('narrativeGuidance', value),
-                {
-                  help: 'How that prose should read.',
-                  helpId: 'runtime-narrative-guidance-help',
-                  placeholder: 'Explain the result in plain language.',
-                }
-              )}
-              {number(
-                'Character cap',
-                settings.answer.narrativeMaxCharacters,
-                0,
-                12_000,
-                (value) => setAnswer('narrativeMaxCharacters', value),
-                {
-                  className: 'runtime-field-short',
-                  help: '0 means uncapped.',
-                  helpId: 'runtime-character-cap-help',
-                }
-              )}
+              <RuntimeGuidanceField
+                value={settings.answer.narrativeGuidance}
+                update={(value) => setAnswer('narrativeGuidance', value)}
+                placeholder="Explain the result in plain language."
+              />
+              <NumberField
+                label="Cap"
+                ariaLabel="Narrative cap"
+                value={settings.answer.narrativeMaxCharacters}
+                min={0}
+                max={12_000}
+                onCommit={(value) => setAnswer('narrativeMaxCharacters', value)}
+                className="runtime-answer-field runtime-answer-cap"
+              />
             </AnswerRow>
             <AnswerRow
               label="Figures"
@@ -486,33 +483,26 @@ export function RuntimeSettingsPanel({
           <div className="settings-pane-heading">
             <h3>Appearance</h3>
           </div>
-          <section className="runtime-section appearance-theme-section">
-            <h4 className="runtime-section-label">Theme</h4>
-            <div className="settings-row appearance-theme-row">
-              <div>
-                <p className="settings-row-label">Dark</p>
-              </div>
-              <StateSwitch
-                checked={settings.colorScheme === 'dark'}
-                onLabel="On"
-                offLabel="Off"
-                onCheckedChange={(on) => {
-                  const colorScheme: ColorScheme = on ? 'dark' : 'light';
-                  setSettings((current) => ({
-                    ...current,
-                    colorScheme,
-                    ...fontColorsForScheme(current, colorScheme),
-                  }));
-                }}
-                aria-label="Dark"
-              />
-            </div>
-          </section>
-          <section className="runtime-section appearance-type-section">
+          <section className="runtime-section appearance-display-section">
             <div className="appearance-section-heading">
-              <h4 className="runtime-section-label">Type</h4>
+              <h4 className="runtime-section-label">Display</h4>
             </div>
-            <div className="appearance-type-colors">
+            <div className="appearance-display-choices">
+              <div className="appearance-choice appearance-mode-choice">
+                <span className="appearance-choice-label">Dark mode</span>
+                <StateSwitch
+                  checked={settings.colorScheme === 'dark'}
+                  onCheckedChange={(on) => {
+                    const colorScheme: ColorScheme = on ? 'dark' : 'light';
+                    setSettings((current) => ({
+                      ...current,
+                      colorScheme,
+                      ...fontColorsForScheme(current, colorScheme),
+                    }));
+                  }}
+                  aria-label="Dark mode"
+                />
+              </div>
               {(
                 [
                   ['fontBodyColor', 'Body text', 'Body text color'],
@@ -521,15 +511,27 @@ export function RuntimeSettingsPanel({
               ).map(([key, label, aria]) => {
                 const hex = settings[key];
                 return (
-                  <div className="appearance-color" key={key}>
-                    <span className="appearance-type-color-label">{label}</span>
-                    <span className="appearance-color-swatch">
-                      <span aria-hidden="true" style={{ background: hex }} />
-                      <input
-                        type="color"
-                        className="appearance-color-picker"
-                        aria-label={`${aria} picker`}
-                        value={isHexColor(hex) ? hex : '#000000'}
+                  <div className="appearance-choice appearance-color-choice" key={key}>
+                    <span className="appearance-choice-label">{label}</span>
+                    <div className="appearance-color">
+                      <span className="appearance-color-swatch">
+                        <span aria-hidden="true" style={{ background: hex }} />
+                        <input
+                          type="color"
+                          className="appearance-color-picker"
+                          aria-label={`${aria} picker`}
+                          value={isHexColor(hex) ? hex : '#000000'}
+                          onChange={(event) =>
+                            setSettings((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                        />
+                      </span>
+                      <Input
+                        aria-label={aria}
+                        value={hex}
                         onChange={(event) =>
                           setSettings((current) => ({
                             ...current,
@@ -537,23 +539,13 @@ export function RuntimeSettingsPanel({
                           }))
                         }
                       />
-                    </span>
-                    <Input
-                      aria-label={aria}
-                      value={hex}
-                      onChange={(event) =>
-                        setSettings((current) => ({
-                          ...current,
-                          [key]: event.target.value,
-                        }))
-                      }
-                    />
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <div className="appearance-type-controls">
-              <label className="runtime-field appearance-type-family">
+            <div className="appearance-display-controls">
+              <label className="runtime-field appearance-display-family">
                 <span className="runtime-field-label">Font</span>
                 <AppSelect
                   label="Font"
@@ -583,10 +575,22 @@ export function RuntimeSettingsPanel({
                 </div>
               </div>
             </div>
-            <div className="appearance-type-preview" aria-hidden="true">
-              <p className="appearance-type-preview-kicker">Preview</p>
-              <p className="appearance-type-preview-body">How many players returned this week?</p>
-              <p className="appearance-type-preview-muted">Secondary text · timestamps · captions</p>
+            <div
+              className="appearance-display-preview"
+              data-color-scheme={settings.colorScheme}
+              style={
+                {
+                  '--appearance-preview-body': settings.fontBodyColor,
+                  '--appearance-preview-muted': settings.fontMutedColor,
+                  '--appearance-preview-font': FONT_FAMILY_STACKS[settings.fontFamily],
+                  '--appearance-preview-size': `${Math.round(14 * FONT_SIZE_SCALE[settings.fontSize])}px`,
+                } as CSSProperties
+              }
+              aria-hidden="true"
+            >
+              <p className="appearance-display-preview-kicker">Preview</p>
+              <p className="appearance-display-preview-body">How many players returned this week?</p>
+              <p className="appearance-display-preview-muted">Secondary text · timestamps · captions</p>
             </div>
           </section>
           <section className="runtime-section runtime-section-last appearance-palette-section">

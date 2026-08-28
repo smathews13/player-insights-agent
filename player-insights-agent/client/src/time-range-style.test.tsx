@@ -13,7 +13,7 @@ import { partial, stylesheet } from './styles/stylesheet';
  * right ARIA, right class names, and not one of those class names was defined
  * anywhere in the cascade. AppKit's preflight strips a button's border, padding
  * and background, so the four segments rendered as one word and the filter row
- * read "24h7 days30 daysCustom" on both Monitoring and Ops.
+ * read "24h7 days30 daysAll time" on both Monitoring and Ops.
  *
  * Nothing caught it because every test asked whether the control rendered, and
  * it did. So these tests ask the question that was missing: is every class this
@@ -69,17 +69,16 @@ describe('the shared range control reaches the stylesheet the app ships', () => 
   });
 });
 
-describe('the five labels are separated rather than run together', () => {
+describe('the four labels are separated rather than run together', () => {
   const CSS = rules(partial('time-range.css'));
 
   /**
-   * The rule that stops "24h7 days30 daysAll timeCustom". Horizontal padding on
+   * The rule that stops "24h7 days30 daysAll time". Horizontal padding on
    * the segment is what puts space between the labels, so it is asserted directly:
    * a segment with vertical padding only renders the same collision.
    *
-   * This matters more with five segments than it did with four, and more for All
-   * time than for any of the others: it is the only two-word label, so an unpadded
-   * row would run it into both neighbours and into itself.
+   * All time is the only two-word label, so an unpadded row would run it into its
+   * neighbour and into itself.
    */
   it('pads each segment horizontally', () => {
     const segment = /\.time-range-segment\s*\{([^}]*)\}/.exec(CSS);
@@ -122,17 +121,16 @@ describe('the five labels are separated rather than run together', () => {
   });
 });
 
-describe('the control offers the five ranges the design names', () => {
-  /**
-   * The order is asserted, not just the membership. All time sits after the three
-   * fixed windows and before Custom so that the first four widen in one direction
-   * and Custom is the escape from the sequence rather than a fifth step in it.
-   */
-  it('renders 24h, 7 days, 30 days, All time and Custom as five separate controls', () => {
+describe('the control offers only the supported presets', () => {
+  it('renders the four presets and no custom date controls', () => {
     const html = markup();
 
-    expect(RANGE_SEGMENTS.map((segment) => segment.label)).toEqual(['24h', '7 days', '30 days', 'All time', 'Custom']);
+    expect(RANGE_SEGMENTS.map((segment) => segment.label)).toEqual(['24h', '7 days', '30 days', 'All time']);
     for (const segment of RANGE_SEGMENTS) expect(html).toContain(`>${segment.label}<`);
-    expect(html.match(/role="radio"/g)).toHaveLength(5);
+    expect(html.match(/role="radio"/g)).toHaveLength(4);
+    expect(html).not.toContain('>Custom<');
+    expect(html).not.toContain('type="date"');
+    expect(html).not.toContain('Pick both dates');
+    expect(html).toMatch(/aria-checked="true"[^>]*>7 days<\/button>/);
   });
 });

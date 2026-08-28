@@ -95,16 +95,13 @@ describe('the filters live in the URL', () => {
 
   /**
    * THE CONTRACT WITH THE SHARED RANGE CONTROL. A filter change may not disturb
-   * anything it does not own, which includes the range, a custom window, and an
-   * open drawer.
+   * anything it does not own, which includes the preset range and an open drawer.
    */
   it('leaves every parameter it does not own untouched', () => {
-    const before = 'range=custom&from=2026-08-01T00:00:00Z&to=2026-08-08T00:00:00Z&question=q9&other=keep';
+    const before = 'range=30d&question=q9&other=keep';
     const after = params(withFilters(before, { ...NO_FILTERS, outcome: 'refused' }));
 
-    expect(after.get('range')).toBe('custom');
-    expect(after.get('from')).toBe('2026-08-01T00:00:00Z');
-    expect(after.get('to')).toBe('2026-08-08T00:00:00Z');
+    expect(after.get('range')).toBe('30d');
     expect(after.get('question')).toBe('q9');
     expect(after.get('other')).toBe('keep');
     expect(after.get('outcome')).toBe('refused');
@@ -190,15 +187,13 @@ describe('clearing a filter round-trips through the URL', () => {
 
   /**
    * Clearing the row does not clear the period, and there is no filter parameter
-   * that could. The range lives in `range`, `from` and `to`, which this module
-   * does not own and `clearedFilters` therefore cannot reach.
+   * that could. The period lives in `range`, which this module does not own and
+   * `clearedFilters` therefore cannot reach.
    */
   it('cannot remove the period, because the period is not one of its filters', () => {
-    const after = params(clearedFilters('range=custom&from=2026-08-01&to=2026-08-08&person=a@b.test'));
+    const after = params(clearedFilters('range=30d&person=a@b.test'));
 
-    expect(after.get('range')).toBe('custom');
-    expect(after.get('from')).toBe('2026-08-01');
-    expect(after.get('to')).toBe('2026-08-08');
+    expect(after.get('range')).toBe('30d');
     expect(after.get('person')).toBeNull();
   });
 });

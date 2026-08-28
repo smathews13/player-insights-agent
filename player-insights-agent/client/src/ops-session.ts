@@ -39,7 +39,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 
-import { CUSTOM_FROM_PARAM, CUSTOM_TO_PARAM, rangeFromParams, type ReadableParams } from './time-range';
+import { rangeFromParams, type ReadableParams } from './time-range';
 
 type Listener = () => void;
 
@@ -77,15 +77,11 @@ export interface OpsBlockAnswer<T> {
 /**
  * Which cost range the URL is asking for, as a stable session key.
  *
- * Same rule as Monitoring: the word in the URL (`7d`, `24h`, a custom pair) is
- * the question the reader asked, and it is what a later visit is still asking.
+ * Same rule as Monitoring: the supported preset in the URL is the question the
+ * reader asked, and it is what a later visit is still asking.
  */
 export function opsCostRangeId(params: ReadableParams): string {
-  const key = rangeFromParams(params);
-  if (key !== 'custom') return key;
-  const from = (params.get(CUSTOM_FROM_PARAM) ?? '').trim();
-  const to = (params.get(CUSTOM_TO_PARAM) ?? '').trim();
-  return `custom:${from}:${to}`;
+  return rangeFromParams(params);
 }
 
 /** One block's session key: the route, plus a cost range when the read has one. */
@@ -186,11 +182,7 @@ export async function loadOpsBlock<T>(key: string, url: string): Promise<OpsBloc
  * fetch. A disabled block does not even claim its session key, which means
  * turning the experiment on later still gets its intended first read.
  */
-export function autoLoadOpsBlock<T>(
-  enabled: boolean,
-  key: string,
-  url: string
-): Promise<OpsBlockAnswer<T>> | null {
+export function autoLoadOpsBlock<T>(enabled: boolean, key: string, url: string): Promise<OpsBlockAnswer<T>> | null {
   if (!enabled || !claimOpsAutoLoad(key)) return null;
   return loadOpsBlock<T>(key, url);
 }
@@ -215,12 +207,7 @@ export interface OpsBlockSession<T> {
  * remount recomputes cost `from`/`to` from a later clock and must not count
  * as a new question.
  */
-export function useOpsBlock<T>(
-  path: string,
-  search: string,
-  rangeId = '',
-  enabled = true
-): OpsBlockSession<T> {
+export function useOpsBlock<T>(path: string, search: string, rangeId = '', enabled = true): OpsBlockSession<T> {
   const key = opsBlockKey(path, rangeId);
   const url = `${path}${search}`;
   const [, bump] = useState(0);

@@ -19,6 +19,7 @@ import {
   insertSpPersona,
   isSpIdentityEnabled,
   listSpAssignments,
+  listSpPersonaDefinitions,
   listSpPersonas,
   writeSpAssignment,
   writeSpIdentityEnabled,
@@ -66,7 +67,7 @@ function client(
           });
         }
         if (sql.includes(SP_PERSONA_DEFINITIONS_TABLE) && sql.includes('INSERT')) {
-          const [id, displayName, description, capabilities, updatedBy] = values ?? [];
+          const [id, displayName, description, capabilities, grants, legacyCapabilities, updatedBy] = values ?? [];
           const parsedCapabilities: unknown = JSON.parse(String(capabilities));
           return Promise.resolve({
             rows: [
@@ -75,6 +76,8 @@ function client(
                 display_name: displayName,
                 description,
                 capabilities: parsedCapabilities,
+                grants: JSON.parse(String(grants)) as unknown,
+                legacy_capabilities: JSON.parse(String(legacyCapabilities)) as unknown,
                 updated_at: '2026-08-28T00:00:00.000Z',
                 updated_by: updatedBy,
               },
@@ -187,7 +190,16 @@ describe('service-principal persona persistence', () => {
     const write = SpPersonaDefinitionWriteSchema.parse({
       displayName: 'Finance reader',
       description: 'Governed reporting',
-      capabilities: ['SQL warehouse — CAN USE', 'Governed tables — USE CATALOG, USE SCHEMA, SELECT'],
+      capabilities: ['SQL warehouse abc123 — CAN USE'],
+      grants: [
+        {
+          resourceType: 'SQL_WAREHOUSE',
+          resource: 'abc123',
+          action: 'USE',
+          privilege: 'CAN USE',
+        },
+      ],
+      legacyCapabilities: [],
       clientId: 'must-be-dropped',
       secret: 'must-be-dropped',
     });
@@ -195,11 +207,40 @@ describe('service-principal persona persistence', () => {
     expect(definition).toMatchObject({
       displayName: 'Finance reader',
       description: 'Governed reporting',
-      capabilities: ['SQL warehouse — CAN USE', 'Governed tables — USE CATALOG, USE SCHEMA, SELECT'],
+      capabilities: ['SQL warehouse abc123 — CAN USE'],
+      grants: [
+        expect.objectContaining({
+          resourceType: 'SQL_WAREHOUSE',
+          resource: 'abc123',
+          privilege: 'CAN USE',
+        }),
+      ],
+      legacyCapabilities: [],
     });
     expect(definition).not.toHaveProperty('clientId');
     expect(definition).not.toHaveProperty('secret');
     expect(JSON.stringify(store.calls[0]?.values)).not.toContain('must-be-dropped');
+  });
+
+  it('reads an existing string plan as explicitly legacy without losing a character', async () => {
+    const legacy = 'Governed tables — USE CATALOG, USE SCHEMA, SELECT';
+    const definitions = await listSpPersonaDefinitions(
+      client({
+        definitions: [
+          {
+            id: 'legacy-1',
+            display_name: 'Existing reader',
+            description: '',
+            capabilities: [legacy],
+            updated_at: '2026-08-27T00:00:00.000Z',
+            updated_by: 'owner@example.invalid',
+          },
+        ],
+      }) as never
+    );
+    expect(definitions[0]?.capabilities).toEqual([legacy]);
+    expect(definitions[0]?.legacyCapabilities).toEqual([legacy]);
+    expect(definitions[0]?.grants).toEqual([]);
   });
 
   it('removes only a persona definition and not assignments', async () => {
@@ -267,5 +308,8 @@ describe('service-principal persona persistence', () => {
     expect(block).not.toMatch(/secret_value|client_secret TEXT/i);
     expect(source).toContain('sp_persona_definitions');
     expect(source).toContain('capabilities JSONB NOT NULL');
+    expect(source).toContain("name: 'structured service principal grants'");
+    expect(source).toContain("grants JSONB NOT NULL DEFAULT '[]'::jsonb");
+    expect(source).toContain('legacy_capabilities JSONB');
   });
 });

@@ -18,6 +18,7 @@ import {
 } from '../../shared/sp-identity';
 import { invalidAdminEmail, recordAdminAction } from '../lib/admin-roles';
 import { describeSpTokenMinting } from '../lib/sp-token';
+import { discoverSpGrantResources } from '../lib/sp-grant-resources';
 import {
   deleteSpPersonaDefinition,
   deleteSpPersona,
@@ -36,12 +37,19 @@ import { readRoster } from '../lib/user-roster';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
 async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayload> {
-  const [enabled, personas, personaDefinitions, assignments, rosterRead] = await Promise.all([
+  const [enabled, personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
     isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
     listSpPersonas(appkit),
     listSpPersonaDefinitions(appkit),
     listSpAssignments(appkit),
     readRoster(appkit.lakebase).catch(() => ({ rows: [] as { email: string; role: string }[] })),
+    discoverSpGrantResources(appkit)
+      .then((resources) => ({ status: 'ready' as const, resources, detail: '' }))
+      .catch((error) => ({
+        status: 'error' as const,
+        resources: [],
+        detail: `Configured resources could not be read: ${(error as Error).message}`,
+      })),
   ]);
   const assignedByEmail = new Map(assignments.map((row) => [row.email, row.personaId]));
   const roster: SpIdentityRosterRow[] = rosterRead.rows.map((row) => ({
@@ -59,6 +67,7 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
     minting: describeSpTokenMinting(),
     personas,
     personaDefinitions,
+    grantResourceDiscovery,
     assignments,
     roster,
   };

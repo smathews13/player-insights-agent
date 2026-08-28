@@ -230,12 +230,21 @@ function ProseRuns({
   runs,
   badges = false,
   labelList = false,
+  tools = [],
+  toolClassName = '',
+  numbers = true,
 }: {
   runs: readonly ProseSegment[];
   /** Whether this surface sets windows and labels as badges. See answer-badges.ts. */
   badges?: boolean;
   /** Whether the run this leaf opens with is the value of a `Labels:` lead-in. */
   labelList?: boolean;
+  /** Additional tool identifiers proven by the trace surrounding this prose. */
+  tools?: readonly string[];
+  /** Surface-specific layout hook; the shared inline-code treatment stays on every tool. */
+  toolClassName?: string;
+  /** Whether plain numeric runs take the answer's tabular-number treatment. */
+  numbers?: boolean;
 }) {
   return (
     <>
@@ -254,7 +263,17 @@ function ProseRuns({
           );
         }
         if (run.emphasis) return <EntityMark key={run.start}>{run.text}</EntityMark>;
-        if (!badges) return <PlainTextRun key={run.start} start={run.start} text={run.text} />;
+        if (!badges)
+          return (
+            <PlainTextRun
+              key={run.start}
+              start={run.start}
+              text={run.text}
+              tools={tools}
+              toolClassName={toolClassName}
+              numbers={numbers}
+            />
+          );
         // The label list is the head of the leaf that follows the lead-in, so
         // only the first run can carry it; every other plain run is scanned for
         // a window instead.
@@ -267,7 +286,14 @@ function ProseRuns({
                   {part.text}
                 </span>
               ) : (
-                <Fragment key={part.start}>{part.text}</Fragment>
+                <PlainTextRun
+                  key={part.start}
+                  start={part.start}
+                  text={part.text}
+                  tools={tools}
+                  toolClassName={toolClassName}
+                  numbers={numbers}
+                />
               )
             )}
           </Fragment>
@@ -280,11 +306,48 @@ function ProseRuns({
 const INLINE_NUMBER = /\d{4}-\d{1,2}-\d{1,2}|[-+\u2212]?(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?%?/g;
 
 /**
+ * Tool/function identifiers the shipped agent can put in reader-facing prose.
+ *
+ * This is a closed vocabulary rather than an underscore-word heuristic. A
+ * column such as `request_id` is ordinary data prose unless its surrounding
+ * trace explicitly declares it as a tool, while `run_sql` is code wherever a
+ * trace summary or evidence sentence names the callable itself.
+ */
+const KNOWN_TOOL_IDENTIFIERS = [
+  'data_genie',
+  'dictionary_genie',
+  'list_data_assets',
+  'search_tagged_assets',
+  'search_semantics',
+  'search_sources',
+  'resolve_table',
+  'describe_table',
+  'query_named_table',
+  'run_sql',
+  'request_clarification',
+  'new_plot',
+] as const;
+
+function toolIdentifiers(additional: readonly string[]): string[] {
+  return [...new Set([...KNOWN_TOOL_IDENTIFIERS, ...additional])]
+    .filter((name) => /^[a-z_][a-z0-9_]*$/.test(name))
+    .sort((left, right) => right.length - left.length);
+}
+
+function identifierCharacter(value: string | undefined): boolean {
+  return value !== undefined && /[A-Za-z0-9_]/.test(value);
+}
+
+function boundedToolAt(text: string, at: number, tool: string): boolean {
+  return !identifierCharacter(text[at - 1]) && !identifierCharacter(text[at + tool.length]);
+}
+
+/**
  * Numerals in ordinary prose take the mono face without changing the string.
  * The runs concatenate to the exact input, so selection and copy remain plain
  * text and no pseudo-element carries content.
  */
-function PlainTextRun({ text, start }: { text: string; start: number }) {
+function NumberTextRun({ text, start }: { text: string; start: number }) {
   const parts: ReactNode[] = [];
   let from = 0;
   for (const match of text.matchAll(INLINE_NUMBER)) {
@@ -298,6 +361,76 @@ function PlainTextRun({ text, start }: { text: string; start: number }) {
     from = at + match[0].length;
   }
   if (from < text.length) parts.push(<Fragment key={start + from}>{text.slice(from)}</Fragment>);
+  return <>{parts}</>;
+}
+
+/**
+ * Ordinary prose split only around tool identifiers proven by the shared
+ * vocabulary or by the trace that owns the sentence.
+ *
+ * Table/entity segmentation happens before this component, so a table such as
+ * `catalog.schema.run_sql` remains one table graphic instead of receiving a
+ * nested code mark. Existing Markdown code spans also bypass this path.
+ */
+function PlainTextRun({
+  text,
+  start,
+  tools,
+  toolClassName,
+  numbers,
+}: {
+  text: string;
+  start: number;
+  tools: readonly string[];
+  toolClassName: string;
+  numbers: boolean;
+}) {
+  const candidates = toolIdentifiers(tools);
+  const lowered = text.toLowerCase();
+  const parts: ReactNode[] = [];
+  let plainFrom = 0;
+  let cursor = 0;
+  while (cursor < text.length) {
+    let hit: { at: number; tool: string } | null = null;
+    for (const tool of candidates) {
+      const at = lowered.indexOf(tool, cursor);
+      if (at === -1 || !boundedToolAt(text, at, tool)) continue;
+      if (!hit || at < hit.at || (at === hit.at && tool.length > hit.tool.length)) hit = { at, tool };
+    }
+    if (!hit) break;
+    if (hit.at > plainFrom) {
+      const plain = text.slice(plainFrom, hit.at);
+      parts.push(
+        numbers ? (
+          <NumberTextRun key={start + plainFrom} start={start + plainFrom} text={plain} />
+        ) : (
+          <Fragment key={start + plainFrom}>{plain}</Fragment>
+        )
+      );
+    }
+    const value = text.slice(hit.at, hit.at + hit.tool.length);
+    parts.push(
+      <code
+        className={['answer-code', 'semantic-inline-code', toolClassName].filter(Boolean).join(' ')}
+        data-technical-entity="tool"
+        key={`${start + hit.at}-tool`}
+      >
+        {value}
+      </code>
+    );
+    cursor = hit.at + hit.tool.length;
+    plainFrom = cursor;
+  }
+  if (plainFrom < text.length) {
+    const plain = text.slice(plainFrom);
+    parts.push(
+      numbers ? (
+        <NumberTextRun key={start + plainFrom} start={start + plainFrom} text={plain} />
+      ) : (
+        <Fragment key={start + plainFrom}>{plain}</Fragment>
+      )
+    );
+  }
   return <>{parts}</>;
 }
 
@@ -328,7 +461,19 @@ function inlineText(nodes: readonly Inline[]): string {
  * as the six characters it is. See answer-markdown.ts for why that is the
  * safety story rather than a sanitiser.
  */
-function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badges?: boolean }) {
+function InlineNodes({
+  nodes,
+  badges = false,
+  tools = [],
+  toolClassName = '',
+  numbers = true,
+}: {
+  nodes: readonly Inline[];
+  badges?: boolean;
+  tools?: readonly string[];
+  toolClassName?: string;
+  numbers?: boolean;
+}) {
   return (
     <>
       {nodes.map((node, index) => {
@@ -340,7 +485,17 @@ function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badg
             const previous = nodes[index - 1];
             const labelList =
               previous !== undefined && previous.kind === 'strong' && isLabelLeadIn(inlineText(previous.children));
-            return <ProseRuns runs={node.runs} badges={badges} labelList={labelList} key={node.start} />;
+            return (
+              <ProseRuns
+                runs={node.runs}
+                badges={badges}
+                labelList={labelList}
+                tools={tools}
+                toolClassName={toolClassName}
+                numbers={numbers}
+                key={node.start}
+              />
+            );
           }
           case 'code':
             return (
@@ -351,7 +506,13 @@ function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badg
           case 'strong':
             return (
               <strong key={node.start}>
-                <InlineNodes nodes={node.children} badges={badges} />
+                <InlineNodes
+                  nodes={node.children}
+                  badges={badges}
+                  tools={tools}
+                  toolClassName={toolClassName}
+                  numbers={numbers}
+                />
               </strong>
             );
           case 'link':
@@ -361,7 +522,7 @@ function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badg
             // would carry the conversation id with it.
             return (
               <a className="answer-link" href={node.href} key={node.start} rel="noopener noreferrer" target="_blank">
-                <InlineNodes nodes={node.children} />
+                <InlineNodes nodes={node.children} tools={tools} toolClassName={toolClassName} numbers={numbers} />
               </a>
             );
           case 'break':
@@ -540,11 +701,20 @@ export function EntityText({
   text,
   sources,
   columns = [],
+  tools = [],
+  toolClassName = '',
+  numbers = true,
 }: {
   text: string;
   sources: readonly { name: string }[];
   /** The columns this surface declared. Bolded, never linked. */
   columns?: readonly string[];
+  /** Additional callable names proven by this surface's trace record. */
+  tools?: readonly string[];
+  /** Optional surface layout hook added to the shared inline-code class. */
+  toolClassName?: string;
+  /** Keep false only on trace renderers that historically leave figures untouched. */
+  numbers?: boolean;
 }) {
   const tracked = useTrackedTables();
   const nodes = answerInline(
@@ -553,7 +723,7 @@ export function EntityText({
     tracked,
     columns
   );
-  return <InlineNodes nodes={nodes} />;
+  return <InlineNodes nodes={nodes} tools={tools} toolClassName={toolClassName} numbers={numbers} />;
 }
 
 /**

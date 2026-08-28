@@ -39,7 +39,7 @@ import {
 function stubFetch(route: { ok?: boolean; status?: number; body?: unknown; throws?: boolean } = {}) {
   const paths: string[] = [];
   const impl = vi.fn((input: RequestInfo | URL) => {
-    const url = typeof input === 'string' ? input : String(input);
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     paths.push(url);
     if (route.throws) return Promise.reject(new Error('the server is not answering'));
     return Promise.resolve({
@@ -166,10 +166,8 @@ describe('the cost range identity a remount must reuse', () => {
     expect(opsCostRangeId(new URLSearchParams('range=all'))).toBe('all');
   });
 
-  it('keeps a custom pair as one key so the same typed window is one question', () => {
-    expect(opsCostRangeId(new URLSearchParams('range=custom&from=2026-01-01&to=2026-01-31'))).toBe(
-      'custom:2026-01-01:2026-01-31'
-    );
+  it('uses the safe default key for a retired custom URL', () => {
+    expect(opsCostRangeId(new URLSearchParams('range=custom&from=2026-01-01&to=2026-01-31'))).toBe('7d');
   });
 
   it('does not put health, traffic or latency under a range key', () => {
@@ -199,7 +197,7 @@ describe('the page no longer fetches the blocks itself', () => {
   });
 
   it('does not fetch /api/ops itself', () => {
-    expect(source).not.toContain("fetch(`${path}${search}`");
+    expect(source).not.toContain('fetch(`${path}${search}`');
     expect(source).not.toMatch(/fetch\(['`]\/api\/ops\//);
   });
 });

@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import { RosterRows } from './UserRoleEditor';
 import { roleOptions } from './user-role-options';
-import { canSubmit, originLabel, roleWord, rosterSummary, rowLocked, setOn, stepsDownFrom } from './user-roster';
+import { canSubmit, originLabel, roleWord, rowLocked, setOn, stepsDownFrom } from './user-roster';
 import { badgeAnnouncement, badgeLabel, badgeTitle, roleFrom, showsAdminSurfaces, showsUserRoster } from './role';
 import type { Role, RosterEntry, RosterPayload } from '../../shared/user-roster-contract';
 import { partial } from './styles/stylesheet';
@@ -85,7 +85,8 @@ describe('the row offers only what the server allows', () => {
       entries: [analyst],
     });
     expect(markup).toContain('role="combobox"');
-    expect(text(markup)).toContain('Role · Consumer');
+    expect(text(markup)).toContain('Consumer');
+    expect(text(markup)).not.toContain('Role ·');
     expect(roleOptions(analyst).map((option) => option.value)).toEqual(['consumer', 'admin']);
   });
 
@@ -99,7 +100,7 @@ describe('the row offers only what the server allows', () => {
 
   it('names the row in the control, so a screen reader is not given a bare menu', () => {
     expect(rows({ entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'] })] })).toContain(
-      `Role for ${ANALYST}`
+      `User role for ${ANALYST}`
     );
   });
 });
@@ -188,7 +189,7 @@ describe('the #24a Roles geometry', () => {
     const markup = rows({
       entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
     });
-    for (const heading of ['Email', 'Set by', 'Human role', 'Actions']) {
+    for (const heading of ['Email', 'Set by', 'User role', 'Actions']) {
       expect(markup).toContain(`<th scope="col">${heading}</th>`);
     }
 
@@ -200,19 +201,24 @@ describe('the #24a Roles geometry', () => {
 
   it('keeps role and action controls compact within their columns', () => {
     expect(css).toMatch(/\.roster-role-select,\s*\.roster-persona-select \{[^}]*flex:\s*0 0 auto/);
-    expect(css).toMatch(/\.roster-role-select,\s*\.roster-persona-select \{[^}]*max-width:\s*13rem/);
+    expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*9rem/);
+    expect(css).toMatch(/\.roster-persona-select \{[^}]*max-width:\s*13rem/);
     expect(css).toMatch(/\.admin-add \[data-slot='button'\] \{[^}]*flex:\s*none/);
     expect(css).toMatch(/\.admin-add > \[data-slot='input'\] \{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.roles-table--editable th:last-child \{[^}]*text-align:\s*right/);
     expect(css).toMatch(/\.roster-action \{[^}]*text-align:\s*right/);
   });
 
-  /** The value in the trigger, so the closed control reads "Role · Admin" whole. */
-  it('keeps the gold-standard dropdown, label and value in one field', () => {
-    expect(text(rows({ entries: [entry({ email: ANALYST, role: 'admin', assignable: ['consumer'] })] }))).toContain(
-      'Role · Admin'
-    );
-    expect(partial('base.css')).toMatch(/\.app-select-label,\s*\.app-select-separator \{\s*flex: none/);
+  it('shows only the selected user role while keeping a descriptive accessible name', () => {
+    const markup = rows({ entries: [entry({ email: ANALYST, role: 'admin', assignable: ['consumer'] })] });
+    expect(text(markup)).toContain('Admin');
+    expect(text(markup)).not.toContain('Role · Admin');
+    expect(markup).toContain(`aria-label="User role for ${ANALYST}: Admin"`);
+    const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
+    expect(editor).toContain('ariaLabel="User role to give them"');
+    expect(
+      editor.match(/className="roster-control roster-role-select"[\s\S]*?showLabel=\{false\}/g) ?? []
+    ).toHaveLength(2);
   });
 });
 
@@ -269,54 +275,6 @@ describe('the way back into a deployment nobody can administer', () => {
       pendingSchemaStatement: 'ALTER TABLE player_insights.admin_emails ADD COLUMN IF NOT EXISTS role TEXT',
     });
     expect(markup).toContain('Add the role column');
-  });
-});
-
-describe('the line above the roster', () => {
-  const payload = (over: Partial<RosterPayload> & { entries: RosterEntry[] }): RosterPayload => ({
-    storedRosterReadable: true,
-    roleColumnPresent: true,
-    pendingSchemaStatement: '',
-    superAdminCount: over.entries.filter((row) => row.role === 'super_admin').length,
-    recoveryStatement: '',
-    ...over,
-  });
-
-  it('says the stored half could not be read rather than drawing it empty', () => {
-    const summary = rosterSummary(
-      payload({ entries: [entry({ email: LEAD, role: 'super_admin' })], storedRosterReadable: false })
-    );
-    expect(summary).toContain('could not be read');
-    expect(summary).toContain('Nobody has lost a role.');
-  });
-
-  it('says a deployment with nobody on it has nobody, which is a different fact', () => {
-    expect(rosterSummary(payload({ entries: [] }))).toContain('no administrators');
-  });
-
-  it('counts the administrators and how many of them are super', () => {
-    const summary = rosterSummary(
-      payload({
-        entries: [
-          entry({ email: LEAD, role: 'super_admin' }),
-          entry({ email: DEPUTY, role: 'admin' }),
-          entry({ email: ANALYST, role: 'consumer' }),
-        ],
-      })
-    );
-    expect(summary).toContain('2 administrators, 1 super');
-    expect(summary).toContain('3 people');
-  });
-
-  it('uses the exact singular summary and suppresses zero counts', () => {
-    const summary = rosterSummary(
-      payload({ entries: [entry({ email: LEAD, role: 'super_admin', seedFloor: 'super_admin' })] })
-    );
-    expect(summary).toBe('1 administrator, 1 super. 1 person on the roster.');
-
-    const consumerOnly = rosterSummary(payload({ entries: [entry({ email: ANALYST, role: 'consumer' })] }));
-    expect(consumerOnly).toBe('1 person on the roster.');
-    expect(consumerOnly).not.toContain('0');
   });
 });
 

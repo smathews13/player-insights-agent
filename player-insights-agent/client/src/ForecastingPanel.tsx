@@ -9,7 +9,7 @@ import {
 } from './forecast';
 import { persistForecastAssumptions, readForecastAssumptions } from './forecast-preferences';
 import { Disclosure } from './page-chrome';
-import { Button, Input, Skeleton } from './ui';
+import { Input, Skeleton } from './ui';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
 interface ForecastBlock<T> {
@@ -22,16 +22,33 @@ const ASSUMPTION_FIELDS: Array<{
   key: keyof ForecastAssumptions;
   label: string;
   unit?: string;
+  exampleUnit: string;
   step: string;
 }> = [
-  { key: 'averageDailyUsers', label: 'Average daily users', step: '1' },
-  { key: 'questionsPerUserPerDay', label: 'Questions per user per day', step: '0.1' },
-  { key: 'activeAppMinutesPerUserPerDay', label: 'Active app minutes per user per day', unit: 'min', step: '0.1' },
-  { key: 'averageModelTokensPerQuestion', label: 'Average model tokens per question', unit: 'tokens', step: '0.1' },
   {
-    key: 'costBufferPercent',
-    label: 'Cost buffer',
-    unit: '%',
+    key: 'averageDailyUsers',
+    label: 'Average daily users',
+    exampleUnit: 'users',
+    step: '1',
+  },
+  {
+    key: 'questionsPerUserPerDay',
+    label: 'Questions per user per day',
+    exampleUnit: 'questions/user/day',
+    step: '0.1',
+  },
+  {
+    key: 'activeAppMinutesPerUserPerDay',
+    label: 'Active app minutes per user per day',
+    unit: 'min',
+    exampleUnit: 'min/user/day',
+    step: '0.1',
+  },
+  {
+    key: 'averageModelTokensPerQuestion',
+    label: 'Average model tokens per question',
+    unit: 'tokens',
+    exampleUnit: 'tokens/question',
     step: '0.1',
   },
 ];
@@ -40,23 +57,46 @@ function money(amount: number, currency: string): string {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }
 
+function exampleBand(field: (typeof ASSUMPTION_FIELDS)[number], value: number, item: ForecastSuggestionEvidence) {
+  if (item.range) return { min: item.range.min, max: item.range.max };
+  const whole = field.key === 'averageDailyUsers' || field.key === 'averageModelTokensPerQuestion';
+  const round = (candidate: number) => (whole ? Math.round(candidate) : Math.round(candidate * 10) / 10);
+  return { min: round(value * 0.8), max: round(value * 1.2) };
+}
+
+function exampleRangeText(
+  field: (typeof ASSUMPTION_FIELDS)[number],
+  value: number,
+  item: ForecastSuggestionEvidence
+): string {
+  const range = exampleBand(field, value, item);
+  const whole = field.key === 'averageDailyUsers' || field.key === 'averageModelTokensPerQuestion';
+  const formatted = (amount: number) =>
+    amount.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: whole ? 0 : 1,
+    });
+  return `Example range: ${formatted(range.min)}–${formatted(range.max)} ${field.exampleUnit}`;
+}
+
+function methodologyEvidence(item: ForecastSuggestionEvidence): string {
+  const range = item.range
+    ? ` · ${item.range.label} ${item.range.min.toLocaleString()}–${item.range.max.toLocaleString()}`
+    : '';
+  return `${item.calculation}${item.period ? ` · ${item.period}` : ''}${range}`;
+}
+
 function AssumptionGrid({
   assumptions,
+  examples,
   evidence,
   onChange,
 }: {
   assumptions: ForecastAssumptions;
+  examples: ForecastAssumptions;
   evidence: Record<keyof ForecastAssumptions, ForecastSuggestionEvidence>;
   onChange: (field: keyof ForecastAssumptions, value: number) => void;
 }) {
-  const evidenceText = (item: ForecastSuggestionEvidence) => {
-    const formatted = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 1 });
-    const observed = item.range
-      ? ` · ${item.range.label} ${formatted(item.range.min)}–${formatted(item.range.max)}`
-      : '';
-    const period = item.period ? ` · ${item.period}` : '';
-    return `Suggested: ${item.calculation}${period}${observed}`;
-  };
   return (
     <fieldset className="ops-forecast-assumptions">
       <legend>Assumptions</legend>
@@ -78,12 +118,9 @@ function AssumptionGrid({
                 />
                 {field.unit ? <small>{field.unit}</small> : null}
               </span>
-              {field.key === 'costBufferPercent' ? (
-                <small className="ops-forecast-assumption-explanation">
-                  Extra percentage added after the component forecast.
-                </small>
-              ) : null}
-              <small className="ops-forecast-assumption-evidence">{evidenceText(evidence[field.key])}</small>
+              <small className="ops-forecast-assumption-evidence">
+                {exampleRangeText(field, examples[field.key], evidence[field.key])}
+              </small>
             </label>
           );
         })}
@@ -127,8 +164,8 @@ export function ForecastingBody({
     <section className="ops-block ops-forecast" aria-labelledby="ops-forecast-heading" data-testid="ops-forecasting">
       <div className="ops-block-head">
         <div className="ops-block-head-text">
-          <h3 id="ops-forecast-heading">Forecasting</h3>
           <ExperimentalBadge />
+          <h3 id="ops-forecast-heading">Forecasting</h3>
           <span className="ops-block-meta">List-price scenario</span>
         </div>
       </div>
@@ -168,25 +205,12 @@ export function ForecastingBody({
               </p>
             ) : null}
 
-            <AssumptionGrid assumptions={assumptions} evidence={baseline.evidence} onChange={update} />
-            <div className="ops-forecast-actions">
-              <span>
-                Daily questions = {assumptions.averageDailyUsers} × {assumptions.questionsPerUserPerDay} ={' '}
-                {result.dailyQuestions.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSaved(baseline.defaults);
-                  persistForecastAssumptions(baseline.defaults);
-                }}
-              >
-                Use observed defaults
-              </Button>
-            </div>
-
+            <AssumptionGrid
+              assumptions={assumptions}
+              examples={baseline.defaults}
+              evidence={baseline.evidence}
+              onChange={update}
+            />
             <div className="ops-forecast-horizons">
               {result.horizons.map((horizon) => (
                 <article key={horizon.days} className="ops-forecast-horizon">
@@ -207,7 +231,6 @@ export function ForecastingBody({
 
             <Disclosure summary="Methodology, formulas, and exclusions" className="ops-forecast-method">
               <div>
-                <p>Daily questions = users × questions per user per day.</p>
                 <p>
                   Serving = daily stored questions × observed serving cost/stored question × assumed tokens ÷ observed
                   average tokens.
@@ -215,7 +238,15 @@ export function ForecastingBody({
                 <p>Astrolabe SQL = daily stored questions × observed attributed SQL cost/stored question.</p>
                 <p>App compute = users × active minutes/user/day × observed app cost/active minute.</p>
                 <p>Vector Search = the configured resource’s measured daily Cost baseline, held fixed.</p>
-                <p>Other attributable measured daily costs stay fixed. Cost buffer is applied last.</p>
+                <p>Other attributable measured daily costs stay fixed.</p>
+                <h5>Assumption baselines</h5>
+                <ul>
+                  {ASSUMPTION_FIELDS.map((field) => (
+                    <li key={field.key}>
+                      <strong>{field.label}:</strong> {methodologyEvidence(baseline.evidence[field.key])}
+                    </li>
+                  ))}
+                </ul>
                 {baseline.exclusions.length > 0 ? (
                   <>
                     <h5>Excluded from totals</h5>

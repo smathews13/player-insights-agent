@@ -87,9 +87,7 @@ function rules(): { selector: string; body: string }[] {
   const source = TRACE_CSS.replace(/\/\*[\s\S]*?\*\//g, ' ');
   return [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
     .filter(([, selector]) => !selector.trim().startsWith('@'))
-    .flatMap(([, selector, body]) =>
-      selector.split(',').map((one) => ({ selector: one.trim(), body })),
-    );
+    .flatMap(([, selector, body]) => selector.split(',').map((one) => ({ selector: one.trim(), body })));
 }
 
 function stage(overrides: Partial<TraceStage> & Pick<TraceStage, 'id'>): TraceStage {
@@ -110,7 +108,13 @@ function stage(overrides: Partial<TraceStage> & Pick<TraceStage, 'id'>): TraceSt
 /** Eight stages, the length of an ordinary run of this agent. */
 const run: TraceStage[] = [
   stage({ id: 'step-1', name: 'Chose the next step' }),
-  stage({ id: 'step-1-1-search_semantics', name: 'Searched the semantic layer', kind: 'tool', depth: 1, parent_id: 'step-1' }),
+  stage({
+    id: 'step-1-1-search_semantics',
+    name: 'Searched the semantic layer',
+    kind: 'tool',
+    depth: 1,
+    parent_id: 'step-1',
+  }),
   stage({ id: 'step-2', name: 'Chose the next step' }),
   stage({ id: 'step-2-1-describe_table', name: "Read a table's columns", kind: 'tool', depth: 1, parent_id: 'step-2' }),
   stage({ id: 'step-3', name: 'Chose the next step' }),
@@ -134,7 +138,7 @@ function drawn(markup: string): string[] {
     match[1]
       .replace(/<[^>]+>/g, '')
       .replace(/&#x27;/g, "'")
-      .replace(/&amp;/g, '&'),
+      .replace(/&amp;/g, '&')
   );
 }
 
@@ -237,9 +241,7 @@ describe('the agent map fits the page it is drawn on', () => {
     // "0.1s" here and "78ms" on the Timeline tab and in the panel this card now
     // opens. Two roundings of one measurement is how the two surfaces came to
     // disagree, which is the defect Run Explorer's own header comment describes.
-    const markup = renderToStaticMarkup(
-      <TraceDag stages={[stage({ id: 'step-1', duration: 78 })]} activeIndex={-1} />,
-    );
+    const markup = renderToStaticMarkup(<TraceDag stages={[stage({ id: 'step-1', duration: 78 })]} activeIndex={-1} />);
     expect(markup).toContain('78ms');
     expect(markup).not.toContain('0.1s');
   });
@@ -251,7 +253,7 @@ describe('the agent map fits the page it is drawn on', () => {
         activeIndex={-1}
         trace={{ id: 'trace-1', totalMs: 12_340, toolCalls: 3, stages: run }}
         question="Which source should we use?"
-      />,
+      />
     );
     expect(drawn(markup)[0]).toBe('Orchestrator run');
     expect(markup.match(/class="dag-node/g)).toHaveLength(run.length + 1);
@@ -392,7 +394,8 @@ describe('a card says what kind of step, which step, and how long', () => {
     // the published geometry with only its fills substituted -- permitted, ruled
     // 2026-08-17, see assets/logo/README.md -- is held in brand-icons.test.tsx,
     // once, rather than restated at every placement.
-    const asset = (file: string) => readFileSync(new URL(`./assets/logo/theme/${file}`, import.meta.url), 'utf8').trim();
+    const asset = (file: string) =>
+      readFileSync(new URL(`./assets/logo/theme/${file}`, import.meta.url), 'utf8').trim();
     const markup = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} />);
     expect(markup).toContain(asset('unity-catalog-blue-light.svg'));
     expect(markup).toContain(asset('databricks-sql-blue-light.svg'));
@@ -465,7 +468,7 @@ describe('a card says what kind of step, which step, and how long', () => {
     expect(px(badge, 'height')).toBe(24);
     expect(badge).toMatch(/border-radius: 50%/);
     expect(markup).toMatch(
-      /<button[^>]*class="dag-node[^"]*"[^>]*><span class="dag-index ast-num agent">01<\/span><span class="dag-card-body">/,
+      /<button[^>]*class="dag-node[^"]*"[^>]*><span class="dag-index ast-num agent">01<\/span><span class="dag-card-body">/
     );
     expect(stepNumber(9)).toBe('09');
     expect(stepNumber(10)).toBe('10');
@@ -479,7 +482,7 @@ describe('a card says what kind of step, which step, and how long', () => {
     expect(cardCalls({ calls: 1 })).toBe('1 call');
     expect(cardCalls({ calls: 2 })).toBe('2 calls');
     const markup = renderToStaticMarkup(
-      <TraceDag stages={[stage({ id: 'step-1', duration: 2510, calls: 2 })]} activeIndex={-1} />,
+      <TraceDag stages={[stage({ id: 'step-1', duration: 2510, calls: 2 })]} activeIndex={-1} />
     );
     expect(markup).toContain('dag-duration-badge');
     expect(markup).toContain('dag-call-badge');
@@ -586,7 +589,7 @@ describe('the wrapped map still reads in order', () => {
     // 16px, because the rail's connectors are drawn to the badge lanes that indent
     // produces and 16px would leave every elbow landing beside its card.
     expect(rule('.trace-dag.compact .dag-step')).toMatch(
-      new RegExp(`padding-left: calc\\(var\\(--dag-depth, 0\\) \\* ${RAIL_INDENT}px\\)`),
+      new RegExp(`padding-left: calc\\(var\\(--dag-depth, 0\\) \\* ${RAIL_INDENT}px\\)`)
     );
   });
 });
@@ -627,11 +630,10 @@ describe('an identifier is not broken across two lines', () => {
       { text: 'Called ', mono: false },
       { text: 'search_semantics', mono: true },
     ]);
-    expect(nameParts('Chose the next step', 'step-1')).toEqual([
-      { text: 'Chose the next step', mono: false },
-    ]);
+    expect(nameParts('Chose the next step', 'step-1')).toEqual([{ text: 'Chose the next step', mono: false }]);
     const markup = renderToStaticMarkup(<TraceDag stages={unlabelled} activeIndex={-1} />);
-    expect(markup).toContain('<code class="dag-name-tool">search_semantics</code>');
+    expect(markup).toContain('class="answer-code semantic-inline-code dag-name-tool"');
+    expect(markup).toContain('data-technical-entity="tool">search_semantics</code>');
     expect(rule('.trace-dag.map .dag-name-tool')).toMatch(/font-family: var\(--font-mono\)/);
   });
 
@@ -645,9 +647,7 @@ describe('an identifier is not broken across two lines', () => {
     // Step 2 of a live run showing `search_semantics` is how the semantic search
     // was confirmed to be running at all. Clamping the label must not be the thing
     // that takes it off the screen, so the panel spells it out in full.
-    const markup = renderToStaticMarkup(
-      <StageDetail stage={unlabelled[1]} step={2} origin={0} id="detail" />,
-    );
+    const markup = renderToStaticMarkup(<StageDetail stage={unlabelled[1]} step={2} origin={0} id="detail" />);
     expect(markup).toContain('search_semantics');
     expect(markup).toContain('<dt>Tool</dt>');
   });
@@ -704,7 +704,7 @@ describe('a node opens what its stage recorded', () => {
     expect(markup).not.toContain('<dt>Took</dt>');
     expect(rule('.trace-dag.map .dag-detail-measures')).toMatch(/margin-left: auto/);
     expect(detailTiming(stage({ id: 'plot', start: 0, duration: 400, calls: 3 }), 0)).toBe(
-      'started +0.00ms · took 400ms · 3 calls',
+      'started +0.00ms · took 400ms · 3 calls'
     );
   });
 
@@ -748,7 +748,7 @@ describe('a node opens what its stage recorded', () => {
             layout: { xaxis: { title: 'Title' } },
           },
         ]}
-      />,
+      />
     );
 
     expect(markup).toContain('dag-result-charts');
@@ -767,12 +767,8 @@ describe('a node opens what its stage recorded', () => {
 
   it('explains when a stored chart step has no chart payload', () => {
     const built = stage({ id: 'plot', name: 'Built the charts', kind: 'tool', output: 'Generated 1 chart.' });
-    const unavailable = renderToStaticMarkup(
-      <StageDetail stage={built} step={8} origin={0} id="detail" />,
-    );
-    const empty = renderToStaticMarkup(
-      <StageDetail stage={built} step={8} origin={0} id="detail" charts={[]} />,
-    );
+    const unavailable = renderToStaticMarkup(<StageDetail stage={built} step={8} origin={0} id="detail" />);
+    const empty = renderToStaticMarkup(<StageDetail stage={built} step={8} origin={0} id="detail" charts={[]} />);
 
     expect(unavailable).toContain('The chart payload is unavailable for this stored run.');
     expect(empty).toContain('This step completed without a chart.');
@@ -795,7 +791,7 @@ describe('a node opens what its stage recorded', () => {
     });
     const wrote = stage({ id: 'step-7-agent', name: 'Prepared the findings', kind: 'agent', input: 'Evidence so far' });
     expect(renderToStaticMarkup(<StageDetail stage={described} step={2} origin={0} id="d" />)).toContain(
-      '<dt>Arguments</dt>',
+      '<dt>Arguments</dt>'
     );
     const search = renderToStaticMarkup(<StageDetail stage={searched} step={2} origin={0} id="d" />);
     expect(search).toContain('<dt>Searched for</dt>');
@@ -803,7 +799,7 @@ describe('a node opens what its stage recorded', () => {
     // narrows the question, it is not another one.
     expect(search).toContain('tables only');
     expect(renderToStaticMarkup(<StageDetail stage={wrote} step={7} origin={0} id="d" />)).toContain(
-      '<dt>Worked from</dt>',
+      '<dt>Worked from</dt>'
     );
   });
 
@@ -853,12 +849,7 @@ describe('a node opens what its stage recorded', () => {
   });
 
   it('does not paint Result as unanswered when the step already holds tables', () => {
-    const tables = [
-      '90-day headline totals:',
-      '',
-      '| Title | Players |',
-      '| VLH Online | 9575 |',
-    ].join('\n');
+    const tables = ['90-day headline totals:', '', '| Title | Players |', '| VLH Online | 9575 |'].join('\n');
     const markup = renderToStaticMarkup(
       <StageDetail
         stage={stage({
@@ -907,7 +898,7 @@ describe('a node opens what its stage recorded', () => {
     // a table with nothing at zero has no findings to mark, because then every row
     // would be marked and the tint would say nothing.
     const scan = describeResult(
-      ['column|null_rate', 'player_id|4.20', 'region|0.00', 'tier|0.00', 'plan|0.00', 'seat|0.00'].join('\n'),
+      ['column|null_rate', 'player_id|4.20', 'region|0.00', 'tier|0.00', 'plan|0.00', 'seat|0.00'].join('\n')
     );
     expect(scan).toMatchObject({ kind: 'table' });
     if (scan.kind !== 'table') throw new Error('unreachable');
@@ -919,9 +910,7 @@ describe('a node opens what its stage recorded', () => {
     // palette does not have. Warning is #8A6A38 on #F9F6EF at 5.24:1, and it is
     // the same three values the guardrail chip below takes.
     expect(rule('.trace-dag.map .dag-result-table tr.finding')).toMatch(/background: var\(--ast-warn-fill\)/);
-    expect(rule('.trace-dag.map .dag-result-table tr.finding td:last-child')).toMatch(
-      /color: var\(--ast-warn-text\)/,
-    );
+    expect(rule('.trace-dag.map .dag-result-table tr.finding td:last-child')).toMatch(/color: var\(--ast-warn-text\)/);
   });
 
   it('never folds a table that is uniform the whole way down', () => {
@@ -935,7 +924,7 @@ describe('a node opens what its stage recorded', () => {
 
   it('says a field the run recorded nothing for, rather than leaving a blank', () => {
     const markup = renderToStaticMarkup(
-      <StageDetail stage={stage({ id: 'step-1' })} step={1} origin={0} id="detail" />,
+      <StageDetail stage={stage({ id: 'step-1' })} step={1} origin={0} id="detail" />
     );
     expect(markup).toContain('(none recorded)');
   });
@@ -945,12 +934,7 @@ describe('a node opens what its stage recorded', () => {
     // exists: a missing start and a start of zero arrive as the same number, and
     // the first stage of every run legitimately starts at zero.
     const markup = renderToStaticMarkup(
-      <StageDetail
-        stage={stage({ id: 'step-1', startMeasured: false })}
-        step={1}
-        origin={0}
-        id="detail"
-      />,
+      <StageDetail stage={stage({ id: 'step-1', startMeasured: false })} step={1} origin={0} id="detail" />
     );
     expect(markup).toContain('start not recorded');
     expect(markup).not.toContain('started +0');
@@ -979,9 +963,7 @@ describe('a node opens what its stage recorded', () => {
     expect(px(open, 'padding')).toBe(px(rule('.trace-dag.map .dag-node'), 'padding')! - 1);
     // The number and the duration go to the hover rung of the same blue, which
     // marks the open card's own figures without painting its name.
-    const figures = rules().filter(({ selector }) =>
-      /\.dag-node\.open \.dag-(index|metric-badge)$/.test(selector),
-    );
+    const figures = rules().filter(({ selector }) => /\.dag-node\.open \.dag-(index|metric-badge)$/.test(selector));
     expect(figures).toHaveLength(2);
     expect(figures.every(({ body }) => /color: var\(--db-blue-700\)/.test(body))).toBe(true);
   });
@@ -1198,7 +1180,7 @@ describe('the narrow rail is one column of every step', () => {
     expect(
       railRules
         .filter(({ body }) => /flex-wrap|repeat\(|minmax\(|column-gap|row-gap/.test(body))
-        .map(({ selector }) => selector),
+        .map(({ selector }) => selector)
     ).toEqual([]);
   });
 
@@ -1240,9 +1222,7 @@ describe('the narrow rail is one column of every step', () => {
     // evenly spread stages, so the reader was shown 1, 4, 7 and 10 of a ten-step
     // run with no indication the other six existed. live.css records the same
     // defect as the reason the live step list stopped using this rail.
-    const long = Array.from({ length: 21 }, (_, index) =>
-      stage({ id: `step-${index}`, name: `Step ${index + 1}` }),
-    );
+    const long = Array.from({ length: 21 }, (_, index) => stage({ id: `step-${index}`, name: `Step ${index + 1}` }));
     const markup = renderToStaticMarkup(<TraceDag stages={long} activeIndex={-1} compact />);
     expect(markup.match(/class="dag-node/g)).toHaveLength(21);
     expect(drawn(markup)).toEqual(long.map((item) => item.name));
@@ -1289,7 +1269,8 @@ describe('the narrow rail is one column of every step', () => {
     // panes print a stage name and both must stop an identifier breaking mid-word,
     // so each declares its own rule for it. They are asserted separately below --
     // the map clamps at two lines, the rail keeps one.
-    const mapParts = /dag-detail|dag-card-head|dag-index|dag-timing|dag-result|dag-seg|dag-sql|dag-raw|dag-block|dag-arg|dag-clipped/;
+    const mapParts =
+      /dag-detail|dag-card-head|dag-index|dag-timing|dag-result|dag-seg|dag-sql|dag-raw|dag-block|dag-arg|dag-clipped/;
     const wide = rules().filter(({ selector }) => mapParts.test(selector));
     expect(wide.length).toBeGreaterThan(20);
     expect(wide.filter(({ selector }) => !selector.includes('.map')).map(({ selector }) => selector)).toEqual([]);
@@ -1322,7 +1303,7 @@ describe('the narrow rail is one column of every step', () => {
     expect(numbers).toEqual(['01', '02', '03', '04', '05', '06', '07', '08']);
     const wide = renderToStaticMarkup(<TraceDag stages={run} activeIndex={-1} />);
     expect(
-      [...wide.matchAll(/<span class="dag-index ast-num (?:agent|tool)">(\d+)<\/span>/g)].map((one) => one[1]),
+      [...wide.matchAll(/<span class="dag-index ast-num (?:agent|tool)">(\d+)<\/span>/g)].map((one) => one[1])
     ).toEqual(numbers);
   });
 
@@ -1391,7 +1372,7 @@ describe('the narrow rail is one column of every step', () => {
     // made three calls shows the three as its own indented children, each
     // numbered, so "· 3 calls" on the parent counted them a second time.
     const markup = renderToStaticMarkup(
-      <TraceDag stages={[stage({ id: 'step-1', duration: 478, calls: 3 })]} activeIndex={-1} compact />,
+      <TraceDag stages={[stage({ id: 'step-1', duration: 478, calls: 3 })]} activeIndex={-1} compact />
     );
     expect(markup).toContain('<span class="dag-elapsed ast-num">478ms</span>');
     expect(markup).not.toContain('call');
@@ -1458,7 +1439,7 @@ describe('the narrow rail is one column of every step', () => {
     // the same custom property the indent came from: the paths above are measured
     // from the pane's left edge, not from the step's.
     expect(rule('.trace-dag.compact .dag-edge')).toMatch(
-      new RegExp(`margin-left: calc\\(var\\(--dag-depth, 0\\) \\* -${RAIL_INDENT}px\\)`),
+      new RegExp(`margin-left: calc\\(var\\(--dag-depth, 0\\) \\* -${RAIL_INDENT}px\\)`)
     );
   });
 
@@ -1485,12 +1466,22 @@ describe('the narrow rail is one column of every step', () => {
      * redrawn at a different size, and fails if one is pasted from another shape.
      */
     const tip = (head: string) => [...head.matchAll(/[ML]([\d.]+) ([\d.]+)/g)].map((p) => [+p[1], +p[2]]);
-    for (const [from, to] of [[0, 1], [1, 2], [0, 2]]) {
+    for (const [from, to] of [
+      [0, 1],
+      [1, 2],
+      [0, 2],
+    ]) {
       const [left, apex, right] = tip(railConnector(from, to).head);
       expect(apex[0], `out ${from}->${to} tip is right of both wings`).toBeGreaterThan(left[0]);
       expect(apex[0]).toBeGreaterThan(right[0]);
     }
-    for (const [from, to] of [[1, 0], [1, 1], [0, 0], [2, 1], [2, 0]]) {
+    for (const [from, to] of [
+      [1, 0],
+      [1, 1],
+      [0, 0],
+      [2, 1],
+      [2, 0],
+    ]) {
       const [left, apex, right] = tip(railConnector(from, to).head);
       expect(apex[1], `${from}->${to} tip is below both wings`).toBeGreaterThan(left[1]);
       expect(apex[1]).toBeGreaterThan(right[1]);
@@ -1536,9 +1527,7 @@ describe('the narrow rail is one column of every step', () => {
         expect(Math.min(...xs) - STROKE / 2, `${where} clears the left edge`).toBeGreaterThanOrEqual(0);
         expect(Math.max(...xs) + STROKE / 2, `${where} clears the right edge`).toBeLessThanOrEqual(connector.width);
         expect(Math.min(...ys) - STROKE / 2, `${where} clears the top`).toBeGreaterThanOrEqual(0);
-        expect(Math.max(...ys) + STROKE / 2, `${where} clears the bottom`).toBeLessThanOrEqual(
-          RAIL_CONNECTOR_HEIGHT,
-        );
+        expect(Math.max(...ys) + STROKE / 2, `${where} clears the bottom`).toBeLessThanOrEqual(RAIL_CONNECTOR_HEIGHT);
       }
     }
   });
@@ -1584,9 +1573,12 @@ describe('the narrow rail is one column of every step', () => {
     // The mockup's `07 Preparing the answer 12s…`. Whole seconds because it is a
     // figure the reader watches rather than compares, and the ellipsis because it
     // is the only figure in the pane that is not a completed measurement.
-    const live = [...run.slice(0, 6), stage({ id: 'synthesis', name: 'Preparing the answer', status: 'running', duration: 0 })];
+    const live = [
+      ...run.slice(0, 6),
+      stage({ id: 'synthesis', name: 'Preparing the answer', status: 'running', duration: 0 }),
+    ];
     const markup = renderToStaticMarkup(
-      <TraceDag stages={live} activeIndex={live.length - 1} compact elapsedMs={12_400} />,
+      <TraceDag stages={live} activeIndex={live.length - 1} compact elapsedMs={12_400} />
     );
     expect(markup).toContain('<span class="dag-elapsed ast-num">12s…</span>');
     expect(drawn(markup).at(-1)).toBe('Preparing the answer');
@@ -1617,7 +1609,10 @@ describe('the narrow rail is one column of every step', () => {
     // it. There is no duration to print, `duration` is 0 for exactly that reason,
     // and keeping the ellipsis would read as a figure still moving on a run that
     // has ended.
-    const dead = [stage({ id: 'step-1' }), stage({ id: 'step-2', name: 'Choosing the next step', status: 'running', duration: 0 })];
+    const dead = [
+      stage({ id: 'step-1' }),
+      stage({ id: 'step-2', name: 'Choosing the next step', status: 'running', duration: 0 }),
+    ];
     const settled = renderToStaticMarkup(<TraceDag stages={dead} activeIndex={-1} compact />);
     expect(settled).toContain(`<span class="dag-elapsed ast-num">${RAIL_UNFINISHED}</span>`);
     expect(settled).not.toContain('…');
@@ -1640,7 +1635,7 @@ describe('the narrow rail is one column of every step', () => {
     // `running`, so there is no row to ring beyond the frontier, no counter to
     // start, and every figure is a completed measurement.
     const markup = renderToStaticMarkup(
-      <TraceDag stages={run} activeIndex={run.length - 1} compact elapsedMs={null} />,
+      <TraceDag stages={run} activeIndex={run.length - 1} compact elapsedMs={null} />
     );
     expect(markup).not.toContain('running');
     expect(markup).not.toContain(RAIL_UNFINISHED);
@@ -1649,13 +1644,14 @@ describe('the narrow rail is one column of every step', () => {
     // And passing a count anyway changes nothing, because every row has a duration
     // of its own: a page that kept ticking against an older model must not be able
     // to write that count onto a finished step.
-    expect(renderToStaticMarkup(<TraceDag stages={run} activeIndex={run.length - 1} compact elapsedMs={20_000} />)
+    expect(
+      renderToStaticMarkup(<TraceDag stages={run} activeIndex={run.length - 1} compact elapsedMs={20_000} />)
     ).toBe(markup);
   });
 
   it('reddens a failed step’s edge and its duration, and keeps the card', () => {
     const failed = renderToStaticMarkup(
-      <TraceDag stages={[stage({ id: 'step-1', status: 'failed' })]} activeIndex={-1} compact />,
+      <TraceDag stages={[stage({ id: 'step-1', status: 'failed' })]} activeIndex={-1} compact />
     );
     expect(failed).toContain('class="dag-node failed');
     expect(failed).toContain('dag-elapsed');
@@ -1740,12 +1736,10 @@ describe('the narrow rail is one column of every step', () => {
     expect(rule('.trace-dag.compact .dag-name-tool')).toMatch(/font-family: var\(--font-mono\)/);
     const markup = renderToStaticMarkup(
       <TraceDag
-        stages={[
-          stage({ id: 'step-1-1-search_semantics', name: 'Called search_semantics', kind: 'tool' }),
-        ]}
+        stages={[stage({ id: 'step-1-1-search_semantics', name: 'Called search_semantics', kind: 'tool' })]}
         activeIndex={-1}
         compact
-      />,
+      />
     );
     expect(drawn(markup)).toEqual(['Called search_semantics']);
     expect(markup).toContain('dag-name-tool');

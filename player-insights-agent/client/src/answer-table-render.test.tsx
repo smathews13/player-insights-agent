@@ -133,9 +133,24 @@ describe('a table the agent wrote is drawn as a table', () => {
     const markup = render(RAMP);
     expect([...markup.matchAll(/<tr(?:\s[^>]*)?>/g)]).toHaveLength(4);
     expect(cells(markup, 'td')).toEqual([
-      '2026-07-14', '118', '96', '0', '31.40', '$214.55',
-      '2026-08-03', '482', '371', '8', '45.15', '$1,381.16',
-      'Total', '3,914', '2,880', '41', '38.62', '$9,204.73',
+      '2026-07-14',
+      '118',
+      '96',
+      '0',
+      '31.40',
+      '$214.55',
+      '2026-08-03',
+      '482',
+      '371',
+      '8',
+      '45.15',
+      '$1,381.16',
+      'Total',
+      '3,914',
+      '2,880',
+      '41',
+      '38.62',
+      '$9,204.73',
     ]);
     // Bold as an element, so the total row is emphasised by the document rather
     // than by the asterisks the agent typed.
@@ -271,11 +286,9 @@ describe('the table is styled as part of the answer, not as a new design', () =>
   });
 
   it('takes the app’s own table treatment rather than inventing a second one', () => {
-    // The hairline rules are `.sources-module`'s and the results table's. An answer's
-    // table is the same kind of object and must not be a third look -- which is why
-    // the tinted header went when theirs did: a #F7F7F7 band on the card's
-    // translucent sheet is what made the sheet read as grey.
-    expect(rule('.answer-table thead th')).toContain('background: transparent');
+    // The shared neutral band distinguishes labels from data without introducing
+    // a table-specific colour, and the same hairline system still separates rows.
+    expect(rule('.answer-table thead th')).toContain('background: var(--ast-neutral-fill)');
     expect(rule('.answer-table thead th')).toContain('border-bottom: 1px solid var(--ast-hairline)');
     expect(rule('.answer-table tbody tr + tr td')).toContain('border-top: 1px solid var(--ast-hairline)');
     expect(rule('.answer-table')).toContain('border-collapse: collapse');

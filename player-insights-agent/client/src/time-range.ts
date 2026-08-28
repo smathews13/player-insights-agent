@@ -20,11 +20,7 @@
 /** The parameter holding the choice. */
 export const RANGE_PARAM = 'range';
 
-/** The two ends of a custom range, as ISO timestamps or dates. */
-export const CUSTOM_FROM_PARAM = 'from';
-export const CUSTOM_TO_PARAM = 'to';
-
-export type RangeKey = '24h' | '7d' | '30d' | 'all' | 'custom';
+export type RangeKey = '24h' | '7d' | '30d' | 'all';
 
 /** Seven days, matching Genie's weekly digest, which Monitoring is modelled on. */
 export const DEFAULT_RANGE: RangeKey = '7d';
@@ -32,20 +28,15 @@ export const DEFAULT_RANGE: RangeKey = '7d';
 /**
  * The segments, in the order they are drawn, with the word on each.
  *
- * A list rather than five literals in the component, so the control, the tests
+ * A list rather than four literals in the component, so the control, the tests
  * and anything that later needs to name a range read one set of words. The
  * labels are the design's: "24h" abbreviated, the others spelled out.
- *
- * All time sits after the three fixed windows and before Custom, because the
- * first four widen in order and Custom is the escape from that sequence rather
- * than the end of it. A reader scanning left to right reads one progression.
  */
 export const RANGE_SEGMENTS: readonly { key: RangeKey; label: string }[] = [
   { key: '24h', label: '24h' },
   { key: '7d', label: '7 days' },
   { key: '30d', label: '30 days' },
   { key: 'all', label: 'All time' },
-  { key: 'custom', label: 'Custom' },
 ];
 
 const RANGE_KEYS = new Set<string>(RANGE_SEGMENTS.map((segment) => segment.key));
@@ -73,14 +64,6 @@ export interface RangeWindow {
   to: string;
   /** The words a caption uses, so two panels over one window say one thing. */
   label: string;
-  /**
-   * Whether a custom range was asked for and could not be used.
-   *
-   * True means the window below is the default rather than what the URL asked
-   * for, and a page showing figures over it has to say so. A silently
-   * substituted window is a page answering a question nobody put.
-   */
-  customIncomplete: boolean;
 }
 
 const DAY_MS = 86_400_000;
@@ -104,41 +87,37 @@ const START_OF_TIME = new Date(0).toISOString();
  * the arithmetic instead of the clock, and so a strip and a list rendered in one
  * pass cannot land either side of a midnight.
  *
- * A custom range missing or misspelling either end falls back to the default
- * window rather than querying an open interval, and says that it did.
+ * Legacy custom ranges are read as the documented seven-day default. The
+ * shared control also removes their obsolete URL parameters.
  */
 export function rangeWindow(params: ReadableParams, now: number): RangeWindow {
   const key = rangeFromParams(params);
   const to = new Date(now).toISOString();
   const fallback = { from: new Date(now - 7 * DAY_MS).toISOString(), to, label: SEVEN_DAYS };
-  if (key === 'custom') {
-    const from = (params.get(CUSTOM_FROM_PARAM) ?? '').trim();
-    const until = (params.get(CUSTOM_TO_PARAM) ?? '').trim();
-    if (!isTimestamp(from) || !isTimestamp(until)) return { ...fallback, customIncomplete: true };
-    const start = new Date(from);
-    const end = new Date(until);
-    // Reversed ends are a typed mistake rather than an empty range, and an empty
-    // range renders as "no questions in this range", which sends somebody
-    // looking for a data problem that is a date.
-    if (start.getTime() > end.getTime()) {
-      return { from: end.toISOString(), to: start.toISOString(), label: 'the selected range', customIncomplete: false };
-    }
-    return { from: start.toISOString(), to: end.toISOString(), label: 'the selected range', customIncomplete: false };
-  }
   if (key === '24h') {
-    return { from: new Date(now - DAY_MS).toISOString(), to, label: 'last 24 hours', customIncomplete: false };
+    return { from: new Date(now - DAY_MS).toISOString(), to, label: 'last 24 hours' };
   }
   if (key === '30d') {
-    return { from: new Date(now - 30 * DAY_MS).toISOString(), to, label: 'last 30 days', customIncomplete: false };
+    return { from: new Date(now - 30 * DAY_MS).toISOString(), to, label: 'last 30 days' };
   }
   if (key === 'all') {
-    return { from: START_OF_TIME, to, label: 'all time', customIncomplete: false };
+    return { from: START_OF_TIME, to, label: 'all time' };
   }
-  return { ...fallback, customIncomplete: false };
+  return fallback;
 }
 
-function isTimestamp(value: string): boolean {
-  return value !== '' && Number.isFinite(Date.parse(value));
+/**
+ * Remove the retired custom-range state from a route while preserving every
+ * parameter owned by the page. A legacy custom selection becomes the
+ * documented seven-day default, represented by an absent `range` parameter.
+ */
+export function normalizeTimeRangeSearch(search: string): string {
+  const params = new URLSearchParams(search);
+  if ((params.get(RANGE_PARAM) ?? '').trim() === 'custom') params.delete(RANGE_PARAM);
+  params.delete('from');
+  params.delete('to');
+  const next = params.toString();
+  return next ? `?${next}` : '';
 }
 
 /**
@@ -150,21 +129,15 @@ function isTimestamp(value: string): boolean {
  * clean, and `rangeFromParams` reads an absent parameter as the default, so the
  * two agree.
  *
- * Moving OFF custom drops the two custom ends rather than leaving them in the
- * URL. A stale `from` and `to` beside `range=24h` is a link that means one thing
- * today and another the next time somebody presses Custom.
+ * Obsolete custom ends are always removed, so choosing a supported preset also
+ * cleans links created by older versions of the app.
  */
-export function withRange(search: string, key: RangeKey, custom?: { from: string; to: string }): string {
+export function withRange(search: string, key: RangeKey): string {
   const params = new URLSearchParams(search);
   if (key === DEFAULT_RANGE) params.delete(RANGE_PARAM);
   else params.set(RANGE_PARAM, key);
-  if (key === 'custom') {
-    if (custom?.from) params.set(CUSTOM_FROM_PARAM, custom.from);
-    if (custom?.to) params.set(CUSTOM_TO_PARAM, custom.to);
-  } else {
-    params.delete(CUSTOM_FROM_PARAM);
-    params.delete(CUSTOM_TO_PARAM);
-  }
+  params.delete('from');
+  params.delete('to');
   const next = params.toString();
   return next ? `?${next}` : '';
 }

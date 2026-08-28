@@ -87,6 +87,7 @@ import { rangeWindow } from './time-range';
 import { NO_EXPERIMENTS, showsForecasting } from './experimental-features';
 import { ForecastingBody } from './ForecastingPanel';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
+import { EntityText } from './DataEntityLinks';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -173,12 +174,12 @@ function BlockHead({
   return (
     <div className="ops-block-head">
       <div className="ops-block-head-text">
-        <h3 id={id}>{title}</h3>
         {(badges ?? []).map((badge) => (
           <span key={badge.word} className={badge.tone}>
             {badge.word}
           </span>
         ))}
+        <h3 id={id}>{title}</h3>
         {meta ? <span className="ops-block-meta">{meta}</span> : null}
         {children}
       </div>
@@ -590,7 +591,6 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
               <div className="ops-tiles">
                 {displayed.map((tile) => {
                   const view = tileView(tile, payload.currency);
-                  const activity = tile.evidence?.activity ?? null;
                   const identifiers = [tile.resourceId, tile.secondaryResourceId].filter((value): value is string =>
                     Boolean(value?.trim())
                   );
@@ -601,27 +601,20 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                   return (
                     <div key={tile.id} className="ops-tile">
                       <div className="ops-tile-head">
+                        <ExperimentalBadge />
                         <p className="ops-tile-label">
                           {product ? <BrandIcon product={product} size={14} className="ops-tile-mark" /> : null}
                           <CostTileTitle label={title} href={href} />
                         </p>
-                        <ExperimentalBadge />
                       </div>
                       {view.figure ? (
                         <p className="ops-tile-figure">
-                          <span className="ast-num">{view.figure}</span>{' '}
-                          <span className="ops-tile-basis">
-                            {view.estimate ? `estimated ${view.basisLabel}` : view.basisLabel}
-                          </span>
-                        </p>
-                      ) : activity ? (
-                        <p className="ops-tile-figure">
-                          <span className="ast-num">{count(activity.calls)}</span>{' '}
-                          <span className="ops-tile-basis">
-                            Astrolabe{' '}
-                            {activity.calls === 1 ? (activity.unit === 'queries' ? 'query' : 'request') : activity.unit}{' '}
-                            during selected period
-                          </span>
+                          <span className="ast-num">{view.figure}</span>
+                          {view.estimate || view.basisLabel ? (
+                            <span className="ops-tile-basis">
+                              {[view.estimate ? 'estimated' : '', view.basisLabel].filter(Boolean).join(' · ')}
+                            </span>
+                          ) : null}
                         </p>
                       ) : (
                         <p className="ops-tile-absent">{view.absence}</p>
@@ -655,26 +648,14 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
 }
 
 function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
-  const facts: string[] = [];
   const evidence = tile.evidence;
-  if (evidence?.billingRows !== null && evidence?.billingRows !== undefined) {
-    facts.push(`${count(evidence.billingRows)} billing ${evidence.billingRows === 1 ? 'row' : 'rows'}`);
-  }
-  if (evidence?.astrolabeQueries !== null && evidence?.astrolabeQueries !== undefined) {
-    const astrolabe = `${count(evidence.astrolabeQueries)} Astrolabe ${
-      evidence.astrolabeQueries === 1 ? 'query' : 'queries'
-    }`;
-    const total =
-      evidence.warehouseQueries !== null && evidence.warehouseQueries !== undefined
-        ? ` of ${count(evidence.warehouseQueries)} warehouse ${evidence.warehouseQueries === 1 ? 'query' : 'queries'}`
-        : '';
-    facts.push(`${astrolabe}${total}${evidence.queryHistoryComplete === false ? ' · incomplete coverage' : ''}`);
-  }
-  return facts.length > 0 ? (
-    <p className="ops-tile-evidence" title={facts.join(' · ')}>
-      {facts.join(' · ')}
+  const billingRows = evidence?.billingRows ?? 0;
+  const fact = billingRows > 0 ? `${count(billingRows)} billing ${billingRows === 1 ? 'row' : 'rows'}` : '';
+  return (
+    <p className="ops-tile-evidence" title={fact || undefined} aria-hidden={fact ? undefined : true}>
+      {fact || '\u00a0'}
     </p>
-  ) : null;
+  );
 }
 
 /**
@@ -712,12 +693,12 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
   return (
     <div className="ops-tile">
       <div className="ops-tile-head">
+        <ExperimentalBadge />
         <p className="ops-tile-label">
           <span className="ops-tile-label-text" title="AVG. COST / QUESTION">
             AVG. COST / QUESTION
           </span>
         </p>
-        <ExperimentalBadge />
       </div>
       {amount !== null ? (
         <p className="ops-tile-figure">
@@ -773,7 +754,7 @@ function BarChart({
                   carries its meaning; the full text stays on `title` as well for
                   a pointer. */}
               <span className="ops-bar-label" title={bar.label}>
-                {bar.label}
+                {tone === 'tool' ? <EntityText text={bar.label} sources={[]} /> : bar.label}
               </span>
               <span className="ops-bar-track">
                 <span className="ops-bar-fill" style={{ width: `${bar.percent}%` }} aria-hidden="true" />

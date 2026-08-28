@@ -318,7 +318,7 @@ describe('the ranged cost route', () => {
       evidence: { billingRows: null, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
     });
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
-      unavailable: 'No Apps billing rows matched this app for the selected period.',
+      unavailable: 'No Apps billing rows matched this app.',
       note: 'system_billing=astrolabe is on this app; Apps billing is matched by app name.',
       remedy: '',
     });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_RANGE,
+  normalizeTimeRangeSearch,
   RANGE_PARAM,
   rangeFromParams,
   rangeWindow,
@@ -13,7 +14,7 @@ import {
  *
  * The segment was reported missing from the live app. It was not missing from the
  * code: it is in `RANGE_SEGMENTS`, the shared control draws it with the other
- * four, and `time-range-style.test.tsx` asserts all five render. What was missing
+ * presets, and `time-range-style.test.tsx` asserts all four render. What was missing
  * were the rules below, which are the ones a reader actually depends on -- that
  * the choice survives a link, that it does not eat the filters beside it, and
  * that there is a way back off it.
@@ -27,6 +28,23 @@ const at = (search: string) => new URLSearchParams(search);
 
 /** Midday, fixed, so the arithmetic is asserted rather than the clock. */
 const NOON = Date.parse('2026-08-17T12:00:00.000Z');
+
+describe('the supported preset windows', () => {
+  it('maps every preset to its documented bounds and label', () => {
+    const cases = [
+      ['', 7, 'last 7 days'],
+      ['?range=24h', 1, 'last 24 hours'],
+      ['?range=30d', 30, 'last 30 days'],
+    ] as const;
+
+    for (const [search, days, label] of cases) {
+      const window_ = rangeWindow(at(search), NOON);
+      expect(window_.from).toBe(new Date(NOON - days * 86_400_000).toISOString());
+      expect(window_.to).toBe(new Date(NOON).toISOString());
+      expect(window_.label).toBe(label);
+    }
+  });
+});
 
 describe('selecting All time', () => {
   it('puts the choice in the URL, so the link carries it', () => {
@@ -59,15 +77,11 @@ describe('selecting All time', () => {
     expect(window_.from).toBe(new Date(0).toISOString());
     expect(window_.to).toBe(new Date(NOON).toISOString());
     expect(window_.label).toBe('all time');
-    // Not a substituted window. A page over one of those has to say so, and this
-    // is exactly the range somebody presses to check whether anything is recorded.
-    expect(window_.customIncomplete).toBe(false);
   });
 
   /**
-   * Arriving from Custom drops the two ends. A stale `from` and `to` sitting
-   * beside `range=all` is a link that means one thing today and another the next
-   * time somebody presses Custom.
+   * Arriving from an old custom link drops its retired date parameters when a
+   * supported preset is selected.
    */
   it('drops the custom ends on the way in', () => {
     const params = at(withRange('?range=custom&from=2026-01-01&to=2026-02-01', 'all'));
@@ -75,6 +89,26 @@ describe('selecting All time', () => {
     expect(params.get(RANGE_PARAM)).toBe('all');
     expect(params.get('from')).toBeNull();
     expect(params.get('to')).toBeNull();
+  });
+});
+
+describe('normalizing retired custom links', () => {
+  it('turns custom into the documented seven-day default and keeps page filters', () => {
+    const search = normalizeTimeRangeSearch('?range=custom&from=2026-01-01&to=2026-02-01&outcome=failed&question=q9');
+    const params = at(search);
+    const window_ = rangeWindow(params, NOON);
+
+    expect(search).toBe('?outcome=failed&question=q9');
+    expect(rangeFromParams(params)).toBe(DEFAULT_RANGE);
+    expect(window_.label).toBe('last 7 days');
+    expect(window_.from).toBe(new Date(NOON - 7 * 86_400_000).toISOString());
+  });
+
+  it('removes orphaned date ends without changing a supported preset', () => {
+    const search = normalizeTimeRangeSearch('?range=30d&from=2026-01-01&to=2026-02-01&person=someone');
+
+    expect(search).toBe('?range=30d&person=someone');
+    expect(rangeFromParams(at(search))).toBe('30d');
   });
 });
 

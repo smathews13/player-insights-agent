@@ -22,7 +22,7 @@ import type { CostTile, OpsCostPayload } from '../../shared/ops-contract';
 import { astPill } from './astrolabe-pill';
 import { budgetFieldText, moneyAmountFrom } from './cost-budget-amount';
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
-import { BASIS_LABEL, spendVersusBudget, totalBudgetView } from './ops-view';
+import { spendVersusBudget, totalBudgetView } from './ops-view';
 import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Button, Input } from './ui';
 import { ConceptFlicker } from './ConceptFlicker';
@@ -202,8 +202,7 @@ export function CostTotalBudget() {
   return (
     <div className="ops-cost-total">
       <CostBudgetField
-        label="Total budget"
-        basisLabel={BASIS_LABEL['total-in-range']}
+        ariaLabel="App budget"
         amount={api.budgets.total}
         currency={api.currency}
         onCommit={api.setTotal}
@@ -212,7 +211,7 @@ export function CostTotalBudget() {
         readable={api.readable}
         onApply={() => api.apply(control)}
       />
-      <p className="ops-cost-summary-copy">Operator-set ceiling for the selected period.</p>
+      <p className="ops-cost-summary-copy">Operator-set ceiling.</p>
       {view.kind === 'budget-only' ? (
         <p className="ops-budget-compare">
           <span className="ast-num">{view.budgetLabel}</span> app budget
@@ -252,7 +251,7 @@ export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
         <span>Resource budgets</span>
       </div>
       <p className="ops-cost-summary-copy">Editable limits use each resource’s displayed basis.</p>
-      <div className="ops-cost-resource-budget-grid">
+      <div className="ops-cost-resource-budget-grid" role="group" aria-label="Resource budget controls" tabIndex={0}>
         {tiles.map((tile) => (
           <CostTileBudget key={tile.id} tile={tile} />
         ))}
@@ -270,9 +269,9 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
   return (
     <div className="ops-tile-budget">
       <CostBudgetField
-        label="Budget"
         name={tile.label}
-        basisLabel={BASIS_LABEL[tile.basis]}
+        ariaLabel={`${tile.label} budget${tile.basis === 'per-day' ? ' per day' : ''}`}
+        perDay={tile.basis === 'per-day'}
         amount={amount}
         currency={api.currency}
         onCommit={(value) => api.setResource(tile.id, value)}
@@ -310,9 +309,9 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
 }
 
 function CostBudgetField({
-  label,
   name,
-  basisLabel,
+  ariaLabel,
+  perDay = false,
   amount,
   currency,
   onCommit,
@@ -321,9 +320,9 @@ function CostBudgetField({
   readable,
   onApply,
 }: {
-  label: string;
   name?: string;
-  basisLabel: string;
+  ariaLabel: string;
+  perDay?: boolean;
   amount: number | null;
   currency: string;
   onCommit: (amount: number | null) => void;
@@ -333,19 +332,26 @@ function CostBudgetField({
   onApply: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const caption = `${name ? `${name} ` : ''}${label} ${basisLabel}`;
+  const caption = `${ariaLabel}${currency ? ` in ${currency}` : ''}`;
   const notice = costBudgetNotice(saveState);
   return (
     <div className="ops-budget-field">
       <label>
-        {name ? <span className="ops-budget-resource">{name}</span> : null}
-        <span className="ops-budget-label">{caption}</span>
+        {name ? (
+          <span className="ops-budget-heading" title={name}>
+            <span className="ops-budget-resource">{name}</span>
+            {perDay ? <span className="ops-budget-basis">per day</span> : null}
+          </span>
+        ) : (
+          <span className="sr-only">{ariaLabel}</span>
+        )}
         <span className="ops-budget-input-row">
           <Input
             type="text"
             inputMode="decimal"
             autoComplete="off"
             aria-label={caption}
+            placeholder="e.g. 50"
             value={draft ?? budgetFieldText(amount)}
             onChange={(event) => {
               const typed = event.target.value.replace(/[^0-9.]/g, '');

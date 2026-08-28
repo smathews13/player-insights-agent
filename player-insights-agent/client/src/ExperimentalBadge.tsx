@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
-export const EXPERIMENTAL_PANE_HINT =
-  'Experimental: this pane may be unstable or may not work as expected.';
+export const EXPERIMENTAL_PANE_HINT = 'Experimental: this pane may be unstable or may not work as expected.';
 
 /** A shared warning for Connections controls that are not yet dependable. */
 export function ExperimentalBadge() {
@@ -20,26 +19,15 @@ export function ExperimentalBadge() {
 export function ExperimentalFeatureName({ children }: { children: ReactNode }) {
   return (
     <span className="exp-feature-name">
-      <span className="exp-feature-title">{children}</span>
       <ExperimentalBadge />
+      <span className="exp-feature-title">{children}</span>
     </span>
   );
 }
 
-export function StateStatus({
-  on,
-  onLabel,
-  offLabel,
-}: {
-  on: boolean;
-  onLabel: string;
-  offLabel: string;
-}) {
-  return (
-    <span className={`ast-pill ${on ? 'ast-pill--pos' : 'ast-pill--neutral'}`}>
-      {on ? onLabel : offLabel}
-    </span>
-  );
+/** The one visible vocabulary for a binary switch state. */
+export function StateStatus({ on }: { on: boolean }) {
+  return <span className={`ast-pill ${on ? 'ast-pill--pos' : 'ast-pill--neutral'}`}>{on ? 'On' : 'Off'}</span>;
 }
 
 /** Backwards-compatible name for the Experimental feature table. */

@@ -11,19 +11,15 @@ import { Switch } from './ui';
  */
 export function StateSwitch({
   checked,
-  onLabel = 'On',
-  offLabel = 'Off',
   className = '',
   ...props
 }: Omit<ComponentProps<typeof Switch>, 'checked' | 'className'> & {
   checked: boolean;
-  onLabel?: string;
-  offLabel?: string;
   className?: string;
 }) {
   return (
     <span className={`state-switch ${className}`.trim()}>
-      <StateStatus on={checked} onLabel={onLabel} offLabel={offLabel} />
+      <StateStatus on={checked} />
       <Switch checked={checked} {...props} />
     </span>
   );

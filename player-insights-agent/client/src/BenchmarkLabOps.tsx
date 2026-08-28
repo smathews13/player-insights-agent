@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { astPill } from './astrolabe-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
+import { EntityText } from './DataEntityLinks';
 import {
   applyLabCandidate,
   cancelJudgeRun,
@@ -164,11 +165,7 @@ export function BenchmarkJudgesStage({
         >
           {running ? 'Run in progress' : 'Run candidate'}
         </BenchButton>
-        <BenchButton
-          title="Scores every turn in the last Ask conversation"
-          onClick={onScoreSession}
-          disabled={running}
-        >
+        <BenchButton title="Scores every turn in the last Ask conversation" onClick={onScoreSession} disabled={running}>
           Score one Ask session
         </BenchButton>
       </div>
@@ -177,10 +174,18 @@ export function BenchmarkJudgesStage({
       ) : null}
       <div className="bench-btn-row">
         {progress ? <p className="bench-run-progress ast-num">{progress}</p> : null}
-        <BenchButton onClick={onCancel} disabled={!running} title={!running ? 'Nothing is running to cancel.' : undefined}>
+        <BenchButton
+          onClick={onCancel}
+          disabled={!running}
+          title={!running ? 'Nothing is running to cancel.' : undefined}
+        >
           Cancel
         </BenchButton>
-        <BenchButton onClick={onRetryFailed} disabled={running} title={running ? 'A suite is already running.' : undefined}>
+        <BenchButton
+          onClick={onRetryFailed}
+          disabled={running}
+          title={running ? 'A suite is already running.' : undefined}
+        >
           Retry failed cases
         </BenchButton>
       </div>
@@ -343,7 +348,11 @@ export function BenchmarkBakeOffSurface({
       {extras}
       {actionNote ? <p className="bench-caption">{actionNote}</p> : null}
       <div className="bench-lanes">
-        <LaneBlock title="Genie lane" metrics={comparison.genie} extras={genieNote ? <p className="bench-caption">{genieNote}</p> : null} />
+        <LaneBlock
+          title="Genie lane"
+          metrics={comparison.genie}
+          extras={genieNote ? <p className="bench-caption">{genieNote}</p> : null}
+        />
         <LaneBlock
           title="Agent lane"
           metrics={comparison.agent}
@@ -353,12 +362,22 @@ export function BenchmarkBakeOffSurface({
       </div>
       <p className="bench-footnote">
         {comparison.newlyFixed.map((entry) => (
-          <button type="button" className="bench-chip-fixed ast-num" key={`fix-${entry.caseId}`} onClick={() => onInspect(entry.caseId)}>
+          <button
+            type="button"
+            className="bench-chip-fixed ast-num"
+            key={`fix-${entry.caseId}`}
+            onClick={() => onInspect(entry.caseId)}
+          >
             Newly fixed {entry.caseId}
           </button>
         ))}
         {comparison.newlyBroken.map((entry) => (
-          <button type="button" className="bench-chip-broken ast-num" key={`break-${entry.caseId}`} onClick={() => onInspect(entry.caseId)}>
+          <button
+            type="button"
+            className="bench-chip-broken ast-num"
+            key={`break-${entry.caseId}`}
+            onClick={() => onInspect(entry.caseId)}
+          >
             Newly broken {entry.caseId}
           </button>
         ))}
@@ -397,7 +416,9 @@ export function SpanTree({ spans }: { spans: LabSpan[] }) {
       {spans.map((span) => (
         <li key={span.id}>
           <span className={spanDotClass(span.status)} aria-hidden="true" />
-          <span className="bench-span-name">{span.name}</span>
+          <span className="bench-span-name">
+            <EntityText text={span.name} sources={[]} />
+          </span>
           <span className="bench-type-tag">{span.kind}</span>
           <span className="ast-num">
             {typeof span.durationMs === 'number' ? `${Math.round(span.durationMs)} ms` : 'duration not recorded'}
@@ -787,11 +808,7 @@ export function useBenchmarkOps(input: {
 
   const viewRollback = () => {
     const path = rollbackCaption(flywheel.rollback);
-    setApplyNote(
-      canRollback
-        ? `Rollback path (inspection only, nothing was changed): ${path}`
-        : path
-    );
+    setApplyNote(canRollback ? `Rollback path (inspection only, nothing was changed): ${path}` : path);
   };
 
   const rollbackAsk = async () => {
@@ -802,7 +819,9 @@ export function useBenchmarkOps(input: {
     try {
       const rolled = await rollbackPromotedAsk();
       setFlywheel(await loadFlywheel());
-      setApplyNote(rolled.endpoint ? `Rolled back the next Ask to ${rolled.endpoint}.` : rollbackCaption(flywheel.rollback));
+      setApplyNote(
+        rolled.endpoint ? `Rolled back the next Ask to ${rolled.endpoint}.` : rollbackCaption(flywheel.rollback)
+      );
     } catch (error) {
       setApplyNote((error as Error).message);
     }
@@ -825,9 +844,7 @@ export function useBenchmarkOps(input: {
       baseline,
       candidate,
       failedCases: failed,
-      traceLinks: inspectCases
-        .filter((row) => row.mlflowHref)
-        .map((row) => ({ caseId: row.id, href: row.mlflowHref })),
+      traceLinks: inspectCases.filter((row) => row.mlflowHref).map((row) => ({ caseId: row.id, href: row.mlflowHref })),
       reviewerStatus: lab?.reviewerQueue || '',
     });
     const blob = new Blob([json], { type: 'application/json' });

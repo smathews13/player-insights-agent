@@ -24,7 +24,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Lock, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
 import { CopyableCommand } from './AdminListEditor';
-import { canSubmit, roleWord, rosterSummary, rowLocked, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
+import { canSubmit, roleWord, rowLocked, setOn, stepsDownFrom, type RosterEntry } from './user-roster';
 import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-contract';
 import type { SpIdentityAdminPayload, SpPersona } from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
@@ -42,7 +42,7 @@ import {
   updateSpPersonaDefinition,
   writeHumanRoster,
 } from './identity-settings-api';
-import { SpIdentityEditor } from './SpIdentityPanel';
+import { SpIdentityEditor, type SpIdentityMutationError } from './SpIdentityPanel';
 
 /** The #24a add row appoints an Admin or Consumer. Super-admin promotion stays
  * on an existing row, where the server names it in `assignable` and protects the
@@ -94,13 +94,14 @@ function RoleControl({
   }
   return (
     <AppSelect
-      label="Role"
-      ariaLabel={`Role for ${entry.email}`}
+      label="User role"
+      ariaLabel={`User role for ${entry.email}`}
       value={entry.role}
       disabled={busy}
       onValueChange={(role) => onChange(entry, role)}
       options={roleOptions(entry)}
       className="roster-control roster-role-select"
+      showLabel={false}
     />
   );
 }
@@ -174,8 +175,6 @@ export function RosterRows({
 }) {
   return (
     <>
-      <p className="admin-list-note roles-roster-summary">{rosterSummary(payload)}</p>
-
       {/* The way back into a deployment nobody can administer. Present only when
           nobody can act at all, which is the one state where there is nobody to
           withhold it from. */}
@@ -197,7 +196,7 @@ export function RosterRows({
             <tr>
               <th scope="col">Email</th>
               {manageHumanRoles ? <th scope="col">Set by</th> : null}
-              <th scope="col">Human role</th>
+              <th scope="col">User role</th>
               {showPersona ? <th scope="col">Persona</th> : null}
               {manageHumanRoles ? <th scope="col">Actions</th> : null}
             </tr>
@@ -285,9 +284,11 @@ export function UserRoleEditor({
 }) {
   const [payload, setPayload] = useState<RosterPayload | null>(null);
   const [spPayload, setSpPayload] = useState<SpIdentityAdminPayload>(EMPTY_SP_IDENTITY);
+  const [spLoaded, setSpLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [spError, setSpError] = useState<string | null>(null);
+  const [spMutationError, setSpMutationError] = useState<SpIdentityMutationError | null>(null);
   const [draft, setDraft] = useState('');
   const [draftRole, setDraftRole] = useState<Role>('admin');
   const [busy, setBusy] = useState(false);
@@ -305,6 +306,7 @@ export function UserRoleEditor({
 
       if (spResult.status === 'fulfilled') {
         setSpPayload(spResult.value);
+        setSpLoaded(true);
         if (!canManageHumanRoles) setPayload(rosterFromSpIdentity(spResult.value));
       } else {
         setSpError(spResult.reason instanceof Error ? spResult.reason.message : 'SP personas could not be read.');
@@ -331,9 +333,14 @@ export function UserRoleEditor({
   }, [load]);
 
   /** Every mutation refreshes both halves so a person never shows mixed-time identity data. */
-  async function run(work: () => Promise<unknown>, said: string): Promise<boolean> {
+  async function run(
+    work: () => Promise<unknown>,
+    said: string,
+    spOperation?: SpIdentityMutationError['operation']
+  ): Promise<boolean> {
     setBusy(true);
     setWriteError('');
+    setSpMutationError(null);
     setNotice('');
     try {
       await work();
@@ -341,7 +348,8 @@ export function UserRoleEditor({
       setNotice(said);
       return true;
     } catch (cause) {
-      setWriteError((cause as Error).message);
+      if (spOperation) setSpMutationError({ operation: spOperation, message: (cause as Error).message });
+      else setWriteError((cause as Error).message);
       return false;
     } finally {
       setBusy(false);
@@ -377,7 +385,7 @@ export function UserRoleEditor({
             busy={busy}
             personas={spPayload.personas}
             personaByEmail={personaByEmail}
-            personaDisabled={!spIdentityEnabled || Boolean(spError)}
+            personaDisabled={!spIdentityEnabled || (Boolean(spError) && !spLoaded)}
             showPersona={true}
             manageHumanRoles={canManageHumanRoles}
             onPersonaChange={(email, personaId) =>
@@ -414,13 +422,14 @@ export function UserRoleEditor({
                   <td className="roster-add-help">Added by you</td>
                   <td>
                     <AppSelect<Role>
-                      label="Role"
-                      ariaLabel="Role to give them"
+                      label="User role"
+                      ariaLabel="User role to give them"
                       value={draftRole}
                       disabled={busy}
                       onValueChange={setDraftRole}
                       options={ADDABLE_ROLES.map((role) => ({ value: role, label: roleWord(role) }))}
                       className="roster-control roster-role-select"
+                      showLabel={false}
                     />
                   </td>
                   <td className="roster-add-persona">Assign after adding</td>
@@ -447,26 +456,33 @@ export function UserRoleEditor({
           enabled={spIdentityEnabled}
           payload={spPayload}
           busy={busy}
-          error={spError}
+          loading={loading}
+          readError={spError}
+          hasLastGoodPayload={spLoaded}
+          mutationError={spMutationError}
+          onRetryRead={() => void load()}
           onRename={(id, displayName) =>
-            void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`)
+            void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`, 'rename')
           }
           onCreateDefinition={(write) =>
             run(
               () => createSpPersonaDefinition(write),
-              `${write.displayName} configuration generated. Account admin setup is still required.`
+              `${write.displayName} configuration generated. Account admin setup is still required.`,
+              'definition-save'
             )
           }
           onUpdateDefinition={(id, write) =>
             run(
               () => updateSpPersonaDefinition(id, write),
-              `${write.displayName} configuration updated. Account admin setup is still required.`
+              `${write.displayName} configuration updated. Account admin setup is still required.`,
+              'definition-save'
             )
           }
           onDeleteDefinition={(id) =>
             void run(
               () => deleteSpPersonaDefinition(id),
-              'Persona configuration removed. No Databricks account identity was changed.'
+              'Persona configuration removed. No Databricks account identity was changed.',
+              'definition-delete'
             )
           }
         />

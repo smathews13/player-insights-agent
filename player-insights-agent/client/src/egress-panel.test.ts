@@ -101,8 +101,8 @@ describe('what the panel lists', () => {
     expect(PANEL_SOURCE).toContain('controllablePaths()');
     expect(PANEL_SOURCE).toContain('ControlRow');
     expect(PANEL_SOURCE).toContain('<StateSwitch');
-    expect(PANEL_SOURCE).toContain('onLabel="Allowed"');
-    expect(PANEL_SOURCE).toContain('offLabel="Blocked"');
+    expect(PANEL_SOURCE).not.toContain('onLabel=');
+    expect(PANEL_SOURCE).not.toContain('offLabel=');
   });
 
   it('does not draw the uncontrollable status rows or the egress log', () => {

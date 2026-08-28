@@ -81,15 +81,14 @@ import {
   type ResultShape,
 } from './step-results';
 import { astPill } from './run-header';
-import { TableEntityList } from './DataEntityLinks';
-import { isTableListingStage, stageTableEntities } from './live-progress';
+import { EntityText, TableEntityList } from './DataEntityLinks';
+import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 import {
   cardCalls,
   cardTiming,
   isOrchestratorStep,
   describeResult,
   detailTiming,
-  nameParts,
   railConnector,
   railGlyph,
   railTiming,
@@ -271,29 +270,15 @@ function RailConnectorRow({ fromDepth, toDepth }: { fromDepth: number; toDepth: 
  * the width to print one down a column -- so `clamp` stays the map's.
  */
 function StageName({ stage, mono, clamp }: { stage: TraceStage; mono: boolean; clamp: boolean }) {
-  // Split only when there is something to split. Most stage names have no
-  // identifier in them -- `_TOOL_STAGE_NAMES` gives most tools a reader's label
-  // and every agent decision is prose -- and for those the name is ONE TEXT NODE
-  // rather than a text node inside a span that carries nothing. The rail always
-  // takes this path, which is why its tile's markup is untouched by any of this.
-  const parts = mono ? nameParts(stage.name, stage.id) : [];
+  const tables = stageTableEntities(stage);
   return (
     <span className="dag-name" title={clamp ? stage.name : undefined}>
-      {parts.length > 1
-        ? parts.map((part, at) => {
-            const key = parts
-              .slice(0, at + 1)
-              .map(({ text }) => text)
-              .join('|');
-            return part.mono ? (
-              <code className="dag-name-tool" key={key}>
-                {part.text}
-              </code>
-            ) : (
-              <span key={key}>{part.text}</span>
-            );
-          })
-        : stage.name}
+      <EntityText
+        text={stage.name}
+        sources={tables.map((name) => ({ name }))}
+        tools={mono ? stageToolNames(stage) : []}
+        toolClassName="dag-name-tool"
+      />
     </span>
   );
 }

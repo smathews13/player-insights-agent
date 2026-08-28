@@ -6109,7 +6109,7 @@ var require_sasl = __commonJS({
     function startSession(mechanisms, stream2) {
       const candidates = ["SCRAM-SHA-256"];
       if (stream2) candidates.unshift("SCRAM-SHA-256-PLUS");
-      const mechanism = candidates.find((candidate) => mechanisms.includes(candidate));
+      const mechanism = candidates.find((candidate2) => mechanisms.includes(candidate2));
       if (!mechanism) {
         throw new Error("SASL: Only mechanism(s) " + candidates.join(" and ") + " are supported");
       }
@@ -9375,7 +9375,7 @@ var require_sasl2 = __commonJS({
     function startSession(mechanisms, stream2) {
       const candidates = ["SCRAM-SHA-256"];
       if (stream2) candidates.unshift("SCRAM-SHA-256-PLUS");
-      const mechanism = candidates.find((candidate) => mechanisms.includes(candidate));
+      const mechanism = candidates.find((candidate2) => mechanisms.includes(candidate2));
       if (!mechanism) {
         throw new Error("SASL: Only mechanism(s) " + candidates.join(" and ") + " are supported");
       }
@@ -51173,7 +51173,7 @@ Content-Type: ${partContentType}\r
     exports2.Gaxios = Gaxios;
     _a2 = Gaxios, _Gaxios_instances = /* @__PURE__ */ new WeakSet(), _Gaxios_urlMayUseProxy = function _Gaxios_urlMayUseProxy2(url2, noProxy = []) {
       var _b, _c;
-      const candidate = new url_1.URL(url2);
+      const candidate2 = new url_1.URL(url2);
       const noProxyList = [...noProxy];
       const noProxyEnvList = ((_c = (_b = process.env.NO_PROXY) !== null && _b !== void 0 ? _b : process.env.no_proxy) === null || _c === void 0 ? void 0 : _c.split(",")) || [];
       for (const rule of noProxyEnvList) {
@@ -51181,19 +51181,19 @@ Content-Type: ${partContentType}\r
       }
       for (const rule of noProxyList) {
         if (rule instanceof RegExp) {
-          if (rule.test(candidate.toString())) {
+          if (rule.test(candidate2.toString())) {
             return false;
           }
         } else if (rule instanceof url_1.URL) {
-          if (rule.origin === candidate.origin) {
+          if (rule.origin === candidate2.origin) {
             return false;
           }
         } else if (rule.startsWith("*.") || rule.startsWith(".")) {
           const cleanedRule = rule.replace(/^\*\./, ".");
-          if (candidate.hostname.endsWith(cleanedRule)) {
+          if (candidate2.hostname.endsWith(cleanedRule)) {
             return false;
           }
-        } else if (rule === candidate.origin || rule === candidate.hostname || rule === candidate.href) {
+        } else if (rule === candidate2.origin || rule === candidate2.hostname || rule === candidate2.href) {
           return false;
         }
       }
@@ -158176,11 +158176,11 @@ function resolveAppSchema(env = process.env) {
   return fromEnv;
 }
 function adoptAppSchema(schema) {
-  const candidate = schema.trim();
-  if (!POSTGRES_IDENTIFIER.test(candidate)) {
+  const candidate2 = schema.trim();
+  if (!POSTGRES_IDENTIFIER.test(candidate2)) {
     throw new Error(`Refusing invalid Postgres schema identifier: ${JSON.stringify(schema)}`);
   }
-  APP_SCHEMA = candidate;
+  APP_SCHEMA = candidate2;
   return APP_SCHEMA;
 }
 function appTable(name2) {
@@ -159036,11 +159036,11 @@ var init_request_latency = __esm({
 
 // server/lib/app-activity.ts
 function validIanaTimeZone(value) {
-  const candidate = value.trim();
-  if (!candidate) return "";
+  const candidate2 = value.trim();
+  if (!candidate2) return "";
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(0);
-    return candidate;
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate2 }).format(0);
+    return candidate2;
   } catch {
     return "";
   }
@@ -159616,6 +159616,25 @@ var init_migrations = __esm({
        )`
         ],
         down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_persona_definitions`]
+      },
+      {
+        version: 20,
+        name: "structured service principal grants",
+        /**
+         * Keep the old `capabilities` JSON intact for rolling clients. Existing
+         * rows read a null `legacy_capabilities` as "all capabilities are legacy";
+         * new writes set both columns explicitly. No customer-entered string is
+         * rewritten or discarded by this migration.
+         */
+        statements: [
+          `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions
+         ADD COLUMN IF NOT EXISTS grants JSONB NOT NULL DEFAULT '[]'::jsonb,
+         ADD COLUMN IF NOT EXISTS legacy_capabilities JSONB`
+        ],
+        down: [
+          `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS legacy_capabilities`,
+          `ALTER TABLE ${APP_SCHEMA}.sp_persona_definitions DROP COLUMN IF EXISTS grants`
+        ]
       }
     ];
   }
@@ -160041,8 +160060,8 @@ function asMlflowTraceId(value) {
   return "";
 }
 function servingMlflowTraceId(payload) {
-  for (const candidate of servingTraceCandidates(payload)) {
-    const recorded2 = asMlflowTraceId(candidate);
+  for (const candidate2 of servingTraceCandidates(payload)) {
+    const recorded2 = asMlflowTraceId(candidate2);
     if (recorded2) return recorded2;
   }
   return "";
@@ -164007,7 +164026,7 @@ function parseServedModel(endpointName, endpoint) {
       note: routes.length === 0 ? "The endpoint reported no traffic configuration, so which model version answered is unknown." : "Traffic is split across more than one route, so this run cannot be attributed to a single model version. Recorded as indeterminate rather than attributed to the majority route."
     };
   }
-  const entity = entities.find((candidate) => textOf(candidate.name) === live[0].name);
+  const entity = entities.find((candidate2) => textOf(candidate2.name) === live[0].name);
   const version4 = textOf(entity?.entity_version ?? entity?.entityVersion ?? entity?.model_version ?? entity?.modelVersion);
   const entityName = textOf(entity?.entity_name ?? entity?.entityName ?? entity?.model_name ?? entity?.modelName);
   return {
@@ -166885,10 +166904,10 @@ async function readRoster(store) {
   }
 }
 function storedRole(row2, rawRole) {
-  const candidate = rawRole.trim().toLowerCase();
+  const candidate2 = rawRole.trim().toLowerCase();
   return {
     email: normalizeAdminEmail(columnText(row2.email)),
-    role: isRole(candidate) ? candidate : "admin",
+    role: isRole(candidate2) ? candidate2 : "admin",
     setBy: columnText(row2.added_by),
     setAt: row2.added_at instanceof Date ? row2.added_at.toISOString() : columnText(row2.added_at)
   };
@@ -166920,16 +166939,16 @@ async function deleteRosterRow(store, email3) {
   return result.rows.length > 0;
 }
 function seedFloorFor(seed, email3) {
-  const candidate = normalizeAdminEmail(email3);
-  if (!candidate) return "consumer";
-  if (seed.superAdmins.includes(candidate)) return "super_admin";
-  if (seed.admins.includes(candidate)) return "admin";
+  const candidate2 = normalizeAdminEmail(email3);
+  if (!candidate2) return "consumer";
+  if (seed.superAdmins.includes(candidate2)) return "super_admin";
+  if (seed.admins.includes(candidate2)) return "admin";
   return "consumer";
 }
 function effectiveRole(input) {
-  const candidate = normalizeAdminEmail(input.email);
-  const floor = seedFloorFor(input.seed, candidate);
-  const row2 = input.stored.find((entry) => entry.email === candidate);
+  const candidate2 = normalizeAdminEmail(input.email);
+  const floor = seedFloorFor(input.seed, candidate2);
+  const row2 = input.stored.find((entry) => entry.email === candidate2);
   return row2 ? highestRole(floor, row2.role) : floor;
 }
 function everyKnownUser(input) {
@@ -166994,9 +167013,9 @@ function rosterPayload(input) {
       setAt: row2?.setAt ?? "",
       isYou: user.email === you,
       assignable: ROLES.filter(
-        (candidate) => !roleChangeRefusal({
+        (candidate2) => !roleChangeRefusal({
           email: user.email,
-          role: candidate,
+          role: candidate2,
           seed: input.seed,
           stored: input.stored,
           roleColumnPresent: input.roleColumnPresent
@@ -167079,13 +167098,13 @@ function parseSeedAdmins(raw2) {
     const raw0 = normalizeAdminEmail(token);
     if (!raw0) continue;
     const isSuper = raw0.startsWith(SEED_SUPER_ADMIN_PREFIX);
-    const candidate = isSuper ? raw0.slice(SEED_SUPER_ADMIN_PREFIX.length).trim() : raw0;
-    if (!candidate.includes("@")) {
+    const candidate2 = isSuper ? raw0.slice(SEED_SUPER_ADMIN_PREFIX.length).trim() : raw0;
+    if (!candidate2.includes("@")) {
       rejected.push(raw0);
       continue;
     }
-    if (!emails.includes(candidate)) emails.push(candidate);
-    if (isSuper && !superEmails.includes(candidate)) superEmails.push(candidate);
+    if (!emails.includes(candidate2)) emails.push(candidate2);
+    if (isSuper && !superEmails.includes(candidate2)) superEmails.push(candidate2);
   }
   return { emails, superEmails, rejected };
 }
@@ -167323,10 +167342,10 @@ function adminListPayload(input) {
   };
 }
 function invalidAdminEmail(raw2) {
-  const candidate = normalizeAdminEmail(raw2);
-  if (!candidate) return "Enter an email address.";
-  if (candidate.length > 320) return "That is longer than an email address can be.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) return "That does not look like an email address.";
+  const candidate2 = normalizeAdminEmail(raw2);
+  if (!candidate2) return "Enter an email address.";
+  if (candidate2.length > 320) return "That is longer than an email address can be.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate2)) return "That does not look like an email address.";
   return "";
 }
 function removalRefusal2(input) {
@@ -168009,9 +168028,9 @@ function asFiniteNumber(value) {
 function stageTables(value) {
   if (!Array.isArray(value)) return [];
   const names2 = [];
-  for (const candidate of value) {
-    if (typeof candidate !== "string") continue;
-    const name2 = candidate.trim();
+  for (const candidate2 of value) {
+    if (typeof candidate2 !== "string") continue;
+    const name2 = candidate2.trim();
     const hasControlCharacter = [...name2].some((character) => character.charCodeAt(0) < 32);
     if (name2.length > 512 || name2.split(".").length !== 3 || hasControlCharacter) continue;
     if (!names2.some((held) => held.toLowerCase() === name2.toLowerCase())) names2.push(name2);
@@ -168290,8 +168309,8 @@ function parseQueryTags(value) {
     return tags;
   }
   if (!value || typeof value !== "object") return tags;
-  for (const [key2, candidate] of Object.entries(value)) {
-    const tagValue = stringValue(candidate);
+  for (const [key2, candidate2] of Object.entries(value)) {
+    const tagValue = stringValue(candidate2);
     if (tagValue !== void 0) tags.set(key2, tagValue);
   }
   return tags;
@@ -168649,8 +168668,8 @@ function carriedStatus(error48) {
 function carriedProviderCode(error48) {
   if (error48 === null || typeof error48 !== "object") return void 0;
   const record2 = error48;
-  for (const candidate of [record2.error_code, record2.errorCode, record2.code]) {
-    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  for (const candidate2 of [record2.error_code, record2.errorCode, record2.code]) {
+    if (typeof candidate2 === "string" && candidate2.trim()) return candidate2.trim();
   }
   return void 0;
 }
@@ -169933,7 +169952,46 @@ var init_identity_binding = __esm({
 });
 
 // shared/sp-identity.ts
-var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
+function spGrantIdentifierFault(type, raw2) {
+  const value = raw2.trim();
+  if (!value) return "Choose a configured resource or enter its identifier.";
+  const containsControlCharacter = [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint < 32 || codePoint === 127;
+  });
+  if (value.length > 255 || containsControlCharacter) return "Use a valid Databricks identifier.";
+  const ucParts = {
+    CATALOG: 1,
+    SCHEMA: 2,
+    TABLE: 3,
+    VECTOR_SEARCH_INDEX: 3,
+    FUNCTION: 3,
+    REGISTERED_MODEL: 3,
+    VOLUME: 3
+  };
+  const partCount = ucParts[type];
+  if (partCount) {
+    const parts = value.split(".");
+    if (parts.length !== partCount || parts.some((part) => !/^[A-Za-z0-9_][A-Za-z0-9_-]{0,254}$/.test(part))) {
+      return `Enter ${SP_GRANT_MATRIX[type].identifierHint} using letters, digits, underscores, or hyphens.`;
+    }
+    return null;
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/.test(value)) {
+    return `Enter a valid ${SP_GRANT_MATRIX[type].identifierHint.toLowerCase()}.`;
+  }
+  return null;
+}
+function spGrantOption(resourceType, action) {
+  return SP_GRANT_MATRIX[resourceType].options.find((option) => option.action === action);
+}
+function spGrantKey(grant) {
+  return `${grant.resourceType}\0${grant.resource.trim().toLocaleLowerCase()}\0${grant.privilege}`;
+}
+function spGrantSummary(grant) {
+  return `${SP_GRANT_MATRIX[grant.resourceType].label} ${grant.resource} \u2014 ${grant.privilege}`;
+}
+var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, SP_GRANT_RESOURCE_TYPES, SP_GRANT_ACTIONS, SP_GRANT_MATRIX, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, GRANT_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpGrantResourceTypeSchema, SpGrantActionSchema, SpGrantSchema, SpGrantsSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
 var init_sp_identity = __esm({
   "shared/sp-identity.ts"() {
     init_zod();
@@ -169942,10 +170000,138 @@ var init_sp_identity = __esm({
     SP_EXECUTION_SERVICE_PRINCIPAL = "service_principal";
     ASSIGNED_SERVICE_PRINCIPAL2 = "assigned_service_principal";
     SP_IDENTITY_MINTING_UNAVAILABLE = "Databricks Apps cannot mint a token for another service principal from the signed-in user's OAuth scopes. This app can only obtain one by reading that principal's OAuth secret from Databricks Secrets (the scope and key you name on the persona) using the app's own identity, then exchanging it. If the app cannot read that secret, questions stay on OAuth.";
+    SP_GRANT_RESOURCE_TYPES = [
+      "SERVING_ENDPOINT",
+      "SQL_WAREHOUSE",
+      "CATALOG",
+      "SCHEMA",
+      "TABLE",
+      "GENIE_SPACE",
+      "VECTOR_SEARCH_INDEX",
+      "VECTOR_SEARCH_ENDPOINT",
+      "FUNCTION",
+      "REGISTERED_MODEL",
+      "VOLUME"
+    ];
+    SP_GRANT_ACTIONS = [
+      "READ",
+      "VIEW",
+      "USE",
+      "EXECUTE",
+      "WRITE",
+      "CREATE",
+      "EDIT",
+      "MONITOR",
+      "MANAGE"
+    ];
+    SP_GRANT_MATRIX = {
+      SERVING_ENDPOINT: {
+        label: "Serving endpoint",
+        identifierHint: "Endpoint name",
+        options: [
+          { action: "VIEW", label: "View", privilege: "CAN VIEW" },
+          { action: "USE", label: "Query", privilege: "CAN QUERY" },
+          { action: "MANAGE", label: "Manage", privilege: "CAN MANAGE" }
+        ]
+      },
+      SQL_WAREHOUSE: {
+        label: "SQL warehouse",
+        identifierHint: "Warehouse ID",
+        options: [
+          { action: "VIEW", label: "View", privilege: "CAN VIEW" },
+          { action: "MONITOR", label: "Monitor and run", privilege: "CAN MONITOR" },
+          { action: "USE", label: "Use", privilege: "CAN USE" },
+          { action: "MANAGE", label: "Manage", privilege: "CAN MANAGE" }
+        ]
+      },
+      CATALOG: {
+        label: "Catalog",
+        identifierHint: "Catalog name",
+        options: [
+          { action: "VIEW", label: "Browse metadata", privilege: "BROWSE" },
+          { action: "USE", label: "Use", privilege: "USE CATALOG" },
+          { action: "READ", label: "Read all current and future data", privilege: "SELECT" },
+          { action: "EXECUTE", label: "Execute all current and future functions", privilege: "EXECUTE" },
+          { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
+        ]
+      },
+      SCHEMA: {
+        label: "Schema",
+        identifierHint: "catalog.schema",
+        options: [
+          { action: "USE", label: "Use", privilege: "USE SCHEMA" },
+          { action: "READ", label: "Read all current and future data", privilege: "SELECT" },
+          { action: "EXECUTE", label: "Execute all current and future functions", privilege: "EXECUTE" },
+          { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
+        ]
+      },
+      TABLE: {
+        label: "Table or view",
+        identifierHint: "catalog.schema.table",
+        options: [
+          { action: "READ", label: "Read", privilege: "SELECT" },
+          { action: "WRITE", label: "Modify", privilege: "MODIFY" },
+          { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
+        ]
+      },
+      GENIE_SPACE: {
+        label: "Genie space",
+        identifierHint: "Genie space ID",
+        options: [
+          { action: "VIEW", label: "View", privilege: "CAN VIEW" },
+          { action: "USE", label: "Run", privilege: "CAN RUN" },
+          { action: "EDIT", label: "Edit", privilege: "CAN EDIT" },
+          { action: "MANAGE", label: "Manage", privilege: "CAN MANAGE" }
+        ]
+      },
+      VECTOR_SEARCH_INDEX: {
+        label: "Vector Search index",
+        identifierHint: "catalog.schema.index",
+        options: [
+          { action: "READ", label: "Query", privilege: "SELECT" },
+          { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
+        ]
+      },
+      VECTOR_SEARCH_ENDPOINT: {
+        label: "Vector Search endpoint",
+        identifierHint: "Endpoint name",
+        options: [
+          { action: "CREATE", label: "Create indexes", privilege: "CAN CREATE" },
+          { action: "USE", label: "Use", privilege: "CAN USE" },
+          { action: "MANAGE", label: "Manage", privilege: "CAN MANAGE" }
+        ]
+      },
+      FUNCTION: {
+        label: "Function",
+        identifierHint: "catalog.schema.function",
+        options: [
+          { action: "EXECUTE", label: "Execute / call", privilege: "EXECUTE" },
+          { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
+        ]
+      },
+      REGISTERED_MODEL: {
+        label: "Registered model",
+        identifierHint: "catalog.schema.model",
+        options: [
+          { action: "EXECUTE", label: "Load / use", privilege: "EXECUTE" },
+          { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
+        ]
+      },
+      VOLUME: {
+        label: "Volume",
+        identifierHint: "catalog.schema.volume",
+        options: [
+          { action: "READ", label: "Read files", privilege: "READ VOLUME" },
+          { action: "WRITE", label: "Write files", privilege: "WRITE VOLUME" },
+          { action: "MANAGE", label: "Manage", privilege: "MANAGE" }
+        ]
+      }
+    };
     NAME_MAX = 120;
     DESCRIPTION_MAX = 280;
     CAPABILITY_MAX = 180;
     CAPABILITY_COUNT_MAX = 12;
+    GRANT_COUNT_MAX = 24;
     SECRET_REF_MAX = 128;
     CLIENT_ID_MAX = 64;
     SpPersonaWriteSchema = external_exports.object({
@@ -169958,23 +170144,55 @@ var init_sp_identity = __esm({
       message: "Nothing to update."
     });
     SpCapabilitySchema = external_exports.string().trim().min(1).max(CAPABILITY_MAX);
-    SpCapabilitiesSchema = external_exports.array(SpCapabilitySchema).min(1).max(CAPABILITY_COUNT_MAX);
+    SpCapabilitiesSchema = external_exports.array(SpCapabilitySchema).max(CAPABILITY_COUNT_MAX);
+    SpGrantResourceTypeSchema = external_exports.enum(SP_GRANT_RESOURCE_TYPES);
+    SpGrantActionSchema = external_exports.enum(SP_GRANT_ACTIONS);
+    SpGrantSchema = external_exports.object({
+      resourceType: SpGrantResourceTypeSchema,
+      resource: external_exports.string().trim().min(1).max(255),
+      action: SpGrantActionSchema,
+      privilege: external_exports.string().trim().min(1).max(64)
+    }).superRefine((grant, context2) => {
+      const identifierFault = spGrantIdentifierFault(grant.resourceType, grant.resource);
+      if (identifierFault) context2.addIssue({ code: "custom", path: ["resource"], message: identifierFault });
+      const option = spGrantOption(grant.resourceType, grant.action);
+      if (!option) {
+        context2.addIssue({
+          code: "custom",
+          path: ["action"],
+          message: `${grant.action} is not valid for ${SP_GRANT_MATRIX[grant.resourceType].label}.`
+        });
+      } else if (grant.privilege !== option.privilege) {
+        context2.addIssue({
+          code: "custom",
+          path: ["privilege"],
+          message: `${grant.action} maps to ${option.privilege} for ${SP_GRANT_MATRIX[grant.resourceType].label}.`
+        });
+      }
+    });
+    SpGrantsSchema = external_exports.array(SpGrantSchema).max(GRANT_COUNT_MAX).refine((grants2) => new Set(grants2.map(spGrantKey)).size === grants2.length, {
+      message: "The grant plan contains an exact duplicate."
+    });
     SpPersonaDefinitionFields = external_exports.object({
       displayName: external_exports.string().trim().min(1).max(NAME_MAX),
       description: external_exports.string().trim().max(DESCRIPTION_MAX).default(""),
-      capabilities: SpCapabilitiesSchema
+      capabilities: SpCapabilitiesSchema.default([]),
+      grants: SpGrantsSchema.default([]),
+      legacyCapabilities: SpCapabilitiesSchema.default([])
     });
     uniqueCapabilities = (capabilities2) => !capabilities2 || new Set(capabilities2.map((capability) => capability.toLocaleLowerCase())).size === capabilities2.length;
     SpPersonaDefinitionWriteSchema = SpPersonaDefinitionFields.refine(
-      (value) => uniqueCapabilities(value.capabilities),
-      { path: ["capabilities"], message: "Each permission must be unique." }
+      (value) => (value.grants.length > 0 || value.capabilities.length > 0 || value.legacyCapabilities.length > 0) && uniqueCapabilities(value.capabilities) && uniqueCapabilities(value.legacyCapabilities),
+      { path: ["grants"], message: "Add at least one structured grant or preserve a legacy permission." }
     );
     SpPersonaDefinitionPatchSchema = external_exports.object({
       displayName: external_exports.string().trim().min(1).max(NAME_MAX).optional(),
       description: external_exports.string().trim().max(DESCRIPTION_MAX).optional(),
-      capabilities: SpCapabilitiesSchema.optional()
-    }).refine((value) => Object.keys(value).length > 0, { message: "Nothing to update." }).refine((value) => uniqueCapabilities(value.capabilities), {
-      path: ["capabilities"],
+      capabilities: SpCapabilitiesSchema.optional(),
+      grants: SpGrantsSchema.optional(),
+      legacyCapabilities: SpCapabilitiesSchema.optional()
+    }).refine((value) => Object.keys(value).length > 0, { message: "Nothing to update." }).refine((value) => uniqueCapabilities(value.capabilities) && uniqueCapabilities(value.legacyCapabilities), {
+      path: ["grants"],
       message: "Each permission must be unique."
     });
     SpIdentityModeSchema = external_exports.object({
@@ -170033,12 +170251,32 @@ function capabilities(value) {
     return [];
   }
 }
+function grants(value) {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((entry) => {
+    const grant = SpGrantSchema.safeParse(entry);
+    return grant.success ? [grant.data] : [];
+  });
+}
 function definitionFromRow(row2) {
+  const storedCapabilities = capabilities(row2.capabilities);
+  const structured = grants(row2.grants);
+  const legacy = row2.legacy_capabilities === null || row2.legacy_capabilities === void 0 ? structured.length === 0 ? storedCapabilities : [] : capabilities(row2.legacy_capabilities);
   return {
     id: text6(row2.id),
     displayName: text6(row2.display_name),
     description: text6(row2.description),
-    capabilities: capabilities(row2.capabilities),
+    capabilities: storedCapabilities,
+    grants: structured,
+    legacyCapabilities: legacy,
     updatedAt: iso(row2.updated_at),
     updatedBy: text6(row2.updated_by)
   };
@@ -170143,7 +170381,7 @@ async function deleteSpPersona(client, id) {
 async function listSpPersonaDefinitions(client) {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+      `SELECT id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
          FROM ${SP_PERSONA_DEFINITIONS_TABLE}
         ORDER BY display_name, id`
     );
@@ -170156,7 +170394,7 @@ async function listSpPersonaDefinitions(client) {
 async function readSpPersonaDefinition(client, id) {
   try {
     const result = await client.lakebase.query(
-      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+      `SELECT id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by
          FROM ${SP_PERSONA_DEFINITIONS_TABLE}
         WHERE id = $1`,
       [id]
@@ -170170,33 +170408,60 @@ async function readSpPersonaDefinition(client, id) {
 }
 async function insertSpPersonaDefinition(client, write2, updatedBy) {
   const id = randomUUID5();
+  const structured = write2.grants;
+  const legacy = structured.length > 0 ? write2.legacyCapabilities : [.../* @__PURE__ */ new Set([...write2.capabilities, ...write2.legacyCapabilities])];
+  const compatibility = [...structured.map(spGrantSummary), ...legacy];
   const result = await client.lakebase.query(
     `INSERT INTO ${SP_PERSONA_DEFINITIONS_TABLE}
-       (id, display_name, description, capabilities, updated_by, updated_at)
-     VALUES ($1, $2, $3, $4::jsonb, $5, now())
-     RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
-    [id, write2.displayName, write2.description, JSON.stringify(write2.capabilities), updatedBy]
+       (id, display_name, description, capabilities, grants, legacy_capabilities, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, now())
+     RETURNING id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
+    [
+      id,
+      write2.displayName,
+      write2.description,
+      JSON.stringify(compatibility),
+      JSON.stringify(structured),
+      JSON.stringify(legacy),
+      updatedBy
+    ]
   );
   return definitionFromRow(result.rows[0]);
 }
 async function updateSpPersonaDefinition(client, id, write2, updatedBy) {
   const current = await readSpPersonaDefinition(client, id);
   if (!current) return null;
+  const structured = write2.grants ?? current.grants ?? [];
+  const currentStructuredSummaries = new Set((current.grants ?? []).map(spGrantSummary));
+  const legacy = write2.legacyCapabilities ?? (write2.capabilities ? write2.capabilities.filter((capability) => !currentStructuredSummaries.has(capability)) : current.legacyCapabilities ?? []);
+  const compatibility = [...structured.map(spGrantSummary), ...legacy];
   const next = {
     displayName: write2.displayName ?? current.displayName,
     description: write2.description ?? current.description,
-    capabilities: write2.capabilities ?? current.capabilities
+    capabilities: compatibility,
+    grants: structured,
+    legacyCapabilities: legacy
   };
   const result = await client.lakebase.query(
     `UPDATE ${SP_PERSONA_DEFINITIONS_TABLE}
         SET display_name = $2,
             description = $3,
             capabilities = $4::jsonb,
-            updated_by = $5,
+            grants = $5::jsonb,
+            legacy_capabilities = $6::jsonb,
+            updated_by = $7,
             updated_at = now()
       WHERE id = $1
-      RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
-    [id, next.displayName, next.description, JSON.stringify(next.capabilities), updatedBy]
+      RETURNING id, display_name, description, capabilities, grants, legacy_capabilities, updated_at, updated_by`,
+    [
+      id,
+      next.displayName,
+      next.description,
+      JSON.stringify(next.capabilities),
+      JSON.stringify(next.grants),
+      JSON.stringify(next.legacyCapabilities),
+      updatedBy
+    ]
   );
   const row2 = result?.rows?.[0];
   return row2 ? definitionFromRow(row2) : null;
@@ -171427,9 +171692,9 @@ function extractConfigurationReport(value) {
   if (isEndpointError(record2)) return [];
   const custom2 = record2.custom_outputs && typeof record2.custom_outputs === "object" ? record2.custom_outputs : null;
   const nestedReport = custom2?.preflight && typeof custom2.preflight === "object" ? custom2.preflight : null;
-  for (const candidate of [custom2?.configuration, nestedReport?.configuration, record2.configuration]) {
-    if (!Array.isArray(candidate)) continue;
-    const entries = candidate.map((entry) => PreflightConfigurationSchema.safeParse(entry)).flatMap((parsed) => parsed.success ? [parsed.data] : []).filter((entry) => entry.key);
+  for (const candidate2 of [custom2?.configuration, nestedReport?.configuration, record2.configuration]) {
+    if (!Array.isArray(candidate2)) continue;
+    const entries = candidate2.map((entry) => PreflightConfigurationSchema.safeParse(entry)).flatMap((parsed) => parsed.success ? [parsed.data] : []).filter((entry) => entry.key);
     if (entries.length > 0) return entries;
   }
   for (const key2 of ["data", "response", "result", "body"]) {
@@ -171672,8 +171937,8 @@ function extractStructuredAnswer(value) {
     const customRecord = custom2;
     candidates.unshift(customRecord.answer, customRecord.player_insights_answer);
   }
-  for (const candidate of candidates) {
-    const parsed = LiveAnswerSchema.safeParse(candidate);
+  for (const candidate2 of candidates) {
+    const parsed = LiveAnswerSchema.safeParse(candidate2);
     if (!parsed.success) continue;
     const undeclared = undeclaredAnswerKeys(parsed.data);
     if (undeclared.length > 0) {
@@ -175073,14 +175338,14 @@ function yamlBlock(source, headers) {
       collected.push(`_inline: ${rest}`);
     }
     for (let next = index + 1; next < lines.length; next += 1) {
-      const candidate = lines[next];
-      if (!candidate.trim()) {
-        collected.push(candidate);
+      const candidate2 = lines[next];
+      if (!candidate2.trim()) {
+        collected.push(candidate2);
         continue;
       }
-      const candidateIndent = candidate.match(/^\s*/)?.[0].length ?? 0;
+      const candidateIndent = candidate2.match(/^\s*/)?.[0].length ?? 0;
       if (candidateIndent <= indent) break;
-      collected.push(candidate.slice(indent + 2));
+      collected.push(candidate2.slice(indent + 2));
     }
     const body = collected.join("\n").trim();
     if (body) return body;
@@ -175396,12 +175661,12 @@ var init_app_facts = __esm({
 
 // server/lib/ops-telemetry.ts
 function telemetrySchema(raw2 = process.env[TELEMETRY_SCHEMA_ENV]) {
-  const candidate = (raw2 ?? "").trim().replace(/^`|`$/g, "");
-  if (!candidate) return "";
-  const parts = candidate.split(".").filter((part) => part.length > 0);
+  const candidate2 = (raw2 ?? "").trim().replace(/^`|`$/g, "");
+  if (!candidate2) return "";
+  const parts = candidate2.split(".").filter((part) => part.length > 0);
   if (parts.length !== 2) {
     console.warn(
-      `[ops] ${TELEMETRY_SCHEMA_ENV} is ${JSON.stringify(candidate)}, which is not a catalog and schema. App telemetry is being reported as not configured rather than guessed at.`
+      `[ops] ${TELEMETRY_SCHEMA_ENV} is ${JSON.stringify(candidate2)}, which is not a catalog and schema. App telemetry is being reported as not configured rather than guessed at.`
     );
     return "";
   }
@@ -179800,10 +180065,10 @@ var init_monitoring_contract = __esm({
 function unresolvedGrants(now) {
   return { resolved: false, verdicts: /* @__PURE__ */ new Map(), resolvedAt: now };
 }
-function conditioningFor(tables, grants) {
-  if (!grants.resolved) return null;
+function conditioningFor(tables, grants2) {
+  if (!grants2.resolved) return null;
   for (const table of tables) {
-    const verdict = grants.verdicts.get(table);
+    const verdict = grants2.verdicts.get(table);
     if (!verdict || verdict.status !== "denied") continue;
     return {
       table: verdict.missing?.object ?? table,
@@ -180231,7 +180496,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const people = totals.people;
       const peopleList = totals.peopleList;
       const distinctTables = [...new Set(all.flatMap((question) => question.tables))].sort();
-      const grants = await resolveGrants({
+      const grants2 = await resolveGrants({
         key: { admin, window: `${range.from}|${range.to}` },
         tables: distinctTables,
         probe: probeFor(req),
@@ -180253,7 +180518,7 @@ function setupMonitoringRoutes(appkit, deps) {
         questions: all,
         people: peopleList,
         tables: distinctTables,
-        grantsResolution: grants.resolved ? "ok" : "failed"
+        grantsResolution: grants2.resolved ? "ok" : "failed"
       });
     });
     app.get("/api/monitoring/questions/:id", async (req, res) => {
@@ -180276,7 +180541,7 @@ function setupMonitoringRoutes(appkit, deps) {
       const ledger = await readLedger(appkit, answerId ? [answerId] : []);
       const verdict = answerId ? ledger.get(answerId) : void 0;
       const tables = tableList(row2.sources);
-      const grants = await resolveGrants({
+      const grants2 = await resolveGrants({
         key: { admin, window: `${range.from}|${range.to}` },
         // The tables THIS run read. The cache is keyed on the admin and the
         // range, so a drawer opened from a list has already paid for this.
@@ -180284,7 +180549,7 @@ function setupMonitoringRoutes(appkit, deps) {
         probe: probeFor(req),
         now: clock()
       });
-      const conditioning = conditioningFor(tables, grants);
+      const conditioning = conditioningFor(tables, grants2);
       const traceId = text17(row2.trace_id);
       const mlflow = traceId ? mlflowReference(traceId, await resolveExperimentId(appkit)) : null;
       const executionMode = text17(row2.execution_mode);
@@ -180399,11 +180664,11 @@ function setupMonitoringRoutes(appkit, deps) {
       }
       const tablesReadMost = [...counts.entries()].map(([table, runs]) => ({ table, runs })).sort((a, b) => b.runs - a.runs || a.table.localeCompare(b.table));
       const wanted = manifestTables();
-      let grants = null;
+      let grants2 = null;
       if (wanted.length > 0) {
         const readings = await Promise.all(wanted.map((table) => readTableGrant(read2, table, person)));
         const answered = readings.filter((reading) => reading.canRead !== null || reading.rowFilter !== null);
-        grants = answered.length === 0 ? null : readings.map((reading) => ({
+        grants2 = answered.length === 0 ? null : readings.map((reading) => ({
           table: reading.table,
           // A reading that did not answer is not a denial. `canRead` false
           // here would report a permissions problem nobody established.
@@ -180437,7 +180702,7 @@ function setupMonitoringRoutes(appkit, deps) {
         tablesReadMost,
         executionSplit,
         subjectSplit,
-        grants,
+        grants: grants2,
         refusedMissingGrant,
         refusedAgentRules,
         questions,
@@ -180640,6 +180905,11 @@ function rowId(row2) {
 function isAstrolabe(row2) {
   return parseQueryTags(row2.query_tags).get("application") === "Astrolabe";
 }
+function genieSpaceId(row2) {
+  if (!row2.query_source || typeof row2.query_source !== "object") return "";
+  const value = row2.query_source.genie_space_id;
+  return typeof value === "string" ? value.trim() : "";
+}
 async function readWarehouseQueryAttribution(input) {
   const warehouseId2 = input.warehouseId.trim();
   if (!warehouseId2 || !Number.isFinite(input.startTimeMs) || !Number.isFinite(input.endTimeMs)) {
@@ -180690,9 +180960,16 @@ async function readWarehouseQueryAttribution(input) {
   let astrolabeQueries = 0;
   let astrolabeExecutionMs = 0;
   let totalExecutionMs = 0;
+  const genieSpaces = /* @__PURE__ */ new Map();
   for (const row2 of rows.values()) {
-    const astrolabe = isAstrolabe(row2);
+    const spaceId = genieSpaceId(row2);
+    const astrolabe = isAstrolabe(row2) && !spaceId;
     if (astrolabe) astrolabeQueries += 1;
+    if (spaceId) {
+      const current = genieSpaces.get(spaceId) ?? { queries: 0, executionMs: 0 };
+      current.queries += 1;
+      genieSpaces.set(spaceId, current);
+    }
     const duration3 = executionMilliseconds(row2);
     if (duration3 === null) {
       complete = false;
@@ -180700,13 +180977,15 @@ async function readWarehouseQueryAttribution(input) {
     }
     totalExecutionMs += duration3;
     if (astrolabe) astrolabeExecutionMs += duration3;
+    if (spaceId) genieSpaces.get(spaceId).executionMs += duration3;
   }
   return {
     complete,
     astrolabeQueries,
     totalQueries: rows.size,
     astrolabeExecutionMs,
-    totalExecutionMs
+    totalExecutionMs,
+    genieSpaces: [...genieSpaces].map(([spaceId, values]) => ({ spaceId, ...values }))
   };
 }
 function queryHistoryPage2(value) {
@@ -180763,7 +181042,8 @@ var init_ops_query_history = __esm({
       astrolabeQueries: 0,
       totalQueries: 0,
       astrolabeExecutionMs: 0,
-      totalExecutionMs: 0
+      totalExecutionMs: 0,
+      genieSpaces: []
     };
   }
 });
@@ -181303,7 +181583,7 @@ function buildCoverage(input) {
       return {
         product: row2.component,
         status: "propagated",
-        detail: `${row2.taggedRows} tagged billing rows for the selected period.`
+        detail: `${row2.taggedRows} tagged billing rows.`
       };
     }
     if ((row2.untaggedRows ?? 0) > 0) {
@@ -181317,10 +181597,10 @@ function buildCoverage(input) {
       return {
         product: row2.component,
         status: "delayed",
-        detail: `Billing data through ${through}. Later days in the selected period may still be filling.`
+        detail: `Billing data through ${through}. Later days may still be filling.`
       };
     }
-    return { product: row2.component, status: "unused", detail: "No matching usage rows for the selected period." };
+    return { product: row2.component, status: "unused", detail: "No matching usage rows." };
   });
   return {
     inventoryCount: input.inventoryCount,
@@ -181336,33 +181616,46 @@ function buildTiles(ids, rows, warehouseAttribution = EMPTY_WAREHOUSE_QUERY_ATTR
   const tiles = [];
   for (const component of COST_COMPONENTS) {
     if (component === "genie") {
-      tiles.push(...genieSpaceTiles(ids, resourceActivity));
+      tiles.push(...genieSpaceTiles(ids, byComponent.get("sql-warehouse"), warehouseAttribution, resourceActivity));
       continue;
     }
     tiles.push(componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity));
   }
   return tiles;
 }
-function genieSpaceTiles(ids, activity) {
+function genieSpaceTiles(ids, warehouseRow, warehouseAttribution, activity) {
+  const warehouseSpend = spendAmountFor(warehouseRow, "total-in-range");
+  const warehousePricing = pricingFromRow(warehouseRow);
+  const billingRows = warehouseRow ? (warehouseRow.pricedRows ?? 0) + (warehouseRow.unpricedRows ?? 0) : 0;
+  const representedSpaces = /* @__PURE__ */ new Map();
   return ids.genieSpaces.map((space) => {
+    const spaceId = space.id.trim();
+    const representedBy = spaceId ? representedSpaces.get(spaceId) : void 0;
+    if (spaceId && !representedBy) representedSpaces.set(spaceId, space.label);
     const measured = activity.find((item) => item.tileId === space.tileId);
+    const generatedSql = warehouseAttribution.genieSpaces.find((item) => item.spaceId === spaceId);
+    const canAllocate = Boolean(spaceId) && !representedBy && warehouseSpend !== null && warehouseAttribution.complete && warehouseAttribution.totalExecutionMs > 0 && Boolean(generatedSql && generatedSql.executionMs > 0);
+    const amount = canAllocate && generatedSql ? warehouseSpend * generatedSql.executionMs / warehouseAttribution.totalExecutionMs : null;
+    const sqlGap = representedBy ? `This Genie space is already represented by ${representedBy}; cost is not repeated` : !spaceId ? "Resource identifier unavailable" : warehouseSpend === null ? unpricedUnavailable(warehousePricing) || "Generated SQL cost unavailable: no priced SQL warehouse billing rows" : !warehouseAttribution.complete ? "Generated SQL cost unavailable: incomplete Query History" : warehouseAttribution.totalExecutionMs <= 0 ? "Generated SQL cost unavailable: Query History has no execution-time denominator" : !generatedSql || generatedSql.executionMs <= 0 ? "Generated SQL cost unavailable: no Query History execution matched this Genie space" : "";
+    const unavailable4 = sqlGap ? `${sqlGap}. ${GENIE_LLM_UNAVAILABLE}` : GENIE_LLM_UNAVAILABLE;
     return {
       id: space.tileId,
       label: space.label,
-      resourceId: space.id.trim(),
-      resourceKind: space.id.trim() ? "genie-space" : "",
-      quality: "unknown",
-      amount: null,
+      resourceId: spaceId,
+      resourceKind: spaceId ? "genie-space" : "",
+      quality: amount === null ? "unknown" : "estimate",
+      amount,
       basis: "total-in-range",
-      population: "This space",
-      attribution: "unavailable",
-      pricing: { ...EMPTY_PRICING },
-      unavailable: space.id.trim() ? "Genie LLM dollars unavailable" : "Resource identifier unavailable",
-      remedy: space.id.trim() ? "" : `Configure the ${space.label} space.`,
+      population: "Generated SQL share",
+      attribution: amount === null ? "unavailable" : "deployment",
+      pricing: warehousePricing,
+      unavailable: amount === null ? unavailable4 : "",
+      remedy: spaceId ? "" : `Configure the ${space.label} space.`,
       note: GENIE_SQL_NOT_COMPLETE,
       evidence: {
-        billingRows: null,
+        billingRows: amount === null ? null : billingRows,
         astrolabeQueries: null,
+        queryHistoryComplete: warehouseAttribution.complete,
         activity: measured ? { calls: measured.calls, observedCalls: measured.observedCalls, unit: "requests" } : null
       }
     };
@@ -181372,20 +181665,20 @@ function appComputeAbsence(state) {
   const pair = billingTagPair();
   if (state === "matched") {
     return {
-      unavailable: "No Apps billing rows matched this app for the selected period.",
+      unavailable: "No Apps billing rows matched this app.",
       remedy: "",
       note: `${pair} is on this app; Apps billing is matched by app name.`
     };
   }
   if (state === "missing") {
     return {
-      unavailable: "No Apps billing rows matched this app for the selected period.",
+      unavailable: "No Apps billing rows matched this app.",
       remedy: "",
       note: `${pair} is not on this app; Apps billing is still matched by app name.`
     };
   }
   return {
-    unavailable: "No Apps billing rows matched this app for the selected period.",
+    unavailable: "No Apps billing rows matched this app.",
     remedy: "",
     note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`
   };
@@ -181538,7 +181831,7 @@ function buildQuestionAttribution(runs, tiles, limit) {
         unknownPart(
           "serving-endpoint",
           "Model serving",
-          run2.totalTokens === null ? "This run recorded no token count." : "No endpoint spend was measured for the selected period."
+          run2.totalTokens === null ? "This run recorded no token count." : "No endpoint spend was measured."
         )
       );
     }
@@ -181551,9 +181844,7 @@ function buildQuestionAttribution(runs, tiles, limit) {
         unavailable: ""
       });
     } else {
-      parts.push(
-        unknownPart("sql-warehouse", "SQL warehouse", "No warehouse spend was available for the selected period.")
-      );
+      parts.push(unknownPart("sql-warehouse", "SQL warehouse", "No warehouse spend was available."));
     }
     parts.push(
       ...UNKNOWN_QUESTION_PARTS.map((part) => ({ ...part, quality: "unknown", amount: null }))
@@ -181573,7 +181864,7 @@ function buildQuestionAttribution(runs, tiles, limit) {
     tokenCoveredRuns,
     totalRecordedTokens,
     limited: runsInRange > attributed.length,
-    reason: runsInRange === 0 ? "No completed runs were recorded for the selected period." : ""
+    reason: runsInRange === 0 ? "No completed runs were recorded." : ""
   };
 }
 var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, BILLING_TAG_VALUE, GENIE_LLM_UNAVAILABLE, GENIE_SQL_NOT_COMPLETE, TILED_PRODUCTS, PRODUCT_REASONS, EMPTY_PRICING, ROW_KINDS, DESCRIPTIONS, UNKNOWN_QUESTION_PARTS;
@@ -181615,15 +181906,15 @@ var init_ops_billing = __esm({
     RANGE_ROW = "__range";
     BILLING_TAG_KEY = BILLING_TAG.key;
     BILLING_TAG_VALUE = BILLING_TAG.value;
-    GENIE_LLM_UNAVAILABLE = "Genie LLM spend not attributable in this model";
-    GENIE_SQL_NOT_COMPLETE = "SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.";
+    GENIE_LLM_UNAVAILABLE = "Genie LLM dollars unavailable by space: billing exposes surface and channel, not a Genie space ID.";
+    GENIE_SQL_NOT_COMPLETE = "Only generated SQL is estimated from Query History execution time; Genie model cost is excluded.";
     TILED_PRODUCTS = /* @__PURE__ */ new Set(["MODEL_SERVING", "SQL", "VECTOR_SEARCH", "APPS"]);
     PRODUCT_REASONS = {
       MODEL_SERVING: "Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.",
       SQL: "Warehouse billing rows are allocated only by complete Astrolabe Query History execution-time share.",
       VECTOR_SEARCH: "Endpoint billing is excluded; the tile uses exact index-tagged Astrolabe calls.",
       APPS: "Measured by exact app name. App tag presence is a separate organizational signal.",
-      GENIE: "Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.",
+      GENIE: GENIE_LLM_UNAVAILABLE,
       LAKEBASE: "Lakebase can be tagged. No documented billing join exists in this model.",
       MLFLOW: "MLflow experiments can be tagged. They have no Cost tile."
     };
@@ -182410,7 +182701,7 @@ function setupOpsRoutes(appkit, deps) {
         const delayed = coverage2.propagation.some((row2) => row2.status === "delayed");
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
           const tiles2 = buildTiles(ids, [], queryAttribution, resourceActivity);
-          const reason = unpropagated.length ? "Matching usage exists without the Astrolabe tag, but exact resource attribution remains available." : delayed ? "No exact tracked-resource billing rows for the selected period yet. Later days may still be filling." : "No billing rows matched an exact tracked resource for the selected period.";
+          const reason = unpropagated.length ? "Matching usage exists without the Astrolabe tag, but exact resource attribution remains available." : delayed ? "No exact tracked-resource billing rows yet. Later days may still be filling." : "No billing rows matched an exact tracked resource.";
           res.json({
             ...empty,
             state: "no-rows",
@@ -185665,18 +185956,98 @@ var init_run_label_routes = __esm({
   }
 });
 
+// server/lib/sp-grant-resources.ts
+function candidate(type, id, label, source = "configured") {
+  const value = id?.trim() ?? "";
+  return value ? { type, id: value, label, source } : null;
+}
+function unityCatalogType(value) {
+  const parts = value.split(".");
+  if (parts.length === 1) return "CATALOG";
+  if (parts.length === 2) return "SCHEMA";
+  if (parts.length === 3) return "TABLE";
+  return null;
+}
+function declaredGrantResourceType(input) {
+  switch (input.kind) {
+    case "agent":
+    case "model":
+      return "SERVING_ENDPOINT";
+    case "genie-space":
+      return "GENIE_SPACE";
+    case "sql-warehouse":
+      return "SQL_WAREHOUSE";
+    case "unity-catalog":
+      return unityCatalogType(input.value);
+    case "volume":
+      return "VOLUME";
+    case "vector-search":
+      return /endpoint/i.test(`${input.id} ${input.label}`) ? "VECTOR_SEARCH_ENDPOINT" : "VECTOR_SEARCH_INDEX";
+    default:
+      return null;
+  }
+}
+async function discoverSpGrantResources(client, env = process.env) {
+  const configured = [
+    candidate("SERVING_ENDPOINT", env.DATABRICKS_SERVING_ENDPOINT_NAME, "Orchestrator serving endpoint"),
+    candidate("SERVING_ENDPOINT", env.PLAYER_INSIGHTS_LLM_ENDPOINT, "Foundation model endpoint"),
+    candidate("SERVING_ENDPOINT", env.PLAYER_INSIGHTS_JUDGE_ENDPOINT, "Benchmark judge endpoint"),
+    candidate("SQL_WAREHOUSE", env.DATABRICKS_SQL_WAREHOUSE_ID, "SQL warehouse"),
+    candidate("CATALOG", env.PLAYER_INSIGHTS_CATALOG, "App catalog"),
+    candidate(
+      "SCHEMA",
+      env.PLAYER_INSIGHTS_CATALOG && env.PLAYER_INSIGHTS_SCHEMA ? `${env.PLAYER_INSIGHTS_CATALOG}.${env.PLAYER_INSIGHTS_SCHEMA}` : void 0,
+      "App schema"
+    ),
+    candidate("GENIE_SPACE", env.PLAYER_INSIGHTS_DATA_GENIE_ID, "Data Genie space"),
+    candidate("GENIE_SPACE", env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID, "Dictionary Genie space"),
+    candidate(
+      "VECTOR_SEARCH_INDEX",
+      env.PLAYER_INSIGHTS_SEMANTIC_INDEX === "true" ? void 0 : env.PLAYER_INSIGHTS_SEMANTIC_INDEX,
+      "Vector Search index"
+    )
+  ];
+  const declared = await readDeclaredConnections(client);
+  const rows = configured.filter((entry) => Boolean(entry));
+  for (const entry of declared) {
+    if (entry.state !== "declared") continue;
+    const type = declaredGrantResourceType(entry);
+    if (!type) continue;
+    rows.push({ type, id: entry.value.trim(), label: entry.label || entry.value, source: "declared" });
+  }
+  const unique = /* @__PURE__ */ new Map();
+  for (const row2 of rows) {
+    if (!row2.id) continue;
+    const key2 = `${row2.type}\0${row2.id.toLocaleLowerCase()}`;
+    if (!unique.has(key2)) unique.set(key2, row2);
+  }
+  return [...unique.values()].sort(
+    (left, right) => left.type.localeCompare(right.type) || left.label.localeCompare(right.label)
+  );
+}
+var init_sp_grant_resources = __esm({
+  "server/lib/sp-grant-resources.ts"() {
+    init_declared_connections();
+  }
+});
+
 // server/routes/sp-identity-routes.ts
 var sp_identity_routes_exports = {};
 __export(sp_identity_routes_exports, {
   setupSpIdentityRoutes: () => setupSpIdentityRoutes
 });
 async function adminPayload(appkit) {
-  const [enabled2, personas, personaDefinitions, assignments, rosterRead] = await Promise.all([
+  const [enabled2, personas, personaDefinitions, assignments, rosterRead, grantResourceDiscovery] = await Promise.all([
     isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
     listSpPersonas(appkit),
     listSpPersonaDefinitions(appkit),
     listSpAssignments(appkit),
-    readRoster(appkit.lakebase).catch(() => ({ rows: [] }))
+    readRoster(appkit.lakebase).catch(() => ({ rows: [] })),
+    discoverSpGrantResources(appkit).then((resources) => ({ status: "ready", resources, detail: "" })).catch((error48) => ({
+      status: "error",
+      resources: [],
+      detail: `Configured resources could not be read: ${error48.message}`
+    }))
   ]);
   const assignedByEmail = new Map(assignments.map((row2) => [row2.email, row2.personaId]));
   const roster = rosterRead.rows.map((row2) => ({
@@ -185694,6 +186065,7 @@ async function adminPayload(appkit) {
     minting: describeSpTokenMinting(),
     personas,
     personaDefinitions,
+    grantResourceDiscovery,
     assignments,
     roster
   };
@@ -185937,6 +186309,7 @@ var init_sp_identity_routes = __esm({
     init_sp_identity();
     init_admin_roles();
     init_sp_token();
+    init_sp_grant_resources();
     init_sp_identity_store();
     init_user_roster();
     init_insights_routes();
@@ -194665,8 +195038,8 @@ var parse4 = unavailable;
 var logger26 = createLogger("type-generator:serving:extractor");
 var SERVER_FILE_CANDIDATES = ["server/index.ts", "server/server.ts"];
 function findServerFile(basePath) {
-  for (const candidate of SERVER_FILE_CANDIDATES) {
-    const fullPath = path3.join(basePath, candidate);
+  for (const candidate2 of SERVER_FILE_CANDIDATES) {
+    const fullPath = path3.join(basePath, candidate2);
     if (fs3.existsSync(fullPath)) return fullPath;
   }
   return null;
@@ -195989,12 +196362,12 @@ function redactLeakedValues(obj, nonPublicValues, publicValues, leakedVars) {
 function getUniqueObjectKey(key2, result) {
   if (!Object.hasOwn(result, key2)) return key2;
   let suffix = 2;
-  let candidate = `${key2} (${suffix})`;
-  while (Object.hasOwn(result, candidate)) {
+  let candidate2 = `${key2} (${suffix})`;
+  while (Object.hasOwn(result, candidate2)) {
     suffix += 1;
-    candidate = `${key2} (${suffix})`;
+    candidate2 = `${key2} (${suffix})`;
   }
-  return candidate;
+  return candidate2;
 }
 function sanitizeClientConfig(pluginName, config2) {
   const validated = validateClientConfig(pluginName, config2);

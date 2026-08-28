@@ -11,13 +11,22 @@
  * (Who, Identity, Sessions & spend, Where, Publishers, What this run skipped).
  * Gold / Silver / Raw catalog lines stay the bold paragraphs they are.
  */
-import { inlinePlainText as rawInline, type Block, type Inline, type InlineText, type ListItem } from './answer-markdown';
+import {
+  inlinePlainText as rawInline,
+  type Block,
+  type Inline,
+  type InlineText,
+  type ListItem,
+} from './answer-markdown';
 
 const LABEL_MAX = 90;
 const MAX_BULLETS = 4;
 
 const THEMES: readonly { label: string; pattern: RegExp }[] = [
-  { label: 'What this run skipped', pattern: /\b(skipped|not (?:aggregated|enumerated|assessed|queried)|was not aggregated)\b/i },
+  {
+    label: 'What this run skipped',
+    pattern: /\b(skipped|not (?:aggregated|enumerated|assessed|queried)|was not aggregated)\b/i,
+  },
   { label: 'Who', pattern: /\b(player|profile|audience|cohort|declared-favorite|favourite)\b/i },
   { label: 'Identity', pattern: /\b(identity|confidence|email addressable|addressab)/i },
   { label: 'Where', pattern: /\b(countr(?:y|ies)|region|geo(?:graph|$))/i },
@@ -25,8 +34,7 @@ const THEMES: readonly { label: string; pattern: RegExp }[] = [
   { label: 'Sessions & spend', pattern: /\b(sessions?|spend|purchases?|bookings?|engagement|conversions?)\b/i },
 ];
 
-const COLON_OPENING =
-  /^(?<label>[^:\n]{2,80}?)(?:\s*\((?:source:\s*)?(?<source>[^)]+)\))?\s*:\s+(?<body>[\s\S]+)$/i;
+const COLON_OPENING = /^(?<label>[^:\n]{2,80}?)(?:\s*\((?:source:\s*)?(?<source>[^)]+)\))?\s*:\s+(?<body>[\s\S]+)$/i;
 
 const INVENTORY_TIER_LABEL =
   /^(?:[^\p{L}\p{N}]+\s*)?(gold|silver|raw|bronze|reference(?:\s*\/\s*metadata)?)\b(?:\s*\([^)]*\))?\s*$/iu;
@@ -103,6 +111,10 @@ function splitInlineSentences(nodes: readonly Inline[]): Inline[][] {
     if (!text) return;
     current.push(textNode(kind, text, start));
   };
+  const pushSlice = (node: InlineText, from: number, to: number) => {
+    if (to <= from) return;
+    current.push(...sliceNodes([node], from, to));
+  };
 
   for (const node of nodes) {
     if (node.kind === 'break') {
@@ -117,13 +129,13 @@ function splitInlineSentences(nodes: readonly Inline[]): Inline[][] {
     let from = 0;
     for (let index = 0; index < text.length; index += 1) {
       if (!isSentenceEnd(text, index)) continue;
-      pushText(node.kind, text.slice(from, index + 1), node.start + from);
+      pushSlice(node, from, index + 1);
       flush();
       from = index + 1;
       while (from < text.length && text[from] === ' ') from += 1;
       index = from - 1;
     }
-    pushText(node.kind, text.slice(from), node.start + from);
+    pushSlice(node, from, text.length);
   }
   flush();
   return sentences;
@@ -251,7 +263,9 @@ function paragraphAsFinding(block: Extract<Block, { kind: 'paragraph' }>): Block
   const opening = labeledOpening(raw);
   if (opening) {
     const label =
-      opening.label.length <= 40 ? opening.label.replace(/\s+/g, ' ') : themeFor(raw.slice(opening.bodyFrom)) ?? opening.label.replace(/\s+/g, ' ');
+      opening.label.length <= 40
+        ? opening.label.replace(/\s+/g, ' ')
+        : (themeFor(raw.slice(opening.bodyFrom)) ?? opening.label.replace(/\s+/g, ' '));
     const body = sliceNodes(block.children, opening.bodyFrom, raw.length);
     const sentences = splitInlineSentences(body.length > 0 ? body : block.children);
     if (sentences.length === 0) return [block];
