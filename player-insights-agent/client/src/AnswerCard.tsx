@@ -31,7 +31,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Input,
-  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -47,6 +46,7 @@ import { TraceTimeline } from './TraceTimeline';
 import { DOWN_RATING, UP_RATING, ratedThumb } from './stored-feedback';
 import { evidenceLinkedSourceNames } from './answer-table-origins';
 import type { Answer, FeedbackEntry } from './app-types';
+import { StateSwitch } from './StateSwitch';
 
 export function AnswerCard({
   answer,
@@ -400,7 +400,13 @@ export function AnswerCard({
                     `.advanced-row > div > p` in answer-body.css. */}
                 <p>Advanced trace details</p>
               </div>
-              <Switch checked={advanced} onCheckedChange={setAdvanced} aria-label="Show advanced trace details" />
+              <StateSwitch
+                checked={advanced}
+                onLabel="Shown"
+                offLabel="Hidden"
+                onCheckedChange={setAdvanced}
+                aria-label="Show advanced trace details"
+              />
             </div>
             {advanced && (
               <Tabs defaultValue="sql">

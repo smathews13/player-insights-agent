@@ -54,7 +54,18 @@
 
 .entity-token {
   padding: 1px 3px;
+  font-family: var(--font-mono);
   text-decoration: inherit;
+}
+
+/*
+ * The last segment is the table a reader scans for; catalog and schema are its
+ * qualifier. `data-entity-part` is emitted by the shared answer/source renderer
+ * as well as Connections, so Ask, Run Explorer and Monitoring cannot drift into
+ * three different weights for the same table name.
+ */
+.entity-token[data-entity-part='table'] {
+  font-weight: 700;
 }
 
 /*

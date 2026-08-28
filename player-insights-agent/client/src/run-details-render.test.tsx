@@ -31,7 +31,8 @@ const DETAILS = 'sanitized before display';
 
 /** The page as the router mounts it, on the tab it opens on. */
 function pageMarkup(): string {
-  return renderToStaticMarkup(<MemoryRouter>
+  return renderToStaticMarkup(
+    <MemoryRouter>
       <RunExplorer />
     </MemoryRouter>
   );
@@ -46,7 +47,26 @@ const TRACE = {
   sql: 'SELECT title, SUM(active_players) FROM gold_title_daily_summary GROUP BY title',
   undeclaredKeys: ['retry_of'],
   mlflow: { traceId: 'tr-feedface', experimentId: null, url: null },
-  trace: { id: 'tr-feedface', totalMs: 43_740, toolCalls: 6, stages: [] },
+  trace: {
+    id: 'tr-feedface',
+    totalMs: 43_740,
+    toolCalls: 6,
+    stages: [
+      {
+        id: 'run_sql-1',
+        name: 'Querying governed data',
+        kind: 'tool',
+        start: 0,
+        duration: 900,
+        status: 'failed',
+        calls: 2,
+        input: '{"sql":"SELECT title FROM gold_title_daily_summary"}',
+        output: 'The warehouse returned a retryable timeout.',
+        retries: 1,
+        error: 'WAREHOUSE_TIMEOUT',
+      },
+    ],
+  },
 } as unknown as RunTrace;
 
 /**
@@ -58,12 +78,17 @@ const TRACE = {
  * sees, which is what this leaves behind.
  */
 function readable(markup: string): string {
-  return markup.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ');
+  return markup
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ');
 }
 
 /** The tab, drawn on its own, in whichever position the switch is in. */
 function detailsMarkup(advanced: boolean, trace: RunTrace | null = TRACE): string {
-  return renderToStaticMarkup(<RunDetails
+  return renderToStaticMarkup(
+    <RunDetails
       trace={trace}
       advanced={advanced}
       onAdvancedChange={() => {}}
@@ -129,17 +154,26 @@ describe('what the Details tab says when the switch is off', () => {
 
     expect(markup).not.toContain('SELECT title');
     expect(markup).not.toContain('retry_of');
+    expect(markup).not.toContain('WAREHOUSE_TIMEOUT');
+    expect(markup).not.toContain('retryable timeout');
   });
 });
 
 describe('what flipping it on does', () => {
-  it('puts the generated SQL and the raw trace on screen', () => {
+  it('puts generated SQL and every stage payload on screen without another disclosure', () => {
     const markup = detailsMarkup(true);
 
-    // `SELECT` is picked out from the name after it, so the statement is no
-    // longer one run of text. The trace arrives as the figures read off it and a
-    // shut caret rather than as ninety-six lines of JSON; both are below.
+    // Generated SQL remains its own readable block. Stage records are already
+    // open: Advanced itself is the disclosure, so requiring every stage row to
+    // be expanded again would leave the switch looking inert.
     expect(markup).toContain('<b>SELECT</b> title');
+    expect(markup).toContain('Stage Raw I/O');
+    expect(markup).toContain('Querying governed data');
+    expect(markup).toContain('gold_title_daily_summary');
+    expect(markup).toContain('retryable timeout');
+    expect(markup).toContain('WAREHOUSE_TIMEOUT');
+    expect(markup).toContain('<dt>Retries</dt>');
+    expect(markup).toContain('>1<');
     expect(markup).toContain('Raw JSON');
     expect(markup).not.toContain('Advanced details are hidden');
   });

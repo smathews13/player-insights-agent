@@ -164,6 +164,94 @@
   color: var(--db-blue-700);
   font-weight: 500;
 }
+/*
+ * Advanced Details is an inspection view, so every stage is open here. The
+ * collapsible Timeline remains the compact timing view; this stack is where a
+ * reader compares the sanitized arguments, result, retries and error record.
+ */
+.stage-raw-io {
+  border: 1px solid var(--db-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.stage-raw-io-head,
+.stage-raw-io-stage > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stage-raw-io-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--db-line);
+  background: var(--db-wash);
+  font-size: var(--text-sm);
+}
+.stage-raw-io-head > span {
+  color: var(--db-slate);
+  font-size: var(--text-xs);
+}
+.stage-raw-io-list {
+  display: grid;
+}
+.stage-raw-io-stage {
+  min-width: 0;
+  padding: 10px 12px 12px;
+}
+.stage-raw-io-stage + .stage-raw-io-stage {
+  border-top: 1px solid var(--db-line);
+}
+.stage-raw-io-stage > header {
+  margin-bottom: 8px;
+  font-size: var(--text-sm);
+}
+.stage-raw-io-stage > header > b {
+  min-width: 0;
+  font-weight: 700;
+}
+.stage-raw-io-status {
+  flex: none;
+  color: var(--db-slate);
+  font-size: var(--text-xs);
+  text-transform: capitalize;
+}
+.stage-raw-io-status.failed {
+  color: var(--db-red-600);
+}
+.stage-raw-io-status.partial {
+  color: var(--db-warn-600);
+}
+.stage-raw-io-stage dl {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.stage-raw-io-stage dt {
+  color: var(--db-slate);
+}
+.stage-raw-io-stage dd {
+  min-width: 0;
+  margin: 0;
+}
+.stage-raw-io-stage .trace-payload pre {
+  margin: 0;
+  max-height: 260px;
+  padding: 8px 10px;
+  overflow: auto;
+  background: var(--db-wash);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.stage-raw-io-empty {
+  margin: 0;
+  color: var(--db-slate);
+  font-size: var(--text-sm);
+}
 /* What the trace amounts to, with the trace behind a caret. */
 .trace-summary {
   border: 1px solid var(--db-line);

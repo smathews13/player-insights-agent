@@ -1,12 +1,15 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronRight, CircleAlert, Copy, ExternalLink, ShieldCheck } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
-import { Alert, AlertDescription, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Switch } from './ui';
+import { Alert, AlertDescription, Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from './ui';
+import { StateSwitch } from './StateSwitch';
 import { sqlClauseLines, sqlHighlightRuns, sqlStatements, truncatedId } from './step-results';
 import { formatMs } from './trace-timeline';
 import { reportEgress } from './egress-policy';
 import type { EgressChannel } from '../../shared/egress-contract';
 import type { RunTrace } from './app-types';
+import type { TraceStage } from './answer-shape';
+import { PayloadView } from './TraceTimeline';
 
 /**
  * Puts a value the page has truncated onto the clipboard whole.
@@ -153,6 +156,81 @@ function TraceSummary({ trace }: { trace: NonNullable<RunTrace['trace']> }) {
   );
 }
 
+/** A loose stage field, preserved by the run-trace contract and safe to show. */
+function stageField(stage: TraceStage, keys: readonly string[]): string {
+  const record = stage as TraceStage & Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (value === undefined || value === null || value === '') continue;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return `${value}`;
+    return JSON.stringify(value, null, 2) ?? '';
+  }
+  return '';
+}
+
+/**
+ * Every stage's sanitized record, open as soon as Advanced is on.
+ *
+ * The timeline already has the working payload renderer: JSON arguments become
+ * labelled fields, SQL keeps its line breaks, and raw text remains available.
+ * Reusing it here means Details is an inspection surface rather than a second
+ * closed trace summary. Retry/error keys are loose because model versions have
+ * used both snake_case and camelCase; absence stays explicit rather than being
+ * turned into a zero.
+ */
+function StageRawIo({ stages }: { stages: readonly TraceStage[] }) {
+  if (stages.length === 0) return <p className="stage-raw-io-empty">No stages were recorded in this trace.</p>;
+  return (
+    <section className="stage-raw-io" aria-label="Sanitized stage inputs and outputs">
+      <div className="stage-raw-io-head">
+        <b>Stage Raw I/O</b>
+        <span className="ast-num">
+          {stages.length} stage{stages.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="stage-raw-io-list">
+        {stages.map((stage, index) => {
+          const retries = stageField(stage, ['retries', 'retry_count', 'retryCount']);
+          const error = stageField(stage, ['error', 'errors', 'error_message', 'errorMessage']);
+          return (
+            <article className="stage-raw-io-stage" key={stage.id}>
+              <header>
+                <b>
+                  <span className="ast-num">{index + 1}.</span> {stage.name}
+                </b>
+                <span className={`stage-raw-io-status ${stage.status}`}>{stage.status}</span>
+              </header>
+              <dl>
+                <dt>Input</dt>
+                <dd>
+                  <PayloadView text={stage.input} />
+                </dd>
+                <dt>Output</dt>
+                <dd>
+                  <PayloadView text={stage.output} />
+                </dd>
+                <dt>Retries</dt>
+                <dd>{retries ? <PayloadView text={retries} /> : <span className="trace-empty">not recorded</span>}</dd>
+                <dt>Errors</dt>
+                <dd>
+                  {error ? (
+                    <PayloadView text={error} />
+                  ) : (
+                    <span className="trace-empty">
+                      {stage.status === 'failed' ? 'no separate error recorded; inspect Output' : 'none recorded'}
+                    </span>
+                  )}
+                </dd>
+              </dl>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 /**
  * The Run Explorer's Details tab, and the switch that decides what is on it.
  *
@@ -195,8 +273,10 @@ export function RunDetails({
     <>
       <div className="advanced-toggle">
         <span>Advanced</span>
-        <Switch
+        <StateSwitch
           checked={advanced}
+          onLabel="Shown"
+          offLabel="Hidden"
           onCheckedChange={onAdvancedChange}
           aria-label="Show sanitized raw payloads for this run"
         />
@@ -223,6 +303,7 @@ export function RunDetails({
                 </AlertDescription>
               </Alert>
             )}
+            <StageRawIo stages={trace.trace.stages} />
             <TraceSummary trace={trace.trace} />
           </>
         ) : (

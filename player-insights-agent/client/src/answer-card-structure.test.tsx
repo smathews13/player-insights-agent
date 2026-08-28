@@ -247,9 +247,7 @@ describe('the answer card remains the substantial reading surface', () => {
     expect(css).toMatch(
       /\.answer-card > \[data-slot='card-header'\],\s*\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-inline:\s*28px/
     );
-    expect(css).toMatch(
-      /\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-bottom:\s*24px/
-    );
+    expect(css).toMatch(/\.answer-card > \[data-slot='card-content'\]\s*\{[^}]*padding-bottom:\s*24px/);
   });
 });
 
@@ -270,7 +268,9 @@ describe('responsive answer rail', () => {
      */
     expect(css).toMatch(/@container answer-card \(min-width: 840px\)/);
     const sideRail = css.slice(css.indexOf('@container answer-card (min-width: 840px)'));
-    expect(sideRail).toMatch(/\.answer-main-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(190px, 230px\)/s);
+    expect(sideRail).toMatch(
+      /\.answer-main-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(190px, 230px\)/s
+    );
     // Stacked is still the base rule, so a narrow card needs no override to get
     // it: the Monitoring drawer is 620px and never enters the query above.
     expect(css).toMatch(/\.answer-main-row \{[^}]*display: grid/s);
@@ -316,9 +316,7 @@ describe('the answer card’s state chip sits in its top left corner', () => {
     expect(rule).not.toMatch(/padding:\s*0 8px/);
     expect(rule).not.toMatch(/padding-top:\s*(1[2-9]|2[0-9])px/);
     const ask = partial('ask.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
-    expect(ask).toMatch(
-      /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*8px;/s
-    );
+    expect(ask).toMatch(/\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding:\s*8px;/s);
     expect(ask).not.toMatch(
       /\.conversation-main \.answer-card > \[data-slot='card-header'\] \{[^}]*padding-top:\s*(1[2-9]|2[0-9])px/s
     );
@@ -341,6 +339,11 @@ describe('the answer card’s state chip sits in its top left corner', () => {
 
 describe('an identifier chip is one chip, on one line', () => {
   const css = partial('answer.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  it('uses one monospace treatment and bolds the marked table segment', () => {
+    expect(css).toMatch(/\.entity-token\s*\{[^}]*font-family:\s*var\(--font-mono\)/s);
+    expect(css).toMatch(/\.entity-token\[data-entity-part='table'\]\s*\{[^}]*font-weight:\s*700/s);
+  });
 
   it('moves a chip down whole instead of tearing it across the break', () => {
     // `clone` keeps a fragment properly drawn if one ever happens; `nowrap` is

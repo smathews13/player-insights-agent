@@ -69,7 +69,8 @@ function strips(markup: string): string {
 }
 
 function renderModule(entries: Derivation[], sources: string[] = [TABLE], caveats: string[] = []): string {
-  return renderToStaticMarkup(<SourcesModule
+  return renderToStaticMarkup(
+    <SourcesModule
       sources={sources.map((name) => ({ name, freshness: FRESHNESS }))}
       caveats={caveats}
       derivation={entries}
@@ -87,7 +88,8 @@ const feedback: FeedbackEntry = {
 };
 
 function renderCard(raw: WireAnswer): string {
-  return renderToStaticMarkup(<AnswerCard
+  return renderToStaticMarkup(
+    <AnswerCard
       answer={normalizeAnswer(raw) as Answer}
       feedback={feedback}
       onFeedbackChange={() => {}}
@@ -193,13 +195,15 @@ describe('what it refuses to draw', () => {
   it('uses the same table-name pill treatment on every leftover source row', () => {
     const markup = renderModule(
       [derivation({ metric: 'net_bookings', source: SECOND, filter: 'platform = xbox' })],
-      [TABLE, SECOND],
+      [TABLE, SECOND]
     );
 
     expect(markup.match(/class="source-list-name source-name-pill"/g)).toHaveLength(2);
-    expect(markup).toContain('class="source-name-short">gold_title_daily_summary</span>');
     expect(markup).toContain(
-      '<span class="derivation-label">Filter </span><code class="derivation-value">platform = xbox</code>',
+      'class="entity-token entity-table source-name-short" data-entity-part="table">gold_title_daily_summary</span>'
+    );
+    expect(markup).toContain(
+      '<span class="derivation-label">Filter </span><code class="derivation-value">platform = xbox</code>'
     );
     expect(markup).toContain('class="derivation-label">Metric </span>');
     expect(markup).not.toContain('class="derivation-label">Source </span>');
@@ -209,10 +213,8 @@ describe('what it refuses to draw', () => {
     // The rule that had explanatory prose removed from nearly every surface in
     // this app. The block is labelled facts. A sentence saying what provenance is
     // would be the longest thing in the card and the least read.
-    const rendered = text(strips(renderModule([
-          derivation({ metric: 'net_bookings', window: '≥ 2025-01-01', filter: 'platform = xbox' }),
-        ])
-      )
+    const rendered = text(
+      strips(renderModule([derivation({ metric: 'net_bookings', window: '≥ 2025-01-01', filter: 'platform = xbox' })]))
     );
 
     expect(rendered).not.toMatch(/derived|provenance|this answer|the agent|was computed|comes from/i);

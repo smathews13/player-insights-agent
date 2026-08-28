@@ -2,12 +2,7 @@ import { Fragment, useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Alert, AlertDescription } from './ui';
 import { CircleAlert, ExternalLink } from 'lucide-react';
-import {
-  entityHref,
-  entityRowId,
-  trackedEntity,
-  type ProseSegment,
-} from './data-entities';
+import { entityHref, entityRowId, trackedEntity, type ProseSegment } from './data-entities';
 import {
   answerBlocks,
   answerInline,
@@ -23,11 +18,7 @@ import { dateBadgeRuns, isLabelLeadIn, labelBadgeRuns } from './answer-badges';
 import { sourceRows, splitSourceName } from './source-rows';
 import type { SourceRef } from './answer-shape';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
-import {
-  useRequestedEntity,
-  useTrackedTables,
-  useWorkspaceHost,
-} from './data-entity-state';
+import { useRequestedEntity, useTrackedTables, useWorkspaceHost } from './data-entity-state';
 
 /**
  * The rendering half of "an answer names a table, the reader can go and see it".
@@ -69,7 +60,8 @@ import {
  * would otherwise scale with the font.
  */
 export function EntityLink({ entity, children }: { entity: string; children: ReactNode }) {
-  return (<Link
+  return (
+    <Link
       to={entityHref(entity)}
       data-entity={entity}
       title={`${entity}, see it on Connections`}
@@ -99,21 +91,46 @@ export function EntityMark({ children }: { children: ReactNode }) {
   return <span className="entity-mark entity-column font-semibold">{children}</span>;
 }
 
-function EntityParts({ text, entity }: { text: string; entity: string }) {
+export function EntityParts({
+  text,
+  entity,
+  sourceName = false,
+}: {
+  text: string;
+  entity: string;
+  /**
+   * Source rows keep the qualifier/short-name hooks they have always exposed,
+   * while using the same entity tokens as names inside answer prose.
+   */
+  sourceName?: boolean;
+}) {
   const full = entity.split('.');
   const shown = text.split('.');
   const offset = Math.max(0, full.length - shown.length);
-  return (<>
+  return (
+    <>
       {shown.map((part, index) => {
         const fullIndex = offset + index;
-        const kind = fullIndex === 0 && full.length >= 3
-          ? 'catalog'
-          : fullIndex === full.length - 2 && full.length >= 2
-            ? 'schema'
-            : 'table';
-        return (<Fragment key={shown.slice(0, index + 1).join('.')}>
+        const kind =
+          fullIndex === 0 && full.length >= 3
+            ? 'catalog'
+            : fullIndex === full.length - 2 && full.length >= 2
+              ? 'schema'
+              : 'table';
+        return (
+          <Fragment key={shown.slice(0, index + 1).join('.')}>
             {index > 0 ? '.' : null}
-            <span className={`entity-token entity-${kind}`}>{part}</span>
+            <span
+              className={[
+                `entity-token entity-${kind}`,
+                sourceName ? (index === shown.length - 1 ? 'source-name-short' : 'source-name-qualifier') : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              data-entity-part={kind}
+            >
+              {part}
+            </span>
           </Fragment>
         );
       })}
@@ -144,7 +161,8 @@ export function OpenInDatabricks({ name, object }: { name: string; object?: Data
   // had nothing to click.
   const href = databricksLink(host, object ?? { kind: 'table', table: name });
   if (!href) return null;
-  return (<a
+  return (
+    <a
       className="text-primary inline-flex items-center gap-1 text-xs font-medium underline decoration-dotted decoration-1 underline-offset-2 hover:decoration-solid"
       href={href}
       rel="noopener noreferrer"
@@ -192,13 +210,8 @@ export function VisitInDatabricks({ name, object }: { name: string; object?: Dat
  */
 export function VisitLink({ href, name }: { href: string; name: string }) {
   const label = `Open ${name} in Databricks`;
-  return (<a
-      className="visit-in-databricks"
-      href={href}
-      rel="noopener noreferrer"
-      target="_blank"
-      title={label}
-    >
+  return (
+    <a className="visit-in-databricks" href={href} rel="noopener noreferrer" target="_blank" title={label}>
       <ExternalLink aria-hidden="true" />
       <span className="sr-only">{label}</span>
     </a>
@@ -224,10 +237,12 @@ function ProseRuns({
   /** Whether the run this leaf opens with is the value of a `Labels:` lead-in. */
   labelList?: boolean;
 }) {
-  return (<>
+  return (
+    <>
       {runs.map((run, index) => {
         if (run.entity)
-          return (<EntityLink entity={run.entity} key={run.start}>
+          return (
+            <EntityLink entity={run.entity} key={run.start}>
               <EntityParts text={run.text} entity={run.entity} />
             </EntityLink>
           );
@@ -236,14 +251,17 @@ function ProseRuns({
         // The label list is the head of the leaf that follows the lead-in, so
         // only the first run can carry it; every other plain run is scanned for
         // a window instead.
-        const cut =
-          labelList && index === 0 ? labelBadgeRuns(run.text, run.start) : dateBadgeRuns(run.text, run.start);
-        return (<Fragment key={run.start}>
+        const cut = labelList && index === 0 ? labelBadgeRuns(run.text, run.start) : dateBadgeRuns(run.text, run.start);
+        return (
+          <Fragment key={run.start}>
             {cut.map((part) =>
-              part.badge ? (<span className={`answer-badge answer-badge--${part.badge}`} key={part.start}>
+              part.badge ? (
+                <span className={`answer-badge answer-badge--${part.badge}`} key={part.start}>
                   {part.text}
                 </span>
-              ) : (<Fragment key={part.start}>{part.text}</Fragment>)
+              ) : (
+                <Fragment key={part.start}>{part.text}</Fragment>
+              )
             )}
           </Fragment>
         );
@@ -265,7 +283,11 @@ function PlainTextRun({ text, start }: { text: string; start: number }) {
   for (const match of text.matchAll(INLINE_NUMBER)) {
     const at = match.index ?? 0;
     if (at > from) parts.push(<Fragment key={start + from}>{text.slice(from, at)}</Fragment>);
-    parts.push(<span className="answer-inline-number ast-num" key={`${start + at}-number`}>{match[0]}</span>);
+    parts.push(
+      <span className="answer-inline-number ast-num" key={`${start + at}-number`}>
+        {match[0]}
+      </span>
+    );
     from = at + match[0].length;
   }
   if (from < text.length) parts.push(<Fragment key={start + from}>{text.slice(from)}</Fragment>);
@@ -300,7 +322,8 @@ function inlineText(nodes: readonly Inline[]): string {
  * safety story rather than a sanitiser.
  */
 function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badges?: boolean }) {
-  return (<>
+  return (
+    <>
       {nodes.map((node, index) => {
         switch (node.kind) {
           case 'text': {
@@ -313,12 +336,14 @@ function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badg
             return <ProseRuns runs={node.runs} badges={badges} labelList={labelList} key={node.start} />;
           }
           case 'code':
-            return (<code className="answer-code entity-quote" key={node.start}>
+            return (
+              <code className="answer-code entity-quote" key={node.start}>
                 <ProseRuns runs={node.runs} />
               </code>
             );
           case 'strong':
-            return (<strong key={node.start}>
+            return (
+              <strong key={node.start}>
                 <InlineNodes nodes={node.children} badges={badges} />
               </strong>
             );
@@ -327,13 +352,8 @@ function InlineNodes({ nodes, badges = false }: { nodes: readonly Inline[]; badg
             // this far is one we are willing to follow. `noreferrer` because
             // the answer may name a customer's own hostname and the referrer
             // would carry the conversation id with it.
-            return (<a
-                className="answer-link"
-                href={node.href}
-                key={node.start}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
+            return (
+              <a className="answer-link" href={node.href} key={node.start} rel="noopener noreferrer" target="_blank">
                 <InlineNodes nodes={node.children} />
               </a>
             );
@@ -372,117 +392,130 @@ function ProseBlock({
   switch (block.kind) {
     case 'heading': {
       if (findingLabel) {
-        return (<h4 className="answer-finding-label">
+        return (
+          <h4 className="answer-finding-label">
             <InlineNodes nodes={block.children} />
           </h4>
         );
       }
       const Tag = block.level === 2 ? 'h3' : 'h4';
-      return (<Tag className={block.level === 2 ? 'answer-heading' : 'answer-heading answer-subheading'}>
+      return (
+        <Tag className={block.level === 2 ? 'answer-heading' : 'answer-heading answer-subheading'}>
           <InlineNodes nodes={block.children} />
         </Tag>
       );
     }
     case 'list': {
       const Tag = block.ordered ? 'ol' : 'ul';
-      return (<Tag className="answer-list">
-          {block.items.map((item) => (<li key={item.start}>
+      return (
+        <Tag className="answer-list">
+          {block.items.map((item) => (
+            <li key={item.start}>
               <InlineNodes nodes={item.children} badges={badges} />
             </li>
           ))}
         </Tag>
       );
     }
-    case 'table':
-      /**
-       * The agent's Markdown table, as a table.
-       *
-       * A real `<table>` and not a grid of divs, which is the one decision in
-       * here worth arguing. The block IS tabular data: it has a header row that
-       * names its columns and rows whose cells belong to those columns, and a
-       * screen reader given a grid of divs is handed a run of numbers with no
-       * statement of which column each is in. `scope="col"` is what associates
-       * them, and it costs one attribute.
-       *
-       * The alignment is on the cell rather than on a column class, because CSS
-       * cannot select a column: a class per cell is the only way to right-align
-       * the fourth column, and `data-align` is that class as an attribute so a
-       * reviewer can see in the DOM which columns the parser read as figures.
-       *
-       * Scrolls in a wrapper rather than wrapping its cells. Six columns of
-       * daily figures do not fit the transcript column at every width, and the
-       * two ways out of that are a horizontal scrollbar or a table whose numbers
-       * wrap mid-figure. A figure that wraps has to be re-read to be believed,
-       * so this one scrolls.
-       *
-       * `data-wrap` is the same kind of statement as `data-align` and is here for
-       * the same reason: CSS cannot select a column, and whether a column holds
-       * dates or sentences decides whether its cells may break at all. Without
-       * it a narrow panel gave every column its one-character minimum and set
-       * `2026-07-14` on four lines.
-       */
-      {
-        const story = tableStoryMetadata(block);
-        const origin = origins?.get(block.start) ?? [];
-        return (<div className="answer-table-frame">
+    case 'table' /**
+     * The agent's Markdown table, as a table.
+     *
+     * A real `<table>` and not a grid of divs, which is the one decision in
+     * here worth arguing. The block IS tabular data: it has a header row that
+     * names its columns and rows whose cells belong to those columns, and a
+     * screen reader given a grid of divs is handed a run of numbers with no
+     * statement of which column each is in. `scope="col"` is what associates
+     * them, and it costs one attribute.
+     *
+     * The alignment is on the cell rather than on a column class, because CSS
+     * cannot select a column: a class per cell is the only way to right-align
+     * the fourth column, and `data-align` is that class as an attribute so a
+     * reviewer can see in the DOM which columns the parser read as figures.
+     *
+     * Scrolls in a wrapper rather than wrapping its cells. Six columns of
+     * daily figures do not fit the transcript column at every width, and the
+     * two ways out of that are a horizontal scrollbar or a table whose numbers
+     * wrap mid-figure. A figure that wraps has to be re-read to be believed,
+     * so this one scrolls.
+     *
+     * `data-wrap` is the same kind of statement as `data-align` and is here for
+     * the same reason: CSS cannot select a column, and whether a column holds
+     * dates or sentences decides whether its cells may break at all. Without
+     * it a narrow panel gave every column its one-character minimum and set
+     * `2026-07-14` on four lines.
+     */: {
+      const story = tableStoryMetadata(block);
+      const origin = origins?.get(block.start) ?? [];
+      return (
+        <div className="answer-table-frame">
           {origin.length > 0 ? (
             <div className="answer-table-origin" aria-label="Source table">
               <AnswerOriginLinks sources={origin} />
             </div>
           ) : null}
           <div className="answer-table-wrap">
-          <table className="answer-table">
-            {block.header ? (<thead>
-                <tr>
-                  {block.header.cells.map((cell, column) => (<th key={cell.start} scope="col" data-align={block.align[column]} data-wrap={block.wrap[column]}>
-                      <InlineNodes nodes={cell.children} />
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-            ) : null}
-            <tbody>
-              {block.rows.map((row) => {
-                /*
-                 * BOTH TAGS, NOT THE FIRST ONE THAT MATCHES.
-                 *
-                 * A series that only ever falls peaks on its opening row, so the
-                 * baseline row and the peak row are the same row. Chained, the
-                 * baseline branch won and the peak was never labelled at all -- on
-                 * exactly the tables where "this was the high point" is the finding.
-                 * `data-story` keeps the single role the row is tinted by; the tags
-                 * beside the date are what the reader is told.
-                 */
-                const tags = [
-                  row.start === story.baselineRowStart ? 'baseline' : '',
-                  row.start === story.peakRowStart ? 'peak' : '',
-                ].filter((tag) => tag);
-                return (<tr data-story={tags[0]} key={row.start}>
-                  {row.cells.map((cell, column) => (<td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
-                      <InlineNodes nodes={cell.children} />
-                      {column === 0
-                        ? tags.map((tag) => (
-                            <span className="answer-table-story-tag" key={tag}>{tag}</span>
-                          ))
-                        : null}
-                    </td>
-                  ))}
-                </tr>);
-              })}
-            </tbody>
-          </table>
+            <table className="answer-table">
+              {block.header ? (
+                <thead>
+                  <tr>
+                    {block.header.cells.map((cell, column) => (
+                      <th key={cell.start} scope="col" data-align={block.align[column]} data-wrap={block.wrap[column]}>
+                        <InlineNodes nodes={cell.children} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+              ) : null}
+              <tbody>
+                {block.rows.map((row) => {
+                  /*
+                   * BOTH TAGS, NOT THE FIRST ONE THAT MATCHES.
+                   *
+                   * A series that only ever falls peaks on its opening row, so the
+                   * baseline row and the peak row are the same row. Chained, the
+                   * baseline branch won and the peak was never labelled at all -- on
+                   * exactly the tables where "this was the high point" is the finding.
+                   * `data-story` keeps the single role the row is tinted by; the tags
+                   * beside the date are what the reader is told.
+                   */
+                  const tags = [
+                    row.start === story.baselineRowStart ? 'baseline' : '',
+                    row.start === story.peakRowStart ? 'peak' : '',
+                  ].filter((tag) => tag);
+                  return (
+                    <tr data-story={tags[0]} key={row.start}>
+                      {row.cells.map((cell, column) => (
+                        <td key={cell.start} data-align={block.align[column]} data-wrap={block.wrap[column]}>
+                          <InlineNodes nodes={cell.children} />
+                          {column === 0
+                            ? tags.map((tag) => (
+                                <span className="answer-table-story-tag" key={tag}>
+                                  {tag}
+                                </span>
+                              ))
+                            : null}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-        </div>);
-      }
+      );
+    }
     case 'rule':
       return <hr className="answer-rule" />;
     case 'code':
-      return (<pre className="answer-code-block">
+      return (
+        <pre className="answer-code-block">
           <code data-language={block.language || undefined}>{block.text}</code>
         </pre>
       );
     case 'paragraph':
-      return (<p>
+      return (
+        <p>
           <InlineNodes nodes={block.children} badges={badges} />
         </p>
       );
@@ -507,7 +540,8 @@ export function EntityText({
   columns?: readonly string[];
 }) {
   const tracked = useTrackedTables();
-  const nodes = answerInline(text,
+  const nodes = answerInline(
+    text,
     sources.map((source) => source.name),
     tracked,
     columns
@@ -580,7 +614,8 @@ export function AnswerProse({
   const selected = selectAnswerBlocks(parsed, selection);
   const blocks = selection === 'tables' ? selected : layoutFindingBlocks(selected);
   if (blocks.length === 0) return null;
-  return (<div className={className ? `answer-prose ${className}` : 'answer-prose'}>
+  return (
+    <div className={className ? `answer-prose ${className}` : 'answer-prose'}>
       <ProseBlocks blocks={blocks} badges={badges} origins={origins} />
     </div>
   );
@@ -632,15 +667,21 @@ function ProseBlocks({
  * tint; no character is added, removed or reordered, so the name still copies
  * and reads back whole.
  *
- * No weight is set here. Every surface that renders a source name decides its
- * own, and a `strong` nested inside one would compound to 900 under Tailwind's
- * relative `bolder`.
+ * No weight is set locally. The shared table-part metadata and entity-token
+ * rule decide it for prose and source rows together; a `strong` nested inside
+ * one would compound under Tailwind's relative `bolder`.
  */
 export function SourceEntityName({ name }: { name: string }) {
   const tracked = useTrackedTables();
   const entry = trackedEntity(name, tracked);
   const { qualifier, short } = splitSourceName(name);
-  const spelled = (<>
+  // A one-part source can be a Genie space rather than a Unity Catalog table.
+  // Keep its existing neutral source-name spelling instead of assigning table
+  // semantics the source contract did not state.
+  const spelled = name.includes('.') ? (
+    <EntityParts text={name} entity={entry || name} sourceName />
+  ) : (
+    <>
       {qualifier && <span className="source-name-qualifier">{qualifier}</span>}
       <span className="source-name-short">{short}</span>
     </>
@@ -715,7 +756,8 @@ export function EntityHighlight({ tracked, ready }: { tracked: readonly string[]
   }, [entry]);
 
   if (!requested || !ready || entry) return null;
-  return (<Alert>
+  return (
+    <Alert>
       <CircleAlert />
       <AlertDescription>
         <strong>No entry here for {requested}.</strong> An answer linked to it, but this page has no entry for that

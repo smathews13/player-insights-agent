@@ -15,7 +15,8 @@ export function StateSwitch({
   offLabel = 'Off',
   className = '',
   ...props
-}: ComponentProps<typeof Switch> & {
+}: Omit<ComponentProps<typeof Switch>, 'checked' | 'className'> & {
+  checked: boolean;
   onLabel?: string;
   offLabel?: string;
   className?: string;
