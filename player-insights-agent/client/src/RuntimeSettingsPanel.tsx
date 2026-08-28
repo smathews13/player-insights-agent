@@ -617,26 +617,36 @@ export function RuntimeSettingsPanel({
               {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => (
                 <div className="appearance-grid-row" role="row" key={kind}>
                   <strong role="cell">{kind[0].toUpperCase() + kind.slice(1)}</strong>
-                  {(['foreground', 'background'] as const).map((property) => (
-                    <label className="appearance-color" role="cell" key={property}>
-                      <span className="appearance-color-swatch" aria-hidden="true">
-                        <span style={{ background: settings.entityStyles[kind][property] }} />
-                      </span>
-                      <Input
-                        aria-label={`${kind} ${property}`}
-                        value={settings.entityStyles[kind][property]}
-                        onChange={(event) =>
-                          setSettings((current) => ({
-                            ...current,
-                            entityStyles: {
-                              ...current.entityStyles,
-                              [kind]: { ...current.entityStyles[kind], [property]: event.target.value },
-                            },
-                          }))
-                        }
-                      />
-                    </label>
-                  ))}
+                  {(['foreground', 'background'] as const).map((property) => {
+                    const hex = settings.entityStyles[kind][property];
+                    const update = (value: string) =>
+                      setSettings((current) => ({
+                        ...current,
+                        entityStyles: {
+                          ...current.entityStyles,
+                          [kind]: { ...current.entityStyles[kind], [property]: value },
+                        },
+                      }));
+                    return (
+                      <label className="appearance-color" role="cell" key={property}>
+                        <span className="appearance-color-swatch">
+                          <span aria-hidden="true" style={{ background: hex }} />
+                          <input
+                            type="color"
+                            className="appearance-color-picker"
+                            aria-label={`${kind} ${property} picker`}
+                            value={isHexColor(hex) ? hex : '#000000'}
+                            onChange={(event) => update(event.target.value)}
+                          />
+                        </span>
+                        <Input
+                          aria-label={`${kind} ${property}`}
+                          value={hex}
+                          onChange={(event) => update(event.target.value)}
+                        />
+                      </label>
+                    );
+                  })}
                   <span className="appearance-sample-plaque" role="cell">
                     <span
                       className="appearance-sample"

@@ -117,6 +117,14 @@ describe('runtime and appearance modal sections', () => {
     expect(styles).toContain("input:not([type='color'])");
   });
 
+  it('pairs every entity text and highlight hex field with the same native picker', () => {
+    const entityColors = source.slice(source.indexOf('aria-label="Answer entity colors"'));
+    expect(entityColors).toContain('type="color"');
+    expect(entityColors).toContain('aria-label={`${kind} ${property} picker`}');
+    expect(entityColors).toContain("isHexColor(hex) ? hex : '#000000'");
+    expect(entityColors).not.toContain('appearance-color-swatch" aria-hidden="true"');
+  });
+
   it('previews theme changes and applies a save immediately', () => {
     expect(source).not.toContain('Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.');
     expect(source).not.toContain('Limits how many reasoning passes');
