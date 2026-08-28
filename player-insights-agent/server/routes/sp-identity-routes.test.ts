@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { isAdminRoute } from '../lib/admin-roles';
-import { SpPersonaWriteSchema } from '../../shared/sp-identity';
+import { SpPersonaDefinitionWriteSchema, SpPersonaWriteSchema } from '../../shared/sp-identity';
 
 const source = readFileSync(new URL('sp-identity-routes.ts', import.meta.url), 'utf8');
 
@@ -11,6 +11,7 @@ describe('service-principal identity admin routes', () => {
     expect(isAdminRoute('/api/admin/sp-identity')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/personas')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/assignments')).toBe(true);
+    expect(isAdminRoute('/api/admin/sp-identity/persona-definitions')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/mode')).toBe(true);
   });
 
@@ -26,5 +27,25 @@ describe('service-principal identity admin routes', () => {
       'secretKey',
       'secretScope',
     ]);
+  });
+
+  it('accepts only a name, purpose and permission plan for generated configurations', () => {
+    expect(Object.keys(SpPersonaDefinitionWriteSchema.shape).sort()).toEqual([
+      'capabilities',
+      'description',
+      'displayName',
+    ]);
+    const parsed = SpPersonaDefinitionWriteSchema.parse({
+      displayName: 'Finance reader',
+      description: '',
+      capabilities: ['SQL warehouse — CAN USE'],
+      clientId: 'ignored',
+      secret: 'ignored',
+    });
+    expect(parsed).not.toHaveProperty('clientId');
+    expect(parsed).not.toHaveProperty('secret');
+    expect(source).toContain("app.post('/api/admin/sp-identity/persona-definitions'");
+    expect(source).toContain("app.patch('/api/admin/sp-identity/persona-definitions/:id'");
+    expect(source).toContain("app.delete('/api/admin/sp-identity/persona-definitions/:id'");
   });
 });

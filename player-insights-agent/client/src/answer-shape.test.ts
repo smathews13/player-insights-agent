@@ -155,6 +155,17 @@ describe('normalizeStage', () => {
     expect(normalizeStage({ parent_id: '' }, 0).parent_id).toBeUndefined();
     expect(normalizeStage({ parent_id: 'plan' }, 0).parent_id).toBe('plan');
   });
+
+  it('keeps only named table entries from the discovery projection', () => {
+    expect(
+      normalizeStage(
+        {
+          tables: [' <your_catalog>.<your_schema>.gold_title_daily ', '', 42],
+        },
+        0
+      ).tables
+    ).toEqual(['<your_catalog>.<your_schema>.gold_title_daily']);
+  });
 });
 
 /**
@@ -177,12 +188,13 @@ describe('normalizeAnswer and the provenance marker', () => {
     expect(normalizeAnswer({ id: 'msg-old', mode: 'live' }).provenance).toBeUndefined();
   });
 
-  it.each([['a word from a newer server', 'partially-live'], ['a number', 7], ['null', null]])(
-    'drops %s rather than passing it to the renderer',
-    (_label, value) => {
-      expect(normalizeAnswer({ provenance: value }).provenance).toBeUndefined();
-    }
-  );
+  it.each([
+    ['a word from a newer server', 'partially-live'],
+    ['a number', 7],
+    ['null', null],
+  ])('drops %s rather than passing it to the renderer', (_label, value) => {
+    expect(normalizeAnswer({ provenance: value }).provenance).toBeUndefined();
+  });
 });
 
 /**
@@ -193,10 +205,12 @@ describe('normalizeAnswer and the provenance marker', () => {
  */
 describe('normalizeAnswer and the identity the run executed as', () => {
   it('carries the claim the server attached to a live reply', () => {
-    expect(normalizeAnswer({ execution_identity: { mode: 'signed_in_user', verified: true } }).executionIdentity)
-      .toEqual({ mode: 'signed_in_user', verified: true });
-    expect(normalizeAnswer({ execution_identity: { mode: 'app_service_principal', verified: false } }).executionIdentity)
-      .toEqual({ mode: 'app_service_principal', verified: false });
+    expect(
+      normalizeAnswer({ execution_identity: { mode: 'signed_in_user', verified: true } }).executionIdentity
+    ).toEqual({ mode: 'signed_in_user', verified: true });
+    expect(
+      normalizeAnswer({ execution_identity: { mode: 'app_service_principal', verified: false } }).executionIdentity
+    ).toEqual({ mode: 'app_service_principal', verified: false });
   });
 
   it('leaves it absent for a stored answer body, which carries no claim at all', () => {

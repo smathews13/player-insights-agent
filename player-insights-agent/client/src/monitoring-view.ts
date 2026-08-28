@@ -166,7 +166,7 @@ export function medianAnswerTimeTile(summary: MonitoringSummary): TileValue {
  */
 export function tokensTile(tokens: { total: number; metredRuns: number; totalRuns: number }): TileValue {
   if (tokens.totalRuns === 0) {
-    return absent('No runs in range', '');
+    return absent('No runs for selected period', '');
   }
   if (tokens.metredRuns === 0) {
     return absent('Not metred', '');
@@ -509,10 +509,7 @@ export function grantBadge(grant: { canRead: boolean; missing: string | null }):
  * one fact the page is certain of, and reads as a hint that the question was
  * answered as somebody other than the asker. The caller drops the segment.
  */
-export function askerGrantsLine(
-  execution: { mode: string; verified: boolean } | null,
-  asker: string
-): string | null {
+export function askerGrantsLine(execution: { mode: string; verified: boolean } | null, asker: string): string | null {
   const base = dataAccessDisclosure(execution ?? undefined);
   if (!base) return null;
   const name = asker.trim();

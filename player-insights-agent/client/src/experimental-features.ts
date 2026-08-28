@@ -76,6 +76,15 @@ export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
   forecasting: false,
 };
 
+/** Stage one browser-local experiment without writing it to storage. */
+export function withExperimentalFeature<K extends keyof ExperimentalFeatures>(
+  features: ExperimentalFeatures,
+  name: K,
+  enabled: boolean
+): ExperimentalFeatures {
+  return { ...features, [name]: enabled };
+}
+
 /**
  * The two methods of `Storage` this needs, so a test can pass a plain object.
  *

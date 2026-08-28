@@ -17,6 +17,8 @@ export interface TraceStage {
   calls: number;
   input: string;
   output: string;
+  /** Fully-qualified tables enumerated by this discovery step. */
+  tables?: string[];
   depth?: number;
   parent_id?: string;
   /**
@@ -172,6 +174,12 @@ export function normalizeStage(raw: unknown, index: number): TraceStage {
   // "this model version does not report depth", and defaulting erases that.
   if (typeof stage.depth === 'number' && Number.isFinite(stage.depth)) normalized.depth = stage.depth;
   if (typeof stage.parent_id === 'string' && stage.parent_id) normalized.parent_id = stage.parent_id;
+  if (Array.isArray(stage.tables)) {
+    normalized.tables = stage.tables
+      .filter((name): name is string => typeof name === 'string')
+      .map((name) => name.trim())
+      .filter((name, index, names) => name.length > 0 && names.indexOf(name) === index);
+  }
   // Whether `start` was a real number on the wire, recorded because the line
   // above cannot say so afterwards: a missing start and a start of zero both
   // arrive here as 0, and the first stage of every run legitimately starts at 0.

@@ -113,6 +113,29 @@
   color: var(--ast-entity-quote-fg);
   background: var(--ast-entity-quote-bg);
 }
+.entity-table-list {
+  min-width: 0;
+}
+.entity-table-list-count,
+.entity-table-list-empty {
+  margin: 0;
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-12);
+  line-height: var(--ast-lh-body);
+}
+.entity-table-list ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.entity-table-list li {
+  min-width: 0;
+  font-size: var(--ast-fs-12);
+  line-height: var(--ast-lh-body);
+}
 .answer-card .provenance-chip {
   color: var(--ast-entity-tag-fg);
   background: var(--ast-entity-tag-bg);

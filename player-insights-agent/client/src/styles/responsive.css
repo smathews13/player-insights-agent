@@ -302,6 +302,12 @@
   .ops-forecast-horizons {
     grid-template-columns: 1fr;
   }
+  .ops-cost-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .ops-cost-resource-budgets {
+    grid-column: auto;
+  }
   /* The label and the value stop competing for one line: the value drops under
      the label rather than truncating to nothing on a phone. */
   .connection-row-summary {
@@ -407,14 +413,38 @@
     content: none;
   }
   .settings-overlay {
-    padding: 12px;
+    padding: 8px;
   }
   .settings-page.settings-modal {
-    width: calc(100vw - 24px);
-    max-height: calc(100vh - 24px);
+    width: calc(100vw - 16px);
+    height: calc(100vh - 16px);
+    max-height: calc(100vh - 16px);
   }
   .settings-modal-body {
-    grid-template-columns: 138px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-rail {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-rail button {
+    width: auto;
+    flex: none;
+    white-space: nowrap;
+  }
+  .settings-rail button + button {
+    margin-top: 0;
+  }
+  .settings-modal-content {
+    padding: 14px;
+  }
+  .sp-persona-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
   .appearance-type-colors {
     grid-template-columns: 1fr;
@@ -472,6 +502,17 @@
   .account-composer-footer {
     padding-right: 18px;
     padding-left: 18px;
+  }
+  .sp-persona-builder-head,
+  .sp-persona-builder-foot,
+  .sp-capability-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .sp-persona-builder-head [data-slot='button'],
+  .sp-persona-builder-foot [data-slot='button'],
+  .sp-capability-heading [data-slot='button'] {
+    width: 100%;
   }
   /*
    * THE SPLASH PAIR IS NOT HERE ANY MORE, and the deletion is the point rather

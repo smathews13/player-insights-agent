@@ -11,9 +11,14 @@ import {
 import { applyColorScheme, type ColorScheme } from './color-scheme';
 import { runtimeSettingsFromResponse } from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
-import { adoptRuntimeEntityStyles, previewRuntimeTypography } from './runtime-entity-styles';
+import { adoptRuntimeEntityStyles } from './runtime-entity-styles';
 import { wholeNumberFrom } from './runtime-number';
-import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
+import {
+  changedSettingKeys,
+  saveRetryAfterLoad,
+  type SettingsLoadResult,
+  type SettingsSaveState,
+} from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
 import { Input } from './ui';
 
@@ -72,7 +77,6 @@ function NumberField({
   labelClassName = '',
   help,
   helpId,
-  placeholder,
 }: {
   label: string;
   value: number;
@@ -83,7 +87,6 @@ function NumberField({
   labelClassName?: string;
   help?: string;
   helpId?: string;
-  placeholder?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
@@ -100,7 +103,6 @@ function NumberField({
         autoComplete="off"
         aria-label={label}
         aria-describedby={helpId}
-        placeholder={placeholder}
         value={draft ?? String(value)}
         onChange={(event) => {
           const typed = event.target.value.replace(/[^0-9]/g, '');
@@ -111,7 +113,6 @@ function NumberField({
         }}
         onBlur={() => setDraft(null)}
       />
-      {placeholder ? <span className="runtime-control-example">Example: {placeholder}</span> : null}
     </label>
   );
 }
@@ -122,12 +123,14 @@ function AnswerRow({
   checked,
   onToggle,
   children,
+  bodyClassName = '',
 }: {
   label: string;
   help: string;
   checked: boolean;
   onToggle: (checked: boolean) => void;
   children?: ReactNode;
+  bodyClassName?: string;
 }) {
   return (
     <div className="runtime-answer-row">
@@ -138,7 +141,7 @@ function AnswerRow({
         </div>
         <StateSwitch checked={checked} onCheckedChange={onToggle} aria-label={label} />
       </div>
-      {checked && children ? <div className="runtime-answer-body">{children}</div> : null}
+      {checked && children ? <div className={`runtime-answer-body ${bodyClassName}`.trim()}>{children}</div> : null}
     </div>
   );
 }
@@ -160,6 +163,7 @@ const ENTITY_SAMPLES = {
  * changed `<html data-theme>` lived in Save, so the whole app contradicted the
  * control until a second, distant action was pressed.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- shared by focused appearance tests
 export function previewColorScheme(dark: boolean): ColorScheme {
   const scheme = dark ? 'dark' : 'light';
   applyColorScheme(scheme);
@@ -169,16 +173,17 @@ export function previewColorScheme(dark: boolean): ColorScheme {
 export function RuntimeSettingsPanel({
   section,
   onSaveState = () => {},
+  onDirtyChange = () => {},
 }: {
   section: 'runtime' | 'appearance';
   /** Reports Save's progress to the modal footer, which is the part on screen. */
   onSaveState?: (state: SettingsSaveState) => void;
+  onDirtyChange?: (count: number) => void;
 }) {
   const [settings, setSettings] = useState<RuntimeSettings>(DEFAULT_RUNTIME_SETTINGS);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const savedSettings = useRef<RuntimeSettings | null>(null);
-  const appearancePreviewed = useRef(false);
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
@@ -188,7 +193,7 @@ export function RuntimeSettingsPanel({
       const loaded = await runtimeSettingsFromResponse(response, 'loaded');
       savedSettings.current = loaded;
       setSettings(loaded);
-      if (!appearancePreviewed.current) applyColorScheme(loaded.colorScheme);
+      applyColorScheme(loaded.colorScheme);
       setState('ready');
       return { ok: true };
     } catch (caught) {
@@ -205,27 +210,10 @@ export function RuntimeSettingsPanel({
     void load();
   }, [load]);
 
-  useEffect(
-    () => () => {
-      /*
-       * The switch is a preview, while Save remains the persistence boundary.
-       * Every way out of the pane (Cancel, Escape, the X, clicking the scrim or
-       * choosing another section) unmounts it, so one cleanup closes all of the
-       * otherwise easy-to-miss ways an unsaved theme could leak into the app.
-       */
-      if (appearancePreviewed.current && savedSettings.current) {
-        adoptRuntimeEntityStyles(savedSettings.current);
-      }
-    },
-    []
-  );
-
   useEffect(() => {
-    if (section !== 'appearance' || state === 'loading') return;
-    if (!isHexColor(settings.fontBodyColor) || !isHexColor(settings.fontMutedColor)) return;
-    appearancePreviewed.current = true;
-    previewRuntimeTypography(settings);
-  }, [section, state, settings]);
+    const saved = savedSettings.current;
+    onDirtyChange(saved ? changedSettingKeys(saved, settings).length : 0);
+  }, [onDirtyChange, settings]);
 
   const save = async () => {
     /*
@@ -245,6 +233,7 @@ export function RuntimeSettingsPanel({
     setFailure(null);
     onSaveState({ kind: 'saving' });
     try {
+      const changed = savedSettings.current ? changedSettingKeys(savedSettings.current, settings).length : 0;
       const response = await fetch('/api/admin/runtime-settings', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
@@ -252,11 +241,11 @@ export function RuntimeSettingsPanel({
       });
       const saved = await runtimeSettingsFromResponse(response, 'saved');
       savedSettings.current = saved;
-      appearancePreviewed.current = false;
       setSettings(saved);
       adoptRuntimeEntityStyles(saved);
       setState('saved');
-      onSaveState({ kind: 'saved' });
+      onDirtyChange(0);
+      onSaveState({ kind: 'saved', count: changed });
     } catch (caught) {
       setState('failed');
       setFailure({ operation: 'save', message: (caught as Error).message });
@@ -275,7 +264,7 @@ export function RuntimeSettingsPanel({
     min: number,
     max: number,
     update: (value: number) => void,
-    extra: { className?: string; labelClassName?: string; help: string; helpId: string; placeholder: string }
+    extra: { className?: string; labelClassName?: string; help: string; helpId: string }
   ) => (
     <NumberField
       key={label}
@@ -288,7 +277,6 @@ export function RuntimeSettingsPanel({
       labelClassName={extra.labelClassName}
       help={extra.help}
       helpId={extra.helpId}
-      placeholder={extra.placeholder}
     />
   );
 
@@ -336,13 +324,11 @@ export function RuntimeSettingsPanel({
                 labelClassName: 'runtime-loop-label runtime-loop-label--agent ast-pill',
                 help: 'Reasoning steps in one Ask.',
                 helpId: 'runtime-max-steps-help',
-                placeholder: '10',
               })}
               {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value), {
                 labelClassName: 'runtime-loop-label runtime-loop-label--tool ast-pill',
                 help: 'Tools it may call in one Ask.',
                 helpId: 'runtime-max-tool-calls-help',
-                placeholder: '15',
               })}
               {number(
                 'Run budget (s)',
@@ -354,7 +340,6 @@ export function RuntimeSettingsPanel({
                   labelClassName: 'runtime-loop-label runtime-loop-label--budget ast-pill',
                   help: 'Seconds before the run stops.',
                   helpId: 'runtime-run-budget-help',
-                  placeholder: '150',
                 }
               )}
             </div>
@@ -381,6 +366,7 @@ export function RuntimeSettingsPanel({
               help="Prose under the takeaway."
               checked={settings.answer.narrative}
               onToggle={(value) => setAnswer('narrative', value)}
+              bodyClassName="runtime-answer-body--narrative"
             >
               {guidance(
                 'Guidance',
@@ -400,12 +386,10 @@ export function RuntimeSettingsPanel({
                 (value) => setAnswer('narrativeMaxCharacters', value),
                 {
                   className: 'runtime-field-short',
-                  help: 'Max length. 0 means none.',
+                  help: '0 means uncapped.',
                   helpId: 'runtime-character-cap-help',
-                  placeholder: '0',
                 }
               )}
-              <span className="runtime-inline-note">0 = uncapped</span>
             </AnswerRow>
             <AnswerRow
               label="Figures"
@@ -416,7 +400,6 @@ export function RuntimeSettingsPanel({
               {number('Max figures', settings.answer.maxFigures, 0, 12, (value) => setAnswer('maxFigures', value), {
                 help: 'How many tables.',
                 helpId: 'runtime-max-figures-help',
-                placeholder: '6',
               })}
               <label className="runtime-field">
                 <span className="runtime-field-label">Order</span>
@@ -444,7 +427,6 @@ export function RuntimeSettingsPanel({
               {number('Max charts', settings.answer.maxCharts, 0, 6, (value) => setAnswer('maxCharts', value), {
                 help: 'How many charts.',
                 helpId: 'runtime-max-charts-help',
-                placeholder: '3',
               })}
               <label className="runtime-field">
                 <span className="runtime-field-label">Types</span>
@@ -472,7 +454,6 @@ export function RuntimeSettingsPanel({
               {number('Max caveats', settings.answer.maxCaveats, 0, 20, (value) => setAnswer('maxCaveats', value), {
                 help: 'How many. 0 means all.',
                 helpId: 'runtime-max-caveats-help',
-                placeholder: '0',
               })}
               <span className="runtime-inline-note">0 = all</span>
             </AnswerRow>
@@ -516,8 +497,7 @@ export function RuntimeSettingsPanel({
                 onLabel="On"
                 offLabel="Off"
                 onCheckedChange={(on) => {
-                  appearancePreviewed.current = true;
-                  const colorScheme = previewColorScheme(on);
+                  const colorScheme: ColorScheme = on ? 'dark' : 'light';
                   setSettings((current) => ({
                     ...current,
                     colorScheme,

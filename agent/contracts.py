@@ -108,6 +108,13 @@ class TraceStage(BaseModel):
     calls: int = 1
     input: str = ""
     output: str = ""
+    #: Fully-qualified table names this discovery step enumerated.
+    #:
+    #: Separate from ``output`` on purpose. The output is the honest raw tool
+    #: result; this small allowlisted projection is what live/replayed clients can
+    #: render without treating an empty arguments object as the result or
+    #: persisting unrelated tool payload fields.
+    tables: list[str] = Field(default_factory=list)
     #: 0 for a top-level step, 1 for a tool call made inside one. Defaulted so a
     #: stage from a model version that predates nesting reads as top-level.
     depth: int = 0

@@ -23,7 +23,7 @@ import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
 import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
-import { EntityText } from './DataEntityLinks';
+import { EntityText, TableEntityList } from './DataEntityLinks';
 
 /**
  * One reported step.
@@ -113,6 +113,11 @@ function StepRow({
           <p className="live-step-result">
             <span>returned</span> <EntityText text={step.result} sources={step.tables.map((name) => ({ name }))} />
           </p>
+        )}
+        {step.tableListing && step.status !== 'running' && (
+          <div className="live-step-tables">
+            <TableEntityList tables={step.tables} />
+          </div>
         )}
       </div>
     </li>

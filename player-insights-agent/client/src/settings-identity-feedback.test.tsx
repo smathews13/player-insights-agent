@@ -10,6 +10,7 @@ import { RosterRows } from './UserRoleEditor';
 const FEATURES = { benchmarkLab: true, egressControls: true, forecasting: false };
 const SECTIONS = ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const;
 const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
+const RESPONSIVE = readFileSync(new URL('./styles/responsive.css', import.meta.url), 'utf8');
 const PAGE = readFileSync(new URL('./SettingsPage.tsx', import.meta.url), 'utf8');
 const RUNTIME = readFileSync(new URL('./RuntimeSettingsPanel.tsx', import.meta.url), 'utf8');
 const EGRESS = readFileSync(new URL('./EgressPanel.tsx', import.meta.url), 'utf8');
@@ -46,12 +47,12 @@ describe('the demo workspace Settings shell feedback', () => {
   it('keeps Save connected to the active form and Cancel connected to modal dismissal', () => {
     expect(PAGE).toContain("active === 'runtime' || active === 'appearance'");
     expect(PAGE).toContain("active === 'egress'");
-    expect(PAGE).toContain("active === 'experimental' && showsBenchmarkLab(features)");
+    expect(PAGE).toContain("active === 'experimental'");
     expect(PAGE).toContain('form={form}');
     expect(PAGE).toContain('disabled={saveDisabled}');
     expect(PAGE).toContain('onClick={close}');
-    expect(RUNTIME).toContain('adoptRuntimeEntityStyles(savedSettings.current)');
-    expect(EGRESS).toContain("onSaveState({ kind: 'saved' })");
+    expect(RUNTIME).toContain('adoptRuntimeEntityStyles(saved)');
+    expect(EGRESS).toContain("onSaveState({ kind: 'saved', count: changedCount })");
   });
 
   it('labels dark mode as On or Off', () => {
@@ -148,6 +149,35 @@ describe('the demo workspace Identity feedback', () => {
     expect(CSS).toMatch(/\.admin-row-address \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.roster-set-by > \* \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.settings-data-table \{[^}]*table-layout:\s*fixed/s);
+  });
+
+  it('fits the editable identity table in the full modal and moves navigation above narrow panes', () => {
+    expect(CSS).toMatch(
+      /\.settings-page\.settings-modal \{[^}]*width:\s*min\(960px,\s*calc\(100vw - 48px\)\)[^}]*max-width:\s*960px/s
+    );
+    expect(CSS).toMatch(/\.roles-table \{[^}]*min-width:\s*700px/s);
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width:\s*800px\)[\s\S]*\.settings-modal-body \{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s
+    );
+  });
+
+  it('shows exactly No persona for an unassigned human', () => {
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={humanRoles}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        personas={spRoles.personas}
+        personaByEmail={new Map([['long.identity.owner@example.invalid', null]])}
+        personaDisabled={false}
+        showPersona={true}
+        onPersonaChange={() => {}}
+      />
+    );
+    expect(markup).toContain('<span class="app-select-value">No persona</span>');
+    expect(markup).not.toContain('Persona ·');
+    expect(markup).not.toContain('Signed-in user (OAuth)');
   });
 
   it('pins every row control to the same 30px geometry', () => {

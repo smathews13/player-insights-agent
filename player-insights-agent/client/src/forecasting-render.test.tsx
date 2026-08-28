@@ -163,9 +163,7 @@ describe('Forecasting visibility and placement', () => {
       'Questions per user per day',
       'Active app minutes per user per day',
       'Average model tokens per question',
-      'Governed table count',
-      'Vector Search cost per table per day',
-      'Contingency percentage',
+      'Cost buffer',
       'Next 7 days',
       'Next 30 days',
       'Six months',
@@ -174,6 +172,12 @@ describe('Forecasting visibility and placement', () => {
     }
     expect(markup).toContain('type="number"');
     expect(markup).toContain('List-price estimate only');
+    expect(markup).toContain('Extra percentage added after the component forecast.');
+    expect(markup).toContain('Suggested: 2 user-days ÷ 7 complete days');
+    expect(markup).toContain('7 complete days · 2026-08-08–2026-08-14');
+    expect(markup).toContain('Suggested: default 0% · user-set');
+    expect(markup).not.toContain('Governed table count');
+    expect(markup).not.toContain('Vector Search cost per table per day');
   });
 
   it('renders loading, unavailable, and partial states without inventing totals', () => {
@@ -208,7 +212,8 @@ describe('Forecasting visibility and placement', () => {
     );
     expect(partial).toContain('Partial estimate');
     expect(partial).toContain('Partial list-price coverage; spend withheld.');
-    expect(partial).toContain('estimated total');
+    expect(partial).toContain('estimated subtotal');
+    expect(partial).not.toContain('<span>Serving endpoint</span>');
   });
 });
 

@@ -380,6 +380,10 @@ const StageSchema = z.looseObject({
   calls: z.number(),
   input: z.string(),
   output: z.string(),
+  // A safe, structured projection of tables enumerated by discovery. Optional
+  // across a rolling model/app deploy; the client can still read older listing
+  // output while new runs no longer need to infer names from prose.
+  tables: z.array(z.string()).optional(),
   // Where the stage sits in the run. Defaulted because an endpoint running a
   // model version logged before the agent's loop returns a flat list with
   // neither key, and requiring them would fail the parse.

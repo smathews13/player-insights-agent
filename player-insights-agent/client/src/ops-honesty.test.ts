@@ -259,7 +259,7 @@ describe('the quality of a number', () => {
     // it or not. Its daily rate read as a range total understates it by however
     // many days the range covers.
     expect(tileView(tile({ basis: 'per-day' }), 'USD').basisLabel).toBe(BASIS_LABEL['per-day']);
-    expect(tileView(tile({ basis: 'total-in-range' }), 'USD').basisLabel).toBe('in range');
+    expect(tileView(tile({ basis: 'total-in-range' }), 'USD').basisLabel).toBe('selected period');
     expect(BASIS_LABEL['per-day']).not.toBe(BASIS_LABEL['total-in-range']);
   });
 });
@@ -632,12 +632,21 @@ describe('the mark on a cost tile', () => {
 });
 
 describe('approx average cost per question', () => {
-  it('divides measured endpoint spend by token-covered questions', () => {
-    expect(QUESTION_COST_FORMULA).toBe('serving endpoint spend ÷ questions with recorded tokens');
+  it('divides attributed serving and SQL spend by completed questions', () => {
+    expect(QUESTION_COST_FORMULA).toBe('Attributed serving + SQL ÷ completed questions');
     expect(
       questionServingAverage(
         costPayload({
-          tiles: [tile({ id: 'serving-endpoint', quality: 'real', amount: 10 })],
+          tiles: [
+            tile({ id: 'serving-endpoint', quality: 'real', amount: 10 }),
+            tile({
+              id: 'sql-warehouse',
+              quality: 'estimate',
+              amount: 4,
+              population: 'This warehouse',
+              attribution: 'deployment',
+            }),
+          ],
           perQuestion: {
             runs: [],
             runsInRange: 2,
@@ -648,14 +657,23 @@ describe('approx average cost per question', () => {
           },
         })
       )
-    ).toBe(5);
+    ).toBe(7);
   });
 
-  it('refuses a workspace-wide serving meter and a zero-token denominator', () => {
+  it('refuses a workspace-wide serving meter or a missing SQL component', () => {
     expect(
       questionServingAverage(
         costPayload({
-          tiles: [tile({ id: 'serving-endpoint', quality: 'real', amount: 10, population: 'Whole workspace' })],
+          tiles: [
+            tile({ id: 'serving-endpoint', quality: 'real', amount: 10, population: 'Whole workspace' }),
+            tile({
+              id: 'sql-warehouse',
+              quality: 'estimate',
+              amount: 4,
+              population: 'This warehouse',
+              attribution: 'deployment',
+            }),
+          ],
           perQuestion: {
             runs: [],
             runsInRange: 2,
@@ -696,7 +714,7 @@ describe('cost honesty and coverage copy', () => {
         rangeMayStillFill: true,
         currencyConsistent: true,
       })
-    ).toContain('later days in this range may still be filling');
+    ).toContain('later days in the selected period may still be filling');
   });
 
   it('maps coverage by product contract, never by prose or a nearby tile', () => {

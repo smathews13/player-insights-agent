@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
-import { calculateForecast, deriveForecastBaseline } from './forecast';
+import { calculateForecast, deriveForecastBaseline, normalizeForecastAssumptions } from './forecast';
 import { FORECAST_ASSUMPTIONS_KEY, persistForecastAssumptions, readForecastAssumptions } from './forecast-preferences';
 import type { PreferenceStore } from './experimental-features';
 
@@ -88,7 +88,24 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       },
     ],
     perQuestion: {
-      runs: [],
+      runs: [
+        {
+          runId: 'r1',
+          correlationId: 'c1',
+          traceId: 't1',
+          completedAt: '2026-08-14T12:00:00Z',
+          totalTokens: 420,
+          parts: [],
+        },
+        {
+          runId: 'r2',
+          correlationId: 'c2',
+          traceId: 't2',
+          completedAt: '2026-08-14T13:00:00Z',
+          totalTokens: 1900,
+          parts: [],
+        },
+      ],
       runsInRange: 7,
       tokenCoveredRuns: 7,
       totalRecordedTokens: 7_000,
@@ -125,9 +142,9 @@ function traffic(overrides: Partial<OpsTrafficPayload> = {}): OpsTrafficPayload 
 }
 
 describe('forecast arithmetic', () => {
-  it('scales measured rates, applies contingency last, and uses fixed horizons', () => {
+  it('sums every forecastable measured component, applies the cost buffer last, and uses fixed horizons', () => {
     const baseline = deriveForecastBaseline(cost(), traffic());
-    const assumptions = { ...baseline.defaults, contingencyPercent: 10 };
+    const assumptions = { ...baseline.defaults, costBufferPercent: 10 };
     const result = calculateForecast(baseline, assumptions);
 
     expect(assumptions).toMatchObject({
@@ -135,8 +152,6 @@ describe('forecast arithmetic', () => {
       questionsPerUserPerDay: 2,
       activeAppMinutesPerUserPerDay: 10,
       averageModelTokensPerQuestion: 1000,
-      governedTableCount: 1,
-      vectorSearchCostPerTableDay: 3,
     });
     expect(result.dailyQuestions).toBe(4);
     expect(result.components.map((component) => [component.id, component.dailyAmount])).toEqual([
@@ -145,12 +160,12 @@ describe('forecast arithmetic', () => {
       ['app-compute', 2],
       ['vector-search', 3],
     ]);
-    expect(result.contingencyDaily).toBeCloseTo(0.8);
+    expect(result.costBufferDaily).toBeCloseTo(0.8);
     expect(result.horizons.map((horizon) => horizon.days)).toEqual([7, 30, 180]);
     expect(result.horizons[0].total).toBeCloseTo(61.6);
     expect(result.horizons[1].total).toBeCloseTo(264);
     expect(result.horizons[2].total).toBeCloseTo(1584);
-    expect(result.horizons[0].components.at(-1)?.id).toBe('contingency');
+    expect(result.horizons[0].components.at(-1)?.id).toBe('cost-buffer');
     expect(result.horizons[0].components.at(-1)?.amount).toBeCloseTo(5.6);
   });
 
@@ -162,6 +177,71 @@ describe('forecast arithmetic', () => {
     });
     expect(result.components.find((component) => component.id === 'serving-endpoint')?.dailyAmount).toBe(1);
     expect(result.components.find((component) => component.id === 'sql-warehouse')?.dailyAmount).toBe(1);
+  });
+
+  it('normalizes displayed assumptions before calculation', () => {
+    const normalized = normalizeForecastAssumptions({
+      averageDailyUsers: 1.428571,
+      questionsPerUserPerDay: 4.8123,
+      activeAppMinutesPerUserPerDay: 0.844,
+      averageModelTokensPerQuestion: 52353.594,
+      costBufferPercent: 2.555,
+    });
+    expect(normalized).toEqual({
+      averageDailyUsers: 1,
+      questionsPerUserPerDay: 4.8,
+      activeAppMinutesPerUserPerDay: 0.8,
+      averageModelTokensPerQuestion: 52353.6,
+      costBufferPercent: 2.6,
+    });
+  });
+});
+
+describe('suggested assumption evidence', () => {
+  it('uses the selected complete-day dates, aggregate formulas, and real observed ranges', () => {
+    const baseline = deriveForecastBaseline(
+      cost(),
+      traffic({
+        questionsPerDay: [
+          { day: '2026-08-13', count: 6 },
+          { day: '2026-08-14', count: 28 },
+        ],
+        distinctAskersPerDay: [
+          { day: '2026-08-13', count: 1 },
+          { day: '2026-08-14', count: 14 },
+        ],
+      })
+    );
+
+    expect(baseline.evidence.averageDailyUsers).toMatchObject({
+      calculation: '15 user-days ÷ 7 complete days',
+      period: '7 complete days · 2026-08-08–2026-08-14',
+      range: { label: 'daily users', min: 1, max: 14 },
+    });
+    expect(baseline.evidence.questionsPerUserPerDay.range).toEqual({
+      label: 'daily questions/user',
+      min: 2,
+      max: 6,
+    });
+    expect(baseline.evidence.averageModelTokensPerQuestion.range).toEqual({
+      label: 'observed tokens/question',
+      min: 420,
+      max: 1900,
+    });
+    expect(baseline.evidence.costBufferPercent.calculation).toContain('default 0% · user-set');
+  });
+
+  it('keeps the aggregate formula without inventing a range when observations are unavailable', () => {
+    const payload = cost();
+    const baseline = deriveForecastBaseline(
+      { ...payload, perQuestion: { ...payload.perQuestion, runs: [] } },
+      traffic({ distinctAskersPerDay: [] })
+    );
+
+    expect(baseline.evidence.averageDailyUsers.calculation).toContain('0 user-days ÷ 7 complete days');
+    expect(baseline.evidence.averageDailyUsers.range).toBeNull();
+    expect(baseline.evidence.averageModelTokensPerQuestion.calculation).toContain('7,000 tokens ÷ 7 covered questions');
+    expect(baseline.evidence.averageModelTokensPerQuestion.range).toBeNull();
   });
 });
 
@@ -197,7 +277,7 @@ describe('missing and excluded baselines', () => {
               ...tile,
               amount: null,
               evidence: { ...tile.evidence!, queryHistoryComplete: false },
-              unavailable: 'App spend withheld: complete Query History denominator unavailable',
+              unavailable: 'Incomplete Query History',
             };
           }
           if (tile.id === 'app-compute') {
@@ -263,5 +343,28 @@ describe('forecast assumption preferences', () => {
 
     memory.values.set(FORECAST_ASSUMPTIONS_KEY, '{"averageDailyUsers":-1}');
     expect(readForecastAssumptions(memory)).toBeNull();
+  });
+
+  it('migrates the old contingency field and ignores obsolete Vector Search inputs', () => {
+    const memory = store();
+    memory.values.set(
+      FORECAST_ASSUMPTIONS_KEY,
+      JSON.stringify({
+        averageDailyUsers: 2.2,
+        questionsPerUserPerDay: 3.33,
+        activeAppMinutesPerUserPerDay: 4.44,
+        averageModelTokensPerQuestion: 1000.04,
+        governedTableCount: 8,
+        vectorSearchCostPerTableDay: 99,
+        contingencyPercent: 5.55,
+      })
+    );
+    expect(readForecastAssumptions(memory)).toEqual({
+      averageDailyUsers: 2,
+      questionsPerUserPerDay: 3.3,
+      activeAppMinutesPerUserPerDay: 4.4,
+      averageModelTokensPerQuestion: 1000,
+      costBufferPercent: 5.6,
+    });
   });
 });

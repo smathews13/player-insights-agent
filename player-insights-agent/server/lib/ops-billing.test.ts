@@ -103,7 +103,7 @@ describe('billing attribution', () => {
   it('does not turn a missing app-tag match into zero app-compute spend', () => {
     const app = buildTiles(IDS, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
-    expect(app?.unavailable).toBe('No Apps billing rows matched this app in this range.');
+    expect(app?.unavailable).toBe('No Apps billing rows matched this app for the selected period.');
     expect(app?.note).toContain('tag');
     expect(app?.note).toContain('matched by app name');
   });
@@ -111,7 +111,7 @@ describe('billing attribution', () => {
   it('keeps a verified organizational tag separate from app-name billing availability', () => {
     const app = buildTiles({ ...IDS, appBillingTag: 'matched' }, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
-    expect(app?.unavailable).toBe('No Apps billing rows matched this app in this range.');
+    expect(app?.unavailable).toBe('No Apps billing rows matched this app for the selected period.');
     expect(app?.note).toContain('system_billing=astrolabe is on this app');
     expect(app?.unavailable).not.toContain('tag');
   });
@@ -119,7 +119,7 @@ describe('billing attribution', () => {
   it('does not claim applying a missing organizational tag would create a billing join', () => {
     const app = buildTiles({ ...IDS, appBillingTag: 'missing' }, []).find((tile) => tile.id === 'app-compute');
     expect(app?.amount).toBeNull();
-    expect(app?.unavailable).toBe('No Apps billing rows matched this app in this range.');
+    expect(app?.unavailable).toBe('No Apps billing rows matched this app for the selected period.');
     expect(app?.remedy).toBe('');
     expect(app?.note).toContain('still matched by app name');
   });
@@ -315,7 +315,7 @@ describe('billing attribution', () => {
 
     expect(sql).toMatchObject({
       amount: null,
-      unavailable: 'App spend withheld: complete Query History denominator unavailable',
+      unavailable: 'Incomplete Query History',
       evidence: {
         billingRows: 4,
         astrolabeQueries: 2,

@@ -1,8 +1,8 @@
 /**
  * Nominal budgets on Ops → Cost: one app total, one field per resource tile.
  *
- * THE PERIOD IS THE COST WINDOW ALREADY ON THE TILES. A tile billed "in range"
- * compares against that range; a per-day tile compares against its per-day
+ * THE PERIOD IS THE COST WINDOW ALREADY ON THE TILES. A period-total tile
+ * compares against that period; a per-day tile compares against its per-day
  * figure. There is no separate monthly calendar. The app total is the same
  * window and is not a sum of the tiles — those amounts do not mix.
  *
@@ -23,14 +23,47 @@ import { astPill } from './astrolabe-pill';
 import { budgetFieldText, moneyAmountFrom } from './cost-budget-amount';
 import { COST_BUDGETS_UNREADABLE, loadCostBudgets, saveCostBudgets } from './cost-budgets-api';
 import { BASIS_LABEL, spendVersusBudget, totalBudgetView } from './ops-view';
-import {
-  SETTINGS_SAVE_IDLE,
-  saveRetryAfterLoad,
-  type SettingsSaveState,
-} from './settings-save-state';
+import { SETTINGS_SAVE_IDLE, saveRetryAfterLoad, type SettingsSaveState } from './settings-save-state';
 import { Button, Input } from './ui';
 import { ConceptFlicker } from './ConceptFlicker';
 
+const DAY_MS = 86_400_000;
+
+function completeDays(payload: Pick<OpsCostPayload, 'range'>): number {
+  const from = Date.parse(`${payload.range.from}T00:00:00Z`);
+  const to = Date.parse(`${payload.range.to}T00:00:00Z`);
+  return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / DAY_MS) + 1 : 0;
+}
+
+function costSpendSummary(payload: Pick<OpsCostPayload, 'range' | 'tiles' | 'currency'>) {
+  const days = completeDays(payload);
+  const included = payload.tiles.filter(
+    (tile) =>
+      tile.attribution === 'deployment' &&
+      typeof tile.amount === 'number' &&
+      Number.isFinite(tile.amount) &&
+      (tile.pricing?.match === undefined || tile.pricing.match === 'priced' || tile.pricing.match === 'none')
+  );
+  const amount = included.reduce((sum, tile) => sum + (tile.amount ?? 0) * (tile.basis === 'per-day' ? days : 1), 0);
+  const activeMissing = payload.tiles.some(
+    (tile) => Boolean(tile.resourceId.trim()) && tile.attribution !== 'deployment'
+  );
+  const currency = payload.currency.trim();
+  return {
+    amount: included.length > 0 ? amount : null,
+    label:
+      included.length > 0
+        ? `${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${
+            currency ? ` ${currency}` : ''
+          }`
+        : 'Unavailable',
+    days,
+    partial: activeMissing,
+    estimated: included.some((tile) => tile.quality !== 'real'),
+  };
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- pure view-state helper is covered directly
 export function costBudgetNotice(state: SettingsSaveState): { tone: 'ok' | 'error'; text: string } | null {
   if (state.kind === 'saved') return { tone: 'ok', text: 'Applied.' };
   if (state.kind === 'failed') return { tone: 'error', text: state.message };
@@ -76,9 +109,12 @@ export function CostBudgetProvider({
   const readable = loaded !== null || payload.budgetsReadable;
   const applying = Object.values(saveStates).some((state) => state.kind === 'saving');
 
-  const setTotal = useCallback((amount: number | null) => {
-    setDraft((current) => withTotalBudget(current ?? stored, amount));
-  }, [stored]);
+  const setTotal = useCallback(
+    (amount: number | null) => {
+      setDraft((current) => withTotalBudget(current ?? stored, amount));
+    },
+    [stored]
+  );
 
   const setResource = useCallback(
     (tileId: string, amount: number | null) => {
@@ -95,47 +131,50 @@ export function CostBudgetProvider({
     (control: BudgetControl) => saveStates[keyFor(control)] ?? SETTINGS_SAVE_IDLE,
     [keyFor, saveStates]
   );
-  const apply = useCallback((control: BudgetControl) => {
-    const key = keyFor(control);
-    if (inFlight.current.size > 0) return;
-    inFlight.current.add(key);
-    setSaveStates((current) => ({ ...current, [key]: { kind: 'saving' } }));
-    void (async () => {
-      try {
-        let base = stored;
-        if (!readable) {
-          const result = await loadCostBudgets();
-          if (!result.ok || !result.budgets) {
-            setSaveStates((current) => ({ ...current, [key]: saveRetryAfterLoad(result) }));
-            return;
+  const apply = useCallback(
+    (control: BudgetControl) => {
+      const key = keyFor(control);
+      if (inFlight.current.size > 0) return;
+      inFlight.current.add(key);
+      setSaveStates((current) => ({ ...current, [key]: { kind: 'saving' } }));
+      void (async () => {
+        try {
+          let base = stored;
+          if (!readable) {
+            const result = await loadCostBudgets();
+            if (!result.ok || !result.budgets) {
+              setSaveStates((current) => ({ ...current, [key]: saveRetryAfterLoad(result) }));
+              return;
+            }
+            base = result.budgets;
+            setLoaded(base);
           }
-          base = result.budgets;
-          setLoaded(base);
-        }
 
-        const changed =
-          control.kind === 'total'
-            ? withTotalBudget(base, budgets.total)
-            : withResourceBudget(base, control.tileId, resourceBudget(budgets, control.tileId));
-        const saved = await saveCostBudgets(budgetsForVisibleTiles(changed, tileIds));
-        setLoaded(saved);
-        setDraft((current) => {
-          if (!current) return null;
-          return control.kind === 'total'
-            ? withTotalBudget(current, saved.total)
-            : withResourceBudget(current, control.tileId, resourceBudget(saved, control.tileId));
-        });
-        setSaveStates((current) => ({ ...current, [key]: { kind: 'saved' } }));
-      } catch (error) {
-        setSaveStates((current) => ({
-          ...current,
-          [key]: { kind: 'failed', message: (error as Error).message },
-        }));
-      } finally {
-        inFlight.current.delete(key);
-      }
-    })();
-  }, [budgets, keyFor, readable, stored, tileIds]);
+          const changed =
+            control.kind === 'total'
+              ? withTotalBudget(base, budgets.total)
+              : withResourceBudget(base, control.tileId, resourceBudget(budgets, control.tileId));
+          const saved = await saveCostBudgets(budgetsForVisibleTiles(changed, tileIds));
+          setLoaded(saved);
+          setDraft((current) => {
+            if (!current) return null;
+            return control.kind === 'total'
+              ? withTotalBudget(current, saved.total)
+              : withResourceBudget(current, control.tileId, resourceBudget(saved, control.tileId));
+          });
+          setSaveStates((current) => ({ ...current, [key]: { kind: 'saved' } }));
+        } catch (error) {
+          setSaveStates((current) => ({
+            ...current,
+            [key]: { kind: 'failed', message: (error as Error).message },
+          }));
+        } finally {
+          inFlight.current.delete(key);
+        }
+      })();
+    },
+    [budgets, keyFor, readable, stored, tileIds]
+  );
 
   return (
     <CostBudgetContext.Provider
@@ -173,11 +212,51 @@ export function CostTotalBudget() {
         readable={api.readable}
         onApply={() => api.apply(control)}
       />
+      <p className="ops-cost-summary-copy">Operator-set ceiling for the selected period.</p>
       {view.kind === 'budget-only' ? (
         <p className="ops-budget-compare">
           <span className="ast-num">{view.budgetLabel}</span> app budget
         </p>
       ) : null}
+    </div>
+  );
+}
+
+export function CostSpendSummary({ payload }: { payload: OpsCostPayload }) {
+  const summary = costSpendSummary(payload);
+  return (
+    <div className="ops-cost-summary-box" aria-label="Total app spend">
+      <div className="ops-cost-summary-head">
+        <span>Total app spend</span>
+        <span className={astPill('neutral-outline', 'ops-pill')}>
+          {summary.days} complete {summary.days === 1 ? 'day' : 'days'}
+        </span>
+      </div>
+      <p className="ops-cost-summary-value">
+        <span className="ast-num">{summary.label}</span>
+        {summary.amount !== null ? (
+          <span>{summary.partial ? 'estimated subtotal' : summary.estimated ? 'estimated total' : 'total'}</span>
+        ) : null}
+      </p>
+      <p className="ops-cost-summary-copy">
+        Priced, deployment-attributable components{summary.partial ? '; exclusions are noted below.' : '.'}
+      </p>
+    </div>
+  );
+}
+
+export function CostResourceBudgets({ tiles }: { tiles: readonly CostTile[] }) {
+  return (
+    <div className="ops-cost-resource-budgets">
+      <div className="ops-cost-summary-head">
+        <span>Resource budgets</span>
+      </div>
+      <p className="ops-cost-summary-copy">Editable limits use each resource’s displayed basis.</p>
+      <div className="ops-cost-resource-budget-grid">
+        {tiles.map((tile) => (
+          <CostTileBudget key={tile.id} tile={tile} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -192,6 +271,7 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
     <div className="ops-tile-budget">
       <CostBudgetField
         label="Budget"
+        name={tile.label}
         basisLabel={BASIS_LABEL[tile.basis]}
         amount={amount}
         currency={api.currency}
@@ -220,9 +300,7 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
           Budget <span className="ast-num">{compared.budgetLabel}</span>
           {tile.amount === null ||
           tile.quality === 'unknown' ||
-          (tile.pricing?.match !== undefined &&
-            tile.pricing.match !== 'priced' &&
-            tile.pricing.match !== 'none')
+          (tile.pricing?.match !== undefined && tile.pricing.match !== 'priced' && tile.pricing.match !== 'none')
             ? ' · spend not measured'
             : null}
         </p>
@@ -233,6 +311,7 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
 
 function CostBudgetField({
   label,
+  name,
   basisLabel,
   amount,
   currency,
@@ -243,6 +322,7 @@ function CostBudgetField({
   onApply,
 }: {
   label: string;
+  name?: string;
   basisLabel: string;
   amount: number | null;
   currency: string;
@@ -253,11 +333,12 @@ function CostBudgetField({
   onApply: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const caption = `${label} ${basisLabel}`;
+  const caption = `${name ? `${name} ` : ''}${label} ${basisLabel}`;
   const notice = costBudgetNotice(saveState);
   return (
     <div className="ops-budget-field">
       <label>
+        {name ? <span className="ops-budget-resource">{name}</span> : null}
         <span className="ops-budget-label">{caption}</span>
         <span className="ops-budget-input-row">
           <Input
@@ -275,16 +356,9 @@ function CostBudgetField({
           {currency ? <span className="ops-budget-currency">{currency}</span> : null}
         </span>
       </label>
-      <CostBudgetApplyButton
-        state={saveState}
-        disabled={applying}
-        onClick={onApply}
-      />
+      <CostBudgetApplyButton state={saveState} disabled={applying} onClick={onApply} />
       {notice?.tone === 'error' ? (
-        <span
-          className="ops-budget-save-error"
-          role="alert"
-        >
+        <span className="ops-budget-save-error" role="alert">
           {notice.text}
         </span>
       ) : null}

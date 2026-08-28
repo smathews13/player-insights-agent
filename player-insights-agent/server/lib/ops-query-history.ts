@@ -2,6 +2,7 @@ import { parseQueryTags, type QueryHistoryPage, type QueryHistoryRow } from './w
 
 const QUERY_HISTORY_PAGE_SIZE = 999;
 const MAX_QUERY_HISTORY_PAGES = 100;
+const MAX_QUERY_HISTORY_RANGE_MS = 30 * 24 * 60 * 60 * 1_000;
 
 export interface WarehouseQueryAttribution {
   /** True only when every page and every execution-time denominator was available. */
@@ -36,8 +37,11 @@ function finiteMilliseconds(value: unknown): number | null {
 }
 
 function executionMilliseconds(row: QueryHistoryRow): number | null {
-  if (!row.metrics || typeof row.metrics !== 'object') return null;
-  return finiteMilliseconds((row.metrics as Record<string, unknown>).execution_time_ms);
+  if (row.metrics && typeof row.metrics === 'object') {
+    const executionTime = finiteMilliseconds((row.metrics as Record<string, unknown>).execution_time_ms);
+    if (executionTime !== null) return executionTime;
+  }
+  return finiteMilliseconds(row.duration);
 }
 
 function rowId(row: QueryHistoryRow): string {
@@ -67,42 +71,48 @@ export async function readWarehouseQueryAttribution(input: {
 
   const rows = new Map<string, QueryHistoryRow>();
   let complete = true;
-  let pageToken: string | undefined;
-  const usedTokens = new Set<string>();
+  for (let windowStart = input.startTimeMs; windowStart <= input.endTimeMs; ) {
+    const windowEnd = Math.min(input.endTimeMs, windowStart + MAX_QUERY_HISTORY_RANGE_MS - 1);
+    let pageToken: string | undefined;
+    const usedTokens = new Set<string>();
 
-  for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
-    const response = await input.transport.listQueries({
-      warehouseId,
-      startTimeMs: input.startTimeMs,
-      endTimeMs: input.endTimeMs,
-      pageToken,
-      maxResults: QUERY_HISTORY_PAGE_SIZE,
-    });
-    for (const row of Array.isArray(response.res) ? response.res : []) {
-      if (row.warehouse_id !== undefined && row.warehouse_id !== warehouseId) {
-        complete = false;
-        continue;
+    for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
+      const response = await input.transport.listQueries({
+        warehouseId,
+        startTimeMs: windowStart,
+        endTimeMs: windowEnd,
+        pageToken,
+        maxResults: QUERY_HISTORY_PAGE_SIZE,
+      });
+      for (const row of Array.isArray(response.res) ? response.res : []) {
+        if (row.warehouse_id !== undefined && row.warehouse_id !== warehouseId) {
+          complete = false;
+          continue;
+        }
+        const id = rowId(row);
+        if (!id) {
+          complete = false;
+          continue;
+        }
+        rows.set(id, row);
       }
-      const id = rowId(row);
-      if (!id) {
-        complete = false;
-        continue;
+
+      const next = typeof response.next_page_token === 'string' ? response.next_page_token.trim() : '';
+      if (!next) {
+        if (response.has_next_page) complete = false;
+        break;
       }
-      rows.set(id, row);
+      if (usedTokens.has(next)) {
+        complete = false;
+        break;
+      }
+      usedTokens.add(next);
+      pageToken = next;
+      if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
     }
 
-    const next = typeof response.next_page_token === 'string' ? response.next_page_token.trim() : '';
-    if (!next) {
-      if (response.has_next_page) complete = false;
-      break;
-    }
-    if (usedTokens.has(next)) {
-      complete = false;
-      break;
-    }
-    usedTokens.add(next);
-    pageToken = next;
-    if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
+    if (windowEnd >= input.endTimeMs) break;
+    windowStart = windowEnd + 1;
   }
 
   let astrolabeQueries = 0;

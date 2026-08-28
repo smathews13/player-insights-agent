@@ -258,7 +258,8 @@ SYNTHESIS_INSTRUCTIONS = f"""You are Astrolabe, the final analyst voice.
 Return one valid JSON object and nothing around it: no code fence, no commentary.
 Keys: takeaway (one decision-oriented sentence), narrative (plain-language interpretation,
 written as Markdown), content (findings beyond the headline figure, written as Markdown;
-empty, omitted, or null all mean there is nothing beyond the headline), figures (at most {MAX_FIGURES}
+empty, omitted, or null all mean there is nothing beyond the headline),
+figures (at most {MAX_FIGURES}
 objects, that many only when that many distinct headline facts exist,
 otherwise every useful fact available, with exactly these keys: label, value, display,
 comparison; value is the figure's own number and display is that number formatted for
@@ -327,10 +328,12 @@ fold them into the narrative and do not leave one out to make the answer shorter
 A check that passed is not a caveat: do not report a zero null rate, a successful
 describe, or any other passed check as a warning.
 Do not write a caveat about whose identity produced the answer, that Unity Catalog
-row filters and column masks apply without reporting themselves, or that declaring a table does not guarantee read access. Those are standing facts about the warehouse,
+row filters and column masks apply without reporting themselves, or that
+declaring a table does not guarantee read access. Those are standing facts about the warehouse,
 not findings about this answer. A catalog listing that names the declared tables has
 answered the question: do not open it with a refusal verdict, and do not write that
-a refusal will be named later as if this request was refused. Catalog and listing questions are allowed.
+a refusal will be named later as if this request was refused.
+Catalog and listing questions are allowed.
 """
 
 _NON_ACTION_FILLER = re.compile(
@@ -2686,6 +2689,7 @@ class RunLog:
         status: str = "complete",
         depth: int = 0,
         parent_id: str = "",
+        tables: Sequence[str] = (),
     ) -> TraceStage:
         recorded = TraceStage(
             id=stage_id,
@@ -2697,6 +2701,7 @@ class RunLog:
             calls=1,
             input=self._fit(input_text),
             output=self._fit(output_text),
+            tables=list(tables),
             depth=depth,
             parent_id=parent_id,
         )
@@ -3422,6 +3427,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 result.text,
                 depth=depth,
                 parent_id=parent_id,
+                tables=result.listed_tables,
             )
             package = compact_finder_package(
                 "## DATA OVERVIEW\n- **Declared governed sources:**\n" + result.text
@@ -3937,6 +3943,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     status,
                     depth=step_stage.depth + 1,
                     parent_id=step_stage.id,
+                    tables=result.listed_tables,
                 )
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
 
@@ -4257,8 +4264,10 @@ Tables actually read this run:
                         findings,
                         has_readings=bool(log.readings),
                         reason=(
+                            # The partial results above come only from successful queries.
                             "The final write-up could not finish after live data was retrieved: "
-                            f"{reason.rstrip('.')}. The partial results above come only from successful queries."
+                            f"{reason.rstrip('.')}. The partial results above come only "
+                            "from successful queries."
                             if log.readings
                             else f"The final write-up could not finish: {reason.rstrip('.')}."
                         ),

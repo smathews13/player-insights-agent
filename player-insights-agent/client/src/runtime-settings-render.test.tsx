@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { RuntimeSettingsPanel } from './RuntimeSettingsPanel';
 
 const source = fs.readFileSync(path.join(__dirname, 'RuntimeSettingsPanel.tsx'), 'utf8');
 const page = fs.readFileSync(path.join(__dirname, 'SettingsPage.tsx'), 'utf8');
@@ -25,7 +27,10 @@ const markupOf = (file: string): string =>
 describe('runtime and appearance modal sections', () => {
   it('mounts both sections behind one modal settings form', () => {
     // Handed `onSaveState` as well, so the footer can say what Save did.
-    expect(page).toContain('<RuntimeSettingsPanel section={active} onSaveState={setSaveState} />');
+    expect(page).toContain('<RuntimeSettingsPanel');
+    expect(page).toContain('section={active}');
+    expect(page).toContain('onSaveState={setSaveState}');
+    expect(page).toContain('onDirtyChange={handlePaneDirty}');
     expect(source).toContain("section: 'runtime' | 'appearance'");
     expect(source).toContain("export const RUNTIME_SETTINGS_FORM_ID = 'settings-runtime-form'");
   });
@@ -60,17 +65,44 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('Example: 42 teams increased weekly usage.');
   });
 
-  it('keeps saved numeric values real and moves examples into muted helper text', () => {
+  it('renders saved numeric values without example helpers or placeholder values', () => {
+    const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="runtime" />);
     expect(source).toContain('value={draft ?? String(value)}');
-    expect(source).toContain('runtime-control-example');
-    expect(source).toContain('Example: {placeholder}');
-    expect(styles).toMatch(/\.runtime-control-example \{[^}]*font-style:\s*italic[^}]*opacity:\s*0\.72/s);
+    expect(source).not.toContain('runtime-control-example');
+    expect(source).not.toContain('Example: {placeholder}');
+    expect(styles).not.toContain('.runtime-control-example');
+    for (const label of [
+      'Max DSF steps',
+      'Max tool calls',
+      'Run budget (s)',
+      'Character cap',
+      'Max figures',
+      'Max charts',
+      'Max caveats',
+    ]) {
+      const input = new RegExp(`<input[^>]*aria-label="${label.replace(/[()]/g, '\\$&')}"[^>]*>`).exec(markup)?.[0];
+      expect(input, `${label} renders`).toBeDefined();
+      expect(input).toMatch(/\bvalue="\d+"/);
+      expect(input).not.toContain('placeholder=');
+    }
+  });
+
+  it('gives Narrative one cap explanation and top-aligned, balanced controls', () => {
+    expect(source).toContain('bodyClassName="runtime-answer-body--narrative"');
+    expect(source).toContain("help: '0 means uncapped.'");
+    expect(source).not.toContain('Max length. 0 means none.');
+    expect(source).not.toContain('0 = uncapped');
+    expect(source).toContain('value={value}');
+    expect(styles).toMatch(/\.runtime-answer-body--narrative \{[^}]*align-items:\s*start/);
+    expect(styles).toMatch(
+      /\.runtime-answer-body--narrative \.runtime-guidance,\s*\.runtime-answer-body--narrative input \{[^}]*height:\s*34px[^}]*min-height:\s*34px/s
+    );
   });
 
   it('maps the three Loop structure labels to Architecture’s semantic accents', () => {
-    expect(source).toContain("runtime-loop-label runtime-loop-label--agent ast-pill");
-    expect(source).toContain("runtime-loop-label runtime-loop-label--tool ast-pill");
-    expect(source).toContain("runtime-loop-label runtime-loop-label--budget ast-pill");
+    expect(source).toContain('runtime-loop-label runtime-loop-label--agent ast-pill');
+    expect(source).toContain('runtime-loop-label runtime-loop-label--tool ast-pill');
+    expect(source).toContain('runtime-loop-label runtime-loop-label--budget ast-pill');
     expect(source).toContain('labelClassName={extra.labelClassName}');
     expect(styles).toMatch(/\.runtime-loop-label \{[^}]*justify-self:\s*start/);
     expect(styles).toMatch(/\.runtime-loop-label--agent \{[^}]*--ast-primary-control-border/);
@@ -115,13 +147,13 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('entityStyles');
     expect(source).toContain('colorScheme');
     expect(source).toContain('aria-label="Dark"');
-    expect(source).toContain('previewColorScheme(on)');
+    expect(source).not.toContain('previewColorScheme(on)');
     expect(source).toContain('appearance-sample-plaque');
     expect(source).toContain('fontBodyColor');
     expect(source).toContain('fontMutedColor');
     expect(source).toContain('fontFamily');
     expect(source).toContain('fontSize');
-    expect(source).toContain('previewRuntimeTypography(settings)');
+    expect(source).not.toContain('previewRuntimeTypography(settings)');
     expect(source).toContain('appearance-type-preview');
   });
 
@@ -142,13 +174,14 @@ describe('runtime and appearance modal sections', () => {
     expect(entityColors).not.toContain('appearance-color-swatch" aria-hidden="true"');
   });
 
-  it('previews theme changes and applies a save immediately', () => {
+  it('stages appearance edits and applies them only after a save succeeds', () => {
     expect(source).not.toContain('Theme, type, and chip colours. They apply across Ask, Run Explorer, and Monitoring.');
     expect(source).not.toContain('Limits how many reasoning passes');
     expect(source).toContain('2026-07-22 – 2026-08-03');
     expect(source).toContain('Northwind, Contoso');
-    expect(source).toContain('adoptRuntimeEntityStyles(savedSettings.current)');
     expect(source).toContain('adoptRuntimeEntityStyles(saved)');
+    expect(source).not.toContain('previewColorScheme(on)');
+    expect(source).not.toContain('previewRuntimeTypography(settings)');
     expect(styles).toMatch(/\.appearance-sample-plaque\s*\{[^}]*background:\s*var\(--background\)/);
     expect(answerStyles).toMatch(/\.answer-badge--date\s*\{[^}]*--ast-entity-quote-fg[^}]*--ast-entity-quote-bg/);
     expect(answerStyles).toMatch(/\.answer-badge--tag\s*\{[^}]*--ast-entity-tag-fg[^}]*--ast-entity-tag-bg/);
@@ -177,24 +210,15 @@ describe('runtime and appearance modal sections', () => {
     expect(markup).not.toContain('mandatory safeguards');
     expect(markup).not.toContain('settings-footer-note');
     expect(styles).not.toContain('.settings-footer-note');
-    // The footer had two children and `space-between` held them apart. With one
-    // child left, `space-between` puts Cancel and Save against the modal's LEFT
-    // edge, so the removal of the note and this declaration are one change.
-    expect(styles).toMatch(/\.settings-modal-footer \{[^}]*justify-content:\s*flex-end/);
+    expect(styles).toMatch(/\.settings-modal-footer \{[^}]*justify-content:\s*space-between/);
   });
 
-  it('presses Save and closes the modal once the save has landed', () => {
-    // The press and the close are the whole of the confirmation now that the line
-    // beside the button is gone. AppKit paints `:active` the same as `:hover`, so
-    // the press is driven by an attribute that outlasts the mouse-up -- it has to
-    // still be on screen while the save is in flight.
+  it('presses Save and keeps the modal open after the save lands', () => {
     expect(page).toContain("data-pressed={pressed ? 'true' : undefined}");
     expect(page).toContain('onClick={() => setPressed(true)}');
     expect(styles).toMatch(/\[data-pressed='true'\] \{[^}]*background:\s*var\(--db-blue-800\)/);
-    // ON `saved` AND NOT ON THE CLICK. The refusal is drawn in the footer, so
-    // closing on the click would take the message off screen as it was written and
-    // a refused save would look exactly like a successful one.
-    expect(page).toContain('if (!saveLanded(saveState)) return;');
-    expect(page).toMatch(/setTimeout\(\(\) => close\(\), SAVE_PRESS_MS\)/);
+    expect(page).not.toContain('saveLanded(saveState)');
+    expect(page).not.toMatch(/setTimeout\(\(\) => close\(\), SAVE_PRESS_MS\)/);
+    expect(page).toContain('unsavedChangesLabel(dirtyCount)');
   });
 });

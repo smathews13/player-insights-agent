@@ -81,6 +81,8 @@ import {
   type ResultShape,
 } from './step-results';
 import { astPill } from './run-header';
+import { TableEntityList } from './DataEntityLinks';
+import { isTableListingStage, stageTableEntities } from './live-progress';
 import {
   cardCalls,
   cardTiming,
@@ -154,19 +156,22 @@ const CLAMP_LINES = 9;
  */
 function KindChip({ stage }: { stage: TraceStage }) {
   if (stage.kind === 'agent') {
-    return (<span className="dag-chip agent">
+    return (
+      <span className="dag-chip agent">
         <AstrolabeMark size={13} />
       </span>
     );
   }
   const product = productForTool(toolNameFromId(stage.id));
   if (product) {
-    return (<span className="dag-chip tool">
+    return (
+      <span className="dag-chip tool">
         <BrandIcon product={product} size={14} labelled />
       </span>
     );
   }
-  return (<span className="dag-chip tool">
+  return (
+    <span className="dag-chip tool">
       <Wrench aria-hidden="true" />
     </span>
   );
@@ -196,7 +201,8 @@ const RAIL_TOOL_GLYPHS: Record<Exclude<RailGlyph, 'agent'>, typeof Wrench> = {
 function RailMark({ stage }: { stage: TraceStage }) {
   const glyph = railGlyph(stage);
   if (glyph === 'agent') {
-    return (<span className="dag-mark agent">
+    return (
+      <span className="dag-mark agent">
         <AstrolabeMark size={13} />
       </span>
     );
@@ -206,7 +212,8 @@ function RailMark({ stage }: { stage: TraceStage }) {
   // the official ones; these are three plain lucide glyphs standing for three
   // families, and a tooltip naming a family the row's own name already states is
   // the noise this pane was cleared of.
-  return (<span className="dag-mark tool">
+  return (
+    <span className="dag-mark tool">
       <Glyph aria-hidden="true" />
     </span>
   );
@@ -231,7 +238,8 @@ function RailMark({ stage }: { stage: TraceStage }) {
  */
 function RailConnectorRow({ fromDepth, toDepth }: { fromDepth: number; toDepth: number }) {
   const { shape, width, line, head } = railConnector(fromDepth, toDepth);
-  return (<div className={`dag-edge ${shape}`} aria-hidden="true">
+  return (
+    <div className={`dag-edge ${shape}`} aria-hidden="true">
       <svg
         width={width}
         height={RAIL_CONNECTOR_HEIGHT}
@@ -269,14 +277,20 @@ function StageName({ stage, mono, clamp }: { stage: TraceStage; mono: boolean; c
   // rather than a text node inside a span that carries nothing. The rail always
   // takes this path, which is why its tile's markup is untouched by any of this.
   const parts = mono ? nameParts(stage.name, stage.id) : [];
-  return (<span className="dag-name" title={clamp ? stage.name : undefined}>
+  return (
+    <span className="dag-name" title={clamp ? stage.name : undefined}>
       {parts.length > 1
         ? parts.map((part, at) => {
-            const key = parts.slice(0, at + 1).map(({ text }) => text).join('|');
-            return part.mono ? (<code className="dag-name-tool" key={key}>
+            const key = parts
+              .slice(0, at + 1)
+              .map(({ text }) => text)
+              .join('|');
+            return part.mono ? (
+              <code className="dag-name-tool" key={key}>
                 {part.text}
               </code>
-            ) : (<span key={key}>{part.text}</span>
+            ) : (
+              <span key={key}>{part.text}</span>
             );
           })
         : stage.name}
@@ -297,7 +311,8 @@ function Absent() {
  * is the difference between a short result and a clipped one.
  */
 function Clipped() {
-  return (<strong
+  return (
+    <strong
       className="dag-clipped"
       title="the agent reached its own size ceiling while recording this and said so in the text below"
     >
@@ -339,24 +354,31 @@ function ArgumentBlock({ payload, skipKey }: { payload: Payload; skipKey: string
   const asked = askedField(payload, skipKey);
   const filters = fields?.filter((field) => field.key === 'kind' && field.value.trim() !== '') ?? [];
   const rest = fields?.filter((field) => field !== asked && !filters.includes(field)) ?? null;
-  return (<>
-      {payload.truncated && (<div className="dag-detail-flag">
+  return (
+    <>
+      {payload.truncated && (
+        <div className="dag-detail-flag">
           <Clipped />
         </div>
       )}
-      {asked && (<div className="dag-asked-row">
+      {asked && (
+        <div className="dag-asked-row">
           <span className="dag-asked">
             <ChipText text={asked.value} />
           </span>
-          {filters.map((filter) => (<span className="dag-arg-chip" key={filter.key}>
+          {filters.map((filter) => (
+            <span className="dag-arg-chip" key={filter.key}>
               {filter.value}s only
             </span>
           ))}
         </div>
       )}
-      {rest === null ? (<MarkdownText text={payload.body} />
-      ) : rest.length === 0 ? null : (<div className="dag-args">
-          {rest.map((field) => (<div className="dag-arg" key={field.key}>
+      {rest === null ? (
+        <MarkdownText text={payload.body} />
+      ) : rest.length === 0 ? null : (
+        <div className="dag-args">
+          {rest.map((field) => (
+            <div className="dag-arg" key={field.key}>
               <b>{field.key}</b>
               {field.block ? <MarkdownText text={field.value} /> : <span>{field.value}</span>}
             </div>
@@ -382,7 +404,18 @@ function ArgumentBlock({ payload, skipKey }: { payload: Payload; skipKey: string
  * four asterisks. The Raw segment shows the untouched text whichever branch ran,
  * which is what makes the reading safe to attempt at all.
  */
-function RenderedResult({ shape, text }: { shape: ResultShape; text: string }) {
+function RenderedResult({
+  shape,
+  text,
+  tables = [],
+  tableListing = false,
+}: {
+  shape: ResultShape;
+  text: string;
+  tables?: readonly string[];
+  tableListing?: boolean;
+}) {
+  if (tableListing) return <TableEntityList tables={tables} />;
   // A shape that will not parse FALLS THROUGH rather than rendering markdown here,
   // and the difference matters: a `data_genie` result that is a bare grid instead
   // of a Genie conversation is still drawn as a grid below. An agent step with
@@ -400,19 +433,26 @@ function RenderedResult({ shape, text }: { shape: ResultShape; text: string }) {
   }
   const view = describeResult(text);
   if (view.kind === 'text') return <MarkdownText text={text} />;
-  return (<div className="dag-result-table">
+  return (
+    <div className="dag-result-table">
       <table>
         <thead>
           <tr>
-            {view.head.map((cell, at) => (<th key={view.head.slice(0, at + 1).join('|')} scope="col">
+            {view.head.map((cell, at) => (
+              <th key={view.head.slice(0, at + 1).join('|')} scope="col">
                 {cell}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {view.rows.map((row) => (<tr key={`${row.finding ? 'finding' : 'plain'}-${row.cells.join('|')}`} className={row.finding ? 'finding' : undefined}>
-              {row.cells.map((cell, cellAt) => (<td key={row.cells.slice(0, cellAt + 1).join('|')}>
+          {view.rows.map((row) => (
+            <tr
+              key={`${row.finding ? 'finding' : 'plain'}-${row.cells.join('|')}`}
+              className={row.finding ? 'finding' : undefined}
+            >
+              {row.cells.map((cell, cellAt) => (
+                <td key={row.cells.slice(0, cellAt + 1).join('|')}>
                   {cell.split('.').length === 3 ? <EntityName>{cell}</EntityName> : cell}
                 </td>
               ))}
@@ -422,7 +462,8 @@ function RenderedResult({ shape, text }: { shape: ResultShape; text: string }) {
               the rows folded into it are the ones with nothing to report, and a
               marked row saying "all 0.00%" would be the tint contradicting the
               value beside it. */}
-          {view.tail && (<tr className="dag-result-tail">
+          {view.tail && (
+            <tr className="dag-result-tail">
               <td colSpan={view.head.length}>
                 {view.tail.count} more rows, all {view.tail.value}
               </td>
@@ -452,7 +493,8 @@ function SqlBlock({ sql }: { sql: string }) {
   const [expanded, setExpanded] = useState(false);
   const lines = sqlLines(sql);
   const clamps = lines.length > CLAMP_LINES;
-  return (<div className={`dag-sql ${expanded || !clamps ? 'open' : ''}`}>
+  return (
+    <div className={`dag-sql ${expanded || !clamps ? 'open' : ''}`}>
       <div className="dag-sql-head">
         <strong>Generated SQL</strong>
         <span className="dag-sql-lines ast-num">
@@ -477,17 +519,35 @@ function SqlBlock({ sql }: { sql: string }) {
       </div>
       <div className="dag-sql-body">
         <pre>
-          {lines.map((line, at) => (<span key={lines.slice(0, at + 1).join('\n')}>
+          {lines.map((line, at) => (
+            <span key={lines.slice(0, at + 1).join('\n')}>
               {sqlTokens(line).map((token, tokenAt) =>
-                token.keyword ? (<b key={sqlTokens(line).slice(0, tokenAt + 1).map(({ text }) => text).join('|')}>{token.text}</b>
-                ) : (<span key={sqlTokens(line).slice(0, tokenAt + 1).map(({ text }) => text).join('|')}>{token.text}</span>
+                token.keyword ? (
+                  <b
+                    key={sqlTokens(line)
+                      .slice(0, tokenAt + 1)
+                      .map(({ text }) => text)
+                      .join('|')}
+                  >
+                    {token.text}
+                  </b>
+                ) : (
+                  <span
+                    key={sqlTokens(line)
+                      .slice(0, tokenAt + 1)
+                      .map(({ text }) => text)
+                      .join('|')}
+                  >
+                    {token.text}
+                  </span>
                 )
               )}
               {'\n'}
             </span>
           ))}
         </pre>
-        {clamps && !expanded && (<button type="button" className="dag-sql-more" onClick={() => setExpanded(true)}>
+        {clamps && !expanded && (
+          <button type="button" className="dag-sql-more" onClick={() => setExpanded(true)}>
             Show all {lines.length} lines
           </button>
         )}
@@ -552,7 +612,10 @@ export function StageDetail({
   // that happened to contain the word "select".
   const sql = args.fields?.find((field) => field.key === 'sql' || field.key === 'query') ?? null;
   const shape = resultShape(stage.kind, tool);
-  return (<div className={`dag-detail ${stage.status}`} id={id}>
+  const tables = stageTableEntities(stage);
+  const tableListing = isTableListingStage(stage);
+  return (
+    <div className={`dag-detail ${stage.status}`} id={id}>
       <div className="dag-detail-head">
         <KindChip stage={stage} />
         <strong>
@@ -561,12 +624,14 @@ export function StageDetail({
         <span className="dag-detail-measures ast-num">{detailTiming(stage, origin)}</span>
       </div>
       <dl>
-        {tool && (<>
+        {tool && (
+          <>
             <dt>Tool</dt>
             <dd className="dag-detail-mono">{tool}</dd>
           </>
         )}
-        {stage.status !== 'complete' && (<>
+        {stage.status !== 'complete' && (
+          <>
             <dt>Ended</dt>
             <dd>{stage.status}</dd>
             <dt>Reference</dt>
@@ -586,12 +651,20 @@ export function StageDetail({
               </div>
             ) : (
               <p className="dag-chart-empty">
-                {charts ? 'This step completed without a chart.' : 'The chart payload is unavailable for this stored run.'}
+                {charts
+                  ? 'This step completed without a chart.'
+                  : 'The chart payload is unavailable for this stored run.'}
               </p>
             )
           ) : null}
-          {result.empty ? (<Absent />
-          ) : (<>
+          {result.empty ? (
+            tableListing ? (
+              <TableEntityList tables={tables} />
+            ) : (
+              <Absent />
+            )
+          ) : (
+            <>
               <div className="dag-result-meta">
                 {/* What answered, read off the same parse the body is drawn from,
                     so this line cannot name a Genie space the card below did not
@@ -618,8 +691,10 @@ export function StageDetail({
                   </button>
                 </span>
               </div>
-              {raw ? (<pre className="dag-block">{result.body}</pre>
-              ) : (<RenderedResult shape={shape} text={result.body} />
+              {raw ? (
+                <pre className="dag-block">{result.body}</pre>
+              ) : (
+                <RenderedResult shape={shape} text={result.body} tables={tables} tableListing={tableListing} />
               )}
             </>
           )}
@@ -643,7 +718,8 @@ function RawIo({ stages }: { stages: TraceStage[] }) {
   const [open, setOpen] = useState(false);
   const panelId = `${useId()}raw`;
   const io = rawIo(stages);
-  return (<div className={`dag-raw ${open ? 'open' : ''}`}>
+  return (
+    <div className={`dag-raw ${open ? 'open' : ''}`}>
       <button
         type="button"
         aria-expanded={open}
@@ -654,7 +730,8 @@ function RawIo({ stages }: { stages: TraceStage[] }) {
         <span className="dag-raw-label">Raw I/O</span>
         <span className="dag-raw-meta ast-num">{io.lines} lines · request and response of every stage</span>
       </button>
-      {open && (<pre className="dag-block" id={panelId}>
+      {open && (
+        <pre className="dag-block" id={panelId}>
           {io.text}
         </pre>
       )}
@@ -698,7 +775,8 @@ export function TraceDag({
   verdict?: RunVerdict;
 }) {
   const shownStages = [...withDisplayedStageStatus(stages, verdict)];
-  const envelope = !compact && trace ? buildTimeline(trace, question, verdict).rows.find((row) => row.container) : undefined;
+  const envelope =
+    !compact && trace ? buildTimeline(trace, question, verdict).rows.find((row) => row.container) : undefined;
   const envelopeStage: TraceStage | null = envelope
     ? {
         id: envelope.id,
@@ -734,7 +812,8 @@ export function TraceDag({
   // them". It was invisible while the nodes were unlabelled and became a support
   // question the moment they were numbered, which is the usual way round -- the
   // numbering did not break the pane, it published what the pane had been doing.
-  const steps = (<div className={`trace-dag ${compact ? 'compact' : `map${envelopeStage ? ' has-run-envelope' : ''}`}`}>
+  const steps = (
+    <div className={`trace-dag ${compact ? 'compact' : `map${envelopeStage ? ' has-run-envelope' : ''}`}`}>
       {displayedStages.map((item, index) => {
         // Capped, because the indent is a reading aid and a deep run should not
         // push its last stages off the side of the rail. Handed to the stylesheet
@@ -750,12 +829,14 @@ export function TraceDag({
         const isOpen = open?.id === item.id;
         const runEnvelope = item.id === '__run__';
         const nodeClass = `dag-node ${item.status} ${displayedActiveIndex === index ? 'active' : ''}`;
-        return (<div
+        return (
+          <div
             key={item.id}
             className={`dag-step ${runEnvelope ? 'run-envelope' : ''}`.trim()}
             style={depth ? ({ '--dag-depth': depth } as CSSProperties) : undefined}
           >
-            {compact ? (<button
+            {compact ? (
+              <button
                 type="button"
                 className={isOpen ? `${nodeClass} open` : nodeClass}
                 aria-expanded={isOpen}
@@ -797,12 +878,14 @@ export function TraceDag({
                     was buried in the middle of it. `running` is excluded for the
                     same reason: the ring and the moving counter are already
                     saying it, in the two places the design put it. */}
-                {item.status !== 'complete' && item.status !== 'running' && (<Badge variant="outline" className={astPill(item.status)}>
+                {item.status !== 'complete' && item.status !== 'running' && (
+                  <Badge variant="outline" className={astPill(item.status)}>
                     {item.status}
                   </Badge>
                 )}
               </button>
-            ) : (<button
+            ) : (
+              <button
                 type="button"
                 className={`${nodeClass} ${isOpen ? 'open' : ''}`}
                 aria-expanded={isOpen}
@@ -818,7 +901,8 @@ export function TraceDag({
                     <StageName stage={item} mono clamp />
                   </span>
                   <span className="dag-card-meta">
-                    {isOrchestratorStep(item) && (<Badge variant="outline" className="dag-role-badge">
+                    {isOrchestratorStep(item) && (
+                      <Badge variant="outline" className="dag-role-badge">
                         Orchestrator step
                       </Badge>
                     )}
@@ -828,7 +912,8 @@ export function TraceDag({
                     <Badge variant="outline" className="dag-metric-badge dag-call-badge ast-num">
                       {cardCalls(item, runEnvelope)}
                     </Badge>
-                    {item.status !== 'complete' && (<Badge variant="outline" className={`dag-status-badge ${astPill(item.status)}`}>
+                    {item.status !== 'complete' && (
+                      <Badge variant="outline" className={`dag-status-badge ${astPill(item.status)}`}>
                         {item.status}
                       </Badge>
                     )}
@@ -837,13 +922,14 @@ export function TraceDag({
               </button>
             )}
             {next &&
-              (compact ? (// The rail draws the relation rather than naming it: an elbow out
+              (compact ? ( // The rail draws the relation rather than naming it: an elbow out
                 // to a tool a decision called, an elbow back to the decision
                 // after it, a straight drop between siblings. The words "calls"
                 // and "then" used to sit here and are gone -- the shape says the
                 // same thing in a gutter too narrow to letter.
                 <RailConnectorRow fromDepth={depth} toDepth={Math.min(next.depth ?? 0, 3)} />
-              ) : (// On the map the arrow hangs in the column gutter to the card's
+              ) : (
+                // On the map the arrow hangs in the column gutter to the card's
                 // right, so the LAST card of a row has nowhere to draw one and
                 // does not: see the clip in trace.css. Rendering it here and
                 // letting the layout decide is the only version of this that
@@ -862,14 +948,8 @@ export function TraceDag({
           into a different column, which is the alignment this map exists to
           have. `key` is the stage, so opening a different step gets a panel that
           starts on Rendered rather than one that kept the last step's segment. */}
-      {!compact && open && (<StageDetail
-          key={open.id}
-          stage={open}
-          step={openIndex + 1}
-          origin={origin}
-          id={panelId}
-          charts={charts}
-        />
+      {!compact && open && (
+        <StageDetail key={open.id} stage={open} step={openIndex + 1} origin={origin} id={panelId} charts={charts} />
       )}
       {!compact && stages.length > 0 && <RawIo stages={stages} />}
     </div>
@@ -889,15 +969,9 @@ export function TraceDag({
    * which is right for a tile in a column and wrong for the one place the whole
    * name is spelled out. A panel nested inside the list would inherit it.
    */
-  const railPanel = open ? (<div className="trace-dag map">
-      <StageDetail
-        key={open.id}
-        stage={open}
-        step={openIndex + 1}
-        origin={origin}
-        id={panelId}
-        charts={charts}
-      />
+  const railPanel = open ? (
+    <div className="trace-dag map">
+      <StageDetail key={open.id} stage={open} step={openIndex + 1} origin={origin} id={panelId} charts={charts} />
     </div>
   ) : null;
   /*
@@ -936,7 +1010,8 @@ export function TraceDag({
    * inverted. The band is the run's shape at a glance; the tiles are the record,
    * and the record opens.
    */
-  return (<div className="agent-path">
+  return (
+    <div className="agent-path">
       <AgentPathConstellation stages={shownStages} activeIndex={activeIndex} elapsedMs={elapsedMs} />
       {steps}
       {railPanel}

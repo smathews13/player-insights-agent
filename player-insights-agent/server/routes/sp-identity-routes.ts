@@ -9,6 +9,8 @@ import { z } from 'zod';
 import {
   SpAssignmentWriteSchema,
   SpIdentityModeSchema,
+  SpPersonaDefinitionPatchSchema,
+  SpPersonaDefinitionWriteSchema,
   SpPersonaPatchSchema,
   SpPersonaWriteSchema,
   type SpIdentityAdminPayload,
@@ -17,10 +19,14 @@ import {
 import { invalidAdminEmail, recordAdminAction } from '../lib/admin-roles';
 import { describeSpTokenMinting } from '../lib/sp-token';
 import {
+  deleteSpPersonaDefinition,
   deleteSpPersona,
+  insertSpPersonaDefinition,
   insertSpPersona,
   listSpAssignments,
+  listSpPersonaDefinitions,
   listSpPersonas,
+  updateSpPersonaDefinition,
   updateSpPersona,
   writeSpAssignment,
   writeSpIdentityEnabled,
@@ -30,9 +36,10 @@ import { readRoster } from '../lib/user-roster';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 
 async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayload> {
-  const [enabled, personas, assignments, rosterRead] = await Promise.all([
+  const [enabled, personas, personaDefinitions, assignments, rosterRead] = await Promise.all([
     isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
     listSpPersonas(appkit),
+    listSpPersonaDefinitions(appkit),
     listSpAssignments(appkit),
     readRoster(appkit.lakebase).catch(() => ({ rows: [] as { email: string; role: string }[] })),
   ]);
@@ -51,6 +58,7 @@ async function adminPayload(appkit: InsightsAppKit): Promise<SpIdentityAdminPayl
     enabled,
     minting: describeSpTokenMinting(),
     personas,
+    personaDefinitions,
     assignments,
     roster,
   };
@@ -115,6 +123,91 @@ export function setupSpIdentityRoutes(appkit: InsightsAppKit): void {
         res.status(503).json({
           error: 'sp_identity_store_unavailable',
           detail: `The persona was not saved: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.post('/api/admin/sp-identity/persona-definitions', async (req, res) => {
+      const parsed = SpPersonaDefinitionWriteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_sp_persona_definition', detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const definition = await insertSpPersonaDefinition(appkit, parsed.data, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'sp-persona-definition-created',
+          subject: definition.id,
+          detail: `Generated credential-free service-principal configuration ${definition.displayName}.`,
+        });
+        res.status(201).json(definition);
+      } catch (error) {
+        res.status(503).json({
+          error: 'sp_identity_store_unavailable',
+          detail: `The persona configuration was not saved: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.patch('/api/admin/sp-identity/persona-definitions/:id', async (req, res) => {
+      const parsed = SpPersonaDefinitionPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'invalid_sp_persona_definition', detail: parsed.error.message });
+        return;
+      }
+      const id = z.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: 'invalid_sp_persona_definition', detail: 'Missing persona id.' });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const definition = await updateSpPersonaDefinition(appkit, id.data, parsed.data, actor);
+        if (!definition) {
+          res.status(404).json({ error: 'sp_persona_definition_missing', detail: 'That persona is not defined.' });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'sp-persona-definition-updated',
+          subject: definition.id,
+          detail: `Updated service-principal configuration ${definition.displayName}.`,
+        });
+        res.json(definition);
+      } catch (error) {
+        res.status(503).json({
+          error: 'sp_identity_store_unavailable',
+          detail: `The persona configuration was not saved: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.delete('/api/admin/sp-identity/persona-definitions/:id', async (req, res) => {
+      const id = z.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: 'invalid_sp_persona_definition', detail: 'Missing persona id.' });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const removed = await deleteSpPersonaDefinition(appkit, id.data);
+        if (!removed) {
+          res.status(404).json({ error: 'sp_persona_definition_missing', detail: 'That persona is not defined.' });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'sp-persona-definition-removed',
+          subject: id.data,
+          detail: 'Removed a credential-free service-principal configuration.',
+        });
+        res.status(204).end();
+      } catch (error) {
+        res.status(503).json({
+          error: 'sp_identity_store_unavailable',
+          detail: `The persona configuration was not removed: ${(error as Error).message}`,
         });
       }
     });

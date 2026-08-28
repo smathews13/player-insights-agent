@@ -930,7 +930,7 @@ export function buildCoverage(input: {
         return {
           product: row.component,
           status: 'propagated',
-          detail: `${row.taggedRows} tagged billing rows in this range.`,
+          detail: `${row.taggedRows} tagged billing rows for the selected period.`,
         };
       }
       if ((row.untaggedRows ?? 0) > 0) {
@@ -944,10 +944,10 @@ export function buildCoverage(input: {
         return {
           product: row.component,
           status: 'delayed',
-          detail: `Billing data through ${through}. Later days in this range may still be filling.`,
+          detail: `Billing data through ${through}. Later days in the selected period may still be filling.`,
         };
       }
-      return { product: row.component, status: 'unused', detail: 'No matching usage rows in this range.' };
+      return { product: row.component, status: 'unused', detail: 'No matching usage rows for the selected period.' };
     });
   return {
     inventoryCount: input.inventoryCount,
@@ -1106,20 +1106,20 @@ function appComputeAbsence(state: AppBillingTagState): { unavailable: string; re
   const pair = billingTagPair();
   if (state === 'matched') {
     return {
-      unavailable: 'No Apps billing rows matched this app in this range.',
+      unavailable: 'No Apps billing rows matched this app for the selected period.',
       remedy: '',
       note: `${pair} is on this app; Apps billing is matched by app name.`,
     };
   }
   if (state === 'missing') {
     return {
-      unavailable: 'No Apps billing rows matched this app in this range.',
+      unavailable: 'No Apps billing rows matched this app for the selected period.',
       remedy: '',
       note: `${pair} is not on this app; Apps billing is still matched by app name.`,
     };
   }
   return {
-    unavailable: 'No Apps billing rows matched this app in this range.',
+    unavailable: 'No Apps billing rows matched this app for the selected period.',
     remedy: '',
     note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`,
   };
@@ -1213,10 +1213,7 @@ function componentTile(
         amount: null,
         pricing,
         note: '',
-        unavailable:
-          amount === null
-            ? unpricedUnavailable(pricing) || 'No billing rows'
-            : 'App spend withheld: complete Query History denominator unavailable',
+        unavailable: amount === null ? unpricedUnavailable(pricing) || 'No billing rows' : 'Incomplete Query History',
         remedy: '',
         evidence,
       });
@@ -1368,7 +1365,7 @@ export function buildQuestionAttribution(
           'Model serving',
           run.totalTokens === null
             ? 'This run recorded no token count.'
-            : 'No endpoint spend was measured for this range.'
+            : 'No endpoint spend was measured for the selected period.'
         )
       );
     }
@@ -1383,7 +1380,7 @@ export function buildQuestionAttribution(
       });
     } else {
       parts.push(
-        unknownPart('sql-warehouse', 'SQL warehouse', 'No warehouse spend was available to allocate in this range.')
+        unknownPart('sql-warehouse', 'SQL warehouse', 'No warehouse spend was available for the selected period.')
       );
     }
 
@@ -1406,6 +1403,6 @@ export function buildQuestionAttribution(
     tokenCoveredRuns,
     totalRecordedTokens,
     limited: runsInRange > attributed.length,
-    reason: runsInRange === 0 ? 'No completed runs were recorded in this billing range.' : '',
+    reason: runsInRange === 0 ? 'No completed runs were recorded for the selected period.' : '',
   };
 }

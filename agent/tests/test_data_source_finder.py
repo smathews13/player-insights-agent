@@ -152,9 +152,7 @@ def test_finder_system_prompt_uses_the_request_timezone():
     execute(
         build(llm, FakeTools()),
         "Active players yesterday.",
-        custom_inputs={
-            "runtime_settings": {"behavior": {"timezone": "America/Los_Angeles"}}
-        },
+        custom_inputs={"runtime_settings": {"behavior": {"timezone": "America/Los_Angeles"}}},
     )
 
     system = system_text(llm.loop_calls[0]["messages"][0]["content"])
@@ -222,9 +220,7 @@ def test_gold_query_stays_succeeded_when_optional_silver_is_left_unsampled():
         build(llm, tools),
         "Compare active players by title over the last 30 days.",
         custom_inputs={
-            "runtime_settings": {
-                "loop": {"maxSteps": 12, "maxToolCalls": 1, "maxRunSeconds": 90}
-            }
+            "runtime_settings": {"loop": {"maxSteps": 12, "maxToolCalls": 1, "maxRunSeconds": 90}}
         },
     )
 
@@ -237,8 +233,7 @@ def test_gold_query_stays_succeeded_when_optional_silver_is_left_unsampled():
     assert cap["name"] == "Completed from assessed sources"
     assert tools.named("data_genie") == [{"question": "query the approved title aggregate"}]
     assert not any(
-        "stopped early" in caveat.lower()
-        for caveat in response.custom_outputs["answer"]["caveats"]
+        "stopped early" in caveat.lower() for caveat in response.custom_outputs["answer"]["caveats"]
     )
 
 
@@ -261,9 +256,7 @@ def test_empty_catalog_hit_by_budget_remains_partial():
         build(llm, tools),
         "What engagement data is available?",
         custom_inputs={
-            "runtime_settings": {
-                "loop": {"maxSteps": 12, "maxToolCalls": 1, "maxRunSeconds": 90}
-            }
+            "runtime_settings": {"loop": {"maxSteps": 12, "maxToolCalls": 1, "maxRunSeconds": 90}}
         },
     )
 
@@ -274,8 +267,7 @@ def test_empty_catalog_hit_by_budget_remains_partial():
     assert finder["status"] == "partial"
     assert cap["status"] == "partial"
     assert any(
-        "stopped early" in caveat.lower()
-        for caveat in response.custom_outputs["answer"]["caveats"]
+        "stopped early" in caveat.lower() for caveat in response.custom_outputs["answer"]["caveats"]
     )
 
 
@@ -295,7 +287,12 @@ def test_long_data_package_is_compacted_by_more_than_half():
 
 def test_simple_inventory_uses_only_the_manifest_listing():
     llm = ScriptedLlm(charts=False)
-    tools = FakeTools()
+    tools = FakeTools(
+        list_data_assets=ToolResult(
+            text="Declared tables:\n" + "\n".join(f"  - {name}" for name in sorted(MANIFEST)),
+            listed_tables=sorted(MANIFEST),
+        )
+    )
 
     response = execute(build(llm, tools), "what data do you have access to")
 
@@ -304,6 +301,14 @@ def test_simple_inventory_uses_only_the_manifest_listing():
     assert tools.named("search_tagged_assets") == []
     assert tools.named("search_semantics") == []
     assert llm.loop_calls == []
+    listing = next(
+        stage
+        for stage in response.custom_outputs["answer"]["trace"]["stages"]
+        if stage["name"] == "Listed available tables"
+    )
+    assert listing["input"] == "{}"
+    assert listing["tables"] == sorted(MANIFEST)
+    assert all(name in listing["output"] for name in listing["tables"])
     synthesis = next(
         call for call in llm.calls if "assessed data package" in call["messages"][-1]["content"]
     )

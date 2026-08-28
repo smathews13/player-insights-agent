@@ -10,7 +10,6 @@ assistant turn, so a test states the exact sequence of tool calls it is about.
 
 import inspect
 import json
-import re
 from contextlib import nullcontext
 from types import SimpleNamespace
 
@@ -3641,7 +3640,8 @@ class TestSalvagedSynthesis:
 
     PAYLOAD = (
         '{"takeaway":"Five tables are queryable.",'
-        '"narrative":"- The catalog is governed.\\n- The largest table is silver_gameplay_activity.",'
+        '"narrative":"- The catalog is governed.\\n'
+        '- The largest table is silver_gameplay_activity.",'
         '"content":"| Table | Rows |\\n| --- | --- |",'
         '"caveats":["Row counts are approximate."],'
         '"figures":[{"label":"Tables","numeric":5}]}'
@@ -4067,6 +4067,7 @@ APP_STAGE_FIELDS = {
     "calls",
     "input",
     "output",
+    "tables",
     "depth",
     "parent_id",
 }
@@ -4823,9 +4824,7 @@ def test_the_trace_id_is_read_from_the_bound_span_when_contextvars_are_empty(mon
 def test_a_noop_span_returns_an_empty_id_and_explains_that_inspection_is_unavailable(monkeypatch):
     """No MLflow record limits inspection; it does not make genuine figures canned."""
 
-    monkeypatch.setattr(
-        mlflow, "start_span", lambda *args, **kwargs: nullcontext(NoOpSpan())
-    )
+    monkeypatch.setattr(mlflow, "start_span", lambda *args, **kwargs: nullcontext(NoOpSpan()))
     monkeypatch.setattr(mlflow, "get_current_active_span", lambda: None)
 
     response = ask(build(ScriptedLlm("Done.")))

@@ -1,4 +1,4 @@
-import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
@@ -9,6 +9,7 @@ import {
   showsBenchmarkLab,
   showsEgressControls,
   showsForecasting,
+  withExperimentalFeature,
   type ExperimentalFeatures,
 } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
@@ -19,10 +20,13 @@ import { showsUserRoster, type RoleResolution } from './role';
 import {
   SAVE_PRESS_MS,
   SETTINGS_SAVE_IDLE,
+  changedSettingKeys,
+  navigateSettingsSection,
   saveButtonLabel,
   saveInFlight,
-  saveLanded,
   saveNotice,
+  settingsSaveDisabled,
+  unsavedChangesLabel,
   type SettingsSaveState,
 } from './settings-save-state';
 import { UserRoleEditor } from './UserRoleEditor';
@@ -113,11 +117,14 @@ export function SettingsPage({
   // screen: `.settings-modal-content` scrolls, so an outcome drawn at the end of
   // the Runtime form was a thousand pixels below the button that caused it.
   const [saveState, setSaveState] = useState<SettingsSaveState>(SETTINGS_SAVE_IDLE);
+  const [paneDirtyCount, setPaneDirtyCount] = useState(0);
+  const paneDirtyCountRef = useRef(0);
   // The press paint, held for a beat so the click is visible before the modal
   // goes. See SAVE_PRESS_MS.
   const [pressed, setPressed] = useState(false);
   const seededSpMode = spIdentityEnabledProp !== undefined;
   const [spIdentityEnabled, setSpIdentityEnabled] = useState(spIdentityEnabledProp ?? false);
+  const [savedSpIdentityEnabled, setSavedSpIdentityEnabled] = useState(spIdentityEnabledProp ?? false);
   const [spModeError, setSpModeError] = useState<string | null>(null);
   const [spModeBusy, setSpModeBusy] = useState(!seededSpMode);
   const close = onClose ?? noopClose;
@@ -127,9 +134,11 @@ export function SettingsPage({
   // renders -- outside the pane boundary, so it would take the page down rather
   // than one section of it.
   const features = featuresProp ?? NO_EXPERIMENTS;
+  const [draftFeatures, setDraftFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
+  const [savedFeatures, setSavedFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
   const role = roleProp ?? DEFAULT_ROLE;
   const setFeature = setFeatureProp ?? noopSetFeature;
-  const sections = BASE_SECTIONS.filter((section) => section.id !== 'egress' || showsEgressControls(features));
+  const sections = BASE_SECTIONS.filter((section) => section.id !== 'egress' || showsEgressControls(draftFeatures));
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -150,7 +159,11 @@ export function SettingsPage({
     let live = true;
     void loadSpIdentityAdmin()
       .then((payload) => {
-        if (live) setSpIdentityEnabled(spIdentityEnabledFromPayload(payload));
+        if (live) {
+          const enabled = spIdentityEnabledFromPayload(payload);
+          setSpIdentityEnabled(enabled);
+          setSavedSpIdentityEnabled(enabled);
+        }
       })
       .catch(() => {
         /* Keep OAuth. A failed read must not flip the pivot on. */
@@ -170,27 +183,49 @@ export function SettingsPage({
     return () => window.clearTimeout(timer);
   }, [pressed]);
 
-  /**
-   * Close once the save has landed.
-   *
-   * ON `saved` AND NOT ON THE CLICK, and the difference only shows when the server
-   * refuses: the refusal is drawn in this footer, so closing on the click would
-   * take the message off screen at the moment it was written and a refused save
-   * would look exactly like a successful one. A save that works is fast enough
-   * that the two are the same gesture to a reader.
-   */
-  useEffect(() => {
-    if (!saveLanded(saveState)) return;
-    const timer = window.setTimeout(() => close(), SAVE_PRESS_MS);
-    return () => window.clearTimeout(timer);
-  }, [saveState, close]);
+  const handlePaneDirty = useCallback((count: number) => {
+    if (paneDirtyCountRef.current === count) return;
+    paneDirtyCountRef.current = count;
+    setPaneDirtyCount(count);
+    setSaveState((current) => (current.kind === 'saving' ? current : SETTINGS_SAVE_IDLE));
+  }, []);
+
+  const featureChanges = useMemo(
+    () => changedSettingKeys(savedFeatures, draftFeatures),
+    [draftFeatures, savedFeatures]
+  );
+  const experimentalShellDirtyCount = featureChanges.length + (spIdentityEnabled === savedSpIdentityEnabled ? 0 : 1);
+  const dirtyCount = paneDirtyCount + (active === 'experimental' ? experimentalShellDirtyCount : 0);
+
+  const commitExperimental = useCallback(async () => {
+    let committedSpMode = spIdentityEnabled;
+    if (spIdentityEnabled !== savedSpIdentityEnabled) {
+      setSpModeBusy(true);
+      try {
+        const payload = await persistSpIdentityMode(spIdentityEnabled);
+        committedSpMode = spIdentityEnabledFromPayload(payload);
+        if (committedSpMode !== spIdentityEnabled) {
+          throw new Error('The service-principal identity setting was not saved as requested.');
+        }
+      } finally {
+        setSpModeBusy(false);
+      }
+    }
+    for (const key of featureChanges) {
+      const name = key as keyof ExperimentalFeatures;
+      setFeature(name, draftFeatures[name]);
+    }
+    setSavedFeatures({ ...draftFeatures });
+    setSavedSpIdentityEnabled(committedSpMode);
+    setSpIdentityEnabled(committedSpMode);
+  }, [draftFeatures, featureChanges, savedSpIdentityEnabled, setFeature, spIdentityEnabled]);
 
   const form =
     active === 'runtime' || active === 'appearance'
       ? RUNTIME_SETTINGS_FORM_ID
       : active === 'egress'
         ? EGRESS_SETTINGS_FORM_ID
-        : active === 'experimental' && showsBenchmarkLab(features)
+        : active === 'experimental'
           ? BENCHMARK_SETTINGS_FORM_ID
           : undefined;
   const notice = saveNotice(saveState);
@@ -201,7 +236,8 @@ export function SettingsPage({
    * controls preserve the modal's stable action geometry without pretending
    * there is a form to submit or a change that Cancel could roll back.
    */
-  const saveDisabled = saving || !form;
+  const saveDisabled = settingsSaveDisabled(saving, dirtyCount, Boolean(form));
+  const dirtyLabel = unsavedChangesLabel(dirtyCount);
 
   return (
     <div
@@ -234,11 +270,19 @@ export function SettingsPage({
                 type="button"
                 className={active === section.id ? 'active' : ''}
                 aria-current={active === section.id ? 'page' : undefined}
+                disabled={section.id !== active && dirtyCount > 0}
+                title={section.id !== active && dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
                 onClick={() => {
-                  setActive(section.id);
-                  // A "Saved" from the pane being left must not be read as an
-                  // outcome for the one being opened.
-                  setSaveState(SETTINGS_SAVE_IDLE);
+                  navigateSettingsSection(active, section.id, dirtyCount, {
+                    select: setActive,
+                    clearPaneDirty: () => {
+                      paneDirtyCountRef.current = 0;
+                      setPaneDirtyCount(0);
+                    },
+                    // A "Saved" from the pane being left must not be read as an
+                    // outcome for the one being opened.
+                    resetSaveState: () => setSaveState(SETTINGS_SAVE_IDLE),
+                  });
                 }}
               >
                 {section.label}
@@ -259,10 +303,10 @@ export function SettingsPage({
                 </div>
               ) : null}
               {active === 'runtime' || active === 'appearance' ? (
-                <RuntimeSettingsPanel section={active} onSaveState={setSaveState} />
+                <RuntimeSettingsPanel section={active} onSaveState={setSaveState} onDirtyChange={handlePaneDirty} />
               ) : null}
               {active === 'environment' ? <EnvironmentPanel /> : null}
-              {active === 'egress' ? <EgressPanel onSaveState={setSaveState} /> : null}
+              {active === 'egress' ? <EgressPanel onSaveState={setSaveState} onDirtyChange={handlePaneDirty} /> : null}
               {active === 'experimental' ? (
                 <div className="settings-pane">
                   <div className="settings-pane-heading">
@@ -282,14 +326,21 @@ export function SettingsPage({
                           <ExperimentalFeatureName>PII egress judge</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsEgressControls(features)} onLabel="Shown" offLabel="Hidden" />
+                          <ExperimentalStatus
+                            on={showsEgressControls(draftFeatures)}
+                            onLabel="Shown"
+                            offLabel="Hidden"
+                          />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">
                             <Switch
-                              checked={showsEgressControls(features)}
+                              checked={showsEgressControls(draftFeatures)}
                               onCheckedChange={(enabled) => {
-                                setFeature('egressControls', enabled);
+                                setDraftFeatures((current) =>
+                                  withExperimentalFeature(current, 'egressControls', enabled)
+                                );
+                                setSaveState(SETTINGS_SAVE_IDLE);
                               }}
                               aria-label="Show the egress controls on this page"
                             />
@@ -315,6 +366,8 @@ export function SettingsPage({
                                 type="button"
                                 className="settings-identity-link"
                                 data-testid="sp-identity-settings-link"
+                                disabled={dirtyCount > 0}
+                                title={dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
                                 onClick={() => {
                                   setActive('identity');
                                   setSaveState(SETTINGS_SAVE_IDLE);
@@ -327,21 +380,9 @@ export function SettingsPage({
                               checked={spIdentityEnabled}
                               disabled={spModeBusy}
                               onCheckedChange={(enabled) => {
-                                const previous = spIdentityEnabled;
                                 setSpModeError(null);
                                 setSpIdentityEnabled(enabled);
-                                setSpModeBusy(true);
-                                void persistSpIdentityMode(enabled)
-                                  .then((payload) => setSpIdentityEnabled(spIdentityEnabledFromPayload(payload)))
-                                  .catch((caught: unknown) => {
-                                    setSpIdentityEnabled(previous);
-                                    setSpModeError(
-                                      caught instanceof Error
-                                        ? caught.message
-                                        : 'The experimental pivot could not be saved. Questions still use OAuth.'
-                                    );
-                                  })
-                                  .finally(() => setSpModeBusy(false));
+                                setSaveState(SETTINGS_SAVE_IDLE);
                               }}
                               aria-label="Run assigned people as their service principal"
                             />
@@ -354,13 +395,16 @@ export function SettingsPage({
                           <ExperimentalFeatureName>Forecasting</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsForecasting(features)} onLabel="Shown" offLabel="Hidden" />
+                          <ExperimentalStatus on={showsForecasting(draftFeatures)} onLabel="Shown" offLabel="Hidden" />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">
                             <Switch
-                              checked={showsForecasting(features)}
-                              onCheckedChange={(enabled) => setFeature('forecasting', enabled)}
+                              checked={showsForecasting(draftFeatures)}
+                              onCheckedChange={(enabled) => {
+                                setDraftFeatures((current) => withExperimentalFeature(current, 'forecasting', enabled));
+                                setSaveState(SETTINGS_SAVE_IDLE);
+                              }}
                               aria-label="Show Ops forecasting"
                             />
                           </div>
@@ -371,13 +415,18 @@ export function SettingsPage({
                           <ExperimentalFeatureName>Benchmarking</ExperimentalFeatureName>
                         </td>
                         <td className="exp-feature-status">
-                          <ExperimentalStatus on={showsBenchmarkLab(features)} onLabel="Shown" offLabel="Hidden" />
+                          <ExperimentalStatus on={showsBenchmarkLab(draftFeatures)} onLabel="Shown" offLabel="Hidden" />
                         </td>
                         <td className="exp-feature-control">
                           <div className="exp-feature-control-inner">
                             <Switch
-                              checked={showsBenchmarkLab(features)}
-                              onCheckedChange={(enabled) => setFeature('benchmarkLab', enabled)}
+                              checked={showsBenchmarkLab(draftFeatures)}
+                              onCheckedChange={(enabled) => {
+                                setDraftFeatures((current) =>
+                                  withExperimentalFeature(current, 'benchmarkLab', enabled)
+                                );
+                                setSaveState(SETTINGS_SAVE_IDLE);
+                              }}
                               aria-label="Show Benchmarking tab"
                             />
                           </div>
@@ -385,22 +434,27 @@ export function SettingsPage({
                       </tr>
                     </tbody>
                   </table>
-                  <BenchmarkSettingsPanel enabled={showsBenchmarkLab(features)} onSaveState={setSaveState} />
+                  <BenchmarkSettingsPanel
+                    enabled={showsBenchmarkLab(draftFeatures)}
+                    onSaveState={setSaveState}
+                    onDirtyChange={handlePaneDirty}
+                    additionalChangeCount={experimentalShellDirtyCount}
+                    onCommitStaged={commitExperimental}
+                  />
                 </div>
               ) : null}
             </SettingsPaneBoundary>
           </div>
         </div>
 
-        {/* NO NOTE ON THE LEFT. The Runtime pane used to carry a locked line here
-            reading "Dictionary-first field binding and never-invent-figures are
-            mandatory safeguards, not switches." It is gone at Sam's request, in
-            every state and on every pane -- the two safeguards it described are
-            still mandatory and still not switches, which is why there is no
-            control for them to sit beside and nothing on this screen it was
-            qualifying. The footer is the actions now, and settings.css ends the
-            `space-between` that used to need a left-hand child. */}
         <footer className="settings-modal-footer">
+          {dirtyLabel ? (
+            <p className="settings-dirty-indicator" role="status">
+              {dirtyLabel} <span className="ast-num">{dirtyCount}</span>
+            </p>
+          ) : (
+            <span aria-hidden="true" />
+          )}
           <div className="settings-footer-actions">
             {/* THE OUTCOME GOES BESIDE THE BUTTON THAT CAUSED IT. Drawn in the
                 footer, which does not scroll, so a save that worked, a save the
@@ -430,9 +484,7 @@ export function SettingsPage({
                   ? 'Identity changes save immediately'
                   : active === 'environment'
                     ? 'Environment details are read-only'
-                    : active === 'experimental' && !showsBenchmarkLab(features)
-                      ? 'Turn Benchmarking on to save benchmark settings'
-                      : undefined
+                    : undefined
               }
               onClick={() => setPressed(true)}
             >

@@ -48,11 +48,24 @@ function ControlRow({
   );
 }
 
-export function EgressPanel({ onSaveState = () => {} }: { onSaveState?: (state: SettingsSaveState) => void }) {
+export function EgressPanel({
+  onSaveState = () => {},
+  onDirtyChange = () => {},
+}: {
+  onSaveState?: (state: SettingsSaveState) => void;
+  onDirtyChange?: (count: number) => void;
+}) {
   const [controls, setControls] = useState<EgressControls>(() => egressControlsSnapshot());
   const [savedControls, setSavedControls] = useState<EgressControls>(() => egressControlsSnapshot());
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
   const [error, setError] = useState('');
+  const changedCount = controllablePaths().filter(
+    (path) => controls[path.channel] !== savedControls[path.channel]
+  ).length;
+
+  useEffect(() => {
+    onDirtyChange(changedCount);
+  }, [changedCount, onDirtyChange]);
 
   useEffect(() => {
     let live = true;
@@ -99,7 +112,8 @@ export function EgressPanel({ onSaveState = () => {} }: { onSaveState?: (state: 
       setSavedControls(latest);
       adoptEgressControls(latest);
       setState('saved');
-      onSaveState({ kind: 'saved' });
+      onDirtyChange(0);
+      onSaveState({ kind: 'saved', count: changedCount });
     } catch (caught) {
       const message = (caught as Error).message;
       setError(message);

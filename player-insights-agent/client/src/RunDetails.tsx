@@ -10,6 +10,7 @@ import type { EgressChannel } from '../../shared/egress-contract';
 import type { RunTrace } from './app-types';
 import type { TraceStage } from './answer-shape';
 import { PayloadView } from './TraceTimeline';
+import { isTableListingStage, stageTableEntities } from './live-progress';
 
 /**
  * Puts a value the page has truncated onto the clipboard whole.
@@ -126,7 +127,7 @@ function GeneratedSql({ sql }: { sql: string }) {
  */
 function TraceSummary({ trace }: { trace: NonNullable<RunTrace['trace']> }) {
   const [open, setOpen] = useState(false);
-  const json = JSON.stringify(trace, null, 2);
+  const json = JSON.stringify(sanitizedTrace(trace), null, 2);
   const lines = json.split('\n').length;
   return (
     <div className="trace-summary">
@@ -169,6 +170,74 @@ function stageField(stage: TraceStage, keys: readonly string[]): string {
   return '';
 }
 
+/** Whether a recorded field contains anything beyond an empty JSON envelope. */
+function hasPayload(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const text = value.trim();
+  if (!text) return false;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed === null) return false;
+    if (Array.isArray(parsed)) return parsed.length > 0;
+    if (typeof parsed === 'object') return Object.keys(parsed as Record<string, unknown>).length > 0;
+  } catch {
+    // Plain text is a real recorded payload.
+  }
+  return true;
+}
+
+/** Retry/error fields use zero, false and empty containers to mean none. */
+function hasOptionalPayload(value: unknown): boolean {
+  if (!hasPayload(value)) return false;
+  if (typeof value !== 'string') return false;
+  const text = value.trim();
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed !== 0 && parsed !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The raw JSON disclosure is an allowlisted display projection, not a dump of
+ * whatever loose fields a future endpoint adds to a stage.
+ */
+function sanitizedTrace(trace: NonNullable<RunTrace['trace']>): Record<string, unknown> {
+  const record = trace as NonNullable<RunTrace['trace']> & Record<string, unknown>;
+  const safe: Record<string, unknown> = {
+    id: trace.id,
+    totalMs: trace.totalMs,
+    toolCalls: trace.toolCalls,
+    stages: trace.stages.map((stage) => {
+      const item: Record<string, unknown> = {
+        id: stage.id,
+        name: stage.name,
+        kind: stage.kind,
+        start: stage.start,
+        duration: stage.duration,
+        status: stage.status,
+        calls: stage.calls,
+      };
+      if (stage.depth !== undefined) item.depth = stage.depth;
+      if (stage.parent_id) item.parent_id = stage.parent_id;
+      if (hasPayload(stage.input)) item.input = stage.input;
+      if (hasPayload(stage.output)) item.output = stage.output;
+      const tables = stageTableEntities(stage);
+      if (tables.length > 0) item.tables = tables;
+      const retries = stageField(stage, ['retries', 'retry_count', 'retryCount']);
+      if (hasOptionalPayload(retries)) item.retries = retries;
+      const error = stageField(stage, ['error', 'errors', 'error_message', 'errorMessage']);
+      if (hasOptionalPayload(error)) item.error = error;
+      return item;
+    }),
+  };
+  for (const key of ['prompt_tokens', 'completion_tokens', 'total_tokens'] as const) {
+    if (typeof record[key] === 'number' && Number.isFinite(record[key])) safe[key] = record[key];
+  }
+  return safe;
+}
+
 /**
  * Every stage's sanitized record, open as soon as Advanced is on.
  *
@@ -176,23 +245,40 @@ function stageField(stage: TraceStage, keys: readonly string[]): string {
  * labelled fields, SQL keeps its line breaks, and raw text remains available.
  * Reusing it here means Details is an inspection surface rather than a second
  * closed trace summary. Retry/error keys are loose because model versions have
- * used both snake_case and camelCase; absence stays explicit rather than being
- * turned into a zero.
+ * used both snake_case and camelCase; absent/empty optional fields render
+ * nothing, while actual failures remain visible.
  */
 function StageRawIo({ stages }: { stages: readonly TraceStage[] }) {
   if (stages.length === 0) return <p className="stage-raw-io-empty">No stages were recorded in this trace.</p>;
+  const payloadStages = stages
+    .map((stage, index) => {
+      const retries = stageField(stage, ['retries', 'retry_count', 'retryCount']);
+      const error = stageField(stage, ['error', 'errors', 'error_message', 'errorMessage']);
+      return {
+        stage,
+        index,
+        input: hasPayload(stage.input),
+        output: hasPayload(stage.output),
+        retries: hasOptionalPayload(retries) ? retries : '',
+        error: hasOptionalPayload(error) ? error : '',
+      };
+    })
+    .filter((entry) => entry.input || entry.output || entry.retries || entry.error || isTableListingStage(entry.stage));
+  if (payloadStages.length === 0) {
+    return <p className="stage-raw-io-empty">No sanitized stage inputs or outputs were recorded.</p>;
+  }
   return (
     <section className="stage-raw-io" aria-label="Sanitized stage inputs and outputs">
       <div className="stage-raw-io-head">
         <b>Stage Raw I/O</b>
         <span className="ast-num">
-          {stages.length} stage{stages.length === 1 ? '' : 's'}
+          {payloadStages.length} stage{payloadStages.length === 1 ? '' : 's'}
         </span>
       </div>
       <div className="stage-raw-io-list">
-        {stages.map((stage, index) => {
-          const retries = stageField(stage, ['retries', 'retry_count', 'retryCount']);
-          const error = stageField(stage, ['error', 'errors', 'error_message', 'errorMessage']);
+        {payloadStages.map(({ stage, index, input, output, retries, error }) => {
+          const tables = stageTableEntities(stage);
+          const tableListing = isTableListingStage(stage);
           return (
             <article className="stage-raw-io-stage" key={stage.id}>
               <header>
@@ -202,26 +288,38 @@ function StageRawIo({ stages }: { stages: readonly TraceStage[] }) {
                 <span className={`stage-raw-io-status ${stage.status}`}>{stage.status}</span>
               </header>
               <dl>
-                <dt>Input</dt>
-                <dd>
-                  <PayloadView text={stage.input} />
-                </dd>
-                <dt>Output</dt>
-                <dd>
-                  <PayloadView text={stage.output} />
-                </dd>
-                <dt>Retries</dt>
-                <dd>{retries ? <PayloadView text={retries} /> : <span className="trace-empty">not recorded</span>}</dd>
-                <dt>Errors</dt>
-                <dd>
-                  {error ? (
-                    <PayloadView text={error} />
-                  ) : (
-                    <span className="trace-empty">
-                      {stage.status === 'failed' ? 'no separate error recorded; inspect Output' : 'none recorded'}
-                    </span>
-                  )}
-                </dd>
+                {input ? (
+                  <>
+                    <dt>Input</dt>
+                    <dd>
+                      <PayloadView text={stage.input} tables={tables} />
+                    </dd>
+                  </>
+                ) : null}
+                {output || tableListing ? (
+                  <>
+                    <dt>Output</dt>
+                    <dd>
+                      <PayloadView text={stage.output} tables={tables} tableListing={tableListing} />
+                    </dd>
+                  </>
+                ) : null}
+                {retries ? (
+                  <>
+                    <dt>Retries</dt>
+                    <dd>
+                      <PayloadView text={retries} />
+                    </dd>
+                  </>
+                ) : null}
+                {error ? (
+                  <>
+                    <dt>Errors</dt>
+                    <dd>
+                      <PayloadView text={error} />
+                    </dd>
+                  </>
+                ) : null}
               </dl>
             </article>
           );

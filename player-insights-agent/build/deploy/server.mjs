@@ -159595,6 +159595,27 @@ var init_migrations = __esm({
         // ownership-sensitive ALTER or CREATE INDEX against an existing object.
         statements: [APP_ACTIVITY_DDL],
         down: [`DROP TABLE IF EXISTS ${APP_ACTIVITY_TABLE}`]
+      },
+      {
+        version: 19,
+        name: "service principal persona definitions",
+        /**
+         * Credential-free plans are separate from executable `sp_personas`.
+         * The app cannot administer account service principals with its declared
+         * scopes, so these rows describe operator work without placeholder client
+         * ids, secret references, or any claim that an external identity exists.
+         */
+        statements: [
+          `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.sp_persona_definitions (
+         id TEXT PRIMARY KEY,
+         display_name TEXT NOT NULL,
+         description TEXT NOT NULL DEFAULT '',
+         capabilities JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`
+        ],
+        down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_persona_definitions`]
       }
     ];
   }
@@ -167985,6 +168006,19 @@ function clamp2(value, limit = STAGE_INPUT_LIMIT) {
 function asFiniteNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : void 0;
 }
+function stageTables(value) {
+  if (!Array.isArray(value)) return [];
+  const names2 = [];
+  for (const candidate of value) {
+    if (typeof candidate !== "string") continue;
+    const name2 = candidate.trim();
+    const hasControlCharacter = [...name2].some((character) => character.charCodeAt(0) < 32);
+    if (name2.length > 512 || name2.split(".").length !== 3 || hasControlCharacter) continue;
+    if (!names2.some((held) => held.toLowerCase() === name2.toLowerCase())) names2.push(name2);
+    if (names2.length >= STAGE_REPLAY_LIMIT) break;
+  }
+  return names2;
+}
 function stageEventPayload(stage) {
   const payload = {};
   const put = (key2, value) => {
@@ -167999,6 +168033,8 @@ function stageEventPayload(stage) {
   put("calls", asFiniteNumber(stage.calls));
   put("depth", asFiniteNumber(stage.depth));
   put("parent_id", typeof stage.parent_id === "string" ? stage.parent_id : void 0);
+  const tables = stageTables(stage.tables);
+  if (tables.length > 0) payload.tables = tables;
   const input = typeof stage.input === "string" ? clamp2(stage.input) : "";
   if (input) payload.input = input;
   return payload;
@@ -169897,7 +169933,7 @@ var init_identity_binding = __esm({
 });
 
 // shared/sp-identity.ts
-var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, NAME_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
+var SP_IDENTITY_ENABLED_SETTING, SP_EXECUTION_OAUTH, SP_EXECUTION_SERVICE_PRINCIPAL, ASSIGNED_SERVICE_PRINCIPAL2, SP_IDENTITY_MINTING_UNAVAILABLE, NAME_MAX, DESCRIPTION_MAX, CAPABILITY_MAX, CAPABILITY_COUNT_MAX, SECRET_REF_MAX, CLIENT_ID_MAX, SpPersonaWriteSchema, SpPersonaPatchSchema, SpCapabilitySchema, SpCapabilitiesSchema, SpPersonaDefinitionFields, uniqueCapabilities, SpPersonaDefinitionWriteSchema, SpPersonaDefinitionPatchSchema, SpIdentityModeSchema, SpAssignmentWriteSchema;
 var init_sp_identity = __esm({
   "shared/sp-identity.ts"() {
     init_zod();
@@ -169907,6 +169943,9 @@ var init_sp_identity = __esm({
     ASSIGNED_SERVICE_PRINCIPAL2 = "assigned_service_principal";
     SP_IDENTITY_MINTING_UNAVAILABLE = "Databricks Apps cannot mint a token for another service principal from the signed-in user's OAuth scopes. This app can only obtain one by reading that principal's OAuth secret from Databricks Secrets (the scope and key you name on the persona) using the app's own identity, then exchanging it. If the app cannot read that secret, questions stay on OAuth.";
     NAME_MAX = 120;
+    DESCRIPTION_MAX = 280;
+    CAPABILITY_MAX = 180;
+    CAPABILITY_COUNT_MAX = 12;
     SECRET_REF_MAX = 128;
     CLIENT_ID_MAX = 64;
     SpPersonaWriteSchema = external_exports.object({
@@ -169917,6 +169956,26 @@ var init_sp_identity = __esm({
     });
     SpPersonaPatchSchema = SpPersonaWriteSchema.partial().refine((value) => Object.keys(value).length > 0, {
       message: "Nothing to update."
+    });
+    SpCapabilitySchema = external_exports.string().trim().min(1).max(CAPABILITY_MAX);
+    SpCapabilitiesSchema = external_exports.array(SpCapabilitySchema).min(1).max(CAPABILITY_COUNT_MAX);
+    SpPersonaDefinitionFields = external_exports.object({
+      displayName: external_exports.string().trim().min(1).max(NAME_MAX),
+      description: external_exports.string().trim().max(DESCRIPTION_MAX).default(""),
+      capabilities: SpCapabilitiesSchema
+    });
+    uniqueCapabilities = (capabilities2) => !capabilities2 || new Set(capabilities2.map((capability) => capability.toLocaleLowerCase())).size === capabilities2.length;
+    SpPersonaDefinitionWriteSchema = SpPersonaDefinitionFields.refine(
+      (value) => uniqueCapabilities(value.capabilities),
+      { path: ["capabilities"], message: "Each permission must be unique." }
+    );
+    SpPersonaDefinitionPatchSchema = external_exports.object({
+      displayName: external_exports.string().trim().min(1).max(NAME_MAX).optional(),
+      description: external_exports.string().trim().max(DESCRIPTION_MAX).optional(),
+      capabilities: SpCapabilitiesSchema.optional()
+    }).refine((value) => Object.keys(value).length > 0, { message: "Nothing to update." }).refine((value) => uniqueCapabilities(value.capabilities), {
+      path: ["capabilities"],
+      message: "Each permission must be unique."
     });
     SpIdentityModeSchema = external_exports.object({
       enabled: external_exports.boolean()
@@ -169960,6 +170019,26 @@ function assignmentFromRow(row2) {
   return {
     email: normalizeAdminEmail(text6(row2.email)),
     personaId: text6(row2.persona_id),
+    updatedAt: iso(row2.updated_at),
+    updatedBy: text6(row2.updated_by)
+  };
+}
+function capabilities(value) {
+  if (Array.isArray(value)) return value.filter((entry) => typeof entry === "string");
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function definitionFromRow(row2) {
+  return {
+    id: text6(row2.id),
+    displayName: text6(row2.display_name),
+    description: text6(row2.description),
+    capabilities: capabilities(row2.capabilities),
     updatedAt: iso(row2.updated_at),
     updatedBy: text6(row2.updated_by)
   };
@@ -170061,6 +170140,79 @@ async function deleteSpPersona(client, id) {
     throw error48;
   }
 }
+async function listSpPersonaDefinitions(client) {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+         FROM ${SP_PERSONA_DEFINITIONS_TABLE}
+        ORDER BY display_name, id`
+    );
+    return (result?.rows ?? []).map(definitionFromRow);
+  } catch (error48) {
+    if (missingTable(error48)) return [];
+    throw error48;
+  }
+}
+async function readSpPersonaDefinition(client, id) {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+         FROM ${SP_PERSONA_DEFINITIONS_TABLE}
+        WHERE id = $1`,
+      [id]
+    );
+    const row2 = result?.rows?.[0];
+    return row2 ? definitionFromRow(row2) : null;
+  } catch (error48) {
+    if (missingTable(error48)) return null;
+    throw error48;
+  }
+}
+async function insertSpPersonaDefinition(client, write2, updatedBy) {
+  const id = randomUUID5();
+  const result = await client.lakebase.query(
+    `INSERT INTO ${SP_PERSONA_DEFINITIONS_TABLE}
+       (id, display_name, description, capabilities, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, $5, now())
+     RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
+    [id, write2.displayName, write2.description, JSON.stringify(write2.capabilities), updatedBy]
+  );
+  return definitionFromRow(result.rows[0]);
+}
+async function updateSpPersonaDefinition(client, id, write2, updatedBy) {
+  const current = await readSpPersonaDefinition(client, id);
+  if (!current) return null;
+  const next = {
+    displayName: write2.displayName ?? current.displayName,
+    description: write2.description ?? current.description,
+    capabilities: write2.capabilities ?? current.capabilities
+  };
+  const result = await client.lakebase.query(
+    `UPDATE ${SP_PERSONA_DEFINITIONS_TABLE}
+        SET display_name = $2,
+            description = $3,
+            capabilities = $4::jsonb,
+            updated_by = $5,
+            updated_at = now()
+      WHERE id = $1
+      RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
+    [id, next.displayName, next.description, JSON.stringify(next.capabilities), updatedBy]
+  );
+  const row2 = result?.rows?.[0];
+  return row2 ? definitionFromRow(row2) : null;
+}
+async function deleteSpPersonaDefinition(client, id) {
+  try {
+    const result = await client.lakebase.query(
+      `DELETE FROM ${SP_PERSONA_DEFINITIONS_TABLE} WHERE id = $1 RETURNING id`,
+      [id]
+    );
+    return (result?.rows?.length ?? 0) > 0;
+  } catch (error48) {
+    if (missingTable(error48)) return false;
+    throw error48;
+  }
+}
 async function listSpAssignments(client) {
   try {
     const result = await client.lakebase.query(
@@ -170112,7 +170264,7 @@ async function writeSpAssignment(client, email3, personaId, updatedBy) {
   );
   return assignmentFromRow(result.rows[0]);
 }
-var SP_PERSONAS_TABLE, SP_ASSIGNMENTS_TABLE, UNDEFINED_TABLE2, enabledCache, SP_IDENTITY_ENABLED_TTL_MS;
+var SP_PERSONAS_TABLE, SP_PERSONA_DEFINITIONS_TABLE, SP_ASSIGNMENTS_TABLE, UNDEFINED_TABLE2, enabledCache, SP_IDENTITY_ENABLED_TTL_MS;
 var init_sp_identity_store = __esm({
   "server/lib/sp-identity-store.ts"() {
     init_app_schema();
@@ -170120,6 +170272,7 @@ var init_sp_identity_store = __esm({
     init_admin_identity();
     init_app_settings();
     SP_PERSONAS_TABLE = appTable("sp_personas");
+    SP_PERSONA_DEFINITIONS_TABLE = appTable("sp_persona_definitions");
     SP_ASSIGNMENTS_TABLE = appTable("sp_assignments");
     UNDEFINED_TABLE2 = "42P01";
     enabledCache = /* @__PURE__ */ new WeakMap();
@@ -173729,6 +173882,10 @@ var init_insights_routes = __esm({
       calls: external_exports.number(),
       input: external_exports.string(),
       output: external_exports.string(),
+      // A safe, structured projection of tables enumerated by discovery. Optional
+      // across a rolling model/app deploy; the client can still read older listing
+      // output while new runs no longer need to infer names from prose.
+      tables: external_exports.array(external_exports.string()).optional(),
       // Where the stage sits in the run. Defaulted because an endpoint running a
       // model version logged before the agent's loop returns a flat list with
       // neither key, and requiring them would fail the parse.
@@ -180471,8 +180628,11 @@ function finiteMilliseconds(value) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 function executionMilliseconds(row2) {
-  if (!row2.metrics || typeof row2.metrics !== "object") return null;
-  return finiteMilliseconds(row2.metrics.execution_time_ms);
+  if (row2.metrics && typeof row2.metrics === "object") {
+    const executionTime = finiteMilliseconds(row2.metrics.execution_time_ms);
+    if (executionTime !== null) return executionTime;
+  }
+  return finiteMilliseconds(row2.duration);
 }
 function rowId(row2) {
   return typeof row2.query_id === "string" ? row2.query_id.trim() : "";
@@ -180487,40 +180647,45 @@ async function readWarehouseQueryAttribution(input) {
   }
   const rows = /* @__PURE__ */ new Map();
   let complete = true;
-  let pageToken;
-  const usedTokens = /* @__PURE__ */ new Set();
-  for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
-    const response = await input.transport.listQueries({
-      warehouseId: warehouseId2,
-      startTimeMs: input.startTimeMs,
-      endTimeMs: input.endTimeMs,
-      pageToken,
-      maxResults: QUERY_HISTORY_PAGE_SIZE2
-    });
-    for (const row2 of Array.isArray(response.res) ? response.res : []) {
-      if (row2.warehouse_id !== void 0 && row2.warehouse_id !== warehouseId2) {
-        complete = false;
-        continue;
+  for (let windowStart = input.startTimeMs; windowStart <= input.endTimeMs; ) {
+    const windowEnd = Math.min(input.endTimeMs, windowStart + MAX_QUERY_HISTORY_RANGE_MS - 1);
+    let pageToken;
+    const usedTokens = /* @__PURE__ */ new Set();
+    for (let page = 0; page < MAX_QUERY_HISTORY_PAGES; page += 1) {
+      const response = await input.transport.listQueries({
+        warehouseId: warehouseId2,
+        startTimeMs: windowStart,
+        endTimeMs: windowEnd,
+        pageToken,
+        maxResults: QUERY_HISTORY_PAGE_SIZE2
+      });
+      for (const row2 of Array.isArray(response.res) ? response.res : []) {
+        if (row2.warehouse_id !== void 0 && row2.warehouse_id !== warehouseId2) {
+          complete = false;
+          continue;
+        }
+        const id = rowId(row2);
+        if (!id) {
+          complete = false;
+          continue;
+        }
+        rows.set(id, row2);
       }
-      const id = rowId(row2);
-      if (!id) {
-        complete = false;
-        continue;
+      const next = typeof response.next_page_token === "string" ? response.next_page_token.trim() : "";
+      if (!next) {
+        if (response.has_next_page) complete = false;
+        break;
       }
-      rows.set(id, row2);
+      if (usedTokens.has(next)) {
+        complete = false;
+        break;
+      }
+      usedTokens.add(next);
+      pageToken = next;
+      if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
     }
-    const next = typeof response.next_page_token === "string" ? response.next_page_token.trim() : "";
-    if (!next) {
-      if (response.has_next_page) complete = false;
-      break;
-    }
-    if (usedTokens.has(next)) {
-      complete = false;
-      break;
-    }
-    usedTokens.add(next);
-    pageToken = next;
-    if (page === MAX_QUERY_HISTORY_PAGES - 1) complete = false;
+    if (windowEnd >= input.endTimeMs) break;
+    windowStart = windowEnd + 1;
   }
   let astrolabeQueries = 0;
   let astrolabeExecutionMs = 0;
@@ -180586,12 +180751,13 @@ async function createWorkspaceQueryHistoryTransport(input) {
     request: (options) => client.apiClient.request(options)
   });
 }
-var QUERY_HISTORY_PAGE_SIZE2, MAX_QUERY_HISTORY_PAGES, EMPTY_WAREHOUSE_QUERY_ATTRIBUTION;
+var QUERY_HISTORY_PAGE_SIZE2, MAX_QUERY_HISTORY_PAGES, MAX_QUERY_HISTORY_RANGE_MS, EMPTY_WAREHOUSE_QUERY_ATTRIBUTION;
 var init_ops_query_history = __esm({
   "server/lib/ops-query-history.ts"() {
     init_warehouse_cancellation();
     QUERY_HISTORY_PAGE_SIZE2 = 999;
     MAX_QUERY_HISTORY_PAGES = 100;
+    MAX_QUERY_HISTORY_RANGE_MS = 30 * 24 * 60 * 60 * 1e3;
     EMPTY_WAREHOUSE_QUERY_ATTRIBUTION = {
       complete: false,
       astrolabeQueries: 0,
@@ -181137,7 +181303,7 @@ function buildCoverage(input) {
       return {
         product: row2.component,
         status: "propagated",
-        detail: `${row2.taggedRows} tagged billing rows in this range.`
+        detail: `${row2.taggedRows} tagged billing rows for the selected period.`
       };
     }
     if ((row2.untaggedRows ?? 0) > 0) {
@@ -181151,10 +181317,10 @@ function buildCoverage(input) {
       return {
         product: row2.component,
         status: "delayed",
-        detail: `Billing data through ${through}. Later days in this range may still be filling.`
+        detail: `Billing data through ${through}. Later days in the selected period may still be filling.`
       };
     }
-    return { product: row2.component, status: "unused", detail: "No matching usage rows in this range." };
+    return { product: row2.component, status: "unused", detail: "No matching usage rows for the selected period." };
   });
   return {
     inventoryCount: input.inventoryCount,
@@ -181206,20 +181372,20 @@ function appComputeAbsence(state) {
   const pair = billingTagPair();
   if (state === "matched") {
     return {
-      unavailable: "No Apps billing rows matched this app in this range.",
+      unavailable: "No Apps billing rows matched this app for the selected period.",
       remedy: "",
       note: `${pair} is on this app; Apps billing is matched by app name.`
     };
   }
   if (state === "missing") {
     return {
-      unavailable: "No Apps billing rows matched this app in this range.",
+      unavailable: "No Apps billing rows matched this app for the selected period.",
       remedy: "",
       note: `${pair} is not on this app; Apps billing is still matched by app name.`
     };
   }
   return {
-    unavailable: "No Apps billing rows matched this app in this range.",
+    unavailable: "No Apps billing rows matched this app for the selected period.",
     remedy: "",
     note: `The app tag ${pair} could not be read; Apps billing is matched by app name.`
   };
@@ -181299,7 +181465,7 @@ function componentTile(component, ids, byComponent, warehouseAttribution, resour
         amount: null,
         pricing,
         note: "",
-        unavailable: amount === null ? unpricedUnavailable(pricing) || "No billing rows" : "App spend withheld: complete Query History denominator unavailable",
+        unavailable: amount === null ? unpricedUnavailable(pricing) || "No billing rows" : "Incomplete Query History",
         remedy: "",
         evidence
       });
@@ -181372,7 +181538,7 @@ function buildQuestionAttribution(runs, tiles, limit) {
         unknownPart(
           "serving-endpoint",
           "Model serving",
-          run2.totalTokens === null ? "This run recorded no token count." : "No endpoint spend was measured for this range."
+          run2.totalTokens === null ? "This run recorded no token count." : "No endpoint spend was measured for the selected period."
         )
       );
     }
@@ -181386,7 +181552,7 @@ function buildQuestionAttribution(runs, tiles, limit) {
       });
     } else {
       parts.push(
-        unknownPart("sql-warehouse", "SQL warehouse", "No warehouse spend was available to allocate in this range.")
+        unknownPart("sql-warehouse", "SQL warehouse", "No warehouse spend was available for the selected period.")
       );
     }
     parts.push(
@@ -181407,7 +181573,7 @@ function buildQuestionAttribution(runs, tiles, limit) {
     tokenCoveredRuns,
     totalRecordedTokens,
     limited: runsInRange > attributed.length,
-    reason: runsInRange === 0 ? "No completed runs were recorded in this billing range." : ""
+    reason: runsInRange === 0 ? "No completed runs were recorded for the selected period." : ""
   };
 }
 var COST_COMPONENTS, WORKSPACE_ESTIMATE_SUFFIX, MATCHERS, RANGE_ROW, BILLING_TAG_KEY, BILLING_TAG_VALUE, GENIE_LLM_UNAVAILABLE, GENIE_SQL_NOT_COMPLETE, TILED_PRODUCTS, PRODUCT_REASONS, EMPTY_PRICING, ROW_KINDS, DESCRIPTIONS, UNKNOWN_QUESTION_PARTS;
@@ -182244,7 +182410,7 @@ function setupOpsRoutes(appkit, deps) {
         const delayed = coverage2.propagation.some((row2) => row2.status === "delayed");
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
           const tiles2 = buildTiles(ids, [], queryAttribution, resourceActivity);
-          const reason = unpropagated.length ? "Matching usage exists without the Astrolabe tag, but exact resource attribution remains available." : delayed ? "No exact tracked-resource billing rows in this range yet. Later days may still be filling." : "No billing rows matched an exact tracked resource in this range.";
+          const reason = unpropagated.length ? "Matching usage exists without the Astrolabe tag, but exact resource attribution remains available." : delayed ? "No exact tracked-resource billing rows for the selected period yet. Later days may still be filling." : "No billing rows matched an exact tracked resource for the selected period.";
           res.json({
             ...empty,
             state: "no-rows",
@@ -182605,12 +182771,39 @@ var init_ops_routes = __esm({
          ) AS resource
     WHERE resource->>'tool' IN ('data_genie', 'dictionary_genie', 'search_semantics')
     GROUP BY 1, 2
+  ),
+  legacy_genie AS (
+    SELECT c.tile_id, COUNT(*)::bigint AS calls
+    FROM completed
+    JOIN configured c ON c.tool IN ('data_genie', 'dictionary_genie')
+    WHERE EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        CASE WHEN jsonb_typeof(trace->'genie_spaces') = 'array'
+             THEN trace->'genie_spaces' ELSE '[]'::jsonb END
+      ) AS space
+      WHERE space->>'id' = c.resource_id
+    )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          CASE WHEN jsonb_typeof(trace->'resource_calls') = 'array'
+               THEN trace->'resource_calls' ELSE '[]'::jsonb END
+        ) AS resource
+        WHERE resource->>'tool' = c.tool
+          AND resource->>'id' = c.resource_id
+      )
+    GROUP BY c.tile_id
   )
   SELECT c.tile_id,
-         COALESCE(a.calls, 0)::bigint AS astrolabe_calls,
-         GREATEST(COALESCE(o.calls, 0), COALESCE(a.calls, 0))::bigint AS observed_calls
+         (COALESCE(a.calls, 0) + COALESCE(l.calls, 0))::bigint AS astrolabe_calls,
+         GREATEST(
+           COALESCE(o.calls, 0),
+           COALESCE(a.calls, 0) + COALESCE(l.calls, 0)
+         )::bigint AS observed_calls
   FROM configured c
   LEFT JOIN attributed a ON a.tool = c.tool AND a.resource_id = c.resource_id
+  LEFT JOIN legacy_genie l ON l.tile_id = c.tile_id
   LEFT JOIN observed o ON o.tool = c.tool
   ORDER BY c.tile_id`;
     OPS_ROUTES = ["/api/ops/health", "/api/ops/cost", "/api/ops/traffic", "/api/ops/latency"];
@@ -185478,9 +185671,10 @@ __export(sp_identity_routes_exports, {
   setupSpIdentityRoutes: () => setupSpIdentityRoutes
 });
 async function adminPayload(appkit) {
-  const [enabled2, personas, assignments, rosterRead] = await Promise.all([
+  const [enabled2, personas, personaDefinitions, assignments, rosterRead] = await Promise.all([
     isSpIdentityEnabled(appkit, { maxAgeMs: 0 }),
     listSpPersonas(appkit),
+    listSpPersonaDefinitions(appkit),
     listSpAssignments(appkit),
     readRoster(appkit.lakebase).catch(() => ({ rows: [] }))
   ]);
@@ -185499,6 +185693,7 @@ async function adminPayload(appkit) {
     enabled: enabled2,
     minting: describeSpTokenMinting(),
     personas,
+    personaDefinitions,
     assignments,
     roster
   };
@@ -185558,6 +185753,88 @@ function setupSpIdentityRoutes(appkit) {
         res.status(503).json({
           error: "sp_identity_store_unavailable",
           detail: `The persona was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.post("/api/admin/sp-identity/persona-definitions", async (req, res) => {
+      const parsed = SpPersonaDefinitionWriteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: parsed.error.message });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const definition = await insertSpPersonaDefinition(appkit, parsed.data, actor);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-definition-created",
+          subject: definition.id,
+          detail: `Generated credential-free service-principal configuration ${definition.displayName}.`
+        });
+        res.status(201).json(definition);
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona configuration was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.patch("/api/admin/sp-identity/persona-definitions/:id", async (req, res) => {
+      const parsed = SpPersonaDefinitionPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: parsed.error.message });
+        return;
+      }
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const definition = await updateSpPersonaDefinition(appkit, id.data, parsed.data, actor);
+        if (!definition) {
+          res.status(404).json({ error: "sp_persona_definition_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-definition-updated",
+          subject: definition.id,
+          detail: `Updated service-principal configuration ${definition.displayName}.`
+        });
+        res.json(definition);
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona configuration was not saved: ${error48.message}`
+        });
+      }
+    });
+    app.delete("/api/admin/sp-identity/persona-definitions/:id", async (req, res) => {
+      const id = external_exports.string().trim().min(1).max(80).safeParse(req.params.id);
+      if (!id.success) {
+        res.status(400).json({ error: "invalid_sp_persona_definition", detail: "Missing persona id." });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const removed = await deleteSpPersonaDefinition(appkit, id.data);
+        if (!removed) {
+          res.status(404).json({ error: "sp_persona_definition_missing", detail: "That persona is not defined." });
+          return;
+        }
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: "sp-persona-definition-removed",
+          subject: id.data,
+          detail: "Removed a credential-free service-principal configuration."
+        });
+        res.status(204).end();
+      } catch (error48) {
+        res.status(503).json({
+          error: "sp_identity_store_unavailable",
+          detail: `The persona configuration was not removed: ${error48.message}`
         });
       }
     });

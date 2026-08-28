@@ -49,7 +49,7 @@ import { ageAgo, checkedAgoLine } from './refresh-state';
 import { OUTCOME_PARAM } from './monitoring-filters';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
-import { CostBudgetProvider, CostTileBudget, CostTotalBudget } from './CostBudgets';
+import { CostBudgetProvider, CostResourceBudgets, CostSpendSummary, CostTotalBudget } from './CostBudgets';
 import {
   activeMinutesDisplay,
   bars,
@@ -70,6 +70,7 @@ import {
   p50BarWidths,
   productForCostTile,
   productForProbe,
+  QUESTION_COST_FORMULA,
   questionServingAverage,
   splitMethod,
   telemetryNotice,
@@ -575,9 +576,17 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
             {replaceGrid && absent ? (
               <Absence notice={absent}>{payload.grant ? <Grant grant={payload.grant} /> : null}</Absence>
             ) : null}
-            <fieldset className="ops-cost-budget-ceiling">
-              <legend>App budget ceiling</legend>
-              <CostTotalBudget />
+            <div className="ops-cost-summary-grid">
+              <CostSpendSummary payload={payload} />
+              <div className="ops-cost-summary-box">
+                <div className="ops-cost-summary-head">
+                  <span>App budget</span>
+                </div>
+                <CostTotalBudget />
+              </div>
+              <CostResourceBudgets tiles={displayed} />
+            </div>
+            <div className="ops-cost-resources">
               <div className="ops-tiles">
                 {displayed.map((tile) => {
                   const view = tileView(tile, payload.currency);
@@ -611,20 +620,19 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                           <span className="ops-tile-basis">
                             Astrolabe{' '}
                             {activity.calls === 1 ? (activity.unit === 'queries' ? 'query' : 'request') : activity.unit}{' '}
-                            in range
+                            during selected period
                           </span>
                         </p>
                       ) : (
                         <p className="ops-tile-absent">{view.absence}</p>
                       )}
                       <CostTileEvidence tile={tile} />
-                      <CostTileBudget tile={tile} />
                     </div>
                   );
                 })}
                 <QuestionCostAverage payload={payload} />
               </div>
-            </fieldset>
+            </div>
             {!replaceGrid && absent ? <p className="ops-cost-empty-note">{absent.body}</p> : null}
             <p className="ops-cost-honesty">{costHonestyLine(payload.honesty)}</p>
             {billingHref ? (
@@ -661,10 +669,6 @@ function CostTileEvidence({ tile }: { tile: OpsCostPayload['tiles'][number] }) {
         ? ` of ${count(evidence.warehouseQueries)} warehouse ${evidence.warehouseQueries === 1 ? 'query' : 'queries'}`
         : '';
     facts.push(`${astrolabe}${total}${evidence.queryHistoryComplete === false ? ' · incomplete coverage' : ''}`);
-  }
-  if (evidence?.activity) {
-    const { calls, observedCalls, unit } = evidence.activity;
-    if (calls < observedCalls) facts.push(`${count(calls)} of ${count(observedCalls)} ${unit} carry resource identity`);
   }
   return facts.length > 0 ? (
     <p className="ops-tile-evidence" title={facts.join(' · ')}>
@@ -703,7 +707,7 @@ export function CostTileTitle({ label, href }: { label: string; href: string | n
 
 function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
   const amount = questionServingAverage(payload);
-  const reason = payload.perQuestion.reason || 'No token-covered endpoint spend in this range';
+  const reason = payload.perQuestion.reason || 'Attributed serving and SQL spend unavailable';
 
   return (
     <div className="ops-tile">
@@ -724,6 +728,7 @@ function QuestionCostAverage({ payload }: { payload: OpsCostPayload }) {
       ) : (
         <p className="ops-tile-absent">{reason}</p>
       )}
+      <p className="ops-tile-formula">{QUESTION_COST_FORMULA}</p>
     </div>
   );
 }

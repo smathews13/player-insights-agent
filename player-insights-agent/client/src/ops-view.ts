@@ -194,7 +194,7 @@ export interface TileView {
 
 /** The words for the two bases. A rate drawn as a total is the whole hazard. */
 export const BASIS_LABEL: Record<CostTile['basis'], string> = {
-  'total-in-range': 'in range',
+  'total-in-range': 'selected period',
   'per-day': 'per day',
 };
 
@@ -760,31 +760,35 @@ export function costCoverageLinesForTile(tileId: string, coverage: CostCoverage 
 }
 
 /**
- * Model-serving spend in range, divided by the questions that recorded tokens.
- *
- * That is the only per-question dollar figure this block can defend. Averaging
- * the token-apportioned per-run shares is the same division: they sum to the
- * endpoint total.
+ * The two question-serving components with defensible period attribution,
+ * divided by every completed question in that same complete-day period.
  */
-export const QUESTION_COST_FORMULA = 'serving endpoint spend ÷ questions with recorded tokens';
+export const QUESTION_COST_FORMULA = 'Attributed serving + SQL ÷ completed questions';
 
 export function questionServingAverage(payload: OpsCostPayload): number | null {
   const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
-  const covered = payload.perQuestion.tokenCoveredRuns;
+  const sql = payload.tiles.find((tile) => tile.id === 'sql-warehouse');
+  const completed = payload.perQuestion.runsInRange;
   const dedicated = serving?.population === 'This endpoint' && tileAttribution(serving) === 'deployment';
-  const priced = !serving?.pricing || serving.pricing.match === 'priced' || serving.pricing.match === 'none';
+  const priced = (tile: CostTile | undefined) =>
+    !tile?.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
   if (
     serving?.quality !== 'real' ||
+    !sql ||
+    sql.quality === 'unknown' ||
     !dedicated ||
-    !priced ||
+    tileAttribution(sql) !== 'deployment' ||
+    !priced(serving) ||
+    !priced(sql) ||
     typeof serving.amount !== 'number' ||
     !Number.isFinite(serving.amount) ||
-    covered <= 0 ||
-    payload.perQuestion.totalRecordedTokens <= 0
+    typeof sql.amount !== 'number' ||
+    !Number.isFinite(sql.amount) ||
+    completed <= 0
   ) {
     return null;
   }
-  return serving.amount / covered;
+  return (serving.amount + sql.amount) / completed;
 }
 
 export function costHonestyLine(honesty: CostHonesty | null | undefined): string {
@@ -792,9 +796,9 @@ export function costHonestyLine(honesty: CostHonesty | null | undefined): string
     return 'Figures are list prices from system.billing.list_prices, not contracted rates.';
   }
   const through = honesty.dataThrough
-    ? ` Data through ${honesty.dataThrough}${honesty.rangeMayStillFill ? '; later days in this range may still be filling' : ''}.`
+    ? ` Data through ${honesty.dataThrough}${honesty.rangeMayStillFill ? '; later days in the selected period may still be filling' : ''}.`
     : honesty.rangeMayStillFill
-      ? ' Later days in this range may still be filling.'
+      ? ' Later days in the selected period may still be filling.'
       : '';
   const currency = honesty.currencyConsistent ? '' : ' Mixed currencies were withheld rather than combined.';
   return `Figures are list prices from system.billing.list_prices, not contracted rates.${through}${currency}`;

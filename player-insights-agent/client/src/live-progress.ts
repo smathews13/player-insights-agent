@@ -46,6 +46,8 @@ export interface LiveStep {
   result: string;
   /** Tables structurally declared by this tool call, for shared entity rendering. */
   tables: string[];
+  /** Whether this is the table-inventory step, including an honest empty state. */
+  tableListing: boolean;
   calls: number;
   depth: number;
 }
@@ -105,8 +107,15 @@ function allFields(payload: string): string {
  * table-pill treatment while still recognizing three-part names before the
  * final answer has sources.
  */
-export function stageTableEntities(stage: Pick<TraceStage, 'id' | 'input'>): string[] {
+export function stageTableEntities(stage: Pick<TraceStage, 'id' | 'name' | 'input' | 'output' | 'tables'>): string[] {
+  const structured = Array.isArray(stage.tables) ? stage.tables : [];
+  const declared = uniqueTableNames(structured);
+  if (declared.length > 0) return declared;
+
   const tool = toolNameFromId(stage.id);
+  if (isTableListingStage(stage)) {
+    return tableNamesFromListing(stage.output);
+  }
   if (tool === 'describe_table') {
     const fullName = field(stage.input, 'full_name').trim();
     return fullName ? [fullName] : [];
@@ -123,6 +132,40 @@ export function stageTableEntities(stage: Pick<TraceStage, 'id' | 'input'>): str
   return names;
 }
 
+function uniqueTableNames(values: readonly unknown[]): string[] {
+  const names: string[] = [];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const name = value.trim();
+    if (!name || !name.includes('.')) continue;
+    if (!names.some((held) => held.toLowerCase() === name.toLowerCase())) names.push(name);
+  }
+  return names;
+}
+
+/**
+ * Tables from the legacy textual `list_data_assets` result.
+ *
+ * Only bullet lines in that tool's documented shape qualify. This is a rolling
+ * deploy bridge for traces written before `TraceStage.tables`; it is not a
+ * general scan for dot-separated words.
+ */
+export function tableNamesFromListing(output: string): string[] {
+  const names: string[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^\s*-\s+((?:`?[^.`\s]+`?\.){2}`?[^.`\s]+`?)(?:\s{2,}|\s+\[|$)/.exec(line);
+    if (!match) continue;
+    const name = match[1].replaceAll('`', '');
+    if (!names.some((held) => held.toLowerCase() === name.toLowerCase())) names.push(name);
+  }
+  return names;
+}
+
+/** The inventory step across both the regular loop and its no-LLM fast path. */
+export function isTableListingStage(stage: Pick<TraceStage, 'id' | 'name'>): boolean {
+  return toolNameFromId(stage.id) === 'list_data_assets' || stage.name === 'Listed available tables';
+}
+
 /**
  * What a step was given, in a sentence.
  *
@@ -132,6 +175,10 @@ export function stageTableEntities(stage: Pick<TraceStage, 'id' | 'input'>): str
  */
 export function describeStage(stage: TraceStage, question = ''): string {
   const tool = toolNameFromId(stage.id);
+  if (isTableListingStage(stage)) {
+    const scope = allFields(stage.input);
+    return scope ? `Listed the tables it may read under ${clamp(scope)}` : 'Listed every table it is permitted to read';
+  }
   switch (tool) {
     case 'data_genie':
       return quoted('Asked the governed data Genie space', field(stage.input, 'question'));
@@ -144,12 +191,6 @@ export function describeStage(stage: TraceStage, question = ''): string {
     case 'describe_table': {
       const table = clamp(field(stage.input, 'full_name'));
       return table ? `Read the columns of ${table}` : 'Read a table\u2019s columns';
-    }
-    case 'list_data_assets': {
-      const scope = allFields(stage.input);
-      return scope
-        ? `Listed the tables it may read under ${clamp(scope)}`
-        : 'Listed every table it is permitted to read';
     }
     case 'search_tagged_assets': {
       const asked = allFields(stage.input);
@@ -397,6 +438,7 @@ export function runningStepNumber(stages: TraceStage[]): number {
 }
 
 export function toLiveStep(stage: TraceStage, question = ''): LiveStep {
+  const tableListing = isTableListingStage(stage);
   return {
     id: stage.id,
     name: stage.name,
@@ -405,8 +447,9 @@ export function toLiveStep(stage: TraceStage, question = ''): LiveStep {
     durationMs: stage.duration,
     startMs: stage.startMeasured === false ? null : stage.start,
     detail: describeStage(stage, question),
-    result: describeResult(stage),
+    result: tableListing ? '' : describeResult(stage),
     tables: stageTableEntities(stage),
+    tableListing,
     calls: stage.calls,
     depth: Math.min(stage.depth ?? 0, 3),
   };

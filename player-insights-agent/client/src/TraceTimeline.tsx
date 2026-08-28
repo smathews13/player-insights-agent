@@ -35,8 +35,8 @@ import { productForTool } from './brand-icons';
 import { stepNumber } from './agent-map';
 import { Badge } from './ui';
 import { MarkdownText } from './StepResult';
-import { EntityText } from './DataEntityLinks';
-import { stageTableEntities } from './live-progress';
+import { EntityText, TableEntityList } from './DataEntityLinks';
+import { isTableListingStage, stageTableEntities } from './live-progress';
 
 /** Which surface is drawing the panel. See file header. */
 export type TraceTimelineVariant = 'default' | 'explorer';
@@ -158,10 +158,20 @@ function KindKpis({ rows }: { rows: RollUpRow[] }) {
 /**
  * A recorded argument or result, laid out according to what it turned out to be.
  */
-export function PayloadView({ text, tables = [] }: { text: string; tables?: readonly string[] }) {
+export function PayloadView({
+  text,
+  tables = [],
+  tableListing = false,
+}: {
+  text: string;
+  tables?: readonly string[];
+  tableListing?: boolean;
+}) {
   const [raw, setRaw] = useState(false);
   const payload = describePayload(text);
-  if (payload.empty) return <span className="trace-empty">(none recorded)</span>;
+  if (payload.empty) {
+    return tableListing ? <TableEntityList tables={tables} /> : <span className="trace-empty">(none recorded)</span>;
+  }
 
   const size = payloadSize(payload);
   return (
@@ -187,6 +197,8 @@ export function PayloadView({ text, tables = [] }: { text: string; tables?: read
       </div>
       {raw ? (
         <pre>{payload.body}</pre>
+      ) : tableListing ? (
+        <TableEntityList tables={tables} />
       ) : payload.fields ? (
         <ul className="trace-payload-fields">
           {payload.fields.map((field) => (
@@ -241,6 +253,7 @@ function GanttRow({
 }) {
   const positioned = row.leftPct !== null && row.widthPct !== null;
   const tables = stageTableEntities(row);
+  const tableListing = isTableListingStage(row);
   const sources = tables.map((name) => ({ name }));
   return (
     <>
@@ -318,7 +331,7 @@ function GanttRow({
                 </dd>
                 <dt>Result</dt>
                 <dd>
-                  <PayloadView text={row.output} tables={tables} />
+                  <PayloadView text={row.output} tables={tables} tableListing={tableListing} />
                 </dd>
               </dl>
             )}

@@ -32,11 +32,14 @@ import { roleOptions } from './user-role-options';
 import {
   assignSpPersona,
   changeHumanRole,
+  createSpPersonaDefinition,
+  deleteSpPersonaDefinition,
   EMPTY_SP_IDENTITY,
   loadHumanRoster,
   loadSpIdentityAdmin,
   renameSpPersona,
   UNASSIGNED_PERSONA,
+  updateSpPersonaDefinition,
   writeHumanRoster,
 } from './identity-settings-api';
 import { SpIdentityEditor } from './SpIdentityPanel';
@@ -116,7 +119,7 @@ function PersonaControl({
   onChange?: (email: string, personaId: string | null) => void;
 }) {
   const options = [
-    { value: UNASSIGNED_PERSONA, label: 'Signed-in user (OAuth)' },
+    { value: UNASSIGNED_PERSONA, label: 'No persona' },
     ...personas.map((persona) => ({ value: persona.id, label: persona.displayName })),
   ];
   const known = new Set(personas.map((persona) => persona.id));
@@ -130,6 +133,7 @@ function PersonaControl({
       onValueChange={(next) => onChange?.(email, next === UNASSIGNED_PERSONA ? null : next)}
       options={options}
       className="roster-control roster-persona-select"
+      showLabel={false}
     />
   );
 }
@@ -379,7 +383,7 @@ export function UserRoleEditor({
             onPersonaChange={(email, personaId) =>
               void run(
                 () => assignSpPersona(email, personaId),
-                personaId ? `${email} now uses the selected persona.` : `${email} now uses signed-in OAuth.`
+                personaId ? `${email} now uses the selected persona.` : `${email} now has no persona.`
               )
             }
             onChange={(entry, role) =>
@@ -446,6 +450,24 @@ export function UserRoleEditor({
           error={spError}
           onRename={(id, displayName) =>
             void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`)
+          }
+          onCreateDefinition={(write) =>
+            run(
+              () => createSpPersonaDefinition(write),
+              `${write.displayName} configuration generated. Account admin setup is still required.`
+            )
+          }
+          onUpdateDefinition={(id, write) =>
+            run(
+              () => updateSpPersonaDefinition(id, write),
+              `${write.displayName} configuration updated. Account admin setup is still required.`
+            )
+          }
+          onDeleteDefinition={(id) =>
+            void run(
+              () => deleteSpPersonaDefinition(id),
+              'Persona configuration removed. No Databricks account identity was changed.'
+            )
           }
         />
       </section>

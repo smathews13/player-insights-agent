@@ -70,8 +70,7 @@ describe('sseEvents', () => {
     for await (const event of sseEvents(bodyOf(chunks))) seen.push(event);
 
     expect(seen).toHaveLength(1);
-    expect((seen[0].custom_outputs as { stage: { name: string } }).stage.name).toBe('Chose the next step'
-    );
+    expect((seen[0].custom_outputs as { stage: { name: string } }).stage.name).toBe('Chose the next step');
   });
 
   it('reads several events arriving in one chunk', async () => {
@@ -107,8 +106,11 @@ describe('sseEvents', () => {
     const seen = [];
     for await (const event of sseEvents(bodyOf(chunks))) seen.push(event);
 
-    expect(seen.map((event) => (event.custom_outputs as { stage: { name: string } }).stage.name)
-    ).toEqual(['first', 'second', 'third']);
+    expect(seen.map((event) => (event.custom_outputs as { stage: { name: string } }).stage.name)).toEqual([
+      'first',
+      'second',
+      'third',
+    ]);
   });
 
   it('reads a final event that arrived without a trailing blank line', async () => {
@@ -122,6 +124,40 @@ describe('sseEvents', () => {
 });
 
 describe('consumeServingStream', () => {
+  it('forwards the discovery table contract with its sanitized stage payload', async () => {
+    const table = '<your_catalog>.<your_schema>.gold_title_daily';
+    const seen: Record<string, unknown>[] = [];
+    const body = bodyOf([
+      `data: ${JSON.stringify({
+        type: 'response.output_item.done',
+        item: { id: 'stage-inventory', type: 'message', role: 'assistant' },
+        custom_outputs: {
+          type: 'stage',
+          stage: {
+            id: 'inventory',
+            name: 'Listed available tables',
+            kind: 'discovery',
+            status: 'complete',
+            start: 0,
+            duration: 1,
+            calls: 1,
+            input: '{}',
+            output: `Declared tables:\n  - ${table}`,
+            tables: [table],
+          },
+        },
+      })}\n\n`,
+      answerEvent,
+    ]);
+
+    await consumeServingStream(body, (stage) => seen.push(stage));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].input).toBe('{}');
+    expect(String(seen[0].output)).toContain(table);
+    expect(seen[0].tables).toEqual([table]);
+  });
+
   it('reports each stage as it arrives and returns the blocking call shape', async () => {
     const stages: string[] = [];
     const body = bodyOf([
@@ -230,7 +266,8 @@ describe('consumeServingStream', () => {
     // The count is what the message tells the reader they watched happen.
     const body = bodyOf([stageEvent('step-1', 'Chose the next step'), flushEvent]);
 
-    await expect(consumeServingStream(body, () => {})).rejects.toThrow(/ended after 1 stage\(s\) without returning an answer/
+    await expect(consumeServingStream(body, () => {})).rejects.toThrow(
+      /ended after 1 stage\(s\) without returning an answer/
     );
   });
 
@@ -249,7 +286,8 @@ describe('consumeServingStream', () => {
   it('refuses a stream that ended after stages without an answer', async () => {
     const body = bodyOf([stageEvent('step-1', 'Chose the next step')]);
 
-    await expect(consumeServingStream(body, () => {})).rejects.toThrow(/ended after 1 stage\(s\) without returning an answer/
+    await expect(consumeServingStream(body, () => {})).rejects.toThrow(
+      /ended after 1 stage\(s\) without returning an answer/
     );
   });
 
@@ -286,8 +324,7 @@ describe('consumeServingStream', () => {
       answerEvent,
     ]);
 
-    await consumeServingStream(body, (stage) => stages.push(`${String(stage.name)}:${String(stage.status)}`)
-    );
+    await consumeServingStream(body, (stage) => stages.push(`${String(stage.name)}:${String(stage.status)}`));
 
     expect(stages).toEqual(['Chose the next step:running', 'Chose the next step:complete']);
   });

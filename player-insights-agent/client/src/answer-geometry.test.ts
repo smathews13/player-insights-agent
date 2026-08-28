@@ -69,9 +69,7 @@ describe('the answer and plan cards sit on the design’s scale, not the library
     expect(card).toMatch(/padding:\s*0/);
     expect(card).not.toMatch(/padding-top:\s*(1[2-9]|2[0-9])px/);
     expect(ruleFor(ASK_CSS, '.conversation-main .answer-card {')).toMatch(/padding:\s*0/);
-    expect(ruleFor(MONITORING_CSS, '.monitoring-question-modal .answer-card {')).toMatch(
-      /padding:\s*0/
-    );
+    expect(ruleFor(MONITORING_CSS, '.monitoring-question-modal .answer-card {')).toMatch(/padding:\s*0/);
   });
 
   it('closes the gap between sections to the answer-card specification’s 14px', () => {
@@ -112,9 +110,7 @@ describe('the answer and plan cards sit on the design’s scale, not the library
     // takeaway and the figure rail stay on the rungs already pinned above.
     expect(ruleFor(ANSWER_CSS, '.answer-prose {')).toContain('font-size: var(--ast-fs-14)');
     expect(ruleFor(BODY_CSS, '.source-list {')).toContain('font-size: var(--ast-fs-14)');
-    expect(ruleFor(ANSWER_CSS, '.answer-takeaway {')).toContain(
-      'font-size: calc(var(--ast-fs-16) + 0.5px)'
-    );
+    expect(ruleFor(ANSWER_CSS, '.answer-takeaway {')).toContain('font-size: calc(var(--ast-fs-16) + 0.5px)');
     expect(ruleFor(BODY_CSS, '.answer-stat-value {')).toContain('font-size: var(--ast-fs-16)');
   });
 });
@@ -584,13 +580,25 @@ describe('the advanced panel is a row and a code block, on the shared recipes', 
     expect(CARD).not.toContain('text-destructive');
   });
 
-  it('tints the chosen thumb from the one blue rather than a copy of it', () => {
-    // The tint was a hand-written `rgba(34, 114, 180, 0.06)` behind a token
-    // named for the state instead of the colour, so the palette could move and
-    // this selected control would keep the old blue at 6%.
-    const rule = ruleFor(BODY_CSS, '.feedback > button.feedback-chosen {');
-    expect(rule).toContain('color-mix(in srgb, var(--ast-blue) 6%, transparent)');
-    expect(rule).not.toMatch(/rgba\(|--db-/);
+  it('uses card controls when neutral and semantic surfaces when chosen', () => {
+    const neutral = ruleFor(BODY_CSS, '.feedback > button {');
+    expect(neutral).toContain('background: var(--ast-fill-band)');
+    expect(neutral).toContain('border-color: var(--ast-border-input)');
+    expect(neutral).toContain('color: var(--ast-text-secondary)');
+
+    const up = ruleFor(BODY_CSS, '.feedback > button.feedback-rating--up.feedback-chosen {');
+    expect(up).toContain('background: var(--ast-pos-fill)');
+    expect(up).toContain('border-color: var(--ast-pos-border)');
+    expect(up).toContain('color: var(--ast-pos-text)');
+
+    const down = ruleFor(BODY_CSS, '.feedback > button.feedback-rating--down.feedback-chosen {');
+    expect(down).toContain('background: var(--ast-neg-fill)');
+    expect(down).toContain('border-color: var(--ast-neg-border)');
+    expect(down).toContain('color: var(--ast-neg-text)');
+
+    expect(CARD).toContain('feedback-rating feedback-rating--up');
+    expect(CARD).toContain('feedback-rating feedback-rating--down');
+    expect(`${neutral}${up}${down}`).not.toMatch(/#[0-9a-f]{3,8}|rgba\(/i);
   });
 });
 

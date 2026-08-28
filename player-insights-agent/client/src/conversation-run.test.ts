@@ -68,13 +68,31 @@ describe('the steps a durable run reports', () => {
     const stages = replayedStages({
       ...working,
       stages: [
-        { id: 'step-1', name: 'Chose the next step', kind: 'agent', status: 'complete', start: 0, duration: 1_829, calls: 1 },
-        { id: 'step-1-1-data_genie', name: 'Asked the data Genie space', kind: 'tool', status: 'running', start: 1_829, duration: 0, calls: 1 },
+        {
+          id: 'step-1',
+          name: 'Chose the next step',
+          kind: 'agent',
+          status: 'complete',
+          start: 0,
+          duration: 1_829,
+          calls: 1,
+        },
+        {
+          id: 'inventory',
+          name: 'Listed available tables',
+          kind: 'discovery',
+          status: 'complete',
+          start: 1_829,
+          duration: 1,
+          calls: 1,
+          tables: ['<your_catalog>.<your_schema>.gold_title_daily'],
+        },
       ],
     });
 
-    expect(stages.map((stage) => stage.id)).toEqual(['step-1', 'step-1-1-data_genie']);
-    expect(stages[1].status).toBe('running');
+    expect(stages.map((stage) => stage.id)).toEqual(['step-1', 'inventory']);
+    expect(stages[1].status).toBe('complete');
+    expect(stages[1].tables).toEqual(['<your_catalog>.<your_schema>.gold_title_daily']);
     // Normalized through the same function the stream uses, so a replayed step
     // and a streamed one are the same object to every surface below.
     expect(stages[0].startMeasured).toBe(true);

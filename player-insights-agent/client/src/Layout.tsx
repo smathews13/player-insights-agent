@@ -445,14 +445,13 @@ export function Layout() {
   // write of the defaults over whatever is stored. A store that refuses the
   // write is not surfaced, because the toggle still moves and the preference
   // simply does not outlive the tab.
-  const setFeature = useCallback(
-    (name: keyof ExperimentalFeatures, enabled: boolean) => {
-      const next = { ...features, [name]: enabled };
+  const setFeature = useCallback((name: keyof ExperimentalFeatures, enabled: boolean) => {
+    setFeatures((current) => {
+      const next = { ...current, [name]: enabled };
       persistExperimentalFeatures(next);
-      setFeatures(next);
-    },
-    [features]
-  );
+      return next;
+    });
+  }, []);
 
   /*
    * ONE SKY FOR THE WHOLE SESSION, seated here so Continue cannot take it down.
@@ -476,8 +475,8 @@ export function Layout() {
   return (
     <div className="app-sky-host">
       <AppSky cover={skyCoversShell(firstOpen.stage)} />
-    <div className={`min-h-screen flex flex-col app-frame${arriving ? ' ast-anim-x-app' : ''}`}>
-      {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
+      <div className={`min-h-screen flex flex-col app-frame${arriving ? ' ast-anim-x-app' : ''}`}>
+        {/* The page is white. It was `bg-muted/30`, a 30% wash under every card in
           the app, which is the soft-ground treatment DuBois replaces with
           hairlines on a solid surface.
 
@@ -486,8 +485,8 @@ export function Layout() {
           52px, every sticky offset in the app subtracts that token, and a header
           measured by its tallest child is a header that changes height the next
           time somebody adjusts a font size. */}
-      <header className="app-header border-b bg-background flex items-center sticky top-0 z-30">
-        {/* The lockup, the release date, and then the divider §1 puts between
+        <header className="app-header border-b bg-background flex items-center sticky top-0 z-30">
+          {/* The lockup, the release date, and then the divider §1 puts between
             the column and the tabs. The column is the conversation rail, so Ask
             sits on the hairline above that divider -- not over the sidebar, not
             after a gap into the main pane. Super admin leaves this rail when
@@ -497,14 +496,14 @@ export function Layout() {
             "Player Intelligence" kicker that used to be here are gone: the app
             has its own identity now, and the plate reserved a position for a
             trademark this repository must not carry. */}
-        <HeaderBrand
-          deployedAt={deployment.deployedAt}
-          deployedBy={deployment.deployedBy}
-          buildSha={deployment.buildSha}
-          arriving={arriving}
-          onHome={() => setSettingsOpen(false)}
-        />
-        {/* Four links for a consumer, six for an admin, and one more than either
+          <HeaderBrand
+            deployedAt={deployment.deployedAt}
+            deployedBy={deployment.deployedBy}
+            buildSha={deployment.buildSha}
+            arriving={arriving}
+            onHome={() => setSettingsOpen(false)}
+          />
+          {/* Four links for a consumer, six for an admin, and one more than either
             with the Benchmark Lab experiment on -- seven for everybody while
             `SHOW_EVERY_TAB_TO_EVERYONE` is on. The breakpoint stays whatever
             the count is: below it the nav and the brand alone over-subscribe the
@@ -526,14 +525,14 @@ export function Layout() {
             at the hand-written 1180, so there was a 100px band in which the header
             was full and the page had lost a column. One set of breakpoints now --
             480, 800, 1180, 1366 -- and the nav goes at 1180 with the inspector. */}
-        <NavLinks
-          className="app-nav"
-          linkClass={navLinkClass}
-          role={role}
-          features={features}
-          onClick={() => setSettingsOpen(false)}
-        />
-        {/* The way into settings, and now into settings rather than towards them.
+          <NavLinks
+            className="app-nav"
+            linkClass={navLinkClass}
+            role={role}
+            features={features}
+            onClick={() => setSettingsOpen(false)}
+          />
+          {/* The way into settings, and now into settings rather than towards them.
             
             This pointed at `/connections` for as long as the gear existed, on
             the argument that Connections was already the settings surface: it
@@ -577,112 +576,112 @@ export function Layout() {
             HEADER_CLUSTER_ORDER records it, and only the header's copy of the
             cluster is given one: the mobile sheet's copy is passed nothing, so
             "App settings" names exactly one element at any width. */}
-        <IdentityChips
-          identity={identity}
-          role={role}
-          hideRoleBadge={!showsHeaderRoleBadge(features)}
-          gear={
-            showsSettingsGear(role.state) ? (
-              <Button
-                type="button"
-                variant="ghost"
-                data-variant="ghost"
-                size="icon"
-                className="header-settings text-muted-foreground hover:text-foreground"
-                aria-label="App settings"
-                title="App settings"
-                onClick={() => setSettingsOpen(true)}
-              >
-                <Settings className="size-5" />
-              </Button>
-            ) : null
-          }
-        />
-        {/* Mobile nav, drawn only below the width at which the desktop nav is
+          <IdentityChips
+            identity={identity}
+            role={role}
+            hideRoleBadge={!showsHeaderRoleBadge(features)}
+            gear={
+              showsSettingsGear(role.state) ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  data-variant="ghost"
+                  size="icon"
+                  className="header-settings text-muted-foreground hover:text-foreground"
+                  aria-label="App settings"
+                  title="App settings"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <Settings className="size-5" />
+                </Button>
+              ) : null
+            }
+          />
+          {/* Mobile nav, drawn only below the width at which the desktop nav is
             hidden. Both sides of that switch are in responsive.css, so they cannot
             be read off two different breakpoint systems and leave the header with
             either both or neither. */}
-        <div className="mobile-nav">
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <Button variant="outline" size="icon" onClick={() => setMobileNavOpen(true)}>
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open navigation</span>
-            </Button>
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle>Navigation</SheetTitle>
-              </SheetHeader>
-              <NavLinks
-                className="flex flex-col gap-1 px-4"
-                linkClass={mobileNavLinkClass}
-                role={role}
-                features={features}
-                onClick={() => setMobileNavOpen(false)}
-              />
-              {/* The release chip's only seat below 800px. The lockup column is
+          <div className="mobile-nav">
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <Button variant="outline" size="icon" onClick={() => setMobileNavOpen(true)}>
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Open navigation</span>
+              </Button>
+              <SheetContent side="left">
+                <SheetHeader>
+                  <SheetTitle>Navigation</SheetTitle>
+                </SheetHeader>
+                <NavLinks
+                  className="flex flex-col gap-1 px-4"
+                  linkClass={mobileNavLinkClass}
+                  role={role}
+                  features={features}
+                  onClick={() => setMobileNavOpen(false)}
+                />
+                {/* The release chip's only seat below 800px. The lockup column is
                   what gives at those widths -- the wordmark truncates so the menu
                   button stays on screen -- so there is no slack beside the
                   wordmark to seat it in, and responsive.css hides the header's
                   copy there. */}
-              <IdentityChips
-                identity={identity}
-                role={role}
-                deployedAt={deployment.deployedAt}
-                deployedBy={deployment.deployedBy}
-                buildSha={deployment.buildSha}
-                className="mobile-identity"
-              />
-            </SheetContent>
-          </Sheet>
-        </div>
-        {/* The 2px line under the top bar, and the only loading signal in the
+                <IdentityChips
+                  identity={identity}
+                  role={role}
+                  deployedAt={deployment.deployedAt}
+                  deployedBy={deployment.deployedBy}
+                  buildSha={deployment.buildSha}
+                  className="mobile-identity"
+                />
+              </SheetContent>
+            </Sheet>
+          </div>
+          {/* The 2px line under the top bar, and the only loading signal in the
             transition (`login-transition.md` phase 6). It removes itself with the
             rest of the arriving state, and it is decorative: what a screen reader
             gets is the one status string below. */}
-        {arriving ? <span className="ast-anim-x-bar fo-x-bar" aria-hidden="true" /> : null}
-      </header>
+          {arriving ? <span className="ast-anim-x-bar fo-x-bar" aria-hidden="true" /> : null}
+        </header>
 
-      {/* The ONE thing the transition says out loud (spec, Keyframes). Every layer
+        {/* The ONE thing the transition says out loud (spec, Keyframes). Every layer
           of the animation is aria-hidden, so without this a reader on a screen
           reader gets a second of silence and then a different page. */}
-      {arriving ? (
-        <p className="sr-only" role="status" aria-live="polite">
-          {LANDED_ANNOUNCEMENT}
-        </p>
-      ) : null}
+        {arriving ? (
+          <p className="sr-only" role="status" aria-live="polite">
+            {LANDED_ANNOUNCEMENT}
+          </p>
+        ) : null}
 
-      <StorageBanner />
+        <StorageBanner />
 
-      {/* Empty except on the one arrival that carries it: a reader who was
+        {/* Empty except on the one arrival that carries it: a reader who was
           standing on an admin page when the role was taken away has just been
           moved here, and four things vanished from the header on the way. An
           unexplained move reads as a fault. */}
-      <RoleLostNotice />
+        <RoleLostNotice />
 
-      <main className="flex-1">
-        {/* The flags travel to the settings page through the outlet rather than
+        <main className="flex-1">
+          {/* The flags travel to the settings page through the outlet rather than
             through a second read of storage there, so the page and the nav above
             it are looking at the same object and a toggle moves the header in the
             same render. The role travels the same way and for the same reason:
             a page that fetched it again could disagree with the header about
             which set of tabs the reader is entitled to. */}
-        <Outlet context={{ features, setFeature, role } satisfies AppOutletContext} />
-      </main>
-      {/* THE ROLE IS HANDED DOWN RATHER THAN READ FROM THE OUTLET HERE. This is
+          <Outlet context={{ features, setFeature, role } satisfies AppOutletContext} />
+        </main>
+        {/* THE ROLE IS HANDED DOWN RATHER THAN READ FROM THE OUTLET HERE. This is
           a sibling of `<Outlet />`, not a descendant of it, so the outlet
           context does not reach it and `AdminOnly`'s hook answers null. It used
           to read the hook regardless, which made every click of the gear a
           TypeError in the layout itself -- above the per-pane boundary inside
           Settings, so the route boundary replaced the whole app with "This view
           could not be displayed" instead of a Settings pane. */}
-      {settingsVisible ? (
-        <AdminOnly role={role}>
-          <Suspense fallback={<SettingsFallback />}>
-            <SettingsPage onClose={closeSettings} features={features} setFeature={setFeature} role={role} />
-          </Suspense>
-        </AdminOnly>
-      ) : null}
-    </div>
+        {settingsVisible ? (
+          <AdminOnly role={role}>
+            <Suspense fallback={<SettingsFallback />}>
+              <SettingsPage onClose={closeSettings} features={features} setFeature={setFeature} role={role} />
+            </Suspense>
+          </AdminOnly>
+        ) : null}
+      </div>
       {/* Once per session, above everything, and handed the identity this frame
           has already read rather than fetching a second one. In the layout rather
           than around the router in App.tsx for exactly that reason: App.tsx has no

@@ -557,6 +557,40 @@ export function EntityText({
 }
 
 /**
+ * A discovery result's table names, using the same entity tokens and links as
+ * answer prose rather than a second chip recipe.
+ */
+export function TableEntityList({
+  tables,
+  empty = 'No tables were returned by this discovery step.',
+}: {
+  tables: readonly string[];
+  empty?: string;
+}) {
+  const names = tables
+    .map((name) => name.trim())
+    .filter(
+      (name, index, entries) =>
+        name.length > 0 && entries.findIndex((candidate) => candidate.toLowerCase() === name.toLowerCase()) === index
+    );
+  if (names.length === 0) return <p className="entity-table-list-empty">{empty}</p>;
+  return (
+    <div className="entity-table-list">
+      <p className="entity-table-list-count">
+        <span className="ast-num">{names.length}</span> table{names.length === 1 ? '' : 's'} assessed
+      </p>
+      <ul>
+        {names.map((name) => (
+          <li key={name}>
+            <EntityText text={name} sources={[{ name }]} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * Prose that belongs to a plan rather than to an answer.
  *
  * The candidate set is everything the app tracks, which is the one place rule 1

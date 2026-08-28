@@ -188,12 +188,18 @@ def narrow_rows(count: int) -> list[list[str]]:
 def test_listing_returns_the_declared_set_in_one_call():
     tools = build()
 
-    whole = tools.list_data_assets().text
+    result = tools.list_data_assets()
+    whole = result.text
     assert PROFILES in whole
     assert "franchise:" in whole
-    filtered = tools.list_data_assets("test_catalog", "test_schema").text
+    assert result.listed_tables == sorted(MANIFEST)
+    filtered_result = tools.list_data_assets("test_catalog", "test_schema")
+    filtered = filtered_result.text
     assert PROFILES in filtered
     assert OTHER_SCHEMA_TABLE not in filtered, "a schema listing shows that schema only"
+    assert filtered_result.listed_tables == sorted(
+        name for name in MANIFEST if name.startswith("test_catalog.test_schema.")
+    )
 
 
 def test_listing_uses_baked_franchise_tags_when_they_were_logged():

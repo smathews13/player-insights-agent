@@ -918,10 +918,10 @@ const QUESTION_COST_LIMIT = 100;
 /**
  * Resource-scoped request counts from Astrolabe's own persisted traces.
  *
- * Only `trace.resource_calls` can contribute to `astrolabe_calls`. Stage ids
- * establish the same-tool denominator but never identify a resource, so older
- * calls remain visible as a coverage gap instead of being assigned to today's
- * configured space or index.
+ * Current traces report exact call counts in `trace.resource_calls`. Older
+ * traces recorded the Genie space id once per run in `trace.genie_spaces`; that
+ * is still direct evidence that the configured space was called, so count one
+ * observed call for those runs without pretending to know retries.
  */
 export const RESOURCE_ACTIVITY_QUERY = `
   WITH completed AS (
@@ -966,12 +966,39 @@ export const RESOURCE_ACTIVITY_QUERY = `
          ) AS resource
     WHERE resource->>'tool' IN ('data_genie', 'dictionary_genie', 'search_semantics')
     GROUP BY 1, 2
+  ),
+  legacy_genie AS (
+    SELECT c.tile_id, COUNT(*)::bigint AS calls
+    FROM completed
+    JOIN configured c ON c.tool IN ('data_genie', 'dictionary_genie')
+    WHERE EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(
+        CASE WHEN jsonb_typeof(trace->'genie_spaces') = 'array'
+             THEN trace->'genie_spaces' ELSE '[]'::jsonb END
+      ) AS space
+      WHERE space->>'id' = c.resource_id
+    )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          CASE WHEN jsonb_typeof(trace->'resource_calls') = 'array'
+               THEN trace->'resource_calls' ELSE '[]'::jsonb END
+        ) AS resource
+        WHERE resource->>'tool' = c.tool
+          AND resource->>'id' = c.resource_id
+      )
+    GROUP BY c.tile_id
   )
   SELECT c.tile_id,
-         COALESCE(a.calls, 0)::bigint AS astrolabe_calls,
-         GREATEST(COALESCE(o.calls, 0), COALESCE(a.calls, 0))::bigint AS observed_calls
+         (COALESCE(a.calls, 0) + COALESCE(l.calls, 0))::bigint AS astrolabe_calls,
+         GREATEST(
+           COALESCE(o.calls, 0),
+           COALESCE(a.calls, 0) + COALESCE(l.calls, 0)
+         )::bigint AS observed_calls
   FROM configured c
   LEFT JOIN attributed a ON a.tool = c.tool AND a.resource_id = c.resource_id
+  LEFT JOIN legacy_genie l ON l.tile_id = c.tile_id
   LEFT JOIN observed o ON o.tool = c.tool
   ORDER BY c.tile_id`;
 
@@ -1303,8 +1330,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           const reason = unpropagated.length
             ? 'Matching usage exists without the Astrolabe tag, but exact resource attribution remains available.'
             : delayed
-              ? 'No exact tracked-resource billing rows in this range yet. Later days may still be filling.'
-              : 'No billing rows matched an exact tracked resource in this range.';
+              ? 'No exact tracked-resource billing rows for the selected period yet. Later days may still be filling.'
+              : 'No billing rows matched an exact tracked resource for the selected period.';
           res.json({
             ...empty,
             state: 'no-rows',

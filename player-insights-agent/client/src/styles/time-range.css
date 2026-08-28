@@ -35,6 +35,7 @@
   align-items: center;
   border: 1px solid var(--db-line-strong);
   border-radius: var(--radius-sm);
+  background: var(--ast-surface-solid);
   overflow: hidden;
   font-size: var(--text-sm);
 }
@@ -48,7 +49,7 @@
 .time-range-segment {
   padding: 5px 10px;
   border: 0;
-  background: transparent;
+  background: var(--ast-surface-solid);
   color: var(--db-slate);
   font: inherit;
   line-height: 1.4;
@@ -108,7 +109,7 @@
   padding: 4px 8px;
   font: inherit;
   color: var(--db-ink);
-  background: var(--background);
+  background: var(--ast-surface-solid);
 }
 
 .time-range-custom-label input:focus-visible {

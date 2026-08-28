@@ -13,6 +13,8 @@ import {
   railStagesFor,
   runningElapsed,
   runningStepNumber,
+  stageTableEntities,
+  tableNamesFromListing,
   toLiveStep,
 } from './live-progress';
 import { partial } from './styles/stylesheet';
@@ -64,57 +66,69 @@ function stage(overrides: Partial<TraceStage> & Pick<TraceStage, 'id'>): TraceSt
 
 describe('describeStage', () => {
   it('names the Genie space and quotes the question that was asked', () => {
-    const asked = describeStage(stage({
+    const asked = describeStage(
+      stage({
         id: 'step-6-1-dictionary_genie',
         name: 'Checked field definitions',
         kind: 'tool',
         input: '{"question": "What are the date, title and country columns called?"}',
       })
     );
-    expect(asked).toBe('Asked the data dictionary Genie space: \u201cWhat are the date, title and country columns called?\u201d'
+    expect(asked).toBe(
+      'Asked the data dictionary Genie space: \u201cWhat are the date, title and country columns called?\u201d'
     );
   });
 
   it('separates the two Genie spaces, which answer different questions', () => {
-    const data = describeStage(stage({ id: 'step-2-1-data_genie', kind: 'tool', input: '{"question": "How many players?"}' })
+    const data = describeStage(
+      stage({ id: 'step-2-1-data_genie', kind: 'tool', input: '{"question": "How many players?"}' })
     );
     expect(data).toContain('governed data Genie space');
     expect(data).not.toContain('dictionary');
   });
 
   it('shows the SQL that ran and the table that was described', () => {
-    expect(describeStage(stage({ id: 'step-3-1-run_sql', kind: 'tool', input: '{"sql": "\\nSELECT title\\nFROM t"}' }))
+    expect(
+      describeStage(stage({ id: 'step-3-1-run_sql', kind: 'tool', input: '{"sql": "\\nSELECT title\\nFROM t"}' }))
     ).toBe('Ran a read-only query: SELECT title FROM t');
-    expect(describeStage(stage({ id: 'step-1-1-describe_table', kind: 'tool', input: '{"full_name": "cat.sch.gold_title_daily"}' })
+    expect(
+      describeStage(
+        stage({ id: 'step-1-1-describe_table', kind: 'tool', input: '{"full_name": "cat.sch.gold_title_daily"}' })
       )
     ).toBe('Read the columns of cat.sch.gold_title_daily');
   });
 
   it('says what a listing covered without inventing a scope it was not given', () => {
-    expect(describeStage(stage({ id: 'step-1-1-list_data_assets', kind: 'tool', input: '{}' }))).toBe('Listed every table it is permitted to read'
+    expect(describeStage(stage({ id: 'step-1-1-list_data_assets', kind: 'tool', input: '{}' }))).toBe(
+      'Listed every table it is permitted to read'
     );
-    expect(describeStage(stage({ id: 'step-1-1-list_data_assets', kind: 'tool', input: '{"catalog": "example"}' }))
-    ).toBe('Listed the tables it may read under catalog: example');
+    expect(describeStage(stage({ id: 'step-1-1-list_data_assets', kind: 'tool', input: '{"catalog": "example"}' }))).toBe(
+      'Listed the tables it may read under catalog: example'
+    );
   });
 
   it('says what the tag search was asked for, and when it was asked for nothing', () => {
-    expect(describeStage(stage({ id: 'step-1-1-search_tagged_assets', kind: 'tool', input: '{}' }))
-    ).toBe('Searched the catalog\u2019s tags to see which exist');
-    expect(describeStage(stage({ id: 'step-1-1-search_tagged_assets', kind: 'tool', input: '{"tag": "pii"}' }))
-    ).toBe('Searched the catalog\u2019s tags for tag: pii');
+    expect(describeStage(stage({ id: 'step-1-1-search_tagged_assets', kind: 'tool', input: '{}' }))).toBe(
+      'Searched the catalog\u2019s tags to see which exist'
+    );
+    expect(describeStage(stage({ id: 'step-1-1-search_tagged_assets', kind: 'tool', input: '{"tag": "pii"}' }))).toBe(
+      'Searched the catalog\u2019s tags for tag: pii'
+    );
   });
 
   it('names the tools a model turn decided to call, which is what happens next', () => {
     expect(describeStage(stage({ id: 'step-7', output: 'data_genie' }))).toBe('Chose to call data_genie');
-    expect(describeStage(stage({ id: 'step-7', output: 'data_genie, dictionary_genie' }))).toBe('Chose to call data_genie and dictionary_genie'
+    expect(describeStage(stage({ id: 'step-7', output: 'data_genie, dictionary_genie' }))).toBe(
+      'Chose to call data_genie and dictionary_genie'
     );
   });
 
   it('falls back to the recorded arguments for a tool it does not know by name', () => {
     // A tool added to the agent must show its real arguments rather than
     // nothing or a guess at what it does.
-    expect(describeStage(stage({ id: 'step-2-1-forecast_players', kind: 'tool', input: '{"horizon": "30d"}' }))
-    ).toBe('horizon: 30d');
+    expect(describeStage(stage({ id: 'step-2-1-forecast_players', kind: 'tool', input: '{"horizon": "30d"}' }))).toBe(
+      'horizon: 30d'
+    );
   });
 
   it('does not echo the question back as if it were a step detail', () => {
@@ -126,8 +140,9 @@ describe('describeStage', () => {
   });
 
   it('surfaces a run that stopped at its own budget, in the agent\u2019s words', () => {
-    expect(describeStage(stage({ id: 'cap', name: 'Stopped at the step budget', input: 'the 8-step ceiling was reached' }))).toBe('the 8-step ceiling was reached'
-    );
+    expect(
+      describeStage(stage({ id: 'cap', name: 'Stopped at the step budget', input: 'the 8-step ceiling was reached' }))
+    ).toBe('the 8-step ceiling was reached');
   });
 });
 
@@ -146,6 +161,67 @@ describe('toLiveStep', () => {
     // A model turn's output is either the tool names, already used above, or
     // the answer prose, which belongs in the answer rather than the rail.
     expect(toLiveStep(stage({ id: 'synthesis', kind: 'agent', output: 'Titles fell 12%…' })).result).toBe('');
+  });
+
+  it('carries the discovery table projection instead of showing empty arguments as the result', () => {
+    const listed = toLiveStep(
+      stage({
+        id: 'inventory',
+        name: 'Listed available tables',
+        kind: 'discovery',
+        input: '{}',
+        output: 'Declared tables:\n  - <your_catalog>.<your_schema>.gold_title_daily  [franchise: Contoso]',
+        tables: ['<your_catalog>.<your_schema>.gold_title_daily'],
+      })
+    );
+
+    expect(listed.tableListing).toBe(true);
+    expect(listed.tables).toEqual(['<your_catalog>.<your_schema>.gold_title_daily']);
+    expect(listed.result).toBe('');
+  });
+});
+
+describe('discovery table entities', () => {
+  const output = [
+    'Declared tables:',
+    '  - <your_catalog>.<your_schema>.gold_title_daily  [franchise: Contoso]',
+    '  - <your_catalog>.<your_schema>.silver_player_profiles  [franchise: Northwind]',
+    '',
+    'This is the declared set in one listing.',
+  ].join('\n');
+
+  it('prefers the structured contract and falls back to legacy listing bullets', () => {
+    expect(
+      stageTableEntities(
+        stage({
+          id: 'inventory',
+          name: 'Listed available tables',
+          output,
+          tables: ['catalog.schema.structured_table'],
+        })
+      )
+    ).toEqual(['catalog.schema.structured_table']);
+    expect(tableNamesFromListing(output)).toEqual([
+      '<your_catalog>.<your_schema>.gold_title_daily',
+      '<your_catalog>.<your_schema>.silver_player_profiles',
+    ]);
+    expect(stageTableEntities(stage({ id: 'inventory', name: 'Listed available tables', output }))).toEqual([
+      '<your_catalog>.<your_schema>.gold_title_daily',
+      '<your_catalog>.<your_schema>.silver_player_profiles',
+    ]);
+  });
+
+  it('does not promote dotted prose or an explicit no-table result into table names', () => {
+    expect(tableNamesFromListing('See docs.example.com for details.')).toEqual([]);
+    expect(
+      stageTableEntities(
+        stage({
+          id: 'inventory',
+          name: 'Listed available tables',
+          output: '(no tables were declared with this model)',
+        })
+      )
+    ).toEqual([]);
   });
 });
 
@@ -375,8 +451,7 @@ describe('where the run has got to, on the row and in the rail', () => {
   it('lets the outcome win over the position when the newest step failed', () => {
     // Red is a claim about what happened; orange only says where the run is. A row
     // that has just failed should not be painted as the healthy frontier.
-    const rule =
-      LIVE_CSS.match(/\.live-step\.newest\.partial,[^{]*\{([^}]*)\}/)?.[1] ?? '';
+    const rule = LIVE_CSS.match(/\.live-step\.newest\.partial,[^{]*\{([^}]*)\}/)?.[1] ?? '';
     expect(rule).toMatch(/border-left: 3px solid var\(--db-red-600\)/);
     expect(rule).toMatch(/background: var\(--db-red-wash\)/);
   });
@@ -483,7 +558,8 @@ describe('a step announced before it finishes', () => {
     // announcement to be dropped when the next one arrived, on the reasoning
     // that only one step runs at a time. The agent announces a parallel batch
     // before any of it starts, so that rule showed one tool of three.
-    const batch = mergeLiveStage([stage({ id: 'step-1' }), running('step-1-1-data_genie', 'Calling data_genie')],
+    const batch = mergeLiveStage(
+      [stage({ id: 'step-1' }), running('step-1-1-data_genie', 'Calling data_genie')],
       running('step-1-2-run_sql', 'Calling run_sql')
     );
     expect(batch.map((entry) => entry.id)).toEqual(['step-1', 'step-1-1-data_genie', 'step-1-2-run_sql']);
@@ -584,7 +660,11 @@ describe('a step announced before it finishes', () => {
     // different things.
     const mid = buildLiveRun({
       openedAt: 1_000,
-      stages: [stage({ id: 'step-1' }), stage({ id: 'step-1-1-data_genie', kind: 'tool' }), running('step-2', 'Choosing the next step')],
+      stages: [
+        stage({ id: 'step-1' }),
+        stage({ id: 'step-1-1-data_genie', kind: 'tool' }),
+        running('step-2', 'Choosing the next step'),
+      ],
     });
     expect(mid.detail).toBe('2 steps done, now “Choosing the next step”.');
     expect(mid.steps).toHaveLength(3);
@@ -622,11 +702,14 @@ describe('a step announced before it finishes', () => {
  */
 describe('a run replayed into a view that did not watch it', () => {
   it('reproduces the whole path for a browser holding nothing', () => {
-    const replayed = mergeReplayedStages([], [
-      stage({ id: 'step-1' }),
-      stage({ id: 'step-1-1-data_genie', kind: 'tool', name: 'Asked the data Genie space' }),
-      stage({ id: 'step-2', status: 'running', duration: 0 }),
-    ]);
+    const replayed = mergeReplayedStages(
+      [],
+      [
+        stage({ id: 'step-1' }),
+        stage({ id: 'step-1-1-data_genie', kind: 'tool', name: 'Asked the data Genie space' }),
+        stage({ id: 'step-2', status: 'running', duration: 0 }),
+      ]
+    );
 
     expect(replayed.map((entry) => entry.id)).toEqual(['step-1', 'step-1-1-data_genie', 'step-2']);
     // In the order the run reported them, which is the order the server stored
@@ -652,9 +735,10 @@ describe('a run replayed into a view that did not watch it', () => {
   it('lets a replayed completion resolve a step the view still has running', () => {
     // The run finished the step while the reader was away. The row stays where it
     // was and stops being unresolved, rather than a second row appearing under it.
-    const merged = mergeReplayedStages([stage({ id: 'step-2', status: 'running', duration: 0 })], [
-      stage({ id: 'step-2', status: 'complete', duration: 4_120 }),
-    ]);
+    const merged = mergeReplayedStages(
+      [stage({ id: 'step-2', status: 'running', duration: 0 })],
+      [stage({ id: 'step-2', status: 'complete', duration: 4_120 })]
+    );
 
     expect(merged).toHaveLength(1);
     expect(merged[0].status).toBe('complete');
@@ -676,7 +760,13 @@ describe('which run the agent path draws', () => {
 
   it('draws the run in flight rather than the one that answered before it', () => {
     expect(
-      railStagesFor({ loading: true, runStopped: false, liveStages: live, answeredStages: answered, clarificationStages: [] })
+      railStagesFor({
+        loading: true,
+        runStopped: false,
+        liveStages: live,
+        answeredStages: answered,
+        clarificationStages: [],
+      })
     ).toEqual(live);
   });
 
@@ -687,7 +777,13 @@ describe('which run the agent path draws', () => {
     // question's run under a pill saying this one was live. The empty list is
     // what puts the honest "working on your question" row on screen instead.
     expect(
-      railStagesFor({ loading: true, runStopped: false, liveStages: [], answeredStages: answered, clarificationStages: [] })
+      railStagesFor({
+        loading: true,
+        runStopped: false,
+        liveStages: [],
+        answeredStages: answered,
+        clarificationStages: [],
+      })
     ).toEqual([]);
   });
 

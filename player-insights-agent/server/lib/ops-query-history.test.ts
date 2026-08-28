@@ -87,7 +87,7 @@ describe('Ops Query History attribution', () => {
     expect(result).toMatchObject({ complete: false, astrolabeQueries: 1, totalQueries: 1 });
   });
 
-  it('requests metrics and the exact bounded time range through the Workspace SDK transport', async () => {
+  it('requests execution metrics and the exact bounded range', async () => {
     const request = vi.fn((_options: unknown): Promise<unknown> => Promise.resolve({ res: [] }));
     const transport = createDatabricksQueryHistoryTransport({ request: (options) => request(options) });
     await transport.listQueries({
@@ -116,5 +116,55 @@ describe('Ops Query History attribution', () => {
     );
     const called = request.mock.calls[0]?.[0] as { headers?: unknown } | undefined;
     expect(called?.headers).toBeInstanceOf(Headers);
+  });
+
+  it('splits periods longer than the Query History 30-day limit and keeps one complete denominator', async () => {
+    const listQueries = vi
+      .fn()
+      .mockResolvedValueOnce({ res: [row('app-1', 10, 'Astrolabe')], has_next_page: false })
+      .mockResolvedValueOnce({ res: [row('other-1', 20, 'Other')], has_next_page: false })
+      .mockResolvedValueOnce({ res: [row('app-2', 30, 'Astrolabe')], has_next_page: false });
+    const start = Date.parse('2026-06-01T00:00:00Z');
+    const end = Date.parse('2026-08-14T23:59:59.999Z');
+
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: start,
+      endTimeMs: end,
+      transport: { listQueries },
+    });
+
+    expect(result).toEqual({
+      complete: true,
+      astrolabeQueries: 2,
+      totalQueries: 3,
+      astrolabeExecutionMs: 40,
+      totalExecutionMs: 60,
+    });
+    expect(listQueries).toHaveBeenCalledTimes(3);
+    const first = listQueries.mock.calls[0]?.[0] as { startTimeMs: number; endTimeMs: number };
+    const second = listQueries.mock.calls[1]?.[0] as { startTimeMs: number; endTimeMs: number };
+    expect(second.startTimeMs).toBe(first.endTimeMs + 1);
+  });
+
+  it('falls back to query duration when execution metrics are absent', async () => {
+    const result = await readWarehouseQueryAttribution({
+      warehouseId: 'warehouse-1',
+      startTimeMs: 1_000,
+      endTimeMs: 2_000,
+      transport: {
+        listQueries: vi.fn().mockResolvedValue({
+          res: [{ ...row('app-1', null, 'Astrolabe'), duration: 25 }],
+          has_next_page: false,
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      complete: true,
+      astrolabeQueries: 1,
+      totalQueries: 1,
+      astrolabeExecutionMs: 25,
+      totalExecutionMs: 25,
+    });
   });
 });

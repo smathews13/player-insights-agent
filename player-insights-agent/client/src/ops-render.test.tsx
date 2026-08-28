@@ -207,7 +207,7 @@ function cost(overrides: Partial<OpsCostPayload> = {}): OpsCostPayload {
       tokenCoveredRuns: 0,
       totalRecordedTokens: 0,
       limited: false,
-      reason: 'No completed runs were recorded in this billing range.',
+      reason: 'No completed runs were recorded for the selected period.',
     },
     budgets: { total: null, resources: {} },
     budgetsReadable: true,
@@ -781,7 +781,7 @@ describe('the cost block', () => {
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
     expect([...markup.matchAll(/ast-pill ast-pill--warn ops-pill/g)]).toHaveLength(1);
-    expect(markup).toContain('estimated in range');
+    expect(markup).toContain('estimated selected period');
     expect(markup).not.toContain('Per token');
   });
 
@@ -802,7 +802,6 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).not.toContain('ast-pill ast-pill--neutral-outline ops-pill');
     expect(markup).not.toContain('Whole workspace');
     expect(markup).not.toContain('This app');
     // A sentence, in either direction, is what the badge replaced.
@@ -825,7 +824,7 @@ describe('the cost block', () => {
   it('sets the figures in mono and the basis beside them in DM Sans', () => {
     const markup = markupOf(<CostBody block={block(cost())} />);
     expect(markup).toMatch(/<span class="ast-num">[^<]*\d/);
-    expect(markup).not.toMatch(/class="ops-tile-basis ast-num"|class="ast-num[^"]*"[^>]*>(in range|per day)/);
+    expect(markup).not.toMatch(/class="ops-tile-basis ast-num"|class="ast-num[^"]*"[^>]*>(selected period|per day)/);
   });
 
   /** The six lines of prose, gone, and named so they cannot come back quietly. */
@@ -851,7 +850,7 @@ describe('the cost block', () => {
 
   it('says whether a tile is a total or a daily rate', () => {
     const markup = render(<CostBody block={block(cost())} />);
-    expect(markup).toContain('in range');
+    expect(markup).toContain('selected period');
     expect(markup).toContain('per day');
   });
 
@@ -920,10 +919,10 @@ describe('the cost block', () => {
     expect(markup).not.toContain('0.00');
   });
 
-  it('keeps one model-serving average without inventing a combined per-question total', () => {
+  it('shows only the high-level attributed-cost formula', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).toContain('AVG. COST / QUESTION');
-    expect(markup).not.toContain('serving endpoint spend ÷ questions with recorded tokens');
+    expect(markup).toContain('Attributed serving + SQL ÷ completed questions');
     expect(markup).not.toContain('Average model serving per question');
     expect(markup).not.toContain('token-apportions model-serving spend only');
     expect(markup).not.toContain('Per-question attribution');
@@ -931,7 +930,7 @@ describe('the cost block', () => {
     expect(markup).not.toContain('across 4 questions');
   });
 
-  it('averages only measured endpoint spend and removes the per-run table', () => {
+  it('averages attributed serving and SQL spend and removes the per-run table', () => {
     const payload = cost({
       tiles: [
         {
@@ -942,6 +941,19 @@ describe('the cost block', () => {
           amount: 10,
           basis: 'total-in-range',
           population: 'This endpoint',
+          unavailable: '',
+          remedy: '',
+          note: '',
+        },
+        {
+          id: 'sql-warehouse',
+          label: 'SQL warehouse',
+          resourceId: 'warehouse',
+          quality: 'estimate',
+          amount: 4,
+          basis: 'total-in-range',
+          population: 'This warehouse',
+          attribution: 'deployment',
           unavailable: '',
           remedy: '',
           note: '',
@@ -988,8 +1000,8 @@ describe('the cost block', () => {
       },
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('5.00 USD');
-    expect(markup).not.toContain('serving endpoint spend ÷ questions with recorded tokens');
+    expect(markup).toContain('7.00 USD');
+    expect(markup).toContain('Attributed serving + SQL ÷ completed questions');
     expect(markup).not.toContain('token-apportioned');
     expect(markup).not.toContain('<table');
     expect(markup).not.toContain('Not knowable per question today');
@@ -1031,7 +1043,7 @@ describe('the cost block', () => {
           cost({
             state: 'no-rows',
             tiles: [],
-            reason: 'No billing rows matched an exact tracked resource in this range.',
+            reason: 'No billing rows matched an exact tracked resource for the selected period.',
           })
         )}
       />
@@ -1213,12 +1225,10 @@ describe('the cost block', () => {
     expect(visible).toContain('Data Genie · space-data');
     expect(visible).toContain('Dictionary Genie · space-dictionary');
     expect(visible).toContain('Vector search · catalog.schema.index · vs-endpoint');
-    expect(visible).toContain('3 Astrolabe requests in range');
-    expect(visible).toContain('3 of 4 requests carry resource identity');
-    expect(visible).toContain('2 Astrolabe requests in range');
-    expect(visible).not.toContain('2 of 2 requests carry resource identity');
-    expect(visible).toContain('5 Astrolabe queries in range');
-    expect(visible).toContain('5 of 7 queries carry resource identity');
+    expect(visible).toContain('3 Astrolabe requests during selected period');
+    expect(visible).toContain('2 Astrolabe requests during selected period');
+    expect(visible).toContain('5 Astrolabe queries during selected period');
+    expect(visible).not.toContain('carry resource identity');
     expect(visible).not.toContain('Foundation model');
     expect(visible).not.toContain('withheld');
   });
@@ -1241,7 +1251,7 @@ describe('the cost block', () => {
     };
     const visible = text(markupOf(<CostBody block={block(cost({ tiles: [tile] }))} />));
 
-    expect(visible).toContain('1 Astrolabe query in range');
+    expect(visible).toContain('1 Astrolabe query during selected period');
     expect(visible).not.toContain('querie');
   });
 
@@ -1268,7 +1278,7 @@ describe('the cost block', () => {
       ],
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).toContain('2.50 USD estimated in range');
+    expect(markup).toContain('2.50 USD estimated selected period');
     expect(markup).toContain('4 billing rows · 2 Astrolabe queries of 10 warehouse queries');
     expect(markup).not.toMatch(/ops-tile-evidence[^>]*>warehouse-1/);
     expect(markup).not.toContain('This must not render');
@@ -1324,18 +1334,17 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup).toContain('App budget ceiling');
-    expect(markup).toContain('Total budget in range');
-    expect(markup).toContain('Budget in range');
+    expect(markup).toContain('Total app spend');
+    expect(markup).toContain('App budget');
+    expect(markup).toContain('Total budget selected period');
+    expect(markup).toContain('Budget selected period');
     expect(markup).toContain('Budget per day');
     expect(markup).not.toContain('Same window as the tiles');
     expect(markup).not.toMatch(/month|monthly|PagerDuty|forecast/i);
     expect(markup).toContain('400');
     expect(markup).toContain('40');
     expect([...markup.matchAll(/>Apply<\/button>/g)]).toHaveLength(payload.tiles.length + 1);
-    expect(markup).toMatch(
-      /<fieldset class="ops-cost-budget-ceiling"><legend>App budget ceiling<\/legend>[\s\S]*?AVG\. COST \/ QUESTION[\s\S]*?<\/fieldset>/
-    );
+    expect(markup.indexOf('ops-cost-summary-grid')).toBeLessThan(markup.indexOf('ops-tiles'));
   });
 
   it('compares spend to a tile budget when both exist, and still offers a budget when spend is missing', () => {
@@ -1489,8 +1498,8 @@ describe('the cost block', () => {
 
   it('keeps budget fields when billing has no rows and when the grant is missing', () => {
     const empty = render(<CostBody block={block(cost({ state: 'no-rows', tiles: [] }))} />);
-    expect(empty).toContain('App budget ceiling');
-    expect(empty).toContain('Budget in range');
+    expect(empty).toContain('App budget');
+    expect(empty).toContain('Budget selected period');
     const denied = render(
       <CostBody
         block={block(
@@ -1506,7 +1515,7 @@ describe('the cost block', () => {
         )}
       />
     );
-    expect(denied).toContain('App budget ceiling');
+    expect(denied).toContain('App budget');
     expect(denied).toContain('GRANT SELECT ON SCHEMA system.billing');
     expect(denied).toContain('Serving endpoint');
   });

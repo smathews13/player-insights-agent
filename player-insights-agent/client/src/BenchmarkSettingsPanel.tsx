@@ -9,7 +9,12 @@ import {
 import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared/benchmark-settings';
 import { ExperimentalStatus } from './ExperimentalBadge';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
-import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
+import {
+  changedSettingKeys,
+  saveRetryAfterLoad,
+  type SettingsLoadResult,
+  type SettingsSaveState,
+} from './settings-save-state';
 import { Button, Input, Switch, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
 
@@ -98,11 +103,18 @@ function JudgeToggleRow({
 export function BenchmarkSettingsPanel({
   enabled,
   onSaveState = () => {},
+  onDirtyChange = () => {},
+  additionalChangeCount = 0,
+  onCommitStaged = async () => {},
 }: {
   enabled: boolean;
   onSaveState?: (state: SettingsSaveState) => void;
+  onDirtyChange?: (count: number) => void;
+  additionalChangeCount?: number;
+  onCommitStaged?: () => Promise<void>;
 }) {
   const [settings, setSettings] = useState<BenchmarkSettings>(DEFAULT_BENCHMARK_SETTINGS);
+  const [savedSettings, setSavedSettings] = useState<BenchmarkSettings | null>(null);
   const [experimentUrl, setExperimentUrl] = useState<string | null>(null);
   const [lastTrace, setLastTrace] = useState<{ traceId: string; url: string | null } | null>(null);
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
@@ -113,6 +125,7 @@ export function BenchmarkSettingsPanel({
     try {
       const response = await fetch('/api/benchmark-settings');
       const loaded = await benchmarkSettingsFromResponse(response, 'loaded');
+      setSavedSettings(loaded.settings);
       setSettings(loaded.settings);
       setExperimentUrl(loaded.experimentUrl);
       return { ok: true };
@@ -122,6 +135,12 @@ export function BenchmarkSettingsPanel({
       return { ok: false, message };
     }
   }, []);
+
+  const changedCount = savedSettings ? changedSettingKeys(savedSettings, settings).length : 0;
+
+  useEffect(() => {
+    onDirtyChange(changedCount);
+  }, [changedCount, onDirtyChange]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load() writes the fetched settings
@@ -153,7 +172,6 @@ export function BenchmarkSettingsPanel({
   }, []);
 
   const save = async () => {
-    if (!enabled) return;
     if (failure?.operation === 'load') {
       onSaveState({ kind: 'saving' });
       const result = await load();
@@ -163,15 +181,20 @@ export function BenchmarkSettingsPanel({
     setFailure(null);
     onSaveState({ kind: 'saving' });
     try {
-      const response = await fetch('/api/admin/benchmark-settings', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
-      const saved = await benchmarkSettingsFromResponse(response, 'saved');
-      setSettings(saved.settings);
-      setExperimentUrl(saved.experimentUrl);
-      onSaveState({ kind: 'saved' });
+      if (changedCount > 0) {
+        const response = await fetch('/api/admin/benchmark-settings', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(settings),
+        });
+        const saved = await benchmarkSettingsFromResponse(response, 'saved');
+        setSavedSettings(saved.settings);
+        setSettings(saved.settings);
+        setExperimentUrl(saved.experimentUrl);
+      }
+      await onCommitStaged();
+      onDirtyChange(0);
+      onSaveState({ kind: 'saved', count: changedCount + additionalChangeCount });
     } catch (caught) {
       setFailure({ operation: 'save', message: (caught as Error).message });
       onSaveState({ kind: 'failed', message: (caught as Error).message });
@@ -300,6 +323,8 @@ export function BenchmarkSettingsPanel({
 
         <p className="runtime-section-label">Custom judges</p>
         {settings.customJudges.map((judge, index) => (
+          // Stored judges have no identifier; position distinguishes duplicate drafts until server normalization.
+          // eslint-disable-next-line react/no-array-index-key
           <div className="eval-custom-judge" key={`${judge.name}-${index}`}>
             <p className="settings-row-label">{judge.name}</p>
             {judge.guidelines ? <p className="settings-row-note">{judge.guidelines}</p> : null}

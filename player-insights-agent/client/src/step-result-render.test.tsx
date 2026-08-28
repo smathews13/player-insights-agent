@@ -138,9 +138,7 @@ describe('dark step details keep one night-sky surface', () => {
         /background:\s*rgba\(255,\s*255,\s*255,\s*0\.03\)/
       );
     }
-    expect(darkRule("html[data-theme='dark'] .trace-dag.map .dag-detail-head")).toMatch(
-      /background:\s*transparent/
-    );
+    expect(darkRule("html[data-theme='dark'] .trace-dag.map .dag-detail-head")).toMatch(/background:\s*transparent/);
   });
 });
 
@@ -193,7 +191,9 @@ describe('a data_genie step', () => {
 
   it('sets the table and column names in the sentence as chips', () => {
     const understood = markup.slice(markup.indexOf('<dt>Understood as</dt>'), markup.indexOf('<dt>Returned</dt>'));
-    expect(understood).toContain('<code class="dag-name-chip" title="silver_player_profiles">silver_player_profiles</code>');
+    expect(understood).toContain(
+      '<code class="dag-name-chip" title="silver_player_profiles">silver_player_profiles</code>'
+    );
     // The info family, which is what every other surface sets an identifier in and
     // the two values the detail spec names for this chip: #0E538B on #DDEAF4, at
     // 6.34:1. The same 3px box the answer card's identifier tags carry, so a name
@@ -267,7 +267,7 @@ describe('a dictionary_genie step', () => {
         [
           'silver_player_profiles | player_id | Surrogate key. | Never return in an answer.',
           'silver_player_profiles | crm_customer_ref | Cross-label key. | Aggregate only.',
-        ].join('\n'),
+        ].join('\n')
       ),
     });
     // The rows are still drawn -- as the grid they are, under "Returned".
@@ -279,7 +279,8 @@ describe('a dictionary_genie step', () => {
   it('degrades to the text when the dictionary returned prose and no row', () => {
     const prose = panel({
       id: 'step-4-1-dictionary_genie',
-      output: 'Query interpretation: You want to see the definition of 30-day active players.\n\nThe term is not defined in the dictionary.',
+      output:
+        'Query interpretation: You want to see the definition of 30-day active players.\n\nThe term is not defined in the dictionary.',
     });
     expect(result(prose)).toContain('The term is not defined in the dictionary.');
     expect(prose).not.toContain('dag-definition-head');
@@ -287,19 +288,45 @@ describe('a dictionary_genie step', () => {
 });
 
 describe('rendered markdown results', () => {
+  it('renders stored discovery tables with the shared semantic entity treatment', () => {
+    const table = '<your_catalog>.<your_schema>.gold_title_daily_summary';
+    const markup = result(
+      panel({
+        id: 'inventory',
+        name: 'Listed available tables',
+        kind: 'discovery',
+        input: '{}',
+        output: `Declared tables:\n  - ${table}  [franchise: Contoso]`,
+        tables: [table],
+      })
+    );
+
+    expect(markup).toContain('1</span> table assessed');
+    expect(markup).toContain('entity-table-mark');
+    expect(markup).toContain('data-entity-part="catalog"');
+    expect(markup).toContain('data-entity-part="schema"');
+    expect(markup).toContain('data-entity-part="table"');
+    expect(markup).not.toContain('>{}<');
+  });
+
   it('renders a heading, markdown table, and bold answer instead of leftover syntax', () => {
-    const markup = result(panel({
-      id: 'synthesis',
-      kind: 'agent',
-      name: 'Prepared the answer',
-      output: '## DATA PACKAGE\n\n---\n\n| catalog.schema.table | players |\n| --- | ---: |\n| catalog.schema.players | 12,000 |\n\n**Prepared the answer.**\n\n```sql\nSELECT * FROM catalog.schema.players\n```',
-    }));
+    const markup = result(
+      panel({
+        id: 'synthesis',
+        kind: 'agent',
+        name: 'Prepared the answer',
+        output:
+          '## DATA PACKAGE\n\n---\n\n| catalog.schema.table | players |\n| --- | ---: |\n| catalog.schema.players | 12,000 |\n\n**Prepared the answer.**\n\n```sql\nSELECT * FROM catalog.schema.players\n```',
+      })
+    );
     expect(markup).toContain('class="dag-md-head"');
     expect(markup).toContain('>DATA PACKAGE</strong>');
     expect(markup).toContain('class="dag-md-rule"');
     expect(markup).toContain('<table class="answer-table">');
     expect(markup).toContain('<strong>Prepared the answer.</strong>');
-    expect(markup).toContain('<pre class="dag-md-code"><code data-language="sql">SELECT * FROM catalog.schema.players</code></pre>');
+    expect(markup).toContain(
+      '<pre class="dag-md-code"><code data-language="sql">SELECT * FROM catalog.schema.players</code></pre>'
+    );
     expect(markup).not.toContain('| --- |');
     expect(markup).not.toContain('**Prepared');
     expect(markup).not.toContain('## DATA PACKAGE');
@@ -319,12 +346,14 @@ describe('rendered markdown results', () => {
       '',
       '- **Sources:** `catalog.schema.player_profiles`.',
     ].join('\n');
-    const markup = result(panel({
-      id: 'data_source_finder',
-      kind: 'agent',
-      name: 'Prepared the data package',
-      output,
-    }));
+    const markup = result(
+      panel({
+        id: 'data_source_finder',
+        kind: 'agent',
+        name: 'Prepared the data package',
+        output,
+      })
+    );
     expect(markup).toContain('<table class="answer-table">');
     expect(markup).toContain('<th scope="col" data-align="left" data-wrap="atomic">Table</th>');
     expect(markup).toContain('<code class="dag-name-chip" title="player_profiles">player_profiles</code>');
@@ -337,7 +366,8 @@ describe('rendered markdown results', () => {
   });
 
   it('does not turn a whole prose block into one blue identifier chip', () => {
-    const long = '`This is an entire paragraph with spaces and enough content that it must remain readable code, not a chip.`';
+    const long =
+      '`This is an entire paragraph with spaces and enough content that it must remain readable code, not a chip.`';
     const markup = result(panel({ id: 'synthesis', kind: 'agent', output: long }));
     expect(markup).toContain('class="dag-inline-code"');
     expect(markup).not.toContain('class="dag-name-chip"');
@@ -345,7 +375,7 @@ describe('rendered markdown results', () => {
 
   it('uses the same rendered-first reading in the Run Explorer timeline', () => {
     const markup = renderToStaticMarkup(
-      <PayloadView text={'## DATA PACKAGE\n\n**Prepared.**\n\n```sql\nSELECT 1\n```'} />,
+      <PayloadView text={'## DATA PACKAGE\n\n**Prepared.**\n\n```sql\nSELECT 1\n```'} />
     );
     expect(markup).toContain('aria-label="How to show this payload"');
     expect(markup).toMatch(/aria-pressed="true">Rendered<\/button>/);
@@ -455,7 +485,9 @@ describe('a search_semantics step', () => {
     });
     const question = asked.slice(asked.indexOf('<dt>Asked</dt>'), asked.indexOf('<dt>Result</dt>'));
     expect(question).toContain('<code class="dag-name-chip" title="player_id">player_id</code>');
-    expect(question).toContain('<code class="dag-name-chip" title="silver_player_profiles">silver_player_profiles</code>');
+    expect(question).toContain(
+      '<code class="dag-name-chip" title="silver_player_profiles">silver_player_profiles</code>'
+    );
     expect(question).not.toContain('<b>question</b>');
   });
 
@@ -480,7 +512,7 @@ describe('the step panel and the shapes in it are on one palette', () => {
    */
   const PANEL = TRACE_CSS.slice(
     TRACE_CSS.indexOf('.trace-dag.map .dag-detail {'),
-    TRACE_CSS.indexOf('@keyframes pulse'),
+    TRACE_CSS.indexOf('@keyframes pulse')
   );
 
   it('is bounded where it says it is', () => {
@@ -501,7 +533,7 @@ describe('the step panel and the shapes in it are on one palette', () => {
     // oranges the palette does not contain: #93320B on the guardrail chip and
     // #BE501E on a finding row.
     const legacy = PANEL.match(
-      /var\(--(?:db-[a-z0-9-]+|muted-foreground|border|card|primary|primary-foreground|radius-(?:sm|md|lg)|text-(?:xs|sm|base|lg)|success|destructive|chart-\d)\)/g,
+      /var\(--(?:db-[a-z0-9-]+|muted-foreground|border|card|primary|primary-foreground|radius-(?:sm|md|lg)|text-(?:xs|sm|base|lg)|success|destructive|chart-\d)\)/g
     );
     expect(legacy, `legacy tokens still in the step panel: ${[...new Set(legacy ?? [])].join(', ')}`).toBeNull();
   });
@@ -516,14 +548,20 @@ describe('the step panel and the shapes in it are on one palette', () => {
     for (const [, body] of PANEL.matchAll(/\n([^\n{}]+\{[^}]*\})/g)) {
       if (!body.includes('tabular-nums')) continue;
       expect(body, `tabular-nums without a mono family: ${body.split('{')[0].trim()}`).toMatch(
-        /font-family: (?:var\(--font-mono\)|inherit)/,
+        /font-family: (?:var\(--font-mono\)|inherit)/
       );
     }
   });
 });
 
 describe('an agent step that wrote up its findings', () => {
-  const markup = panel({ id: 'step-7-agent', name: 'Prepared the findings', kind: 'agent', input: 'Evidence gathered so far', output: FINDINGS });
+  const markup = panel({
+    id: 'step-7-agent',
+    name: 'Prepared the findings',
+    kind: 'agent',
+    input: 'Evidence gathered so far',
+    output: FINDINGS,
+  });
 
   it('renders the figure as bold text rather than as a wall of asterisks', () => {
     expect(result(markup)).toContain('<strong>12,000 distinct players</strong>');
@@ -534,7 +572,9 @@ describe('an agent step that wrote up its findings', () => {
     expect(result(markup)).toContain('<dt>Table</dt>');
     expect(result(markup)).toContain('<dt>Key used</dt>');
     expect(result(markup)).toContain('<dt>Count</dt>');
-    expect(result(markup)).toContain('<code class="dag-name-chip" title="silver_player_profiles">silver_player_profiles</code>');
+    expect(result(markup)).toContain(
+      '<code class="dag-name-chip" title="silver_player_profiles">silver_player_profiles</code>'
+    );
     expect(result(markup)).not.toContain('**Source details:**');
   });
 

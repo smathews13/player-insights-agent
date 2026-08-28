@@ -132,7 +132,7 @@
    * the ACTIVE SEGMENT inside this group, and using it here would flatten the
    * chosen segment against its own background.
    */
-  background: var(--ast-fill-band);
+  background: var(--ast-surface-solid);
 }
 /* The app's eyebrow, to the letter: 11px, 700, +0.06em, uppercase, --db-slate.
    Same treatment as the tile labels in the strip above, so the row reads as

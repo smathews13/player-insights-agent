@@ -55,7 +55,8 @@ describe('what a stage may leave in the table', () => {
     // The schema's own rule: no raw tool result goes in this table. The
     // arguments a step was given are what the rail draws; what came back is the
     // result, and it arrives in full with the authoritative trace.
-    const payload = stageEventPayload(stage({
+    const payload = stageEventPayload(
+      stage({
         id: 'step-1-1-data_genie',
         kind: 'tool',
         output: '[{"title_id": 4471, "hours_viewed": 91827364}, {"title_id": 4472}]',
@@ -65,8 +66,32 @@ describe('what a stage may leave in the table', () => {
     expect(payload).not.toHaveProperty('output');
   });
 
+  it('stores only the explicit fully-qualified table projection', () => {
+    const payload = stageEventPayload(
+      stage({
+        id: 'inventory',
+        name: 'Listed available tables',
+        kind: 'discovery',
+        input: '{}',
+        output: 'raw catalog result that must not be persisted',
+        tables: [
+          '<your_catalog>.<your_schema>.gold_title_daily',
+          '<your_catalog>.<your_schema>.gold_title_daily',
+          'not-a-qualified-table',
+          17,
+        ],
+        tool_payload: { authorization: 'Bearer secret' },
+      })
+    );
+
+    expect(payload.tables).toEqual(['<your_catalog>.<your_schema>.gold_title_daily']);
+    expect(payload).not.toHaveProperty('output');
+    expect(payload).not.toHaveProperty('tool_payload');
+  });
+
   it('stores the arguments only as wide as the rail draws them', () => {
-    const payload = stageEventPayload(stage({
+    const payload = stageEventPayload(
+      stage({
         kind: 'tool',
         input: `{"question": "${'w'.repeat(400)}"}`,
       })
@@ -108,12 +133,21 @@ describe('recording a run as it happens', () => {
     const recorder = createStageRecorder(store, 'run-1');
 
     recorder.record(stage({ id: 'step-1' }));
-    recorder.record(stage({ id: 'step-1-1-data_genie', kind: 'tool' }));
+    recorder.record(
+      stage({
+        id: 'inventory',
+        name: 'Listed available tables',
+        kind: 'discovery',
+        tables: ['<your_catalog>.<your_schema>.gold_title_daily'],
+      })
+    );
     recorder.record(stage({ id: 'step-2', status: 'running', duration: 0 }));
     await recorder.settled();
 
     const replayed = await readStageEvents(store, 'run-1');
-    expect(replayed.map((entry) => entry.id)).toEqual(['step-1', 'step-1-1-data_genie', 'step-2']);
+    expect(replayed.map((entry) => entry.id)).toEqual(['step-1', 'inventory', 'step-2']);
+    expect(replayed[1].tables).toEqual(['<your_catalog>.<your_schema>.gold_title_daily']);
+    expect(replayed[1]).not.toHaveProperty('output');
     expect(replayed[2].status).toBe('running');
   });
 

@@ -107,6 +107,11 @@ describe('the five labels are separated rather than run together', () => {
     expect(CSS).toMatch(/\.time-range-segment\[aria-checked='true'\]\s*\{[^}]*background/);
   });
 
+  it('puts an opaque tokenized surface behind inactive segments', () => {
+    expect(CSS).toMatch(/\.time-range-segments\s*\{[^}]*background:\s*var\(--ast-surface-solid\)/);
+    expect(CSS).toMatch(/\.time-range-segment\s*\{[^}]*background:\s*var\(--ast-surface-solid\)/);
+  });
+
   it('leaves a focused segment a visible ring', () => {
     expect(CSS).toMatch(/\.time-range-segment:focus-visible\s*\{[^}]*outline/);
   });
@@ -126,13 +131,7 @@ describe('the control offers the five ranges the design names', () => {
   it('renders 24h, 7 days, 30 days, All time and Custom as five separate controls', () => {
     const html = markup();
 
-    expect(RANGE_SEGMENTS.map((segment) => segment.label)).toEqual([
-      '24h',
-      '7 days',
-      '30 days',
-      'All time',
-      'Custom',
-    ]);
+    expect(RANGE_SEGMENTS.map((segment) => segment.label)).toEqual(['24h', '7 days', '30 days', 'All time', 'Custom']);
     for (const segment of RANGE_SEGMENTS) expect(html).toContain(`>${segment.label}<`);
     expect(html.match(/role="radio"/g)).toHaveLength(5);
   });

@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { ExperimentalBadge } from './ExperimentalBadge';
-import { calculateForecast, deriveForecastBaseline, type ForecastAssumptions } from './forecast';
+import {
+  calculateForecast,
+  deriveForecastBaseline,
+  normalizeForecastAssumptions,
+  type ForecastAssumptions,
+  type ForecastSuggestionEvidence,
+} from './forecast';
 import { persistForecastAssumptions, readForecastAssumptions } from './forecast-preferences';
 import { Disclosure } from './page-chrome';
 import { Button, Input, Skeleton } from './ui';
@@ -18,18 +24,16 @@ const ASSUMPTION_FIELDS: Array<{
   unit?: string;
   step: string;
 }> = [
-  { key: 'averageDailyUsers', label: 'Average daily users', step: '0.1' },
+  { key: 'averageDailyUsers', label: 'Average daily users', step: '1' },
   { key: 'questionsPerUserPerDay', label: 'Questions per user per day', step: '0.1' },
   { key: 'activeAppMinutesPerUserPerDay', label: 'Active app minutes per user per day', unit: 'min', step: '0.1' },
-  { key: 'averageModelTokensPerQuestion', label: 'Average model tokens per question', unit: 'tokens', step: '1' },
-  { key: 'governedTableCount', label: 'Governed table count', unit: 'tables', step: '1' },
+  { key: 'averageModelTokensPerQuestion', label: 'Average model tokens per question', unit: 'tokens', step: '0.1' },
   {
-    key: 'vectorSearchCostPerTableDay',
-    label: 'Vector Search cost per table per day',
-    unit: 'list price',
-    step: '0.01',
+    key: 'costBufferPercent',
+    label: 'Cost buffer',
+    unit: '%',
+    step: '0.1',
   },
-  { key: 'contingencyPercent', label: 'Contingency percentage', unit: '%', step: '1' },
 ];
 
 function money(amount: number, currency: string): string {
@@ -38,19 +42,26 @@ function money(amount: number, currency: string): string {
 
 function AssumptionGrid({
   assumptions,
-  currency,
+  evidence,
   onChange,
 }: {
   assumptions: ForecastAssumptions;
-  currency: string;
+  evidence: Record<keyof ForecastAssumptions, ForecastSuggestionEvidence>;
   onChange: (field: keyof ForecastAssumptions, value: number) => void;
 }) {
+  const evidenceText = (item: ForecastSuggestionEvidence) => {
+    const formatted = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 1 });
+    const observed = item.range
+      ? ` · ${item.range.label} ${formatted(item.range.min)}–${formatted(item.range.max)}`
+      : '';
+    const period = item.period ? ` · ${item.period}` : '';
+    return `Suggested: ${item.calculation}${period}${observed}`;
+  };
   return (
     <fieldset className="ops-forecast-assumptions">
       <legend>Assumptions</legend>
       <div className="ops-forecast-assumption-grid">
         {ASSUMPTION_FIELDS.map((field) => {
-          const unit = field.key === 'vectorSearchCostPerTableDay' ? `${currency} ${field.unit}` : field.unit;
           return (
             <label key={field.key}>
               <span>{field.label}</span>
@@ -65,8 +76,14 @@ function AssumptionGrid({
                     onChange(field.key, Number.isFinite(next) && next >= 0 ? next : 0);
                   }}
                 />
-                {unit ? <small>{unit}</small> : null}
+                {field.unit ? <small>{field.unit}</small> : null}
               </span>
+              {field.key === 'costBufferPercent' ? (
+                <small className="ops-forecast-assumption-explanation">
+                  Extra percentage added after the component forecast.
+                </small>
+              ) : null}
+              <small className="ops-forecast-assumption-evidence">{evidenceText(evidence[field.key])}</small>
             </label>
           );
         })}
@@ -101,7 +118,7 @@ export function ForecastingBody({
     Boolean(traffic.failed || traffic.data?.unread);
 
   const update = (field: keyof ForecastAssumptions, value: number) => {
-    const next = { ...assumptions, [field]: value };
+    const next = normalizeForecastAssumptions({ ...assumptions, [field]: value });
     setSaved(next);
     persistForecastAssumptions(next);
   };
@@ -151,7 +168,7 @@ export function ForecastingBody({
               </p>
             ) : null}
 
-            <AssumptionGrid assumptions={assumptions} currency={baseline.currency} onChange={update} />
+            <AssumptionGrid assumptions={assumptions} evidence={baseline.evidence} onChange={update} />
             <div className="ops-forecast-actions">
               <span>
                 Daily questions = {assumptions.averageDailyUsers} × {assumptions.questionsPerUserPerDay} ={' '}
@@ -180,16 +197,8 @@ export function ForecastingBody({
                     <>
                       <p className="ops-forecast-total">
                         <span className="ast-num">{money(horizon.total, baseline.currency)}</span>
-                        <span>estimated total</span>
+                        <span>{partial ? 'estimated subtotal' : 'estimated total'}</span>
                       </p>
-                      <ul>
-                        {horizon.components.map((component) => (
-                          <li key={component.id}>
-                            <span>{component.label}</span>
-                            <span className="ast-num">{money(component.amount, baseline.currency)}</span>
-                          </li>
-                        ))}
-                      </ul>
                     </>
                   )}
                 </article>
@@ -205,8 +214,8 @@ export function ForecastingBody({
                 </p>
                 <p>Astrolabe SQL = daily stored questions × observed attributed SQL cost/stored question.</p>
                 <p>App compute = users × active minutes/user/day × observed app cost/active minute.</p>
-                <p>Vector Search = governed table count × editable cost/table/day.</p>
-                <p>Other attributable measured daily costs stay fixed. Contingency is applied last.</p>
+                <p>Vector Search = the configured resource’s measured daily Cost baseline, held fixed.</p>
+                <p>Other attributable measured daily costs stay fixed. Cost buffer is applied last.</p>
                 {baseline.exclusions.length > 0 ? (
                   <>
                     <h5>Excluded from totals</h5>

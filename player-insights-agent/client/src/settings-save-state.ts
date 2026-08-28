@@ -17,13 +17,12 @@
 export type SettingsSaveState =
   | { kind: 'idle' }
   | { kind: 'saving' }
-  | { kind: 'saved' }
+  | { kind: 'saved'; count?: number }
   | { kind: 'failed'; message: string };
 
 export const SETTINGS_SAVE_IDLE: SettingsSaveState = { kind: 'idle' };
 
-export const SETTINGS_UNREADABLE =
-  'These settings could not be read, so there is nothing to save yet.';
+export const SETTINGS_UNREADABLE = 'These settings could not be read, so there is nothing to save yet.';
 
 /** What a settings pane load just did. Save-as-retry must read this value. */
 export type SettingsLoadResult = { ok: true } | { ok: false; message: string };
@@ -74,6 +73,38 @@ export function saveInFlight(state: SettingsSaveState): boolean {
   return state.kind === 'saving';
 }
 
+export function settingsSaveDisabled(saving: boolean, dirtyCount: number, hasForm: boolean): boolean {
+  return saving || dirtyCount === 0 || !hasForm;
+}
+
+export function unsavedChangesLabel(dirtyCount: number): string | null {
+  return dirtyCount > 0 ? 'Unsaved changes' : null;
+}
+
+interface SettingsSectionNavigation<Section> {
+  select: (section: Section) => void;
+  clearPaneDirty: () => void;
+  resetSaveState: () => void;
+}
+
+/**
+ * Keep the section guard and the state transition atomic from the click
+ * handler's point of view. Disabled buttons are the visible guard, but this
+ * check also rejects a click already queued against an earlier render.
+ */
+export function navigateSettingsSection<Section>(
+  active: Section,
+  requested: Section,
+  dirtyCount: number,
+  navigation: SettingsSectionNavigation<Section>
+): boolean {
+  if (requested === active || dirtyCount > 0) return false;
+  navigation.select(requested);
+  navigation.clearPaneDirty();
+  navigation.resetSaveState();
+  return true;
+}
+
 /**
  * The line beside the button, or null when there is nothing to say.
  *
@@ -81,7 +112,31 @@ export function saveInFlight(state: SettingsSaveState): boolean {
  * screen reader and the other should not.
  */
 export function saveNotice(state: SettingsSaveState): { tone: 'ok' | 'error'; text: string } | null {
-  if (state.kind === 'saved') return { tone: 'ok', text: 'Saved. The next ask uses these settings.' };
+  if (state.kind === 'saved') {
+    if (state.count !== undefined) {
+      return { tone: 'ok', text: `${state.count} ${state.count === 1 ? 'change' : 'changes'} saved` };
+    }
+    return { tone: 'ok', text: 'Saved. The next ask uses these settings.' };
+  }
   if (state.kind === 'failed') return { tone: 'error', text: state.message };
   return null;
+}
+
+function plainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Leaf setting keys whose draft differs from the saved snapshot.
+ *
+ * Arrays count as one setting because reordering or editing them still changes
+ * one persisted key. Comparing the current draft to the snapshot also means
+ * repeated edits count once and returning to the saved value removes the key.
+ */
+export function changedSettingKeys(before: unknown, after: unknown, prefix = ''): string[] {
+  if (plainRecord(before) && plainRecord(after)) {
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    return [...keys].flatMap((key) => changedSettingKeys(before[key], after[key], prefix ? `${prefix}.${key}` : key));
+  }
+  return JSON.stringify(before) === JSON.stringify(after) ? [] : [prefix || 'value'];
 }

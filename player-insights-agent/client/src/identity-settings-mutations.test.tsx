@@ -104,7 +104,9 @@ describe('Identity mutation boundaries', () => {
         }}
       />
     );
-    expect(markup).toContain(`aria-label="Persona for ${EMAIL}: Signed-in user (OAuth)"`);
+    expect(markup).toContain(`aria-label="Persona for ${EMAIL}: No persona"`);
+    expect(markup).toContain('<span class="app-select-value">No persona</span>');
+    expect(markup).not.toContain('Persona ·');
     expect(markup).not.toContain(`aria-label="Role for ${EMAIL}`);
     expect(markup).not.toContain(`aria-label="Remove ${EMAIL}"`);
     expect(markup).not.toContain('roster-add-row');

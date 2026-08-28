@@ -192,6 +192,58 @@ describe('what flipping it on does', () => {
     expect(markup).not.toContain('Advanced details are hidden');
   });
 
+  it('omits empty optional rows and renders a stored table listing with shared entity styling', () => {
+    const table = '<your_catalog>.<your_schema>.gold_title_daily_summary';
+    const trace = {
+      ...TRACE,
+      undeclaredKeys: [],
+      trace: {
+        ...TRACE.trace,
+        stages: [
+          {
+            id: 'inventory',
+            name: 'Listed available tables',
+            kind: 'discovery',
+            start: 0,
+            duration: 1,
+            status: 'complete',
+            calls: 1,
+            input: '{}',
+            output: `Declared tables:\n  - ${table}  [franchise: Contoso]`,
+            tables: [table],
+            retries: 0,
+            errors: [],
+            unrelated_tool_payload: { authorization: 'Bearer do-not-render' },
+          },
+          {
+            id: 'synthesis',
+            name: 'Prepared the answer',
+            kind: 'agent',
+            start: 1,
+            duration: 1,
+            status: 'complete',
+            calls: 1,
+            input: '',
+            output: '',
+          },
+        ],
+      },
+    } as unknown as RunTrace;
+
+    const markup = detailsMarkup(true, trace);
+    expect(markup).toContain('<span class="ast-num">1 stage</span>');
+    expect(markup).toContain('gold_title_daily_summary');
+    expect(markup).toContain('entity-table-mark');
+    expect(markup).toContain('data-entity-part="table"');
+    expect(markup).not.toContain('<dt>Input</dt>');
+    expect(markup).not.toContain('<dt>Retries</dt>');
+    expect(markup).not.toContain('<dt>Errors</dt>');
+    expect(markup).not.toContain('not recorded');
+    expect(markup).not.toContain('none recorded');
+    expect(markup).not.toContain('do-not-render');
+    expect(markup).not.toContain('unrelated_tool_payload');
+  });
+
   it('keeps the trace id visible either way, because it is not payload', () => {
     // The MLflow handle is how anyone finds this run outside the app. It was
     // never behind the gate and must not end up there.

@@ -21,6 +21,8 @@ import {
   SP_IDENTITY_ENABLED_SETTING,
   type SpAssignment,
   type SpPersona,
+  type SpPersonaDefinition,
+  type SpPersonaDefinitionWrite,
   type SpPersonaWrite,
 } from '../../shared/sp-identity';
 import { normalizeAdminEmail } from './admin-identity';
@@ -28,6 +30,7 @@ import { readStoredSettings, writeStoredSetting } from './app-settings';
 import type { LakebaseReader } from './lakebase-store';
 
 export const SP_PERSONAS_TABLE = appTable('sp_personas');
+export const SP_PERSONA_DEFINITIONS_TABLE = appTable('sp_persona_definitions');
 export const SP_ASSIGNMENTS_TABLE = appTable('sp_assignments');
 
 const UNDEFINED_TABLE = '42P01';
@@ -66,6 +69,28 @@ function assignmentFromRow(row: Record<string, unknown>): SpAssignment {
   return {
     email: normalizeAdminEmail(text(row.email)),
     personaId: text(row.persona_id),
+    updatedAt: iso(row.updated_at),
+    updatedBy: text(row.updated_by),
+  };
+}
+
+function capabilities(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string');
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function definitionFromRow(row: Record<string, unknown>): SpPersonaDefinition {
+  return {
+    id: text(row.id),
+    displayName: text(row.display_name),
+    description: text(row.description),
+    capabilities: capabilities(row.capabilities),
     updatedAt: iso(row.updated_at),
     updatedBy: text(row.updated_by),
   };
@@ -198,6 +223,93 @@ export async function deleteSpPersona(client: LakebaseReader, id: string): Promi
   try {
     await client.lakebase.query(`DELETE FROM ${SP_ASSIGNMENTS_TABLE} WHERE persona_id = $1`, [id]);
     const result = await client.lakebase.query(`DELETE FROM ${SP_PERSONAS_TABLE} WHERE id = $1 RETURNING id`, [id]);
+    return (result?.rows?.length ?? 0) > 0;
+  } catch (error) {
+    if (missingTable(error)) return false;
+    throw error;
+  }
+}
+
+export async function listSpPersonaDefinitions(client: LakebaseReader): Promise<SpPersonaDefinition[]> {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+         FROM ${SP_PERSONA_DEFINITIONS_TABLE}
+        ORDER BY display_name, id`
+    );
+    return (result?.rows ?? []).map(definitionFromRow);
+  } catch (error) {
+    if (missingTable(error)) return [];
+    throw error;
+  }
+}
+
+export async function readSpPersonaDefinition(client: LakebaseReader, id: string): Promise<SpPersonaDefinition | null> {
+  try {
+    const result = await client.lakebase.query(
+      `SELECT id, display_name, description, capabilities, updated_at, updated_by
+         FROM ${SP_PERSONA_DEFINITIONS_TABLE}
+        WHERE id = $1`,
+      [id]
+    );
+    const row = result?.rows?.[0];
+    return row ? definitionFromRow(row) : null;
+  } catch (error) {
+    if (missingTable(error)) return null;
+    throw error;
+  }
+}
+
+export async function insertSpPersonaDefinition(
+  client: LakebaseReader,
+  write: SpPersonaDefinitionWrite,
+  updatedBy: string
+): Promise<SpPersonaDefinition> {
+  const id = randomUUID();
+  const result = await client.lakebase.query(
+    `INSERT INTO ${SP_PERSONA_DEFINITIONS_TABLE}
+       (id, display_name, description, capabilities, updated_by, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, $5, now())
+     RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
+    [id, write.displayName, write.description, JSON.stringify(write.capabilities), updatedBy]
+  );
+  return definitionFromRow(result.rows[0]);
+}
+
+export async function updateSpPersonaDefinition(
+  client: LakebaseReader,
+  id: string,
+  write: Partial<SpPersonaDefinitionWrite>,
+  updatedBy: string
+): Promise<SpPersonaDefinition | null> {
+  const current = await readSpPersonaDefinition(client, id);
+  if (!current) return null;
+  const next = {
+    displayName: write.displayName ?? current.displayName,
+    description: write.description ?? current.description,
+    capabilities: write.capabilities ?? current.capabilities,
+  };
+  const result = await client.lakebase.query(
+    `UPDATE ${SP_PERSONA_DEFINITIONS_TABLE}
+        SET display_name = $2,
+            description = $3,
+            capabilities = $4::jsonb,
+            updated_by = $5,
+            updated_at = now()
+      WHERE id = $1
+      RETURNING id, display_name, description, capabilities, updated_at, updated_by`,
+    [id, next.displayName, next.description, JSON.stringify(next.capabilities), updatedBy]
+  );
+  const row = result?.rows?.[0];
+  return row ? definitionFromRow(row) : null;
+}
+
+export async function deleteSpPersonaDefinition(client: LakebaseReader, id: string): Promise<boolean> {
+  try {
+    const result = await client.lakebase.query(
+      `DELETE FROM ${SP_PERSONA_DEFINITIONS_TABLE} WHERE id = $1 RETURNING id`,
+      [id]
+    );
     return (result?.rows?.length ?? 0) > 0;
   } catch (error) {
     if (missingTable(error)) return false;

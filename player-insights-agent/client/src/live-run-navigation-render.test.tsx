@@ -177,6 +177,15 @@ describe('a live rail card across navigation and stale background reads', () => 
 
 describe('table pills in every rendered live-run seating', () => {
   const described = stage(11, 'running');
+  const inventory: TraceStage = {
+    ...stage(3),
+    id: 'inventory',
+    name: 'Listed available tables',
+    kind: 'discovery',
+    input: '{}',
+    output: `Declared tables:\n  - ${TABLE}  [franchise: Contoso]`,
+    tables: [TABLE],
+  };
 
   function expectTablePill(markup: string) {
     expect(markup).toContain('entity-table-mark');
@@ -190,6 +199,28 @@ describe('table pills in every rendered live-run seating', () => {
     expectTablePill(
       renderToStaticMarkup(<LiveProgress stages={[described]} openedAt={1} question="Inspect the table" />)
     );
+  });
+
+  it('renders every discovered table during the live run instead of the empty argument object', () => {
+    const markup = renderToStaticMarkup(
+      <LiveProgress stages={[inventory]} openedAt={1} question="What data is available?" />
+    );
+    expectTablePill(markup);
+    expect(markup).toContain('1</span> table assessed');
+    expect(markup).toContain('gold_title_daily_summary');
+    expect(markup).not.toContain('{}');
+  });
+
+  it('renders an explicit no-table result when discovery returned none', () => {
+    const markup = renderToStaticMarkup(
+      <LiveProgress
+        stages={[{ ...inventory, output: '(no tables were declared with this model)', tables: [] }]}
+        openedAt={1}
+        question="What data is available?"
+      />
+    );
+    expect(markup).toContain('No tables were returned by this discovery step.');
+    expect(markup).not.toContain('{}');
   });
 
   it('renders the live TraceTimeline event through the same entity renderer', () => {

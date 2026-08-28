@@ -3,12 +3,19 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { APP_SCHEMA } from '../../shared/app-schema';
-import { SP_IDENTITY_ENABLED_SETTING, SpPersonaWriteSchema } from '../../shared/sp-identity';
+import {
+  SP_IDENTITY_ENABLED_SETTING,
+  SpPersonaDefinitionWriteSchema,
+  SpPersonaWriteSchema,
+} from '../../shared/sp-identity';
 import { forgetStoredSettings } from './app-settings';
 import {
   SP_ASSIGNMENTS_TABLE,
+  SP_PERSONA_DEFINITIONS_TABLE,
   SP_PERSONAS_TABLE,
+  deleteSpPersonaDefinition,
   forgetSpIdentityEnabled,
+  insertSpPersonaDefinition,
   insertSpPersona,
   isSpIdentityEnabled,
   listSpAssignments,
@@ -27,6 +34,7 @@ function client(
   options: {
     settings?: Record<string, unknown>[];
     personas?: Record<string, unknown>[];
+    definitions?: Record<string, unknown>[];
     assignments?: Record<string, unknown>[];
     fail?: Error;
   } = {}
@@ -56,6 +64,33 @@ function client(
               },
             ],
           });
+        }
+        if (sql.includes(SP_PERSONA_DEFINITIONS_TABLE) && sql.includes('INSERT')) {
+          const [id, displayName, description, capabilities, updatedBy] = values ?? [];
+          const parsedCapabilities: unknown = JSON.parse(String(capabilities));
+          return Promise.resolve({
+            rows: [
+              {
+                id,
+                display_name: displayName,
+                description,
+                capabilities: parsedCapabilities,
+                updated_at: '2026-08-28T00:00:00.000Z',
+                updated_by: updatedBy,
+              },
+            ],
+          });
+        }
+        if (sql.includes(SP_PERSONA_DEFINITIONS_TABLE) && sql.includes('DELETE')) {
+          const row = (options.definitions ?? []).find((definition) => definition.id === values?.[0]);
+          return Promise.resolve({ rows: row ? [{ id: row.id }] : [] });
+        }
+        if (sql.includes(SP_PERSONA_DEFINITIONS_TABLE) && sql.includes('WHERE id')) {
+          const row = (options.definitions ?? []).find((definition) => definition.id === values?.[0]);
+          return Promise.resolve({ rows: row ? [row] : [] });
+        }
+        if (sql.includes(SP_PERSONA_DEFINITIONS_TABLE)) {
+          return Promise.resolve({ rows: options.definitions ?? [] });
         }
         if (sql.includes(SP_ASSIGNMENTS_TABLE) && sql.includes('INSERT')) {
           const [email, personaId, updatedBy] = values ?? [];
@@ -89,6 +124,7 @@ function client(
 describe('service-principal persona persistence', () => {
   it('qualifies both tables with APP_SCHEMA', () => {
     expect(SP_PERSONAS_TABLE).toBe(`${APP_SCHEMA}.sp_personas`);
+    expect(SP_PERSONA_DEFINITIONS_TABLE).toBe(`${APP_SCHEMA}.sp_persona_definitions`);
     expect(SP_ASSIGNMENTS_TABLE).toBe(`${APP_SCHEMA}.sp_assignments`);
   });
 
@@ -146,6 +182,36 @@ describe('service-principal persona persistence', () => {
     expect(parsed).not.toHaveProperty('secret');
   });
 
+  it('stores a credential-free persona plan as JSON capabilities', async () => {
+    const store = client();
+    const write = SpPersonaDefinitionWriteSchema.parse({
+      displayName: 'Finance reader',
+      description: 'Governed reporting',
+      capabilities: ['SQL warehouse — CAN USE', 'Governed tables — USE CATALOG, USE SCHEMA, SELECT'],
+      clientId: 'must-be-dropped',
+      secret: 'must-be-dropped',
+    });
+    const definition = await insertSpPersonaDefinition(store as never, write, 'admin@example.com');
+    expect(definition).toMatchObject({
+      displayName: 'Finance reader',
+      description: 'Governed reporting',
+      capabilities: ['SQL warehouse — CAN USE', 'Governed tables — USE CATALOG, USE SCHEMA, SELECT'],
+    });
+    expect(definition).not.toHaveProperty('clientId');
+    expect(definition).not.toHaveProperty('secret');
+    expect(JSON.stringify(store.calls[0]?.values)).not.toContain('must-be-dropped');
+  });
+
+  it('removes only a persona definition and not assignments', async () => {
+    const store = client({
+      definitions: [{ id: 'definition-1' }],
+    });
+    expect(await deleteSpPersonaDefinition(store as never, 'definition-1')).toBe(true);
+    expect(store.calls).toHaveLength(1);
+    expect(store.calls[0]?.sql).toContain(SP_PERSONA_DEFINITIONS_TABLE);
+    expect(store.calls[0]?.sql).not.toContain(SP_ASSIGNMENTS_TABLE);
+  });
+
   it('clears an assignment so that person stays on OAuth', async () => {
     const store = client({
       personas: [
@@ -199,5 +265,7 @@ describe('service-principal persona persistence', () => {
     expect(block).toContain('secret_scope');
     expect(block).toContain('secret_key');
     expect(block).not.toMatch(/secret_value|client_secret TEXT/i);
+    expect(source).toContain('sp_persona_definitions');
+    expect(source).toContain('capabilities JSONB NOT NULL');
   });
 });

@@ -871,6 +871,12 @@ class ToolResult:
     text: str
     sql: str = ""
     sources: list[str] = field(default_factory=list)
+    #: Tables enumerated by a discovery result, not tables read as evidence.
+    #:
+    #: Keeping this apart from ``sources`` prevents a catalog listing from being
+    #: cited as if every table in it supported the final answer. The agent copies
+    #: this safe projection onto the trace stage for live and replay rendering.
+    listed_tables: list[str] = field(default_factory=list)
     #: False when the call ran SQL whose tables could not be determined, so
     #: `sources` is known to be incomplete. Only the Genie paths can set this: the
     #: agent writes its own SQL through a guard that refuses what it cannot parse,
@@ -1533,9 +1539,7 @@ class PlayerInsightTools:
         it is an argument error where the caller expected a cancelled statement.
         """
 
-        affordable = int(
-            self._sql_allowance(wait_seconds) if allowance is None else allowance
-        )
+        affordable = int(self._sql_allowance(wait_seconds) if allowance is None else allowance)
         if affordable < SQL_WAIT_FLOOR_SECONDS:
             return "0s"
         wanted = min(wait_seconds, SQL_WAIT_CEILING_SECONDS, max(affordable, 0))
@@ -1825,7 +1829,7 @@ class PlayerInsightTools:
         )
         if self.user_authorized:
             lines.append(GRANTS_DECIDE_NOTE)
-        return ToolResult(text="\n".join(lines))
+        return ToolResult(text="\n".join(lines), listed_tables=tables)
 
     def resolve_table(self, name: str = "") -> ToolResult:
         """Turn a bare or half-qualified table name into its declared full name.

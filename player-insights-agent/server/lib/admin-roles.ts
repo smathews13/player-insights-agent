@@ -673,6 +673,9 @@ export type AdminAction =
   | 'sp-persona-created'
   | 'sp-persona-updated'
   | 'sp-persona-removed'
+  | 'sp-persona-definition-created'
+  | 'sp-persona-definition-updated'
+  | 'sp-persona-definition-removed'
   | 'sp-persona-assigned'
   | 'sp-persona-unassigned';
 

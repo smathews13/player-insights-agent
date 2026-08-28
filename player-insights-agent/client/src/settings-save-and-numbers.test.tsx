@@ -17,6 +17,7 @@ import { wholeNumberFrom } from './runtime-number';
 import {
   SETTINGS_SAVE_IDLE,
   SETTINGS_UNREADABLE,
+  changedSettingKeys,
   saveButtonLabel,
   saveInFlight,
   saveNotice,
@@ -77,10 +78,11 @@ describe('Save feedback', () => {
   it('confirms a success and surfaces the refusal the server sent', () => {
     expect(saveNotice(SETTINGS_SAVE_IDLE)).toBeNull();
     expect(saveNotice({ kind: 'saving' })).toBeNull();
-    expect(saveNotice({ kind: 'saved' })).toEqual({
+    expect(saveNotice({ kind: 'saved', count: 3 })).toEqual({
       tone: 'ok',
-      text: 'Saved. The next ask uses these settings.',
+      text: '3 changes saved',
     });
+    expect(saveNotice({ kind: 'saved', count: 1 })?.text).toBe('1 change saved');
     expect(saveNotice({ kind: 'failed', message: 'The endpoint answered 503.' })).toEqual({
       tone: 'error',
       text: 'The endpoint answered 503.',
@@ -90,8 +92,20 @@ describe('Save feedback', () => {
   it('reports its progress up to the footer instead of only to itself', () => {
     expect(PANEL).toContain('onSaveState');
     expect(PANEL).toContain("onSaveState({ kind: 'saving' })");
-    expect(PANEL).toContain("onSaveState({ kind: 'saved' })");
+    expect(PANEL).toContain("onSaveState({ kind: 'saved', count: changed })");
     expect(PANEL).toContain("onSaveState({ kind: 'failed'");
+  });
+
+  it('counts changed setting keys once and removes reverted values', () => {
+    const saved = { forecasting: false, loop: { maxSteps: 10, maxToolCalls: 15 }, judges: ['a'] };
+    expect(
+      changedSettingKeys(saved, {
+        forecasting: true,
+        loop: { maxSteps: 12, maxToolCalls: 15 },
+        judges: ['a', 'b'],
+      })
+    ).toEqual(['forecasting', 'loop.maxSteps', 'judges']);
+    expect(changedSettingKeys(saved, { ...saved, forecasting: false })).toEqual([]);
   });
 
   it('uses the reload result after Save retries a failed load, not the stale failure', () => {

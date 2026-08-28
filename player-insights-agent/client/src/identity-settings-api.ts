@@ -1,10 +1,11 @@
-import type { SpIdentityAdminPayload } from '../../shared/sp-identity';
+import type { SpIdentityAdminPayload, SpPersonaDefinition, SpPersonaDefinitionWrite } from '../../shared/sp-identity';
 import type { Role, RosterPayload } from '../../shared/user-roster-contract';
 
 export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
   enabled: false,
   minting: { available: false, detail: '' },
   personas: [],
+  personaDefinitions: [],
   assignments: [],
   roster: [],
 };
@@ -56,6 +57,49 @@ export async function renameSpPersona(id: string, displayName: string): Promise<
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(serverDetail(body, `Saving the persona name answered ${response.status}.`));
+  }
+}
+
+async function definitionResponse(response: Response, operation: string): Promise<SpPersonaDefinition> {
+  const body = (await response.json().catch(() => null)) as (SpPersonaDefinition & { detail?: string }) | null;
+  if (!response.ok || !body) {
+    throw new Error(serverDetail(body, `The persona configuration answered ${response.status} when ${operation}.`));
+  }
+  return body;
+}
+
+export async function createSpPersonaDefinition(write: SpPersonaDefinitionWrite): Promise<SpPersonaDefinition> {
+  return definitionResponse(
+    await fetch('/api/admin/sp-identity/persona-definitions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(write),
+    }),
+    'generated'
+  );
+}
+
+export async function updateSpPersonaDefinition(
+  id: string,
+  write: SpPersonaDefinitionWrite
+): Promise<SpPersonaDefinition> {
+  return definitionResponse(
+    await fetch(`/api/admin/sp-identity/persona-definitions/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(write),
+    }),
+    'saved'
+  );
+}
+
+export async function deleteSpPersonaDefinition(id: string): Promise<void> {
+  const response = await fetch(`/api/admin/sp-identity/persona-definitions/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(serverDetail(body, `Removing the persona configuration answered ${response.status}.`));
   }
 }
 

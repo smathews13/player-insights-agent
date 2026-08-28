@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { SpIdentityEditor } from './SpIdentityPanel';
+import { isSpPersonaDefinitionComplete } from './sp-persona-definition';
 import { EMPTY_SP_IDENTITY, UNASSIGNED_PERSONA } from './identity-settings-api';
 import { SP_IDENTITY_MINTING_UNAVAILABLE, type SpIdentityAdminPayload } from '../../shared/sp-identity';
 
@@ -55,13 +56,15 @@ describe('Settings → Identity', () => {
     expect(markup).not.toContain(PAYLOAD.personas[0].secretKey);
   });
 
-  it('only renames backend-defined identities instead of creating unusable roles', () => {
+  it('creates only credential-free configurations and keeps connected-identity changes separate', () => {
     const source = readFileSync(new URL('identity-settings-api.ts', import.meta.url), 'utf8');
     expect(source).toContain("method: 'PATCH'");
     expect(source).toContain('body: JSON.stringify({ displayName })');
-    expect(source).not.toContain("method: 'POST'");
-    expect(source).not.toContain("method: 'DELETE'");
+    expect(source).toContain("'/api/admin/sp-identity/persona-definitions'");
+    expect(source).toContain("method: 'POST'");
+    expect(source).toContain("method: 'DELETE'");
     expect(source).toContain('never deletes the stored identity');
+    expect(source).not.toMatch(/clientSecret|client_secret|secretValue/);
   });
 
   it('renders a proper persona rename table and no duplicate person-assignment table', () => {
@@ -94,12 +97,106 @@ describe('Settings → Identity', () => {
       roster: PAYLOAD.roster,
     });
     expect(empty).not.toContain(SP_IDENTITY_MINTING_UNAVAILABLE);
-    expect(empty).not.toContain('No personas yet.');
+    expect(empty).toContain('No SP persona configurations yet.');
     expect(empty).not.toContain('Who runs as which persona');
     expect(empty).not.toContain('Administrators assign this');
     expect(empty).not.toContain('People using the app do not pick a persona on Ask');
     expect(empty).not.toContain('never the secret itself');
     expect(empty).toContain('sp-personas-table');
+  });
+
+  it('renders a truthful credential-free generator with editable Databricks permissions', () => {
+    const markup = renderToStaticMarkup(
+      <SpIdentityEditor
+        enabled={true}
+        payload={{ ...PAYLOAD, personaDefinitions: [] }}
+        busy={false}
+        error={null}
+        onRename={() => {}}
+        onCreateDefinition={() => true}
+        onUpdateDefinition={() => true}
+        onDeleteDefinition={() => {}}
+      />
+    );
+    expect(markup).toContain('Define a persona');
+    expect(markup).toContain('aria-label="Persona name"');
+    expect(markup).toContain('aria-label="Persona purpose"');
+    expect(markup).toContain('Governed tables — USE CATALOG, USE SCHEMA, SELECT');
+    expect(markup).toContain('SQL warehouse — CAN USE');
+    expect(markup).toContain('Genie space — CAN RUN');
+    expect(markup).toContain('Vector Search index — CAN SELECT');
+    expect(markup).toContain('Model serving endpoint — CAN QUERY');
+    expect(markup).toContain('>Generate SP</button>');
+    expect(markup).toContain('cannot create an account service principal or apply these grants');
+    expect(markup).not.toMatch(/client id|secret scope|secret key/i);
+  });
+
+  it('reports a completed definition write without implying that an account SP was provisioned', () => {
+    const markup = renderToStaticMarkup(
+      <SpIdentityEditor
+        enabled={true}
+        payload={{ ...PAYLOAD, personaDefinitions: [] }}
+        busy={false}
+        error={null}
+        success="SP persona configuration saved."
+        onRename={() => {}}
+      />
+    );
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('SP persona configuration saved.');
+    expect(markup).not.toMatch(/service principal (created|provisioned)/i);
+  });
+
+  it('enables generation only for a named persona with complete unique permissions', () => {
+    expect(
+      isSpPersonaDefinitionComplete({
+        displayName: 'Finance',
+        description: '',
+        capabilities: ['SQL warehouse — CAN USE'],
+      })
+    ).toBe(true);
+    expect(isSpPersonaDefinitionComplete({ displayName: '', description: '', capabilities: ['CAN USE'] })).toBe(false);
+    expect(isSpPersonaDefinitionComplete({ displayName: 'Finance', description: '', capabilities: [] })).toBe(false);
+    expect(
+      isSpPersonaDefinitionComplete({
+        displayName: 'Finance',
+        description: '',
+        capabilities: ['CAN USE', 'can use'],
+      })
+    ).toBe(false);
+  });
+
+  it('lists generated configurations as operator-required and editable', () => {
+    const markup = renderToStaticMarkup(
+      <SpIdentityEditor
+        enabled={true}
+        payload={{
+          ...PAYLOAD,
+          personaDefinitions: [
+            {
+              id: 'definition-1',
+              displayName: 'Finance reporting',
+              description: 'Read-only reporting',
+              capabilities: ['SQL warehouse — CAN USE', 'Governed tables — USE CATALOG, USE SCHEMA, SELECT'],
+              updatedAt: '2026-08-28T00:00:00.000Z',
+              updatedBy: 'owner@example.invalid',
+            },
+          ],
+        }}
+        busy={false}
+        error={null}
+        onRename={() => {}}
+        onCreateDefinition={() => true}
+        onUpdateDefinition={() => true}
+        onDeleteDefinition={() => {}}
+      />
+    );
+    expect(markup).toContain('Finance reporting');
+    expect(markup).toContain('Read-only reporting');
+    expect(markup).toContain('2 selected');
+    expect(markup).toContain('Configuration only');
+    expect(markup).toContain('aria-label="Edit Finance reporting"');
+    expect(markup).toContain('aria-label="Remove Finance reporting"');
   });
 });
 

@@ -66,6 +66,8 @@ export interface TimelineRow {
   /** The tool's real arguments, or the run's question on the envelope row. */
   input: string;
   output: string;
+  /** Structured table projection carried by discovery stages. */
+  tables?: string[];
   durationMs: number;
   /** Offset from the run origin, or null when the stage did not record one. */
   startMs: number | null;
@@ -403,6 +405,7 @@ export function buildTimeline(
       status: 'complete',
       input: question,
       output: '',
+      tables: [],
       durationMs: wallClockMs,
       startMs: 0,
       leftPct: 0,
@@ -422,6 +425,7 @@ export function buildTimeline(
       status: stage.status,
       input: stage.input,
       output: stage.output,
+      tables: stage.tables,
       durationMs: stage.duration,
       startMs,
       // Positions exist only when there is both a measured start and an
@@ -474,7 +478,9 @@ export function buildTimeline(
       failedMs: value.failedMs,
       failedCalls: value.failedCalls,
     }))
-    .sort((left, right) => right.totalMs - left.totalMs || TYPE_ORDER.indexOf(left.type) - TYPE_ORDER.indexOf(right.type));
+    .sort(
+      (left, right) => right.totalMs - left.totalMs || TYPE_ORDER.indexOf(left.type) - TYPE_ORDER.indexOf(right.type)
+    );
 
   const failed = counted.filter((row) => UNPRODUCTIVE.has(row.status));
 

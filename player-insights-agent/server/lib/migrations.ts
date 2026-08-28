@@ -562,6 +562,27 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     statements: [APP_ACTIVITY_DDL],
     down: [`DROP TABLE IF EXISTS ${APP_ACTIVITY_TABLE}`],
   },
+  {
+    version: 19,
+    name: 'service principal persona definitions',
+    /**
+     * Credential-free plans are separate from executable `sp_personas`.
+     * The app cannot administer account service principals with its declared
+     * scopes, so these rows describe operator work without placeholder client
+     * ids, secret references, or any claim that an external identity exists.
+     */
+    statements: [
+      `CREATE TABLE IF NOT EXISTS ${APP_SCHEMA}.sp_persona_definitions (
+         id TEXT PRIMARY KEY,
+         display_name TEXT NOT NULL,
+         description TEXT NOT NULL DEFAULT '',
+         capabilities JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+         updated_by TEXT NOT NULL
+       )`,
+    ],
+    down: [`DROP TABLE IF EXISTS ${APP_SCHEMA}.sp_persona_definitions`],
+  },
 ];
 
 /**

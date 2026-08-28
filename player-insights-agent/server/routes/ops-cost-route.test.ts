@@ -55,6 +55,13 @@ afterEach(() => {
 });
 
 describe('the ranged cost route', () => {
+  it('attributes legacy Genie traces by configured space without double-counting current resource calls', () => {
+    expect(RESOURCE_ACTIVITY_QUERY).toContain("trace->'genie_spaces'");
+    expect(RESOURCE_ACTIVITY_QUERY).toContain("space->>'id' = c.resource_id");
+    expect(RESOURCE_ACTIVITY_QUERY).toContain('AND NOT EXISTS');
+    expect(RESOURCE_ACTIVITY_QUERY).toContain('COALESCE(a.calls, 0) + COALESCE(l.calls, 0)');
+  });
+
   it('passes complete-day bounds to billing and the run ledger', async () => {
     let handler: ((req: Request, res: Response) => Promise<void>) | undefined;
     const app = {
@@ -311,7 +318,7 @@ describe('the ranged cost route', () => {
       evidence: { billingRows: null, activity: { calls: 5, observedCalls: 7, unit: 'queries' } },
     });
     expect(payload.tiles.find((tile) => tile.id === 'app-compute')).toMatchObject({
-      unavailable: 'No Apps billing rows matched this app in this range.',
+      unavailable: 'No Apps billing rows matched this app for the selected period.',
       note: 'system_billing=astrolabe is on this app; Apps billing is matched by app name.',
       remedy: '',
     });

@@ -187,9 +187,10 @@ describe('flipping it is wired to something', () => {
     );
     expect(source).toMatch(/showsBenchmarkLab/);
     expect(source).toMatch(/showsForecasting/);
-    expect(source).toMatch(/setFeature\('benchmarkLab'/);
-    expect(source).toMatch(/setFeature\('forecasting'/);
-    expect(source).toMatch(/setFeature\('egressControls'/);
+    expect(source).toContain("withExperimentalFeature(current, 'benchmarkLab', enabled)");
+    expect(source).toContain("withExperimentalFeature(current, 'forecasting', enabled)");
+    expect(source).toContain("withExperimentalFeature(current, 'egressControls', enabled)");
+    expect(source).toContain('setFeature(name, draftFeatures[name])');
     expect(source).not.toMatch(/setFeature\('spIdentities'/);
     expect(source).toMatch(/persistSpIdentityMode/);
     expect(source).toMatch(/loadSpIdentityAdmin/);
@@ -198,7 +199,7 @@ describe('flipping it is wired to something', () => {
     const positions = rows.map((row) => source.indexOf(row));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
-    expect(source.indexOf("setFeature('egressControls'")).toBeLessThan(source.indexOf("setFeature('benchmarkLab'"));
-    expect(source.indexOf("setFeature('forecasting'")).toBeLessThan(source.indexOf("setFeature('benchmarkLab'"));
+    expect(source.indexOf("'egressControls', enabled")).toBeLessThan(source.indexOf("'benchmarkLab', enabled"));
+    expect(source.indexOf("'forecasting', enabled")).toBeLessThan(source.indexOf("'benchmarkLab', enabled"));
   });
 });

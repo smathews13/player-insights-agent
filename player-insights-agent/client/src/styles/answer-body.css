@@ -421,18 +421,30 @@
   width: 30px;
   height: 30px;
   border-radius: var(--ast-radius-control);
+  border-color: var(--ast-border-input);
+  background: var(--ast-fill-band);
+  color: var(--ast-text-secondary);
 }
-/* The thumb this answer was rated with, on the blue edge and tint the app uses
-   everywhere else for a selected control. Not a fill: the glyph is read against
-   it, and the state is also on `aria-pressed`, so the colour is confirmation of
-   something already said rather than the only place it is said. */
-.feedback > button.feedback-chosen {
-  border-color: var(--ast-blue);
-  /* Mixed from the one blue rather than declared as a second value near it. The
-     tint it replaces was a hand-written rgba of the same #2272B4 at 6%, which is
-     a copy of the palette that a palette change cannot reach. */
-  background: color-mix(in srgb, var(--ast-blue) 6%, transparent);
-  color: var(--ast-blue);
+
+.feedback > button:not(.feedback-chosen):hover {
+  background: var(--ast-neutral-fill);
+  color: var(--ast-text-long);
+}
+
+/* The chosen controls use the same positive and negative families as the saved
+   and failed messages beside them. `aria-pressed` remains the state source; the
+   semantic surface, edge and glyph make that state unmistakable in either
+   theme without inventing a feedback-only colour. */
+.feedback > button.feedback-rating--up.feedback-chosen {
+  border-color: var(--ast-pos-border);
+  background: var(--ast-pos-fill);
+  color: var(--ast-pos-text);
+}
+
+.feedback > button.feedback-rating--down.feedback-chosen {
+  border-color: var(--ast-neg-border);
+  background: var(--ast-neg-fill);
+  color: var(--ast-neg-text);
 }
 /* A rating that did not reach the table, said in the negative family rather than
    in AppKit's `--destructive`. Named here rather than as two utility classes on

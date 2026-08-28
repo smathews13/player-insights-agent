@@ -13,11 +13,12 @@
  * WHAT GOES IN THE TABLE, and this is the line the schema's own comment draws:
  * no bearer token, no raw tool result, no attachment text. So this stores the
  * step's identity and shape -- its id, name, kind, status, offset, duration,
- * call count and nesting -- and the ARGUMENTS it was given, clamped to the
- * width the rail draws them at. The step's OUTPUT is deliberately not stored:
- * that is the tool result the schema rules out, and the rail's second line
- * simply has nothing to say on a replayed row. The authoritative trace arrives
- * with the answer and carries everything.
+ * call count and nesting -- the ARGUMENTS it was given, clamped to the width
+ * the rail draws them at, and the explicit fully-qualified table-name
+ * projection on a discovery step. The step's OUTPUT is deliberately not
+ * stored: that is the tool result the schema rules out. The table projection is
+ * an allowlisted list of identifiers rather than raw result text; the
+ * authoritative trace arrives with the answer and carries everything.
  *
  * WHY NOT `readStored`. Same reason `run-ledger.ts` avoids it: `readStored`
  * maintains the app-wide storage health that every degradable surface reads,
@@ -63,6 +64,23 @@ function asFiniteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+/** Fully-qualified table names from the agent's explicit discovery projection. */
+function stageTables(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const names: string[] = [];
+  for (const candidate of value) {
+    if (typeof candidate !== 'string') continue;
+    const name = candidate.trim();
+    // A table projection is exactly a three-part UC name. This strict boundary
+    // keeps an invented array field from becoming a route for unrelated payloads.
+    const hasControlCharacter = [...name].some((character) => character.charCodeAt(0) < 32);
+    if (name.length > 512 || name.split('.').length !== 3 || hasControlCharacter) continue;
+    if (!names.some((held) => held.toLowerCase() === name.toLowerCase())) names.push(name);
+    if (names.length >= STAGE_REPLAY_LIMIT) break;
+  }
+  return names;
+}
+
 /**
  * The part of a stage that may be stored, and nothing else.
  *
@@ -91,6 +109,8 @@ export function stageEventPayload(stage: Record<string, unknown>): Record<string
   put('calls', asFiniteNumber(stage.calls));
   put('depth', asFiniteNumber(stage.depth));
   put('parent_id', typeof stage.parent_id === 'string' ? stage.parent_id : undefined);
+  const tables = stageTables(stage.tables);
+  if (tables.length > 0) payload.tables = tables;
   // The arguments, clamped. Never `output`: see the note at the top of the file.
   const input = typeof stage.input === 'string' ? clamp(stage.input) : '';
   if (input) payload.input = input;

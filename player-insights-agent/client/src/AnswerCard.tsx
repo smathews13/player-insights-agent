@@ -136,17 +136,16 @@ export function AnswerCard({
   // must not draw a Gantt that looks traced. `processStages` from the stream
   // is the same reconstruction and is ignored here unless the id is real.
   const recorded = isMlflowTraceId(answer.trace.id);
-  const processTrace =
-    !recorded
-      ? withoutUntracedTimeline(answer.trace)
-      : answer.trace.stages.length > 0 || !processStages?.length
-        ? answer.trace
-        : {
-            ...answer.trace,
-            stages: processStages,
-            toolCalls: processStages.filter((stage) => stage.kind === 'tool').length,
-            totalMs: processStages.reduce((sum, stage) => sum + stage.duration, 0),
-          };
+  const processTrace = !recorded
+    ? withoutUntracedTimeline(answer.trace)
+    : answer.trace.stages.length > 0 || !processStages?.length
+      ? answer.trace
+      : {
+          ...answer.trace,
+          stages: processStages,
+          toolCalls: processStages.filter((stage) => stage.kind === 'tool').length,
+          totalMs: processStages.reduce((sum, stage) => sum + stage.duration, 0),
+        };
   const displayed = processTrace === answer.trace ? answer : { ...answer, trace: processTrace };
   const fallbackNotice = answerFallbackNotice(displayed);
   const honesty = answerHonesty({
@@ -323,12 +322,7 @@ export function AnswerCard({
           sources={answer.sources}
           caveats={keepCaveats}
           derivation={answer.derivation}
-          hideWorkspaceLinks={evidenceLinkedSourceNames(
-            narrative,
-            answer.content,
-            answer.charts,
-            answer.sources
-          )}
+          hideWorkspaceLinks={evidenceLinkedSourceNames(narrative, answer.content, answer.charts, answer.sources)}
         />
         {answer.document_snippets.length > 0 ? (
           <section className="answer-content document-footnotes" aria-label="Document footnotes">
@@ -457,7 +451,7 @@ export function AnswerCard({
               size="icon"
               aria-label="Thumbs up"
               aria-pressed={rated === 'up'}
-              className={rated === 'up' ? 'feedback-chosen' : ''}
+              className={`feedback-rating feedback-rating--up${rated === 'up' ? ' feedback-chosen' : ''}`}
               disabled={feedback.saving}
               onClick={() => void saveFeedback(UP_RATING)}
             >
@@ -468,7 +462,7 @@ export function AnswerCard({
               size="icon"
               aria-label="Thumbs down"
               aria-pressed={rated === 'down'}
-              className={rated === 'down' ? 'feedback-chosen' : ''}
+              className={`feedback-rating feedback-rating--down${rated === 'down' ? ' feedback-chosen' : ''}`}
               disabled={feedback.saving}
               // THE THUMB IS THE RATING, on this side as much as on the other.
               // This used to do nothing but open the text field, so a reader who
