@@ -63,7 +63,8 @@ export type CostResourceKind =
   | 'sql-warehouse'
   | 'app'
   | 'genie-space'
-  | 'vector-index';
+  | 'vector-index'
+  | 'job';
 
 /**
  * Whose money a tile's figure is, independent of the chip wording.
@@ -122,7 +123,7 @@ export interface CostPropagation {
 }
 
 /**
- * Tagged usage vs the five tracked tiles, so a successful tag repair cannot be
+ * Tag propagation vs the tracked identity-attributed tiles, so a successful tag repair cannot be
  * mistaken for complete cost coverage.
  */
 export interface CostCoverage {
@@ -303,7 +304,7 @@ export interface OpsCostPayload {
   /** False when Lakebase could not be read, so Save retries that load. */
   budgetsReadable: boolean;
   /**
-   * Tagged usage vs the five tracked tiles. Absent on older payloads; the page
+   * Tag propagation vs the tracked cost tiles. Absent on older payloads; the page
    * then draws the grid without a coverage strip.
    */
   coverage?: CostCoverage | null;

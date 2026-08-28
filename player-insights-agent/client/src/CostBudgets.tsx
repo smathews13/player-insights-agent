@@ -218,7 +218,13 @@ export function CostTileBudget({ tile }: { tile: CostTile }) {
       ) : compared.kind === 'budget-only' ? (
         <p className="ops-budget-compare">
           Budget <span className="ast-num">{compared.budgetLabel}</span>
-          {tile.amount === null || tile.quality === 'unknown' ? ' · spend not measured' : null}
+          {tile.amount === null ||
+          tile.quality === 'unknown' ||
+          (tile.pricing?.match !== undefined &&
+            tile.pricing.match !== 'priced' &&
+            tile.pricing.match !== 'none')
+            ? ' · spend not measured'
+            : null}
         </p>
       ) : null}
     </div>

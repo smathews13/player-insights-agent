@@ -1029,7 +1029,7 @@ describe('the cost block', () => {
           cost({
             state: 'no-rows',
             tiles: [],
-            reason: 'No billing rows matched the Astrolabe tag in this range.',
+            reason: 'No billing rows matched an exact tracked resource in this range.',
           })
         )}
       />
@@ -1042,12 +1042,12 @@ describe('the cost block', () => {
     expect(markup).toContain('Vector search');
     expect(markup).toContain('App compute');
     expect(markup).toContain('AVG. COST / QUESTION');
-    expect(markup).not.toContain('Index rebuild');
+    expect(markup).toContain('Index rebuild job');
     expect(markup).toContain('No billing rows');
-    expect(markup).toContain('No billing rows matched the Astrolabe tag');
+    expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).toContain('system_billing');
     expect(markup).toContain('astrolabe');
-    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(6);
+    expect((markup.match(/class="ops-tile"/g) ?? []).length).toBe(8);
   });
 
   it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
@@ -1123,13 +1123,13 @@ describe('the cost block', () => {
    * outright: the index rebuild is a Lakeflow job and there is no job mark in
    * the set, so any mark would name a product the figure is not about.
    */
-  it('hides the index rebuild job even if a payload still carries it', () => {
+  it('shows the exact index rebuild job without inventing a product mark', () => {
     const payload = cost({
       tiles: [{ ...cost().tiles[0], id: 'index-rebuild-job', label: 'Index rebuild job' }],
     });
     const markup = render(<CostBody block={block(payload)} />);
-    expect(markup).not.toContain('Index rebuild job');
-    expect(markup).not.toContain('PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID');
+    expect(markup).toContain('Index rebuild job');
+    expect(markup).not.toContain('ops-tile-mark');
   });
 
   it('draws a tile title as a hyperlink with the Databricks mark when it has a URL', () => {
@@ -1221,6 +1221,42 @@ describe('the cost block', () => {
     expect(markup).toContain('Over budget');
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('spend not measured');
+  });
+
+  it('does not compare a partial list-price lower bound to a budget', () => {
+    const payload = cost({
+      budgets: { total: null, resources: { 'serving-endpoint': 11 } },
+      tiles: [
+        {
+          ...cost().tiles[0],
+          id: 'serving-endpoint',
+          label: 'Serving endpoint',
+          amount: null,
+          quality: 'unknown',
+          unavailable: 'Partial list-price coverage; spend withheld. Unpriced SKUs: NEW_SKU',
+          pricing: {
+            source: 'list_prices',
+            match: 'partial',
+            currency: 'USD',
+            pricedQuantity: 10,
+            unpricedQuantity: 2,
+            pricedRows: 1,
+            unpricedRows: 1,
+            unpricedSkus: ['NEW_SKU'],
+            duplicateMatches: 0,
+            correctionRows: 0,
+            priceEffectiveAt: '2026-01-01T00:00:00Z',
+          },
+        },
+      ],
+    });
+    const markup = render(<CostBody block={block(payload)} />);
+    expect(markup).toContain('Partial list-price coverage; spend withheld');
+    expect(markup).toContain('Budget');
+    expect(markup).toContain('spend not measured');
+    expect(markup).not.toContain('Over budget');
+    expect(markup).not.toContain('Under budget');
+    expect(markup).not.toContain('12.00 USD');
   });
 
   it('never labels a whole-warehouse meter as an app overage', () => {

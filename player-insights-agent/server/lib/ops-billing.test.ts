@@ -12,9 +12,11 @@ import {
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
   endpointName: 'player-insights-agent',
+  foundationEndpoint: 'databricks-claude-sonnet-4-6',
   warehouseId: 'warehouse-1',
   vectorEndpoint: '',
   vectorIndex: '',
+  indexRebuildJobId: 'job-123',
   genieSpaces: [],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
@@ -23,13 +25,38 @@ const IDS: CostIdentifiers = {
 const RANGE = { from: '2026-08-10', to: '2026-08-16' };
 
 describe('billing attribution', () => {
-  it('limits every cost figure to resources tagged for Astrolabe', () => {
+  it('uses exact resource identity for spend and keeps the tag as separate coverage evidence', () => {
     const query = buildCostStatement(IDS, RANGE);
 
     expect(BILLING_TAG_KEY).toBe('system_billing');
     expect(query?.statement).toContain("u.custom_tags['system_billing'] = 'astrolabe'");
+    expect(query?.statement).toContain(
+      "WHEN u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName THEN 'serving-endpoint'"
+    );
+    expect(query?.statement).toContain(
+      "WHEN u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :foundationEndpoint THEN 'foundation-model'"
+    );
+    expect(query?.statement).toContain(
+      "WHEN u.billing_origin_product = 'SQL' AND u.usage_metadata.warehouse_id = :warehouseId THEN 'sql-warehouse'"
+    );
+    expect(query?.statement).toContain(
+      "WHEN u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName THEN 'app-compute'"
+    );
+    expect(query?.statement).toContain(
+      "WHEN u.billing_origin_product = 'JOBS' AND u.usage_metadata.job_id = :indexRebuildJobId THEN 'index-rebuild-job'"
+    );
     expect(query?.statement).not.toContain('COALESCE(p.pricing.default, 0)');
     expect(query?.statement).toContain('t.usage_unit = p.usage_unit');
+  });
+
+  it('deduplicates tag and metadata overlap by billing record id before summing', () => {
+    const statement = buildCostStatement(IDS, RANGE)!.statement;
+    const spendInput = statement.slice(statement.indexOf('WITH tagged AS ('), statement.indexOf('price_hits AS ('));
+    expect(spendInput).toContain("u.custom_tags['system_billing'] = 'astrolabe'");
+    expect(spendInput).toContain('OR (u.billing_origin_product');
+    expect(statement).toContain('COALESCE(\n      CAST(u.record_id AS STRING)');
+    expect(statement).toContain('GROUP BY record_id, usage_date');
+    expect(spendInput).not.toContain('UNION');
   });
 
   it('bounds the billing scan to the complete days the page requested', () => {
@@ -61,11 +88,12 @@ describe('billing attribution', () => {
   it('puts the configured identifier on each tile that has one', () => {
     const tiles = buildTiles(IDS, []);
     expect(tiles.find((tile) => tile.id === 'serving-endpoint')?.resourceId).toBe(IDS.endpointName);
+    expect(tiles.find((tile) => tile.id === 'foundation-model')?.resourceId).toBe(IDS.foundationEndpoint);
     expect(tiles.find((tile) => tile.id === 'sql-warehouse')?.resourceId).toBe(IDS.warehouseId);
     expect(tiles.find((tile) => tile.id === 'app-compute')?.resourceId).toBe(IDS.appName);
     expect(tiles.find((tile) => tile.id === 'genie')?.resourceId).toBe('');
     expect(tiles.find((tile) => tile.id === 'vector-search')?.resourceId).toBe('');
-    expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
+    expect(tiles.find((tile) => tile.id === 'index-rebuild-job')?.resourceId).toBe(IDS.indexRebuildJobId);
   });
 
   it('does not turn a missing app-tag match into zero app-compute spend', () => {
@@ -195,7 +223,7 @@ describe('billing attribution', () => {
     );
   });
 
-  it('does not call a workspace serving total per-token after splitting it by tokens', () => {
+  it('does not substitute a workspace-wide total when an endpoint identifier is absent', () => {
     const tiles = buildTiles({ ...IDS, endpointName: '' }, [
       {
         component: workspaceEstimateRow('serving-endpoint'),
@@ -207,27 +235,27 @@ describe('billing attribution', () => {
       },
     ]);
     const serving = tiles.find((tile) => tile.id === 'serving-endpoint');
-    expect(serving?.quality).toBe('estimate');
-    expect(serving?.population).toBe('Whole workspace');
+    expect(serving?.amount).toBeNull();
+    expect(serving?.attribution).toBe('unavailable');
+  });
 
-    const attribution = buildQuestionAttribution(
-      [
-        {
-          runId: 'run-1',
-          correlationId: 'req-1',
-          traceId: 'trace-1',
-          completedAt: '2026-08-16T10:00:00Z',
-          totalTokens: 250,
-          runsInRange: 1,
-          tokenCoveredRuns: 1,
-          totalRecordedTokens: 250,
-        },
-      ],
-      tiles,
-      100
-    );
-    expect(attribution.runs[0].parts.find((part) => part.id === 'serving-endpoint')).toEqual(
-      expect.objectContaining({ quality: 'estimate', amount: 12 })
-    );
+  it('counts one MODEL_SERVING endpoint once when agent and foundation names are equal', () => {
+    const same = buildTiles({ ...IDS, foundationEndpoint: IDS.endpointName }, [
+      {
+        component: 'serving-endpoint',
+        spend: 12,
+        currency: 'USD',
+        billedDays: 2,
+        jobRuns: null,
+        lastDay: RANGE.to,
+      },
+    ]);
+    expect(same.find((tile) => tile.id === 'serving-endpoint')?.amount).toBe(12);
+    const foundation = same.find((tile) => tile.id === 'foundation-model');
+    expect(foundation).toMatchObject({
+      amount: null,
+      quality: 'unknown',
+    });
+    expect(foundation?.unavailable).toContain('counted once');
   });
 });

@@ -23,9 +23,11 @@ import {
 const IDS: CostIdentifiers = {
   appName: 'player-insights',
   endpointName: 'player-insights-agent',
+  foundationEndpoint: 'databricks-claude-sonnet-4-6',
   warehouseId: 'warehouse-1',
   vectorEndpoint: 'vs-endpoint',
   vectorIndex: 'cat.schema.index',
+  indexRebuildJobId: '12345',
   genieSpaces: [{ id: 'space-data', label: 'Data Genie space' }],
   workspaceId: 'workspace-1',
   telemetryEnabled: false,
@@ -94,14 +96,34 @@ describe('billing SQL contract', () => {
     expect(query?.statement).toContain('COUNT(DISTINCT CASE WHEN currency_code IS NOT NULL THEN currency_code END)');
   });
 
-  it('filters tagged usage and still looks for untagged leakage on known resources', () => {
+  it('measures exact untagged resources while retaining tag propagation evidence', () => {
     expect(query?.statement).toContain(`u.custom_tags['${BILLING_TAG_KEY}'] = 'astrolabe'`);
+    expect(query?.statement).toContain(
+      "WHEN u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint THEN 'vector-search'"
+    );
+    expect(query?.statement).toContain(
+      "OR (u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)"
+    );
     expect(query?.statement).toContain("'propagation'");
     expect(query?.statement).toContain('untagged_rows');
   });
 });
 
 describe('price join golden outputs', () => {
+  it('emits each exact component once so component amounts sum once', () => {
+    const tiles = buildTiles(IDS, [
+      row({ component: 'serving-endpoint', spend: 1, billedDays: 1 }),
+      row({ component: 'foundation-model', spend: 2, billedDays: 1 }),
+      row({ component: 'sql-warehouse', spend: 3, billedDays: 1 }),
+      row({ component: 'vector-search', spend: 4, billedDays: 1 }),
+      row({ component: 'app-compute', spend: 5, billedDays: 1 }),
+      row({ component: 'index-rebuild-job', spend: 6, billedDays: 1 }),
+    ]);
+    const measured = tiles.filter((tile) => tile.amount !== null);
+    expect(new Set(measured.map((tile) => tile.id)).size).toBe(measured.length);
+    expect(measured.reduce((sum, tile) => sum + (tile.amount ?? 0), 0)).toBe(21);
+  });
+
   it('treats a fully priced serving row as measured spend', () => {
     const serving = buildTiles(IDS, [row({ component: 'serving-endpoint' })]).find(
       (tile) => tile.id === 'serving-endpoint'
@@ -162,7 +184,7 @@ describe('price join golden outputs', () => {
     expect(tile?.unavailable).toMatch(/Mixed currencies/);
   });
 
-  it('keeps a partial priced amount and names the unpriced SKUs', () => {
+  it('withholds a partial priced lower bound and names the unpriced SKUs', () => {
     const tile = buildTiles(IDS, [
       row({
         component: 'serving-endpoint',
@@ -173,9 +195,10 @@ describe('price join golden outputs', () => {
         priceMatchStatus: 'partial',
       }),
     ]).find((item) => item.id === 'serving-endpoint');
-    expect(tile?.amount).toBe(12);
+    expect(tile?.amount).toBeNull();
+    expect(tile?.quality).toBe('unknown');
     expect(tile?.pricing?.match).toBe('partial');
-    expect(tile?.note).toContain('NEW_SKU');
+    expect(tile?.unavailable).toContain('NEW_SKU');
   });
 
   it('counts correction rows without turning them into a silent zero', () => {
@@ -205,11 +228,12 @@ describe('coverage, shared meters, and Genie', () => {
         row({ kind: 'propagation', component: 'APPS', taggedRows: 0, untaggedRows: 3 }),
         row({ kind: 'propagation', component: 'SQL', taggedRows: 8, untaggedRows: 0 }),
       ],
+      appBillingTag: 'matched',
     });
-    expect(coverage.costModelCount).toBe(5);
+    expect(coverage.costModelCount).toBe(7);
     expect(coverage.inventoryCount).toBe(11);
     expect(coverage.products.find((product) => product.product === 'JOBS')).toMatchObject({
-      tiled: false,
+      tiled: true,
       taggedRows: 4,
     });
     expect(coverage.propagation.find((item) => item.product === 'APPS')?.status).toBe('unsupported');
@@ -254,14 +278,14 @@ describe('per-question average eligibility', () => {
     expect(serving?.quality).toBe('real');
   });
 
-  it('widens a missing endpoint name to a whole-workspace estimate', () => {
+  it('does not widen a missing endpoint name to a whole-workspace estimate', () => {
     const serving = buildTiles(
       { ...IDS, endpointName: '' },
       [row({ kind: 'component', component: 'serving-endpoint:workspace', spend: 12 })]
     ).find((tile) => tile.id === 'serving-endpoint');
-    expect(serving?.population).toBe('Whole workspace');
-    expect(serving?.attribution).toBe('shared-upper-bound');
-    expect(serving?.quality).toBe('estimate');
+    expect(serving?.amount).toBeNull();
+    expect(serving?.quality).toBe('unknown');
+    expect(serving?.unavailable).toBe('Resource identifier unavailable');
   });
 
   it('does not count a zero-token run in the denominator', () => {

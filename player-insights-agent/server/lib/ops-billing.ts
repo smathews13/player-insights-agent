@@ -67,10 +67,12 @@ import type {
  */
 export const COST_COMPONENTS = [
   'serving-endpoint',
+  'foundation-model',
   'sql-warehouse',
   'genie',
   'vector-search',
   'app-compute',
+  'index-rebuild-job',
 ] as const;
 
 export type CostComponent = (typeof COST_COMPONENTS)[number];
@@ -88,12 +90,16 @@ export interface CostIdentifiers {
   appName: string;
   /** `DATABRICKS_SERVING_ENDPOINT_NAME`. */
   endpointName: string;
+  /** The resolved `llm-endpoint` setting used by the orchestrator. */
+  foundationEndpoint: string;
   /** `DATABRICKS_SQL_WAREHOUSE_ID`. */
   warehouseId: string;
   /** Resolved from the index when this deployment searches one. */
   vectorEndpoint: string;
   /** Three-level Vector Search index name, or ''. Used to open the index, not to bill. */
   vectorIndex: string;
+  /** `PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID`. */
+  indexRebuildJobId: string;
   /** The Genie spaces this deployment asks, in display order. */
   genieSpaces: readonly { id: string; label: string }[];
   /** `DATABRICKS_WORKSPACE_ID`. The only handle workspace-wide Genie billing has. */
@@ -196,6 +202,12 @@ const MATCHERS: Record<
     parameter: 'endpointName',
     type: 'STRING',
   },
+  'foundation-model': {
+    product: 'MODEL_SERVING',
+    column: 'u.usage_metadata.endpoint_name',
+    parameter: 'foundationEndpoint',
+    type: 'STRING',
+  },
   'sql-warehouse': {
     product: 'SQL',
     column: 'u.usage_metadata.warehouse_id',
@@ -217,6 +229,12 @@ const MATCHERS: Record<
     parameter: 'appName',
     type: 'STRING',
   },
+  'index-rebuild-job': {
+    product: 'JOBS',
+    column: 'u.usage_metadata.job_id',
+    parameter: 'indexRebuildJobId',
+    type: 'STRING',
+  },
 };
 
 /** The row this statement adds so the block can date itself even with no matches. */
@@ -230,14 +248,14 @@ export const GENIE_LLM_UNAVAILABLE = 'Genie LLM spend not attributable in this m
 export const GENIE_SQL_NOT_COMPLETE =
   'SQL from this space is billed on the SQL warehouse tile. That warehouse figure is not the complete Genie cost.';
 
-const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS']);
+const TILED_PRODUCTS = new Set(['MODEL_SERVING', 'SQL', 'VECTOR_SEARCH', 'APPS', 'JOBS']);
 const PRODUCT_REASONS: Record<string, string> = {
-  MODEL_SERVING: 'Tracked as the serving-endpoint tile when the endpoint name matches.',
+  MODEL_SERVING: 'Measured only when an exact tracked endpoint name matches; tag coverage is reported separately.',
   SQL: 'Tracked as the SQL warehouse tile. This is a shared meter, not app-only spend.',
   VECTOR_SEARCH: 'Tracked as the Vector Search tile when the endpoint name matches.',
-  APPS: 'Matched by app name. App tags are organizational and may never appear on billing rows.',
+  APPS: 'Measured by exact app name. App tag presence is a separate organizational signal.',
   GENIE: 'Genie space cards stay dollar-free. Genie LLM spend is not attributable in this model.',
-  JOBS: 'The semantic rebuild job is tagged when connected, but it is not a Cost tile.',
+  JOBS: 'Measured only when the exact configured index rebuild job id matches; no custom tag is required.',
   LAKEBASE: 'Lakebase can be tagged. No documented billing join exists in this model.',
   MLFLOW: 'MLflow experiments can be tagged. They have no Cost tile.',
 };
@@ -263,6 +281,16 @@ export const EMPTY_PRICING: CostTilePricing = {
  * identifier.
  */
 export function canAsk(component: CostComponent, ids: CostIdentifiers): boolean {
+  // Genie billing has no space identifier. A workspace id is not a safe
+  // substitute: it would attribute every space in the workspace to this app.
+  if (component === 'genie') return false;
+  if (
+    component === 'foundation-model' &&
+    ids.foundationEndpoint &&
+    ids.foundationEndpoint === ids.endpointName
+  ) {
+    return false;
+  }
   return Boolean(ids[MATCHERS[component].parameter]);
 }
 
@@ -277,12 +305,16 @@ export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): s
   switch (component) {
     case 'serving-endpoint':
       return ids.endpointName;
+    case 'foundation-model':
+      return ids.foundationEndpoint;
     case 'sql-warehouse':
       return ids.warehouseId;
     case 'app-compute':
       return ids.appName;
     case 'vector-search':
       return vectorIndexName(ids.vectorIndex);
+    case 'index-rebuild-job':
+      return ids.indexRebuildJobId;
     case 'genie':
       return '';
   }
@@ -291,6 +323,7 @@ export function resourceIdFor(component: CostComponent, ids: CostIdentifiers): s
 function resourceKindFor(component: CostComponent, ids: CostIdentifiers): CostResourceKind | '' {
   switch (component) {
     case 'serving-endpoint':
+    case 'foundation-model':
       return 'serving-endpoint';
     case 'sql-warehouse':
       return 'sql-warehouse';
@@ -298,6 +331,8 @@ function resourceKindFor(component: CostComponent, ids: CostIdentifiers): CostRe
       return 'app';
     case 'vector-search':
       return vectorIndexName(ids.vectorIndex) ? 'vector-index' : '';
+    case 'index-rebuild-job':
+      return 'job';
     case 'genie':
       return '';
   }
@@ -325,12 +360,9 @@ export function vectorIndexName(raw: string): string {
  */
 export function buildCostStatement(ids: CostIdentifiers, range: CostRange): CostStatement | null {
   const covered = COST_COMPONENTS.filter((component) => canAsk(component, ids));
-  // Only where the workspace itself is identified. See the note on
-  // WORKSPACE_ESTIMATE_SUFFIX: without that predicate there is nothing keeping
-  // the figure inside one workspace, and a wider total is not a safer one.
-  const estimated = ids.workspaceId
-    ? COST_COMPONENTS.filter((component) => !canAsk(component, ids) && MATCHERS[component].column !== null)
-    : [];
+  // Live billing evidence confirms that workspace-wide product totals are not
+  // deployment attribution. Missing exact identifiers stay unavailable.
+  const estimated: CostComponent[] = [];
   if (covered.length === 0 && estimated.length === 0) return null;
 
   const parameters: StatementParameter[] = [];
@@ -362,6 +394,7 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
     bind('workspaceId', ids.workspaceId, 'STRING');
     branches.push(
       `      WHEN u.billing_origin_product = '${matcher.product}' AND u.workspace_id = :workspaceId ` +
+        `AND u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}' ` +
         `THEN '${workspaceEstimateRow(component)}'`
     );
   }
@@ -375,6 +408,11 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
       `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :endpointName)`
     );
   }
+  if (ids.foundationEndpoint) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'MODEL_SERVING' AND u.usage_metadata.endpoint_name = :foundationEndpoint)`
+    );
+  }
   if (ids.vectorEndpoint) {
     resourcePredicates.push(
       `(u.billing_origin_product = 'VECTOR_SEARCH' AND u.usage_metadata.endpoint_name = :vectorEndpoint)`
@@ -383,8 +421,10 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
   if (ids.appName) {
     resourcePredicates.push(`(u.billing_origin_product = 'APPS' AND u.usage_metadata.app_name = :appName)`);
   }
-  if (ids.workspaceId) {
-    resourcePredicates.push(`(u.billing_origin_product = 'GENIE' AND u.workspace_id = :workspaceId)`);
+  if (ids.indexRebuildJobId) {
+    resourcePredicates.push(
+      `(u.billing_origin_product = 'JOBS' AND u.usage_metadata.job_id = :indexRebuildJobId)`
+    );
   }
   const leakPredicate = resourcePredicates.length > 0 ? resourcePredicates.join('\n     OR ') : 'FALSE';
 
@@ -404,6 +444,7 @@ export function buildCostStatement(ids: CostIdentifiers, range: CostRange): Cost
       CONCAT_WS('|', CAST(u.workspace_id AS STRING), u.sku_name, CAST(u.usage_start_time AS STRING), CAST(u.usage_end_time AS STRING))
     ) AS record_id,
     COALESCE(u.record_type, 'ORIGINAL') AS record_type,
+    COALESCE(u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}', FALSE) AS tag_matches,
     CASE
 ${branches.join('\n')}
       ELSE NULL
@@ -411,7 +452,10 @@ ${branches.join('\n')}
   FROM system.billing.usage u
   WHERE u.usage_date >= :from_day
     AND u.usage_date <= :to_day
-    AND u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
+    AND (
+      u.custom_tags['${BILLING_TAG.key}'] = '${BILLING_TAG.value}'
+      OR ${leakPredicate}
+    )
 ),
 price_hits AS (
   SELECT
@@ -438,12 +482,13 @@ deduped AS (
     billing_origin_product,
     component,
     record_type,
+    tag_matches,
     MAX(price_match_count) AS price_match_count,
     MAX(unit_price) AS unit_price,
     MAX(currency_code) AS currency_code,
     MAX(CAST(price_start_time AS STRING)) AS price_start_time
   FROM price_hits
-  GROUP BY record_id, usage_date, usage_quantity, sku_name, job_run_id, billing_origin_product, component, record_type
+  GROUP BY record_id, usage_date, usage_quantity, sku_name, job_run_id, billing_origin_product, component, record_type, tag_matches
 ),
 priced AS (
   SELECT
@@ -484,8 +529,8 @@ SELECT
   COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
-  COUNT(*) AS tagged_rows,
-  CAST(0 AS BIGINT) AS untagged_rows
+  COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
 FROM priced
 WHERE component IS NOT NULL
 GROUP BY component
@@ -515,8 +560,8 @@ SELECT
   COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
-  COUNT(*) AS tagged_rows,
-  CAST(0 AS BIGINT) AS untagged_rows
+  COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
 FROM priced
 GROUP BY billing_origin_product
 UNION ALL
@@ -539,8 +584,8 @@ SELECT
   COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
   COUNT(*) FILTER (WHERE price_match_count > 1) AS duplicate_matches,
   MAX(price_start_time) AS price_effective_at,
-  COUNT(*) AS tagged_rows,
-  CAST(0 AS BIGINT) AS untagged_rows
+  COUNT(*) FILTER (WHERE tag_matches) AS tagged_rows,
+  COUNT(*) FILTER (WHERE NOT tag_matches) AS untagged_rows
 FROM priced
 UNION ALL
 SELECT
@@ -785,11 +830,16 @@ export function attributionFor(population: string, amount: number | null): CostA
 export function spendAmountFor(row: ComponentRow | undefined, basis: CostTile['basis']): number | null {
   if (!row) return null;
   const pricing = pricingFromRow(row);
-  if (pricing.match === 'unpriced' || pricing.match === 'duplicate' || pricing.match === 'mixed-currency') {
+  if (
+    pricing.match === 'unpriced' ||
+    pricing.match === 'partial' ||
+    pricing.match === 'duplicate' ||
+    pricing.match === 'mixed-currency'
+  ) {
     return null;
   }
   if (row.spend === null || !Number.isFinite(row.spend)) return null;
-  if (pricing.match === 'partial' || pricing.match === 'priced' || pricing.match === 'none') {
+  if (pricing.match === 'priced' || pricing.match === 'none') {
     return basis === 'per-day' ? row.spend / Math.max(row.billedDays, 1) : row.spend;
   }
   return null;
@@ -798,6 +848,10 @@ export function spendAmountFor(row: ComponentRow | undefined, basis: CostTile['b
 export function unpricedUnavailable(pricing: CostTilePricing): string {
   if (pricing.match === 'duplicate') return 'Duplicate list prices; spend withheld';
   if (pricing.match === 'mixed-currency') return 'Mixed currencies; spend withheld';
+  if (pricing.match === 'partial') {
+    const skus = pricing.unpricedSkus.slice(0, 4).join(', ');
+    return skus ? `Partial list-price coverage; spend withheld. Unpriced SKUs: ${skus}` : 'Partial list-price coverage; spend withheld';
+  }
   if (pricing.match === 'unpriced') {
     const skus = pricing.unpricedSkus.slice(0, 4).join(', ');
     return skus ? `Unpriced SKUs: ${skus}` : 'Usage has no matching list price';
@@ -827,6 +881,7 @@ export function buildCoverage(input: {
   propagationRows: ComponentRow[];
   range: CostRange;
   meta?: ComponentRow;
+  appBillingTag?: AppBillingTagState;
 }): CostCoverage {
   const products: CostCoverageProduct[] = [];
   const seen = new Set<string>();
@@ -852,7 +907,7 @@ export function buildCoverage(input: {
         taggedQuantity: 0,
         pricedRows: 0,
         unpricedRows: 0,
-        tiled: false,
+        tiled: product === 'JOBS',
         reason,
       });
     }
@@ -861,11 +916,18 @@ export function buildCoverage(input: {
   const delayed = Boolean(through && through < input.range.to);
   const propagation: CostPropagation[] = input.propagationRows.map((row) => {
     if (row.component === 'APPS') {
+      const pair = billingTagPair();
+      const assignment =
+        input.appBillingTag === 'matched'
+          ? `${pair} is assigned to this app.`
+          : input.appBillingTag === 'missing'
+            ? `${pair} is not assigned to this app.`
+            : `The app's ${pair} assignment could not be read.`;
       return {
         product: 'APPS',
         status: 'unsupported' as const,
         detail:
-          'Databricks app tags are organizational and may not appear on billing rows. App compute is matched by app name, not the tag.',
+          `${assignment} App spend is measured separately by exact app name; billing-row tag propagation is not required.`,
       };
     }
     if (row.component === 'GENIE') {
@@ -950,6 +1012,13 @@ const DESCRIPTIONS: Record<
     basis: 'total-in-range',
     variable: 'DATABRICKS_SERVING_ENDPOINT_NAME',
   },
+  'foundation-model': {
+    label: 'Foundation model',
+    quality: 'real',
+    population: 'This endpoint',
+    basis: 'total-in-range',
+    variable: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
+  },
   'sql-warehouse': {
     label: 'SQL warehouse',
     quality: 'estimate',
@@ -977,6 +1046,13 @@ const DESCRIPTIONS: Record<
     population: 'This app',
     basis: 'per-day',
     variable: 'DATABRICKS_APP_NAME',
+  },
+  'index-rebuild-job': {
+    label: 'Index rebuild job',
+    quality: 'real',
+    population: 'This job',
+    basis: 'total-in-range',
+    variable: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID',
   },
 };
 
@@ -1103,10 +1179,6 @@ function componentTile(
     const pricing = tile.pricing ?? EMPTY_PRICING;
     const amount = tile.amount;
     const unpriced = unpricedUnavailable(pricing);
-    const partialNote =
-      pricing.match === 'partial' && pricing.unpricedSkus.length > 0
-        ? `Unpriced SKUs: ${pricing.unpricedSkus.slice(0, 4).join(', ')}`
-        : '';
     return {
       ...tile,
       quality: unpriced ? 'unknown' : tile.quality,
@@ -1114,29 +1186,31 @@ function componentTile(
       attribution: attributionFor(tile.population, unpriced ? null : amount),
       pricing,
       unavailable: tile.unavailable || unpriced,
-      note: tile.note || partialNote,
+      note: tile.note,
     };
   };
 
+  if (
+    component === 'foundation-model' &&
+    ids.foundationEndpoint &&
+    ids.foundationEndpoint === ids.endpointName
+  ) {
+    return withMeta({
+      ...base,
+      quality: 'unknown',
+      amount: null,
+      note: '',
+      unavailable: 'Same endpoint as agent serving; spend is counted once on the Serving endpoint tile.',
+      remedy: '',
+    });
+  }
+
   if (!canAsk(component, ids)) {
-    const estimate = byComponent.get(workspaceEstimateRow(component));
-    const pricing = pricingFromRow(estimate);
-    const amount = spendAmountFor(estimate, description.basis);
-    if (amount !== null) {
-      return withMeta({
-        ...base,
-        quality: 'estimate',
-        population: 'Whole workspace',
-        amount,
-        pricing,
-        note: '',
-        unavailable: '',
-        remedy: description.variable ? `Set ${description.variable} to narrow this to this deployment.` : '',
-      });
-    }
+    const pricing = EMPTY_PRICING;
     if (component === 'vector-search') {
       return withMeta({
         ...base,
+        quality: 'unknown',
         amount: null,
         pricing,
         note: '',
@@ -1146,6 +1220,7 @@ function componentTile(
     }
     return withMeta({
       ...base,
+      quality: 'unknown',
       amount: null,
       pricing,
       note: '',
@@ -1179,7 +1254,11 @@ function componentTile(
     });
   }
 
-  return withMeta({ ...base, amount, pricing, note: '', unavailable: '', remedy: '' });
+  const note =
+    component === 'index-rebuild-job' && typeof row?.jobRuns === 'number' && row.jobRuns > 0
+      ? `${row.jobRuns} billed job ${row.jobRuns === 1 ? 'run' : 'runs'}`
+      : '';
+  return withMeta({ ...base, amount, pricing, note, unavailable: '', remedy: '' });
 }
 
 /*
@@ -1231,7 +1310,8 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
     {
       id: 'foundation-model',
       label: 'Foundation model',
-      unavailable: 'The foundation-model endpoint identifier is not recorded with the run today.',
+      unavailable:
+        'Foundation model spend is measured in its own tile, but the run ledger does not separate its tokens from the agent endpoint.',
     },
     {
       id: 'lakebase',

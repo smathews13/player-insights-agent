@@ -366,13 +366,15 @@ describe('an empty cost block', () => {
     const tiles = costTilesForDisplay([]);
     expect(tiles.map((tile) => tile.id)).toEqual([
       'serving-endpoint',
+      'foundation-model',
       'sql-warehouse',
       'genie',
       'vector-search',
       'app-compute',
+      'index-rebuild-job',
     ]);
     expect(tiles.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);
-    expect(tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
+    expect(tiles.find((tile) => tile.id === 'index-rebuild-job')?.resourceKind).toBe('job');
   });
 });
 
@@ -589,7 +591,7 @@ describe('the copy', () => {
 describe('the mark on a cost tile', () => {
   it('names a product for every billed component', () => {
     const undecided = COST_COMPONENTS.filter((id) => productForCostTile(id) === null);
-    expect(undecided).toEqual([]);
+    expect(undecided).toEqual(['index-rebuild-job']);
   });
 
   it('marks each Genie space tile as Genie', () => {

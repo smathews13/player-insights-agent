@@ -89,6 +89,24 @@ describe('Astrolabe resource tag inventory', () => {
     });
     expect(targets.filter((target) => target.kind === 'genie-space')).toHaveLength(2);
   });
+
+  it('counts report-driven foundation, Genie, and index resources once', () => {
+    const targets = resourceTagInventory({
+      environment: {
+        DATABRICKS_SERVING_ENDPOINT_NAME: 'shared-endpoint',
+      },
+      report: report([
+        { key: 'llm_endpoint', value: 'shared-endpoint' },
+        { key: 'data_genie_space_id', value: 'same-space' },
+        { key: 'dictionary_genie_space_id', value: 'same-space' },
+        { key: 'semantic_index', value: 'cat.schema.index' },
+      ]),
+    });
+
+    expect(targets.filter((target) => target.kind === 'serving-endpoint')).toHaveLength(1);
+    expect(targets.filter((target) => target.kind === 'genie-space')).toHaveLength(1);
+    expect(targets.filter((target) => target.kind === 'vector-index')).toHaveLength(1);
+  });
 });
 
 describe('reading the app billing tag', () => {
@@ -217,10 +235,11 @@ describe('applying Astrolabe resource tags', () => {
     expect(summary.results.find((result) => result.label.startsWith('Foundation model'))).toMatchObject({
       status: 'tagged',
     });
-    expect(summary.results.find((result) => result.kind === 'genie-space')).toMatchObject({
+    const genie = summary.results.find((result) => result.kind === 'genie-space');
+    expect(genie).toMatchObject({
       status: 'not-supported',
-      detail: expect.stringContaining('billed through its associated SQL warehouse'),
     });
+    expect(genie?.detail).toContain('billed through its associated SQL warehouse');
   });
 
   it('classifies the seven reported targets into correct, unsupported, grants, and recovered retry', async () => {

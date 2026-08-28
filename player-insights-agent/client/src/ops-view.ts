@@ -225,6 +225,8 @@ export function costTileWorkspaceObject(
       const parts = id.split('.').filter((piece) => piece.length > 0);
       return parts.length === 3 ? { kind: 'vector-index', index: id } : null;
     }
+    case 'job':
+      return { kind: 'job', jobId: id };
     default:
       return null;
   }
@@ -236,6 +238,7 @@ function kindFromCostTileId(id: string): CostTile['resourceKind'] {
   if (id === 'app-compute') return 'app';
   if (id.startsWith('genie:')) return 'genie-space';
   if (id === 'vector-search') return 'vector-index';
+  if (id === 'index-rebuild-job') return 'job';
   return '';
 }
 
@@ -243,7 +246,9 @@ export function tileView(tile: CostTile, currency: string): TileView {
   // `CostTile` predates the discriminated per-question part, so defend the wire
   // boundary here too: an unknown tile never becomes a number even if malformed
   // JSON happens to carry one.
-  const figure = tile.quality === 'unknown' ? '' : money(tile.amount, currency);
+  const completePrice =
+    !tile.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
+  const figure = tile.quality === 'unknown' || !completePrice ? '' : money(tile.amount, currency);
   return {
     id: tile.id,
     label: tile.label,
@@ -417,8 +422,7 @@ export function costAbsenceReplacesGrid(payload: OpsCostPayload): boolean {
  * resource so the grid does not collapse into a single empty-state card.
  */
 export function costTilesForDisplay(tiles: readonly CostTile[]): CostTile[] {
-  const visible = tiles.filter((tile) => tile.id !== 'index-rebuild-job');
-  return visible.length > 0 ? [...visible] : EMPTY_COST_TILES.map((tile) => ({ ...tile }));
+  return tiles.length > 0 ? [...tiles] : EMPTY_COST_TILES.map((tile) => ({ ...tile }));
 }
 
 const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
@@ -436,10 +440,12 @@ const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
 
 const EMPTY_COST_TILES: readonly CostTile[] = [
   { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Serving endpoint', resourceKind: 'serving-endpoint' },
+  { ...EMPTY_COST_TILE, id: 'foundation-model', label: 'Foundation model', resourceKind: 'serving-endpoint' },
   { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
   { ...EMPTY_COST_TILE, id: 'genie', label: 'Genie', resourceKind: 'genie-space' },
   { ...EMPTY_COST_TILE, id: 'vector-search', label: 'Vector search', resourceKind: 'vector-index' },
   { ...EMPTY_COST_TILE, id: 'app-compute', label: 'App compute', resourceKind: 'app' },
+  { ...EMPTY_COST_TILE, id: 'index-rebuild-job', label: 'Index rebuild job', resourceKind: 'job' },
 ];
 
 /* ── Health ──────────────────────────────────────────────────────────────── */
@@ -714,6 +720,7 @@ export function productForCostTile(id: string): BrandProduct | null {
 
 const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
   'serving-endpoint': 'mosaic-ai',
+  'foundation-model': 'mosaic-ai',
   'vector-search': 'mosaic-ai',
   'sql-warehouse': 'databricks-sql',
   'app-compute': 'apps',
@@ -727,19 +734,19 @@ const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
  * that tile is ever displayed. Products without a displayed owner deliberately
  * map to nothing instead of borrowing a nearby tile.
  */
-const COST_COVERAGE_TILE: Readonly<Record<string, string>> = {
-  MODEL_SERVING: 'serving-endpoint',
-  SQL: 'sql-warehouse',
-  VECTOR_SEARCH: 'vector-search',
-  APPS: 'app-compute',
-  GENIE: 'genie',
-  JOBS: 'index-rebuild-job',
+const COST_COVERAGE_PRODUCT: Readonly<Record<string, string>> = {
+  'serving-endpoint': 'MODEL_SERVING',
+  'foundation-model': 'MODEL_SERVING',
+  'sql-warehouse': 'SQL',
+  'vector-search': 'VECTOR_SEARCH',
+  'app-compute': 'APPS',
+  genie: 'GENIE',
+  'index-rebuild-job': 'JOBS',
 };
 
 export function costCoverageProductForTile(tileId: string): string | null {
   if (tileId === 'genie' || tileId.startsWith('genie:')) return 'GENIE';
-  const match = Object.entries(COST_COVERAGE_TILE).find(([, owner]) => owner === tileId);
-  return match?.[0] ?? null;
+  return COST_COVERAGE_PRODUCT[tileId] ?? null;
 }
 
 /** Concise coverage and propagation facts for one displayed tile. */

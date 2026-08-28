@@ -15,6 +15,7 @@ const saved = {
   dictGenie: process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID,
   dictTitle: process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE,
   index: process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX,
+  rebuildJob: process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID,
 };
 
 const ENV_NAMES: Record<keyof typeof saved, string> = {
@@ -27,6 +28,7 @@ const ENV_NAMES: Record<keyof typeof saved, string> = {
   dictGenie: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
   dictTitle: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE',
   index: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
+  rebuildJob: 'PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID',
 };
 
 beforeEach(() => {
@@ -40,6 +42,7 @@ beforeEach(() => {
   delete process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID;
   delete process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE;
   delete process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX;
+  delete process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID;
 });
 
 afterEach(() => {
@@ -196,6 +199,7 @@ describe('the ranged cost route', () => {
     process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_ID = 'space-dictionary';
     process.env.PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE = 'Dictionary';
     process.env.PLAYER_INSIGHTS_SEMANTIC_INDEX = 'cat.schema.index';
+    process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID = 'job-123';
     const fetchImpl = vi.fn((input: string | URL | globalThis.Request) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       if (url.endsWith('/preview/scim/v2/Me')) {
@@ -263,7 +267,9 @@ describe('the ranged cost route', () => {
     expect(genie.every((tile) => tile.resourceKind === 'genie-space')).toBe(true);
     expect(genie.every((tile) => tile.unavailable === 'Genie LLM spend not attributable in this model')).toBe(true);
     expect(genie.every((tile) => tile.note.includes('not the complete Genie cost'))).toBe(true);
-    expect(payload.tiles.some((tile) => tile.unavailable.includes('identifier unavailable'))).toBe(false);
+    expect(payload.tiles.find((tile) => tile.id === 'foundation-model')?.unavailable).toContain(
+      'identifier unavailable'
+    );
     expect(payload.tiles.find((tile) => tile.id === 'vector-search')).toMatchObject({
       resourceId: 'cat.schema.index',
       resourceKind: 'vector-index',
@@ -274,7 +280,11 @@ describe('the ranged cost route', () => {
       note: 'system_billing=astrolabe is on this app; Apps billing is matched by app name.',
       remedy: '',
     });
-    expect(payload.tiles.some((tile) => tile.id === 'index-rebuild-job')).toBe(false);
+    expect(payload.tiles.find((tile) => tile.id === 'index-rebuild-job')).toMatchObject({
+      resourceId: 'job-123',
+      resourceKind: 'job',
+      amount: null,
+    });
     expect(payload.budgets).toEqual({ total: 250, resources: { 'app-compute': 40 } });
     expect(payload.budgetsReadable).toBe(true);
   });

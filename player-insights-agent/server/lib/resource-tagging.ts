@@ -225,7 +225,15 @@ export function resourceTagInventory(
       action: 'tag',
     });
   }
-  return targets;
+  // A report and the app environment can name the same serving endpoint. It is
+  // one resource and must not inflate either the coverage inventory or tag work.
+  const seen = new Set<string>();
+  return targets.filter((target) => {
+    const key = `${target.kind}\u0000${target.name}\u0000${target.version ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function hasTag(tags: readonly KeyValueTag[]): boolean {

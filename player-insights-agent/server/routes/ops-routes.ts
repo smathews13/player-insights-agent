@@ -78,7 +78,7 @@ import {
   listDeclarableTablesInSchema,
   unionTableNames,
 } from '../lib/declared-tables';
-import { userEmail, type InsightsAppKit } from './insights-routes';
+import { userEmail, type InsightsAppKit, type PreflightReport } from './insights-routes';
 import { readRequestLatencyRows, REQUEST_LATENCY_QUERY, REQUEST_LATENCY_TABLE } from '../lib/request-latency';
 import type {
   AppMeasurement,
@@ -268,11 +268,12 @@ async function costIdentifiersFor(
     warehouse: string;
     fetchImpl?: typeof fetch;
     readAppBillingTag?: (appName: string) => Promise<AppBillingTagState>;
+    readReport?: () => Promise<{ report: PreflightReport | null }>;
   }
-): Promise<CostIdentifiers> {
+): Promise<{ ids: CostIdentifiers; report: PreflightReport | null }> {
   const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
   const [{ report }, stored, declared, appBillingTag] = await Promise.all([
-    readOrchestratorReport(),
+    (extras.readReport ?? readOrchestratorReport)(),
     readStoredSettings(appkit).catch(() => new Map()),
     readDeclaredConnections(appkit),
     (extras.readAppBillingTag ?? readAppBillingTag)(appName),
@@ -314,15 +315,20 @@ async function costIdentifiersFor(
     });
   }
   return {
-    appName,
-    endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
-    warehouseId: extras.warehouse,
-    vectorEndpoint,
-    vectorIndex,
-    genieSpaces: spaces.filter((space) => space.id),
-    workspaceId: extras.workspaceId,
-    telemetryEnabled: Boolean(telemetrySchema()),
-    appBillingTag,
+    report,
+    ids: {
+      appName,
+      endpointName: (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim(),
+      foundationEndpoint: configured['llm-endpoint'] || '',
+      warehouseId: extras.warehouse,
+      vectorEndpoint,
+      vectorIndex,
+      indexRebuildJobId: (process.env.PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID ?? '').trim(),
+      genieSpaces: spaces.filter((space) => space.id),
+      workspaceId: extras.workspaceId,
+      telemetryEnabled: Boolean(telemetrySchema()),
+      appBillingTag,
+    },
   };
 }
 
@@ -921,6 +927,8 @@ export interface OpsDeps {
    * the live assignment.
    */
   readAppBillingTag?: (appName: string) => Promise<AppBillingTagState>;
+  /** Injected by route tests so recovered report resources are deterministic. */
+  readOrchestratorReport?: () => Promise<{ report: PreflightReport | null }>;
 }
 
 /**
@@ -1011,12 +1019,14 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
       const workspaceId = token
         ? await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl })
         : '';
-      const ids: CostIdentifiers = await costIdentifiersFor(appkit, req, {
+      const resolved = await costIdentifiersFor(appkit, req, {
         workspaceId,
         warehouse,
         fetchImpl: deps.fetchImpl,
         readAppBillingTag: deps.readAppBillingTag,
+        readReport: deps.readOrchestratorReport,
       });
+      const ids = resolved.ids;
       const storedBudgets = await readCostBudgets(appkit);
       const empty = {
         grant: null,
@@ -1077,7 +1087,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           fetchImpl: deps.fetchImpl,
         });
         const warehouseAutoStop = await autoStopPromise;
-        const inventoryCount = resourceTagInventory({ environment: process.env, report: null }).length;
+        const inventoryCount = resourceTagInventory({ environment: process.env, report: resolved.report }).length;
 
         if (!outcome.ok) {
           const denial = classifyDenial(outcome.message, 'system.billing.usage');
@@ -1112,18 +1122,19 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           propagationRows: split.propagation,
           range,
           meta: split.meta,
+          appBillingTag: ids.appBillingTag,
         });
         const unpropagated = coverage.propagation.filter((row) => row.status === 'unpropagated');
         const delayed = coverage.propagation.some((row) => row.status === 'delayed');
 
-        // No tagged component rows is its OWN state and not a missing grant.
+        // No exact component rows is its OWN state and not a missing grant.
         if (split.components.length === 0 && (!split.meta || split.meta.billedDays === 0)) {
           const tiles = buildTiles(ids, []);
           const reason = unpropagated.length
-            ? 'Matching usage exists without the Astrolabe tag, so spend is unpropagated rather than unused.'
+            ? 'Matching usage exists without the Astrolabe tag, but exact resource attribution remains available.'
             : delayed
-              ? 'No tagged billing rows in this range yet. Later days may still be filling.'
-              : 'No billing rows matched the Astrolabe tag in this range.';
+              ? 'No exact tracked-resource billing rows in this range yet. Later days may still be filling.'
+              : 'No billing rows matched an exact tracked resource in this range.';
           res.json({
             ...empty,
             state: 'no-rows',

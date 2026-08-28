@@ -636,15 +636,15 @@ export function CostBody({ block }: { block: Block<OpsCostPayload> }) {
                 href={billingHref}
                 target="_blank"
                 rel="noreferrer"
-                title={`Open system.billing.usage filtered to ${BILLING_TAG.key} = ${BILLING_TAG.value}`}
+                title="Open system.billing.usage"
               >
                 Open system.billing.usage
                 <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             ) : null}
             <p className="ops-source-filter">
-              Filtered to key = <code>{`"${BILLING_TAG.key}"`}</code> and value ={' '}
-              <code>{`"${BILLING_TAG.value}"`}</code>.
+              Spend uses exact resource metadata. Tag coverage is tracked separately for{' '}
+              <code>{`"${BILLING_TAG.key}"`}</code> = <code>{`"${BILLING_TAG.value}"`}</code>.
             </p>
           </CostBudgetProvider>
         ) : null}
