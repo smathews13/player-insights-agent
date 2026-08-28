@@ -97,25 +97,20 @@ def test_a_parallel_batch_lands_in_one_trace_under_one_parent(tracing):
     assert_one_audit_trail(tools, expected=3)
 
 
-def test_a_serial_batch_traces_the_same_shape(tracing):
+def test_a_single_serial_call_traces_the_same_shape(tracing):
     """The comparison that gives the test above its meaning.
 
-    Two calls to one tool take the serial path, so these spans are opened on the
-    dispatching thread and need no help to nest. If this failed too, the fault
-    would be in the harness rather than in the pool.
+    One call takes the serial path, so its span is opened on the dispatching
+    thread and needs no help to nest. If this failed too, the fault would be in
+    the harness rather than in the pool.
     """
 
     tools = SpanningTools()
-    llm = ScriptedLlm(
-        [
-            Call("describe_table", {"full_name": ACTIVITY}, call_id="first"),
-            Call("describe_table", {"full_name": f"{ACTIVITY}_v2"}, call_id="second"),
-        ]
-    )
+    llm = ScriptedLlm([Call("describe_table", {"full_name": ACTIVITY}, call_id="only")])
 
     ask(build(llm, tools))
 
-    assert_one_audit_trail(tools, expected=2)
+    assert_one_audit_trail(tools, expected=1)
 
 
 def test_a_failing_call_is_still_traced_beside_its_siblings(tracing):

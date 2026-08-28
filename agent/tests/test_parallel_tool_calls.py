@@ -14,11 +14,9 @@ behaviour somebody using the app would notice losing -- was covered:
 
 1. Distinct tools in one step really do overlap. Without this the optimisation
    could regress to serial and only a stopwatch would notice.
-2. A step with two calls to the SAME tool stays serial. That is what lets the
-   repeat brake see the first failure before the second call is issued, and the
-   brake is what stops a run spending its twelve-call budget failing the same way
-   over and over. `skip_batch` is keyed on the tool NAME, so the decision cannot
-   be made until one of them has returned.
+2. Calls to the SAME tool overlap too. The repeat brake cannot stop siblings
+   already in flight, so calls that the serial path would have refused return
+   their budget units after the repeated failure is classified.
 3. One call raising does not lose the others. When the calls were serial the
    first failure stopped the batch; now three are in flight and the two that
    succeeded still have to reach the model, or a warehouse blip silently deletes
@@ -41,8 +39,18 @@ import threading
 import time
 
 import pytest
-from test_agent import ACTIVITY, Call, FakeTools, ScriptedLlm, ask, build, stages
+from test_agent import (
+    ACTIVITY,
+    Call,
+    FakeTools,
+    ScriptedLlm,
+    ask,
+    build,
+    resource_calls,
+    stages,
+)
 
+from agent import ORCHESTRATOR_INSTRUCTIONS
 from tools import SqlRefused
 
 
@@ -117,19 +125,16 @@ def test_distinct_tools_in_one_step_run_at_the_same_time():
     )
 
 
-def test_two_calls_to_one_tool_stay_serial():
-    """The brake's precondition, and the reason it is keyed on the tool name.
+def test_one_call_stays_on_the_sequential_path():
+    tools = TimedTools(hold=0.01)
 
-    `skip_batch` suppresses the LATER calls to a tool that has just failed the
-    same way twice, so a step holding two calls to one tool has a decision in it
-    that cannot be made until the first has returned. Running them together would
-    spend budget on exactly the repeat the brake exists to refuse.
+    ask(build(ScriptedLlm([Call("resolve_table", {"name": "players"})]), tools))
 
-    The third call is a different tool and is dragged onto the serial path with
-    them, which is the conservative reading and is asserted so that a later
-    attempt to run it alongside them is a deliberate change rather than a
-    surprise.
-    """
+    assert tools.threads() == {"MainThread"}
+
+
+def test_repeated_tool_names_and_their_mixed_name_sibling_run_together():
+    """A repeated name neither serialises itself nor drags another tool behind it."""
 
     tools = TimedTools()
     llm = ScriptedLlm(
@@ -143,11 +148,101 @@ def test_two_calls_to_one_tool_stay_serial():
     ask(build(llm, tools))
 
     assert len(tools.spans) == 3
-    assert not tools.overlapped(), (
-        "a step repeating a tool ran concurrently, so the repeat brake cannot see "
-        "the first failure before the second call is issued"
+    describes = [span for span in tools.spans if span[0] == "describe_table"]
+    assert describes[0][1] < describes[1][2] and describes[1][1] < describes[0][2], (
+        "the two describe_table calls did not overlap"
     )
-    assert tools.threads() == {"MainThread"}
+    dictionary = next(span for span in tools.spans if span[0] == "dictionary_genie")
+    assert any(
+        mine_in < dictionary[2] and dictionary[1] < mine_out
+        for _, mine_in, mine_out, _ in describes
+    ), "the mixed-name call was dragged onto a serial path"
+    assert "MainThread" not in tools.threads()
+
+
+def test_repeat_brake_refunds_every_later_same_step_call_budget_unit():
+    """Concurrent execution spends the same admission budget as the serial brake.
+
+    Four identical failures physically run in the first step. The second failure
+    would make a serial loop refuse calls three and four, so those two units are
+    refunded and all four calls in the next step still fit under a six-call cap.
+    Trace/resource accounting remains physical: all four Genie calls still count.
+    """
+
+    tools = TimedTools(hold=0.01, data_genie=RuntimeError("warehouse unavailable"))
+    llm = ScriptedLlm(
+        [
+            Call("data_genie", {"question": f"broken-{index}"}, f"broken-{index}")
+            for index in range(4)
+        ],
+        [
+            Call("dictionary_genie", {"question": "define label"}, "next-1"),
+            Call("resolve_table", {"name": "players"}, "next-2"),
+            Call("describe_table", {"full_name": ACTIVITY}, "next-3"),
+            Call("list_data_assets", {}, "next-4"),
+        ],
+        "Enough metadata was gathered.",
+    )
+
+    response = ask(
+        build(llm, tools),
+        runtime_settings={"loop": {"maxSteps": 4, "maxToolCalls": 6, "maxRunSeconds": 30}},
+    )
+
+    assert len(tools.named("data_genie")) == 4, "repeated calls were not dispatched together"
+    assert len(tools.spans) == 8, (
+        "the next step did not receive the four units the serial brake would have left"
+    )
+    failed = [
+        stage
+        for stage in stages(response)
+        if stage["id"].startswith("step-1-") and stage["status"] == "failed"
+    ]
+    assert len(failed) == 4, "refunding admission budget hid physical failures from the trace"
+    assert resource_calls(response) == [
+        {"kind": "genie-space", "id": "data", "tool": "data_genie", "calls": 4},
+        {
+            "kind": "genie-space",
+            "id": "dictionary",
+            "tool": "dictionary_genie",
+            "calls": 1,
+        },
+    ], "budget refunds changed physical resource-call accounting"
+    assert any(
+        "abandoned rather than retried" in caveat
+        for caveat in response.custom_outputs["answer"]["caveats"]
+    )
+
+
+def test_budget_cap_inside_batch_is_cleared_after_repeat_refunds():
+    """A stale dispatch-time cap must not erase the entire following step."""
+
+    tools = TimedTools(hold=0.01, data_genie=RuntimeError("warehouse unavailable"))
+    llm = ScriptedLlm(
+        [
+            Call("data_genie", {"question": f"broken-{index}"}, f"broken-{index}")
+            for index in range(5)
+        ],
+        [
+            Call("resolve_table", {"name": "players"}, "next-1"),
+            Call("describe_table", {"full_name": ACTIVITY}, "next-2"),
+        ],
+        "The following reasoning step completed.",
+    )
+
+    response = ask(
+        build(llm, tools),
+        runtime_settings={"loop": {"maxSteps": 4, "maxToolCalls": 4, "maxRunSeconds": 30}},
+    )
+
+    assert len(tools.named("data_genie")) == 4
+    assert len(tools.named("resolve_table")) == 1
+    assert len(tools.named("describe_table")) == 1
+    assert len(llm.loop_calls) == 3, "the stale over-budget flag removed the following step"
+    assert not any(
+        "stopped early because the 4-tool-call budget" in caveat
+        for caveat in response.custom_outputs["answer"]["caveats"]
+    )
 
 
 def test_one_call_failing_does_not_lose_the_others_results():
@@ -178,12 +273,49 @@ def test_one_call_failing_does_not_lose_the_others_results():
     assert "warehouse unavailable" in reported[1][1]
     assert "labels separate" in reported[2][1], "the third call's result was lost"
 
-    answered = [
-        message["content"]
-        for message in llm.transcript
-        if message.get("role") == "tool"
-    ]
+    answered = [message["content"] for message in llm.transcript if message.get("role") == "tool"]
     assert len(answered) == 3, "the model was not told the outcome of every call in the step"
+
+
+class StaggeredTools(TimedTools):
+    """Completes calls in reverse order so reporting order cannot pass by luck."""
+
+    def __init__(self):
+        super().__init__(hold=0)
+        self.completed: list[str] = []
+
+    def _answer(self, tool: str, /, **arguments):
+        marker = str(next(iter(arguments.values())))
+        time.sleep({"slow": 0.06, "middle": 0.03, "fast": 0.0}[marker])
+        with self._lock:
+            self.completed.append(marker)
+        return super()._answer(tool, **arguments)
+
+
+def test_results_and_trace_stages_keep_model_order_when_completion_reverses():
+    tools = StaggeredTools()
+    llm = ScriptedLlm(
+        [
+            Call("resolve_table", {"name": "slow"}, "slow"),
+            Call("resolve_table", {"name": "middle"}, "middle"),
+            Call("resolve_table", {"name": "fast"}, "fast"),
+        ],
+        "All lookups completed.",
+    )
+
+    response = ask(build(llm, tools))
+
+    assert tools.completed == ["fast", "middle", "slow"], "the fixture did not reverse completion"
+    answered = [
+        message["tool_call_id"] for message in llm.transcript if message.get("role") == "tool"
+    ]
+    assert answered[:3] == ["slow", "middle", "fast"]
+    trace_ids = [stage["id"] for stage in stages(response) if stage["id"].startswith("step-1-")]
+    assert trace_ids == [
+        "step-1-1-resolve_table",
+        "step-1-2-resolve_table",
+        "step-1-3-resolve_table",
+    ]
 
 
 def test_a_refusal_beside_two_successes_is_still_reported_as_a_refusal():
@@ -240,3 +372,27 @@ def test_every_call_in_a_batch_is_answered_exactly_once(names):
 
     called = [tool for tool, _, _, _ in tools.spans]
     assert sorted(called) == sorted(names), f"the step ran {called}, not {list(names)}"
+
+
+def test_prompt_allows_only_cheap_metadata_batching():
+    section = ORCHESTRATOR_INSTRUCTIONS.split("# Batching cheap metadata", 1)[1].split(
+        "A table named without", 1
+    )[0]
+
+    for cheap in (
+        "resolve_table",
+        "describe_table",
+        "search_tagged_assets",
+        "search_semantics",
+    ):
+        assert cheap in section
+    assert "You may batch" in section
+    assert "descriptions/columns" in section
+    assert "Do not speculatively batch" in section
+    for expensive in (
+        "Genie/natural-language layer",
+        "query_named_table",
+        "run_sql",
+        "full list_data_assets table listing",
+    ):
+        assert expensive in section

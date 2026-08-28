@@ -677,6 +677,13 @@ memory, and never rounded or estimated.
    when resolve_table reports the name is AMBIGUOUS, or when you cannot tell what was
    asked. Do not crawl for a half-named table and do not assume a region.
 
+# Batching cheap metadata
+You may batch several independent resolve_table name lookups, describe_table
+descriptions/columns, or search_tagged_assets/search_semantics metadata searches in one
+turn. Do not speculatively batch the Genie/natural-language layer, direct SQL
+(query_named_table or run_sql), or the full list_data_assets table listing; use those
+expensive paths only when preceding evidence justifies them.
+
 A table named without its catalog and schema is a lookup, not a question for the user.
 Call resolve_table on it: one call, against the declared set. If it RESOLVES, carry on
 on the DIRECT path with the full name: describe_table, then query_named_table or
@@ -2245,11 +2252,11 @@ def _memo_recall(memo: dict[str, Any] | None, slot: str, owner: Any) -> Any:
     with whose it is -- a search surface belongs to a toolset, an identity to the
     client it was measured from -- and they used to be stored as two keys and read
     by checking one and then trusting the other. That is a check-then-act on
-    shared mutable state, and it was safe for a reason that has nothing to do with
-    it: `tool_repetition.skip_batch` forces repeated calls to one tool to run one
-    at a time, so the only concurrent path in was closed by a decision about
-    BUDGET, in another module, that could be revisited by somebody optimising
-    throughput with no idea a correctness property was leaning on it.
+    shared mutable state, and it was safe for a reason that had nothing to do with
+    it: repeated calls to one tool used to run one at a time, so the only
+    concurrent path in was closed by a decision about BUDGET in another module.
+    That decision has now changed without reopening the race because the pairing
+    below was already made atomic.
 
     Storing the pair as ONE value removes the coupling instead of documenting it.
     A reader now sees either nothing or a whole pairing, so the worst a race can
@@ -2319,6 +2326,14 @@ class _BatchCall:
     capped: str = ""
     #: True when the call is dispatched.
     admitted: bool = False
+    #: True when this call hit the numeric tool-call cap before dispatch. Kept
+    #: separate from `capped`: a concurrent repeat-brake refund can make this
+    #: dispatch-time fact no longer a reason to end the turn.
+    capped_by_tool_budget: bool = False
+    #: A dispatched call still counts as real work in the trace and resource
+    #: ledgers, but its FINDER budget unit is returned when an earlier sibling
+    #: proves the sequential repeat brake would have refused it.
+    budget_refunded: bool = False
     started: float = 0.0
     result: Any = None
     error: BaseException | None = None
@@ -3216,9 +3231,10 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         max_tool_calls = runtime_settings.current().loop.max_tool_calls
         if budget.tool_calls >= max_tool_calls or log.expired():
             entry.announce = False
+            entry.capped_by_tool_budget = budget.tool_calls >= max_tool_calls
             entry.capped = (
                 f"the {max_tool_calls}-tool-call budget was spent"
-                if budget.tool_calls >= max_tool_calls
+                if entry.capped_by_tool_budget
                 else (
                     f"the turn budget was reached at {log.elapsed:.1f}s elapsed with "
                     f"{log.remaining:.1f}s remaining"
@@ -3245,6 +3261,32 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         elif entry.name == "search_semantics":
             log.used_resource("vector-index", SEMANTIC_INDEX, entry.name)
         return ""
+
+    @staticmethod
+    def _refund_calls_overtaken_by_brake(
+        batch: Sequence[_BatchCall],
+        brake: _BatchCall,
+        budget: FinderBudget,
+    ) -> None:
+        """Return budget units the serial repeat brake would not have spent.
+
+        The concurrent path has already dispatched every admitted call before
+        any result is classified. Once `brake` is the failure that gives up on a
+        tool, every later admitted call to that tool is therefore real external
+        work but not budget-consuming work: the serial path would have refused
+        it before dispatch. Actual-call, resource and failure ledgers remain
+        untouched; only the finder's admission budget is reconciled.
+        """
+
+        for entry in batch:
+            if (
+                entry.index > brake.index
+                and entry.name == brake.name
+                and entry.admitted
+                and not entry.budget_refunded
+            ):
+                entry.budget_refunded = True
+                budget.tool_calls -= 1
 
     def _refused_before_running(
         self,
@@ -3628,20 +3670,15 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             # ----------------------------------------------------------------
             # Which of the admitted calls may run together.
             #
-            # ONLY A BATCH OF DISTINCT TOOL NAMES. `braked` is keyed by tool
-            # name and suppresses the LATER calls to a tool that has just failed
-            # the same way twice, so a batch holding two calls to one tool has a
-            # decision in it that cannot be made until the first has returned.
-            # Running those concurrently would spend budget on the repeat this
-            # brake exists to refuse -- and it exists because of a measured run
-            # that burned five of twelve calls on one missing column. A batch
-            # with a repeated name therefore takes the serial path below,
-            # unchanged. Distinct names cannot brake each other, so for them the
-            # decisions below are the same decisions in the same order.
+            # Any batch wider than one runs concurrently, including repeated
+            # tool names. The repeat brake cannot prevent siblings already in
+            # flight, so the second pass preserves its CONSEQUENCE instead:
+            # once a failure trips it, later admitted calls to that tool have
+            # their finder-budget units returned. Actual execution, tracing,
+            # failure and resource accounting remain intact.
             #
-            # Coalescing does not weaken that rule, it removes the case: eight
-            # definition questions leave one call to dispatch, so there is no
-            # second call to the same tool for the brake to have to see first.
+            # Coalesced definition followers are absent from `runnable`, as they
+            # still make no external call and spend no budget.
             # ----------------------------------------------------------------
             runnable = [
                 entry
@@ -3650,9 +3687,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 and not entry.reused
                 and entry.answered_by is None
             ]
-            together = len(runnable) > 1 and len({entry.name for entry in runnable}) == len(
-                runnable
-            )
+            together = len(runnable) > 1
 
             def _run(entry: _BatchCall) -> None:
                 """The only thing a worker thread does. Raises nothing.
@@ -3907,6 +3942,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         log.repeats.remember(name, entry.arguments_key, reason)
                         if log.repeats.record(name, reason):
                             braked[name] = log.repeats.skip_batch(name)
+                            self._refund_calls_overtaken_by_brake(batch, entry, finder_budget)
 
                 # Only a completed call contributes evidence. `log.evidence`
                 # also gates the charting step, so a run whose only outcome was a
@@ -3983,6 +4019,19 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     f"the turn budget was reached at {log.elapsed:.1f}s elapsed "
                     f"with {log.remaining:.1f}s remaining"
                 )
+            # Admission happens before concurrent results are known, so a call
+            # later in the batch can be marked over-budget before an earlier
+            # repeated failure returns sibling units. That dispatch-time mark
+            # remains in the transcript, but it is no longer a terminal fact:
+            # the next reasoning/tool step must get the budget the serial brake
+            # would have left it.
+            if (
+                capped
+                and any(entry.capped_by_tool_budget for entry in batch)
+                and finder_budget.tool_calls < runtime_settings.current().loop.max_tool_calls
+                and not log.expired()
+            ):
+                capped = ""
             if capped:
                 break
         else:
