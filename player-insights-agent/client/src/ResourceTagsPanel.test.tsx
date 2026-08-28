@@ -50,10 +50,11 @@ describe('Astrolabe resource tag results', () => {
   it('puts the in-button Astrolabe flicker left of Apply while the repair is running', () => {
     const idle = renderToStaticMarkup(<ResourceTagsApplyButton running={false} />);
     const busy = renderToStaticMarkup(<ResourceTagsApplyButton running={true} />);
-    expect(idle).toContain('Apply Astrolabe tags');
+    expect(idle).toContain('Apply tags');
+    expect(idle).not.toContain('data-variant="outline"');
     expect(idle).not.toContain('ast-flick-slot--button');
     expect(busy).toContain('ast-flick-slot--button');
-    expect(busy).toContain('Apply Astrolabe tags');
-    expect(busy.indexOf('ast-flick-slot--button')).toBeLessThan(busy.indexOf('Apply Astrolabe tags'));
+    expect(busy).toContain('Apply tags');
+    expect(busy.indexOf('ast-flick-slot--button')).toBeLessThan(busy.indexOf('Apply tags'));
   });
 });

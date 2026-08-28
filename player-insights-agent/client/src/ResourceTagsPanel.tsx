@@ -73,9 +73,9 @@ export function ResourceTagResults({ summary }: { summary: TagSummary }) {
 
 export function ResourceTagsApplyButton({ running, onClick }: { running: boolean; onClick?: () => void }) {
   return (
-    <Button variant="outline" type="button" disabled={running} aria-busy={running} onClick={onClick}>
+    <Button type="button" disabled={running} aria-busy={running} onClick={onClick}>
       {running ? <ConceptFlicker seat="button" /> : null}
-      Apply Astrolabe tags
+      Apply tags
     </Button>
   );
 }
@@ -108,8 +108,8 @@ export function ResourceTagsPanel() {
 
   return (
     <tr className="settings-resource-tags">
-      <td className="exp-feature-status">
-        <ExperimentalFeatureName>Astrolabe resource tags</ExperimentalFeatureName>
+      <td>
+        <ExperimentalFeatureName>Resource tags</ExperimentalFeatureName>
         <p className="settings-row-note">
           <code>system_billing=astrolabe</code>
         </p>
@@ -120,7 +120,7 @@ export function ResourceTagsPanel() {
           </p>
         ) : null}
       </td>
-      <td>
+      <td className="exp-feature-status">
         <span
           className={`ast-pill ${
             running ? 'ast-pill--warn' : error ? 'ast-pill--neg' : summary ? 'ast-pill--pos' : 'ast-pill--neutral'

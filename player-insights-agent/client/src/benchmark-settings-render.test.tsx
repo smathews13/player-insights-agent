@@ -10,10 +10,14 @@ describe('Settings → Experimental benchmarking cluster', () => {
     expect(markup).toContain('Judge model');
     expect(markup).toContain('Groundedness');
     expect(markup).toContain('Guidelines');
-    expect(markup).toContain('Baseline vs candidate');
     expect(markup).toContain('Conversation completeness');
     expect(markup).toContain('Custom judges');
     expect(markup).toContain('Custom judge prompt');
+    expect(markup).toContain('Add this custom judge');
+    expect(markup).not.toContain('bench-guidelines-help');
+    expect(markup).not.toContain('Baseline vs candidate');
+    expect(markup).not.toContain('Compare side A');
+    expect(markup).not.toContain('Compare side B');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('Turn Benchmarking on above to edit these');
     expect(markup).not.toContain('Eval set');

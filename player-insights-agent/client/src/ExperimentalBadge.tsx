@@ -26,7 +26,7 @@ export function ExperimentalFeatureName({ children }: { children: ReactNode }) {
   );
 }
 
-export function ExperimentalStatus({
+export function StateStatus({
   on,
   onLabel,
   offLabel,
@@ -41,3 +41,6 @@ export function ExperimentalStatus({
     </span>
   );
 }
+
+/** Backwards-compatible name for the Experimental feature table. */
+export const ExperimentalStatus = StateStatus;

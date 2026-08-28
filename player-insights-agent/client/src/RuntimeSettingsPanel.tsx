@@ -14,7 +14,8 @@ import { AppSelect } from './AppSelect';
 import { adoptRuntimeEntityStyles, previewRuntimeTypography } from './runtime-entity-styles';
 import { wholeNumberFrom } from './runtime-number';
 import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
-import { Input, Switch } from './ui';
+import { StateSwitch } from './StateSwitch';
+import { Input } from './ui';
 
 const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
   { value: 'dm-sans', label: 'DM Sans' },
@@ -134,7 +135,7 @@ function AnswerRow({
           <span className="runtime-answer-name">{label}</span>
           <p className="runtime-control-note">{help}</p>
         </div>
-        <Switch checked={checked} onCheckedChange={onToggle} aria-label={label} />
+        <StateSwitch checked={checked} onCheckedChange={onToggle} aria-label={label} />
       </div>
       {checked && children ? <div className="runtime-answer-body">{children}</div> : null}
     </div>
@@ -331,13 +332,13 @@ export function RuntimeSettingsPanel({
             <h4 className="runtime-section-label">Loop structure</h4>
             <div className="runtime-loop-row">
               {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value), {
-                labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline',
+                labelClassName: 'runtime-loop-label runtime-loop-label--agent ast-pill',
                 help: 'Reasoning steps in one Ask.',
                 helpId: 'runtime-max-steps-help',
                 placeholder: '10',
               })}
               {number('Max tool calls', settings.loop.maxToolCalls, 1, 40, (value) => setLoop('maxToolCalls', value), {
-                labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline',
+                labelClassName: 'runtime-loop-label runtime-loop-label--tool ast-pill',
                 help: 'Tools it may call in one Ask.',
                 helpId: 'runtime-max-tool-calls-help',
                 placeholder: '15',
@@ -349,7 +350,7 @@ export function RuntimeSettingsPanel({
                 200,
                 (value) => setLoop('maxRunSeconds', value),
                 {
-                  labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline',
+                  labelClassName: 'runtime-loop-label runtime-loop-label--budget ast-pill',
                   help: 'Seconds before the run stops.',
                   helpId: 'runtime-run-budget-help',
                   placeholder: '150',
@@ -371,7 +372,7 @@ export function RuntimeSettingsPanel({
               {guidance('Guidance', settings.answer.takeawayGuidance, (value) => setAnswer('takeawayGuidance', value), {
                 help: 'Tone for that line.',
                 helpId: 'runtime-takeaway-guidance-help',
-                placeholder: 'Lead with the count.',
+                placeholder: 'Example: 42 teams increased weekly usage.',
               })}
             </AnswerRow>
             <AnswerRow
@@ -422,10 +423,11 @@ export function RuntimeSettingsPanel({
                 <AppSelect
                   label="Order"
                   ariaLabel="Order"
+                  showLabel={false}
                   value={settings.answer.figuresOrder}
                   onValueChange={(value) => setAnswer('figuresOrder', value)}
                   options={[
-                    { value: 'as-ranked', label: 'As the agent ranks them' },
+                    { value: 'as-ranked', label: 'Recommended order' },
                     { value: 'totals-first', label: 'Totals first' },
                     { value: 'averages-first', label: 'Averages first' },
                   ]}
@@ -449,12 +451,13 @@ export function RuntimeSettingsPanel({
                 <AppSelect
                   label="Types"
                   ariaLabel="Types"
+                  showLabel={false}
                   value={settings.answer.chartsTypes}
                   onValueChange={(value) => setAnswer('chartsTypes', value)}
                   options={[
-                    { value: 'auto', label: 'Auto from the data shape' },
-                    { value: 'bar', label: 'Bar only' },
-                    { value: 'bar-line', label: 'Bar and line' },
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'bar', label: 'Bar' },
+                    { value: 'bar-line', label: 'Bar + line' },
                   ]}
                 />
               </label>
@@ -507,8 +510,10 @@ export function RuntimeSettingsPanel({
               <div>
                 <p className="settings-row-label">Dark</p>
               </div>
-              <Switch
+              <StateSwitch
                 checked={settings.colorScheme === 'dark'}
+                onLabel="Dark"
+                offLabel="Light"
                 onCheckedChange={(on) => {
                   appearancePreviewed.current = true;
                   const colorScheme = previewColorScheme(on);

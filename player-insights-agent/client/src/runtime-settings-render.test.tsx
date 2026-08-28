@@ -57,16 +57,26 @@ describe('runtime and appearance modal sections', () => {
     expect(source).not.toContain('Changes how relative dates');
     expect(source).toContain('Reasoning steps in one Ask.');
     expect(source).toContain('placeholder="America/New_York"');
-    expect(source).toContain('Lead with the count.');
+    expect(source).toContain('Example: 42 teams increased weekly usage.');
   });
 
-  it('badges only the three Loop structure number labels', () => {
-    expect(source.match(/labelClassName: 'runtime-loop-label ast-pill ast-pill--neutral-outline'/g) ?? []).toHaveLength(
-      3
-    );
+  it('maps the three Loop structure labels to Architecture’s semantic accents', () => {
+    expect(source).toContain("runtime-loop-label runtime-loop-label--agent ast-pill");
+    expect(source).toContain("runtime-loop-label runtime-loop-label--tool ast-pill");
+    expect(source).toContain("runtime-loop-label runtime-loop-label--budget ast-pill");
     expect(source).toContain('labelClassName={extra.labelClassName}');
     expect(styles).toMatch(/\.runtime-loop-label \{[^}]*justify-self:\s*start/);
+    expect(styles).toMatch(/\.runtime-loop-label--agent \{[^}]*--ast-primary-control-border/);
+    expect(styles).toMatch(/\.runtime-loop-label--tool \{[^}]*--db-teal-600/);
+    expect(styles).toMatch(/\.runtime-loop-label--budget \{[^}]*--ast-blue/);
     expect(source).not.toMatch(/guidance\([^)]*runtime-loop-label/s);
+  });
+
+  it('does not repeat the Runtime select field labels inside their triggers', () => {
+    expect(source.match(/showLabel=\{false\}/g) ?? []).toHaveLength(2);
+    expect(source).toContain("label: 'Recommended order'");
+    expect(source).toContain("label: 'Auto'");
+    expect(source).toContain("label: 'Bar + line'");
   });
 
   it('gives the Architecture answer-contract links a stable destination', () => {

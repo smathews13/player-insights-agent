@@ -10,7 +10,7 @@ import { DEFAULT_BENCHMARK_SETTINGS, type BenchmarkSettings } from '../../shared
 import { ExperimentalStatus } from './ExperimentalBadge';
 import { benchmarkSettingsFromResponse } from './benchmark-settings-api';
 import { saveRetryAfterLoad, type SettingsLoadResult, type SettingsSaveState } from './settings-save-state';
-import { Input, Switch, Textarea } from './ui';
+import { Button, Input, Switch, Textarea } from './ui';
 import type { Run, RunTrace } from './app-types';
 
 export const BENCHMARK_SETTINGS_FORM_ID = 'settings-benchmark-form';
@@ -28,7 +28,7 @@ const AGENT_JUDGE_COPY: Record<AgentJudgeId, { label: string; help: string; aria
   },
   guidelines: {
     label: 'Guidelines',
-    help: 'Follows the Guidelines text below.',
+    help: 'Applies the deployment’s saved Guidelines rubric.',
     aria: 'Guidelines judge',
   },
 };
@@ -363,9 +363,9 @@ export function BenchmarkSettingsPanel({
             onChange={(event) => setCustomDraft((current) => ({ ...current, prompt: event.target.value }))}
           />
         </SettingField>
-        <button
+        <Button
           type="button"
-          className="tile-link"
+          className="benchmark-add-judge"
           disabled={!enabled}
           onClick={() => {
             const next = {
@@ -379,48 +379,7 @@ export function BenchmarkSettingsPanel({
           }}
         >
           Add this custom judge
-        </button>
-
-        <SettingField
-          label="Guidelines"
-          help="Text the Guidelines judge scores against."
-          helpId="bench-guidelines-help"
-        >
-          <Textarea
-            aria-label="Guidelines"
-            aria-describedby="bench-guidelines-help"
-            rows={3}
-            placeholder="Stay accurate, professional, and inside the governed data."
-            value={settings.guidelinesText}
-            onChange={(event) => setSettings((current) => ({ ...current, guidelinesText: event.target.value }))}
-          />
-        </SettingField>
-
-        <div className="benchmark-settings-compare">
-          <p className="runtime-section-label">Baseline vs candidate</p>
-          <SettingField label="Baseline" help="First serving endpoint Lab scores." helpId="bench-baseline-help">
-            <Input
-              type="text"
-              autoComplete="off"
-              aria-label="Compare side A"
-              aria-describedby="bench-baseline-help"
-              placeholder="current"
-              value={settings.compareSideA}
-              onChange={(event) => setSettings((current) => ({ ...current, compareSideA: event.target.value }))}
-            />
-          </SettingField>
-          <SettingField label="Candidate" help="Second endpoint to compare." helpId="bench-candidate-help">
-            <Input
-              type="text"
-              autoComplete="off"
-              aria-label="Compare side B"
-              aria-describedby="bench-candidate-help"
-              placeholder="serving-endpoint-name"
-              value={settings.compareSideB}
-              onChange={(event) => setSettings((current) => ({ ...current, compareSideB: event.target.value }))}
-            />
-          </SettingField>
-        </div>
+        </Button>
       </fieldset>
     </form>
   );

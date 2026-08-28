@@ -9,7 +9,7 @@ import {
 } from '../../shared/egress-contract';
 import { adoptEgressControls, egressControlsSnapshot } from './egress-policy';
 import { controlAccessibleName, enforcementPill } from './egress-panel';
-import { Switch } from './ui';
+import { StateSwitch } from './StateSwitch';
 
 export const EGRESS_SETTINGS_FORM_ID = 'settings-egress-form';
 
@@ -31,7 +31,13 @@ function ControlRow({
           {path.label}
           <span className={`egress-mode egress-mode-${path.enforcement}`}>{pill.label}</span>
         </p>
-        <Switch checked={allowed} onCheckedChange={onChange} aria-label={controlAccessibleName(path)} />
+        <StateSwitch
+          checked={allowed}
+          onLabel="Allowed"
+          offLabel="Blocked"
+          onCheckedChange={onChange}
+          aria-label={controlAccessibleName(path)}
+        />
       </div>
       <p className="egress-facts">{path.where}{blocked}</p>
     </div>

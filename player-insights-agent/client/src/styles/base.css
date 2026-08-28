@@ -294,6 +294,20 @@ html:not([data-theme='dark']) .app-sky {
   color: var(--ast-info-text);
   font-weight: 500;
 }
+
+/* Every binary control says its state in words as well as thumb position. */
+.state-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.state-switch > .ast-pill {
+  min-width: 48px;
+  justify-content: center;
+}
 /*
  * Keyboard focus is an action, so it is blue, and it is the same blue everywhere.
  * AppKit draws its own ring from --ring at partial alpha, which on a white shell was

@@ -15,6 +15,8 @@ interface AppSelectProps<T extends string> {
   onValueChange: (value: T) => void;
   className?: string;
   contentClassName?: string;
+  /** Hide the repeated visible label when a field label already names the control. */
+  showLabel?: boolean;
   contentProps?: Pick<ComponentProps<typeof SelectContent>, 'align' | 'position' | 'sideOffset'>;
 }
 
@@ -34,6 +36,7 @@ export function AppSelect<T extends string>({
   onValueChange,
   className = '',
   contentClassName = '',
+  showLabel = true,
   contentProps,
 }: AppSelectProps<T>) {
   const selected = options.find((option) => option.value === value) ?? options[0];
@@ -44,10 +47,12 @@ export function AppSelect<T extends string>({
         className={`app-select-trigger ${className}`.trim()}
         aria-label={`${ariaLabel}: ${selected?.label ?? ''}`}
       >
-        <span className="app-select-label">{label}</span>
-        <span className="app-select-separator" aria-hidden="true">
-          ·
-        </span>
+        {showLabel ? <span className="app-select-label">{label}</span> : null}
+        {showLabel ? (
+          <span className="app-select-separator" aria-hidden="true">
+            ·
+          </span>
+        ) : null}
         <span className="app-select-value">{selected?.label ?? ''}</span>
       </SelectTrigger>
       <SelectContent

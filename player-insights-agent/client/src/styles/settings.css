@@ -1102,6 +1102,24 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   line-height: 1.25;
 }
 
+.runtime-loop-label--agent {
+  border-color: var(--ast-primary-control-border);
+  background: color-mix(in srgb, var(--ast-primary-control-border) 14%, var(--card));
+  color: var(--ast-primary-control-border);
+}
+
+.runtime-loop-label--tool {
+  border-color: var(--db-teal-600);
+  background: color-mix(in srgb, var(--db-teal-600) 14%, var(--card));
+  color: var(--db-teal-600);
+}
+
+.runtime-loop-label--budget {
+  border-color: var(--ast-blue);
+  background: color-mix(in srgb, var(--ast-blue) 14%, var(--card));
+  color: var(--ast-blue);
+}
+
 .runtime-field {
   gap: 4px;
 }
@@ -1706,9 +1724,9 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   pointer-events: none;
 }
 
-.benchmark-settings-compare {
-  display: grid;
-  gap: 10px;
+.benchmark-add-judge {
+  width: fit-content;
+  justify-self: center;
 }
 
 .benchmark-settings-link {

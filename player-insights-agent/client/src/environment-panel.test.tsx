@@ -64,9 +64,9 @@ describe('Environment panel', () => {
 
   it('does not offer the Astrolabe tag repair on this pane', () => {
     const markup = renderToStaticMarkup(<EnvironmentPanel initialData={INFO} />);
-    expect(markup).not.toContain('Astrolabe resource tags');
+    expect(markup).not.toContain('Resource tags');
     expect(markup).not.toContain('system_billing=astrolabe');
-    expect(markup).not.toContain('Apply Astrolabe tags');
+    expect(markup).not.toContain('Apply tags');
   });
 
   it('keeps only complete string rows from hostile payloads', () => {

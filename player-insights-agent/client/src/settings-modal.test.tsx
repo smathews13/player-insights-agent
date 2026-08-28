@@ -85,14 +85,14 @@ describe('Settings modal', () => {
 
   it('puts the legacy-deployment tag repair on Experimental, not Environment', () => {
     const environment = render('environment');
-    expect(environment).not.toContain('Astrolabe resource tags');
-    expect(environment).not.toContain('Apply Astrolabe tags');
+    expect(environment).not.toContain('Resource tags');
+    expect(environment).not.toContain('Apply tags');
 
     const experimental = render('experimental');
-    expect(experimental).toContain('Astrolabe resource tags');
+    expect(experimental).toContain('Resource tags');
     expect(experimental).toContain('system_billing=astrolabe');
-    expect(experimental).toContain('Apply Astrolabe tags');
-    expect(experimental).not.toContain('Astrolabe resource tags · Experimental');
+    expect(experimental).toContain('Apply tags');
+    expect(experimental).not.toContain('Resource tags · Experimental');
     expect(experimental).not.toContain('retired');
   });
 
@@ -127,9 +127,9 @@ describe('Settings modal', () => {
     expect(badges).toBe(4);
     expect(markup).toContain('PII egress judge');
     expect(markup).toContain('SP identities');
-    expect(markup).toContain('Astrolabe resource tags');
+    expect(markup).toContain('Resource tags');
     expect(markup).toContain('Benchmarking');
-    expect(markup).not.toContain('Astrolabe resource tags · Experimental');
+    expect(markup).not.toContain('Resource tags · Experimental');
   });
 
   it('puts personas on Identity, grayed until the deployment-wide SP identities pivot is on', () => {
@@ -238,18 +238,18 @@ describe('Settings modal', () => {
     expect(source).not.toContain('go to Identity to assign');
   });
 
-  it('puts PII egress, SP identities, and resource tags above the benchmarking Candidate cluster', () => {
+  it('puts PII egress, SP identities, and resource tags above the benchmarking controls', () => {
     const markup = render('experimental');
     const pii = markup.indexOf('PII egress judge');
     const identities = markup.indexOf('SP identities');
-    const tags = markup.indexOf('Astrolabe resource tags');
+    const tags = markup.indexOf('Resource tags');
     const benchmarking = markup.indexOf('>Benchmarking<');
-    const candidate = markup.indexOf('>Candidate<');
+    const addJudge = markup.indexOf('Add this custom judge');
     expect(pii).toBeGreaterThan(-1);
     expect(identities).toBeGreaterThan(pii);
     expect(tags).toBeGreaterThan(identities);
     expect(benchmarking).toBeGreaterThan(tags);
-    expect(candidate).toBeGreaterThan(benchmarking);
+    expect(addJudge).toBeGreaterThan(benchmarking);
   });
 
   it('puts MLflow and bake-off controls on Experimental, disabled while Benchmarking is off', () => {
@@ -257,7 +257,7 @@ describe('Settings modal', () => {
     expect(off).toContain('MLflow experiment');
     expect(off).toContain('Always-on traces');
     expect(off).toContain('Judge model');
-    expect(off).toContain('Baseline vs candidate');
+    expect(off).not.toContain('Baseline vs candidate');
     expect(off).not.toContain('Eval set');
     expect(off).toContain('disabled=""');
     expect(off).not.toContain('>Save</button>');
